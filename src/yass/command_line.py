@@ -7,7 +7,7 @@ import yass
 from yass.preprocessing import Preprocessor
 from yass.neuralnet import NeuralNetDetector
 from yass.mainprocess import Mainprocessor
-from yass.deconvolution import Deconvolution
+from yass.deconvolute import Deconvolution
 
 
 def main():

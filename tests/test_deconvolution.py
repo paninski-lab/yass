@@ -6,7 +6,7 @@ import pytest
 import yass
 from yass.preprocessing import Preprocessor
 from yass.mainprocess import Mainprocessor
-from yass.deconvolution import Deconvolution
+from yass.deconvolute import Deconvolution
 
 from yass import preprocess
 from yass import process
