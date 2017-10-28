@@ -72,6 +72,13 @@ class FrozenJSON(object):
 
         return value
 
+    def __repr__(self):
+        if self._path_to_file:
+            return ('YASS config file loaded from: {}'
+                    .format(self._path_to_file))
+        else:
+            return 'YASS config file loaded with: {}'.format(self._data)
+
 
 class Config(FrozenJSON):
     """
