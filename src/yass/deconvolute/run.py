@@ -14,8 +14,13 @@ def run(spike_train, spikes_left, templates):
     templates
 
     Returns
-    ------
+    -------
     spike_train
+
+    Examples
+    --------
+
+    .. literalinclude:: ../examples/deconvolute.py
     """
     CONFIG = read_config()
     deconv = Deconvolution(CONFIG, np.transpose(templates, [1, 0, 2]),

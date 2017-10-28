@@ -49,3 +49,6 @@ Processing
 
 Deconvolution
 -------------
+
+.. automodule:: yass.deconvolute.run
+    :members:
