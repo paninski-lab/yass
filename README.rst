@@ -12,10 +12,38 @@ Installing the last stable version:
 
    pip install git+https://github.com/paninski-lab/yass
 
+Example
+-------
+
+Quick example of YASS, try it out:
+
+.. code-block:: shell
+
+    # clone the repo and move to the main folder
+    git clone https://github.com/paninski-lab/yass
+    cd yass
+
+    # install package (this is the same as running
+    # pip install git+https://github.com/paninski-lab/yass)
+    pip install .
+
+    # move to the examples folder and run yass in the sample data
+    yass config_sample.yaml
+
+    # see the spike train
+    cat data/spike_train.csv
+
+
+You can also use YASS in Python scripts. See the documentation for details.
+
 
 Documentation
 -------------
 
+Documentation hosted at `https://yass.readthedocs.io/en/latest/`_
+
+
+.. _https://yass.readthedocs.io/en/latest/: https://yass.readthedocs.io/en/latest/
 
 Running tests
 -------------
