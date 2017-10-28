@@ -1,0 +1,2 @@
+detctionMethod: ['nn', 'threshold']
+clusteringMethod: ['dpmm', 'MFM']

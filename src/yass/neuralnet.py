@@ -38,7 +38,7 @@ class NeuralNetDetector(object):
         with tf.Session() as sess:
         #config = tf.ConfigProto(device_count = {'GPU': 0})
         #with tf.Session(config=config) as sess:
-            path_to_aefile = pkg_resources.resource_filename('yass', 'models/{}'.format(self.config.neural_network['aeFilename']))
+            path_to_aefile = pkg_resources.resource_filename('yass', 'assets/models/{}'.format(self.config.neural_network['aeFilename']))
             self.saver_ae.restore(sess, path_to_aefile)
             return sess.run(self.W_ae)
 
@@ -115,8 +115,8 @@ class NeuralNetDetector(object):
         with tf.Session() as sess:
         #config = tf.ConfigProto(device_count = {'GPU': 0})
         #with tf.Session(config=config) as sess:
-            path_to_nnfile = pkg_resources.resource_filename('yass', 'models/{}'.format(self.config.neural_network['nnFilename']))
-            path_to_aefile = pkg_resources.resource_filename('yass', 'models/{}'.format(self.config.neural_network['aeFilename']))
+            path_to_nnfile = pkg_resources.resource_filename('yass', 'assets/models/{}'.format(self.config.neural_network['nnFilename']))
+            path_to_aefile = pkg_resources.resource_filename('yass', 'assets/models/{}'.format(self.config.neural_network['aeFilename']))
 
             self.saver.restore(sess, path_to_nnfile)
             self.saver_ae.restore(sess, path_to_aefile)
@@ -269,7 +269,7 @@ class NeuralNetTriage(object):
         self.o_layer = tf.squeeze(tf.add(tf.matmul(layer2, W3), b3))
         self.tf_prob = tf.sigmoid(self.o_layer)
         
-        self.ckpt_loc = pkg_resources.resource_filename('yass', 'models/{}'.format(self.config.neural_network['nnTriageFilename']))
+        self.ckpt_loc = pkg_resources.resource_filename('yass', 'assets/models/{}'.format(self.config.neural_network['nnTriageFilename']))
         self.saver_triagenet = tf.train.Saver({"W1": W1,"W2": W2,"W3": W3,"b1": b1,"b2": b2,"b3": b3})
     
     def nn_triage(self, wf, th):

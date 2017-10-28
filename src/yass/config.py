@@ -1,3 +1,4 @@
+from functools import reduce
 from os import path
 from collections import Mapping, MutableSequence
 import keyword
@@ -5,6 +6,7 @@ import logging
 
 import yaml
 import numpy as np
+from pkg_resources import resource_filename
 
 from . import geometry as geom
 
@@ -91,6 +93,8 @@ class Config(FrozenJSON):
     After initialization, attributes cannot be changed
     """
     def __init__(self, mapping):
+        self._validate(mapping)
+
         super(Config, self).__init__(mapping)
 
         self._logger = logging.getLogger(__name__)
@@ -175,6 +179,26 @@ class Config(FrozenJSON):
         parameters that need to be computed *right after* initialization
         """
         self._data[name] = value
+
+    def _validate(self, mapping):
+        """Validate values in the input dictionary
+        """
+        path_to_validator = resource_filename('yass',
+                                              'assets/config_validator.yaml')
+        with open(path_to_validator) as f:
+            validator = yaml.load(f)
+
+        for key, value in mapping.items():
+            valid_values = validator.get(key)
+            if valid_values:
+                if value not in valid_values:
+                    valid_values_pretty = self._pretty_iterator(valid_values)
+                    raise ValueError('{} is not a valid value for {}. '
+                                     'Valid values are: {}'
+                                     .format(value, key, valid_values_pretty))
+
+    def _pretty_iterator(self, it):
+        return reduce(lambda x, y: x+', '+y, it)
 
 
 def sizeof(dtype):
