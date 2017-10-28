@@ -38,5 +38,6 @@ def main():
         idx_keep[idx_c[np.concatenate(([True], np.diff(spikeTrain[idx_c,0]) > 1))]] = 1
     spikeTrain = spikeTrain[idx_keep]
 
-    np.savetxt(os.path.join(cfg.root, cfg.spikeTrainName),
-               spikeTrain, fmt='%i, %i')
+    path_to_file = os.path.join(cfg.root, cfg.spikeTrainName)
+    np.savetxt(path_to_file, spikeTrain, fmt='%i, %i')
+    print('Done, spike train saved in: {}'.format(path_to_file))
