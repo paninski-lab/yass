@@ -28,6 +28,7 @@ Quick example of YASS, try it out:
     pip install .
 
     # move to the examples folder and run yass in the sample data
+    cd examples
     yass config_sample.yaml
 
     # see the spike train
