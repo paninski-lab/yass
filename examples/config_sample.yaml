@@ -1,6 +1,4 @@
-# SAMPLE CONFIGURATION FILE
-
-# DATA FILES
+# DATA
 # data root folder
 root: data/
 # binary recording filename
@@ -21,7 +19,6 @@ nChan: 10
 spatialRadius: 70
 
 # TURN ON/OFF MODULES
-# 0 for filtered recording
 doFilter: True
 doTriage: True
 doCoreset: True

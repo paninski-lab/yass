@@ -8,7 +8,10 @@ Using YASS pre-built pipelines
 YASS configuration file
 ***********************
 
-[Explain how the configuration file works and the meaning of each parameter]
+YASS is configured using a YAML file, below is an example of such configuration:
+
+.. literalinclude:: ../examples/config_sample.yaml
+
 
 Running YASS from the command line
 **********************************
