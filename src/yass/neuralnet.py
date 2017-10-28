@@ -39,7 +39,7 @@ class NeuralNetDetector(object):
         #config = tf.ConfigProto(device_count = {'GPU': 0})
         #with tf.Session(config=config) as sess:
             path_to_aefile = pkg_resources.resource_filename('yass', 'models/{}'.format(self.config.neural_network['aeFilename']))
-            self.saver_ae.restore(path_to_aefile)
+            self.saver_ae.restore(sess, path_to_aefile)
             return sess.run(self.W_ae)
 
 
