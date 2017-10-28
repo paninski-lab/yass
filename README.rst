@@ -4,6 +4,17 @@ YASS: Yet Another Spike Sorter
 .. image:: https://readthedocs.org/projects/yass/badge/?version=latest
 
 
+YASS is a state-of-the-art method for spike sorting.
+
+We are currently working on improving YASS to be usable in different types
+of neural data. The neural network detector only works with [ADD SPECIFICATION]. We will incorporate more models soon.
+
+Reference
+---------
+
+Lee, J. et al. (2017). YASS: Yet another spike sorter. Neural Information Processing Systems. Available in biorxiv: https://www.biorxiv.org/content/early/2017/06/19/151928
+
+
 Installation
 ------------
 
@@ -17,7 +28,10 @@ Installing the last stable version:
 Example
 -------
 
-Quick example of YASS, try it out:
+Quick example of YASS using a sample of the neuropixel data from `Nick
+Steinmetz`_:
+
+.. _Nick Steinmetz: http://data.cortexlab.net/singlePhase3/
 
 .. code-block:: shell
 
@@ -82,9 +96,3 @@ Mantainers
 
 .. _Peter Lee: https://github.com/pjl4303
 .. _Eduardo Blancas: https://edublancas.github.io/
-
-
-Reference
----------
-
-Lee, J. et al. (2017). YASS: Yet another spike sorter. Neural Information Processing Systems. Available in biorxiv: https://www.biorxiv.org/content/early/2017/06/19/151928
