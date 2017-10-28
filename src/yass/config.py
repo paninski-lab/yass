@@ -24,6 +24,9 @@ class FrozenJSON(object):
         # save path for reference, helps debugging
         obj._path_to_file = path_to_file
 
+        logger = logging.getLogger(__name__)
+        logger.debug('Loaded from file: {}'.format(obj._path_to_file))
+
         return obj
 
     def __new__(cls, arg):
@@ -38,17 +41,7 @@ class FrozenJSON(object):
     def __init__(self, mapping):
         self._logger = logging.getLogger(__name__)
         self._logger.debug('Loaded with params: {}'.format(mapping))
-
-        # set a value of None in _path_to_file if the property has not been
-        # set, this means the object was initialized directly (as opposed
-        # to using the from_yaml method, so no file was used)
-        self._path_to_file = (self._path_to_file if
-                              hasattr(self, '_path_to_file') else None)
-
-        self._logger.debug('Loaded from file: {}, path: {}'
-                           .format(self._path_to_file is not None,
-                                   self._path_to_file if self._path_to_file
-                                   else 'Not loaded from file'))
+        self._path_to_file = None
 
         self._data = {}
 
