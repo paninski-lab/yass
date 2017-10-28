@@ -1,6 +1,8 @@
 YASS: Yet Another Spike Sorter
 ================================
 
+.. image:: https://readthedocs.org/projects/yass/badge/?version=latest
+
 
 Installation
 ------------
@@ -41,10 +43,10 @@ You can also use YASS in Python scripts. See the documentation for details.
 Documentation
 -------------
 
-Documentation hosted at `https://yass.readthedocs.io/en/latest/`_
+Documentation hosted at `https://yass.readthedocs.io`_
 
 
-.. _https://yass.readthedocs.io/en/latest/: https://yass.readthedocs.io/en/latest/
+.. _https://yass.readthedocs.io: https://yass.readthedocs.io
 
 Running tests
 -------------
