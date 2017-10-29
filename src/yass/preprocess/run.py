@@ -192,7 +192,6 @@ def run():
     logger.info("\tsaving recording:\t{0} seconds".format(time['b']))
     logger.info("\tgetting waveforms:\t{0} seconds".format(time['e']))
 
-
     return score, clr_idx, spike_times
 
 
