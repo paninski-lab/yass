@@ -149,7 +149,14 @@ class BatchProcessor(object):
                         self.n_batches, self.max_memory))
 
     def _add_zero_buffer(self, rec, size, option):
-        """
+        """Add zeros to an array
+
+        rec: np.ndarray
+            The data that will be modified
+        size: int
+            Number of observations to add
+        option: str ('left', 'right', 'both')
+            Where to add the buffer
         """
         buff = np.zeros((size, rec.shape[1]))
 
