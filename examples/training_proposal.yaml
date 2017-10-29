@@ -1,0 +1,16 @@
+# NN training
+# train nn and save
+nnTrain: 0
+# 'recording' : raw recording,
+inputType: 'recording'
+# 'sorted_recording' : raw recording with spike train, 'templates' : templates
+# 'rectangular', 'non_rectangular'
+ChannelGeometry: 'rectangular'
+# num. of iter. in training
+nnIteration: 100000
+# size of minibatch in training
+nnBatch: 256
+# training step size
+nnTrainStepSize: 0.001
+# L2 reg. scale
+nnL2RegScale: 0.00000005
