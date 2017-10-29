@@ -1,15 +1,12 @@
 """
 Using the indexer module to read multi-channel recordings
 """
-from yass import indexer
-
-import numpy as np
-
-shape = (10000000, 10)
-big_matrix = np.array(range(100000000)).reshape(shape)
-big_matrix.tofile('data.bin')
+from yass import Indexer
 
 
-data = np.memmap('data.bin', dtype='int64', shape=shape)
+# initialize indexer
+indexer = Indexer('path/to/data.bin', n_channels=50,
+                  mode='long', dtype='float64')
 
-indexer.read(observations=(1000, 2000), channels=(1, 5, 6))
+# read some data
+indexer.read()

@@ -6,7 +6,7 @@ import tempfile
 import numpy as np
 import pytest
 
-from yass.index import Indexer
+from yass import Indexer
 
 
 @pytest.fixture

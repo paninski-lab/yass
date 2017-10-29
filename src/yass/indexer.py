@@ -1,13 +1,10 @@
-"""
-Functions for indexing recordings
-"""
 from __future__ import division
 
 import numpy as np
 
 
 class Indexer(object):
-    """Eficicnet indexing for large mult-channel recordings
+    """Efficient indexing for large mult-channel recordings
 
     Parameters
     ----------

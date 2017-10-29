@@ -4,6 +4,7 @@ from logging import NullHandler
 import tensorflow as tf
 
 from .config import Config
+from .indexer import Indexer
 
 logging.getLogger(__name__).addHandler(NullHandler())
 
