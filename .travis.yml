@@ -8,7 +8,6 @@ install:
   - pip install --upgrade pip
   - pip install -r requirements.txt
 script:
-  - cd $HOME/build/paninski-lab/yass/yass
   - pip install .
   - pytest
 after_success: coveralls
