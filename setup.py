@@ -28,6 +28,10 @@ INSTALL_REQUIRES = [
     'progressbar2'
 ]
 
+# pass an empty INSTALL_REQUIRES if building the docs, to avoid breaking the
+# build, modules are mocked in conf.py
+INSTALL_REQUIRES = [] if os.environ.get('READTHEDOCS') else INSTALL_REQUIRES
+
 here = os.path.abspath(os.path.dirname(__file__))
 
 with io.open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:

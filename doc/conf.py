@@ -40,6 +40,11 @@ extensions = [
     'numpydoc',
 ]
 
+# mock dependencies
+# http://www.sphinx-doc.org/en/stable/ext/autodoc.html#confval-autodoc_mock_imports
+autodoc_mock_imports = ['numpy', 'scipy', 'sklearn', 'tensorflow', 'yaml',
+                        'progressbar']
+
 numpydoc_show_class_members = False
 
 # available options: http://blockdiag.com/en/blockdiag/sphinxcontrib.html
