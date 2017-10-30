@@ -1,7 +1,7 @@
 YASS: Yet Another Spike Sorter
 ================================
 
-.. image:: https://travis-ci.org/paninski-lab/yass.svg?branch=dev
+.. image:: https://travis-ci.org/paninski-lab/yass.svg?branch=master
     :target: https://travis-ci.org/paninski-lab/yass
 
 .. image:: https://readthedocs.org/projects/yass/badge/?version=latest
