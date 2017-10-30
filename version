@@ -1,9 +1,11 @@
+#!/usr/bin/env python
 """
 Script for creating new releases
 """
 import ast
 import re
 from subprocess import call as _call
+from functools import reduce
 
 import click
 
@@ -15,9 +17,9 @@ def replace_in_file(path_to_file, original, replacement):
     """
     with open(path_to_file, 'r+') as f:
         content = f.read()
-        content.replace(original, replacement)
+        updated = content.replace(original, replacement)
         f.seek(0)
-        f.write(content)
+        f.write(updated)
         f.truncate()
 
 
@@ -64,7 +66,7 @@ class Versioner(object):
     def bump_up_version(cls):
         """
         Gets gets a release version and returns a the next value value.
-        e.g. v1-2-5 -> v1-2-6dev
+        e.g. 1.2.5 -> 1.2.6dev
         """
         # Get current version
         current = cls.current_version()
@@ -73,45 +75,44 @@ class Versioner(object):
             raise ValueError('Current version is dev version, new dev '
                              'versions can only be made from release versions')
 
-        # Get Z from vX-Y-Z and sum 1
-        new_subversion = (int(re.search(r'v\d+-\d+-(\d+)', current).group(1)) +
-                          1)
+        # Get Z from X.Y.Z and sum 1
+        new_subversion = int(current.split('.')[-1]) + 1
 
         # Replace new_subversion in current version
-        new_version = re.sub(r'(v\d+-\d+-)(\d+)', r'\g<1>{}dev'
-                             .format(new_subversion), current)
+        elements = current.split('.')
+        elements[-1] = new_subversion
+        new_version = reduce(lambda x, y: str(x)+'.'+str(y), elements)+'dev'
 
         return new_version
 
     @classmethod
     def save_version(cls, new_version, message='', tag=False):
         """
-        Replaces version in  app.yaml and optionally creates a tag in the git
+        Replaces version in  __init__ and optionally creates a tag in the git
         repository (also saves a commit)
         """
         current = cls.current_version()
 
         # Save version in app.yaml
-        replace_in_file('app.yaml', {current: new_version})
+        replace_in_file('src/yass/__init__.py', current, new_version)
 
         # Create tag
         if tag:
             # Run git add and git status
             click.echo('Adding new changes to the repository...')
-            _call(['git', 'add', '--all'])
-            _call(['git', 'status'])
+            call(['git', 'add', '--all'])
+            call(['git', 'status'])
 
             # Commit repo with updated dev version
             click.echo('Creating new commit release version...')
             msg = 'Release {}'.format(new_version)
-            _call(['git', 'commit', '-m', msg])
+            call(['git', 'commit', '-m', msg])
 
-            tag_name = new_version.replace('-', '.')
-            click.echo('Creating tag {}...'.format(tag_name))
-            _call(['git', 'tag', '-a', tag_name, '-m', message])
+            click.echo('Creating tag {}...'.format(new_version))
+            call(['git', 'tag', '-a', new_version, '-m', message])
 
-            click.echo('Pushing tags...')
-            _call(['git', 'push', '--tags'])
+            # click.echo('Pushing tags...')
+            # call(['git', 'push', '--tags'])
 
 
 @click.group()
@@ -122,7 +123,7 @@ def cli():
 @cli.command(help='Sets a new version for the project: saves the new version '
                   'in the app.yaml version key, creates a tag with the '
                   'version number and bumps up version')
-def version():
+def new():
     current = Versioner.current_version()
     release = Versioner.release_version()
 
@@ -153,6 +154,14 @@ def version():
     click.echo('Creating new commit with new dev version...')
     msg = 'Bumps up project to version {}'.format(bumped_version)
     call(['git', 'commit', '-m', msg])
+
+    click.echo('Version {} was created, you are now in {}'
+               .format(release, bumped_version))
+
+
+# TODO: command to pull from dev and merge to master
+# TODO: command to push changes (push to master and push tags)
+# TODO: command to publish package, check out twine
 
 
 if __name__ == '__main__':
