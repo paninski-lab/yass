@@ -9,8 +9,9 @@ YASS: Yet Another Spike Sorter
 
 YASS is a state-of-the-art method for spike sorting.
 
-We are currently working on improving YASS to be usable in different types
-of neural data. The neural network detector only works with [ADD SPECIFICATION]. We will incorporate more models soon.
+Note: We are currently working on improving YASS to be usable in different types
+of neural data. The neural network detector currently only works in reduced
+use cases. We will add more models soon.
 
 Reference
 ---------
