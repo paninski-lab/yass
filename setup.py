@@ -106,4 +106,5 @@ setup(
     entry_points={
         'console_scripts': ['yass=yass.command_line:main'],
     },
+    download_url='{url}/archive/{version}.tar.gz'.format(URL, VERSION),
 )
