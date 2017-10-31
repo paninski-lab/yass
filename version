@@ -95,7 +95,7 @@ class Versioner(object):
         return new_version
 
     @classmethod
-    def save_version(cls, new_version, message='', tag=False):
+    def commit_version(cls, new_version, tag=False):
         """
         Replaces version in  __init__ and optionally creates a tag in the git
         repository (also saves a commit)
@@ -119,23 +119,30 @@ class Versioner(object):
             call(['git', 'commit', '-m', msg])
 
             click.echo('Creating tag {}...'.format(new_version))
-            call(['git', 'tag', '-a', new_version, '-m', message])
+            call(['git', 'tag', '-a', new_version])
 
             click.echo('Pushing tags...')
             call(['git', 'push', '--tags'])
 
     @classmethod
-    def update_changelog(cls, new_version):
+    def update_changelog_release(cls, new_version):
         current = cls.current_version()
 
-        # Save version in app.yaml
+        # update CHANGELOG header
         header_current = '{ver}\n'.format(ver=current)+'-'*len(current)
-
         today = datetime.datetime.now().strftime('%Y-%m-%d')
         header_new = '{ver} ({today})\n'.format(ver=new_version, today=today)
         header_new = header_new+'-'*len(header_new)
-
         replace_in_file('CHANGELOG.rst', header_current, header_new)
+
+    @classmethod
+    def add_changelog_dev_section(cls, dev_version):
+        # add new CHANGELOG section
+        start_current = 'Changelog\n========='
+        start_new = (('Changelog\n=========\n\n{dev_version}\n'
+                     .format(dev_version=dev_version)
+                     + '-' * len(dev_version)) + '\n')
+        replace_in_file('CHANGELOG.rst', start_current, start_new)
 
 
 @click.group()
@@ -152,23 +159,24 @@ def new():
                   'will be {release}, do you want to continue?'
                   .format(current=current, release=release), abort=True)
 
-    Versioner.update_changelog(release)
+    Versioner.update_changelog_release(release)
 
     changelog = read_file('CHANGELOG.rst')
 
-    click.confirm('CHANGELOG.rst:\n{}\n Continue?'.format(changelog),
+    click.confirm('\nCHANGELOG.rst:\n\n{}\n Continue?'.format(changelog),
                   'done', abort=True)
 
-    # Ask for a message to include in the tag
-    message = click.prompt('What is this release about? ')
-
     # Replace version number and create tag
-    Versioner.save_version(release, message, tag=True)
+    click.echo('Commiting release version: {}'.format(release))
+    Versioner.commit_version(release, tag=True)
 
     # Create a new dev version and save it
     bumped_version = Versioner.bump_up_version()
-    click.echo('Setting new dev version to: {}'.format(bumped_version))
-    Versioner.save_version(bumped_version)
+
+    click.echo('Creating new section in CHANGELOG...')
+    Versioner.add_changelog_dev_section(bumped_version)
+    click.echo('Commiting dev version: {}'.format(bumped_version))
+    Versioner.commit_version(bumped_version)
 
     # Run git add and git status
     click.echo('Adding new changes to the repository...')
