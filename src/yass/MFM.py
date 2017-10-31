@@ -213,7 +213,7 @@ class maskData:
         self.sumYSq = sumYSq
         self.sumEta = sumEta
         self.weight = weight
-        self.groupMask = groupMask/ self.weight
+        self.groupMask = groupMask/ self.weight[:,np.newaxis]
         self.meanY = self.sumY / self.weight[:, np.newaxis, np.newaxis]
         self.meanYSq = self.sumYSq / \
             self.weight[:, np.newaxis, np.newaxis, np.newaxis]
