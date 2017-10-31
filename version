@@ -152,7 +152,7 @@ def new():
                   'will be {release}, do you want to continue?'
                   .format(current=current, release=release), abort=True)
 
-    Versioner.update_changelog()
+    Versioner.update_changelog(release)
 
     changelog = read_file('CHANGELOG.rst')
 
