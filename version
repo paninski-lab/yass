@@ -111,8 +111,8 @@ class Versioner(object):
             click.echo('Creating tag {}...'.format(new_version))
             call(['git', 'tag', '-a', new_version, '-m', message])
 
-            # click.echo('Pushing tags...')
-            # call(['git', 'push', '--tags'])
+            click.echo('Pushing tags...')
+            call(['git', 'push', '--tags'])
 
 
 @click.group()
@@ -120,9 +120,7 @@ def cli():
     pass
 
 
-@cli.command(help='Sets a new version for the project: saves the new version '
-                  'in the app.yaml version key, creates a tag with the '
-                  'version number and bumps up version')
+@cli.command(help='Sets a new version for the project')
 def new():
     current = Versioner.current_version()
     release = Versioner.release_version()
@@ -159,8 +157,18 @@ def new():
                .format(release, bumped_version))
 
 
-# TODO: command to pull from dev and merge to master
-# TODO: command to push changes (push to master and push tags)
+@cli.command(help='Merges changes in dev with master')
+def tomaster():
+    click.echo('Checking out master...')
+    call(['git', 'checkout', 'master'])
+
+    click.echo('Merging master with dev...')
+    call(['git', 'merge', 'dev'])
+
+    click.echo('Pushing changes...')
+    call(['git', 'push'])
+
+
 # TODO: command to publish package, check out twine
 
 
