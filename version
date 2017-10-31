@@ -6,10 +6,12 @@ import ast
 import re
 from subprocess import call as _call
 from functools import reduce
+import datetime
 
 import click
 
 TESTING = True
+PACKAGE = 'src/yass'
 
 
 def replace_in_file(path_to_file, original, replacement):
@@ -21,6 +23,13 @@ def replace_in_file(path_to_file, original, replacement):
         f.seek(0)
         f.write(updated)
         f.truncate()
+
+
+def read_file(path_to_file):
+    with open(path_to_file, 'r') as f:
+        content = f.read()
+
+    return content
 
 
 def call(*args, **kwargs):
@@ -43,9 +52,9 @@ class Versioner(object):
         """
         _version_re = re.compile(r'__version__\s+=\s+(.*)')
 
-        with open('src/yass/__init__.py', 'rb') as f:
+        with open('{package}/__init__.py'.format(package=PACKAGE), 'rb') as f:
             VERSION = str(ast.literal_eval(_version_re.search(
-                            f.read().decode('utf-8')).group(1)))
+                f.read().decode('utf-8')).group(1)))
 
         return VERSION
 
@@ -93,8 +102,9 @@ class Versioner(object):
         """
         current = cls.current_version()
 
-        # Save version in app.yaml
-        replace_in_file('src/yass/__init__.py', current, new_version)
+        # replace new version in __init__.py
+        replace_in_file('{package}/__init__.py'.format(package=PACKAGE),
+                        current, new_version)
 
         # Create tag
         if tag:
@@ -114,6 +124,19 @@ class Versioner(object):
             click.echo('Pushing tags...')
             call(['git', 'push', '--tags'])
 
+    @classmethod
+    def update_changelog(cls, new_version):
+        current = cls.current_version()
+
+        # Save version in app.yaml
+        header_current = '{ver}\n'.format(ver=current)+'-'*len(current)
+
+        today = datetime.datetime.now().strftime('%Y-%m-%d')
+        header_new = '{ver} ({today})\n'.format(ver=new_version, today=today)
+        header_new = header_new+'-'*len(header_new)
+
+        replace_in_file('CHANGELOG.rst', header_current, header_new)
+
 
 @click.group()
 def cli():
@@ -129,7 +152,11 @@ def new():
                   'will be {release}, do you want to continue?'
                   .format(current=current, release=release), abort=True)
 
-    click.confirm('Before continuing modify the CHANGELOG file. Continue '
+    Versioner.update_changelog()
+
+    changelog = read_file('CHANGELOG.rst')
+
+    click.confirm('CHANGELOG.rst:\n{}\n Continue?'.format(changelog),
                   'done', abort=True)
 
     # Ask for a message to include in the tag
