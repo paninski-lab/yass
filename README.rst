@@ -27,7 +27,8 @@ Installing the last stable version:
 
 .. code-block:: shell
 
-   pip install git+https://github.com/paninski-lab/yass
+   pip install yass-algorithm
+
 
 Example
 -------
