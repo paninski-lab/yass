@@ -111,9 +111,9 @@ class NeuralNetDetector(object):
         index = np.zeros((10000000, 2), 'int32')
         #index = np.zeros((1000000, 4), 'float32')
         count = 0
-        #with tf.Session() as sess:
-        config = tf.ConfigProto(device_count = {'GPU': 0})
-        with tf.Session(config=config) as sess:
+        with tf.Session() as sess:
+        #config = tf.ConfigProto(device_count = {'GPU': 0})
+        #with tf.Session(config=config) as sess:
             path_to_nnfile = pkg_resources.resource_filename('yass', 'assets/models/{}'.format(self.config.neural_network['nnFilename']))
             path_to_aefile = pkg_resources.resource_filename('yass', 'assets/models/{}'.format(self.config.neural_network['aeFilename']))
 
@@ -279,9 +279,9 @@ class NeuralNetTriage(object):
         if C < nneigh:
             wf = np.concatenate( (wf,np.zeros((n,R,nneigh-C))), axis = 2)
 
-        #with tf.Session() as sess:
-        config = tf.ConfigProto(device_count = {'GPU': 0})
-        with tf.Session(config=config) as sess:
+        with tf.Session() as sess:
+        #config = tf.ConfigProto(device_count = {'GPU': 0})
+        #with tf.Session(config=config) as sess:
             self.saver_triagenet.restore(sess, self.ckpt_loc)
 
             pp = sess.run(self.tf_prob, feed_dict={self.x_tf: np.reshape(wf,(n,-1))})

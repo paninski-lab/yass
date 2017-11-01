@@ -1,6 +1,6 @@
 # DATA
 # data root folder
-root: /Users/jinhyunglee/Desktop/yass_test
+root: /ssd/data/peter/ej49_dataset
 # binary recording filename
 filename: ej49_data1_set1.bin
 # channel geometry file name
@@ -28,7 +28,7 @@ doWhitening: True
 doDeconv: True
 
 # 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
-detctionMethod: threshold
+detctionMethod: nn
 
 
 
