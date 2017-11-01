@@ -90,32 +90,31 @@ class BatchProcessor(object):
         self.buffer_size = buffer_size
         self.max_memory = max_memory
 
-        # minimum quantity of data we can load (one observation per channel)
-        observation_size_bytes = self.n_channels * self.dsize
+        DSIZE_DOUBLE = 8
 
         # size of file in bytes
         self.file_bytes = path.getsize(path_to_file)
-        file_observations = self.file_bytes/observation_size_bytes
+        n_observations = self.file_bytes/self.dsize/self.n_channels
 
-        if not float(file_observations).is_integer():
+        if not float(n_observations).is_integer():
             raise ValueError('Invalid data size: n_channels ({}) * '
                              '[size of {}] ({}) must be a multiple of file '
                              'size ({})'.format(self.n_channels, self.dtype,
                                                 self.dsize, self.file_bytes))
         else:
-            self.file_observations = int(file_observations)
+            self.n_observations = int(n_observations)
 
         # compute batch size (number of observations)
-        if self.max_memory < observation_size_bytes:
+        if self.max_memory < self.n_channels*DSIZE_DOUBLE:
             raise ValueError('Max memory should be at least {} bytes: '
                              '{} (dsize) * {} (n channels)'
-                             .format(observation_size_bytes, self.dsize,
+                             .format(self.n_channels*DSIZE_DOUBLE, DSIZE_DOUBLE,
                                      self.n_channels))
 
         # number of observations to load in every batch
-        batch_size = int(np.floor(self.max_memory/observation_size_bytes))
+        batch_size = int(np.floor(self.max_memory/self.n_channels/DSIZE_DOUBLE))
         # batch size in bytes
-        batch_size_bytes = batch_size * self.dsize * self.n_channels
+        batch_size_bytes = batch_size * DSIZE_DOUBLE * self.n_channels
 
         if buffer_size > batch_size:
             raise ValueError('buffer size ({}) cannot be larger than '
@@ -123,13 +122,13 @@ class BatchProcessor(object):
 
         if batch_size_bytes >= self.file_bytes:
             self.n_batches = 1
-            self.batch_size = self.file_observations
+            self.batch_size = self.n_observations
             self.residual = 0
             # self.n_portion = 1
         else:
-            self.n_batches = int(np.ceil(float(self.file_observations)/batch_size))
+            self.n_batches = int(np.ceil(float(self.n_observations)/batch_size))
             self.batch_size = batch_size
-            self.residual = self.file_observations % batch_size
+            self.residual = self.n_observations % batch_size
             # self.n_portion = np.ceil(self.partialDat * self.n_batches)
 
         self.i = 1
@@ -139,7 +138,7 @@ class BatchProcessor(object):
                          'observations {}'.format(self.n_batches,
                                                   self.batch_size,
                                                   self.residual,
-                                                  self.file_observations))
+                                                  self.n_observations))
 
     def __repr__(self):
         return ('BatchProcessor for file {} ({} bytes). Already processed {} '
@@ -202,7 +201,7 @@ class BatchProcessor(object):
             # middle batch
             elif i < self.n_batches:
                 start = (i - 1) * self.batch_size - self.buffer_size
-                left = self.file_observations - i * self.batch_size
+                left = self.n_observations - i * self.batch_size
 
                 # it may be the case that for some of the last batches, there
                 # are not enough data left for the buffer size, so take at
