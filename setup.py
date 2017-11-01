@@ -85,6 +85,7 @@ setup(
     description=DESCRIPTION,
     long_description=long_description,
     author=AUTHOR,
+    author_email=EMAIL,
     url=URL,
     packages=find_packages('src'),
     package_dir={'': 'src'},
