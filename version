@@ -12,6 +12,7 @@ import click
 
 TESTING = True
 PACKAGE = 'src/yass'
+PACKAGE_NAME = 'YASS'
 
 
 def replace_in_file(path_to_file, original, replacement):
@@ -119,10 +120,11 @@ class Versioner(object):
             call(['git', 'commit', '-m', msg])
 
             click.echo('Creating tag {}...'.format(new_version))
-            call(['git', 'tag', '-a', new_version])
+            message = '{} release {}'.format(PACKAGE_NAME, new_version)
+            call(['git', 'tag', '-a', new_version, '-m', message])
 
             click.echo('Pushing tags...')
-            call(['git', 'push', '--tags'])
+            call(['git', 'push', 'origin', new_version])
 
     @classmethod
     def update_changelog_release(cls, new_version):
