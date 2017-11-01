@@ -1,13 +1,17 @@
 YASS: Yet Another Spike Sorter
 ================================
 
-.. image:: https://readthedocs.org/projects/yass/badge/?version=latest
+.. image:: https://travis-ci.org/paninski-lab/yass.svg?branch=master
+    :target: https://travis-ci.org/paninski-lab/yass
 
+.. image:: https://readthedocs.org/projects/yass/badge/?version=latest
+    :target: http://yass.readthedocs.io/en/latest/?badge=latest
 
 YASS is a state-of-the-art method for spike sorting.
 
-We are currently working on improving YASS to be usable in different types
-of neural data. The neural network detector only works with [ADD SPECIFICATION]. We will incorporate more models soon.
+Note: We are currently working on improving YASS to be usable in different types
+of neural data. The neural network detector currently only works in reduced
+use cases. We will add more models soon.
 
 Reference
 ---------
@@ -23,7 +27,8 @@ Installing the last stable version:
 
 .. code-block:: shell
 
-   pip install git+https://github.com/paninski-lab/yass
+   pip install yass-algorithm
+
 
 Example
 -------

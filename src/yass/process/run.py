@@ -34,12 +34,16 @@ def run(score, spike_index_clear, spike_index_collision):
     -------
     spike_train:
         A (number of spikes x 2) matrix whose first column indicates whe
-        spike time and the second column the neuron id
+        spike time and the second column the neuron id, where the neuron id
+        is determined by the clustering algorithm
+
     spike_times_left: list
         A list of length n_chanels whose first column indicates the spike
-        time for a potential spike, [SECOND COLUMN?]
-    templates:
-        ?
+        time for a potential spike
+
+    templates: numpy.ndarray
+        A (number of channels x waveform size x number of templates)
+        multidimensional array containing the templates obtained
 
     Examples
     --------

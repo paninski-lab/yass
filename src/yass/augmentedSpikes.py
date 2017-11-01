@@ -8,8 +8,8 @@ from yass.preprocessing import Preprocessor
 from yass.mainprocess import Mainprocessor
 
 from .preprocess.filter import butterworth
-from .preprocess.geometry import (n_steps_neigh_channels,
-                                  order_channels_by_distance)
+from .geometry import (n_steps_neigh_channels,
+                       order_channels_by_distance)
 
 
 def getCleanSpikeTrain(config):
