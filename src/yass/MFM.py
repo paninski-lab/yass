@@ -82,12 +82,76 @@ class maskedMFM(object):
 
 
 class maskData:
+    """
+        Class for creating masked virtual data
+
+        Attributes:
+        -----------
+
+        sumY: np.array
+            Ngroup x nfeature x nchannel numpy array which contain the sum of the expectation of the
+             masked virtual data for each group. Here Ngroup is number of unique groups given by the
+             coresetting. nfeature is the number of features and nchannel is the number of channels.
+        sumYSq: np.array
+            Ngroup x nfeature x nchannel numpy array which contain the sum of the expectation of yy.T
+            where y = M * score for each group.
+        sumEta: np.array
+            Ngroup x nfeature x nchannel numpy array sum of the variance for all points in a group.
+        weight: np.array
+            Ngroup x 1 numpy arraay which contains in the number of points in each group
+        meanY: np.array
+            Ngroup x nfeature x nchannel numpy array which is sumY/weight or the empirical mean of sumY
+        meanYSq: np.array
+            Ngroup x nfeature x nfeature x nchannel numpy array which is sumYSq/weight or the empirical
+            mean of sumYSq
+        meanEta: np.array
+            Ngroup x nfeature x nfeature x nchannel numpy array whihc is sumEta/weight or the empirical
+            mean of sumEta
+        groupmask: np.array
+            Ngroup x nchannel emprical average of the mask for the datapoints for a given group
+    """
 
     def __init__(self, *args):
+        """
+            Initialization of class attributes. Class method calc_maskedData_mfm() is called to actually
+            calculate the attributes.
+
+
+            Parameters
+            ----------
+            score: np.array
+                N x nfeature x nchannel numpy array, where N is the number of spikes, nfeature is the
+                number of features and nchannel is the number of channels. Contains multichannel spike
+                data in a low dimensional space.
+            mask:  np.array
+                N x nchannel numpy array, where N is the number of spikes, nchannel is the number of
+                channels. Mask for the data.
+            group: np.array
+                N x 1 numpy array, where N is the number of spikes. Coresetting group assignments for
+                each spike
+
+        """
         if len(args) > 0:
             self.calc_maskedData_mfm(args[0], args[1], args[2])
 
     def calc_maskedData_mfm(self, score, mask, group):
+        """
+            Calculation of class attributes happen here.
+
+
+            Parameters
+            ----------
+            score: np.array
+                N x nfeature x nchannel numpy array, where N is the number of spikes, nfeature is the
+                number of features and nchannel is the number of channels. Contains multichannel spike
+                data in a low dimensional space.
+            mask:  np.array
+                N x nchannel numpy array, where N is the number of spikes, nchannel is the number of
+                channels. Mask for the data.
+            group: np.array
+                N x 1 numpy array, where N is the number of spikes. Coresetting group assignments for
+                each spike
+        """
         N, nfeature, nchannel = score.shape
         uniqueGroup = np.unique(group)
         Ngroup = uniqueGroup.size
@@ -127,7 +191,7 @@ class maskData:
                 sumY[idx] += y[n]
                 sumYSq[idx] += ySq[n]
                 sumEta[idx] += eta[n]
-                groupMask[idx] = mask[n]
+                groupMask[idx] += mask[n]
                 weight[idx] += 1
             # y = y.reshape([N, int(y.size / float(N))], order='F')
             # ySq = ySq.reshape([N, int(ySq.size / float(N))], order='F')
@@ -149,7 +213,7 @@ class maskData:
         self.sumYSq = sumYSq
         self.sumEta = sumEta
         self.weight = weight
-        self.groupMask = groupMask
+        self.groupMask = groupMask/ self.weight[:,np.newaxis]
         self.meanY = self.sumY / self.weight[:, np.newaxis, np.newaxis]
         self.meanYSq = self.sumYSq / \
             self.weight[:, np.newaxis, np.newaxis, np.newaxis]
@@ -159,11 +223,51 @@ class maskData:
         
 
 class vbPar:
+    """
+        Class for all the parameters for the VB inference
+
+        Attributes:
+        -----------
+
+        rhat: np.array
+            Ngroup x K numpy array containing the probability of each representative point of being assigned
+            to cluster  0<=k<K. Here K is the number of clusters
+
+        ahat: np.array
+            K x 1 numpy array. Posterior dirichlet parameters
+        lambdahat, nuhat: np.array
+            K x 1 numpy array. Posterior Normal wishart parameters
+        muhat, Vhat, invVhat: np.array
+            nfeaature x K x nchannel, nfeature x nfeature x K x nchannel, nfeature x nfeature x K x nchannel
+            respectively. Posterior parameters for the normal wishart distribution
+
+    """
 
     def __init__(self, rhat):
+        """
+            Iniitalizes rhat defined above
+
+            Parameters:
+            -----------
+
+            rhat: np.array
+                Ngroup x K numpy array defined above
+
+        """
+
         self.rhat = rhat
 
     def update_local(self, maskedData):
+        """
+            Updates the local parameter rhat for VB inference
+
+            Parameters:
+            -----------
+
+            maskedData: maskData object
+        """
+
+
         pik = dirichlet(self.ahat.ravel())
         Khat = self.ahat.size
         Ngroup = maskedData.meanY.shape[0]
@@ -183,6 +287,16 @@ class vbPar:
         self.rhat = rho / np.sum(rho, axis=1, keepdims=True)
 
     def update_global(self, suffStat, param):
+        """
+            Updates the global variables muhat, invVhat, Vhat, lambdahat, nuhat, ahat for VB inference
+
+            Parameters:
+            ----------
+
+            suffStat: suffStatistics object
+
+            param: Config object (See config.py for details)
+        """
         prior = param.cluster_prior
         nfeature, Khat, nchannel = suffStat.sumY.shape
         self.ahat = prior.a + suffStat.Nhat
@@ -207,6 +321,17 @@ class vbPar:
         self.nuhat = prior.nu + suffStat.Nhat
 
     def update_global_selected(self, suffStat, param):
+        """
+            Updates the global variables muhat, invVhat, Vhat, lambdahat, nuhat, ahat for VB inference for
+            a given cluster (Unused; needs work)
+
+            Parameters:
+            ----------
+
+            suffStat: suffStatistics object
+
+            param: Config object (See config.py for details)
+        """
         prior = param.cluster_prior
         nfeature, Khat, nchannel = suffStat.sumY.shape
         self.ahat = prior.a + suffStat.Nhat
@@ -232,8 +357,44 @@ class vbPar:
 
 
 class suffStatistics:
+    """
+        Class to calculate precompute sufficient statistics for increased efficiency
+
+        Attributes:
+        -----------
+
+        Nhat : np.array
+            K x 1 numpy array which stores pseudocounts for the number of elements in each cluster. K
+            is the number of clusters
+        sumY : np.array
+            nfeature x K x nchannel which stores weighted sum of the maskData.sumY weighted by the cluster
+            probabilities. (See maskData for more details)
+        sumYSq1: np.array
+            nfeaature x nfeature x K x nchannel which stores weighted sum of the maskData.sumYSq weighted
+            by the cluster probabilities. (See maskData for more details)
+        sumYSq2: np.array
+            nfeaature x nfeature x K x nchannel which stores weighted sum of the maskData.sumEta weighted
+            by the cluster probabilities. (See maskData for more details)
+        sumYSq: np.array
+            nfeature x nfeature x K x nchannel. Stores sumYSq1 + sumYSq2.
+    """
 
     def __init__(self, *args):
+        """
+            Initializes the above attributes and calls calc_suffstat().
+
+            Parameters:
+            -----------
+            maskedData: maskData object
+
+            vbParam: vbPar object
+
+                or
+
+            suffStat: suffStatistics object
+        """
+
+
         if len(args) == 2:
             maskedData, vbParam = args
             Khat = vbParam.rhat.shape[1]
@@ -256,6 +417,29 @@ class suffStatistics:
             self.sumYSq2 = args[0].sumYSq2.copy()
 
     def calc_suffstat(self, maskedData, vbParam, Ngroup, Khat, nfeature, nchannel):
+        """
+            Calcation of the above attributes happens here. Called by __init__().
+
+            Parameters:
+            -----------
+            maskedData: maskData object
+
+            vbParam: vbPar object
+
+            Ngroup: int
+                Number of groups defined by coresetting
+
+            Khat: int
+                Number of clusters
+
+            nfeature: int
+                Number of features
+
+            nchannel: int
+                Number of channels
+        """
+
+
         for n in range(nchannel):
             noMask = maskedData.groupMask[:, n] > 0
             nnoMask = np.sum(noMask)
@@ -304,8 +488,42 @@ class suffStatistics:
 
 
 class ELBO_Class:
+    """
+        Class for calculating the ELBO for VB inference
+
+        Attributes:
+        -----------
+
+        percluster: np.array
+            K x 1 numpy array containing part of ELBO value that depends on each cluster. Can be used to calculate
+            value for only a given cluster
+
+        rest_term: float
+            Part of ELBO value that has to be calculated regardless of cluster
+
+        total: float
+            Total ELBO total = sum(percluster) + rest_term
+    """
+
+
 
     def __init__(self, *args):
+        """
+            Initializes attributes. Calls cal_ELBO_opti()
+
+            Parameters:
+            -----------
+            maskedData: maskData object
+
+            suffStat: suffStatistics object
+
+            vbParam: vbPar object
+
+            param: Config object (see Config.py)
+
+            K_ind (optional): list
+                Cluster indices for which the partial ELBO is being calculated. Defaults to all clusters
+        """
         if len(args) == 1:
             self.total = args[0].total
             self.percluster = args[0].percluster
@@ -314,6 +532,23 @@ class ELBO_Class:
             self.calc_ELBO_Opti(args)
 
     def calc_ELBO_Opti(self, *args):
+        """
+            Calculates partial (or total) ELBO for the given cluster indices
+
+            Parameters:
+            -----------
+            maskedData: maskData object
+
+            suffStat: suffStatistics object
+
+            vbParam: vbPar object
+
+            param: Config object (see Config.py)
+
+            K_ind (optional): list
+                Cluster indices for which the partial ELBO is being calculated. Defaults to all clusters
+        """
+
 
         if len(args[0]) < 5:
             maskedData, suffStat, vbParam, param = args[0]
@@ -410,6 +645,24 @@ class ELBO_Class:
 
 
 def multivariate_normal_logpdf(x, mu, Lam):
+    """
+        Calculates the gaussian density of the given point(s). returns N x 1 array which is the density for
+        the given cluster (see vbPar.update_local())
+
+        Parameters:
+        -----------
+        x: np.array
+            N x nfeature x nchannel where N is the number of datapoints nfeature is the number of features
+            and nchannel is the number of channels
+
+        mu: np.array
+            nfeature x nchannel numpy array. channelwise mean of the gaussians
+
+        cov: np.array
+            nfeature x nfeauter x nchannel numpy array. Channelwise covariance of the gaussians
+
+    """
+
     p, C = mu.shape
 
     xMinusMu = np.transpose((x - mu), [2, 0, 1])
@@ -429,17 +682,49 @@ def multivariate_normal_logpdf(x, mu, Lam):
 
 
 def logdet(X):
+    """
+        Calculates log of the determinant of the given symmetric positive definite matrix. returns float
+
+        parameters:
+        -----------
+        X: np.array
+            M x M. Symmetric positive definite matrix
+
+    """
+
     L = np.linalg.cholesky(X)
     return 2 * np.sum(np.log(np.diagonal(L)))
 
 
 def mult_psi(x, d):
+    """
+        Calculates the multivariate digamma function. Returns N x 1 array of the multivariaate digamma values
+
+        parameters:
+        -----------
+        x: np.array
+            M x 1 array containing the
+    """
     v = x - np.asarray([range(d)]) / 2.0
     u = np.sum(specsci.digamma(v), axis=1)
     return u[:, np.newaxis]
 
 
 def init_param(maskedData, K, param):
+    """
+        Initializes vbPar object using weighted kmeans++ for initial cluster assignment. Calculates sufficient
+        statistics. Updates global parameters for the created vbPar object.
+
+        Parameters:
+        -----------
+        maskedData: maskData object
+
+        K: int
+            Number of clusters for weighted kmeans++
+
+        param: Config object (see config.py)
+
+    """
     N, nfeature, nchannel = maskedData.sumY.shape
     allocation = weightedKmeansplusplus(maskedData.meanY.reshape([N, nfeature * nchannel], order='F').T,
                                         maskedData.weight, K)
@@ -454,6 +739,10 @@ def init_param(maskedData, K, param):
 
 
 def weightedKmeansplusplus(X, w, k):
+    """
+
+
+    """
     L = np.asarray([])
     L1 = 0
     p = w ** 2 / np.sum(w ** 2)
