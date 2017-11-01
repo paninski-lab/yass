@@ -15,7 +15,8 @@ from shutil import rmtree
 
 from setuptools import find_packages, Command, setup
 
-NAME = 'yass'
+# yass was taken...
+NAME = 'yass-algorithm'
 DESCRIPTION = 'YASS: Yet Another Spike Sorter'
 URL = 'https://github.com/paninski-lab/yass'
 EMAIL = 'fkq8@blancas.io'

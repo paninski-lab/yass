@@ -10,7 +10,7 @@ import datetime
 
 import click
 
-TESTING = False
+TESTING = True
 PACKAGE = 'src/yass'
 
 
@@ -155,9 +155,10 @@ def new():
     current = Versioner.current_version()
     release = Versioner.release_version()
 
-    click.confirm('Current version in app.yaml is {current} release version '
-                  'will be {release}, do you want to continue?'
-                  .format(current=current, release=release), abort=True)
+    release = click.prompt('Current version in app.yaml is {current}. Enter'
+                           ' release version'.format(current=current,
+                                                     release=release),
+                           default=release, type=str)
 
     Versioner.update_changelog_release(release)
 
