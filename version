@@ -10,7 +10,7 @@ import datetime
 
 import click
 
-TESTING = True
+TESTING = False
 PACKAGE = 'src/yass'
 
 
