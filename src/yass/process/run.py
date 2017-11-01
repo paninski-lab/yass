@@ -36,7 +36,7 @@ def run(score, clear_index, spike_times):
 
     spike_times_left: list
         A list of length n_chanels whose first column indicates the spike
-        time for a potential spike, [SECOND COLUMN?]
+        time for a potential spike
 
     templates: numpy.ndarray
         A (number of channels x waveform size x number of templates)
