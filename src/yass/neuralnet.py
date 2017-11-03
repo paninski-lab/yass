@@ -39,13 +39,13 @@ class NeuralNetDetector(object):
             saver object for the neural network detector.
     """
     def __init__(self, config):
-    """
-        Initializes the attributes for the class NeuralNetDetector.
+        """
+            Initializes the attributes for the class NeuralNetDetector.
 
-        Parameters:
-        -----------
-        config: configuration file
-    """                
+            Parameters:
+            -----------
+            config: configuration file
+        """                
         
         
         self.config = config
@@ -72,10 +72,10 @@ class NeuralNetDetector(object):
         self.saver_ae = tf.train.Saver({"W_ae": self.W_ae})
         self.saver = tf.train.Saver({"W1": self.W1, "W11": self.W11, "W2": self.W2, "b1": self.b1, "b11":self.b11, "b2": self.b2})
     def load_w_ae(self):
-    """
-        Loads the autoencoder weight matrix
+        """
+            Loads the autoencoder weight matrix
 
-    """        
+        """        
 
         with tf.Session() as sess:
         #config = tf.ConfigProto(device_count = {'GPU': 0})
@@ -87,24 +87,24 @@ class NeuralNetDetector(object):
 
     
     def get_spikes(self, X):
-    """
-        Detects and indexes spikes from the recording. The recording will be chopped to minibatches if its temporal length
-        exceeds 10000. A spike is detected at [t, c] when the output probability of the neural network detector crosses
-        the detection threshold at time t and channel c. For temporal duplicates within a certain temporal radius,                       the temporal index corresponding to the largest output probability is assigned. For spatial duplicates within
-        certain neighboring channels, the channel with the highest energy is assigned.
-             
-        Parameters:
-        -----------
-        X: np.array
-            [number of channels, temporal length] raw recording.
-            
-        Returns:
-        -----------
-        index: np.array
-            [number of detected spikes, 3] returned indices for spikes. First column corresponds to temporal location;
-            second column corresponds to spatial (channel) location.
-                
-    """
+        """
+            Detects and indexes spikes from the recording. The recording will be chopped to minibatches if its temporal length
+            exceeds 10000. A spike is detected at [t, c] when the output probability of the neural network detector crosses
+            the detection threshold at time t and channel c. For temporal duplicates within a certain temporal radius,                       the temporal index corresponding to the largest output probability is assigned. For spatial duplicates within
+            certain neighboring channels, the channel with the highest energy is assigned.
+
+            Parameters:
+            -----------
+            X: np.array
+                [number of channels, temporal length] raw recording.
+
+            Returns:
+            -----------
+            index: np.array
+                [number of detected spikes, 3] returned indices for spikes. First column corresponds to temporal location;
+                second column corresponds to spatial (channel) location.
+
+        """
         # get parameters
         T, C = X.shape
         R1, R2, R3 = self.config.neural_network['nnFilterSize']
@@ -231,18 +231,18 @@ class NeuralNetDetector(object):
         return index
 
     def train_ae(self, x_train, y_train, nn_name):
-    """
-        Trains the autoencoder for feature extraction
+        """
+            Trains the autoencoder for feature extraction
 
-        Parameters:
-        -----------
-        x_train: np.array
-            [number of training data, temporal length] noisy isolated spikes for training the autoencoder.                   
-        y_train: np.array
-            [number of training data, temporal length] clean (denoised) isolated spikes as labels.
-        nn_name: string
-            name of the .ckpt to be saved.
-    """ 
+            Parameters:
+            -----------
+            x_train: np.array
+                [number of training data, temporal length] noisy isolated spikes for training the autoencoder.                   
+            y_train: np.array
+                [number of training data, temporal length] clean (denoised) isolated spikes as labels.
+            nn_name: string
+                name of the .ckpt to be saved.
+        """ 
         ndata, n_input = x_train.shape
         #n_hidden = self.config.nFeat
 
@@ -272,20 +272,20 @@ class NeuralNetDetector(object):
         bar.finish()
         
     def train_detector(self, x_train, y_train, nn_name):
-    """
-        Trains the neural network detector for spike detection
+        """
+            Trains the neural network detector for spike detection
 
-        Parameters:
-        -----------
-        x_train: np.array
-            [number of training data, temporal length, number of channels] augmented training data consisting of 
-            isolated spikes, noise and misaligned spikes.
-        y_train: np.array
-            [number of training data] label for x_train. '1' denotes presence of an isolated spike and '0' denotes
-            the presence of a noise data or misaligned spike.
-        nn_name: string
-            name of the .ckpt to be saved
-    """ 
+            Parameters:
+            -----------
+            x_train: np.array
+                [number of training data, temporal length, number of channels] augmented training data consisting of 
+                isolated spikes, noise and misaligned spikes.
+            y_train: np.array
+                [number of training data] label for x_train. '1' denotes presence of an isolated spike and '0' denotes
+                the presence of a noise data or misaligned spike.
+            nn_name: string
+                name of the .ckpt to be saved
+        """ 
 
         # iteration info
         niter = int(self.config.neural_network['nnIteration'])
@@ -363,13 +363,13 @@ class NeuralNetTriage(object):
     """
 
     def __init__(self,config):
-    """
-        Initializes the attributes for the class NeuralNetTriage.
+        """
+            Initializes the attributes for the class NeuralNetTriage.
 
-        Parameters:
-        -----------
-        config: configuration file
-    """                
+            Parameters:
+            -----------
+            config: configuration file
+        """                
         
         
         self.config = config
@@ -396,23 +396,23 @@ class NeuralNetTriage(object):
         self.saver_triagenet = tf.train.Saver({"W1": W1,"W2": W2,"W3": W3,"b1": b1,"b2": b2,"b3": b3})
     
     def nn_triage(self, wf, th):
-    """
-        Runs the triage network 
-        
-        Parameters:
-        -----------
-        wf: np.array
-            [number of data, temporal length, number of channels] waveforms extracted at the detection stage.
-        th: float
-            threshold for the output probability of the triage network.            
-            
-        Returns:
-        -----------
-        index: np.array
-            [number of data] returned boolean indices. 'True' indicates there is a well-shaped spike at
-            the corresponding index.
-                
-    """        
+        """
+            Runs the triage network 
+
+            Parameters:
+            -----------
+            wf: np.array
+                [number of data, temporal length, number of channels] waveforms extracted at the detection stage.
+            th: float
+                threshold for the output probability of the triage network.            
+
+            Returns:
+            -----------
+            index: np.array
+                [number of data] returned boolean indices. 'True' indicates there is a well-shaped spike at
+                the corresponding index.
+
+        """        
         nneigh = self.nneigh
         n,R,C = wf.shape
 
@@ -429,18 +429,18 @@ class NeuralNetTriage(object):
 
 
     def train_triagenet(self, x_train, y_train, nn_name):
-    """
-        Trains the triage network
+        """
+            Trains the triage network
 
-        Parameters:
-        -----------
-        x_train: np.array
-            [number of data, temporal length, number of channels] training data for the triage network.
-        y_train: np.array
-            [number of data] training label for the triage network.
-        nn_name: string
-            name of the .ckpt to be saved.            
-    """                
+            Parameters:
+            -----------
+            x_train: np.array
+                [number of data, temporal length, number of channels] training data for the triage network.
+            y_train: np.array
+                [number of data] training label for the triage network.
+            nn_name: string
+                name of the .ckpt to be saved.            
+        """                
 
         ndata, T, C = x_train.shape
         
