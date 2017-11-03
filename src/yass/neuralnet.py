@@ -8,8 +8,46 @@ from .geometry import order_channels_by_distance
 
 
 class NeuralNetDetector(object):
+    """
+        Class for training and running convolutional neural network detector for spike detection
+        and autoencoder for feature extraction.
 
+        Attributes:
+        -----------
+        config: configuration object
+            configuration object containing the training parameters. 
+        C: int
+            spatial filter size of the spatial convolutional layer.
+        R1,R2,R3: int
+            temporal filter sizes for the temporal convolutional layers. R2 and R3 are optional.
+        K1,K2,K3: int
+            number of filters for each convolutional layer.
+        W1, W11, W2: tf.Variable
+            [temporal_filter_size, spatial_filter_size, input_filter_number, ouput_filter_number] weight matrices
+            for the covolutional layers.
+        b1, b11, b2: tf.Variable
+            bias variable for the convolutional layers.
+        nFeat: int
+            number of features to be extracted from the detected waveforms.
+        R: float
+            temporal size of a spike.
+        W_ae: tf.Variable
+            [R, nFeat] weight matrix for the autoencoder.
+        saver_ae: tf.train.Saver
+            saver object for the autoencoder.
+        saver: tf.train.Saver
+            saver object for the neural network detector.
+    """
     def __init__(self, config):
+        """
+            Initializes the attributes for the class NeuralNetDetector.
+
+            Parameters:
+            -----------
+            config: configuration file
+        """                
+        
+        
         self.config = config
 
         C = np.max(np.sum(self.config.neighChannels, 0))
@@ -34,6 +72,10 @@ class NeuralNetDetector(object):
         self.saver_ae = tf.train.Saver({"W_ae": self.W_ae})
         self.saver = tf.train.Saver({"W1": self.W1, "W11": self.W11, "W2": self.W2, "b1": self.b1, "b11":self.b11, "b2": self.b2})
     def load_w_ae(self):
+        """
+            Loads the autoencoder weight matrix
+
+        """        
 
         with tf.Session() as sess:
         #config = tf.ConfigProto(device_count = {'GPU': 0})
@@ -45,7 +87,24 @@ class NeuralNetDetector(object):
 
     
     def get_spikes(self, X):
+        """
+            Detects and indexes spikes from the recording. The recording will be chopped to minibatches if its temporal length
+            exceeds 10000. A spike is detected at [t, c] when the output probability of the neural network detector crosses
+            the detection threshold at time t and channel c. For temporal duplicates within a certain temporal radius,                       the temporal index corresponding to the largest output probability is assigned. For spatial duplicates within
+            certain neighboring channels, the channel with the highest energy is assigned.
 
+            Parameters:
+            -----------
+            X: np.array
+                [number of channels, temporal length] raw recording.
+
+            Returns:
+            -----------
+            index: np.array
+                [number of detected spikes, 3] returned indices for spikes. First column corresponds to temporal location;
+                second column corresponds to spatial (channel) location.
+
+        """
         # get parameters
         T, C = X.shape
         R1, R2, R3 = self.config.neural_network['nnFilterSize']
@@ -172,9 +231,20 @@ class NeuralNetDetector(object):
         return index
 
     def train_ae(self, x_train, y_train, nn_name):
+        """
+            Trains the autoencoder for feature extraction
 
+            Parameters:
+            -----------
+            x_train: np.array
+                [number of training data, temporal length] noisy isolated spikes for training the autoencoder.                   
+            y_train: np.array
+                [number of training data, temporal length] clean (denoised) isolated spikes as labels.
+            nn_name: string
+                name of the .ckpt to be saved.
+        """ 
         ndata, n_input = x_train.shape
-        n_hidden = self.config.nFeat
+        #n_hidden = self.config.nFeat
 
         x_ = tf.placeholder("float", [None, n_input])
         y_ = tf.placeholder("float", [None, n_input])
@@ -202,6 +272,20 @@ class NeuralNetDetector(object):
         bar.finish()
         
     def train_detector(self, x_train, y_train, nn_name):
+        """
+            Trains the neural network detector for spike detection
+
+            Parameters:
+            -----------
+            x_train: np.array
+                [number of training data, temporal length, number of channels] augmented training data consisting of 
+                isolated spikes, noise and misaligned spikes.
+            y_train: np.array
+                [number of training data] label for x_train. '1' denotes presence of an isolated spike and '0' denotes
+                the presence of a noise data or misaligned spike.
+            nn_name: string
+                name of the .ckpt to be saved
+        """ 
 
         # iteration info
         niter = int(self.config.neural_network['nnIteration'])
@@ -246,8 +330,47 @@ class NeuralNetDetector(object):
         bar.finish()
 
 class NeuralNetTriage(object):
-    
+   
+    """
+        Class for training and running a multi-layer-perceptron triage network 
+
+        Attributes:
+        -----------
+        config: configuration object
+            configuration objects containing training parameters.
+        nneigh: int
+            spatial filter size of the spatial convolutional layer.
+        D: int
+            R*nneigh length of the flattened waveforms with temporal length R and nneigh number of channels.
+        ncells: list
+            [n1, n2] number of filters for the first and second layer.
+        W1, W2, W3: tf.Variable
+            [n_input, n_output] weight matrices for the layers.
+        b1, b2, b3: tf.Variable
+            bias variable for the layers.
+        nFeat: int
+            number of features to be extracted from the detected waveforms.
+        x_tf: tf.placeholder
+            placeholder for the training data to be fed to the trainer.
+        o_layer: tf.Variable
+            [ndata] output of the MLP before the sigmoid layer.
+        tf.prob: tf.Variable
+            [ndata] output probability of the MLP.
+        ckpt_loc: ckpt location 
+        saver: tf.train.Saver
+            saver object for the neural network detector.
+            
+    """
+
     def __init__(self,config):
+        """
+            Initializes the attributes for the class NeuralNetTriage.
+
+            Parameters:
+            -----------
+            config: configuration file
+        """                
+        
         
         self.config = config
         
@@ -273,7 +396,23 @@ class NeuralNetTriage(object):
         self.saver_triagenet = tf.train.Saver({"W1": W1,"W2": W2,"W3": W3,"b1": b1,"b2": b2,"b3": b3})
     
     def nn_triage(self, wf, th):
-        
+        """
+            Runs the triage network 
+
+            Parameters:
+            -----------
+            wf: np.array
+                [number of data, temporal length, number of channels] waveforms extracted at the detection stage.
+            th: float
+                threshold for the output probability of the triage network.            
+
+            Returns:
+            -----------
+            index: np.array
+                [number of data] returned boolean indices. 'True' indicates there is a well-shaped spike at
+                the corresponding index.
+
+        """        
         nneigh = self.nneigh
         n,R,C = wf.shape
 
@@ -290,6 +429,18 @@ class NeuralNetTriage(object):
 
 
     def train_triagenet(self, x_train, y_train, nn_name):
+        """
+            Trains the triage network
+
+            Parameters:
+            -----------
+            x_train: np.array
+                [number of data, temporal length, number of channels] training data for the triage network.
+            y_train: np.array
+                [number of data] training label for the triage network.
+            nn_name: string
+                name of the .ckpt to be saved.            
+        """                
 
         ndata, T, C = x_train.shape
         
@@ -335,9 +486,41 @@ def bias_variable(shape, varName=None):
     return tf.Variable(initial, name=varName)
 
 def conv2d(x, W):
+    """
+        Performs 2-dimensional convolution with SAME padding.
+
+        Parameters:
+        -----------
+        x: tf.Variable
+            input data.
+        W: tf.Variable
+            weight matrix to be convolved with x.
+            
+        Returns:
+        -----------
+        x_convolved: tf.Variable
+            output of the convolution function with the same shape as x.
+    """ 
+
     return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
     
 def conv2d_VALID(x, W):
+    """
+        Performs 2-dimensional convolution with VALID padding.
+
+        Parameters:
+        -----------
+        x: tf.Variable
+            input data.
+        W: tf.Variable
+            weight matrix to be convolved with x.
+            
+        Returns:
+        -----------
+        x_convolved: tf.Variable
+            output of the convolution function with smaller shape than x.
+    """ 
+
     return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='VALID')            
 
 def max_pool(x, W):
