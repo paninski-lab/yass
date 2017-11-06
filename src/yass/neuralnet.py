@@ -167,7 +167,6 @@ class NeuralNetDetector(object):
                 count += index_temp.shape[0]
 
         index = index[:count]
-        index = np.concatenate((index, np.ones((count,1),'int32')), axis = 1)
         return index
 
     def train_ae(self, x_train, y_train, nn_name):

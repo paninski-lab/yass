@@ -195,10 +195,12 @@ def run():
 
 def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
                   whiten_file):
+    logger = logging.getLogger(__name__)
     CONFIG = read_config()
 
     # detect spikes
     _b = datetime.datetime.now()
+    logger.info('running detection')
     if CONFIG.detctionMethod == 'nn':
         spike_index = nnDetector.get_spikes(rec)
 
@@ -240,6 +242,8 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
 
     time['b'] += (datetime.datetime.now()-_b).total_seconds()
 
+    
+    _b = datetime.datetime.now()
     if get_score == 0:
         # if we are not calculating score for this minibatch, every spikes
         # are considered as collision and will be referred during deconvlution

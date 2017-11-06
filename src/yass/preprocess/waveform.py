@@ -46,7 +46,7 @@ def get_waveforms(recording, spike_index, proj, neighbors, geom, nnt, th):
     n_times, n_channels = recording.shape
     n_spikes, _ = spike_index.shape
     window_size, n_features = proj.shape
-    spike_size = (window_size-1)/2
+    spike_size = int((window_size-1)/2)
     nneigh = np.max(np.sum(neighbors, 0))
 
     recording = np.concatenate((recording, np.zeros((n_times,1))), axis=1)
@@ -61,7 +61,7 @@ def get_waveforms(recording, spike_index, proj, neighbors, geom, nnt, th):
     spike_index_collision = np.zeros((0,2), 'int32')
     score = np.zeros((0, n_features, nneigh), 'float32')
 
-    nbuff = 50000
+    nbuff = 500000
     wf = np.zeros((nbuff, window_size, nneigh), 'float32')
 
     count = 0
@@ -84,7 +84,7 @@ def get_waveforms(recording, spike_index, proj, neighbors, geom, nnt, th):
             clear_spike = nnt.nn_triage(wf, th)
 
             # collect clear and colliding spikes
-            spike_index_buff = spike_index[(j+1-nbuff):(j+1)]
+            spike_index_buff = spike_index[(j-nbuff+1):(j+1)]
             spike_index_clear = np.concatenate((spike_index_clear,
                 spike_index_buff[clear_spike]))
             spike_index_collision = np.concatenate((spike_index_collision,
