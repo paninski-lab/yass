@@ -1,10 +1,11 @@
 import numpy as np
+import logging
 
 from .deconvolute import Deconvolution
 from .. import read_config
 
 
-def run(spike_train, spikes_left, templates):
+def run(spike_train_clear, templates, spike_index_collision):
     """Run deconvolution
 
     Parameters
@@ -22,22 +23,24 @@ def run(spike_train, spikes_left, templates):
 
     .. literalinclude:: ../examples/deconvolute.py
     """
+    logger = logging.getLogger(__name__)
+
     CONFIG = read_config()
     deconv = Deconvolution(CONFIG, np.transpose(templates, [1, 0, 2]),
-                           spikes_left, filename='whiten.bin')
-    spikes_deconv = deconv.fullMPMU()
+                           spike_index_collision, filename='whiten.bin')
+    spike_train_deconv = deconv.fullMPMU()
 
-    spikes_all = np.concatenate((spikes_deconv, spike_train))
+    spike_train = np.concatenate((spike_train_deconv, spike_train_clear))
 
-    idx_sort = np.argsort(spikes_all[:, 0])
-    spikes_all = spikes_all[idx_sort]
+    idx_sort = np.argsort(spike_train[:, 0])
+    spike_train = spike_train[idx_sort]
 
-    idx_keep = np.zeros(spikes_all.shape[0], 'bool')
+    idx_keep = np.zeros(spike_train.shape[0], 'bool')
 
     for k in range(templates.shape[2]):
-        idx_c = np.where(spikes_all[:, 1] == k)[0]
-        idx_keep[idx_c[np.concatenate(([True], np.diff(spikes_all[idx_c,0]) > 1))]] = 1
+        idx_c = np.where(spike_train[:, 1] == k)[0]
+        idx_keep[idx_c[np.concatenate(([True], np.diff(spike_train[idx_c,0]) > 1))]] = 1
 
-    spikes_all = spikes_all[idx_keep]
+    spike_train = spike_train[idx_keep]
 
-    return spikes_all
+    return spike_train

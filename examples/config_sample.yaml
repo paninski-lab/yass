@@ -1,10 +1,10 @@
 # DATA
 # data root folder
-root: data/
+root: /ssd/data/peter/ej49_dataset
 # binary recording filename
-filename: neuropixel.bin
+filename: ej49_data1_set1.bin
 # channel geometry file name
-geomFile: neuropixel_channels.npy
+geomFile: ej49_geometry1.txt
 # save spikeTrain
 spikeTrainName: spike_train.csv
 
@@ -12,35 +12,39 @@ spikeTrainName: spike_train.csv
 # precision of the recording (e.g.'int16')
 dtype: int16
 # recording rate (in Hz)
-srate: 30000
+srate: 20000
 # number of channels in the recording
-nChan: 10
+nChan: 49
 # spatial radius of spikes
 spatialRadius: 70
+# temporal length of wavforms in ms
+spikeSizeMS: 1.5
 
 # TURN ON/OFF MODULES
 doFilter: True
-doTriage: True
+doTriage: False
 doCoreset: True
 doWhitening: True
-# 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
-detctionMethod: threshold
-# 'MFM' for mixture of finite mixture clustering, 'dpmm' for dirichlete process mixture model
-clusteringMethod: MFM
 doDeconv: True
 
+# 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
+detctionMethod: nn
+
+
+
+
+
+
+
 # PREPROCESS
-portion: 1
 # max. memory allowed for loading recording (in bytes)
-maxMem: 1000000000
+maxMem: 4000000000
 # [0,1] to use parital data to estimate templates
 partialDat: 1
 # determine whitening matrix in each minibatch
 whitenBatchwise: 0
 # number of features for dimension reduction
 nFeat: 3
-# temporal length of wavforms in ms
-spikeSizeMS: 1
 
 # NN DETECTION
 # Threshold for spike event detection
@@ -79,7 +83,6 @@ kSplit: 5
 tMergeTh: [0.8, 0.7]
 
 # DECONVOLUTION
-deconvGPU: 1
 deconvRank: 3
 deconvTh: 4
 deconvLam: 20
@@ -88,27 +91,19 @@ deconvLam: 20
 neural_network:
   # NN filenames
   # tf nn trained model file name
-  #nnFilename: 2class_multi2.ckpt
   nnFilename: detectnet1.ckpt
   aeFilename: ae_31.ckpt
   nnTriageFilename: triagenet1.ckpt
 
   # NN architecture
-  # num. of filters in each layer
+  # num. of filters for detection NN
   nnNFilters: [16, 8, 1]
-  # temporal filter size
-  nnFilterSize: [31, 1, 1]  
-  
-  nnTriageFilterSize: [8, 16]  
-  
+  # num. of filters for triage NN
+  nnTriageFilterSize: [8, 16]
+  # temporal window of spike for NN
+  nnFilterSize: 31
+
   # NN training
-  # train nn and save
-  nnTrain: 0
-  # 'recording' : raw recording,
-  inputType: 'recording'
-  # 'sorted_recording' : raw recording with spike train, 'templates' : templates
-  # 'rectangular', 'non_rectangular'
-  ChannelGeometry: 'rectangular'
   # num. of iter. in training
   nnIteration: 100000
   # size of minibatch in training
