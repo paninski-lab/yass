@@ -980,8 +980,6 @@ def spikesort(score, mask, group, param):
 
     maskedData = maskData(score, mask, group)
 
-    logger.debug('maskedData shape {}'.format(maskedData.shape))
-
     vbParam = split_merge(maskedData, param)        
     assignmentTemp = np.argmax(vbParam.rhat, axis=1)
     
