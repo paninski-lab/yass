@@ -12,7 +12,7 @@ from .process.templates import get_templates
 from .util import deprecated
 
 
-# @deprecated('Use function in process module, see examples/process.py')
+@deprecated('Use function in process module, see examples/process.py')
 class Mainprocessor(object):
 
     def __init__(self, config, score, clr_idx, spt):

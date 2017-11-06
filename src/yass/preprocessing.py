@@ -15,7 +15,7 @@ from .preprocess.standarize import standarize, sd
 from .util import deprecated
 
 
-# @deprecated('Use function in preprocess module, see examples/preprocess.py')
+@deprecated('Use function in preprocess module, see examples/preprocess.py')
 class Preprocessor(object):
 
     # root: the absolute path to the location of the file

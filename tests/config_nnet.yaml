@@ -1,4 +1,8 @@
-# SAMPLE CONFIGURATION FILE
+# NOTE: this are not the right
+# parameters for the neuropixel data
+# but we are using them to avoid breaking
+# the nnet detection, will update
+# when we incorporate new models
 
 # DATA FILES
 # data root folder
@@ -6,7 +10,7 @@ root: tests/data
 # binary recording filename
 filename: neuropixel.bin
 # channel geometry file name
-geomFile: neuropixel_channels.npy
+geomFile: geometry_fake.txt # neuropixel_channels.npy
 # save spikeTrain
 spikeTrainName: spike_train.csv
 
@@ -14,7 +18,7 @@ spikeTrainName: spike_train.csv
 # precision of the recording (e.g.'int16')
 dtype: int16
 # recording rate (in Hz)
-srate: 30000
+srate: 20000 # 3000
 # number of channels in the recording
 nChan: 10
 # spatial radius of spikes
@@ -43,7 +47,7 @@ whitenBatchwise: 0
 # number of features for dimension reduction
 nFeat: 3
 # temporal length of wavforms in ms
-spikeSizeMS: 1
+spikeSizeMS: 1.5
 
 # NN DETECTION
 # Threshold for spike event detection
