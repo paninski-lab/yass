@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import scipy.special as specsci
 import math
@@ -5,6 +7,10 @@ from numpy.random import dirichlet
 import scipy.spatial as ss
 
 
+logger = logging.getLogger(__name__)
+
+
+# FIXME: this class is not used anywhere
 class maskedMFM(object):
 
     def __init__(self, config, score, mask, group):
@@ -973,6 +979,8 @@ def spikesort(score, mask, group, param):
     # param.n_chan = np.sum(usedchan)
 
     maskedData = maskData(score, mask, group)
+
+    logger.debug('maskedData shape {}'.format(maskedData.shape))
 
     vbParam = split_merge(maskedData, param)        
     assignmentTemp = np.argmax(vbParam.rhat, axis=1)
