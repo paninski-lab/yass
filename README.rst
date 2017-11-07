@@ -92,8 +92,8 @@ You need to install graphviz to build the graphs included in the documentation. 
     make [format]
 
 
-Mantainers
-----------
+Maintainers
+-----------
 
 `Peter Lee`_, `Eduardo Blancas`_
 
