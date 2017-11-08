@@ -7,6 +7,9 @@ YASS: Yet Another Spike Sorter
 .. image:: https://readthedocs.org/projects/yass/badge/?version=latest
     :target: http://yass.readthedocs.io/en/latest/?badge=latest
 
+.. image:: https://badges.gitter.im/paninski-lab/yass.svg
+    :target: https://gitter.im/paninski-lab/yass?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge
+
 YASS is a state-of-the-art method for spike sorting.
 
 Note: We are currently working on improving YASS to be usable in different types
