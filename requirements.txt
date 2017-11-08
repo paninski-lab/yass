@@ -2,6 +2,6 @@
 pytest
 
 # for building documentation
-sphinx
+sphinx>=1.6
 sphinxcontrib-blockdiag
 numpydoc

@@ -7,7 +7,8 @@ from yass.MFM import spikesort
 
 def runSorter(score_all, mask_all, clr_idx_all, group_all,
               channel_groups, neighbors, n_features, config):
-    """
+    """Run sorting algorithm for every channel group
+
     Parameters
     ----------
 
@@ -30,8 +31,12 @@ def runSorter(score_all, mask_all, clr_idx_all, group_all,
 
     bar = progressbar.ProgressBar(maxval=nG)
 
+    # iterate over every channel group (this is computed in config.py)
     for g in range(nG):
+
+        # get the channels that conform this group
         ch_idx = channel_groups[g]
+
         neigh_chan = np.sum(neighbors[ch_idx], axis=0) > 0
 
         score = np.zeros(

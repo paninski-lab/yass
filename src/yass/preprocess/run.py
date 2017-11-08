@@ -30,9 +30,11 @@ def run():
         List of size n_channels, each list contains a (clear spikes x
         number of features x number of channels) multidimensional array
         score for every clear spike
+
     clear_index: list
         List of size n_channels, each list contains the indexes in
         spike_times (first column) where the spike was clear
+
     spike_times: list
         List with n_channels elements, each element contains spike times
         in the first column and [SECOND COLUMN?]
@@ -191,7 +193,6 @@ def run():
     logger.info("\twhitening:\t{0} seconds".format(time['w']))
     logger.info("\tsaving recording:\t{0} seconds".format(time['b']))
     logger.info("\tgetting waveforms:\t{0} seconds".format(time['e']))
-
 
     return score, clr_idx, spike_times
 

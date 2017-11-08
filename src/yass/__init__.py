@@ -8,7 +8,7 @@ from .indexer import Indexer
 
 logging.getLogger(__name__).addHandler(NullHandler())
 
-__version__ = '0.1dev'
+__version__ = '0.1.2dev'
 
 CONFIG = None
 
