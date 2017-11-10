@@ -17,26 +17,20 @@ srate: 30000
 nChan: 10
 # spatial radius of spikes
 spatialRadius: 70
-# temporal length of wavforms in ms
-spikeSizeMS: 1
 
 # TURN ON/OFF MODULES
 doFilter: True
 doTriage: True
 doCoreset: True
 doWhitening: True
+# 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
+detctionMethod: threshold
+# 'MFM' for mixture of finite mixture clustering, 'dpmm' for dirichlete process mixture model
+clusteringMethod: MFM
 doDeconv: True
 
-# 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
-detctionMethod: nn
-
-
-
-
-
-
-
 # PREPROCESS
+portion: 1
 # max. memory allowed for loading recording (in bytes)
 maxMem: 1000000000
 # [0,1] to use parital data to estimate templates
@@ -45,6 +39,8 @@ partialDat: 1
 whitenBatchwise: 0
 # number of features for dimension reduction
 nFeat: 3
+# temporal length of wavforms in ms
+spikeSizeMS: 1
 
 # NN DETECTION
 # Threshold for spike event detection
@@ -83,6 +79,7 @@ kSplit: 5
 tMergeTh: [0.8, 0.7]
 
 # DECONVOLUTION
+deconvGPU: 1
 deconvRank: 3
 deconvTh: 4
 deconvLam: 20
@@ -91,19 +88,27 @@ deconvLam: 20
 neural_network:
   # NN filenames
   # tf nn trained model file name
+  #nnFilename: 2class_multi2.ckpt
   nnFilename: detectnet1.ckpt
   aeFilename: ae_31.ckpt
   nnTriageFilename: triagenet1.ckpt
 
   # NN architecture
-  # num. of filters for detection NN
+  # num. of filters in each layer
   nnNFilters: [16, 8, 1]
-  # num. of filters for triage NN
-  nnTriageFilterSize: [8, 16]
-  # temporal window of spike for NN
-  nnFilterSize: 31
-
+  # temporal filter size
+  nnFilterSize: [31, 1, 1]  
+  
+  nnTriageFilterSize: [8, 16]  
+  
   # NN training
+  # train nn and save
+  nnTrain: 0
+  # 'recording' : raw recording,
+  inputType: 'recording'
+  # 'sorted_recording' : raw recording with spike train, 'templates' : templates
+  # 'rectangular', 'non_rectangular'
+  ChannelGeometry: 'rectangular'
   # num. of iter. in training
   nnIteration: 100000
   # size of minibatch in training
