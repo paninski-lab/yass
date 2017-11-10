@@ -1,10 +1,10 @@
 # DATA
 # data root folder
-root: /ssd/data/peter/ej49_dataset
+root: data/
 # binary recording filename
-filename: ej49_data1_set1.bin
+filename: neuropixel.bin
 # channel geometry file name
-geomFile: ej49_geometry1.txt
+geomFile: neuropixel_channels.npy
 # save spikeTrain
 spikeTrainName: spike_train.csv
 
@@ -12,17 +12,17 @@ spikeTrainName: spike_train.csv
 # precision of the recording (e.g.'int16')
 dtype: int16
 # recording rate (in Hz)
-srate: 20000
+srate: 30000
 # number of channels in the recording
-nChan: 49
+nChan: 10
 # spatial radius of spikes
 spatialRadius: 70
 # temporal length of wavforms in ms
-spikeSizeMS: 1.5
+spikeSizeMS: 1
 
 # TURN ON/OFF MODULES
 doFilter: True
-doTriage: False
+doTriage: True
 doCoreset: True
 doWhitening: True
 doDeconv: True
@@ -38,7 +38,7 @@ detctionMethod: nn
 
 # PREPROCESS
 # max. memory allowed for loading recording (in bytes)
-maxMem: 4000000000
+maxMem: 1000000000
 # [0,1] to use parital data to estimate templates
 partialDat: 1
 # determine whitening matrix in each minibatch

@@ -4,11 +4,11 @@ import argparse
 import numpy as np
 import logging
 
-import yass
-from yass import preprocess
-from yass import process
-from yass import deconvolute
-from yass import read_config
+from . import set_config
+from . import preprocess
+from . import process
+from . import deconvolute
+from . import read_config
 
 def main():
     # configure logging module to get useful information
@@ -22,7 +22,7 @@ def main():
     args = parser.parse_args()
 
     # set yass configuration parameters
-    yass.set_config(args.config)
+    set_config(args.config)
     CONFIG = read_config()
 
     # run preprocessor
