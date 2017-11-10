@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 import scipy.special as specsci
 import math
@@ -5,6 +7,10 @@ from numpy.random import dirichlet
 import scipy.spatial as ss
 
 
+logger = logging.getLogger(__name__)
+
+
+# FIXME: this class is not used anywhere
 class maskedMFM(object):
 
     def __init__(self, config, score, mask, group):

@@ -1,17 +1,25 @@
 YASS: Yet Another Spike Sorter
 ================================
 
+
 .. image:: https://travis-ci.org/paninski-lab/yass.svg?branch=master
     :target: https://travis-ci.org/paninski-lab/yass
+
 
 .. image:: https://readthedocs.org/projects/yass/badge/?version=latest
     :target: http://yass.readthedocs.io/en/latest/?badge=latest
 
-YASS is a state-of-the-art method for spike sorting.
 
-Note: We are currently working on improving YASS to be usable in different types
-of neural data. The neural network detector currently only works in reduced
-use cases. We will add more models soon.
+.. image:: https://badges.gitter.im/paninski-lab/yass.svg
+    :target: https://gitter.im/paninski-lab/yass?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge
+
+State-of-the-art spike sorting.
+
+**Note**: YASS is in an early stage of development. Although it is stable, it has only been tested
+with the data in our lab, but we are working to make it more flexible. Feel free to send
+feedback through `Gitter`_. Expect a lot of API changes in the near future.
+
+.. _Gitter: https://gitter.im/paninski-lab/yass
 
 Reference
 ---------
@@ -92,8 +100,8 @@ You need to install graphviz to build the graphs included in the documentation. 
     make [format]
 
 
-Mantainers
-----------
+Maintainers
+-----------
 
 `Peter Lee`_, `Eduardo Blancas`_
 
