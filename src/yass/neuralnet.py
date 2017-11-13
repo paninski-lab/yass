@@ -20,7 +20,7 @@ class NeuralNetDetector(object):
             spatial filter size of the spatial convolutional layer.
         R1,R2,R3: int
             temporal filter sizes for the temporal convolutional layers. R2 and R3 are optional.
-        K1,K2,K3: int
+        K1,K2: int
             number of filters for each convolutional layer.
         W1, W11, W2: tf.Variable
             [temporal_filter_size, spatial_filter_size, input_filter_number, ouput_filter_number] weight matrices
@@ -52,7 +52,7 @@ class NeuralNetDetector(object):
 
         C = np.max(np.sum(self.config.neighChannels, 0))
 
-        R1 = self.config.neural_network['nnFilterSize']
+        R1, R2, R3 = self.config.neural_network['nnFilterSize']
         K1, K2, K3 = self.config.neural_network['nnNFilters']
 
         self.W1 = weight_variable([R1,1,1,K1])
@@ -106,7 +106,7 @@ class NeuralNetDetector(object):
         """
         # get parameters
         T, C = X.shape
-        R1 = self.config.neural_network['nnFilterSize']
+        R1, R2, R3 = self.config.neural_network['nnFilterSize']
         K1, K2, K3 = self.config.neural_network['nnNFilters']
         th = self.config.nnThreshdold
         temporal_window = 3 #self.config.spikeSize
@@ -292,7 +292,7 @@ class NeuralNetDetector(object):
         # get parameters
         ndata, T, C = x_train.shape
         R1 = self.config.neural_network['nnFilterSize']
-        K1, K2, K3 = self.config.neural_network['nnNFilters']
+        K1, K2 = self.config.neural_network['nnNFilters']
 
         x_tf = tf.placeholder("float", [nbatch, T, C])
         y_tf = tf.placeholder("float", [nbatch])
