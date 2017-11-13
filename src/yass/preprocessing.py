@@ -9,7 +9,7 @@ import numpy as np
 from .neuralnet import NeuralNetDetector, NeuralNetTriage
 from .preprocess.detect import threshold_detection
 from .preprocess.filter import whitening_matrix, whitening, butterworth
-from .preprocess.score import getPCAProjection, getPcaSS, getScore
+from .preprocess.score import get_score_pca, get_pca_suff_stat, get_pca_projection
 from .preprocess.waveform import get_waveforms
 from .preprocess.standarize import standarize, sd
 from .util import deprecated
