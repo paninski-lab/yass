@@ -201,7 +201,6 @@ class Deconvolution(object):
         spiketime_all = np.zeros(0, 'int32')
         assignment_all = np.zeros(0, 'int32')
 
-        bar = progressbar.ProgressBar(maxval=nBatches)
         for i in range(nBatches):
             self.WFile.seek(flattenedLength*i)
             wrec = self.WFile.read(flattenedLength)
@@ -293,15 +292,13 @@ class Deconvolution(object):
                         spiketime_all = np.concatenate((spiketime_all, sts))
                         assignment_all = np.concatenate((assignment_all, ids))
 
-            bar.update(i+1)
-
+      
         self.closeWFile()
 
         currentTime = dt.datetime.now()
         print("Deconvoltuion done in {0} seconds.".format(
             (currentTime-startTime).seconds))
-        bar.finish()
-
+      
         return np.concatenate((spiketime_all[:, np.newaxis], assignment_all[:, np.newaxis]), axis=1)
 
 def decompose_dWU(templates, nrank):
