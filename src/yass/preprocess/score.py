@@ -13,7 +13,7 @@ def get_score_pca(spike_index, rot, neighbors, geom, batch_size,
     SPIKE_TIME, MAIN_CHANNEL = 0, 1
 
     window_size, n_features, n_channels = rot.shape
-    spike_size = (window_size-1)/2
+    spike_size = int((window_size-1)/2)
     n_spikes = spike_index.shape[0]
 
     wf_file = open(os.path.join(wf_path), 'rb')
