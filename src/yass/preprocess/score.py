@@ -5,7 +5,7 @@ import numpy as np
 from ..geometry import order_channels_by_distance
 
 
-def get_score_pca(spike_index, rot, neighbors, geom, batch_size,
+def get_score_pca(spike_index, rot, neighbors, geom, batch_size, BUFF, nBatches,
              wf_path, scale_to_save):
     """PCA scoring
     """
@@ -17,7 +17,7 @@ def get_score_pca(spike_index, rot, neighbors, geom, batch_size,
     n_spikes = spike_index.shape[0]
 
     wf_file = open(os.path.join(wf_path), 'rb')
-    flattenedLength = 2*batch_size*n_channels
+    flattenedLength = 2*(batch_size + 2*BUFF)*n_channels
 
     nneigh = np.max(np.sum(neighbors, 0))
     c_idx = np.ones((n_channels, nneigh), 'int32')*n_channels
@@ -30,8 +30,12 @@ def get_score_pca(spike_index, rot, neighbors, geom, batch_size,
     score = np.zeros((n_spikes, n_features, nneigh), 'float32')
 
     counter_batch = 0
-    for i in np.unique(spike_index[:,2]):
-        spike_index_batch = spike_index[spike_index[:,2]==i]
+    for i in range(nBatches):
+        idx_batch = np.logical_and(spike_index[:,0] > batch_size*i, 
+                                   spike_index[:,0] < batch_size*(i+1))
+        
+        spike_index_batch = spike_index[idx_batch]
+        spike_index_batch[:,0] = spike_index_batch[:,0] - batch_size*i + BUFF
         n_spikes_batch = spike_index_batch.shape[0]
 
         wf_file.seek(flattenedLength*i)
