@@ -13,7 +13,6 @@ from yass.geometry import (parse, find_channel_neighbors,
 from yass.preprocess.detect import threshold_detection
 from yass.preprocess.waveform import get_waveforms
 from yass.preprocess.standarize import standarize
-from yass.preprocess.score import getScore
 
 import yass
 from yass import preprocess

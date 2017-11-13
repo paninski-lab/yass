@@ -2,6 +2,7 @@ import os
 import argparse
 
 import numpy as np
+import logging
 
 import yass
 from yass.preprocessing import Preprocessor
@@ -9,8 +10,17 @@ from yass.neuralnet import NeuralNetDetector
 from yass.mainprocess import Mainprocessor
 from yass.deconvolute import Deconvolution
 
+#from . import set_config
+#from . import preprocess
+#from . import process
+#from . import deconvolute
+#from . import read_config
 
 def main():
+    # configure logging module to get useful information
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
     parser = argparse.ArgumentParser(description='Run YASS.')
     parser.add_argument('config', type=str,
                         help='Path to configuration file')
@@ -20,12 +30,12 @@ def main():
     cfg = yass.Config.from_yaml(args.config)
 
     pp = Preprocessor(cfg)
-    score, clr_idx, spt = pp.process()
+    score, spike_index_clear, spike_index_collision = pp.process()
 
-    mp = Mainprocessor(cfg, score, clr_idx, spt)
-    spikeTrain_clear, spt_left = mp.mainProcess()
+    mp = Mainprocessor(cfg, score, spike_index_clear, spike_index_collision)
+    spikeTrain_clear, spike_index_collision = mp.mainProcess()
 
-    dc = Deconvolution(cfg, np.transpose(mp.templates,[1,0,2]), spt_left)
+    dc = Deconvolution(cfg, np.transpose(mp.templates,[1,0,2]), spike_index_collision)
     spikeTrain_col = dc.fullMPMU()
 
     spikeTrain = np.concatenate((spikeTrain_col, spikeTrain_clear))
@@ -41,3 +51,23 @@ def main():
     path_to_file = os.path.join(cfg.root, cfg.spikeTrainName)
     np.savetxt(path_to_file, spikeTrain, fmt='%i, %i')
     print('Done, spike train saved in: {}'.format(path_to_file))
+
+    
+    # set yass configuration parameters
+    #set_config(args.config)
+    #CONFIG = read_config()
+
+    # run preprocessor
+    #score, spike_index_clear, spike_index_collision = preprocess.run()
+
+    # run processor
+    #spike_train_clear, templates, spike_index_collision = process.run(score,
+    #    spike_index_clear, spike_index_collision)
+
+    # run deconvolution
+    #spike_train = deconvolute.run(spike_train_clear, templates,
+    #    spike_index_collision)
+
+    #path_to_file = os.path.join(CONFIG.root, CONFIG.spikeTrainName)
+    #np.savetxt(path_to_file, spike_train, fmt='%i, %i')
+    #logger.info('Done, spike train saved in: {}'.format(path_to_file))
