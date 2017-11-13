@@ -30,7 +30,7 @@ def test_deconvolute(path_to_config):
     spike_train, spt_left = mp.mainProcess()
 
     dc = Deconvolution(cfg, np.transpose(mp.templates, [1, 0, 2]), spt_left)
-    dc.fullMPMU_depreciated()
+    dc.fullMPMU()
 
 
 def test_decovnolute_new_pipeline(path_to_config):
