@@ -170,7 +170,8 @@ def run():
         rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
                                  CONFIG.nFeat, CONFIG.neighChannels)
         score = get_score_pca(spike_index_clear, rot, CONFIG.neighChannels,
-                              CONFIG.geom, CONFIG.batch_size + 2*CONFIG.BUFF,
+                              CONFIG.geom, CONFIG.batch_size,
+                              CONFIG.BUFF, CONFIG.nBatches,
                               os.path.join(CONFIG.root,'tmp/whiten.bin'),
                               CONFIG.scaleToSave)
 

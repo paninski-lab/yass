@@ -43,7 +43,7 @@ def get_score_pca(spike_index, rot, neighbors, geom, batch_size, BUFF, nBatches,
         wrec = np.fromstring(wrec, dtype='int16')
         wrec = np.reshape(wrec, (-1, n_channels))
         wrec = wrec.astype('float32')/scale_to_save
-        wrec = np.concatenate((wrec, np.zeros((batch_size,1))), axis=1)
+        wrec = np.concatenate((wrec, np.zeros((batch_size + 2*BUFF,1))), axis=1)
 
         nbuff = 50000
         wf = np.zeros((nbuff, window_size, nneigh), 'float32')

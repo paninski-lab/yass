@@ -185,11 +185,13 @@ class Preprocessor(object):
             _b = dt.datetime.now()
             rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
                                  self.config.nFeat, self.config.neighChannels)
-            
+
             score = get_score_pca(spike_index_clear, rot, 
                                   self.config.neighChannels,
                                   self.config.geom, 
-                                  self.config.batch_size + 2*self.config.BUFF,
+                                  self.config.batch_size,
+                                  self.config.BUFF,
+                                  self.config.nBatches,
                                   os.path.join(self.config.root, 'tmp', 'wrec.bin'),
                                   self.config.scaleToSave)
             Time['e'] += (dt.datetime.now()-_b).total_seconds()
