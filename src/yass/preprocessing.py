@@ -10,7 +10,7 @@ from .neuralnet import NeuralNetDetector, NeuralNetTriage
 from .preprocess.detect import threshold_detection
 from .preprocess.filter import whitening_matrix, whitening, butterworth
 from .preprocess.score import getPCAProjection, getPcaSS, getScore
-from .preprocess.waveform import get_waveforms
+from .preprocess.waveform import get_waveforms_depreciated
 from .preprocess.standarize import standarize, sd
 from .util import deprecated
 
@@ -269,7 +269,7 @@ class Preprocessor(object):
 
         _b = dt.datetime.now()
         if self.config.detctionMethod == 'nn':
-            score, clr_idx, spt = get_waveforms(rec,
+            score, clr_idx, spt = get_waveforms_depreciated(rec,
                                                 self.config.neighChannels,
                                                 index,
                                                 1,
@@ -282,7 +282,7 @@ class Preprocessor(object):
             ss = 0
             nspikes = 0
         else:
-            score, clr_idx, spt = get_waveforms(rec,
+            score, clr_idx, spt = get_waveforms_depreciated(rec,
                                                 self.config.neighChannels,
                                                 index,
                                                 0,
