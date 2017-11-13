@@ -31,7 +31,7 @@ class Mainprocessor(object):
 
         _b = dt.datetime.now()
         self.logger.info("Triaging...")
-        self.score, self.clr_idx = triage(self.score, self.clr_idx,
+        self.score, self.clr_idx = triage_depreciated(self.score, self.clr_idx,
                                           self.config.nChan, self.config.triageK,
                                           self.config.triagePercent,
                                           self.config.neighChannels,
@@ -41,14 +41,14 @@ class Mainprocessor(object):
         if self.config.doCoreset:
             _b = dt.datetime.now()
             self.logger.info("Coresettting...")
-            self.group = coreset(self.score, self.config.nChan,
+            self.group = coreset_depreciated(self.score, self.config.nChan,
                                  self.config.coresetK, self.config.coresetTh)
 
             Time['c'] += (dt.datetime.now()-_b).total_seconds()
 
         _b = dt.datetime.now()
         self.logger.info("Masking...")
-        self.mask = getmask(self.score, self.group, self.config.maskTh,
+        self.mask = getmask_depreciated(self.score, self.group, self.config.maskTh,
                             self.config.nFeat, self.config.nChan,
                             self.config.doCoreset)
 
