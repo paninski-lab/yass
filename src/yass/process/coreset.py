@@ -37,3 +37,25 @@ def coreset_alg(data, th, K):
         label_new = np.array(range(1, data.shape[0]+1))
 
     return label_new
+
+
+
+def coreset_depreciated(score, n_channels, coreset_k, coreset_th):
+    """
+    """
+    group = list()
+
+    for c in range(n_channels):
+
+        N = score[c].shape[0]
+        if N > 0:
+            score_temp = score[c].reshape([N, -1])
+            th = 1.5*np.sqrt(chi2.ppf(coreset_th, 1) *
+                             score_temp.shape[1])
+            group.append(coreset_alg(score_temp, th,
+                                     coreset_k).astype('int32')-1)
+
+        else:
+            group.append(np.zeros(0))
+
+    return group

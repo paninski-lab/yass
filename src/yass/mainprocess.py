@@ -3,9 +3,9 @@ import os
 import datetime as dt
 import logging
 
-from .process.triage import triage
-from .process.coreset import coreset
-from .process.mask import getmask
+from .process.triage import triage_depreciated
+from .process.coreset import coreset_depreciated
+from .process.mask import getmask_depreciated
 from .process.cluster import runSorter
 from .process.clean import clean_output
 from .process.templates import get_templates
