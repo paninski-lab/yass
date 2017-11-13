@@ -55,7 +55,8 @@ def test_new_process(path_to_config):
 
     set_config(path_to_config)
 
-    spike_train, spt_left, templates = process.run(score, clr_idx, spt)
+    (spike_train_clear, templates,
+     spike_index_collision) = process.run(score, clr_idx, spt)
 
 
 def test_new_process_shows_error_if_empty_config():
