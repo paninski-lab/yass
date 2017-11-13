@@ -168,7 +168,7 @@ class Deconvolution(object):
         startTime = dt.datetime.now()
 
         templates = self.templates
-        spt = self.spt
+        spt = self.spike_index
 
         self.openWFile('rb')
 
