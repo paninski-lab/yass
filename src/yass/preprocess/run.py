@@ -168,7 +168,6 @@ def run():
 
     whiten_file.close()
 
-    # TODO: ask peter, why are we only running this for threshold detector?
     if CONFIG.detctionMethod != 'nn':
         _b = datetime.datetime.now()
         rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
