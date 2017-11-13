@@ -14,4 +14,5 @@ yass.set_config('tests/config_threshold.yaml')
 score, clr_idx, spt = preprocess.run()
 
 # run processor
-spike_train, spt_left, templates = process.run(score, clr_idx, spt)
+(spike_train_clear, templates,
+ spike_index_collision) = process.run(score, clr_idx, spt)

@@ -10,4 +10,4 @@ logging.basicConfig(level=logging.DEBUG)
 yass.set_config('tests/config_nnet.yaml')
 
 # run preprocessor
-pp = preprocess.run()
+score, spike_index_clear, spike_index_collision = preprocess.run()
