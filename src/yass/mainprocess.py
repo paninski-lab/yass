@@ -62,7 +62,7 @@ class Mainprocessor(object):
             score_group = np.zeros((0, self.config.nFeat, neigh_chans.shape[0]))
             coreset_id_group = np.zeros((0), 'int32')
             mask_group = np.zeros((0, neigh_chans.shape[0]))
-            spike_index_clear_group = np.zeros((0, 3), 'int32')
+            spike_index_clear_group = np.zeros((0, 2), 'int32')
             for c in channels:
 
                 # index of data whose main channel is c
@@ -165,7 +165,7 @@ class Mainprocessor(object):
                 # concatenate spike index with cluster id of untriaged ones
                 # to create spike_train_clear
                 si_clustered = spike_index_clear_group[~idx_triage]
-                spt = si_clustered[:,[0]] + self.config.batch_size*si_clustered[:,[2]] - self.config.BUFF
+                spt = si_clustered[:,[0]]
                 cluster_id = cluster_id[~idx_triage][:, np.newaxis]
 
                 spike_train_temp = np.concatenate((spt,cluster_id+K), axis=1)
