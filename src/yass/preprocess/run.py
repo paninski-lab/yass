@@ -142,8 +142,8 @@ def run():
                                nnTriage=nnTriage, whiten_file=whiten_file)
 
         # spike time w.r.t. to the whole recording
-        si_clr_batch[:,0] = si_clr_batch[:,0] + i*batch_size - BUFF
-        si_col_batch[:,0] = si_col_batch[:,0] + i*batch_size - BUFF
+        si_clr_batch[:,0] = si_clr_batch[:,0] + i*CONFIG.batch_size - CONFIG.BUFF
+        si_col_batch[:,0] = si_col_batch[:,0] + i*CONFIG.batch_size - CONFIG.BUFF
 
         if i == 0:
             spike_index_clear = si_clr_batch
