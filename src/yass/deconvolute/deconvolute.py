@@ -163,68 +163,7 @@ class Deconvolution(object):
         return np.concatenate((spiketime_all[:, np.newaxis], assignment_all[:, np.newaxis]), axis=1)
 
 
-def decompose_dWU(templates, nrank):
-    R, C, K = templates.shape
-    W = np.zeros((R, nrank, K), 'float32')
-    U = np.zeros((C, nrank, K), 'float32')
-    mu = np.zeros((K, 1), 'float32')
-
-    templates[np.isnan(templates)] = 0
-    for k in range(K):
-        W[:, :, k], U[:, :, k], mu[k] = get_svds(templates[:, :, k], nrank)
-
-    U = np.transpose(U, [0, 2, 1])
-    W = np.transpose(W, [0, 2, 1])
-
-    U[np.isnan(U)] = 0
-
-    return W, U, mu
-
-
-def get_svds(template, nrank):
-    Wall, S_temp, Uall = np.linalg.svd(template)
-    imax = np.argmax(np.abs(Wall[:, 0]))
-    ss = np.sign(Wall[imax, 1])
-    Uall[0, :] = -Uall[0, :]*ss
-    Wall[:, 0] = -Wall[:, 0]*ss
-
-    Sv = np.zeros((Wall.shape[0], Uall.shape[0]))
-    nn = np.min((Wall.shape[0], Uall.shape[0]))
-    Sv[:nn, :nn] = np.diag(S_temp)
-
-    Wall = np.matmul(Wall, Sv)
-
-    mu = np.sqrt(np.sum(np.square(np.diag(Sv)[:nrank])))
-    print(Wall)
-    print(mu)
-    Wall = Wall/mu
-
-    W = Wall[:, :nrank]
-    U = (Uall.T)[:, :nrank]
-
-    return W, U, mu
-
-
-
-class Deconvolution_depreciated(object):
-
-    def __init__(self, config, templates, spt, filename='wrec.bin'):
-
-        self.config = config
-        self.templates = templates
-        self.spt = spt
-        self.path_to_file = os.path.join(
-            self.config.root, 'tmp', filename)
-
-        self.logger = logging.getLogger(__name__)
-
-    def openWFile(self, opt):
-        self.WFile = open(self.path_to_file, opt)
-
-    def closeWFile(self):
-        self.WFile.close()
-
-    def fullMPMU(self):
+    def fullMPMU_depreciated(self):
 
         startTime = dt.datetime.now()
 
@@ -364,3 +303,44 @@ class Deconvolution_depreciated(object):
         bar.finish()
 
         return np.concatenate((spiketime_all[:, np.newaxis], assignment_all[:, np.newaxis]), axis=1)
+
+def decompose_dWU(templates, nrank):
+    R, C, K = templates.shape
+    W = np.zeros((R, nrank, K), 'float32')
+    U = np.zeros((C, nrank, K), 'float32')
+    mu = np.zeros((K, 1), 'float32')
+
+    templates[np.isnan(templates)] = 0
+    for k in range(K):
+        W[:, :, k], U[:, :, k], mu[k] = get_svds(templates[:, :, k], nrank)
+
+    U = np.transpose(U, [0, 2, 1])
+    W = np.transpose(W, [0, 2, 1])
+
+    U[np.isnan(U)] = 0
+
+    return W, U, mu
+
+
+def get_svds(template, nrank):
+    Wall, S_temp, Uall = np.linalg.svd(template)
+    imax = np.argmax(np.abs(Wall[:, 0]))
+    ss = np.sign(Wall[imax, 1])
+    Uall[0, :] = -Uall[0, :]*ss
+    Wall[:, 0] = -Wall[:, 0]*ss
+
+    Sv = np.zeros((Wall.shape[0], Uall.shape[0]))
+    nn = np.min((Wall.shape[0], Uall.shape[0]))
+    Sv[:nn, :nn] = np.diag(S_temp)
+
+    Wall = np.matmul(Wall, Sv)
+
+    mu = np.sqrt(np.sum(np.square(np.diag(Sv)[:nrank])))
+    print(Wall)
+    print(mu)
+    Wall = Wall/mu
+
+    W = Wall[:, :nrank]
+    U = (Uall.T)[:, :nrank]
+
+    return W, U, mu

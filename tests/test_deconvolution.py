@@ -6,7 +6,7 @@ import pytest
 import yass
 from yass.preprocessing import Preprocessor
 from yass.mainprocess import Mainprocessor
-from yass.deconvolute import Deconvolution_depreciated
+from yass.deconvolute import Deconvolution
 
 from yass import preprocess
 from yass import process
@@ -29,8 +29,8 @@ def test_deconvolute(path_to_config):
     mp = Mainprocessor(cfg, score, clr_idx, spt)
     spike_train, spt_left = mp.mainProcess()
 
-    dc = Deconvolution_depreciated(cfg, np.transpose(mp.templates, [1, 0, 2]), spt_left)
-    dc.fullMPMU()
+    dc = Deconvolution(cfg, np.transpose(mp.templates, [1, 0, 2]), spt_left)
+    dc.fullMPMU_depreciated()
 
 
 def test_decovnolute_new_pipeline(path_to_config):
