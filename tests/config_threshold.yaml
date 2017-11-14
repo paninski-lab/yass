@@ -33,8 +33,6 @@ whitenBatchwise: 0
 # number of features for dimension reduction
 nFeat: 3
 
-templates:
-  merge_threshold: [0.8, 0.7]
 
 deconvolution:
   rank: 3
@@ -43,6 +41,9 @@ deconvolution:
 
 # Neural network parameters
 neural_network:
-  aeFilename: ae_31.ckpt
   nnTriageFilename: triagenet1.ckpt
   nnTriageFilterSize: [8, 16]  
+
+
+neural_network_autoencoder:
+  filename: ae_31.ckpt

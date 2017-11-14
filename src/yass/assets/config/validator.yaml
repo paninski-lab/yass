@@ -47,3 +47,8 @@ fields_validator:
     filename:
       function: expand_asset_model
       type: str
+
+  neural_network_autoencoder:
+    filename:
+      function: expand_asset_model
+      type: str

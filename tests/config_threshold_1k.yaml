@@ -35,17 +35,16 @@ whitenBatchwise: 0
 nFeat: 3
 
 
-templates:
-  merge_threshold: [0.8, 0.7]
-
 deconvolution:
   rank: 3
   threshold: 4
-  lambda: 20
+  lam: 20
 
 # Neural network parameters
 neural_network:
-  aeFilename: ae_31.ckpt
   nnTriageFilename: triagenet1.ckpt
   nnTriageFilterSize: [8, 16]  
-  
+
+
+neural_network_autoencoder:
+  filename: ae_31.ckpt

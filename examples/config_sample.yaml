@@ -43,11 +43,12 @@ deconvolution:
 
 # Neural network parameters
 neural_network:
-  # NN filenames
-  aeFilename: ae_31.ckpt
   nnTriageFilename: triagenet1.ckpt
   nnTriageFilterSize: [8, 16]  
 
+
+neural_network_autoencoder:
+  filename: ae_31.ckpt
 
 neural_network_detector:
   # model name, can be any of the models included in yass (detectnet1.ckpt),
