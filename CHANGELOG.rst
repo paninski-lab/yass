@@ -4,6 +4,8 @@ Changelog
 0.1.2dev
 --------
 
+* Fixed bug that was causing spike times to be off due to the buffer
+* Various bug fixes
 * Updates to input/output structure
 * Adds new module for augmented spikes
 * Function names changes in score module
