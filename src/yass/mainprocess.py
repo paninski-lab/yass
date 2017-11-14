@@ -185,7 +185,7 @@ class Mainprocessor(object):
 
         _b = datetime.datetime.now()
         self.logger.info("Getting Templates...")
-        path_to_whiten = os.path.join(self.config.root, 'tmp/wrec.bin')
+        path_to_whiten = os.path.join(self.config.root_folder, 'tmp/wrec.bin')
         spike_train_clear, templates = get_templates(spike_train_clear,
                                                      self.config.batch_size,
                                                      self.config.BUFF,

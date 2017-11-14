@@ -104,7 +104,7 @@ class Config(FrozenJSON):
         # computations
 
         # GEOMETRY PARAMETERS
-        path_to_geom = path.join(self.root, self.geomFile)
+        path_to_geom = path.join(self.root_folder, self.geomFile)
         self._set_param('geom', geom.parse(path_to_geom, self.nChan))
 
         neighChannels = geom.find_channel_neighbors(self.geom,
@@ -134,7 +134,7 @@ class Config(FrozenJSON):
         self._set_param('templatesMaxShift', int(self.srate/1000))
         self._set_param('stdFactor', 4)
 
-        file_size = path.getsize(path.join(self.root, self.filename))
+        file_size = path.getsize(path.join(self.root_folder, self.filename))
         # seems unused...
         self._set_param('size', int(file_size/(sizeof(self.dtype)*self.nChan)))
 

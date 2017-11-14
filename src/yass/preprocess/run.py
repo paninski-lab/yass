@@ -51,10 +51,10 @@ def run():
 
     # FIXME: remove this
     CONFIG = read_config()
-    whiten_file = open(os.path.join(CONFIG.root, 'tmp/whiten.bin'), 'wb')
+    whiten_file = open(os.path.join(CONFIG.root_folder, 'tmp/whiten.bin'), 'wb')
 
     # initialize processor for raw data
-    path = os.path.join(CONFIG.root, CONFIG.filename)
+    path = os.path.join(CONFIG.root_folder, CONFIG.filename)
     dtype = CONFIG.dtype
 
     # initialize factory
@@ -74,7 +74,7 @@ def run():
                     .format(bp))
 
         # run filtering
-        path = os.path.join(CONFIG.root,  'tmp/filtered.bin')
+        path = os.path.join(CONFIG.root_folder,  'tmp/filtered.bin')
         dtype = bp.process_function(butterworth,
                                     path,
                                     CONFIG.filterLow,
@@ -98,7 +98,7 @@ def run():
                 .format(bp))
 
     # run standarization
-    path = os.path.join(CONFIG.root,  'tmp/standarized.bin')
+    path = os.path.join(CONFIG.root_folder,  'tmp/standarized.bin')
     dtype = bp.process_function(standarize,
                                 path,
                                 sd_)
@@ -174,7 +174,7 @@ def run():
                                  CONFIG.nFeat, CONFIG.neighChannels)
         score = get_score_pca(spike_index_clear, rot, CONFIG.neighChannels,
                               CONFIG.geom, CONFIG.batch_size + 2*CONFIG.BUFF,
-                              os.path.join(CONFIG.root,'tmp/whiten.bin'),
+                              os.path.join(CONFIG.root_folder,'tmp/whiten.bin'),
                               CONFIG.scaleToSave)
 
         time['e'] += (datetime.datetime.now()-_b).total_seconds()

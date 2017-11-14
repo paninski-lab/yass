@@ -48,7 +48,7 @@ def main():
         idx_keep[idx_c[np.concatenate(([True], np.diff(spikeTrain[idx_c,0]) > 1))]] = 1
     spikeTrain = spikeTrain[idx_keep]
 
-    path_to_file = os.path.join(cfg.root, cfg.spikeTrainName)
+    path_to_file = os.path.join(cfg.root_folder, cfg.spikeTrainName)
     np.savetxt(path_to_file, spikeTrain, fmt='%i, %i')
     print('Done, spike train saved in: {}'.format(path_to_file))
 
@@ -68,6 +68,6 @@ def main():
     #spike_train = deconvolute.run(spike_train_clear, templates,
     #    spike_index_collision)
 
-    #path_to_file = os.path.join(CONFIG.root, CONFIG.spikeTrainName)
+    #path_to_file = os.path.join(CONFIG.root_folder, CONFIG.spikeTrainName)
     #np.savetxt(path_to_file, spike_train, fmt='%i, %i')
     #logger.info('Done, spike train saved in: {}'.format(path_to_file))

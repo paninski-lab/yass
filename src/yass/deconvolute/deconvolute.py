@@ -14,7 +14,7 @@ class Deconvolution(object):
         self.templates = templates
         self.spike_index = spike_index
         self.path_to_file = os.path.join(
-            self.config.root, 'tmp', filename)
+            self.config.root_folder, 'tmp', filename)
 
         self.logger = logging.getLogger(__name__)
 

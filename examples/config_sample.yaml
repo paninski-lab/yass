@@ -1,6 +1,6 @@
 # DATA
 # data root folder
-root: data/
+root_folder: data/
 # binary recording filename
 filename: neuropixel.bin
 # channel geometry file name
