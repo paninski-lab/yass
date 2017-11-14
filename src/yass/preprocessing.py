@@ -55,7 +55,7 @@ class Preprocessor(object):
     def openFile(self):
         self.closeFile()
         self.File = open(os.path.join(
-            self.config.data.root_folder, self.config.recordings), 'rb')
+            self.config.data.root_folder, self.config.data.recordings), 'rb')
 
     def closeFile(self):
         if self.File == None:

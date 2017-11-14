@@ -134,7 +134,7 @@ class Config(FrozenJSON):
         self._set_param('templatesMaxShift', int(self.srate/1000))
         self._set_param('stdFactor', 4)
 
-        file_size = path.getsize(path.join(self.data.root_folder, self.recordings))
+        file_size = path.getsize(path.join(self.data.root_folder, self.data.recordings))
         # seems unused...
         self._set_param('size', int(file_size/(sizeof(self.dtype)*self.nChan)))
 

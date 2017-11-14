@@ -54,7 +54,7 @@ def run():
     whiten_file = open(os.path.join(CONFIG.data.root_folder, 'tmp/whiten.bin'), 'wb')
 
     # initialize processor for raw data
-    path = os.path.join(CONFIG.data.root_folder, CONFIG.recordings)
+    path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
     dtype = CONFIG.dtype
 
     # initialize factory

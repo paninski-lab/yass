@@ -1,11 +1,10 @@
 data:
   # project's root folder, data will be loaded and saved here
   root_folder: data/
-
-# binary recording filename
-recordings: neuropixel.bin
-# channel geometry file name
-geometry: neuropixel_channels.npy
+  # recordings filename
+  recordings: neuropixel.bin
+  # channel geometry filename
+  geometry: neuropixel_channels.npy
 
 # RECORDING
 # precision of the recording (e.g.'int16')

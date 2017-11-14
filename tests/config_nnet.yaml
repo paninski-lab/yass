@@ -6,10 +6,8 @@
 
 data:
   root_folder: tests/data
-# binary recording filename
-recordings: neuropixel.bin
-# channel geometry file name
-geometry: geometry_fake.txt # neuropixel_channels.npy
+  recordings: neuropixel.bin
+  geometry: geometry_fake.txt
 
 # RECORDING
 # precision of the recording (e.g.'int16')
