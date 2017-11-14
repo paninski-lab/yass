@@ -28,11 +28,12 @@ def coreset_alg(data, th, K):
         label_new = np.zeros(data.shape[0])
         for k in range(K):
             idx = labels == k
-            if np.max(distances[idx, k]) > th:
-                label_temp = coreset_alg(data[idx], th, K)
-                label_new[idx] = label_temp + np.max(label_new)
-            else:
-                label_new[idx] = 1 + np.max(label_new)
+            if np.sum(idx) > 0:
+                if np.max(distances[idx, k]) > th:
+                    label_temp = coreset_alg(data[idx], th, K)
+                    label_new[idx] = label_temp + np.max(label_new)
+                else:
+                    label_new[idx] = 1 + np.max(label_new)
     else:
         label_new = np.array(range(1, data.shape[0]+1))
 

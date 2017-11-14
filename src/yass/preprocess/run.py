@@ -141,12 +141,9 @@ def run():
                                nnDetector=nnDetector, proj=proj,
                                nnTriage=nnTriage, whiten_file=whiten_file)
 
-        # add batch number to spike_index
-        batch_ids = np.ones((si_clr_batch.shape[0], 1), 'int32') * i
-        si_clr_batch = np.hstack((si_clr_batch, batch_ids))
-
-        batch_ids = np.ones((si_col_batch.shape[0], 1), 'int32') * i
-        si_col_batch = np.hstack((si_col_batch, batch_ids))
+        # spike time w.r.t. to the whole recording
+        si_clr_batch[:,0] = si_clr_batch[:,0] + i*CONFIG.batch_size - CONFIG.BUFF
+        si_col_batch[:,0] = si_col_batch[:,0] + i*CONFIG.batch_size - CONFIG.BUFF
 
         if i == 0:
             spike_index_clear = si_clr_batch
@@ -173,7 +170,8 @@ def run():
         rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
                                  CONFIG.nFeat, CONFIG.neighChannels)
         score = get_score_pca(spike_index_clear, rot, CONFIG.neighChannels,
-                              CONFIG.geom, CONFIG.batch_size + 2*CONFIG.BUFF,
+                              CONFIG.geom, CONFIG.batch_size,
+                              CONFIG.BUFF, CONFIG.nBatches,
                               os.path.join(CONFIG.root,'tmp/whiten.bin'),
                               CONFIG.scaleToSave)
 
