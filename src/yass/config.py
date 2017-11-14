@@ -184,7 +184,7 @@ class Config(FrozenJSON):
         """Validate values in the input dictionary
         """
         path_to_validator = resource_filename('yass',
-                                              'assets/config_validator.yaml')
+                                              'assets/config/validator.yaml')
         with open(path_to_validator) as f:
             validator = yaml.load(f)
 
