@@ -69,8 +69,8 @@ def run(score, spike_index_clear, spike_index_collision):
     spike_train_clear = np.zeros((0,2), 'int32')
 
     # order of channels
-    c_idx = np.ones((CONFIG.nChan, nneigh), 'int32')*CONFIG.nChan
-    for c in range(CONFIG.nChan):
+    c_idx = np.ones((CONFIG.n_channels, nneigh), 'int32')*CONFIG.n_channels
+    for c in range(CONFIG.n_channels):
         ch_idx, _ = order_channels_by_distance(c,
                                                np.where(
                                                CONFIG.neighChannels[c])[0],
@@ -150,7 +150,7 @@ def run(score, spike_index_clear, spike_index_collision):
                 score_temp = np.zeros((score_c.shape[0],
                     CONFIG.nFeat, neigh_chans.shape[0]))
                 mask_temp = np.zeros((mask.shape[0],neigh_chans.shape[0]))
-                nneigh_c = np.sum(c_idx[c] < CONFIG.nChan)
+                nneigh_c = np.sum(c_idx[c] < CONFIG.n_channels)
                 for j in range(nneigh_c):
                     c_interest = np.where(neigh_chans == c_idx[c,j])[0][0]
                     score_temp[:,:,c_interest] = score_c[:,:,j]
@@ -215,7 +215,7 @@ def run(score, spike_index_clear, spike_index_collision):
                                                  CONFIG.batch_size,
                                                  CONFIG.BUFF,
                                                  CONFIG.nBatches,
-                                                 CONFIG.nChan,
+                                                 CONFIG.n_channels,
                                                  CONFIG.spikeSize,
                                                  CONFIG.templatesMaxShift,
                                                  CONFIG.scaleToSave,

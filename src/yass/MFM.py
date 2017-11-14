@@ -17,7 +17,7 @@ class maskedMFM(object):
         usedchan = np.asarray(np.where(np.sum(mask, axis=0) > 1)).ravel()
         score = score[:, :, usedchan]
         mask = mask[:, usedchan]
-        config.nChan = np.sum(usedchan)
+        config.n_channels = np.sum(usedchan)
 
         self.config = config
         calc_maskedData(self, score, mask, group)

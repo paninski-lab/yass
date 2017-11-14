@@ -106,13 +106,13 @@ class Config(FrozenJSON):
 
         # GEOMETRY PARAMETERS
         path_to_geom = path.join(self.data.root_folder, self.data.geometry)
-        self._set_param('geom', geom.parse(path_to_geom, self.nChan))
+        self._set_param('geom', geom.parse(path_to_geom, self.n_channels))
 
         neighChannels = geom.find_channel_neighbors(self.geom,
                                                     self.spatialRadius)
         self._set_param('neighChannels', neighChannels)
 
-        channelGroups = geom.make_channel_groups(self.nChan,
+        channelGroups = geom.make_channel_groups(self.n_channels,
                                                  self.neighChannels,
                                                  self.geom)
         self._set_param('channelGroups', channelGroups)
@@ -137,12 +137,12 @@ class Config(FrozenJSON):
 
         file_size = path.getsize(path.join(self.data.root_folder, self.data.recordings))
         # seems unused...
-        self._set_param('size', int(file_size/(sizeof(self.dtype)*self.nChan)))
+        self._set_param('size', int(file_size/(sizeof(self.dtype)*self.n_channels)))
 
         # BATCH PARAMETERS
         self._set_param('dsize', sizeof(self.dtype))
 
-        batch_size = int(np.floor(self.maxMem/(self.nChan*self.dsize)))
+        batch_size = int(np.floor(self.maxMem/(self.n_channels*self.dsize)))
 
         if batch_size > self.size:
             self._set_param('nBatches', 1)

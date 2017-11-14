@@ -68,10 +68,10 @@ class Preprocessor(object):
     # offset should be in terms of timesamples
     def load(self, offset, length):
         dsize = self.config.dsize
-        self.File.seek(offset*dsize*self.config.nChan)
-        rec = self.File.read(dsize*self.config.nChan*length)
+        self.File.seek(offset*dsize*self.config.n_channels)
+        rec = self.File.read(dsize*self.config.n_channels*length)
         rec = np.fromstring(rec, dtype=self.config.dtype)
-        rec = rec.reshape(length, self.config.nChan)
+        rec = rec.reshape(length, self.config.n_channels)
         return rec
 
     # chunck should be in C x T format
@@ -326,7 +326,7 @@ class Preprocessor(object):
         residual = self.config.residual
         self.openFile()
 
-        summedTemplatesBig = np.zeros((K, 2*R+1, self.config.nChan))
+        summedTemplatesBig = np.zeros((K, 2*R+1, self.config.n_channels))
         ndata = np.zeros(K)
 
         for i in range(0, nBatches):

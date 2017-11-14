@@ -60,7 +60,7 @@ def run():
     # initialize factory
     factory = BatchProcessorFactory(path_to_file=None,
                                     dtype=None,
-                                    n_channels=CONFIG.nChan,
+                                    n_channels=CONFIG.n_channels,
                                     max_memory=CONFIG.maxMem,
                                     buffer_size=None)
 

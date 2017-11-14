@@ -35,10 +35,10 @@ class Deconvolution(object):
 
         batch_size = self.config.batch_size + 2*self.config.BUFF
         nBatches = self.config.nBatches
-        flattenedLength = 2*batch_size*self.config.nChan
+        flattenedLength = 2*batch_size*self.config.n_channels
 
         neighchan = n_steps_neigh_channels(self.config.neighChannels, steps = 3)
-        C = self.config.nChan
+        C = self.config.n_channels
         R = self.config.spikeSize
         shift = 3  # int(R/2)
         K = self.templates.shape[2]
@@ -64,7 +64,7 @@ class Deconvolution(object):
             self.WFile.seek(flattenedLength*i)
             wrec = self.WFile.read(flattenedLength)
             wrec = np.fromstring(wrec, dtype='int16')
-            wrec = np.reshape(wrec, (-1, self.config.nChan))
+            wrec = np.reshape(wrec, (-1, self.config.n_channels))
             wrec = wrec.astype('float32')/self.config.scaleToSave
 
             for c in range(C):
