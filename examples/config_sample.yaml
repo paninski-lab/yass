@@ -103,7 +103,10 @@ neural_network:
 
 # optional
 neural_network_detector:
-  # model name
+  # model name, can be any of the models included in yass (detectnet1.ckpt),
+  # a relative folder to data.root_fodler (e.g.
+  # $ROOT_FOLDER/models/mymodel.ckpt) or an absolute path to a model
+  # (e.g. /path/to/my/model.ckpt)
   filename: detectnet1.ckpt
   # Threshold for spike event detection
   threshold_spike: 0.5
