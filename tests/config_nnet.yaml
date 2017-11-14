@@ -23,7 +23,7 @@ doCoreset: True
 doWhitening: True
 
 methods:
-  detection: threshold
+  detection: nn
   clustering: MFM
 
 
