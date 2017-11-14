@@ -8,7 +8,7 @@ import yaml
 import numpy as np
 from pkg_resources import resource_filename
 
-from . import geometry as geom
+from .. import geometry as geom
 
 
 class FrozenJSON(object):
