@@ -782,7 +782,7 @@ def weightedKmeansplusplus(X, w, k):
 def birth_move(maskedData, vbParam, suffStat, param, L):
     Khat = suffStat.sumY.shape[1]
     collectionThreshold = 0.1
-    extraK = param.kSplit
+    extraK = param.clustering.n_split
     weight = (suffStat.Nhat + 0.001) * L ** 2
     weight = weight / np.sum(weight)
     idx = np.zeros(1).astype(int)

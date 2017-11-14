@@ -39,11 +39,12 @@ whitenBatchwise: 0
 # number of features for dimension reduction
 nFeat: 3
 
-# CLUSTERING
-# Masking threshold
-maskTh: [0.9, 0.5]
-# Num. of new clusters in split
-kSplit: 5
+clustering:
+  # Masking threshold
+  masking_threshold: [0.9, 0.5]
+  # Num. of new clusters in split
+  n_split: 5
+
 
 # TEMPLATE MERGING
 # threshold for template merge

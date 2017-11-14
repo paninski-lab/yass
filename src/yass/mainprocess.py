@@ -118,7 +118,7 @@ class Mainprocessor(object):
                     ###########
 
                     _b = datetime.datetime.now()
-                    mask = getmask(score_c, coreset_id, self.config.maskTh, self.config.nFeat)
+                    mask = getmask(score_c, coreset_id, self.config.clustering.masking_threshold, self.config.nFeat)
                     Time['m'] += (datetime.datetime.now()-_b).total_seconds()
 
 

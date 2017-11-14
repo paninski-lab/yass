@@ -143,7 +143,7 @@ def run(score, spike_index_clear, spike_index_collision):
                 ###########
 
                 _b = datetime.datetime.now()
-                mask = getmask(score_c, coreset_id, CONFIG.maskTh, CONFIG.nFeat)
+                mask = getmask(score_c, coreset_id, CONFIG.clustering.masking_threshold, CONFIG.nFeat)
                 Time['m'] += (datetime.datetime.now()-_b).total_seconds()
 
 
