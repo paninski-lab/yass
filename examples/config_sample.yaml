@@ -111,5 +111,7 @@ filter:
   high_factor: 0.1
 
 triage:
+  # number of nearest neighbors to consider
   nearest_neighbors: 20
+  # percentage of data to be triaged
   percent: 0.01
