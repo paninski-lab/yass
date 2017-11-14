@@ -22,8 +22,6 @@ doFilter: True
 
 # remove
 doTriage: True
-doCoreset: True
-doWhitening: True
 
 methods:
   detection: nn

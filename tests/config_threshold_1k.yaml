@@ -14,7 +14,6 @@ recordings:
 # 0 for filtered recording
 doFilter: True
 doTriage: True
-doCoreset: True
 
 methods:
   # 'nn' for neural net detction, 'threshold' for amplitdue threshold detection

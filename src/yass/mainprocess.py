@@ -101,9 +101,12 @@ class Mainprocessor(object):
                     # Coreset #
                     ###########
 
+                    # TODO: refactor this as CONFIG.doCoreset was removed
+                    doCoreset = True
+
                     _b = datetime.datetime.now()
                     coreset_id = coreset(score_c, self.config.coreset.clusters,
-                        self.config.coreset.threshold, self.config.doCoreset)
+                        self.config.coreset.threshold, doCoreset)
                     Time['c'] += (datetime.datetime.now()-_b).total_seconds()
 
 
