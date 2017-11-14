@@ -71,9 +71,6 @@ deconvolution:
 # Neural network parameters
 neural_network:
   # NN filenames
-  # tf nn trained model file name
-  #nnFilename: 2class_multi2.ckpt
-  nnFilename: detectnet1.ckpt
   aeFilename: ae_31.ckpt
   nnTriageFilename: triagenet1.ckpt
 
@@ -105,6 +102,8 @@ neural_network:
 
 # optional
 neural_network_detector:
+  # model name
+  filename: detectnet1.ckpt
   # Threshold for spike event detection
   threshold_spike: 0.5
   # Threshold for clear/collision detection
