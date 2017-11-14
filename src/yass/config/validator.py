@@ -26,9 +26,12 @@ class Validator(object):
         dictionary whose keys represent valid keys inside the section. Each
         of these dictionaries can have any of the optional keys: values
         (list of permitted valyes) and type (Python data type)
+
+    allow_extras: bool, optional
+        Ignore extra sections, defaults to True
     """
     def __init__(self, d, required_sections=None, optional_sections=None,
-                 fields_validator=None):
+                 fields_validator=None, allow_extras=True):
         self.d = d
         self.required_sections = (set(required_sections) if required_sections
                                   else set())
@@ -36,8 +39,8 @@ class Validator(object):
                                   if optional_sections else set())
         self.optional_sections_defaults = optional_sections
         self.fields_validator = fields_validator
-
         self.sections = set(self.d.keys())
+        self.allow_extras = allow_extras
 
     def _validate_required_sections(self):
         missing = self.required_sections - self.sections
@@ -46,7 +49,7 @@ class Validator(object):
             raise ValueError('The following sections are required: {}'
                              .format(_pretty_iter(missing)))
 
-    def _validate_optional_sections(self):
+    def _validate_extra_sections(self):
         extra = self.sections - self.required_sections
         invalid = extra - self.optional_sections
 
@@ -85,8 +88,10 @@ class Validator(object):
         if self.required_sections:
             self._validate_required_sections()
 
+        if not self.allow_extras:
+            self._validate_extra_sections()
+
         if self.optional_sections:
-            self._validate_optional_sections()
             self._fill_default_values()
 
         if self.fields_validator:
