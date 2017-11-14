@@ -33,7 +33,7 @@ class Preprocessor(object):
 
         # make tmp directory if not exist
         try:
-            os.makedirs(os.path.join(config.root_folder, 'tmp'))
+            os.makedirs(os.path.join(config.data.root_folder, 'tmp'))
         except OSError as exception:
             if exception.errno != errno.EEXIST:
                 raise
@@ -42,7 +42,7 @@ class Preprocessor(object):
 
     def openWFile(self, opt):
         self.WFile = open(os.path.join(
-            self.config.root_folder, 'tmp', 'wrec.bin'), opt)
+            self.config.data.root_folder, 'tmp', 'wrec.bin'), opt)
 
     def closeWFile(self):
         if self.WFile == None:
@@ -55,7 +55,7 @@ class Preprocessor(object):
     def openFile(self):
         self.closeFile()
         self.File = open(os.path.join(
-            self.config.root_folder, self.config.recordings), 'rb')
+            self.config.data.root_folder, self.config.recordings), 'rb')
 
     def closeFile(self):
         if self.File == None:
@@ -194,7 +194,7 @@ class Preprocessor(object):
                                   self.config.neighChannels,
                                   self.config.geom, 
                                   self.config.batch_size + 2*self.config.BUFF,
-                                  os.path.join(self.config.root_folder, 'tmp', 'wrec.bin'),
+                                  os.path.join(self.config.data.root_folder, 'tmp', 'wrec.bin'),
                                   self.config.scaleToSave)
             Time['e'] += (dt.datetime.now()-_b).total_seconds()
 

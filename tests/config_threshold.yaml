@@ -1,8 +1,6 @@
-# SAMPLE CONFIGURATION FILE
+data:
+  root_folder: tests/data
 
-# DATA FILES
-# data root folder
-root_folder: tests/data
 # binary recording filename
 recordings: neuropixel.bin
 # channel geometry file name

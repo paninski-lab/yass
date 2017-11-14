@@ -12,7 +12,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
         
     # process data (filter and standardize)
     process_data(CONFIG)
-    path = os.path.join(CONFIG.root_folder,  'tmp/standarized.bin')
+    path = os.path.join(CONFIG.data.root_folder,  'tmp/standarized.bin')
     dtype = 'float64'
     
     # get templates

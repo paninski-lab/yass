@@ -14,7 +14,7 @@ def process_data(CONFIG):
     logger = logging.getLogger(__name__)
     
     # initialize processor for raw data
-    path = os.path.join(CONFIG.root_folder, CONFIG.recordings)
+    path = os.path.join(CONFIG.data.root_folder, CONFIG.recordings)
     dtype = CONFIG.dtype
 
     # initialize factory
@@ -32,7 +32,7 @@ def process_data(CONFIG):
                     .format(bp))
 
         # run filtering
-        path = os.path.join(CONFIG.root_folder,  'tmp/filtered.bin')
+        path = os.path.join(CONFIG.data.root_folder,  'tmp/filtered.bin')
         dtype = bp.process_function(butterworth,
                                     path,
                                     CONFIG.filterLow,
@@ -54,7 +54,7 @@ def process_data(CONFIG):
                 .format(bp))
 
     # run standarization
-    path = os.path.join(CONFIG.root_folder,  'tmp/standarized.bin')
+    path = os.path.join(CONFIG.data.root_folder,  'tmp/standarized.bin')
     dtype = bp.process_function(standarize,
                                 path,
                                 sd_)

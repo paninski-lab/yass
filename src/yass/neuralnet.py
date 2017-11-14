@@ -266,7 +266,7 @@ class NeuralNetDetector(object):
                 sess.run(train_step, feed_dict={x_: x_train, y_: y_train})
                 bar.update(i+1)
             self.saver_ae.save(sess, os.path.join(
-                self.config.root_folder, nn_name))
+                self.config.data.root_folder, nn_name))
         bar.finish()
 
     def train_detector(self, x_train, y_train, nn_name):
@@ -324,7 +324,7 @@ class NeuralNetDetector(object):
                 idx_batch = np.random.choice(ndata, nbatch, replace=False)
                 sess.run(train_step, feed_dict={x_tf: x_train[idx_batch], y_tf: y_train[idx_batch]})
                 bar.update(i+1)
-            self.saver.save(sess, os.path.join(self.config.root_folder, nn_name))
+            self.saver.save(sess, os.path.join(self.config.data.root_folder, nn_name))
         bar.finish()
 
 class NeuralNetTriage(object):
@@ -472,7 +472,7 @@ class NeuralNetTriage(object):
 
                 sess.run(train_step, feed_dict={self.x_tf: np.reshape(x_train[idx_batch],[nbatch,-1]), y_tf:  y_train[idx_batch]})
                 bar.update(i+1)
-            self.saver_triagenet.save(sess, os.path.join(self.config.root_folder, nn_name))
+            self.saver_triagenet.save(sess, os.path.join(self.config.data.root_folder, nn_name))
         bar.finish()
 
 

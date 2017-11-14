@@ -1,6 +1,7 @@
-# DATA
-# data root folder
-root_folder: data/
+data:
+  # project's root folder, data will be loaded and saved here
+  root_folder: data/
+
 # binary recording filename
 recordings: neuropixel.bin
 # channel geometry file name
