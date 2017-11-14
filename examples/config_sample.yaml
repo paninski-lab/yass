@@ -39,12 +39,6 @@ nFeat: 3
 # temporal length of wavforms in ms
 spikeSizeMS: 1
 
-neural_network_detector:
-  # Threshold for spike event detection
-  threshold_spike: 0.5
-  # Threshold for clear/collision detection
-  threshold_collision: 0.75
-
 # TRIAGE
 # Num. of nearest neighbors to consider
 triageK: 20
@@ -105,6 +99,14 @@ neural_network:
   nnTrainStepSize: 0.001
   # L2 reg. scale
   nnL2RegScale: 0.00000005
+
+
+# optional
+neural_network_detector:
+  # Threshold for spike event detection
+  threshold_spike: 0.5
+  # Threshold for clear/collision detection
+  threshold_collision: 0.75
 
 
 # optional
