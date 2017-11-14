@@ -129,7 +129,7 @@ class Config(FrozenJSON):
         # compute spikeSize which is the number of observations for half
         # the waveform
         self._set_param('spikeSize',
-                        int(np.round(self.spikeSizeMS*self.recordings.sampling_rate/(2*1000))))
+                        int(np.round(self.recordings.spike_size_ms*self.recordings.sampling_rate/(2*1000))))
         self._set_param('scaleToSave', 100)
         self._set_param('BUFF', self.spikeSize*4)
         self._set_param('templatesMaxShift', int(self.recordings.sampling_rate/1000))

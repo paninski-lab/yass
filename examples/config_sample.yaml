@@ -16,6 +16,8 @@ recordings:
   n_channels: 10
   # channels spatial radius
   spatial_radius: 70
+  # temporal length of wavforms in ms
+  spike_size_ms: 1
 
 # TURN ON/OFF MODULES
 doFilter: True
@@ -39,8 +41,6 @@ partialDat: 1
 whitenBatchwise: 0
 # number of features for dimension reduction
 nFeat: 3
-# temporal length of wavforms in ms
-spikeSizeMS: 1
 
 # TRIAGE
 # Num. of nearest neighbors to consider

@@ -8,6 +8,7 @@ recordings:
   sampling_rate: 30000
   n_channels: 10
   spatial_radius: 70
+  spike_size_ms: 1
 
 # TURN ON/OFF MODULES
 # 0 for filtered recording
@@ -30,8 +31,6 @@ partialDat: 1
 whitenBatchwise: 0
 # number of features for dimension reduction
 nFeat: 3
-# temporal length of wavforms in ms
-spikeSizeMS: 1
 
 # TRIAGE
 # Num. of nearest neighbors to consider
