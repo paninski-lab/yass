@@ -46,14 +46,6 @@ nnThreshdold: 0.5
 # Threshold for clear/collision detection
 nnThreshdoldCol: 0.75
 
-filter:
-  # Order of Butterworth filter
-  order: 3
-  # Low pass frequency (Hz)
-  low_pass_freq: 300
-  # High pass factor (proportion of sampling rate)
-  high_factor: 0.1
-
 # TRIAGE
 # Num. of nearest neighbors to consider
 triageK: 20
@@ -117,7 +109,7 @@ neural_network:
   nnL2RegScale: 0.00000005
 
 
-# cluster prior, optional
+# optional
 cluster_prior:
   beta: 1
   a: 1
@@ -125,3 +117,12 @@ cluster_prior:
   mu: [[0], [0], [0]]
   nu: 5
   V: 2
+
+# optional
+filter:
+  # Order of Butterworth filter
+  order: 3
+  # Low pass frequency (Hz)
+  low_pass_freq: 300
+  # High pass factor (proportion of sampling rate)
+  high_factor: 0.1

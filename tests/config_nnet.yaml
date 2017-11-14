@@ -46,11 +46,6 @@ nnThreshdold: 0.5
 # Threshold for clear/collision detection
 nnThreshdoldCol: 0.75
 
-filter:
-  order: 3
-  low_pass_freq: 300
-  high_factor: 0.1
-
 # TRIAGE
 # Num. of nearest neighbors to consider
 triageK: 20

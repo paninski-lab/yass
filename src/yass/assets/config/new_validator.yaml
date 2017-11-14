@@ -6,3 +6,8 @@ optional_sections:
     mu: [[0], [0], [0]]
     nu: 5
     V: 2
+
+  filter:
+    order: 3
+    low_pass_freq: 300
+    high_factor: 0.1
