@@ -26,3 +26,8 @@ fields_validator:
     clustering:
       values: ['MFM', 'dpmm']
       type: str
+
+  neural_network_detector:
+    filename:
+      function: expand_asset_model
+      type: str
