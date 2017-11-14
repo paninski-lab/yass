@@ -19,6 +19,14 @@ optional_sections:
 
 
 fields_validator:
+  recordings:
+      dtype:
+        type: str
+      sampling_rate:
+        type: int
+      n_channels:
+        type: int
+
   methods:
     detection:
       values: ['threshold', 'nn']

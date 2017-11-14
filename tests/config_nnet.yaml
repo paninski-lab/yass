@@ -14,7 +14,7 @@ recordings:
   sampling_rate: 20000
   n_channels: 10
   spatial_radius: 70
-  spike_size_ms: 1.5Z
+  spike_size_ms: 1.5
 
 # TURN ON/OFF MODULES
 # 0 for filtered recording
