@@ -13,7 +13,6 @@ from yass.geometry import (parse, find_channel_neighbors,
 from yass.preprocess.detect import threshold_detection
 from yass.preprocess.waveform import get_waveforms
 from yass.preprocess.standarize import standarize
-from yass.preprocess.score import getScore
 
 import yass
 from yass import preprocess
@@ -123,14 +122,14 @@ def test_can_preprocess_data_with_nnet(path_to_nn_config):
 
 def test_can_preprocess(path_to_config):
     yass.set_config(path_to_config)
-    preprocess.run()
+    score, spike_index_clear, spike_index_collision = preprocess.run()
 
 
 def test_can_preprocess_1k(path_to_config_1k):
     yass.set_config(path_to_config_1k)
-    preprocess.run()
+    score, spike_index_clear, spike_index_collision = preprocess.run()
 
 
 def test_can_preprocess_with_nnet(path_to_nn_config):
     yass.set_config(path_to_nn_config)
-    preprocess.run()
+    score, spike_index_clear, spike_index_collision = preprocess.run()

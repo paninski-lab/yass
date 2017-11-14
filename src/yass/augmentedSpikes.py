@@ -8,11 +8,26 @@ from yass.preprocessing import Preprocessor
 from yass.mainprocess import Mainprocessor
 
 from .preprocess.filter import butterworth
-from .preprocess.geometry import (n_steps_neigh_channels,
-                                  order_channels_by_distance)
+from .geometry import (n_steps_neigh_channels,
+                       order_channels_by_distance)
 
 
 def getCleanSpikeTrain(config):
+    """
+        Threshold detection for extracting clean templates from the raw recording if groundtruth is not available
+
+        Parameters:
+        -----------
+        config: configuration object
+            configuration object containing the parameters for making the training data.
+            
+        Returns:
+        -----------
+        spikeTrain: np.array
+            [number of spikes, 2] first column corresponds to spike time; second column corresponds to cluster id.
+ 
+    """
+
     config.detctionMethod = 'threshold'
     config.doWhitening = 0
     config.doDeconv = 0
@@ -26,7 +41,29 @@ def getCleanSpikeTrain(config):
 
 
 class AugmentedSpikes(object):
+    """
+        Class for making the training data for the neural network detector, the autoencoder and the triage network
+        
+        Attributes:
+        -----------
+        config: configuration object
+            configuration object containing the parameters for making the training data.
+          
+        spikeTrain: np.array
+            [number of spikes, 2] first column corresponds to spike time; second column corresponds to cluster id.
+    """
+    
     def __init__(self, *args):
+        
+        """
+            Initializes the attributes for the class AugmentedSpikes.
+
+            Parameters:
+            -----------
+            args: if no spiketrain is input, threshold detection will be performed to obtain a spiketrain from the recording
+            specified by the configuration file.
+        """                
+
         config = args[0]
         self.config = config
         
@@ -40,11 +77,46 @@ class AugmentedSpikes(object):
         self.logger = logging.getLogger(__name__)
                  
     def getBigTemplates(self,R):
+        """
+            Gets clean templates with large temporal radius
+
+            Parameters:
+            -----------
+            R: int
+                length of the templates to be returned.
+
+            Returns:
+            -----------
+            templates: np.array
+                [number of templates, temporal length, number of channels] returned templates.
+
+        """
+
         pp = Preprocessor(self.config)
         return pp.getTemplates(self.spikeTrain,R)
     
     def determineNoiseCov(self, temporal_size, D):
-        
+        """
+            Determines the spatial and temporal covariance of the noise 
+
+            Parameters:
+            -----------
+            temporal_size: int
+                row size of the temporal covariance matrix.
+            D: int
+                number of channels away from the mainchannel. D=1 if only look at the main channel; D=2 if look at the main
+                channel and its neighboring channels; D=3 if look at the main channel, the neighboring channels and the
+                neighbors of the neighboring channels.
+            Returns:
+            -----------
+            spatial_SIG: np.array
+                [d, d] spatial covariance matrix of the noise where d depends on D.
+
+            temporal_SIG: np.array
+                [temporal_size, temporal_size] temporal covariance matrix of the noise.
+
+        """
+       
         pp = Preprocessor(self.config)
         
         batch_size = self.config.batch_size
@@ -140,6 +212,46 @@ class AugmentedSpikes(object):
     
         
     def make_training_data(self,R,D,k_idx,min_amp,nspikes):
+        """
+            Makes the training data for the neural network detector, the autoencoder and the triage network 
+
+            Parameters:
+            -----------
+            R: int
+                temporal radius (half length) of the training data.
+            D: int
+                number of channels away from the mainchannel. D=1 if only look at the main channel; D=2 if look at the main 
+                channel and its neighboring channels; D=3 if look at the main channel, the neighboring channels and the neighbors 
+                of the neighboring channels.
+            k_idx: np.array
+                [ncluster,] indices of the clusters whose waveforms will be used for making the training data. k_idx could
+                be a (real) subset of the whole cluster indices if some of the clusters have low energy and bad shapes and 
+                should not enter the function.
+            min_amp: float
+                minimum number for the maximum amplitude of the spike on the main channel for all the generated augmented spikes.
+                This could be defined by visual inspection. Empirically min_amp = 4 works well for most of the cases.
+            nspikes: int
+                number of spikes to be generated. Notice that this is not necessarily the total number of the output training
+                data (see Returns for details).
+
+            Returns:
+            -----------
+            x_detect: np.array
+                [5*nspikes, 2*R+1, d] training data for the neural network detector where d depends on D. This training data
+                contains isolated spikes, noise, colliding spikes and misaligned spikes. The channels are ordered with respect
+                to their distance to the first channel (x_detect[:,:,0]).
+            y_detect: np.array
+                [5*nspikes,1] label for x_detect, 1 for isolated spikes and collisions and 0 otherwise. 
+            x_triage: np.array
+                [3*nspikes, 2*R+1, d] training data for the triage network. This training data contains isolated spikes and                       colliding spikes.
+            y_triage: np.array
+            [5*nspikes,1] label for x_triage, 1 for isolated spikes and 0 otherwise. 
+            x_ae: np.array
+                [3*nspikes, 2*R+1] training data for the autoencoder. This training data contains noisy isolated spikes.
+            y_ae: np.array
+                [3*nspikes, 2*R+1] training data for the autoencoder. This training data contains clean isolated spikes (isolated
+                spikes before superimposed with the noise).
+        """
 
         # get templates with big temporal size and align
         templatesBig = self.getBigTemplates(4*R)
@@ -255,7 +367,7 @@ class AugmentedSpikes(object):
         for c in range(noise.shape[2]):
             noise[:,:,c] = np.matmul(noise[:,:,c],temporal_SIG)
 
-            reshaped_noise = np.reshape(noise,(-1,noise.shape[2]))
+        reshaped_noise = np.reshape(noise,(-1,noise.shape[2]))
         noise = np.reshape(np.matmul(reshaped_noise,spatial_SIG),[x_clean.shape[0],x_clean.shape[1],x_clean.shape[2]])
 
         #y_clean = np.zeros((x_clean.shape[0],3))
@@ -309,6 +421,36 @@ class AugmentedSpikes(object):
         return x_detect, y_detect, x_triage, y_triage, x_ae, y_ae
     
     def crop_templates(self,templatesBig,R,D):
+        """
+            Crops the big templates and keeps their main channels and neighboring channels. Main channel is defined by the 
+            channels with the largest absolute value.
+
+            Parameters:
+            -----------
+            templatesBig: np.array
+                [number of templates, temporal length, number of channels]  Big templates. 
+            R: temporal length of the Big templates.
+            D: int
+                number of channels away from the mainchannel.
+
+            Returns:
+            -----------
+            templatesBig2: np.array 
+                [number of templates, temporal length, number of cropped channels] cropped templates with fewer number of 
+                channels. All the channels of a template are ordered with respect to their distance to the main channel of 
+                that template.
+            geom: np.array
+                [number of total channels, 2] geometry file for all the electrode channels. The second dimension corresponds to 
+                the coordinates.
+            neighChannels: np.array
+                [number of total channels,number of total channels] boolean matrix indicating the neighboring channels for each
+                channel with the spatial radius specified by D.
+        """
+        
+        
+                
+
+            
         K = templatesBig.shape[0]
         mainC = np.argmax(np.amax(np.abs(templatesBig),axis=1),axis=1)
 

@@ -15,7 +15,8 @@ from shutil import rmtree
 
 from setuptools import find_packages, Command, setup
 
-NAME = 'yass'
+# yass was taken...
+NAME = 'yass-algorithm'
 DESCRIPTION = 'YASS: Yet Another Spike Sorter'
 URL = 'https://github.com/paninski-lab/yass'
 EMAIL = 'fkq8@blancas.io'
@@ -27,6 +28,10 @@ INSTALL_REQUIRES = [
     # FIXME: we should remove this
     'progressbar2'
 ]
+
+# pass an empty INSTALL_REQUIRES if building the docs, to avoid breaking the
+# build, modules are mocked in conf.py
+INSTALL_REQUIRES = [] if os.environ.get('READTHEDOCS') else INSTALL_REQUIRES
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -81,6 +86,7 @@ setup(
     description=DESCRIPTION,
     long_description=long_description,
     author=AUTHOR,
+    author_email=EMAIL,
     url=URL,
     packages=find_packages('src'),
     package_dir={'': 'src'},
@@ -102,4 +108,6 @@ setup(
     entry_points={
         'console_scripts': ['yass=yass.command_line:main'],
     },
+    download_url='{url}/archive/{version}.tar.gz'.format(url=URL,
+                                                         version=VERSION),
 )

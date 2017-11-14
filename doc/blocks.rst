@@ -50,10 +50,10 @@ Processing
 
        triage [label="Triage waveforms", description="Triage waveforms in clear/unclear"]
        dim_reduction [label="Dimensionality reduction", description="Reduce waveforms dimensionality"]
-       triage_2 [label="Triage", description=""]
+       triage_2 [label="Outlifer triage", description="Remove some outliers from clear waveforms"]
        coreset [label="Coreset", description="Find coresets"]
        mask [label="Mask", description="Mask data"]
-       cluster [label="Cluster", description="Cluster waveforms"]
+       cluster [label="Cluster", description="Cluster clear waveforms"]
        clean [label="Clean", description=""]
        templates [label="Templates", description="Find waveform templates"]
 

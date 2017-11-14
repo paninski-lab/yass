@@ -1,20 +1,18 @@
 import logging
 import os
 import datetime as dt
-
 import numpy as np
-import progressbar
 
 from ..geometry import n_steps_neigh_channels
 
 
 class Deconvolution(object):
 
-    def __init__(self, config, templates, spt, filename='wrec.bin'):
+    def __init__(self, config, templates, spike_index, filename='wrec.bin'):
 
         self.config = config
         self.templates = templates
-        self.spt = spt
+        self.spike_index = spike_index
         self.path_to_file = os.path.join(
             self.config.root, 'tmp', filename)
 
@@ -28,10 +26,7 @@ class Deconvolution(object):
 
     def fullMPMU(self):
 
-        startTime = dt.datetime.now()
-
-        templates = self.templates
-        spt = self.spt
+        start_time = dt.datetime.now()
 
         self.openWFile('rb')
 
@@ -42,30 +37,30 @@ class Deconvolution(object):
         nBatches = self.config.nBatches
         flattenedLength = 2*batch_size*self.config.nChan
 
-        neighchan = n_steps_neigh_channels(self.config.neighChannels, steps=3)
+        neighchan = n_steps_neigh_channels(self.config.neighChannels, steps = 3)
         C = self.config.nChan
         R = self.config.spikeSize
         shift = 3  # int(R/2)
-        K = templates.shape[2]
+        K = self.templates.shape[2]
         nrank = self.config.deconvRank
         lam = self.config.deconvLam
         Th = self.config.deconvTh
         iter_max = 3
 
-        amps = np.max(np.abs(templates), axis=0)
+        amps = np.max(np.abs(self.templates), axis=0)
         amps_max = np.max(amps, axis=0)
 
         templatesMask = np.zeros((K, C), 'bool')
         for k in range(K):
             templatesMask[k] = amps[:, k] > amps_max[k]*0.5
 
-        W_all, U_all, mu_all = decompose_dWU(templates, nrank)
+        W_all, U_all, mu_all = decompose_dWU(self.templates, nrank)
 
         spiketime_all = np.zeros(0, 'int32')
         assignment_all = np.zeros(0, 'int32')
 
-        bar = progressbar.ProgressBar(maxval=nBatches)
         for i in range(nBatches):
+            self.logger.info("batch {}/{}".format(i+1, nBatches))
             self.WFile.seek(flattenedLength*i)
             wrec = self.WFile.read(flattenedLength)
             wrec = np.fromstring(wrec, dtype='int16')
@@ -78,13 +73,15 @@ class Deconvolution(object):
                 sts = np.zeros(nmax, 'int32')
                 ns = np.zeros(nmax, 'int32')
 
-                if spt[c].shape[0] > 0:
-                    spt_c = spt[c][spt[c][:, 1] == i, 0]
-                    nc = spt_c.shape[0]
+                idx_c = np.logical_and(self.spike_index[:,1] == c,
+                    self.spike_index[:,2] == i)
+                nc = np.sum(idx_c)
+                if nc > 0:
+                    spt_c = self.spike_index[idx_c, 0]
                     ch_idx = np.where(neighchan[c])[0]
 
                     k_idx = np.where(templatesMask[:, c])[0]
-                    tt = templates[:, ch_idx][:, :, k_idx]
+                    tt = self.templates[:, ch_idx][:, :, k_idx]
                     Kc = k_idx.shape[0]
 
                     if nc > 0 and Kc > 0:
@@ -156,17 +153,14 @@ class Deconvolution(object):
                         spiketime_all = np.concatenate((spiketime_all, sts))
                         assignment_all = np.concatenate((assignment_all, ids))
 
-            bar.update(i+1)
 
         self.closeWFile()
 
-        currentTime = dt.datetime.now()
-        print("Deconvoltuion done in {0} seconds.".format(
-            (currentTime-startTime).seconds))
-        bar.finish()
+        current_time = dt.datetime.now()
+        self.logger.info("Deconvolution done in {0} seconds.".format(
+                         (current_time-start_time).seconds))
 
         return np.concatenate((spiketime_all[:, np.newaxis], assignment_all[:, np.newaxis]), axis=1)
-
 
 def decompose_dWU(templates, nrank):
     R, C, K = templates.shape

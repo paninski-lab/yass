@@ -9,7 +9,7 @@ import numpy as np
 from .neuralnet import NeuralNetDetector, NeuralNetTriage
 from .preprocess.detect import threshold_detection
 from .preprocess.filter import whitening_matrix, whitening, butterworth
-from .preprocess.score import getPCAProjection, getPcaSS, getScore
+from .preprocess.score import get_score_pca, get_pca_suff_stat, get_pca_projection
 from .preprocess.waveform import get_waveforms
 from .preprocess.standarize import standarize, sd
 from .util import deprecated
@@ -117,8 +117,13 @@ class Preprocessor(object):
         nPortion = self.config.nPortion
         residual = self.config.residual
         
-        score = 0
+        # initialize output variables
         get_score = 1
+        spike_index_clear = None
+        spike_index_collision = None
+        score = None
+        pca_suff_stat = None
+        spikes_per_channel = None
 
         self.logger.info("Preprocessing the data in progress...")
         bar = progressbar.ProgressBar(maxval=nBatches)
@@ -145,51 +150,52 @@ class Preprocessor(object):
             if i > nPortion:
                 get_score = 0
 
-            score_temp, clr_idx_temp, spt_temp, ss_temp, nspikes_temp, Time = self.batch_process(
-                rec, get_score, BUFF, Time)
+            (si_clr_batch, score_batch, 
+             si_col_batch, pss_batch, 
+             spc_batch, Time) = self.batch_process(rec, get_score, 
+                                                   BUFF, Time)
 
-            # TODO: what's going on here?
-            if score == 0:
-                for c in range(0, self.config.nChan):
-                    spt_temp[c] = np.concatenate((spt_temp[c][:, np.newaxis], np.ones(
-                        (spt_temp[c].shape[0], 1), 'int32')*i), axis=1)
-                score = score_temp
-                clr_idx = clr_idx_temp
-                spt = spt_temp
-                ss = ss_temp
-                nspikes = nspikes_temp
+            # add batch number to spike_index
+            batch_ids = np.ones((si_clr_batch.shape[0], 1), 'int32') * i
+            si_clr_batch = np.hstack((si_clr_batch, batch_ids))
+
+            batch_ids = np.ones((si_col_batch.shape[0], 1), 'int32') * i
+            si_col_batch = np.hstack((si_col_batch, batch_ids))
+
+        
+            if i == 0:
+                spike_index_clear = si_clr_batch
+                spike_index_collision = si_col_batch
+                score = score_batch
+
+                pca_suff_stat = pss_batch
+                spikes_per_channel = spc_batch
             else:
-                for c in range(0, self.config.nChan):
-                    score[c] = np.concatenate((score[c], score_temp[c]))
-                    clr_idx[c] = np.concatenate(
-                        (clr_idx[c], clr_idx_temp[c]+spt[c].shape[0]))
-                    spt_temp[c] = np.concatenate(
-                        (spt_temp[c][:, np.newaxis], np.ones((spt_temp[c].shape[0], 1),'int32')*i), axis=1)
-                    spt[c] = np.concatenate((spt[c], spt_temp[c]))
-                ss += ss_temp
-                nspikes += nspikes_temp
+                spike_index_clear = np.vstack((spike_index_clear,
+                    si_clr_batch))
+                spike_index_collision = np.vstack((spike_index_collision,
+                    si_col_batch))
+                if get_score == 1:
+                    score = np.concatenate((score, score_batch), axis = 0)
+                pca_suff_stat += pss_batch
+                spikes_per_channel += spc_batch
 
             bar.update(i+1)
 
         self.closeFile()
         self.closeWFile()
 
-        # TODO: ask peter, why are we only running this for threshold detector?
         if self.config.detctionMethod != 'nn':
             _b = dt.datetime.now()
-            rot = getPCAProjection(ss, nspikes, self.config.nFeat,
-                                   self.config.neighChannels)
-            score, clr_idx = getScore(spt, rot, self.config.nChan,
-                                      self.config.spikeSize,
-                                      self.config.nFeat,
-                                      self.config.neighChannels,
-                                      os.path.join(
-                                          self.config.root, 'tmp', 'wrec.bin'),
-                                      self.config.scaleToSave,
-                                      self.config.nBatches,
-                                      self.config.nPortion,
-                                      self.config.BUFF,
-                                      self.config.batch_size)
+            rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
+                                 self.config.nFeat, self.config.neighChannels)
+            
+            score = get_score_pca(spike_index_clear, rot, 
+                                  self.config.neighChannels,
+                                  self.config.geom, 
+                                  self.config.batch_size + 2*self.config.BUFF,
+                                  os.path.join(self.config.root, 'tmp', 'wrec.bin'),
+                                  self.config.scaleToSave)
             Time['e'] += (dt.datetime.now()-_b).total_seconds()
 
         # timing
@@ -206,7 +212,7 @@ class Preprocessor(object):
 
         bar.finish()
 
-        return score, clr_idx, spt
+        return score, spike_index_clear, spike_index_collision
 
     def batch_process(self, rec, get_score, BUFF, Time):
         # filter recording
@@ -220,7 +226,6 @@ class Preprocessor(object):
 
         # standardize recording
         _b = dt.datetime.now()
-
         if not hasattr(self, 'sd'):
             self.sd = sd(rec, self.config.srate)
 
@@ -231,10 +236,10 @@ class Preprocessor(object):
         # detect spikes
         _b = dt.datetime.now()
         if self.config.detctionMethod == 'nn':
-            index = self.nnDetector.get_spikes(rec)
+            spike_index = self.nnDetector.get_spikes(rec)
         else:
 
-            index = threshold_detection(rec,
+            spike_index = threshold_detection(rec,
                                         self.config.neighChannels,
                                         self.config.spikeSize,
                                         self.config.stdFactor)
@@ -243,8 +248,8 @@ class Preprocessor(object):
         # little chunk by chunk (chunk it time-wise). But I also add
         # some buffer. If the detected spike time is in the buffer,
         # i remove that because it will be detected in another chunk
-        index = index[np.logical_and(index[:, 0] > BUFF,
-                              index[:, 0] < (rec.shape[0] - BUFF))]
+        spike_index = spike_index[np.logical_and(spike_index[:, 0] > BUFF,
+                              spike_index[:, 0] < (rec.shape[0] - BUFF))]
 
         Time['d'] += (dt.datetime.now()-_b).total_seconds()
 
@@ -268,39 +273,47 @@ class Preprocessor(object):
         Time['b'] += (dt.datetime.now()-_b).total_seconds()
 
         _b = dt.datetime.now()
-        if self.config.detctionMethod == 'nn':
-            score, clr_idx, spt = get_waveforms(rec,
-                                                self.config.neighChannels,
-                                                index,
-                                                1,
-                                                self.proj,
-                                                self.config.spikeSize,
-                                                self.config.nFeat,
-                                                self.config.geom,
-                                                self.nnTriage,
-                                                self.config.nnThreshdoldCol)
-            ss = 0
-            nspikes = 0
-        else:
-            score, clr_idx, spt = get_waveforms(rec,
-                                                self.config.neighChannels,
-                                                index,
-                                                0,
-                                                None,
-                                                self.config.spikeSize,
-                                                self.config.nFeat,
-                                                None,
-                                                None,
-                                                None)
+        if get_score == 0:
+            # if we are not calculating score for this minibatch, every spikes
+            # are considered as collision and will be referred during deconvlution
+            spike_index_clear = np.zeros((0,2), 'int32')
+            score = None
+            spike_index_collision = spike_index
 
-            # TODO: ask peter, why is there a difference? getPcaSS is run
-            # only when doing threshold detector, when doing nnet ss and
-            # nspikes are 0
-            ss, nspikes = getPcaSS(rec, spt, self.config.spikeSize,
-                                   self.config.BUFF)
+            pca_suff_stat = 0
+            spikes_per_channel = 0
+            
+        elif self.config.detctionMethod == 'nn':
+            
+            # with nn, get scores and triage bad ones
+            (spike_index_clear, score,
+            spike_index_collision) = get_waveforms(rec,
+                                                   spike_index,
+                                                   self.proj,
+                                                   self.config.neighChannels,
+                                                   self.config.geom,
+                                                   self.nnTriage,
+                                                   self.config.nnThreshdoldCol)            
+
+            # since we alread have scores, no need to calculated sufficient
+            # statistics for pca
+            pca_suff_stat = 0
+            spikes_per_channel = 0
+            
+        elif self.config.detctionMethod == 'threshold':
+            # every spikes are considered as clear spikes as no triage is done
+            spike_index_clear = spike_index
+            score = None
+            spike_index_collision = np.zeros((0,2), 'int32')
+
+            # get sufficient statistics for pca if we don't have projection matrix
+            pca_suff_stat, spikes_per_channel = get_pca_suff_stat(rec, spike_index,
+                self.config.spikeSize)
+        
         Time['e'] += (dt.datetime.now()-_b).total_seconds()
 
-        return score, clr_idx, spt, ss, nspikes, Time
+        return (spike_index_clear, score, spike_index_collision,
+                pca_suff_stat, spikes_per_channel, Time)
 
     def getTemplates(self, spikeTrain, R):
 

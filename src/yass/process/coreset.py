@@ -3,23 +3,16 @@ from scipy.stats import chi2
 from sklearn.cluster import KMeans
 
 
-def coreset(score, n_channels, coreset_k, coreset_th):
+def coreset(score, coreset_k, coreset_th, do_coreset):
     """
     """
-    group = list()
-
-    for c in range(n_channels):
-
-        N = score[c].shape[0]
-        if N > 0:
-            score_temp = score[c].reshape([N, -1])
-            th = 1.5*np.sqrt(chi2.ppf(coreset_th, 1) *
-                             score_temp.shape[1])
-            group.append(coreset_alg(score_temp, th,
-                                     coreset_k).astype('int32')-1)
-
-        else:
-            group.append(np.zeros(0))
+    n_data, n_features, n_channels = score.shape
+    if do_coreset and (n_data > 0):
+        score_temp = score.reshape([n_data, -1])
+        th = 1.5*np.sqrt(chi2.ppf(coreset_th, 1) * score_temp.shape[1])
+        group = coreset_alg(score_temp, th, coreset_k).astype('int32')-1
+    else:
+        group = np.arange(n_data,'int32')
 
     return group
 
