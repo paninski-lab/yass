@@ -3,6 +3,9 @@ data:
   recordings: neuropixel.bin
   geometry: neuropixel_channels.npy
 
+resources:
+  max_memory: 1000000000
+
 recordings:
   dtype: int16
   sampling_rate: 30000
@@ -30,8 +33,6 @@ neural_network_detector:
 
 
 # PREPROCESS
-# max. memory allowed for loading recording (in bytes)
-maxMem: 1000000000
 # determine whitening matrix in each minibatch
 whitenBatchwise: 0
 # number of features for dimension reduction

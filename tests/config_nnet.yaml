@@ -9,6 +9,9 @@ data:
   recordings: neuropixel.bin
   geometry: geometry_fake.txt
 
+resources:
+  max_memory: 1000000000
+
 recordings:
   dtype: int16
   sampling_rate: 20000
@@ -34,9 +37,6 @@ neural_network_detector:
   threshold_spike: 0.5
   threshold_collision: 0.75
 
-# PREPROCESS
-# max. memory allowed for loading recording (in bytes)
-maxMem: 1000000000
 # determine whitening matrix in each minibatch
 whitenBatchwise: 0
 # number of features for dimension reduction

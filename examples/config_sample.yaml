@@ -7,6 +7,10 @@ data:
   # channel geometry filename
   geometry: neuropixel_channels.npy
 
+resources:
+  # maximum memory allowed
+  max_memory: 1000000000
+
 recordings:
   # precision of the recording – must be a valid numpy dtype
   dtype: int16
@@ -30,9 +34,6 @@ methods:
   detection: threshold
 
 # PREPROCESS
-# max. memory allowed for loading recording (in bytes)
-maxMem: 1000000000
-
 # determine whitening matrix in each minibatch
 whitenBatchwise: 0
 # number of features for dimension reduction

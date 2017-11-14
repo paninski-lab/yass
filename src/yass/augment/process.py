@@ -21,7 +21,7 @@ def process_data(CONFIG):
     factory = BatchProcessorFactory(path_to_file=None,
                                     dtype=None,
                                     n_channels=CONFIG.recordings.n_channels,
-                                    max_memory=CONFIG.maxMem,
+                                    max_memory=CONFIG.resources.max_memory,
                                     buffer_size=None)
 
     if CONFIG.preprocess.filter == 1:

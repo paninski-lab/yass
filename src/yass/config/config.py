@@ -142,7 +142,7 @@ class Config(FrozenJSON):
         # BATCH PARAMETERS
         self._set_param('dsize', sizeof(self.recordings.dtype))
 
-        batch_size = int(np.floor(self.maxMem/(self.recordings.n_channels*self.dsize)))
+        batch_size = int(np.floor(self.resources.max_memory/(self.recordings.n_channels*self.dsize)))
 
         if batch_size > self.size:
             self._set_param('nBatches', 1)

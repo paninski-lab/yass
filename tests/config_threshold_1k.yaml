@@ -3,6 +3,9 @@ data:
   recordings: neuropixel.bin
   geometry: neuropixel_channels.npy
 
+resources:
+  max_memory: 1000000000
+
 recordings:
   dtype: int16
   sampling_rate: 30000
