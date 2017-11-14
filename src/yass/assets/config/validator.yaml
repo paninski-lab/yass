@@ -24,7 +24,8 @@ optional_sections:
     masking_threshold: [0.9, 0.5]
     n_split: 5
 
-
+  templates:
+    merge_threshold: [0.8, 0.7]
 
 
 
