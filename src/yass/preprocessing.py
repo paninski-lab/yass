@@ -216,9 +216,9 @@ class Preprocessor(object):
         # filter recording
         if self.config.doFilter == 1:
             _b = dt.datetime.now()
-            rec = butterworth(rec, self.config.filterLow,
-                              self.config.filterHighFactor,
-                              self.config.filterOrder,
+            rec = butterworth(rec, self.config.filter.low_pass_freq,
+                              self.config.filter.high_factor,
+                              self.config.filter.order,
                               self.config.recordings.sampling_rate)
             Time['f'] += (dt.datetime.now()-_b).total_seconds()
 
@@ -359,9 +359,9 @@ class Preprocessor(object):
 
             # filter recording
             if self.config.doFilter == 1:
-                rec = butterworth(rec, self.config.filterLow,
-                                  self.config.filterHighFactor,
-                                  self.config.filterOrder,
+                rec = butterworth(rec, self.config.filter.low_pass_freq,
+                                  self.config.filter.high_factor,
+                                  self.config.filter.order,
                                   self.config.recordings.sampling_rate)
 
             # standardize recording

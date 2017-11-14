@@ -46,13 +46,13 @@ nnThreshdold: 0.5
 # Threshold for clear/collision detection
 nnThreshdoldCol: 0.75
 
-# FILTERING
-# Order of Butterworth filter
-filterOrder: 3
-# Low pass frequency (Hz)
-filterLow: 300
-# High pass factor (proportion of sampling rate)
-filterHighFactor: 0.1
+filter:
+  # Order of Butterworth filter
+  order: 3
+  # Low pass frequency (Hz)
+  low_pass_freq: 300
+  # High pass factor (proportion of sampling rate)
+  high_factor: 0.1
 
 # TRIAGE
 # Num. of nearest neighbors to consider

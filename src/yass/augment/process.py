@@ -35,9 +35,9 @@ def process_data(CONFIG):
         path = os.path.join(CONFIG.data.root_folder,  'tmp/filtered.bin')
         dtype = bp.process_function(butterworth,
                                     path,
-                                    CONFIG.filterLow,
-                                    CONFIG.filterHighFactor,
-                                    CONFIG.filterOrder,
+                                    CONFIG.filter.low_pass_freq,
+                                    CONFIG.filter.high_factor,
+                                    CONFIG.filter.order,
                                     CONFIG.recordings.sampling_rate)
 
     # TODO: cache computations

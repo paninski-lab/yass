@@ -48,9 +48,9 @@ def covariance(recordings, temporal_size, neigbor_steps):
 
     # filter recording
     if CONFIG.doFilter == 1:
-        rec = butterworth(rec, CONFIG.filterLow,
-                          CONFIG.filterHighFactor,
-                          CONFIG.filterOrder,
+        rec = butterworth(rec, CONFIG.filter.low_pass_freq,
+                          CONFIG.filter.high_factor,
+                          CONFIG.filter.order,
                           CONFIG.recordings.sampling_rate)
 
     # standardize recording
