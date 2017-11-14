@@ -109,7 +109,7 @@ class Config(FrozenJSON):
         self._set_param('geom', geom.parse(path_to_geom, self.n_channels))
 
         neighChannels = geom.find_channel_neighbors(self.geom,
-                                                    self.spatialRadius)
+                                                    self.spatial_radius)
         self._set_param('neighChannels', neighChannels)
 
         channelGroups = geom.make_channel_groups(self.n_channels,

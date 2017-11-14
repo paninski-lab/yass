@@ -486,7 +486,7 @@ class AugmentedSpikes(object):
         nChannels = np.sum(neighChanBig[c_ref])
 
         geom = self.config.geom[neighChanBig[c_ref]]
-        neighChannels     = (squareform(pdist(geom)) <= self.config.spatialRadius)
+        neighChannels     = (squareform(pdist(geom)) <= self.config.spatial_radius)
         
         
         templatesBig2 = np.zeros((templatesBig.shape[0],templatesBig.shape[1],nChannels))

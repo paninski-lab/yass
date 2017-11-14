@@ -11,7 +11,7 @@ sampling_rate: 30000
 # number of channels in the recording
 n_channels: 10
 # spatial radius of spikes
-spatialRadius: 70
+spatial_radius: 70
 
 # TURN ON/OFF MODULES
 # 0 for filtered recording
