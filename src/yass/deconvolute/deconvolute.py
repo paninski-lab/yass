@@ -41,9 +41,9 @@ class Deconvolution(object):
         R = self.config.spikeSize
         shift = 3  # int(R/2)
         K = self.templates.shape[2]
-        nrank = self.config.deconvRank
-        lam = self.config.deconvLam
-        Th = self.config.deconvTh
+        nrank = self.config.deconvolution.rank
+        lam = self.config.deconvolution.lam
+        Th = self.config.deconvolution.threshold
         iter_max = 3
 
         amps = np.max(np.abs(self.templates), axis=0)

@@ -67,10 +67,10 @@ kSplit: 5
 # threshold for template merge
 tMergeTh: [0.8, 0.7]
 
-# DECONVOLUTION
-deconvRank: 3
-deconvTh: 4
-deconvLam: 20
+deconvolution:
+  rank: 3
+  threshold: 4
+  lam: 20
 
 # Neural network parameters
 neural_network:
