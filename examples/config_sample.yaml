@@ -25,8 +25,6 @@ doFilter: True
 methods:
   # 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
   detection: threshold
-  # 'MFM' for mixture of finite mixture clustering, 'dpmm' for dirichlete process mixture model
-  clustering: MFM
 
 # PREPROCESS
 # max. memory allowed for loading recording (in bytes)

@@ -16,7 +16,6 @@ doFilter: True
 
 methods:
   detection: threshold
-  clustering: MFM
 
 neural_network_detector:
   filename: detectnet1.ckpt

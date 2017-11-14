@@ -22,7 +22,6 @@ doFilter: True
 
 methods:
   detection: nn
-  clustering: MFM
 
 
 neural_network_detector:

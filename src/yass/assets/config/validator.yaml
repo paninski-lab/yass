@@ -36,9 +36,6 @@ fields_validator:
     detection:
       values: ['threshold', 'nn']
       type: str
-    clustering:
-      values: ['MFM', 'dpmm']
-      type: str
 
   neural_network_detector:
     filename:
