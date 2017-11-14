@@ -68,7 +68,6 @@ kSplit: 5
 tMergeTh: [0.8, 0.7]
 
 # DECONVOLUTION
-deconvGPU: 1
 deconvRank: 3
 deconvTh: 4
 deconvLam: 20
