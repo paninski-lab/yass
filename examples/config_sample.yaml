@@ -21,7 +21,6 @@ recordings:
 
 # TURN ON/OFF MODULES
 doFilter: True
-doTriage: True
 
 methods:
   # 'nn' for neural net detction, 'threshold' for amplitdue threshold detection

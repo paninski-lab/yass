@@ -13,7 +13,6 @@ recordings:
 # TURN ON/OFF MODULES
 # 0 for filtered recording
 doFilter: True
-doTriage: True
 
 methods:
   detection: threshold

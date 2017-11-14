@@ -20,8 +20,6 @@ recordings:
 # 0 for filtered recording
 doFilter: True
 
-# remove
-doTriage: True
 
 methods:
   detection: nn

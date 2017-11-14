@@ -79,9 +79,12 @@ class Mainprocessor(object):
                     # Triage #
                     ##########
 
+                    # TODO: refactor this as CONFIG.doTriage was removed
+                    doTriage = True
+
                     _b = datetime.datetime.now()
                     index_keep = triage(score_c, 0, self.config.triage.nearest_neighbors,
-                                        self.config.triage.percent, self.config.doTriage)
+                                        self.config.triage.percent, doTriage)
                     Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
                     # add untriaged spike index to spike_index_clear_group
