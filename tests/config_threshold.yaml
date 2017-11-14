@@ -33,11 +33,9 @@ nFeat: 3
 # temporal length of wavforms in ms
 spikeSizeMS: 1
 
-# NN DETECTION
-# Threshold for spike event detection
-nnThreshdold: 0.5
-# Threshold for clear/collision detection
-nnThreshdoldCol: 0.75
+neural_network_detector:
+  threshold_spike: 0.5
+  threshold_collision: 0.75
 
 # TRIAGE
 # Num. of nearest neighbors to consider

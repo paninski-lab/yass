@@ -108,7 +108,7 @@ class NeuralNetDetector(object):
         T, C = X.shape
         R1, R2, R3 = self.config.neural_network['nnFilterSize']
         K1, K2, K3 = self.config.neural_network['nnNFilters']
-        th = self.config.nnThreshdold
+        th = self.config.neural_network_detector.threshold_spike
         temporal_window = 3 #self.config.spikeSize
 
         T_small = np.min((10000,T))
