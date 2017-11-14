@@ -20,7 +20,7 @@ def test_rejects_dict_with_invalid_sections():
     required_sections = ['a', 'b', 'c']
     optional_sections = dict(d=4)
     validator = Validator(d, required_sections, optional_sections)
-    message = 'The following sections are invalid: f, e'
+    message = 'The following sections are invalid: e, f'
 
     with pytest.raises(ValueError) as exception:
         validator.validate()

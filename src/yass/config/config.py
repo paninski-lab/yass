@@ -9,6 +9,7 @@ import numpy as np
 from pkg_resources import resource_filename
 
 from .. import geometry as geom
+from .validator import Validator
 
 
 class FrozenJSON(object):
@@ -93,7 +94,7 @@ class Config(FrozenJSON):
     After initialization, attributes cannot be changed
     """
     def __init__(self, mapping):
-        self._validate(mapping)
+        mapping = self._validate(mapping)
 
         super(Config, self).__init__(mapping)
 
@@ -183,6 +184,15 @@ class Config(FrozenJSON):
     def _validate(self, mapping):
         """Validate values in the input dictionary
         """
+        # path_to_validator = resource_filename('yass',
+        #                                       'assets/config/new_validator.yaml')
+        # with open(path_to_validator) as f:
+        #     validator_content = yaml.load(f)
+
+        # validator = Validator(mapping, **validator_content)
+        # mapping = validator.validate()
+
+        # OLD VALIDATOR
         path_to_validator = resource_filename('yass',
                                               'assets/config/validator.yaml')
         with open(path_to_validator) as f:
@@ -196,6 +206,8 @@ class Config(FrozenJSON):
                     raise ValueError('{} is not a valid value for {}. '
                                      'Valid values are: {}'
                                      .format(value, key, valid_values_pretty))
+
+        return mapping
 
     def _pretty_iterator(self, it):
         return reduce(lambda x, y: x+', '+y, it)

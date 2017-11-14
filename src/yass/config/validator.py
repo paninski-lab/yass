@@ -91,4 +91,4 @@ class Validator(object):
 
 
 def _pretty_iter(iterator):
-    return reduce(lambda x, y: x+', '+y, iterator)
+    return reduce(lambda x, y: x+', '+y, sorted(iterator))
