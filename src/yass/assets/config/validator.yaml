@@ -20,6 +20,11 @@ optional_sections:
     clusters: 10
     threshold: 0.95
 
+  clustering:
+    masking_threshold: [0.9, 0.5]
+    n_split: 5
+
+
 
 
 
