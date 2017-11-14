@@ -5,6 +5,7 @@ import pkg_resources
 import progressbar
 
 from .geometry import order_channels_by_distance
+from .util import load_yaml
 
 
 class NeuralNetDetector(object):
@@ -52,8 +53,12 @@ class NeuralNetDetector(object):
 
         C = np.max(np.sum(self.config.neighChannels, 0))
 
-        R1, R2, R3 = self.config.neural_network['nnFilterSize']
-        K1, K2, K3 = self.config.neural_network['nnNFilters']
+        path_to_model = self.config.neural_network_detector.filename
+        path_to_filters = path_to_model.replace('ckpt', 'yaml')
+        self.filters_dict = load_yaml(path_to_filters)
+
+        R1, R2, R3 = self.filters_dict['size']
+        K1, K2, K3 = self.filters_dict['filters']
 
         self.W1 = weight_variable([R1,1,1,K1])
         self.b1 = bias_variable([K1])
@@ -106,8 +111,10 @@ class NeuralNetDetector(object):
         """
         # get parameters
         T, C = X.shape
-        R1, R2, R3 = self.config.neural_network['nnFilterSize']
-        K1, K2, K3 = self.config.neural_network['nnNFilters']
+
+        R1, R2, R3 = self.filters_dict['size']
+        K1, K2, K3 = self.filters_dict['filters']
+
         th = self.config.neural_network_detector.threshold_spike
         temporal_window = 3 #self.config.spikeSize
 
