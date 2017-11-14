@@ -32,10 +32,9 @@ class Deconvolution(object):
 
         self.logger.debug('wfile is {} {}'.format(self.path_to_file,
                                                   os.path.getsize(self.path_to_file)))
-
-        batch_size = self.config.batch_size + 2*self.config.BUFF
         nBatches = self.config.nBatches
-        flattenedLength = 2*batch_size*self.config.recordings.n_channels
+        flattenedLength = 2*(self.config.batch_size
+                             + 2*self.config.BUFF)*self.config.recordings.n_channels
 
         neighchan = n_steps_neigh_channels(self.config.neighChannels, steps = 3)
         C = self.config.recordings.n_channels
@@ -67,17 +66,21 @@ class Deconvolution(object):
             wrec = np.reshape(wrec, (-1, self.config.recordings.n_channels))
             wrec = wrec.astype('float32')/self.config.scaleToSave
 
+            idx_batch = np.logical_and(self.spike_index[:,0] > self.config.batch_size*i, 
+                                       self.spike_index[:,0] < self.config.batch_size*(i+1))
+            spike_index_batch = self.spike_index[idx_batch]
+            spike_index_batch[:,0] = spike_index_batch[:,0] - self.config.batch_size*i + self.config.BUFF
+            
             for c in range(C):
                 nmax = 1000000
                 ids = np.zeros(nmax, 'int32')
                 sts = np.zeros(nmax, 'int32')
                 ns = np.zeros(nmax, 'int32')
 
-                idx_c = np.logical_and(self.spike_index[:,1] == c,
-                    self.spike_index[:,2] == i)
+                idx_c = spike_index_batch[:,1] == c
                 nc = np.sum(idx_c)
                 if nc > 0:
-                    spt_c = self.spike_index[idx_c, 0]
+                    spt_c = spike_index_batch[idx_c, 0]
                     ch_idx = np.where(neighchan[c])[0]
 
                     k_idx = np.where(templatesMask[:, c])[0]

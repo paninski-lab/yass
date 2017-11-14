@@ -46,6 +46,9 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
     max_amp = np.max(amps)*1.5
     nneigh = templates.shape[2]
     
+    ################
+    # clean spikes #
+    ################
     x_clean = np.zeros((nk*K,templates.shape[1],templates.shape[2]))
     for k in range(K):
         tt  = templates[k]    
@@ -54,6 +57,9 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
                       /nk+min_amp)[:,np.newaxis,np.newaxis]                    
         x_clean[k*nk:(k+1)*nk] = (tt/amp_now)[np.newaxis,:,:]*amps_range
 
+    #############
+    # collision #
+    #############        
     x_collision = np.zeros(x_clean.shape)
     max_shift = 2*R
 
@@ -66,8 +72,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
         shift = temporal_shifts[j]
 
         x_collision[j] = np.copy(x_clean[j])
-        idx_candidate = np.where(np.logical_and(
-            amp_per_data > amp_per_data[j]*0.5, amp_per_data < amp_per_data[j]*2))[0]
+        idx_candidate = np.where(amp_per_data > amp_per_data[j]*0.3)[0]
         idx_match = idx_candidate[np.random.randint(idx_candidate.shape[0], size = 1)[0]]
         x_clean2 = np.copy(x_clean[idx_match][:,np.random.choice(
             nneigh, nneigh, replace=False)])
@@ -80,6 +85,9 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
         else:
             x_collision[j] += x_clean2
 
+    ###################
+    # collision type2 #
+    ###################            
     x_collision2 = np.zeros(x_clean.shape)
 
     temporal_shifts = np.random.randint(max_shift*2, size = nk*K) - max_shift
@@ -91,8 +99,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
         shift = temporal_shifts[j]
 
         x_collision2[j] = np.copy(x_clean[j])
-        idx_candidate = np.where(np.logical_and(
-            amp_per_data > amp_per_data[j]*0.5, amp_per_data < amp_per_data[j]*2))[0]
+        idx_candidate = np.where(amp_per_data > amp_per_data[j]*0.3)[0]
         idx_match = idx_candidate[np.random.randint(idx_candidate.shape[0], size = 1)[0]]
         x_clean2 = np.copy(x_clean[idx_match])
 
@@ -104,7 +111,9 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
         else:
             x_collision2[j] += x_clean2
 
-    # misaligned spikes
+    #####################
+    # misaligned spikes #
+    #####################
     x_misaligned = np.zeros(x_clean.shape)
 
     temporal_shifts = np.random.randint(max_shift*2, size = nk*K) - max_shift
@@ -124,6 +133,11 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
         else:
             x_misaligned[j] += x_clean2
 
+    
+    #########
+    # noise #
+    #########
+    
     # get noise
     noise = np.random.normal(size=x_clean.shape)
     for c in range(noise.shape[2]):
@@ -169,7 +183,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
                         ) )
 
     # ge training set for auto encoder
-    ae_shift_max = 5
+    ae_shift_max = 1
     temporal_shifts_ae = np.random.randint(
         ae_shift_max*2+1, size = x_clean.shape[0]) - ae_shift_max
     y_ae = np.zeros((x_clean.shape[0],2*R+1))

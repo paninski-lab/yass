@@ -19,7 +19,7 @@ def triage(score, channel_index, triage_k, triage_percent, do_triage):
     index_keep_bool = np.zeros(n_data,'bool')
     if n_data > nmax:
         index_keep = np.random.permutation(n_data)[:nmax]
-        score = score[idx_keep]
+        score = score[index_keep]
     else:
         index_keep = np.arange(n_data)
 

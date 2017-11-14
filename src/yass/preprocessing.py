@@ -155,14 +155,10 @@ class Preprocessor(object):
              spc_batch, Time) = self.batch_process(rec, get_score, 
                                                    BUFF, Time)
 
-            # add batch number to spike_index
-            batch_ids = np.ones((si_clr_batch.shape[0], 1), 'int32') * i
-            si_clr_batch = np.hstack((si_clr_batch, batch_ids))
-
-            batch_ids = np.ones((si_col_batch.shape[0], 1), 'int32') * i
-            si_col_batch = np.hstack((si_col_batch, batch_ids))
-
-        
+            # spike time w.r.t. to the whole recording
+            si_clr_batch[:,0] = si_clr_batch[:,0] + i*batch_size - BUFF
+            si_col_batch[:,0] = si_col_batch[:,0] + i*batch_size - BUFF
+            
             if i == 0:
                 spike_index_clear = si_clr_batch
                 spike_index_collision = si_col_batch
@@ -189,11 +185,13 @@ class Preprocessor(object):
             _b = dt.datetime.now()
             rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
                                  self.config.nFeat, self.config.neighChannels)
-            
+
             score = get_score_pca(spike_index_clear, rot, 
                                   self.config.neighChannels,
                                   self.config.geom, 
-                                  self.config.batch_size + 2*self.config.BUFF,
+                                  self.config.batch_size,
+                                  self.config.BUFF,
+                                  self.config.nBatches,
                                   os.path.join(self.config.data.root_folder, 'tmp', 'wrec.bin'),
                                   self.config.scaleToSave)
             Time['e'] += (dt.datetime.now()-_b).total_seconds()
