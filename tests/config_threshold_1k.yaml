@@ -7,8 +7,6 @@ root_folder: tests/data
 recordings: neuropixel.bin
 # channel geometry file name
 geometry: neuropixel_channels.npy
-# save spikeTrain
-spikeTrainName: spike_train.csv
 
 # RECORDING
 # precision of the recording (e.g.'int16')

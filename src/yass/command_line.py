@@ -17,6 +17,10 @@ from yass.deconvolute import Deconvolution
 #from . import read_config
 
 def main():
+    # removed reference to this file in config, it is not necessary
+    # TODO: let the user specify the name through an option
+    output_file = 'spike_train.csv'
+
     # configure logging module to get useful information
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
@@ -48,7 +52,8 @@ def main():
         idx_keep[idx_c[np.concatenate(([True], np.diff(spikeTrain[idx_c,0]) > 1))]] = 1
     spikeTrain = spikeTrain[idx_keep]
 
-    path_to_file = os.path.join(cfg.root_folder, cfg.spikeTrainName)
+    path_to_file = os.path.join(cfg.root_folder, output_file)
+
     np.savetxt(path_to_file, spikeTrain, fmt='%i, %i')
     print('Done, spike train saved in: {}'.format(path_to_file))
 
@@ -68,6 +73,6 @@ def main():
     #spike_train = deconvolute.run(spike_train_clear, templates,
     #    spike_index_collision)
 
-    #path_to_file = os.path.join(CONFIG.root_folder, CONFIG.spikeTrainName)
+    # path_to_file = os.path.join(cfg.root_folder, output_file)
     #np.savetxt(path_to_file, spike_train, fmt='%i, %i')
     #logger.info('Done, spike train saved in: {}'.format(path_to_file))
