@@ -18,7 +18,7 @@ preprocess:
   templates_partial_data: 1
   whiten_batchwise: False
 
-methods:
+spikes:
   detection: threshold
 
 neural_network_triage:

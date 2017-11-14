@@ -31,7 +31,7 @@ preprocess:
   # determine whitening matrix in each minibatch
   whiten_batchwise: False
 
-methods:
+spikes:
   # 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
   detection: threshold
 

@@ -38,7 +38,7 @@ fields_validator:
       n_channels:
         type: int
 
-  methods:
+  spikes:
     detection:
       values: ['threshold', 'nn']
       type: str

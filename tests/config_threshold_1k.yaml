@@ -18,7 +18,7 @@ preprocess:
   templates_partial_data: 1
   whiten_batchwise: False
 
-methods:
+spikes:
   # 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
   detection: threshold
 

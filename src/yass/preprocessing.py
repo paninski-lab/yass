@@ -103,7 +103,7 @@ class Preprocessor(object):
         Time = {'r': 0, 'f': 0, 's': 0, 'd': 0, 'w': 0, 'b': 0, 'e': 0}
 
         # load nueral net detector if necessary:
-        if self.config.methods.detection == 'nn':
+        if self.config.spikes.detection == 'nn':
             self.nnDetector = NeuralNetDetector(self.config)
             self.proj = self.nnDetector.load_w_ae()
             self.nnTriage = NeuralNetTriage(self.config)
@@ -181,7 +181,7 @@ class Preprocessor(object):
         self.closeFile()
         self.closeWFile()
 
-        if self.config.methods.detection != 'nn':
+        if self.config.spikes.detection != 'nn':
             _b = dt.datetime.now()
             rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
                                  self.config.nFeat, self.config.neighChannels)
@@ -233,7 +233,7 @@ class Preprocessor(object):
 
         # detect spikes
         _b = dt.datetime.now()
-        if self.config.methods.detection == 'nn':
+        if self.config.spikes.detection == 'nn':
             spike_index = self.nnDetector.get_spikes(rec)
         else:
 
@@ -280,7 +280,7 @@ class Preprocessor(object):
             pca_suff_stat = 0
             spikes_per_channel = 0
             
-        elif self.config.methods.detection == 'nn':
+        elif self.config.spikes.detection == 'nn':
             
             # with nn, get scores and triage bad ones
             (spike_index_clear, score,
@@ -297,7 +297,7 @@ class Preprocessor(object):
             pca_suff_stat = 0
             spikes_per_channel = 0
             
-        elif self.config.methods.detection == 'threshold':
+        elif self.config.spikes.detection == 'threshold':
             # every spikes are considered as clear spikes as no triage is done
             spike_index_clear = spike_index
             score = None

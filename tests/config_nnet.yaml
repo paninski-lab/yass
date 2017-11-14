@@ -24,7 +24,7 @@ preprocess:
   templates_partial_data: 1
   whiten_batchwise: False
 
-methods:
+spikes:
   detection: nn
 
 neural_network_triage:
