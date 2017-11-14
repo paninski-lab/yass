@@ -104,7 +104,7 @@ class Config(FrozenJSON):
         # computations
 
         # GEOMETRY PARAMETERS
-        path_to_geom = path.join(self.data.root_folder, self.geometry)
+        path_to_geom = path.join(self.data.root_folder, self.data.geometry)
         self._set_param('geom', geom.parse(path_to_geom, self.nChan))
 
         neighChannels = geom.find_channel_neighbors(self.geom,
