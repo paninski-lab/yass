@@ -21,10 +21,12 @@ doFilter: True
 doTriage: True
 doCoreset: True
 doWhitening: True
-# 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
-detctionMethod: threshold
-# 'MFM' for mixture of finite mixture clustering, 'dpmm' for dirichlete process mixture model
-clusteringMethod: MFM
+
+methods:
+  # 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
+  detection: threshold
+  # 'MFM' for mixture of finite mixture clustering, 'dpmm' for dirichlete process mixture model
+  clustering: MFM
 
 # PREPROCESS
 portion: 1

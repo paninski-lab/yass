@@ -121,7 +121,7 @@ def run():
     for i, batch in enumerate(bp):
 
         # load nueral net detector if necessary:
-        if CONFIG.detctionMethod == 'nn':
+        if CONFIG.methods.detection == 'nn':
             nnDetector = NeuralNetDetector(CONFIG)
             proj = nnDetector.load_w_ae()
             nnTriage = NeuralNetTriage(CONFIG)
@@ -165,7 +165,7 @@ def run():
 
     whiten_file.close()
 
-    if CONFIG.detctionMethod != 'nn':
+    if CONFIG.methods.detection != 'nn':
         _b = datetime.datetime.now()
         rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
                                  CONFIG.nFeat, CONFIG.neighChannels)
@@ -199,7 +199,7 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
     # detect spikes
     _b = datetime.datetime.now()
     logger.info('running detection')
-    if CONFIG.detctionMethod == 'nn':
+    if CONFIG.methods.detection == 'nn':
         spike_index = nnDetector.get_spikes(rec)
 
     else:
@@ -252,7 +252,7 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
         pca_suff_stat = 0
         spikes_per_channel = 0
 
-    elif CONFIG.detctionMethod == 'nn':
+    elif CONFIG.methods.detection == 'nn':
         # with nn, get scores and triage bad ones
         (spike_index_clear, score,
         spike_index_collision) = get_waveforms(rec,
@@ -268,7 +268,7 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
         pca_suff_stat = 0
         spikes_per_channel = 0
 
-    elif CONFIG.detctionMethod == 'threshold':
+    elif CONFIG.methods.detection == 'threshold':
         # every spikes are considered as clear spikes as no triage is done
         spike_index_clear = spike_index
         score = None
