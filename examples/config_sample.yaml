@@ -61,14 +61,7 @@ deconvolution:
 neural_network:
   # NN filenames
   aeFilename: ae_31.ckpt
-  nnTriageFilename: triagenet1.ckpt
-
-  # NN architecture
-  # num. of filters in each layer
-  nnNFilters: [16, 8, 1]
-  # temporal filter size
-  nnFilterSize: [31, 1, 1]  
-  
+  nnTriageFilename: triagenet1.ckpt  
   nnTriageFilterSize: [8, 16]  
 
 
@@ -76,7 +69,10 @@ neural_network_detector:
   # model name, can be any of the models included in yass (detectnet1.ckpt),
   # a relative folder to data.root_fodler (e.g.
   # $ROOT_FOLDER/models/mymodel.ckpt) or an absolute path to a model
-  # (e.g. /path/to/my/model.ckpt)
+  # (e.g. /path/to/my/model.ckpt). In the same folder as your model, there
+  # must be a yaml file with the number and size of the filters, the file
+  # should be named exactly as your model but with yaml extension
+  # see yass/src/assets/models/ for an example
   filename: detectnet1.ckpt
   # Threshold for spike event detection
   threshold_spike: 0.5

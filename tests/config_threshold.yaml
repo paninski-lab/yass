@@ -57,11 +57,4 @@ deconvolution:
 neural_network:
   aeFilename: ae_31.ckpt
   nnTriageFilename: triagenet1.ckpt
-
-  # NN architecture
-  # num. of filters in each layer
-  nnNFilters: [16, 8, 1]
-  # temporal filter size
-  nnFilterSize: [31, 1, 1]  
-  
   nnTriageFilterSize: [8, 16]  
