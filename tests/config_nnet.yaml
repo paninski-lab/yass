@@ -18,6 +18,7 @@ recordings:
 
 preprocess:
   filter: True
+  templates_partial_data: 1
 
 methods:
   detection: nn
@@ -36,8 +37,6 @@ neural_network_detector:
 # PREPROCESS
 # max. memory allowed for loading recording (in bytes)
 maxMem: 1000000000
-# [0,1] to use parital data to estimate templates
-partialDat: 1
 # determine whitening matrix in each minibatch
 whitenBatchwise: 0
 # number of features for dimension reduction

@@ -154,7 +154,7 @@ class Config(FrozenJSON):
             self._set_param('nBatches', nBatches)
             self._set_param('batch_size', batch_size)
             self._set_param('residual', self.size % batch_size)
-            self._set_param('nPortion', np.ceil(self.partialDat*self.nBatches))
+            self._set_param('nPortion', np.ceil(self.preprocess.templates_partial_data*self.nBatches))
 
         self._logger.debug('Computed params: spikeSize: {}, scaleToSave: {}, '
                            'BUFF: {}, templatesMaxShift: {}, stdFactor: {}, '

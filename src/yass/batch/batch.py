@@ -130,7 +130,7 @@ class BatchProcessor(object):
             self.n_batches = int(np.ceil(float(self.file_observations)/batch_size))
             self.batch_size = batch_size
             self.residual = self.file_observations % batch_size
-            # self.n_portion = np.ceil(self.partialDat * self.n_batches)
+            # self.n_portion = np.ceil(self.preprocess.templates_partial_data * self.n_batches)
 
         self.i = 1
 
