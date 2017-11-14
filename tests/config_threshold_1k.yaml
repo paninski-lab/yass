@@ -16,11 +16,11 @@ recordings:
 preprocess:
   filter: True
   templates_partial_data: 1
+  whiten_batchwise: False
 
 methods:
   # 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
   detection: threshold
-
 
 neural_network_triage:
   filename: triagenet1.ckpt

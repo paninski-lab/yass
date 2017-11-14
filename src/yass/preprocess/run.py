@@ -221,7 +221,7 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
     _b = datetime.datetime.now()
 
     global Q
-    if CONFIG.whitenBatchwise or Q is None:
+    if CONFIG.preprocess.whiten_batchwise or Q is None:
         # cache this
         Q = whitening_matrix(rec, CONFIG.neighChannels,
                              CONFIG.spikeSize)

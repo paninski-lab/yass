@@ -254,7 +254,7 @@ class Preprocessor(object):
         # get withening matrix per batch or onece in total
         _b = dt.datetime.now()
 
-        if self.config.whitenBatchwise or not hasattr(self, 'Q'):
+        if self.config.preprocess.whiten_batchwise or not hasattr(self, 'Q'):
             self.Q = whitening_matrix(rec, self.config.neighChannels,
                                       self.config.spikeSize)
 

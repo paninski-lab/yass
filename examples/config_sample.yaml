@@ -28,14 +28,15 @@ preprocess:
   filter: True
   # [0,1] to use parital data to estimate templates
   templates_partial_data: 1
+  # determine whitening matrix in each minibatch
+  whiten_batchwise: False
 
 methods:
   # 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
   detection: threshold
 
 # PREPROCESS
-# determine whitening matrix in each minibatch
-whitenBatchwise: 0
+
 # number of features for dimension reduction
 nFeat: 3
 
