@@ -41,9 +41,6 @@ whitenBatchwise: 0
 # number of features for dimension reduction
 nFeat: 3
 
-triage:
-  nearest_neighbors: 20
-  percent: 0.01
 
 # CORESET
 # Num. of clusters
@@ -93,8 +90,10 @@ neural_network_detector:
   # Threshold for clear/collision detection
   threshold_collision: 0.75
 
+############
+# optional #
+############
 
-# optional
 cluster_prior:
   beta: 1
   a: 1
@@ -103,7 +102,6 @@ cluster_prior:
   nu: 5
   V: 2
 
-# optional
 filter:
   # Order of Butterworth filter
   order: 3
@@ -111,3 +109,7 @@ filter:
   low_pass_freq: 300
   # High pass factor (proportion of sampling rate)
   high_factor: 0.1
+
+triage:
+  nearest_neighbors: 20
+  percent: 0.01

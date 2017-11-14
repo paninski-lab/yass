@@ -17,6 +17,11 @@ optional_sections:
     threshold_spike: 0.5
     threshold_collision: 0.75
 
+  triage:
+    nearest_neighbors: 20
+    percent: 0.01
+
+
 
 fields_validator:
   recordings:

@@ -34,11 +34,6 @@ whitenBatchwise: 0
 # number of features for dimension reduction
 nFeat: 3
 
-triage:
-  nearest_neighbors: 20
-  percent: 0.01
-
-
 # CORESET
 # Num. of clusters
 coresetK: 10
