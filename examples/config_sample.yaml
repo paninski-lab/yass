@@ -10,7 +10,7 @@ data:
 # precision of the recording (e.g.'int16')
 dtype: int16
 # recording rate (in Hz)
-srate: 30000
+sampling_rate: 30000
 # number of channels in the recording
 nChan: 10
 # spatial radius of spikes

@@ -80,7 +80,7 @@ def run():
                                     CONFIG.filterLow,
                                     CONFIG.filterHighFactor,
                                     CONFIG.filterOrder,
-                                    CONFIG.srate)
+                                    CONFIG.sampling_rate)
         time['f'] += (datetime.datetime.now()-_b).total_seconds()
 
     # TODO: cache computations
@@ -90,7 +90,7 @@ def run():
 
     # compute the standard deviation using the first batch only
     batch1 = next(bp)
-    sd_ = sd(batch1, CONFIG.srate)
+    sd_ = sd(batch1, CONFIG.sampling_rate)
 
     # make another batch processor
     bp = factory.make(path_to_file=path, dtype=dtype, buffer_size=0)

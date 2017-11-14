@@ -221,13 +221,13 @@ class Preprocessor(object):
             rec = butterworth(rec, self.config.filterLow,
                               self.config.filterHighFactor,
                               self.config.filterOrder,
-                              self.config.srate)
+                              self.config.sampling_rate)
             Time['f'] += (dt.datetime.now()-_b).total_seconds()
 
         # standardize recording
         _b = dt.datetime.now()
         if not hasattr(self, 'sd'):
-            self.sd = sd(rec, self.config.srate)
+            self.sd = sd(rec, self.config.sampling_rate)
 
         rec = standarize(rec, self.sd)
 
@@ -364,11 +364,11 @@ class Preprocessor(object):
                 rec = butterworth(rec, self.config.filterLow,
                                   self.config.filterHighFactor,
                                   self.config.filterOrder,
-                                  self.config.srate)
+                                  self.config.sampling_rate)
 
             # standardize recording
             if not hasattr(self, 'sd'):
-                small_t = int(np.min((int(self.config.srate*5), rec.shape[0]))/2)
+                small_t = int(np.min((int(self.config.sampling_rate*5), rec.shape[0]))/2)
                 mid_T = int(np.ceil(rec.shape[0]/2))
                 rec_temp = rec[np.arange(mid_T-small_t, mid_T+small_t)]
                 self.sd = np.median(np.abs(rec_temp), 0)/0.6745

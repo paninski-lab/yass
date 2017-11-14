@@ -38,7 +38,7 @@ def process_data(CONFIG):
                                     CONFIG.filterLow,
                                     CONFIG.filterHighFactor,
                                     CONFIG.filterOrder,
-                                    CONFIG.srate)
+                                    CONFIG.sampling_rate)
 
     # TODO: cache computations
     # make batch processor for filtered -> standarize -> standarized
@@ -46,7 +46,7 @@ def process_data(CONFIG):
 
     # compute the standard deviation using the first batch only
     batch1 = next(bp)
-    sd_ = sd(batch1, CONFIG.srate)
+    sd_ = sd(batch1, CONFIG.sampling_rate)
 
     # make another batch processor
     bp = factory.make(path_to_file=path, dtype=dtype, buffer_size=0)
