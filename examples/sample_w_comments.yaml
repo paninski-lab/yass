@@ -42,9 +42,6 @@ nFeat: 3 # required
 
 # OPTIONAL
 
-triage:
-  nearest_neighbors: 20
-  percent: 0.01
 
 # CORESET
 # Num. of clusters

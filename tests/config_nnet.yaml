@@ -38,12 +38,12 @@ whitenBatchwise: 0
 # number of features for dimension reduction
 nFeat: 3
 
+coreset:
+  # Num. of clusters
+  clusters: 10
+  # distance threshold
+  threshold: 0.95
 
-# CORESET
-# Num. of clusters
-coresetK: 10
-# distance threshold
-coresetTh: 0.95
 
 # CLUSTERING
 # Masking threshold

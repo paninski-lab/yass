@@ -102,8 +102,8 @@ class Mainprocessor(object):
                     ###########
 
                     _b = datetime.datetime.now()
-                    coreset_id = coreset(score_c, self.config.coresetK,
-                        self.config.coresetTh, self.config.doCoreset)
+                    coreset_id = coreset(score_c, self.config.coreset.clusters,
+                        self.config.coreset.threshold, self.config.doCoreset)
                     Time['c'] += (datetime.datetime.now()-_b).total_seconds()
 
 

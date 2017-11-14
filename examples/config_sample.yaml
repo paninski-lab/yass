@@ -42,11 +42,11 @@ whitenBatchwise: 0
 nFeat: 3
 
 
-# CORESET
-# Num. of clusters
-coresetK: 10
-# distance threshold
-coresetTh: 0.95
+coreset:
+  # Num. of clusters
+  clusters: 10
+  # distance threshold
+  threshold: 0.95
 
 # CLUSTERING
 # Masking threshold

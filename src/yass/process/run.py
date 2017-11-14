@@ -127,8 +127,8 @@ def run(score, spike_index_clear, spike_index_collision):
                 ###########
 
                 _b = datetime.datetime.now()
-                coreset_id = coreset(score_c, CONFIG.coresetK,
-                    CONFIG.coresetTh, CONFIG.doCoreset)
+                coreset_id = coreset(score_c, CONFIG.coreset.clusters,
+                    CONFIG.coreset.threshold, CONFIG.doCoreset)
                 Time['c'] += (datetime.datetime.now()-_b).total_seconds()
 
 
