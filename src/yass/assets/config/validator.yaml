@@ -21,6 +21,11 @@ optional_sections:
     nearest_neighbors: 20
     percent: 0.01
 
+  coreset:
+    clusters: 10
+    threshold: 0.95
+
+
 
 
 fields_validator:
