@@ -1,10 +1,8 @@
 optional_sections:
-  a_sction:
-    key: 1
-  # cluster_prior:
-  #   beta: 1
-  #   a: 1
-  #   lambda0: 0.01
-  #   mu: [[0], [0], [0]]
-  #   nu: 5
-  #   V: 2
+  cluster_prior:
+    beta: 1
+    a: 1
+    lambda0: 0.01
+    mu: [[0], [0], [0]]
+    nu: 5
+    V: 2

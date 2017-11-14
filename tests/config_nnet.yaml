@@ -119,12 +119,3 @@ neural_network:
   nnTrainStepSize: 0.001
   # L2 reg. scale
   nnL2RegScale: 0.00000005
-
-# Clustering prior
-cluster_prior:
-  beta: 1
-  a: 1
-  lambda0: 0.01
-  mu: [[0], [0], [0]]
-  nu: 5
-  V: 2
