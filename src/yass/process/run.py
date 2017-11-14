@@ -227,7 +227,7 @@ def run(score, spike_index_clear, spike_index_collision):
                                                  CONFIG.scaleToSave,
                                                  CONFIG.neighChannels,
                                                  path_to_whiten,
-                                                 CONFIG.tMergeTh)
+                                                 CONFIG.templates.merge_threshold)
     Time['e'] += (datetime.datetime.now()-_b).total_seconds()
 
 

@@ -36,22 +36,6 @@ whitenBatchwise: 0 # optional
 # number of features for dimension reduction
 nFeat: 3 # required
 
-# OPTIONAL
-
-
-# CLUSTERING
-# Masking threshold
-maskTh: [0.9, 0.5]
-# Num. of new clusters in split
-kSplit: 5
-
-# TEMPLATE MERGING
-# threshold for template merge
-tMergeTh: [0.8, 0.7]
-
-
-# END OPTIONAL
-
 deconvolution:
   rank: 3
   threshold: 4

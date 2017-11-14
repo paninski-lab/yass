@@ -202,7 +202,7 @@ class Mainprocessor(object):
                                                      self.config.scaleToSave,
                                                      self.config.neighChannels,
                                                      path_to_whiten,
-                                                     self.config.tMergeTh)
+                                                     self.config.templates.merge_threshold)
         self.templates = templates
         Time['e'] += (datetime.datetime.now()-_b).total_seconds()
 

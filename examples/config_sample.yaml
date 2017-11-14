@@ -36,9 +36,8 @@ whitenBatchwise: 0
 # number of features for dimension reduction
 nFeat: 3
 
-# TEMPLATE MERGING
-# threshold for template merge
-tMergeTh: [0.8, 0.7]
+templates:
+  merge_threshold: [0.8, 0.7]
 
 deconvolution:
   rank: 3
