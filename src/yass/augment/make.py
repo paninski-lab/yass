@@ -85,32 +85,6 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
         else:
             x_collision[j] += x_clean2
 
-    ###################
-    # collision type2 #
-    ###################            
-    x_collision2 = np.zeros(x_clean.shape)
-
-    temporal_shifts = np.random.randint(max_shift*2, size = nk*K) - max_shift
-    temporal_shifts[temporal_shifts<0] = temporal_shifts[temporal_shifts<0]-5
-    temporal_shifts[temporal_shifts>=0] = temporal_shifts[temporal_shifts>=0]+6
-
-    amp_per_data = np.max(x_clean[:,:,0],axis=1)
-    for j in range(nk*K):
-        shift = temporal_shifts[j]
-
-        x_collision2[j] = np.copy(x_clean[j])
-        idx_candidate = np.where(amp_per_data > amp_per_data[j]*0.3)[0]
-        idx_match = idx_candidate[np.random.randint(idx_candidate.shape[0], size = 1)[0]]
-        x_clean2 = np.copy(x_clean[idx_match])
-
-        if shift > 0:
-            x_collision2[j,:(x_collision.shape[1]-shift)] += x_clean2[shift:]
-
-        elif shift < 0:
-            x_collision2[j,(-shift):] += x_clean2[:(x_collision.shape[1]+shift)]
-        else:
-            x_collision2[j] += x_clean2
-
     #####################
     # misaligned spikes #
     #####################
@@ -149,7 +123,6 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
 
     y_clean = np.ones((x_clean.shape[0]))
     y_col = np.ones((x_clean.shape[0]))
-    y_col2 = np.ones((x_clean.shape[0]))
     y_misalinged = np.zeros((x_clean.shape[0]))
     y_noise = np.zeros((x_clean.shape[0]))
 
@@ -160,27 +133,21 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
     x = np.concatenate( (
             x_clean + noise, 
             x_collision + noise[np.random.permutation(noise.shape[0])], 
-            x_collision2 + noise[np.random.permutation(noise.shape[0])],
             x_misaligned + noise[np.random.permutation(noise.shape[0])],
             noise
         ) )
 
     x_detect = x[:,(mid_point-R):(mid_point+R+1),:]
-    y_detect = np.concatenate( (y_clean, y_col, y_col2, y_misalinged, y_noise) )
+    y_detect = np.concatenate( (y_clean, y_col, y_misalinged, y_noise) )
 
 
     # get training set for triage
     x = np.concatenate( (
             x_clean + noise, 
             x_collision + noise[np.random.permutation(noise.shape[0])], 
-            x_collision2 + noise[np.random.permutation(noise.shape[0])],
         ) )
     x_triage = x[:,(mid_point-R):(mid_point+R+1),:]
-    y_triage = np.concatenate( (
-            y_clean, 
-            np.zeros((x_clean.shape[0])), 
-            np.zeros((x_clean.shape[0])), 
-                        ) )
+    y_triage = np.concatenate( (y_clean,np.zeros((x_clean.shape[0]))) )
 
     # ge training set for auto encoder
     ae_shift_max = 1
