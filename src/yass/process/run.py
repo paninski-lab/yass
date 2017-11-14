@@ -105,8 +105,8 @@ def run(score, spike_index_clear, spike_index_collision):
                 ##########
 
                 _b = datetime.datetime.now()
-                index_keep = triage(score_c, 0, CONFIG.triageK,
-                                    CONFIG.triagePercent, CONFIG.doTriage)
+                index_keep = triage(score_c, 0, CONFIG.triage.nearest_neighbors,
+                                    CONFIG.triage.percent, CONFIG.doTriage)
                 Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
                 # add untriaged spike index to spike_index_clear_group

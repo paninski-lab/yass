@@ -1,44 +1,51 @@
+# NOTE: this are not the right
+# parameters for the neuropixel data
+# but we are using them to avoid breaking
+# the nnet detection, will update
+# when we incorporate new models
+
 data:
   root_folder: tests/data
   recordings: neuropixel.bin
-  geometry: neuropixel_channels.npy
+  geometry: geometry_fake.txt
 
 recordings:
   dtype: int16
-  sampling_rate: 30000
+  sampling_rate: 20000
   n_channels: 10
   spatial_radius: 70
-  spike_size_ms: 1
+  spike_size_ms: 1.5
 
 # TURN ON/OFF MODULES
 # 0 for filtered recording
 doFilter: True
+
+# remove
 doTriage: True
 doCoreset: True
 doWhitening: True
 
 methods:
-  # 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
-  detection: threshold
-  # 'MFM' for mixture of finite mixture clustering, 'dpmm' for dirichlete process mixture model
+  detection: nn
   clustering: MFM
 
 
 # PREPROCESS
-portion: 1
+portion: 1 # remove - it is not used
 # max. memory allowed for loading recording (in bytes)
 maxMem: 1000000000
 # [0,1] to use parital data to estimate templates
 partialDat: 1
 # determine whitening matrix in each minibatch
-whitenBatchwise: 0
+whitenBatchwise: 0 # optional
 # number of features for dimension reduction
-nFeat: 3
+nFeat: 3 # required
+
+# OPTIONAL
 
 triage:
   nearest_neighbors: 20
   percent: 0.01
-
 
 # CORESET
 # Num. of clusters
@@ -56,10 +63,14 @@ kSplit: 5
 # threshold for template merge
 tMergeTh: [0.8, 0.7]
 
+
+# END OPTIONAL
+
 deconvolution:
   rank: 3
   threshold: 4
-  lambda: 20
+  lam: 20
+
 
 # Neural network parameters
 neural_network:
@@ -68,25 +79,25 @@ neural_network:
 
   # NN architecture
   # num. of filters in each layer
-  nnNFilters: [16, 8, 1]
+  nnNFilters: [16, 8] #, 1]
   # temporal filter size
-  nnFilterSize: [31, 1, 1]  
+  nnFilterSize: 31 #, 1, 1]  
   
   nnTriageFilterSize: [8, 16]  
   
-  # NN training
-  # train nn and save
-  nnTrain: 0
-  # 'recording' : raw recording,
-  inputType: 'recording'
-  # 'sorted_recording' : raw recording with spike train, 'templates' : templates
-  # 'rectangular', 'non_rectangular'
-  ChannelGeometry: 'rectangular'
-  # num. of iter. in training
-  nnIteration: 100000
-  # size of minibatch in training
-  nnBatch: 256
-  # training step size
-  nnTrainStepSize: 0.001
-  # L2 reg. scale
-  nnL2RegScale: 0.00000005
+  # # NN training
+  # # train nn and save
+  # nnTrain: 0
+  # # 'recording' : raw recording,
+  # inputType: 'recording'
+  # # 'sorted_recording' : raw recording with spike train, 'templates' : templates
+  # # 'rectangular', 'non_rectangular'
+  # ChannelGeometry: 'rectangular'
+  # # num. of iter. in training
+  # nnIteration: 100000
+  # # size of minibatch in training
+  # nnBatch: 256
+  # # training step size
+  # nnTrainStepSize: 0.001
+  # # L2 reg. scale
+  # nnL2RegScale: 0.00000005

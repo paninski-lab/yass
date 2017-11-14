@@ -80,8 +80,8 @@ class Mainprocessor(object):
                     ##########
 
                     _b = datetime.datetime.now()
-                    index_keep = triage(score_c, 0, self.config.triageK,
-                                        self.config.triagePercent, self.config.doTriage)
+                    index_keep = triage(score_c, 0, self.config.triage.nearest_neighbors,
+                                        self.config.triage.percent, self.config.doTriage)
                     Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
                     # add untriaged spike index to spike_index_clear_group

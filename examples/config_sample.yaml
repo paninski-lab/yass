@@ -42,11 +42,9 @@ whitenBatchwise: 0
 # number of features for dimension reduction
 nFeat: 3
 
-# TRIAGE
-# Num. of nearest neighbors to consider
-triageK: 20
-# percentage of data to be triaged
-triagePercent: 0.01
+triage:
+  nearest_neighbors: 20
+  percent: 0.01
 
 # CORESET
 # Num. of clusters
