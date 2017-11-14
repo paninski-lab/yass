@@ -25,7 +25,6 @@ doWhitening: True
 detctionMethod: threshold
 # 'MFM' for mixture of finite mixture clustering, 'dpmm' for dirichlete process mixture model
 clusteringMethod: MFM
-doDeconv: True
 
 # PREPROCESS
 portion: 1
