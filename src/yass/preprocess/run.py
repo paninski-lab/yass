@@ -64,7 +64,7 @@ def run():
                                     max_memory=CONFIG.maxMem,
                                     buffer_size=None)
 
-    if CONFIG.doFilter == 1:
+    if CONFIG.preprocess.filter == 1:
 
         _b = datetime.datetime.now()
         # make batch processor for raw data -> buterworth -> filtered

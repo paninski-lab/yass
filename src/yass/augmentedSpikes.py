@@ -155,7 +155,7 @@ class AugmentedSpikes(object):
         rec = rec[:,ch_idx]
         
         # filter recording
-        if pp.config.doFilter == 1:
+        if pp.config.preprocess.filter == 1:
             rec = butterworth(rec, self.config.filter.low_pass_freq,
                               self.config.filter.high_factor,
                               self.config.filter.order,

@@ -19,8 +19,9 @@ recordings:
   # temporal length of wavforms in ms
   spike_size_ms: 1
 
-# TURN ON/OFF MODULES
-doFilter: True
+preprocess:
+  # apply butterworth filter in the preprocessing step
+  filter: True
 
 methods:
   # 'nn' for neural net detction, 'threshold' for amplitdue threshold detection

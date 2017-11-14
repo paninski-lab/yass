@@ -214,7 +214,7 @@ class Preprocessor(object):
 
     def batch_process(self, rec, get_score, BUFF, Time):
         # filter recording
-        if self.config.doFilter == 1:
+        if self.config.preprocess.filter == 1:
             _b = dt.datetime.now()
             rec = butterworth(rec, self.config.filter.low_pass_freq,
                               self.config.filter.high_factor,
@@ -357,7 +357,7 @@ class Preprocessor(object):
                 spt[:, 0] = spt[:, 0] - i*batch_size
 
             # filter recording
-            if self.config.doFilter == 1:
+            if self.config.preprocess.filter == 1:
                 rec = butterworth(rec, self.config.filter.low_pass_freq,
                                   self.config.filter.high_factor,
                                   self.config.filter.order,

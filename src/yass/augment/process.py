@@ -24,7 +24,7 @@ def process_data(CONFIG):
                                     max_memory=CONFIG.maxMem,
                                     buffer_size=None)
 
-    if CONFIG.doFilter == 1:
+    if CONFIG.preprocess.filter == 1:
         # make batch processor for raw data -> buterworth -> filtered
         bp = factory.make(path_to_file=path, dtype=dtype,
                           buffer_size=0)

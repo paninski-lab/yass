@@ -16,9 +16,8 @@ recordings:
   spatial_radius: 70
   spike_size_ms: 1.5
 
-# TURN ON/OFF MODULES
-# 0 for filtered recording
-doFilter: True
+preprocess:
+  filter: True
 
 methods:
   detection: nn
