@@ -106,13 +106,13 @@ class Config(FrozenJSON):
 
         # GEOMETRY PARAMETERS
         path_to_geom = path.join(self.data.root_folder, self.data.geometry)
-        self._set_param('geom', geom.parse(path_to_geom, self.n_channels))
+        self._set_param('geom', geom.parse(path_to_geom, self.recordings.n_channels))
 
         neighChannels = geom.find_channel_neighbors(self.geom,
-                                                    self.spatial_radius)
+                                                    self.recordings.spatial_radius)
         self._set_param('neighChannels', neighChannels)
 
-        channelGroups = geom.make_channel_groups(self.n_channels,
+        channelGroups = geom.make_channel_groups(self.recordings.n_channels,
                                                  self.neighChannels,
                                                  self.geom)
         self._set_param('channelGroups', channelGroups)
@@ -129,20 +129,20 @@ class Config(FrozenJSON):
         # compute spikeSize which is the number of observations for half
         # the waveform
         self._set_param('spikeSize',
-                        int(np.round(self.spikeSizeMS*self.sampling_rate/(2*1000))))
+                        int(np.round(self.spikeSizeMS*self.recordings.sampling_rate/(2*1000))))
         self._set_param('scaleToSave', 100)
         self._set_param('BUFF', self.spikeSize*4)
-        self._set_param('templatesMaxShift', int(self.sampling_rate/1000))
+        self._set_param('templatesMaxShift', int(self.recordings.sampling_rate/1000))
         self._set_param('stdFactor', 4)
 
         file_size = path.getsize(path.join(self.data.root_folder, self.data.recordings))
         # seems unused...
-        self._set_param('size', int(file_size/(sizeof(self.dtype)*self.n_channels)))
+        self._set_param('size', int(file_size/(sizeof(self.recordings.dtype)*self.recordings.n_channels)))
 
         # BATCH PARAMETERS
-        self._set_param('dsize', sizeof(self.dtype))
+        self._set_param('dsize', sizeof(self.recordings.dtype))
 
-        batch_size = int(np.floor(self.maxMem/(self.n_channels*self.dsize)))
+        batch_size = int(np.floor(self.maxMem/(self.recordings.n_channels*self.dsize)))
 
         if batch_size > self.size:
             self._set_param('nBatches', 1)

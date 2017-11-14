@@ -51,10 +51,10 @@ def covariance(recordings, temporal_size, neigbor_steps):
         rec = butterworth(rec, CONFIG.filterLow,
                           CONFIG.filterHighFactor,
                           CONFIG.filterOrder,
-                          CONFIG.sampling_rate)
+                          CONFIG.recordings.sampling_rate)
 
     # standardize recording
-    sd_ = standarize.sd(rec, CONFIG.sampling_rate)
+    sd_ = standarize.sd(rec, CONFIG.recordings.sampling_rate)
     rec = standarize.standarize(rec, sd_)
 
     # compute and return spatial and temporal covariance

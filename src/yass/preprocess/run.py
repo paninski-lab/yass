@@ -55,12 +55,12 @@ def run():
 
     # initialize processor for raw data
     path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
-    dtype = CONFIG.dtype
+    dtype = CONFIG.recordings.dtype
 
     # initialize factory
     factory = BatchProcessorFactory(path_to_file=None,
                                     dtype=None,
-                                    n_channels=CONFIG.n_channels,
+                                    n_channels=CONFIG.recordings.n_channels,
                                     max_memory=CONFIG.maxMem,
                                     buffer_size=None)
 
@@ -80,7 +80,7 @@ def run():
                                     CONFIG.filterLow,
                                     CONFIG.filterHighFactor,
                                     CONFIG.filterOrder,
-                                    CONFIG.sampling_rate)
+                                    CONFIG.recordings.sampling_rate)
         time['f'] += (datetime.datetime.now()-_b).total_seconds()
 
     # TODO: cache computations
@@ -90,7 +90,7 @@ def run():
 
     # compute the standard deviation using the first batch only
     batch1 = next(bp)
-    sd_ = sd(batch1, CONFIG.sampling_rate)
+    sd_ = sd(batch1, CONFIG.recordings.sampling_rate)
 
     # make another batch processor
     bp = factory.make(path_to_file=path, dtype=dtype, buffer_size=0)

@@ -159,10 +159,10 @@ class AugmentedSpikes(object):
             rec = butterworth(rec, self.config.filterLow,
                               self.config.filterHighFactor,
                               self.config.filterOrder,
-                              self.config.sampling_rate)
+                              self.config.recordings.sampling_rate)
 
         # standardize recording
-        small_t = np.min((int(pp.config.sampling_rate*5),6000000))
+        small_t = np.min((int(pp.config.recordings.sampling_rate*5),6000000))
         mid_T = int(np.ceil(rec.shape[0]/2))
         rec_temp = rec[np.arange(mid_T-small_t,mid_T+small_t)]
         sd = np.median(np.abs(rec),0)/0.6745;
@@ -486,7 +486,7 @@ class AugmentedSpikes(object):
         nChannels = np.sum(neighChanBig[c_ref])
 
         geom = self.config.geom[neighChanBig[c_ref]]
-        neighChannels     = (squareform(pdist(geom)) <= self.config.spatial_radius)
+        neighChannels     = (squareform(pdist(geom)) <= self.config.recordings.spatial_radius)
         
         
         templatesBig2 = np.zeros((templatesBig.shape[0],templatesBig.shape[1],nChannels))

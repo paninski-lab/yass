@@ -44,8 +44,8 @@ class Mainprocessor(object):
         spike_train_clear = np.zeros((0,2), 'int32')
 
         # order of channels
-        c_idx = np.ones((self.config.n_channels, nneigh), 'int32')*self.config.n_channels
-        for c in range(self.config.n_channels):
+        c_idx = np.ones((self.config.recordings.n_channels, nneigh), 'int32')*self.config.recordings.n_channels
+        for c in range(self.config.recordings.n_channels):
             ch_idx, _ = order_channels_by_distance(c,
                                                    np.where(
                                                    self.config.neighChannels[c])[0],
@@ -125,7 +125,7 @@ class Mainprocessor(object):
                     score_temp = np.zeros((score_c.shape[0],
                         self.config.nFeat, neigh_chans.shape[0]))
                     mask_temp = np.zeros((mask.shape[0],neigh_chans.shape[0]))
-                    nneigh_c = np.sum(c_idx[c] < self.config.n_channels)
+                    nneigh_c = np.sum(c_idx[c] < self.config.recordings.n_channels)
                     for j in range(nneigh_c):
                         c_interest = np.where(neigh_chans == c_idx[c,j])[0][0]
                         score_temp[:,:,c_interest] = score_c[:,:,j]
@@ -190,7 +190,7 @@ class Mainprocessor(object):
                                                      self.config.batch_size,
                                                      self.config.BUFF,
                                                      self.config.nBatches,
-                                                     self.config.n_channels,
+                                                     self.config.recordings.n_channels,
                                                      self.config.spikeSize,
                                                      self.config.templatesMaxShift,
                                                      self.config.scaleToSave,

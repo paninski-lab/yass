@@ -6,15 +6,15 @@ data:
   # channel geometry filename
   geometry: neuropixel_channels.npy
 
-# RECORDING
-# precision of the recording (e.g.'int16')
-dtype: int16
-# recording rate (in Hz)
-sampling_rate: 30000
-# number of channels in the recording
-n_channels: 10
-# spatial radius of spikes
-spatial_radius: 70
+recordings:
+  # precision of the recording – must be a valid numpy dtype
+  dtype: int16
+  # recording rate (in Hz)
+  sampling_rate: 30000
+  # number of channels
+  n_channels: 10
+  # channels spatial radius
+  spatial_radius: 70
 
 # TURN ON/OFF MODULES
 doFilter: True

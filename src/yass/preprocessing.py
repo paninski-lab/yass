@@ -68,10 +68,10 @@ class Preprocessor(object):
     # offset should be in terms of timesamples
     def load(self, offset, length):
         dsize = self.config.dsize
-        self.File.seek(offset*dsize*self.config.n_channels)
-        rec = self.File.read(dsize*self.config.n_channels*length)
-        rec = np.fromstring(rec, dtype=self.config.dtype)
-        rec = rec.reshape(length, self.config.n_channels)
+        self.File.seek(offset*dsize*self.config.recordings.n_channels)
+        rec = self.File.read(dsize*self.config.recordings.n_channels*length)
+        rec = np.fromstring(rec, dtype=self.config.recordings.dtype)
+        rec = rec.reshape(length, self.config.recordings.n_channels)
         return rec
 
     # chunck should be in C x T format
@@ -81,10 +81,10 @@ class Preprocessor(object):
     def save(self, fid, chunk, _format='s'):
         if _format == 's':
             chunk = chunk.reshape(chunk.shape[0]*chunk.shape[1])
-            chunk.astype(self.config.dtype).tofile(fid)
+            chunk.astype(self.config.recordings.dtype).tofile(fid)
         else:
             chunk = chunk.transpose().reshape(chunk.shape[0]*chunk.shape[1])
-            chunk.astype(self.config.dtype).tofile(fid)
+            chunk.astype(self.config.recordings.dtype).tofile(fid)
 
     def addZeroBuffer(self, rec, buffSize, option):
         buff = np.zeros((buffSize, rec.shape[1]))
@@ -221,13 +221,13 @@ class Preprocessor(object):
             rec = butterworth(rec, self.config.filterLow,
                               self.config.filterHighFactor,
                               self.config.filterOrder,
-                              self.config.sampling_rate)
+                              self.config.recordings.sampling_rate)
             Time['f'] += (dt.datetime.now()-_b).total_seconds()
 
         # standardize recording
         _b = dt.datetime.now()
         if not hasattr(self, 'sd'):
-            self.sd = sd(rec, self.config.sampling_rate)
+            self.sd = sd(rec, self.config.recordings.sampling_rate)
 
         rec = standarize(rec, self.sd)
 
@@ -326,7 +326,7 @@ class Preprocessor(object):
         residual = self.config.residual
         self.openFile()
 
-        summedTemplatesBig = np.zeros((K, 2*R+1, self.config.n_channels))
+        summedTemplatesBig = np.zeros((K, 2*R+1, self.config.recordings.n_channels))
         ndata = np.zeros(K)
 
         for i in range(0, nBatches):
@@ -364,11 +364,11 @@ class Preprocessor(object):
                 rec = butterworth(rec, self.config.filterLow,
                                   self.config.filterHighFactor,
                                   self.config.filterOrder,
-                                  self.config.sampling_rate)
+                                  self.config.recordings.sampling_rate)
 
             # standardize recording
             if not hasattr(self, 'sd'):
-                small_t = int(np.min((int(self.config.sampling_rate*5), rec.shape[0]))/2)
+                small_t = int(np.min((int(self.config.recordings.sampling_rate*5), rec.shape[0]))/2)
                 mid_T = int(np.ceil(rec.shape[0]/2))
                 rec_temp = rec[np.arange(mid_T-small_t, mid_T+small_t)]
                 self.sd = np.median(np.abs(rec_temp), 0)/0.6745
