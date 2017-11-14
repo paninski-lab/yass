@@ -23,6 +23,11 @@ methods:
   # 'MFM' for mixture of finite mixture clustering, 'dpmm' for dirichlete process mixture model
   clustering: MFM
 
+neural_network_detector:
+  filename: detectnet1.ckpt
+  threshold_spike: 0.5
+  threshold_collision: 0.75
+
 
 # PREPROCESS
 # max. memory allowed for loading recording (in bytes)

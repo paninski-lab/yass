@@ -72,7 +72,6 @@ neural_network:
   nnTriageFilterSize: [8, 16]  
 
 
-# optional
 neural_network_detector:
   # model name, can be any of the models included in yass (detectnet1.ckpt),
   # a relative folder to data.root_fodler (e.g.

@@ -28,6 +28,11 @@ methods:
   clustering: MFM
 
 
+neural_network_detector:
+  filename: detectnet1.ckpt
+  threshold_spike: 0.5
+  threshold_collision: 0.75
+
 # PREPROCESS
 # max. memory allowed for loading recording (in bytes)
 maxMem: 1000000000
