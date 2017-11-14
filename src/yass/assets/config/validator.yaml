@@ -1,2 +1,27 @@
-detctionMethod: ['nn', 'threshold']
-clusteringMethod: ['dpmm', 'MFM']
+optional_sections:
+  cluster_prior:
+    beta: 1
+    a: 1
+    lambda0: 0.01
+    mu: [[0], [0], [0]]
+    nu: 5
+    V: 2
+
+  filter:
+    order: 3
+    low_pass_freq: 300
+    high_factor: 0.1
+
+  neural_network_detector:
+    threshold_spike: 0.5
+    threshold_collision: 0.75
+
+
+fields_validator:
+  methods:
+    detection:
+      values: ['threshold', 'nn']
+      type: str
+    clustering:
+      values: ['MFM', 'dpmm']
+      type: str

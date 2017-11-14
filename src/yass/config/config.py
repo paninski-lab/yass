@@ -185,27 +185,12 @@ class Config(FrozenJSON):
         """Validate values in the input dictionary
         """
         path_to_validator = resource_filename('yass',
-                                              'assets/config/new_validator.yaml')
+                                              'assets/config/validator.yaml')
         with open(path_to_validator) as f:
             validator_content = yaml.load(f)
 
-        validator = Validator(mapping, optional_sections=validator_content['optional_sections'])
+        validator = Validator(mapping, **validator_content)
         mapping = validator.validate()
-
-        # OLD VALIDATOR
-        path_to_validator = resource_filename('yass',
-                                              'assets/config/validator.yaml')
-        with open(path_to_validator) as f:
-            validator = yaml.load(f)
-
-        for key, value in mapping.items():
-            valid_values = validator.get(key)
-            if valid_values:
-                if value not in valid_values:
-                    valid_values_pretty = self._pretty_iterator(valid_values)
-                    raise ValueError('{} is not a valid value for {}. '
-                                     'Valid values are: {}'
-                                     .format(value, key, valid_values_pretty))
 
         return mapping
 
