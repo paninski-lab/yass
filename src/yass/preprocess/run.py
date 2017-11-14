@@ -218,18 +218,17 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
     time['d'] += (datetime.datetime.now()-_b).total_seconds()
 
     # get withening matrix per batch or onece in total
-    if CONFIG.doWhitening == 1:
-        _b = datetime.datetime.now()
+    _b = datetime.datetime.now()
 
-        global Q
-        if CONFIG.whitenBatchwise or Q is None:
-            # cache this
-            Q = whitening_matrix(rec, CONFIG.neighChannels,
-                                 CONFIG.spikeSize)
+    global Q
+    if CONFIG.whitenBatchwise or Q is None:
+        # cache this
+        Q = whitening_matrix(rec, CONFIG.neighChannels,
+                             CONFIG.spikeSize)
 
-        rec = whitening(rec, Q)
+    rec = whitening(rec, Q)
 
-        time['w'] += (datetime.datetime.now()-_b).total_seconds()
+    time['w'] += (datetime.datetime.now()-_b).total_seconds()
 
     _b = datetime.datetime.now()
 

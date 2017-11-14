@@ -15,7 +15,6 @@ recordings:
 doFilter: True
 doTriage: True
 doCoreset: True
-doWhitening: True
 
 methods:
   detection: threshold

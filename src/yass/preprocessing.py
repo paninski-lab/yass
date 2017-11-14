@@ -252,16 +252,15 @@ class Preprocessor(object):
         Time['d'] += (dt.datetime.now()-_b).total_seconds()
 
         # get withening matrix per batch or onece in total
-        if self.config.doWhitening == 1:
-            _b = dt.datetime.now()
+        _b = dt.datetime.now()
 
-            if self.config.whitenBatchwise or not hasattr(self, 'Q'):
-                self.Q = whitening_matrix(rec, self.config.neighChannels,
-                                          self.config.spikeSize)
+        if self.config.whitenBatchwise or not hasattr(self, 'Q'):
+            self.Q = whitening_matrix(rec, self.config.neighChannels,
+                                      self.config.spikeSize)
 
-            rec = whitening(rec, self.Q)
+        rec = whitening(rec, self.Q)
 
-            Time['w'] += (dt.datetime.now()-_b).total_seconds()
+        Time['w'] += (dt.datetime.now()-_b).total_seconds()
 
         _b = dt.datetime.now()
 
