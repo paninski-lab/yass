@@ -12,10 +12,10 @@ class Validator(object):
     d: dict
         The mapping to validate
 
-    required_sections: set
+    required_sections: set, optional
         The set of top-level valid sections
 
-    optional_sections: dict
+    optional_sections: dict, optional
         The set of top-level optional sections, each key represents the name
         of an optional section and the content the default value if the section
         is not present in d
@@ -27,11 +27,13 @@ class Validator(object):
         of these dictionaries can have any of the optional keys: values
         (list of permitted valyes) and type (Python data type)
     """
-    def __init__(self, d, required_sections, optional_sections,
+    def __init__(self, d, required_sections=None, optional_sections=None,
                  fields_validator=None):
         self.d = d
-        self.required_sections = set(required_sections)
-        self.optional_sections = set(optional_sections.keys())
+        self.required_sections = (set(required_sections) if required_sections
+                                  else set())
+        self.optional_sections = (set(optional_sections.keys())
+                                  if optional_sections else set())
         self.optional_sections_defaults = optional_sections
         self.fields_validator = fields_validator
 
@@ -80,9 +82,12 @@ class Validator(object):
                                              _pretty_iter(permitted_values)))
 
     def validate(self):
-        self._validate_required_sections()
-        self._validate_optional_sections()
-        self._fill_default_values()
+        if self.required_sections:
+            self._validate_required_sections()
+
+        if self.optional_sections:
+            self._validate_optional_sections()
+            self._fill_default_values()
 
         if self.fields_validator:
             self._validate_fields()
