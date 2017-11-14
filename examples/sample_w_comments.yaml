@@ -31,7 +31,6 @@ methods:
 
 
 # PREPROCESS
-portion: 1 # remove - it is not used
 # max. memory allowed for loading recording (in bytes)
 maxMem: 1000000000
 # [0,1] to use parital data to estimate templates
