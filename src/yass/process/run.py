@@ -84,7 +84,7 @@ def run(score, spike_index_clear, spike_index_collision):
         channels = CONFIG.channelGroups[g]
         neigh_chans = np.where(np.sum(CONFIG.neighChannels[channels], axis=0) > 0)[0]
 
-        score_group = np.zeros((0, CONFIG.nFeat, neigh_chans.shape[0]))
+        score_group = np.zeros((0, CONFIG.spikes.temporal_features, neigh_chans.shape[0]))
         coreset_id_group = np.zeros((0), 'int32')
         mask_group = np.zeros((0, neigh_chans.shape[0]))
         spike_index_clear_group = np.zeros((0, 2), 'int32')
@@ -143,7 +143,7 @@ def run(score, spike_index_clear, spike_index_collision):
                 ###########
 
                 _b = datetime.datetime.now()
-                mask = getmask(score_c, coreset_id, CONFIG.clustering.masking_threshold, CONFIG.nFeat)
+                mask = getmask(score_c, coreset_id, CONFIG.clustering.masking_threshold, CONFIG.spikes.temporal_features)
                 Time['m'] += (datetime.datetime.now()-_b).total_seconds()
 
 
@@ -154,7 +154,7 @@ def run(score, spike_index_clear, spike_index_collision):
                 # restructure score_c and mask to have same number of channels
                 # as score_group
                 score_temp = np.zeros((score_c.shape[0],
-                    CONFIG.nFeat, neigh_chans.shape[0]))
+                    CONFIG.spikes.temporal_features, neigh_chans.shape[0]))
                 mask_temp = np.zeros((mask.shape[0],neigh_chans.shape[0]))
                 nneigh_c = np.sum(c_idx[c] < CONFIG.recordings.n_channels)
                 for j in range(nneigh_c):

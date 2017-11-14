@@ -184,7 +184,7 @@ class Preprocessor(object):
         if self.config.spikes.detection != 'nn':
             _b = dt.datetime.now()
             rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
-                                 self.config.nFeat, self.config.neighChannels)
+                                 self.config.spikes.temporal_features, self.config.neighChannels)
 
             score = get_score_pca(spike_index_clear, rot, 
                                   self.config.neighChannels,

@@ -20,6 +20,7 @@ preprocess:
 
 spikes:
   detection: threshold
+  temporal_features: 3
 
 neural_network_triage:
   filename: triagenet1.ckpt
@@ -31,14 +32,6 @@ neural_network_detector:
   filename: detectnet1.ckpt
   threshold_spike: 0.5
   threshold_collision: 0.75
-
-
-# PREPROCESS
-# determine whitening matrix in each minibatch
-whitenBatchwise: 0
-# number of features for dimension reduction
-nFeat: 3
-
 
 deconvolution:
   rank: 3

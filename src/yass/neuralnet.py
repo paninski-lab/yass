@@ -69,7 +69,7 @@ class NeuralNetDetector(object):
         self.b2 = bias_variable([1])
 
         # output of ae encoding (1st layer)
-        nFeat = config.nFeat
+        nFeat = config.spikes.temporal_features
         self.W_ae = tf.Variable(tf.random_uniform((R1, nFeat), -1.0 / np.sqrt(R1), 1.0 / np.sqrt(R1)))
 
         self.saver_ae = tf.train.Saver({"W_ae": self.W_ae})
@@ -248,7 +248,7 @@ class NeuralNetDetector(object):
                 name of the .ckpt to be saved.
         """ 
         ndata, n_input = x_train.shape
-        #n_hidden = self.config.nFeat
+        #n_hidden = self.config.spikes.temporal_features
 
         x_ = tf.placeholder("float", [None, n_input])
         y_ = tf.placeholder("float", [None, n_input])

@@ -34,11 +34,9 @@ preprocess:
 spikes:
   # 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
   detection: threshold
-
-# PREPROCESS
-
-# number of features for dimension reduction
-nFeat: 3
+  # number of features in the temporal dimension to use when applying
+  # dimensionality reduction
+  temporal_features: 3
 
 deconvolution:
   rank: 3

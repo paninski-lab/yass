@@ -168,7 +168,7 @@ def run():
     if CONFIG.spikes.detection != 'nn':
         _b = datetime.datetime.now()
         rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
-                                 CONFIG.nFeat, CONFIG.neighChannels)
+                                 CONFIG.spikes.temporal_features, CONFIG.neighChannels)
         score = get_score_pca(spike_index_clear, rot, CONFIG.neighChannels,
                               CONFIG.geom, CONFIG.batch_size,
                               CONFIG.BUFF, CONFIG.nBatches,

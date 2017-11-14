@@ -59,7 +59,7 @@ class Mainprocessor(object):
             channels = self.config.channelGroups[g]
             neigh_chans = np.where(np.sum(self.config.neighChannels[channels], axis=0) > 0)[0]
 
-            score_group = np.zeros((0, self.config.nFeat, neigh_chans.shape[0]))
+            score_group = np.zeros((0, self.config.spikes.temporal_features, neigh_chans.shape[0]))
             coreset_id_group = np.zeros((0), 'int32')
             mask_group = np.zeros((0, neigh_chans.shape[0]))
             spike_index_clear_group = np.zeros((0, 2), 'int32')
@@ -118,7 +118,7 @@ class Mainprocessor(object):
                     ###########
 
                     _b = datetime.datetime.now()
-                    mask = getmask(score_c, coreset_id, self.config.clustering.masking_threshold, self.config.nFeat)
+                    mask = getmask(score_c, coreset_id, self.config.clustering.masking_threshold, self.config.spikes.temporal_features)
                     Time['m'] += (datetime.datetime.now()-_b).total_seconds()
 
 
@@ -129,7 +129,7 @@ class Mainprocessor(object):
                     # restructure score_c and mask to have same number of channels
                     # as score_group
                     score_temp = np.zeros((score_c.shape[0],
-                        self.config.nFeat, neigh_chans.shape[0]))
+                        self.config.spikes.temporal_features, neigh_chans.shape[0]))
                     mask_temp = np.zeros((mask.shape[0],neigh_chans.shape[0]))
                     nneigh_c = np.sum(c_idx[c] < self.config.recordings.n_channels)
                     for j in range(nneigh_c):
