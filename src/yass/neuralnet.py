@@ -1,7 +1,6 @@
 import os
 import numpy as np
 import tensorflow as tf
-import pkg_resources
 import progressbar
 
 from .geometry import order_channels_by_distance
@@ -380,7 +379,10 @@ class NeuralNetTriage(object):
 
         self.nneigh = np.max(np.sum(config.neighChannels, 0))
         D = (2*config.spikeSize+1)*self.nneigh
-        ncells = config.neural_network['nnTriageFilterSize']
+
+        path_to_model = self.config.neural_network_triage.filename
+        path_to_filters = path_to_model.replace('ckpt', 'yaml')
+        ncells = load_yaml(path_to_filters)['size']
 
         W1 = weight_variable([D,ncells[0]])
         W2 = weight_variable([ncells[0],ncells[1]])
@@ -396,7 +398,7 @@ class NeuralNetTriage(object):
         self.o_layer = tf.squeeze(tf.add(tf.matmul(layer2, W3), b3))
         self.tf_prob = tf.sigmoid(self.o_layer)
 
-        self.ckpt_loc = pkg_resources.resource_filename('yass', 'assets/models/{}'.format(self.config.neural_network['nnTriageFilename']))
+        self.ckpt_loc = self.config.neural_network_triage.filename
         self.saver_triagenet = tf.train.Saver({"W1": W1,"W2": W2,"W3": W3,"b1": b1,"b2": b2,"b3": b3})
 
     def nn_triage(self, wf, th):

@@ -17,6 +17,12 @@ doFilter: True
 methods:
   detection: threshold
 
+neural_network_triage:
+  filename: triagenet1.ckpt
+
+neural_network_autoencoder:
+  filename: ae_31.ckpt
+
 neural_network_detector:
   filename: detectnet1.ckpt
   threshold_spike: 0.5
@@ -38,12 +44,3 @@ deconvolution:
   rank: 3
   threshold: 4
   lam: 20
-
-# Neural network parameters
-neural_network:
-  nnTriageFilename: triagenet1.ckpt
-  nnTriageFilterSize: [8, 16]  
-
-
-neural_network_autoencoder:
-  filename: ae_31.ckpt

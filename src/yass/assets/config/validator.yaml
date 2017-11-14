@@ -43,6 +43,11 @@ fields_validator:
       values: ['threshold', 'nn']
       type: str
 
+  neural_network_triage:
+    filename:
+      function: expand_asset_model
+      type: str
+
   neural_network_detector:
     filename:
       function: expand_asset_model

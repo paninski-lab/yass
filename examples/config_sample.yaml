@@ -41,10 +41,8 @@ deconvolution:
   threshold: 4
   lam: 20
 
-# Neural network parameters
-neural_network:
-  nnTriageFilename: triagenet1.ckpt
-  nnTriageFilterSize: [8, 16]  
+neural_network_triage:
+  filename: triagenet1.ckpt
 
 
 neural_network_autoencoder:
