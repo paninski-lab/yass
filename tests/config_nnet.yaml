@@ -8,9 +8,9 @@
 # data root folder
 root_folder: tests/data
 # binary recording filename
-filename: neuropixel.bin
+recordings: neuropixel.bin
 # channel geometry file name
-geomFile: geometry_fake.txt # neuropixel_channels.npy
+geometry: geometry_fake.txt # neuropixel_channels.npy
 # save spikeTrain
 spikeTrainName: spike_train.csv
 

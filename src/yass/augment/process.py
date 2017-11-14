@@ -14,7 +14,7 @@ def process_data(CONFIG):
     logger = logging.getLogger(__name__)
     
     # initialize processor for raw data
-    path = os.path.join(CONFIG.root_folder, CONFIG.filename)
+    path = os.path.join(CONFIG.root_folder, CONFIG.recordings)
     dtype = CONFIG.dtype
 
     # initialize factory
