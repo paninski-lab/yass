@@ -1,3 +1,5 @@
+from . import custom_rules
+
 from functools import reduce
 
 
@@ -68,6 +70,7 @@ class Validator(object):
         for section, section_validator in self.fields_validator.items():
             for subsection, subsection_validator in section_validator.items():
                 required_type = subsection_validator.get('type')
+                function = subsection_validator.get('function')
                 permitted_values = subsection_validator.get('values')
                 value = self.d[section][subsection]
                 actual_type = type(value).__name__
@@ -83,6 +86,11 @@ class Validator(object):
                                      'values are "{}"'
                                      .format(section, subsection,
                                              _pretty_iter(permitted_values)))
+
+                if function:
+                    fn = getattr(custom_rules, function)
+                    self.d[section][subsection] = fn(self.d, section,
+                                                     subsection)
 
     def validate(self):
         if self.required_sections:

@@ -1,5 +1,6 @@
 data:
   # project's root folder, data will be loaded and saved here
+  # can be an absolute or relative path
   root_folder: data/
   # recordings filename
   recordings: neuropixel.bin

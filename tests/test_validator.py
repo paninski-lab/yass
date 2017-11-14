@@ -1,3 +1,4 @@
+import pkg_resources
 import pytest
 
 from yass.config.validator import Validator
@@ -77,3 +78,19 @@ def test_validates_fields_values():
         validator.validate()
 
     assert str(exception.value) == message
+
+
+def test_can_validate_with_custom_rules():
+    d = dict(a=dict(a_path='file_in_assets_model.txt'))
+    required_sections = ['a']
+    optional_sections = dict(b=1)
+    fields_validator = dict(a=dict(a_path=dict(function='expand_asset_model')))
+
+    validator = Validator(d, required_sections, optional_sections,
+                          fields_validator)
+    validated = validator.validate()
+
+    path = 'assets/models/file_in_assets_model.txt'
+    path_absolute = pkg_resources.resource_filename('yass', path)
+
+    assert path_absolute == validated['a']['a_path']
