@@ -70,10 +70,6 @@ deconvolution:
 
 # Neural network parameters
 neural_network:
-  # NN filenames
-  # tf nn trained model file name
-  #nnFilename: 2class_multi2.ckpt
-  nnFilename: detectnet1.ckpt
   aeFilename: ae_31.ckpt
   nnTriageFilename: triagenet1.ckpt
 
