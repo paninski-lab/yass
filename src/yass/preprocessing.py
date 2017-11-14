@@ -290,7 +290,7 @@ class Preprocessor(object):
                                                    self.config.neighChannels,
                                                    self.config.geom,
                                                    self.nnTriage,
-                                                   self.config.neural_network_detector.threshold_collision)            
+                                                   self.config.neural_network_triage.threshold_collision)            
 
             # since we alread have scores, no need to calculated sufficient
             # statistics for pca

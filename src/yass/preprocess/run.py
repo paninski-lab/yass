@@ -260,7 +260,7 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
                                                CONFIG.neighChannels,
                                                CONFIG.geom,
                                                nnTriage,
-                                               CONFIG.neural_network_detector.threshold_collision)
+                                               CONFIG.neural_network_triage.threshold_collision)
 
         # since we alread have scores, no need to calculated sufficient
         # statistics for pca

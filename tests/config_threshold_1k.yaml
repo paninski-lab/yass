@@ -24,6 +24,7 @@ spikes:
 
 neural_network_triage:
   filename: triagenet1.ckpt
+  threshold_collision: 0.75
 
 neural_network_autoencoder:
   filename: ae_31.ckpt
@@ -31,7 +32,6 @@ neural_network_autoencoder:
 neural_network_detector:
   filename: detectnet1.ckpt
   threshold_spike: 0.5
-  threshold_collision: 0.75
 
 deconvolution:
   rank: 3
