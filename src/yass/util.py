@@ -1,10 +1,13 @@
 """
 Utility functions
 """
-
+import os
 import functools
 import inspect
 import warnings
+
+import yaml
+from pkg_resources import resource_filename
 
 string_types = (type(b''), type(u''))
 
@@ -82,3 +85,17 @@ def deprecated(reason):
 
     else:
         raise TypeError(repr(type(reason)))
+
+
+def load_yaml_asset(path):
+    """
+    Load a yaml located in the assets folder
+    by specifying a relative path to the assets/ folder
+    """
+    relative_path = os.path.jois('assets', path)
+    absolute_path = resource_filename('yass', relative_path)
+
+    with open(absolute_path) as f:
+        asset = yaml.load(f)
+
+    return asset
