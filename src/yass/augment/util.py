@@ -48,7 +48,7 @@ def save_detect_network_params(filters, size, output_path):
         yaml.dump(d, f, CustomYAMLDumper)
 
 
-def save_triage_network_parmams(size, output_path):
+def save_triage_network_params(size, output_path):
     """Generate yaml file with parameters for a triage network
 
     Parameters
