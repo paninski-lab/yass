@@ -217,4 +217,4 @@ class Mainprocessor(object):
         self.logger.info("\tclustering:\t{0} seconds".format(Time['s']))
         self.logger.info("\ttemplates:\t{0} seconds".format(Time['e']))
 
-        return spike_train_clear, self.spike_index_collision            
+        return spike_train_clear, self.spike_index_collision
