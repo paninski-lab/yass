@@ -1,13 +1,11 @@
-import logging
+# Note: we are working on a improved version of the preprocessor, this old
+# pipeline will be removed in the near future. However, migrating to the new
+# pipeline requires minimum code changes
 
 import yass
-from yass import preprocess
+from yass.preprocessing import Preprocessor
 
-# configure logging module to get useful information
-logging.basicConfig(level=logging.DEBUG)
+cfg = yass.Config.from_yaml('tests/config_nnet.yaml')
 
-# set yass configuration parameters
-yass.set_config('tests/config_nnet.yaml')
-
-# run preprocessor
-score, spike_index_clear, spike_index_collision = preprocess.run()
+pp = Preprocessor(cfg)
+score, spike_index_clear, spike_index_collision = pp.process()
