@@ -10,7 +10,7 @@ import datetime
 
 import click
 
-TESTING = True
+TESTING = False
 PACKAGE = 'src/yass'
 PACKAGE_NAME = 'YASS'
 
@@ -223,7 +223,7 @@ def release(tag, production):
     Merges dev with master and pushes
     """
     click.echo('Checking out tag {}'.format(tag))
-    call(['python', 'checkout',  tag])
+    call(['git', 'checkout',  tag])
 
     current = Versioner.current_version()
 
@@ -231,7 +231,7 @@ def release(tag, production):
                   .format(tag, current))
 
     click.echo('Publishing to PyPI...')
-    where = 'pypitest' if not production else 'pipy'
+    where = 'pypitest' if not production else 'pypi'
     call(['python', 'setup.py', 'sdist', 'upload', '-r', where])
 
 
