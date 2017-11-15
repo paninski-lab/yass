@@ -36,7 +36,7 @@ neural_network_detector:
 
 neural_network_triage:
   filename: triage_nn1.ckpt
-  threshold_collision: 0.75
+  threshold_collision: 0.9
 
 neural_network_autoencoder:
   filename: ae_nn1.ckpt

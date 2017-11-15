@@ -69,7 +69,7 @@ neural_network_triage:
   # yaml file should only contain size (not number)
   filename: triage_nn1.ckpt
   # Threshold for clear/collision detection
-  threshold_collision: 0.75
+  threshold_collision: 0.9
 
 neural_network_autoencoder:
   # same rules apply as in neural_network_detector.filename but no
