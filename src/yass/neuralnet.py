@@ -1,10 +1,10 @@
 import os
 import numpy as np
 import tensorflow as tf
-import pkg_resources
 import progressbar
 
 from .geometry import order_channels_by_distance
+from .util import load_yaml
 
 
 class NeuralNetDetector(object):
@@ -52,8 +52,12 @@ class NeuralNetDetector(object):
 
         C = np.max(np.sum(self.config.neighChannels, 0))
 
-        R1, R2, R3 = self.config.neural_network['nnFilterSize']
-        K1, K2, K3 = self.config.neural_network['nnNFilters']
+        path_to_model = self.config.neural_network_detector.filename
+        path_to_filters = path_to_model.replace('ckpt', 'yaml')
+        self.filters_dict = load_yaml(path_to_filters)
+
+        R1, R2, R3 = self.filters_dict['size']
+        K1, K2, K3 = self.filters_dict['filters']
 
         self.W1 = weight_variable([R1,1,1,K1])
         self.b1 = bias_variable([K1])
@@ -65,7 +69,7 @@ class NeuralNetDetector(object):
         self.b2 = bias_variable([1])
 
         # output of ae encoding (1st layer)
-        nFeat = config.nFeat
+        nFeat = config.spikes.temporal_features
         self.W_ae = tf.Variable(tf.random_uniform((R1, nFeat), -1.0 / np.sqrt(R1), 1.0 / np.sqrt(R1)))
 
         self.saver_ae = tf.train.Saver({"W_ae": self.W_ae})
@@ -79,7 +83,7 @@ class NeuralNetDetector(object):
         with tf.Session() as sess:
         #config = tf.ConfigProto(device_count = {'GPU': 0})
         #with tf.Session(config=config) as sess:
-            path_to_aefile = pkg_resources.resource_filename('yass', 'assets/models/{}'.format(self.config.neural_network['aeFilename']))
+            path_to_aefile = self.config.neural_network_autoencoder.filename
             self.saver_ae.restore(sess, path_to_aefile)
             return sess.run(self.W_ae)
 
@@ -106,9 +110,11 @@ class NeuralNetDetector(object):
         """
         # get parameters
         T, C = X.shape
-        R1, R2, R3 = self.config.neural_network['nnFilterSize']
-        K1, K2, K3 = self.config.neural_network['nnNFilters']
-        th = self.config.nnThreshdold
+
+        R1, R2, R3 = self.filters_dict['size']
+        K1, K2, K3 = self.filters_dict['filters']
+
+        th = self.config.neural_network_detector.threshold_spike
         temporal_window = 3 #self.config.spikeSize
 
         T_small = np.min((10000,T))
@@ -173,8 +179,8 @@ class NeuralNetDetector(object):
         with tf.Session() as sess:
         #config = tf.ConfigProto(device_count = {'GPU': 0})
         #with tf.Session(config=config) as sess:
-            path_to_nnfile = pkg_resources.resource_filename('yass', 'assets/models/{}'.format(self.config.neural_network['nnFilename']))
-            path_to_aefile = pkg_resources.resource_filename('yass', 'assets/models/{}'.format(self.config.neural_network['aeFilename']))
+            path_to_nnfile = self.config.neural_network_detector.filename
+            path_to_aefile = self.config.neural_network_autoencoder.filename
 
             self.saver.restore(sess, path_to_nnfile)
             self.saver_ae.restore(sess, path_to_aefile)
@@ -242,7 +248,7 @@ class NeuralNetDetector(object):
                 name of the .ckpt to be saved.
         """ 
         ndata, n_input = x_train.shape
-        #n_hidden = self.config.nFeat
+        #n_hidden = self.config.spikes.temporal_features
 
         x_ = tf.placeholder("float", [None, n_input])
         y_ = tf.placeholder("float", [None, n_input])
@@ -266,7 +272,7 @@ class NeuralNetDetector(object):
                 sess.run(train_step, feed_dict={x_: x_train, y_: y_train})
                 bar.update(i+1)
             self.saver_ae.save(sess, os.path.join(
-                self.config.root, nn_name))
+                self.config.data.root_folder, nn_name))
         bar.finish()
 
     def train_detector(self, x_train, y_train, nn_name):
@@ -324,7 +330,7 @@ class NeuralNetDetector(object):
                 idx_batch = np.random.choice(ndata, nbatch, replace=False)
                 sess.run(train_step, feed_dict={x_tf: x_train[idx_batch], y_tf: y_train[idx_batch]})
                 bar.update(i+1)
-            self.saver.save(sess, os.path.join(self.config.root, nn_name))
+            self.saver.save(sess, os.path.join(self.config.data.root_folder, nn_name))
         bar.finish()
 
 class NeuralNetTriage(object):
@@ -373,7 +379,10 @@ class NeuralNetTriage(object):
 
         self.nneigh = np.max(np.sum(config.neighChannels, 0))
         D = (2*config.spikeSize+1)*self.nneigh
-        ncells = config.neural_network['nnTriageFilterSize']
+
+        path_to_model = self.config.neural_network_triage.filename
+        path_to_filters = path_to_model.replace('ckpt', 'yaml')
+        ncells = load_yaml(path_to_filters)['size']
 
         W1 = weight_variable([D,ncells[0]])
         W2 = weight_variable([ncells[0],ncells[1]])
@@ -389,7 +398,7 @@ class NeuralNetTriage(object):
         self.o_layer = tf.squeeze(tf.add(tf.matmul(layer2, W3), b3))
         self.tf_prob = tf.sigmoid(self.o_layer)
 
-        self.ckpt_loc = pkg_resources.resource_filename('yass', 'assets/models/{}'.format(self.config.neural_network['nnTriageFilename']))
+        self.ckpt_loc = self.config.neural_network_triage.filename
         self.saver_triagenet = tf.train.Saver({"W1": W1,"W2": W2,"W3": W3,"b1": b1,"b2": b2,"b3": b3})
 
     def nn_triage(self, wf, th):
@@ -472,7 +481,7 @@ class NeuralNetTriage(object):
 
                 sess.run(train_step, feed_dict={self.x_tf: np.reshape(x_train[idx_batch],[nbatch,-1]), y_tf:  y_train[idx_batch]})
                 bar.update(i+1)
-            self.saver_triagenet.save(sess, os.path.join(self.config.root, nn_name))
+            self.saver_triagenet.save(sess, os.path.join(self.config.data.root_folder, nn_name))
         bar.finish()
 
 

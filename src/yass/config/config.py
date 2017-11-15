@@ -8,7 +8,8 @@ import yaml
 import numpy as np
 from pkg_resources import resource_filename
 
-from . import geometry as geom
+from .. import geometry as geom
+from .validator import Validator
 
 
 class FrozenJSON(object):
@@ -93,7 +94,7 @@ class Config(FrozenJSON):
     After initialization, attributes cannot be changed
     """
     def __init__(self, mapping):
-        self._validate(mapping)
+        mapping = self._validate(mapping)
 
         super(Config, self).__init__(mapping)
 
@@ -104,14 +105,14 @@ class Config(FrozenJSON):
         # computations
 
         # GEOMETRY PARAMETERS
-        path_to_geom = path.join(self.root, self.geomFile)
-        self._set_param('geom', geom.parse(path_to_geom, self.nChan))
+        path_to_geom = path.join(self.data.root_folder, self.data.geometry)
+        self._set_param('geom', geom.parse(path_to_geom, self.recordings.n_channels))
 
         neighChannels = geom.find_channel_neighbors(self.geom,
-                                                    self.spatialRadius)
+                                                    self.recordings.spatial_radius)
         self._set_param('neighChannels', neighChannels)
 
-        channelGroups = geom.make_channel_groups(self.nChan,
+        channelGroups = geom.make_channel_groups(self.recordings.n_channels,
                                                  self.neighChannels,
                                                  self.geom)
         self._set_param('channelGroups', channelGroups)
@@ -128,20 +129,20 @@ class Config(FrozenJSON):
         # compute spikeSize which is the number of observations for half
         # the waveform
         self._set_param('spikeSize',
-                        int(np.round(self.spikeSizeMS*self.srate/(2*1000))))
+                        int(np.round(self.recordings.spike_size_ms*self.recordings.sampling_rate/(2*1000))))
         self._set_param('scaleToSave', 100)
         self._set_param('BUFF', self.spikeSize*4)
-        self._set_param('templatesMaxShift', int(self.srate/1000))
+        self._set_param('templatesMaxShift', int(self.recordings.sampling_rate/1000))
         self._set_param('stdFactor', 4)
 
-        file_size = path.getsize(path.join(self.root, self.filename))
+        file_size = path.getsize(path.join(self.data.root_folder, self.data.recordings))
         # seems unused...
-        self._set_param('size', int(file_size/(sizeof(self.dtype)*self.nChan)))
+        self._set_param('size', int(file_size/(sizeof(self.recordings.dtype)*self.recordings.n_channels)))
 
         # BATCH PARAMETERS
-        self._set_param('dsize', sizeof(self.dtype))
+        self._set_param('dsize', sizeof(self.recordings.dtype))
 
-        batch_size = int(np.floor(self.maxMem/(self.nChan*self.dsize)))
+        batch_size = int(np.floor(self.resources.max_memory/(self.recordings.n_channels*self.dsize)))
 
         if batch_size > self.size:
             self._set_param('nBatches', 1)
@@ -153,7 +154,7 @@ class Config(FrozenJSON):
             self._set_param('nBatches', nBatches)
             self._set_param('batch_size', batch_size)
             self._set_param('residual', self.size % batch_size)
-            self._set_param('nPortion', np.ceil(self.partialDat*self.nBatches))
+            self._set_param('nPortion', np.ceil(self.preprocess.templates_partial_data*self.nBatches))
 
         self._logger.debug('Computed params: spikeSize: {}, scaleToSave: {}, '
                            'BUFF: {}, templatesMaxShift: {}, stdFactor: {}, '
@@ -184,18 +185,14 @@ class Config(FrozenJSON):
         """Validate values in the input dictionary
         """
         path_to_validator = resource_filename('yass',
-                                              'assets/config_validator.yaml')
+                                              'assets/config/validator.yaml')
         with open(path_to_validator) as f:
-            validator = yaml.load(f)
+            validator_content = yaml.load(f)
 
-        for key, value in mapping.items():
-            valid_values = validator.get(key)
-            if valid_values:
-                if value not in valid_values:
-                    valid_values_pretty = self._pretty_iterator(valid_values)
-                    raise ValueError('{} is not a valid value for {}. '
-                                     'Valid values are: {}'
-                                     .format(value, key, valid_values_pretty))
+        validator = Validator(mapping, **validator_content)
+        mapping = validator.validate()
+
+        return mapping
 
     def _pretty_iterator(self, it):
         return reduce(lambda x, y: x+', '+y, it)

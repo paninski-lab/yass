@@ -69,8 +69,8 @@ def run(score, spike_index_clear, spike_index_collision):
     spike_train_clear = np.zeros((0,2), 'int32')
 
     # order of channels
-    c_idx = np.ones((CONFIG.nChan, nneigh), 'int32')*CONFIG.nChan
-    for c in range(CONFIG.nChan):
+    c_idx = np.ones((CONFIG.recordings.n_channels, nneigh), 'int32')*CONFIG.recordings.n_channels
+    for c in range(CONFIG.recordings.n_channels):
         ch_idx, _ = order_channels_by_distance(c,
                                                np.where(
                                                CONFIG.neighChannels[c])[0],
@@ -84,7 +84,7 @@ def run(score, spike_index_clear, spike_index_collision):
         channels = CONFIG.channelGroups[g]
         neigh_chans = np.where(np.sum(CONFIG.neighChannels[channels], axis=0) > 0)[0]
 
-        score_group = np.zeros((0, CONFIG.nFeat, neigh_chans.shape[0]))
+        score_group = np.zeros((0, CONFIG.spikes.temporal_features, neigh_chans.shape[0]))
         coreset_id_group = np.zeros((0), 'int32')
         mask_group = np.zeros((0, neigh_chans.shape[0]))
         spike_index_clear_group = np.zeros((0, 2), 'int32')
@@ -104,9 +104,12 @@ def run(score, spike_index_clear, spike_index_collision):
                 # Triage #
                 ##########
 
+                # TODO: refactor this as CONFIG.doTriage was removed
+                doTriage = True
+
                 _b = datetime.datetime.now()
-                index_keep = triage(score_c, 0, CONFIG.triageK,
-                                    CONFIG.triagePercent, CONFIG.doTriage)
+                index_keep = triage(score_c, 0, CONFIG.triage.nearest_neighbors,
+                                    CONFIG.triage.percent, doTriage)
                 Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
                 # add untriaged spike index to spike_index_clear_group
@@ -126,9 +129,12 @@ def run(score, spike_index_clear, spike_index_collision):
                 # Coreset #
                 ###########
 
+                # TODO: refactor this as CONFIG.doCoreset was removed
+                doCoreset = True
+
                 _b = datetime.datetime.now()
-                coreset_id = coreset(score_c, CONFIG.coresetK,
-                    CONFIG.coresetTh, CONFIG.doCoreset)
+                coreset_id = coreset(score_c, CONFIG.coreset.clusters,
+                    CONFIG.coreset.threshold, doCoreset)
                 Time['c'] += (datetime.datetime.now()-_b).total_seconds()
 
 
@@ -137,7 +143,7 @@ def run(score, spike_index_clear, spike_index_collision):
                 ###########
 
                 _b = datetime.datetime.now()
-                mask = getmask(score_c, coreset_id, CONFIG.maskTh, CONFIG.nFeat)
+                mask = getmask(score_c, coreset_id, CONFIG.clustering.masking_threshold, CONFIG.spikes.temporal_features)
                 Time['m'] += (datetime.datetime.now()-_b).total_seconds()
 
 
@@ -148,9 +154,9 @@ def run(score, spike_index_clear, spike_index_collision):
                 # restructure score_c and mask to have same number of channels
                 # as score_group
                 score_temp = np.zeros((score_c.shape[0],
-                    CONFIG.nFeat, neigh_chans.shape[0]))
+                    CONFIG.spikes.temporal_features, neigh_chans.shape[0]))
                 mask_temp = np.zeros((mask.shape[0],neigh_chans.shape[0]))
-                nneigh_c = np.sum(c_idx[c] < CONFIG.nChan)
+                nneigh_c = np.sum(c_idx[c] < CONFIG.recordings.n_channels)
                 for j in range(nneigh_c):
                     c_interest = np.where(neigh_chans == c_idx[c,j])[0][0]
                     score_temp[:,:,c_interest] = score_c[:,:,j]
@@ -210,18 +216,18 @@ def run(score, spike_index_clear, spike_index_collision):
 
     _b = datetime.datetime.now()
     logger.info("Getting Templates...")
-    path_to_whiten = os.path.join(CONFIG.root, 'tmp/whiten.bin')
+    path_to_whiten = os.path.join(CONFIG.data.root_folder, 'tmp/whiten.bin')
     spike_train_clear, templates = get_templates(spike_train_clear,
                                                  CONFIG.batch_size,
                                                  CONFIG.BUFF,
                                                  CONFIG.nBatches,
-                                                 CONFIG.nChan,
+                                                 CONFIG.recordings.n_channels,
                                                  CONFIG.spikeSize,
                                                  CONFIG.templatesMaxShift,
                                                  CONFIG.scaleToSave,
                                                  CONFIG.neighChannels,
                                                  path_to_whiten,
-                                                 CONFIG.tMergeTh)
+                                                 CONFIG.templates.merge_threshold)
     Time['e'] += (datetime.datetime.now()-_b).total_seconds()
 
 

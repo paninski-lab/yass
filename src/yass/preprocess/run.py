@@ -51,20 +51,20 @@ def run():
 
     # FIXME: remove this
     CONFIG = read_config()
-    whiten_file = open(os.path.join(CONFIG.root, 'tmp/whiten.bin'), 'wb')
+    whiten_file = open(os.path.join(CONFIG.data.root_folder, 'tmp/whiten.bin'), 'wb')
 
     # initialize processor for raw data
-    path = os.path.join(CONFIG.root, CONFIG.filename)
-    dtype = CONFIG.dtype
+    path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
+    dtype = CONFIG.recordings.dtype
 
     # initialize factory
     factory = BatchProcessorFactory(path_to_file=None,
                                     dtype=None,
-                                    n_channels=CONFIG.nChan,
-                                    max_memory=CONFIG.maxMem,
+                                    n_channels=CONFIG.recordings.n_channels,
+                                    max_memory=CONFIG.resources.max_memory,
                                     buffer_size=None)
 
-    if CONFIG.doFilter == 1:
+    if CONFIG.preprocess.filter == 1:
 
         _b = datetime.datetime.now()
         # make batch processor for raw data -> buterworth -> filtered
@@ -74,13 +74,13 @@ def run():
                     .format(bp))
 
         # run filtering
-        path = os.path.join(CONFIG.root,  'tmp/filtered.bin')
+        path = os.path.join(CONFIG.data.root_folder,  'tmp/filtered.bin')
         dtype = bp.process_function(butterworth,
                                     path,
-                                    CONFIG.filterLow,
-                                    CONFIG.filterHighFactor,
-                                    CONFIG.filterOrder,
-                                    CONFIG.srate)
+                                    CONFIG.filter.low_pass_freq,
+                                    CONFIG.filter.high_factor,
+                                    CONFIG.filter.order,
+                                    CONFIG.recordings.sampling_rate)
         time['f'] += (datetime.datetime.now()-_b).total_seconds()
 
     # TODO: cache computations
@@ -90,7 +90,7 @@ def run():
 
     # compute the standard deviation using the first batch only
     batch1 = next(bp)
-    sd_ = sd(batch1, CONFIG.srate)
+    sd_ = sd(batch1, CONFIG.recordings.sampling_rate)
 
     # make another batch processor
     bp = factory.make(path_to_file=path, dtype=dtype, buffer_size=0)
@@ -98,7 +98,7 @@ def run():
                 .format(bp))
 
     # run standarization
-    path = os.path.join(CONFIG.root,  'tmp/standarized.bin')
+    path = os.path.join(CONFIG.data.root_folder,  'tmp/standarized.bin')
     dtype = bp.process_function(standarize,
                                 path,
                                 sd_)
@@ -121,7 +121,7 @@ def run():
     for i, batch in enumerate(bp):
 
         # load nueral net detector if necessary:
-        if CONFIG.detctionMethod == 'nn':
+        if CONFIG.spikes.detection == 'nn':
             nnDetector = NeuralNetDetector(CONFIG)
             proj = nnDetector.load_w_ae()
             nnTriage = NeuralNetTriage(CONFIG)
@@ -165,14 +165,14 @@ def run():
 
     whiten_file.close()
 
-    if CONFIG.detctionMethod != 'nn':
+    if CONFIG.spikes.detection != 'nn':
         _b = datetime.datetime.now()
         rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
-                                 CONFIG.nFeat, CONFIG.neighChannels)
+                                 CONFIG.spikes.temporal_features, CONFIG.neighChannels)
         score = get_score_pca(spike_index_clear, rot, CONFIG.neighChannels,
                               CONFIG.geom, CONFIG.batch_size,
                               CONFIG.BUFF, CONFIG.nBatches,
-                              os.path.join(CONFIG.root,'tmp/whiten.bin'),
+                              os.path.join(CONFIG.data.root_folder,'tmp/whiten.bin'),
                               CONFIG.scaleToSave)
 
         time['e'] += (datetime.datetime.now()-_b).total_seconds()
@@ -199,7 +199,7 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
     # detect spikes
     _b = datetime.datetime.now()
     logger.info('running detection')
-    if CONFIG.detctionMethod == 'nn':
+    if CONFIG.spikes.detection == 'nn':
         spike_index = nnDetector.get_spikes(rec)
 
     else:
@@ -218,18 +218,17 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
     time['d'] += (datetime.datetime.now()-_b).total_seconds()
 
     # get withening matrix per batch or onece in total
-    if CONFIG.doWhitening == 1:
-        _b = datetime.datetime.now()
+    _b = datetime.datetime.now()
 
-        global Q
-        if CONFIG.whitenBatchwise or Q is None:
-            # cache this
-            Q = whitening_matrix(rec, CONFIG.neighChannels,
-                                 CONFIG.spikeSize)
+    global Q
+    if CONFIG.preprocess.whiten_batchwise or Q is None:
+        # cache this
+        Q = whitening_matrix(rec, CONFIG.neighChannels,
+                             CONFIG.spikeSize)
 
-        rec = whitening(rec, Q)
+    rec = whitening(rec, Q)
 
-        time['w'] += (datetime.datetime.now()-_b).total_seconds()
+    time['w'] += (datetime.datetime.now()-_b).total_seconds()
 
     _b = datetime.datetime.now()
 
@@ -252,7 +251,7 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
         pca_suff_stat = 0
         spikes_per_channel = 0
 
-    elif CONFIG.detctionMethod == 'nn':
+    elif CONFIG.spikes.detection == 'nn':
         # with nn, get scores and triage bad ones
         (spike_index_clear, score,
         spike_index_collision) = get_waveforms(rec,
@@ -261,14 +260,14 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
                                                CONFIG.neighChannels,
                                                CONFIG.geom,
                                                nnTriage,
-                                               CONFIG.nnThreshdoldCol)
+                                               CONFIG.neural_network_triage.threshold_collision)
 
         # since we alread have scores, no need to calculated sufficient
         # statistics for pca
         pca_suff_stat = 0
         spikes_per_channel = 0
 
-    elif CONFIG.detctionMethod == 'threshold':
+    elif CONFIG.spikes.detection == 'threshold':
         # every spikes are considered as clear spikes as no triage is done
         spike_index_clear = spike_index
         score = None

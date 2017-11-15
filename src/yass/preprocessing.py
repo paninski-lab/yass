@@ -33,7 +33,7 @@ class Preprocessor(object):
 
         # make tmp directory if not exist
         try:
-            os.makedirs(os.path.join(config.root, 'tmp'))
+            os.makedirs(os.path.join(config.data.root_folder, 'tmp'))
         except OSError as exception:
             if exception.errno != errno.EEXIST:
                 raise
@@ -42,7 +42,7 @@ class Preprocessor(object):
 
     def openWFile(self, opt):
         self.WFile = open(os.path.join(
-            self.config.root, 'tmp', 'wrec.bin'), opt)
+            self.config.data.root_folder, 'tmp', 'wrec.bin'), opt)
 
     def closeWFile(self):
         if self.WFile == None:
@@ -55,7 +55,7 @@ class Preprocessor(object):
     def openFile(self):
         self.closeFile()
         self.File = open(os.path.join(
-            self.config.root, self.config.filename), 'rb')
+            self.config.data.root_folder, self.config.data.recordings), 'rb')
 
     def closeFile(self):
         if self.File == None:
@@ -68,10 +68,10 @@ class Preprocessor(object):
     # offset should be in terms of timesamples
     def load(self, offset, length):
         dsize = self.config.dsize
-        self.File.seek(offset*dsize*self.config.nChan)
-        rec = self.File.read(dsize*self.config.nChan*length)
-        rec = np.fromstring(rec, dtype=self.config.dtype)
-        rec = rec.reshape(length, self.config.nChan)
+        self.File.seek(offset*dsize*self.config.recordings.n_channels)
+        rec = self.File.read(dsize*self.config.recordings.n_channels*length)
+        rec = np.fromstring(rec, dtype=self.config.recordings.dtype)
+        rec = rec.reshape(length, self.config.recordings.n_channels)
         return rec
 
     # chunck should be in C x T format
@@ -81,10 +81,10 @@ class Preprocessor(object):
     def save(self, fid, chunk, _format='s'):
         if _format == 's':
             chunk = chunk.reshape(chunk.shape[0]*chunk.shape[1])
-            chunk.astype(self.config.dtype).tofile(fid)
+            chunk.astype(self.config.recordings.dtype).tofile(fid)
         else:
             chunk = chunk.transpose().reshape(chunk.shape[0]*chunk.shape[1])
-            chunk.astype(self.config.dtype).tofile(fid)
+            chunk.astype(self.config.recordings.dtype).tofile(fid)
 
     def addZeroBuffer(self, rec, buffSize, option):
         buff = np.zeros((buffSize, rec.shape[1]))
@@ -103,7 +103,7 @@ class Preprocessor(object):
         Time = {'r': 0, 'f': 0, 's': 0, 'd': 0, 'w': 0, 'b': 0, 'e': 0}
 
         # load nueral net detector if necessary:
-        if self.config.detctionMethod == 'nn':
+        if self.config.spikes.detection == 'nn':
             self.nnDetector = NeuralNetDetector(self.config)
             self.proj = self.nnDetector.load_w_ae()
             self.nnTriage = NeuralNetTriage(self.config)
@@ -181,10 +181,10 @@ class Preprocessor(object):
         self.closeFile()
         self.closeWFile()
 
-        if self.config.detctionMethod != 'nn':
+        if self.config.spikes.detection != 'nn':
             _b = dt.datetime.now()
             rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
-                                 self.config.nFeat, self.config.neighChannels)
+                                 self.config.spikes.temporal_features, self.config.neighChannels)
 
             score = get_score_pca(spike_index_clear, rot, 
                                   self.config.neighChannels,
@@ -192,7 +192,7 @@ class Preprocessor(object):
                                   self.config.batch_size,
                                   self.config.BUFF,
                                   self.config.nBatches,
-                                  os.path.join(self.config.root, 'tmp', 'wrec.bin'),
+                                  os.path.join(self.config.data.root_folder, 'tmp', 'wrec.bin'),
                                   self.config.scaleToSave)
             Time['e'] += (dt.datetime.now()-_b).total_seconds()
 
@@ -214,18 +214,18 @@ class Preprocessor(object):
 
     def batch_process(self, rec, get_score, BUFF, Time):
         # filter recording
-        if self.config.doFilter == 1:
+        if self.config.preprocess.filter == 1:
             _b = dt.datetime.now()
-            rec = butterworth(rec, self.config.filterLow,
-                              self.config.filterHighFactor,
-                              self.config.filterOrder,
-                              self.config.srate)
+            rec = butterworth(rec, self.config.filter.low_pass_freq,
+                              self.config.filter.high_factor,
+                              self.config.filter.order,
+                              self.config.recordings.sampling_rate)
             Time['f'] += (dt.datetime.now()-_b).total_seconds()
 
         # standardize recording
         _b = dt.datetime.now()
         if not hasattr(self, 'sd'):
-            self.sd = sd(rec, self.config.srate)
+            self.sd = sd(rec, self.config.recordings.sampling_rate)
 
         rec = standarize(rec, self.sd)
 
@@ -233,7 +233,7 @@ class Preprocessor(object):
 
         # detect spikes
         _b = dt.datetime.now()
-        if self.config.detctionMethod == 'nn':
+        if self.config.spikes.detection == 'nn':
             spike_index = self.nnDetector.get_spikes(rec)
         else:
 
@@ -252,16 +252,15 @@ class Preprocessor(object):
         Time['d'] += (dt.datetime.now()-_b).total_seconds()
 
         # get withening matrix per batch or onece in total
-        if self.config.doWhitening == 1:
-            _b = dt.datetime.now()
+        _b = dt.datetime.now()
 
-            if self.config.whitenBatchwise or not hasattr(self, 'Q'):
-                self.Q = whitening_matrix(rec, self.config.neighChannels,
-                                          self.config.spikeSize)
+        if self.config.preprocess.whiten_batchwise or not hasattr(self, 'Q'):
+            self.Q = whitening_matrix(rec, self.config.neighChannels,
+                                      self.config.spikeSize)
 
-            rec = whitening(rec, self.Q)
+        rec = whitening(rec, self.Q)
 
-            Time['w'] += (dt.datetime.now()-_b).total_seconds()
+        Time['w'] += (dt.datetime.now()-_b).total_seconds()
 
         _b = dt.datetime.now()
 
@@ -281,7 +280,7 @@ class Preprocessor(object):
             pca_suff_stat = 0
             spikes_per_channel = 0
             
-        elif self.config.detctionMethod == 'nn':
+        elif self.config.spikes.detection == 'nn':
             
             # with nn, get scores and triage bad ones
             (spike_index_clear, score,
@@ -291,14 +290,14 @@ class Preprocessor(object):
                                                    self.config.neighChannels,
                                                    self.config.geom,
                                                    self.nnTriage,
-                                                   self.config.nnThreshdoldCol)            
+                                                   self.config.neural_network_triage.threshold_collision)            
 
             # since we alread have scores, no need to calculated sufficient
             # statistics for pca
             pca_suff_stat = 0
             spikes_per_channel = 0
             
-        elif self.config.detctionMethod == 'threshold':
+        elif self.config.spikes.detection == 'threshold':
             # every spikes are considered as clear spikes as no triage is done
             spike_index_clear = spike_index
             score = None
@@ -324,7 +323,7 @@ class Preprocessor(object):
         residual = self.config.residual
         self.openFile()
 
-        summedTemplatesBig = np.zeros((K, 2*R+1, self.config.nChan))
+        summedTemplatesBig = np.zeros((K, 2*R+1, self.config.recordings.n_channels))
         ndata = np.zeros(K)
 
         for i in range(0, nBatches):
@@ -358,15 +357,15 @@ class Preprocessor(object):
                 spt[:, 0] = spt[:, 0] - i*batch_size
 
             # filter recording
-            if self.config.doFilter == 1:
-                rec = butterworth(rec, self.config.filterLow,
-                                  self.config.filterHighFactor,
-                                  self.config.filterOrder,
-                                  self.config.srate)
+            if self.config.preprocess.filter == 1:
+                rec = butterworth(rec, self.config.filter.low_pass_freq,
+                                  self.config.filter.high_factor,
+                                  self.config.filter.order,
+                                  self.config.recordings.sampling_rate)
 
             # standardize recording
             if not hasattr(self, 'sd'):
-                small_t = int(np.min((int(self.config.srate*5), rec.shape[0]))/2)
+                small_t = int(np.min((int(self.config.recordings.sampling_rate*5), rec.shape[0]))/2)
                 mid_T = int(np.ceil(rec.shape[0]/2))
                 rec_temp = rec[np.arange(mid_T-small_t, mid_T+small_t)]
                 self.sd = np.median(np.abs(rec_temp), 0)/0.6745

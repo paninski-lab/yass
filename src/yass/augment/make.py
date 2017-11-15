@@ -12,13 +12,13 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
         
     # process data (filter and standardize)
     process_data(CONFIG)
-    path = os.path.join(CONFIG.root,  'tmp/standarized.bin')
+    path = os.path.join(CONFIG.data.root_folder,  'tmp/standarized.bin')
     dtype = 'float64'
     
     # get templates
     templates = get_templates(spike_train, CONFIG.batch_size, 
                               CONFIG.BUFF, CONFIG.nBatches, 
-                              CONFIG.nChan, CONFIG.spikeSize*4, 
+                              CONFIG.recordings.n_channels, CONFIG.spikeSize*4, 
                               path, dtype)
     templates = np.transpose(templates,(2,1,0))
     
@@ -31,7 +31,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp, nspikes):
     
     # determine noise covariance structure
     spatial_SIG, temporal_SIG = noise_cov(path, dtype, 
-                                          CONFIG.batch_size, CONFIG.nChan, 
+                                          CONFIG.batch_size, CONFIG.recordings.n_channels, 
                                           CONFIG.neighChannels, CONFIG.geom,
                                           templates.shape[1])
     

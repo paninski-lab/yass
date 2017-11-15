@@ -1,3 +1,4 @@
 include README.rst LICENSE
 include src/yass/assets/*
 include src/yass/assets/models/*
+include src/yass/assets/config/*

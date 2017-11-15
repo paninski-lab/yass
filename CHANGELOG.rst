@@ -4,6 +4,7 @@ Changelog
 0.1.2dev
 --------
 
+* Refactored the config module, configuration files are now much simpler
 * Fixed bug that was causing spike times to be off due to the buffer
 * Various bug fixes
 * Updates to input/output structure

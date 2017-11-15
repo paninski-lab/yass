@@ -3,6 +3,7 @@ tmp/
 .idea/
 .envrc
 *.ipynb
+*.orig
 
 # documentation build
 doc/_build/

@@ -14,7 +14,7 @@ class Deconvolution(object):
         self.templates = templates
         self.spike_index = spike_index
         self.path_to_file = os.path.join(
-            self.config.root, 'tmp', filename)
+            self.config.data.root_folder, 'tmp', filename)
 
         self.logger = logging.getLogger(__name__)
 
@@ -34,16 +34,16 @@ class Deconvolution(object):
                                                   os.path.getsize(self.path_to_file)))
         nBatches = self.config.nBatches
         flattenedLength = 2*(self.config.batch_size
-                             + 2*self.config.BUFF)*self.config.nChan
+                             + 2*self.config.BUFF)*self.config.recordings.n_channels
 
         neighchan = n_steps_neigh_channels(self.config.neighChannels, steps = 3)
-        C = self.config.nChan
+        C = self.config.recordings.n_channels
         R = self.config.spikeSize
         shift = 3  # int(R/2)
         K = self.templates.shape[2]
-        nrank = self.config.deconvRank
-        lam = self.config.deconvLam
-        Th = self.config.deconvTh
+        nrank = self.config.deconvolution.rank
+        lam = self.config.deconvolution.lam
+        Th = self.config.deconvolution.threshold
         iter_max = 3
 
         amps = np.max(np.abs(self.templates), axis=0)
@@ -63,7 +63,7 @@ class Deconvolution(object):
             self.WFile.seek(flattenedLength*i)
             wrec = self.WFile.read(flattenedLength)
             wrec = np.fromstring(wrec, dtype='int16')
-            wrec = np.reshape(wrec, (-1, self.config.nChan))
+            wrec = np.reshape(wrec, (-1, self.config.recordings.n_channels))
             wrec = wrec.astype('float32')/self.config.scaleToSave
 
             idx_batch = np.logical_and(self.spike_index[:,0] > self.config.batch_size*i, 
