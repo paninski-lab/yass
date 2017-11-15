@@ -9,10 +9,9 @@ from .score import get_score
 
 from ..geometry import order_channels_by_distance
 
-def get_spikes(X, T_batch, buff, neighChannels, geom, 
-               n_features, temporal_window, th_triage, 
-               nnd, nnt, path_to_nndfile, path_to_aefile, 
-               path_to_nntfile):
+def nn_detection(X, T_batch, buff, neighChannels, geom, 
+               n_features, temporal_window, th_detect, th_triage, 
+               nnd, nnt):
 
     T, C = X.shape
     
@@ -32,19 +31,34 @@ def get_spikes(X, T_batch, buff, neighChannels, geom,
     # input 
     x_tf = tf.placeholder("float", [T_small+2*buff, C])
 
-    local_max_idx_tf = nnd.get_spikes(x_tf, T_small+2*buff, nneigh, c_idx, temporal_window)
+    # detect spike index
+    local_max_idx_tf = nnd.get_spikes(x_tf, T_small+2*buff, nneigh, c_idx, temporal_window, th_detect)
+    
+    # get score train
     score_train_tf = nnd.get_score_train(x_tf)
+    
+    # get energy for detected index
     energy_tf = tf.reduce_sum(tf.square(score_train_tf),axis=2)
     energy_val_tf = tf.gather_nd(energy_tf, local_max_idx_tf)
+    
+    # get triage probability
     triage_prob_tf = nnt.triage_prob(x_tf, T_small+2*buff, nneigh, c_idx)
+    
+    # gather all results above
     result = (local_max_idx_tf, score_train_tf, energy_val_tf, triage_prob_tf)
         
+    # remove duplicates            
     energy_train_tf = tf.placeholder("float", [T_small+2*buff, C])
     spike_index_tf = remove_duplicate_spikes_by_energy(energy_train_tf, T_small+2*buff, c_idx, temporal_window)        
     
+    # get score
     score_train_placeholder = tf.placeholder("float", [T_small+2*buff, C, n_features])
     spike_index_clear_tf = tf.placeholder("int64", [None, 2])
     score_tf = get_score(score_train_placeholder, spike_index_clear_tf, T_small+2*buff, n_features, c_idx)
+    
+    ###############################
+    # get values of above tensors #
+    ###############################
     
     spike_index_clear_all = np.zeros((10000000, 2), 'int32')
     spike_index_collision_all = np.zeros((10000000, 2), 'int32')
@@ -52,9 +66,9 @@ def get_spikes(X, T_batch, buff, neighChannels, geom,
 
     with tf.Session() as sess:
 
-        nnd.saver.restore(sess, path_to_nndfile)
-        nnd.saver_ae.restore(sess, path_to_aefile)
-        nnt.saver.restore(sess, path_to_nntfile)
+        nnd.saver.restore(sess, nnd.path_to_detector_model)
+        nnd.saver_ae.restore(sess, nnd.path_to_ae_model)
+        nnt.saver.restore(sess, nnt.path_to_triage_model)
 
         counter_clear = 0
         counter_collision = 0

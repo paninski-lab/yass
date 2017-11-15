@@ -2,3 +2,5 @@
 filters: [16, 8]
 # temporal filter size
 size: 31
+# number of neighboring channels
+n_neighbors: 7

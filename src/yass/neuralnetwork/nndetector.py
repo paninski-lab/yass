@@ -37,25 +37,24 @@ class NeuralNetDetector(object):
             saver object for the neural network detector.
     """
     
-    def __init__(self, config):
+    def __init__(self, path_to_detector_model, path_to_ae_model):
         """
             Initializes the attributes for the class NeuralNetDetector.
 
             Parameters:
             -----------
-            config: configuration file
+            
         """ 
         
-        self.config = config
+        self.path_to_detector_model = path_to_detector_model
+        self.path_to_ae_model = path_to_ae_model
 
-        C = np.max(np.sum(self.config.neighChannels, 0))
-
-        path_to_model = self.config.neural_network_detector.filename
-        path_to_filters = path_to_model.replace('ckpt', 'yaml')
+        path_to_filters = path_to_detector_model.replace('ckpt', 'yaml')
         self.filters_dict = load_yaml(path_to_filters)
 
         R1 = self.filters_dict['size']
         K1, K2 = self.filters_dict['filters']
+        C = self.filters_dict['n_neighbors']
 
         self.W1 = weight_variable([R1,1,1,K1])
         self.b1 = bias_variable([K1])
@@ -66,14 +65,18 @@ class NeuralNetDetector(object):
         self.W2 = weight_variable([1,C,K2,1])
         self.b2 = bias_variable([1])
 
+        
         # output of ae encoding (1st layer)
-        nFeat = config.spikes.temporal_features
-        self.W_ae = tf.Variable(tf.random_uniform((R1, nFeat), -1.0 / np.sqrt(R1), 1.0 / np.sqrt(R1)))
+        path_to_filters_ae = path_to_ae_model.replace('ckpt', 'yaml')        
+        ae_dict = load_yaml(path_to_filters_ae)
+        n_input = ae_dict['n_input']
+        n_features = ae_dict['n_features']
+        self.W_ae = tf.Variable(tf.random_uniform((n_input, n_features), -1.0 / np.sqrt(n_input), 1.0 / np.sqrt(n_input)))
 
         self.saver_ae = tf.train.Saver({"W_ae": self.W_ae})
         self.saver = tf.train.Saver({"W1": self.W1, "W11": self.W11, "W2": self.W2, "b1": self.b1, "b11":self.b11, "b2": self.b2})
 
-    def get_spikes(self, x_tf, T, nneigh, c_idx, temporal_window):
+    def get_spikes(self, x_tf, T, nneigh, c_idx, temporal_window, th):
         """
             Detects and indexes spikes from the recording. The recording will be chopped to minibatches if its temporal length
             exceeds 10000. A spike is detected at [t, c] when the output probability of the neural network detector crosses
@@ -93,7 +96,6 @@ class NeuralNetDetector(object):
 
         """
         # get parameters
-        th = self.config.neural_network_detector.threshold_spike
         K1, K2 = self.filters_dict['filters']
 
         # NN structures
@@ -121,16 +123,3 @@ class NeuralNetDetector(object):
                         W_ae_conv )
         
         return tf.squeeze(scores)
-    
-    def load_w_ae(self):
-        """
-            Loads the autoencoder weight matrix
-
-        """        
-        with tf.Session() as sess:
-        #config = tf.ConfigProto(device_count = {'GPU': 0})
-        #with tf.Session(config=config) as sess:
-            path_to_aefile = self.config.neural_network_autoencoder.filename
-            self.saver_ae.restore(sess, path_to_aefile)
-            return sess.run(self.W_ae)
-    

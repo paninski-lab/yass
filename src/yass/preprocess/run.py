@@ -11,11 +11,10 @@ from .. import read_config
 from ..batch import BatchProcessorFactory
 
 from .detect import threshold_detection
-from .filter import whitening_matrix, whitening, butterworth
+from .filter import whitening_matrix, whitening, localized_whitening_matrix, whitening_score, butterworth
 from .score import get_score_pca, get_pca_suff_stat, get_pca_projection
-from .waveform import get_waveforms
 from .standarize import standarize, sd
-from ..neuralnet import NeuralNetDetector, NeuralNetTriage
+from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
 
 # remove this
 Q = None
@@ -122,12 +121,12 @@ def run():
 
         # load nueral net detector if necessary:
         if CONFIG.spikes.detection == 'nn':
-            nnDetector = NeuralNetDetector(CONFIG)
-            proj = nnDetector.load_w_ae()
-            nnTriage = NeuralNetTriage(CONFIG)
+            nnDetector = NeuralNetDetector(CONFIG.neural_network_detector.filename,
+                                           CONFIG.neural_network_autoencoder.filename)
+            nnTriage = NeuralNetTriage(CONFIG.neural_network_triage.filename)
+            
         else:
             nnDetector = None
-            proj = None
             nnTriage = None
 
         if i > CONFIG.nPortion:
@@ -138,13 +137,13 @@ def run():
         (si_clr_batch, score_batch, si_col_batch,
          pss_batch, spc_batch,
          time) = process_batch(batch, get_score, CONFIG.BUFF, time,
-                               nnDetector=nnDetector, proj=proj,
+                               nnDetector=nnDetector,
                                nnTriage=nnTriage, whiten_file=whiten_file)
 
         # spike time w.r.t. to the whole recording
         si_clr_batch[:,0] = si_clr_batch[:,0] + i*CONFIG.batch_size - CONFIG.BUFF
         si_col_batch[:,0] = si_col_batch[:,0] + i*CONFIG.batch_size - CONFIG.BUFF
-
+        
         if i == 0:
             spike_index_clear = si_clr_batch
             spike_index_collision = si_col_batch
@@ -158,7 +157,7 @@ def run():
                 si_clr_batch))
             spike_index_collision = np.vstack((spike_index_collision,
                 si_col_batch))
-            if get_score == 1:
+            if get_score == 1 and CONFIG.spikes.detection == 'nn':
                 score = np.concatenate((score, score_batch), axis = 0)
             pca_suff_stat += pss_batch
             spikes_per_channel += spc_batch
@@ -191,44 +190,101 @@ def run():
     return score, spike_index_clear, spike_index_collision
 
 
-def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
+def process_batch(rec, get_score, BUFF, time, nnDetector, nnTriage,
                   whiten_file):
     logger = logging.getLogger(__name__)
     CONFIG = read_config()
 
-    # detect spikes
-    _b = datetime.datetime.now()
-    logger.info('running detection')
-    if CONFIG.spikes.detection == 'nn':
-        spike_index = nnDetector.get_spikes(rec)
-
-    else:
-        spike_index = threshold_detection(rec,
-                                    CONFIG.neighChannels,
-                                    CONFIG.spikeSize,
-                                    CONFIG.stdFactor)
-
-    # From Peter: When the recording is too long, I load them by
-    # little chunk by chunk (chunk it time-wise). But I also add
-    # some buffer. If the detected spike time is in the buffer,
-    # i remove that because it will be detected in another chunk
-    spike_index = spike_index[np.logical_and(spike_index[:, 0] > BUFF,
-                  spike_index[:, 0] < (rec.shape[0] - BUFF))]
-
-    time['d'] += (datetime.datetime.now()-_b).total_seconds()
-
-    # get withening matrix per batch or onece in total
-    _b = datetime.datetime.now()
-
     global Q
-    if CONFIG.preprocess.whiten_batchwise or Q is None:
-        # cache this
-        Q = whitening_matrix(rec, CONFIG.neighChannels,
-                             CONFIG.spikeSize)
 
-    rec = whitening(rec, Q)
+    # nn detection 
+    if CONFIG.spikes.detection == 'nn':
 
-    time['w'] += (datetime.datetime.now()-_b).total_seconds()
+        # detect spikes
+        _b = datetime.datetime.now()
+        (spike_index_clear, 
+         spike_index_collision, 
+         score) = nn_detection(rec, 10000, BUFF,
+                               CONFIG.neighChannels,
+                               CONFIG.geom,
+                               CONFIG.spikes.temporal_features,
+                               3,
+                               CONFIG.neural_network_detector.threshold_spike,
+                               CONFIG.neural_network_triage.threshold_collision,
+                               nnDetector,
+                               nnTriage
+                              )
+
+        # since we alread have scores, no need to calculated sufficient
+        # statistics for pca
+        pca_suff_stat = 0
+        spikes_per_channel = 0
+
+        time['d'] += (datetime.datetime.now()-_b).total_seconds()
+
+        if get_score ==0:
+            spike_index_clear = np.zeros((0,2), 'int32')
+            spike_index_collision = np.vstack((spike_index_collision,
+                                       spike_index_clear))
+            score = None
+        
+        else:
+            # whiten signal
+            _b = datetime.datetime.now()
+            # get withening matrix per batch or onece in total
+            if CONFIG.preprocess.whiten_batchwise or Q is None:
+                Q = localized_whitening_matrix(rec, 
+                                               CONFIG.neighChannels, 
+                                               CONFIG.geom, 
+                                               CONFIG.spikeSize)
+            score = whitening_score(score, spike_index_clear[:,1], Q)
+
+            time['w'] += (datetime.datetime.now()-_b).total_seconds()
+
+
+    # threshold detection
+    elif CONFIG.spikes.detection == 'threshold':
+
+        # detect spikes
+        _b = datetime.datetime.now()
+        spike_index = threshold_detection(rec,
+                                          CONFIG.neighChannels,
+                                          CONFIG.spikeSize,
+                                          CONFIG.stdFactor)
+
+        # every spikes are considered as clear spikes as no triage is done
+        if get_score ==0:
+            spike_index_clear = np.zeros((0,2), 'int32')
+            spike_index_collision = spike_index
+        else:
+            spike_index_clear = spike_index
+            spike_index_collision = np.zeros((0,2), 'int32')
+        score = None
+
+        # get sufficient statistics for pca if we don't have projection matrix
+        pca_suff_stat, spikes_per_channel = get_pca_suff_stat(rec, spike_index,
+                                                          CONFIG.spikeSize)
+
+        time['d'] += (datetime.datetime.now()-_b).total_seconds()
+
+        # whiten recording
+        _b = datetime.datetime.now()
+        if CONFIG.preprocess.whiten_batchwise or Q is None:
+            Q = whitening_matrix(rec, CONFIG.neighChannels,
+                                CONFIG.spikeSize)
+        rec = whitening(rec, Q)
+
+        time['w'] += (datetime.datetime.now()-_b).total_seconds()
+
+
+    # Remove spikes detectted in buffer area
+    spike_index_clear = spike_index_clear[np.logical_and(
+      spike_index_clear[:, 0] > BUFF, 
+      spike_index_clear[:, 0] < (rec.shape[0] - BUFF))]
+    spike_index_collision = spike_index_collision[np.logical_and(
+      spike_index_collision[:, 0] > BUFF,
+      spike_index_collision[:, 0] < (rec.shape[0] - BUFF))]
+
 
     _b = datetime.datetime.now()
 
@@ -238,46 +294,6 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
     chunk.astype('int16').tofile(whiten_file)
 
     time['b'] += (datetime.datetime.now()-_b).total_seconds()
-
-    
-    _b = datetime.datetime.now()
-    if get_score == 0:
-        # if we are not calculating score for this minibatch, every spikes
-        # are considered as collision and will be referred during deconvlution
-        spike_index_clear = np.zeros((0,2), 'int32')
-        score = None
-        spike_index_collision = spike_index
-
-        pca_suff_stat = 0
-        spikes_per_channel = 0
-
-    elif CONFIG.spikes.detection == 'nn':
-        # with nn, get scores and triage bad ones
-        (spike_index_clear, score,
-        spike_index_collision) = get_waveforms(rec,
-                                               spike_index,
-                                               proj,
-                                               CONFIG.neighChannels,
-                                               CONFIG.geom,
-                                               nnTriage,
-                                               CONFIG.neural_network_triage.threshold_collision)
-
-        # since we alread have scores, no need to calculated sufficient
-        # statistics for pca
-        pca_suff_stat = 0
-        spikes_per_channel = 0
-
-    elif CONFIG.spikes.detection == 'threshold':
-        # every spikes are considered as clear spikes as no triage is done
-        spike_index_clear = spike_index
-        score = None
-        spike_index_collision = np.zeros((0,2), 'int32')
-
-        # get sufficient statistics for pca if we don't have projection matrix
-        pca_suff_stat, spikes_per_channel = get_pca_suff_stat(rec, spike_index,
-            CONFIG.spikeSize)
-
-    time['e'] += (datetime.datetime.now()-_b).total_seconds()
 
     return (spike_index_clear, score, spike_index_collision,
         pca_suff_stat, spikes_per_channel, time)

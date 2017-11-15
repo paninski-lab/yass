@@ -38,7 +38,7 @@ class NeuralNetTriage(object):
             saver object for the neural network detector.
     """
     
-    def __init__(self, config):
+    def __init__(self, path_to_triage_model):
         """
             Initializes the attributes for the class NeuralNetDetector.
 
@@ -46,16 +46,15 @@ class NeuralNetTriage(object):
             -----------
             config: configuration file
         """ 
-        self.config = config
-
-        C = np.max(np.sum(self.config.neighChannels, 0))
-
-        path_to_model = self.config.neural_network_triage.filename
-        path_to_filters = path_to_model.replace('ckpt', 'yaml')
+        
+        self.path_to_triage_model = path_to_triage_model
+        
+        path_to_filters = path_to_triage_model.replace('ckpt', 'yaml')
         self.filters_dict = load_yaml(path_to_filters)
 
         R1 = self.filters_dict['size']
         K1, K2 = self.filters_dict['filters']
+        C = self.filters_dict['n_neighbors']
 
         self.W1 = weight_variable([R1,1,1,K1])
         self.b1 = bias_variable([K1])
