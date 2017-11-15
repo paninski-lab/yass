@@ -1,8 +1,8 @@
 Changelog
 =========
 
-0.1.2dev
---------
+0.2 (2017-11-14)
+-----------------
 
 * Config module refactoring, configuration files are now much simpler
 * Fixed bug that was causing spike times to be off due to the buffer
