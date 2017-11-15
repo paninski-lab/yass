@@ -18,6 +18,7 @@ from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
 
 # remove this
 Q = None
+Q_score = None
 
 
 def run():
@@ -196,7 +197,8 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, nnTriage,
     CONFIG = read_config()
 
     global Q
-
+    global Q_score
+    
     # nn detection 
     if CONFIG.spikes.detection == 'nn':
 
@@ -233,11 +235,11 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, nnTriage,
             _b = datetime.datetime.now()
             # get withening matrix per batch or onece in total
             if CONFIG.preprocess.whiten_batchwise or Q is None:
-                Q = localized_whitening_matrix(rec, 
+                Q_score = localized_whitening_matrix(rec, 
                                                CONFIG.neighChannels, 
                                                CONFIG.geom, 
                                                CONFIG.spikeSize)
-            score = whitening_score(score, spike_index_clear[:,1], Q)
+            score = whitening_score(score, spike_index_clear[:,1], Q_score)
 
             time['w'] += (datetime.datetime.now()-_b).total_seconds()
 
