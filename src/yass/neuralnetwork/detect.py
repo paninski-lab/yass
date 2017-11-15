@@ -103,8 +103,8 @@ def nn_detection(X, T_batch, buff, neighChannels, geom,
                 T_min = buff
                 T_max = buff+T_small
                 t_add = T_small*j - buff
-
-            local_max_idx, score_train, energy_val, triage_prob  = sess.run(result, feed_dict={x_tf: X[:(T_small+2*buff)]})
+            
+            local_max_idx, score_train, energy_val, triage_prob  = sess.run(result, feed_dict={x_tf: X_batch})
 
             energy_train = np.zeros((T_small+2*buff,C))
             energy_train[local_max_idx[:,0],local_max_idx[:,1]] = energy_val
@@ -112,12 +112,11 @@ def nn_detection(X, T_batch, buff, neighChannels, geom,
             spike_index = spike_index[np.logical_and(
                         spike_index[:, 0] >= T_min, spike_index[:, 0] < T_max)]
 
-
             idx_clean = triage_prob[spike_index[:,0],spike_index[:,1]] > th_triage
 
             spike_index_clear = spike_index[idx_clean]
             spike_index_collision = spike_index[~idx_clean]
-
+            
             score = sess.run(score_tf, feed_dict={score_train_placeholder:score_train, spike_index_clear_tf:spike_index_clear})
             
             spike_index_clear[:,0] = spike_index_clear[:,0] + t_add

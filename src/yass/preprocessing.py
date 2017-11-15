@@ -257,7 +257,7 @@ class Preprocessor(object):
             
             Time['d'] += (dt.datetime.now()-_b).total_seconds()
             
-            if get_score ==0:
+            if get_score == 0:
                 spike_index_clear = np.zeros((0,2), 'int32')
                 spike_index_collision = np.vstack((spike_index_collision,
                     spike_index_clear))
