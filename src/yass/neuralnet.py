@@ -56,8 +56,8 @@ class NeuralNetDetector(object):
         path_to_filters = path_to_model.replace('ckpt', 'yaml')
         self.filters_dict = load_yaml(path_to_filters)
 
-        R1, R2, R3 = self.filters_dict['size']
-        K1, K2, K3 = self.filters_dict['filters']
+        R1 = self.filters_dict['size']
+        K1, K2 = self.filters_dict['filters']
 
         self.W1 = weight_variable([R1,1,1,K1])
         self.b1 = bias_variable([K1])
@@ -111,8 +111,8 @@ class NeuralNetDetector(object):
         # get parameters
         T, C = X.shape
 
-        R1, R2, R3 = self.filters_dict['size']
-        K1, K2, K3 = self.filters_dict['filters']
+        R1 = self.filters_dict['size']
+        K1, K2 = self.filters_dict['filters']
 
         th = self.config.neural_network_detector.threshold_spike
         temporal_window = 3 #self.config.spikeSize
