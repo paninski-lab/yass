@@ -223,7 +223,7 @@ def release(tag, production):
     Merges dev with master and pushes
     """
     click.echo('Checking out tag {}'.format(tag))
-    call(['python', 'checkout',  tag])
+    call(['git', 'checkout',  tag])
 
     current = Versioner.current_version()
 
