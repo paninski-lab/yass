@@ -231,7 +231,7 @@ def release(tag, production):
                   .format(tag, current))
 
     click.echo('Publishing to PyPI...')
-    where = 'pypitest' if not production else 'pipy'
+    where = 'pypitest' if not production else 'pypi'
     call(['python', 'setup.py', 'sdist', 'upload', '-r', where])
 
 
