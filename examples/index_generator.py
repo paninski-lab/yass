@@ -2,30 +2,39 @@
 %load_ext autoreload
 %autoreload 2
 """
-
 import logging
 
 from yass.batch import IndexGenerator
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
 
-ig = IndexGenerator(1000, 10, 'int16', 124)
-indexer = ig.temporalwise(to_time=1000)
-[idx for idx in indexer]
-
-
-indexer = ig.channelwise(from_time=1)
-[idx for idx in indexer]
+# init indexer for a matrix with int16, 1 million observations and
+# 512 columns with maximum memory usage of 124 bytes
+ig = IndexGenerator(1000000, 512, 'int16', '10MB')
 
 
-indexer = ig.channelwise(from_time=1, complete_channel_batch=False)
-x = [idx for idx in indexer]
-x
-[list(y) for y in x]
+# index every channel and every observation, each index object will correspond
+# to a single channel
+indexer = ig.channelwise()
 
+# index observations from 100 to 200, each index will correspond to a single
+# channel
+indexer = ig.channelwise(complete_channel_batch=False,
+                         from_time=100, to_time=200)
 
-indexer = ig.channelwise(from_time=10, to_time=20)
-[idx for idx in indexer]
+# samme but only go trough channel 10
+indexer = ig.channelwise(complete_channel_batch=False,
+                         from_time=100, to_time=200,
+                         channels=10)
 
-indexer = ig.channelwise(to_time=20)
-[idx for idx in indexer]
+# samme but only go trough channels 10, 20
+indexer = ig.channelwise(complete_channel_batch=False,
+                         from_time=100, to_time=200,
+                         channels=[10, 20])
+
+# new indexed, this time with 1MB max memory
+ig = IndexGenerator(1000000, 512, 'int16', '1MB')
+
+# since all 1 million observations per channel do not fit in 1MB we need to
+# turn of complete_channel_batch
+indexer = ig.channelwise(complete_channel_batch=False)

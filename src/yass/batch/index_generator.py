@@ -79,47 +79,61 @@ class IndexGenerator(object):
     """
     """
 
-    def __init__(self, observations, n_channels, dtype, max_memory):
-        self.observations = observations
+    def __init__(self, n_observations, n_channels, dtype, max_memory):
+        self.n_observations = n_observations
         self.n_channels = n_channels
         self.max_memory = human_bytes(max_memory)
         self.itemsize = np.dtype(dtype).itemsize
 
         self.logger = logging.getLogger(__name__)
 
-        self.logger.info('Max memory: {} bytes'.format(self.max_memory))
+        self.logger.info('Max memory: {} bytes'
+                         .format(human_bytes(self.max_memory)))
 
-    def channelwise(self, from_time=None, to_time=None, channels='all',
-                    complete_channel_batch=True):
+    def channelwise(self, complete_channel_batch=True, from_time=None,
+                    to_time=None, channels='all'):
         """
         Traverse temporal observations in the selected channels
 
         Parameters
         ----------
+        complete_channel_batch: bool, optional
+            If True, every index generated will correspond to all the
+            observations in a single channel, hence
+            n_batches = n_selected_channels, defaults to True. If True
+            from_time and to_time must be None
+
         from_time: int, optional
             Starting time, defaults to None
 
         to_time: int, optional
             Ending time, defaults to None
 
-        channels: tuple or str, optional
+        channels: int, tuple or str, optional
             A tuple with the channel indexes or 'all' to traverse all channels,
             defaults to 'all'
 
         Notes
         -----
-        One of from_time/to_time can be None (behavior is similar to what you
-        would do when indexing arrays (e.g. array[:10] or array[10:])), but
-        you cannot leave both as None
+        If both from_time and to_time are None, all the observations along
+        the time axis will be traversed
         """
-        if not from_time and not to_time:
-            raise ValueError('from_time and to_time cannot be both None')
+        if (complete_channel_batch and from_time is not None
+           and to_time is not None):
+            raise ValueError('If complete_channel_batch = True, from_time '
+                             'and to_time must be None')
+
+        from_time = from_time if from_time is not None else 0
+        to_time = to_time if to_time is not None else self.n_observations
 
         # size of all observations is any channel
-        channel_size = self.observations * self.itemsize
+        channel_size = self.n_observations * self.itemsize
 
         channel_indexes = (channels if channels != 'all'
                            else range(self.n_channels))
+        channel_indexes = ([channel_indexes]
+                           if isinstance(channel_indexes, numbers.Integral)
+                           else channel_indexes)
 
         # traversing all observations in every channel, n_batches = n_channels
         if complete_channel_batch:
@@ -135,7 +149,7 @@ class IndexGenerator(object):
 
         # partial onservations per batch
         else:
-            generators = chain(*(self.temporalwise(from_time, to_time, [ch])
+            generators = chain(*(self.temporalwise(from_time, to_time, ch)
                                  for ch in channel_indexes))
             for gen in generators:
                 yield gen
@@ -145,21 +159,30 @@ class IndexGenerator(object):
         Traverse a temporal window in chunks for selected channels,
         chunk size is calculated depending on maximum memory. Each batch
         includes a chunk of observations from all selected channels
-        """
-        if not from_time and not to_time:
-            raise ValueError('from_time and to_time cannot be both None')
 
-        from_time = from_time if from_time else 0
-        to_time = to_time if to_time else self.observations
+        Notes
+        -----
+        If both from_time and to_time are None, all the observations along
+        the time axis will be traversed
+        """
+        from_time = from_time if from_time is not None else 0
+        to_time = to_time if to_time is not None else self.n_observations
 
         # TODO: support channel slices, lists of channels are slow to index
         channel_indexes = (channels if channels != 'all'
                            else slice(0, self.n_channels, None))
 
+        if channels == 'all':
+            channel_indexes_length = self.n_channels
+        elif isinstance(channel_indexes, numbers.Integral):
+            channel_indexes_length = 1
+        else:
+            channel_indexes_length = len(channel_indexes)
+
         # get the value of t and channels for the subset to traverse
         t_total = to_time - from_time
         channels_total = (self.n_channels if channels == 'all' else
-                          len(channel_indexes))
+                          channel_indexes_length)
 
         bytes_total = t_total * channels_total * self.itemsize
         obs_total = t_total * channels_total
@@ -199,7 +222,7 @@ class IndexGenerator(object):
         last_i = n_batches - 1
 
         for i in range(n_batches):
-            start = i * obs_channel_batch
+            start = from_time + i * obs_channel_batch
 
             if i < last_i:
                 end = start + obs_channel_batch
