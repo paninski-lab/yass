@@ -1,6 +1,6 @@
 from .batch import BatchProcessor, BatchProcessorFactory
 from .reader import RecordingsReader
-from .index import BatchIndexer
+from .index_generator import IndexGenerator
 
 __all__ = ['BatchProcessor', 'BatchProcessorFactory',
-           'RecordingsReader', 'BatchIndexer']
+           'RecordingsReader', 'IndexGenerator']

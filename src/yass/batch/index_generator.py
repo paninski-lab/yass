@@ -6,7 +6,7 @@ import logging
 
 import numpy as np
 
-ACTIVATE_HUMAN = False
+ACTIVATE_HUMAN = True
 
 
 def human_size(nbytes):
@@ -74,7 +74,7 @@ def human_bytes(size):
     return bytes_
 
 
-class BatchIndexer(object):
+class IndexGenerator(object):
     """
     """
 
@@ -85,6 +85,8 @@ class BatchIndexer(object):
         self.itemsize = np.dtype(dtype).itemsize
 
         self.logger = logging.getLogger(__name__)
+
+        self.logger.info('Max memory: {} bytes'.format(self.max_memory))
 
     def channelwise(self, from_time=None, to_time=None, channels='all',
                     complete_channel_batch=True):
@@ -122,7 +124,7 @@ class BatchIndexer(object):
                              .format(human_size(channel_size),
                                      human_size(self.max_memory)))
 
-        channels = channels if channels != 'all' else range(self.channels)
+        channels = channels if channels != 'all' else range(self.n_channels)
 
         for ch in channels:
             yield (slice(from_time, to_time, None), ch)
@@ -140,45 +142,57 @@ class BatchIndexer(object):
         to_time = to_time if to_time else self.observations
 
         # TODO: support channel slices, lists of channels are slow to index
-        channels = (channels if channels != 'all'
-                    else slice(0, self.channels, None))
+        channel_indexes = (channels if channels != 'all'
+                           else slice(0, self.n_channels, None))
 
-        total_t = to_time - from_time
-        n_channels = self.channels if channels != 'all' else len(channels)
-        total_bytes = total_t * n_channels * self.itemsize
+        # get the value of t and channels for the subset to traverse
+        t_total = to_time - from_time
+        channels_total = (self.n_channels if channels == 'all' else
+                          len(channel_indexes))
+
+        bytes_total = t_total * channels_total * self.itemsize
+        obs_total = t_total * channels_total
 
         self.logger.info('Observations per channel: {}. Number of channels: '
-                         '{} Size to traverse: {}'
-                         .format(total_t, n_channels,
-                                 human_size(total_bytes)))
+                         '{}. Total observations: {} Size to traverse: {}'
+                         .format(t_total, channels_total, obs_total,
+                                 human_size(bytes_total)))
 
-        n_batches = int(ceil(total_bytes/self.max_memory))
+        # find how many observations (for every channel selected) we can fit
+        # in memory
+        obs_channel_batch = int(floor(self.max_memory /
+                                (channels_total*self.itemsize)))
+        obs_batch = obs_channel_batch * channels_total
+        bytes_batch = obs_batch * self.itemsize
 
-        if n_batches == 1:
-            self.logger.info('One batch of size: {}'
-                             .format(human_size(total_bytes)))
-            return [(slice(from_time, to_time, None), channels)]
-        else:
-            self.logger.info('Number of batches: {}'
-                             .format(n_batches))
+        self.logger.info('Observations per batch: {} ({}), {} observations '
+                         'per channel'.format(obs_batch,
+                                              human_size(bytes_batch),
+                                              obs_channel_batch))
 
-            residual_bytes = (total_bytes % n_batches) * n_channels
-            batch_bytes = int(floor(total_bytes/n_batches))
+        n_batches = int(ceil(obs_total / obs_batch))
 
-            self.logger.info('Batch size: {}'
-                             .format(human_size(batch_bytes)))
+        self.logger.info('Number of batches: {}'.format(n_batches))
 
-            self.logger.info('Residual: {}'
-                             .format(human_size(residual_bytes)))
+        obs_residual = obs_total - obs_batch * (n_batches - 1)
+        obs_channel_residual = int(obs_residual / channels_total)
+        bytes_residual = obs_residual * self.itemsize
 
-            # compute the number of per-channel observations in a single batch
-            batch_bytes_per_channel = int(floor(batch_bytes/n_channels))
+        self.logger.info('Last batch with {} observations ({}), {} '
+                         'observations per channel'
+                         .format(obs_residual, human_bytes(bytes_residual),
+                                 obs_channel_residual))
 
-            self.logger.info('Per-channel bytes in each batch: {}'
-                             .format(human_bytes(batch_bytes_per_channel)))
+        # generate list with batch sizes (n of observations per channel
+        # per batch)
+        last_i = n_batches - 1
 
+        for i in range(n_batches):
+            start = i * obs_channel_batch
 
-
-
-        # for low, high in channels:
-        #     yield (slice(None, None, None), channels)
+            if i < last_i:
+                end = start + obs_channel_batch
+                yield (slice(start, end, None), channel_indexes)
+            else:
+                end = start + obs_channel_residual
+                yield (slice(start, end), channel_indexes)
