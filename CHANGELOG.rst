@@ -4,6 +4,8 @@ Changelog
 0.3dev
 ------
 
+* Adds new neural network module
+
 
 0.2 (2017-11-14)
 -----------------
