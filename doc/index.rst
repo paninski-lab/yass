@@ -14,6 +14,7 @@ Contents
    :maxdepth: 1
 
    getting_started
+   config
    blocks
    api
 

@@ -11,14 +11,14 @@ from .. import read_config
 from ..batch import BatchProcessorFactory
 
 from .detect import threshold_detection
-from .filter import whitening_matrix, whitening, butterworth
-from .score import getPCAProjection, getPcaSS, getScore
-from .waveform import get_waveforms
+from .filter import whitening_matrix, whitening, localized_whitening_matrix, whitening_score, butterworth
+from .score import get_score_pca, get_pca_suff_stat, get_pca_projection
 from .standarize import standarize, sd
-from ..neuralnet import NeuralNetDetector, NeuralNetTriage
+from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
 
 # remove this
 Q = None
+Q_score = None
 
 
 def run():
@@ -46,22 +46,27 @@ def run():
     """
     logger = logging.getLogger(__name__)
 
+    start_time = datetime.datetime.now()
+    time = {'f': 0, 's': 0, 'd': 0, 'w': 0, 'b': 0, 'e': 0}
+
     # FIXME: remove this
     CONFIG = read_config()
-    whiten_file = open(os.path.join(CONFIG.root, 'tmp/whiten.bin'), 'wb')
+    whiten_file = open(os.path.join(CONFIG.data.root_folder, 'tmp/whiten.bin'), 'wb')
 
     # initialize processor for raw data
-    path = os.path.join(CONFIG.root, CONFIG.filename)
-    dtype = CONFIG.dtype
+    path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
+    dtype = CONFIG.recordings.dtype
 
     # initialize factory
     factory = BatchProcessorFactory(path_to_file=None,
                                     dtype=None,
-                                    n_channels=CONFIG.nChan,
-                                    max_memory=CONFIG.maxMem,
+                                    n_channels=CONFIG.recordings.n_channels,
+                                    max_memory=CONFIG.resources.max_memory,
                                     buffer_size=None)
 
-    if CONFIG.doFilter == 1:
+    if CONFIG.preprocess.filter == 1:
+
+        _b = datetime.datetime.now()
         # make batch processor for raw data -> buterworth -> filtered
         bp = factory.make(path_to_file=path, dtype=dtype,
                           buffer_size=0)
@@ -69,21 +74,23 @@ def run():
                     .format(bp))
 
         # run filtering
-        path = os.path.join(CONFIG.root,  'tmp/filtered.bin')
+        path = os.path.join(CONFIG.data.root_folder,  'tmp/filtered.bin')
         dtype = bp.process_function(butterworth,
                                     path,
-                                    CONFIG.filterLow,
-                                    CONFIG.filterHighFactor,
-                                    CONFIG.filterOrder,
-                                    CONFIG.srate)
+                                    CONFIG.filter.low_pass_freq,
+                                    CONFIG.filter.high_factor,
+                                    CONFIG.filter.order,
+                                    CONFIG.recordings.sampling_rate)
+        time['f'] += (datetime.datetime.now()-_b).total_seconds()
 
     # TODO: cache computations
     # make batch processor for filtered -> standarize -> standarized
+    _b = datetime.datetime.now()
     bp = factory.make(path_to_file=path, dtype=dtype, buffer_size=0)
 
     # compute the standard deviation using the first batch only
     batch1 = next(bp)
-    sd_ = sd(batch1, CONFIG.srate)
+    sd_ = sd(batch1, CONFIG.recordings.sampling_rate)
 
     # make another batch processor
     bp = factory.make(path_to_file=path, dtype=dtype, buffer_size=0)
@@ -91,10 +98,11 @@ def run():
                 .format(bp))
 
     # run standarization
-    path = os.path.join(CONFIG.root,  'tmp/standarized.bin')
+    path = os.path.join(CONFIG.data.root_folder,  'tmp/standarized.bin')
     dtype = bp.process_function(standarize,
                                 path,
                                 sd_)
+    time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
     # create another batch processor for the rest of the pipeline
     bp = factory.make(path_to_file=path, dtype=dtype,
@@ -102,91 +110,77 @@ def run():
     logger.info('Initialized preprocess batch processor: {}'
                 .format(bp))
 
-    # bar = progressbar.ProgressBar(maxval=nBatches)
-    score = 0
+    # initialize output variables
     get_score = 1
-
-    # we will create a (spike times, 2) matrix for every channel, the first
-    # column is the spike time and the second column the batch were the spike
-    # was processed
-    spike_times = [np.empty((0, 2), 'int32')] * CONFIG.nChan
+    spike_index_clear = None
+    spike_index_collision = None
+    score = None
+    pca_suff_stat = None
+    spikes_per_channel = None
 
     for i, batch in enumerate(bp):
-        start_time = datetime.datetime.now()
-        time = {'r': 0, 'f': 0, 's': 0, 'd': 0, 'w': 0, 'b': 0, 'e': 0}
 
         # load nueral net detector if necessary:
-        if CONFIG.detctionMethod == 'nn':
-            nnDetector = NeuralNetDetector(CONFIG)
-            proj = nnDetector.load_w_ae()
-            nnTriage = NeuralNetTriage(CONFIG)
+        if CONFIG.spikes.detection == 'nn':
+            nnDetector = NeuralNetDetector(CONFIG.neural_network_detector.filename,
+                                           CONFIG.neural_network_autoencoder.filename)
+            nnTriage = NeuralNetTriage(CONFIG.neural_network_triage.filename)
+            
         else:
             nnDetector = None
-            proj = None
             nnTriage = None
 
         if i > CONFIG.nPortion:
             get_score = 0
 
         # process batch
-        (score_batch, clear_index_batch,
-         spike_time_batch, ss_batch,
-         n_spikes_batch, time) = process_batch(batch, get_score, CONFIG.BUFF,
-                                               time, nnDetector=nnDetector,
-                                               proj=proj, nnTriage=nnTriage,
-                                               whiten_file=whiten_file)
+        # spike index is defined as a location in each minibatch
+        (si_clr_batch, score_batch, si_col_batch,
+         pss_batch, spc_batch,
+         time) = process_batch(batch, get_score, CONFIG.BUFF, time,
+                               nnDetector=nnDetector,
+                               nnTriage=nnTriage, whiten_file=whiten_file)
 
-        # process spike times
-        for c in range(CONFIG.nChan):
-            # convert list of spike times to a (n, 1) ndarray
-            spike_time_arr = spike_time_batch[c][:, np.newaxis]
-            # create a (n, i) ndarray of ones
-            ones = np.ones((len(spike_time_arr), 1), 'int32') * i
-            # replace the value by a (n, 1) ndarray
-            spike_time_and_batch_matrix = np.hstack((spike_time_arr, ones))
-            # append it to the spike times list in the corresponding element
-            spike_times[c] = np.vstack((spike_times[c],
-                                        spike_time_and_batch_matrix))
-
-        # TODO: what's going on here?
-        if score == 0:
+        # spike time w.r.t. to the whole recording
+        si_clr_batch[:,0] = si_clr_batch[:,0] + i*CONFIG.batch_size - CONFIG.BUFF
+        si_col_batch[:,0] = si_col_batch[:,0] + i*CONFIG.batch_size - CONFIG.BUFF
+        
+        if i == 0:
+            spike_index_clear = si_clr_batch
+            spike_index_collision = si_col_batch
             score = score_batch
-            clr_idx = clear_index_batch
-            # spt = spike_time_batch
-            ss = ss_batch
-            nspikes = n_spikes_batch
+
+            pca_suff_stat = pss_batch
+            spikes_per_channel = spc_batch
+
         else:
-            ss += ss_batch
-            nspikes += n_spikes_batch
+            spike_index_clear = np.vstack((spike_index_clear,
+                si_clr_batch))
+            spike_index_collision = np.vstack((spike_index_collision,
+                si_col_batch))
+            if get_score == 1 and CONFIG.spikes.detection == 'nn':
+                score = np.concatenate((score, score_batch), axis = 0)
+            pca_suff_stat += pss_batch
+            spikes_per_channel += spc_batch
 
-        # bar.update(i+1)
-
-    # bar.finish()
     whiten_file.close()
 
-    # TODO: ask peter, why are we only running this for threshold detector?
-    if CONFIG.detctionMethod != 'nn':
+    if CONFIG.spikes.detection != 'nn':
         _b = datetime.datetime.now()
-        rot = getPCAProjection(ss, nspikes, CONFIG.nFeat,
-                               CONFIG.neighChannels)
-        score, clr_idx = getScore(spike_times, rot, CONFIG.nChan,
-                                  CONFIG.spikeSize,
-                                  CONFIG.nFeat,
-                                  CONFIG.neighChannels,
-                                  os.path.join(CONFIG.root,
-                                               'tmp/whiten.bin'),
-                                  CONFIG.scaleToSave,
-                                  CONFIG.nBatches,
-                                  CONFIG.nPortion,
-                                  CONFIG.BUFF,
-                                  CONFIG.batch_size)
+        rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
+                                 CONFIG.spikes.temporal_features, CONFIG.neighChannels)
+        score = get_score_pca(spike_index_clear, rot, CONFIG.neighChannels,
+                              CONFIG.geom, CONFIG.batch_size,
+                              CONFIG.BUFF, CONFIG.nBatches,
+                              os.path.join(CONFIG.data.root_folder,'tmp/whiten.bin'),
+                              CONFIG.scaleToSave)
+
         time['e'] += (datetime.datetime.now()-_b).total_seconds()
 
     # timing
     current_time = datetime.datetime.now()
     logger.info("Preprocessing done in {0} seconds.".format(
                      (current_time-start_time).seconds))
-    logger.info("\treading data:\t{0} seconds".format(time['r']))
     logger.info("\tfiltering:\t{0} seconds".format(time['f']))
     logger.info("\tstandardization:\t{0} seconds".format(time['s']))
     logger.info("\tdetection:\t{0} seconds".format(time['d']))
@@ -194,87 +188,114 @@ def run():
     logger.info("\tsaving recording:\t{0} seconds".format(time['b']))
     logger.info("\tgetting waveforms:\t{0} seconds".format(time['e']))
 
-    return score, clr_idx, spike_times
+    return score, spike_index_clear, spike_index_collision
 
 
-def process_batch(rec, get_score, BUFF, time, nnDetector, proj, nnTriage,
+def process_batch(rec, get_score, BUFF, time, nnDetector, nnTriage,
                   whiten_file):
+    logger = logging.getLogger(__name__)
     CONFIG = read_config()
 
-    # detect spikes
-    _b = datetime.datetime.now()
-    if CONFIG.detctionMethod == 'nn':
-        index = nnDetector.get_spikes(rec)
-    else:
+    global Q
+    global Q_score
+    
+    # nn detection 
+    if CONFIG.spikes.detection == 'nn':
 
-        index = threshold_detection(rec,
-                                    CONFIG.neighChannels,
-                                    CONFIG.spikeSize,
-                                    CONFIG.stdFactor)
-
-    # From Peter: When the recording is too long, I load them by
-    # little chunk by chunk (chunk it time-wise). But I also add
-    # some buffer. If the detected spike time is in the buffer,
-    # i remove that because it will be detected in another chunk
-    index = index[np.logical_and(index[:, 0] > BUFF,
-                  index[:, 0] < (rec.shape[0] - BUFF))]
-
-    time['d'] += (datetime.datetime.now()-_b).total_seconds()
-
-    # get withening matrix per batch or onece in total
-    if CONFIG.doWhitening == 1:
+        # detect spikes
         _b = datetime.datetime.now()
+        (spike_index_clear, 
+         spike_index_collision, 
+         score) = nn_detection(rec, 10000, BUFF,
+                               CONFIG.neighChannels,
+                               CONFIG.geom,
+                               CONFIG.spikes.temporal_features,
+                               3,
+                               CONFIG.neural_network_detector.threshold_spike,
+                               CONFIG.neural_network_triage.threshold_collision,
+                               nnDetector,
+                               nnTriage
+                              )
 
-        global Q
-        if CONFIG.whitenBatchwise or Q is None:
-            # cache this
+        # since we alread have scores, no need to calculated sufficient
+        # statistics for pca
+        pca_suff_stat = 0
+        spikes_per_channel = 0
+
+        time['d'] += (datetime.datetime.now()-_b).total_seconds()
+
+        if get_score ==0:
+            spike_index_clear = np.zeros((0,2), 'int32')
+            spike_index_collision = np.vstack((spike_index_collision,
+                                       spike_index_clear))
+            score = None
+        
+        else:
+            # whiten signal
+            _b = datetime.datetime.now()
+            # get withening matrix per batch or onece in total
+            if CONFIG.preprocess.whiten_batchwise or Q is None:
+                Q_score = localized_whitening_matrix(rec, 
+                                               CONFIG.neighChannels, 
+                                               CONFIG.geom, 
+                                               CONFIG.spikeSize)
+            score = whitening_score(score, spike_index_clear[:,1], Q_score)
+
+            time['w'] += (datetime.datetime.now()-_b).total_seconds()
+
+
+    # threshold detection
+    elif CONFIG.spikes.detection == 'threshold':
+
+        # detect spikes
+        _b = datetime.datetime.now()
+        spike_index = threshold_detection(rec,
+                                          CONFIG.neighChannels,
+                                          CONFIG.spikeSize,
+                                          CONFIG.stdFactor)
+
+        # every spikes are considered as clear spikes as no triage is done
+        if get_score ==0:
+            spike_index_clear = np.zeros((0,2), 'int32')
+            spike_index_collision = spike_index
+        else:
+            spike_index_clear = spike_index
+            spike_index_collision = np.zeros((0,2), 'int32')
+        score = None
+
+        # get sufficient statistics for pca if we don't have projection matrix
+        pca_suff_stat, spikes_per_channel = get_pca_suff_stat(rec, spike_index,
+                                                          CONFIG.spikeSize)
+
+        time['d'] += (datetime.datetime.now()-_b).total_seconds()
+
+        # whiten recording
+        _b = datetime.datetime.now()
+        if CONFIG.preprocess.whiten_batchwise or Q is None:
             Q = whitening_matrix(rec, CONFIG.neighChannels,
-                                 CONFIG.spikeSize)
-
+                                CONFIG.spikeSize)
         rec = whitening(rec, Q)
 
         time['w'] += (datetime.datetime.now()-_b).total_seconds()
+
+
+    # Remove spikes detectted in buffer area
+    spike_index_clear = spike_index_clear[np.logical_and(
+      spike_index_clear[:, 0] > BUFF, 
+      spike_index_clear[:, 0] < (rec.shape[0] - BUFF))]
+    spike_index_collision = spike_index_collision[np.logical_and(
+      spike_index_collision[:, 0] > BUFF,
+      spike_index_collision[:, 0] < (rec.shape[0] - BUFF))]
+
 
     _b = datetime.datetime.now()
 
     # save whiten data
     chunk = rec*CONFIG.scaleToSave
     chunk.reshape(chunk.shape[0]*chunk.shape[1])
-    chunk.astype(CONFIG.dtype).tofile(whiten_file)
+    chunk.astype('int16').tofile(whiten_file)
 
     time['b'] += (datetime.datetime.now()-_b).total_seconds()
 
-    _b = datetime.datetime.now()
-    if CONFIG.detctionMethod == 'nn':
-        score, clear_index, spike_times = get_waveforms(rec,
-                                                        CONFIG.neighChannels,
-                                                        index,
-                                                        get_score,
-                                                        proj,
-                                                        CONFIG.spikeSize,
-                                                        CONFIG.nFeat,
-                                                        CONFIG.geom,
-                                                        nnTriage,
-                                                        CONFIG.nnThreshdoldCol)
-        ss = 0
-        nspikes = 0
-    else:
-        score, clear_index, spike_times = get_waveforms(rec,
-                                                        CONFIG.neighChannels,
-                                                        index,
-                                                        0,
-                                                        None,
-                                                        CONFIG.spikeSize,
-                                                        CONFIG.nFeat,
-                                                        None,
-                                                        None,
-                                                        None)
-
-        # TODO: ask peter, why is there a difference? getPcaSS is run
-        # only when doing threshold detector, when doing nnet ss and
-        # nspikes are 0
-        ss, nspikes = getPcaSS(rec, spike_times, CONFIG.spikeSize,
-                               CONFIG.BUFF)
-    time['e'] += (datetime.datetime.now()-_b).total_seconds()
-
-    return score, clear_index, spike_times, ss, nspikes, time
+    return (spike_index_clear, score, spike_index_collision,
+        pca_suff_stat, spikes_per_channel, time)

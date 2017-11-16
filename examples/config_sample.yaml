@@ -1,128 +1,42 @@
-# DATA
-# data root folder
-root: data/
-# binary recording filename
-filename: neuropixel.bin
-# channel geometry file name
-geomFile: neuropixel_channels.npy
-# save spikeTrain
-spikeTrainName: spike_train.csv
+# Sample configuration file, for a complete reference see
+# examples/config_sample_complete.yaml
 
-# RECORDING
-# precision of the recording (e.g.'int16')
-dtype: int16
-# recording rate (in Hz)
-srate: 30000
-# number of channels in the recording
-nChan: 10
-# spatial radius of spikes
-spatialRadius: 70
+data:
+  root_folder: data/
+  recordings: neuropixel.bin
+  geometry: neuropixel_channels.npy
 
-# TURN ON/OFF MODULES
-doFilter: True
-doTriage: True
-doCoreset: True
-doWhitening: True
-# 'nn' for neural net detction, 'threshold' for amplitdue threshold detection
-detctionMethod: threshold
-# 'MFM' for mixture of finite mixture clustering, 'dpmm' for dirichlete process mixture model
-clusteringMethod: MFM
-doDeconv: True
+resources:
+  max_memory: 1000000000
 
-# PREPROCESS
-portion: 1
-# max. memory allowed for loading recording (in bytes)
-maxMem: 1000000000
-# [0,1] to use parital data to estimate templates
-partialDat: 1
-# determine whitening matrix in each minibatch
-whitenBatchwise: 0
-# number of features for dimension reduction
-nFeat: 3
-# temporal length of wavforms in ms
-spikeSizeMS: 1
+recordings:
+  dtype: int16
+  sampling_rate: 30000
+  n_channels: 10
+  spatial_radius: 70
+  spike_size_ms: 1
 
-# NN DETECTION
-# Threshold for spike event detection
-nnThreshdold: 0.5
-# Threshold for clear/collision detection
-nnThreshdoldCol: 0.75
+preprocess:
+  filter: True
+  templates_partial_data: 1
+  whiten_batchwise: False
 
-# FILTERING
-# Order of Butterworth filter
-filterOrder: 3
-# Low pass frequency (Hz)
-filterLow: 300
-# High pass factor (proportion of sampling rate)
-filterHighFactor: 0.1
+spikes:
+  detection: nn
+  temporal_features: 3
 
-# TRIAGE
-# Num. of nearest neighbors to consider
-triageK: 20
-# percentage of data to be triaged
-triagePercent: 0.01
+deconvolution:
+  rank: 3
+  threshold: 4
+  lam: 20
 
-# CORESET
-# Num. of clusters
-coresetK: 10
-# distance threshold
-coresetTh: 0.95
+neural_network_detector:
+  filename: detect_nn1.ckpt
+  threshold_spike: 0.5
 
-# CLUSTERING
-# Masking threshold
-maskTh: [0.9, 0.5]
-# Num. of new clusters in split
-kSplit: 5
+neural_network_triage:
+  filename: triage_nn1.ckpt
+  threshold_collision: 0.9
 
-# TEMPLATE MERGING
-# threshold for template merge
-tMergeTh: [0.8, 0.7]
-
-# DECONVOLUTION
-deconvGPU: 1
-deconvRank: 3
-deconvTh: 4
-deconvLam: 20
-
-# Neural network parameters
-neural_network:
-  # NN filenames
-  # tf nn trained model file name
-  #nnFilename: 2class_multi2.ckpt
-  nnFilename: detectnet1.ckpt
-  aeFilename: ae_31.ckpt
-  nnTriageFilename: triagenet1.ckpt
-
-  # NN architecture
-  # num. of filters in each layer
-  nnNFilters: [16, 8, 1]
-  # temporal filter size
-  nnFilterSize: [31, 1, 1]  
-  
-  nnTriageFilterSize: [8, 16]  
-  
-  # NN training
-  # train nn and save
-  nnTrain: 0
-  # 'recording' : raw recording,
-  inputType: 'recording'
-  # 'sorted_recording' : raw recording with spike train, 'templates' : templates
-  # 'rectangular', 'non_rectangular'
-  ChannelGeometry: 'rectangular'
-  # num. of iter. in training
-  nnIteration: 100000
-  # size of minibatch in training
-  nnBatch: 256
-  # training step size
-  nnTrainStepSize: 0.001
-  # L2 reg. scale
-  nnL2RegScale: 0.00000005
-
-# Clustering prior
-cluster_prior:
-  beta: 1
-  a: 1
-  lambda0: 0.01
-  mu: [[0], [0], [0]]
-  nu: 5
-  V: 2
+neural_network_autoencoder:
+  filename: ae_nn1.ckpt

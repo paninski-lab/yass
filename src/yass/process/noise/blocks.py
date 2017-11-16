@@ -47,14 +47,14 @@ def covariance(recordings, temporal_size, neigbor_steps):
     rec = recordings[:, neighbords_idx]
 
     # filter recording
-    if CONFIG.doFilter == 1:
-        rec = butterworth(rec, CONFIG.filterLow,
-                          CONFIG.filterHighFactor,
-                          CONFIG.filterOrder,
-                          CONFIG.srate)
+    if CONFIG.preprocess.filter == 1:
+        rec = butterworth(rec, CONFIG.filter.low_pass_freq,
+                          CONFIG.filter.high_factor,
+                          CONFIG.filter.order,
+                          CONFIG.recordings.sampling_rate)
 
     # standardize recording
-    sd_ = standarize.sd(rec, CONFIG.srate)
+    sd_ = standarize.sd(rec, CONFIG.recordings.sampling_rate)
     rec = standarize.standarize(rec, sd_)
 
     # compute and return spatial and temporal covariance

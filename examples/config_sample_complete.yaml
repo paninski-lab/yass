@@ -1,0 +1,119 @@
+# This is a complete configuration sample, with all required and optional
+# sections, along with a brief description of each setting
+
+############
+# Required #
+############
+
+data:
+  # project's root folder, data will be loaded and saved here
+  # can be an absolute or relative path
+  root_folder: data/
+  # recordings filename
+  recordings: neuropixel.bin
+  # channel geometry filename
+  geometry: neuropixel_channels.npy
+
+resources:
+  # maximum memory allowed
+  max_memory: 1000000000
+
+recordings:
+  # precision of the recording – must be a valid numpy dtype
+  dtype: int16
+  # recording rate (in Hz)
+  sampling_rate: 30000
+  # number of channels
+  n_channels: 10
+  # channels spatial radius
+  spatial_radius: 70
+  # temporal length of wavforms in ms
+  spike_size_ms: 1
+
+preprocess:
+  # apply butterworth filter in the preprocessing step
+  filter: True
+  # [0,1] to use parital data to estimate templates
+  templates_partial_data: 1
+  # determine whitening matrix in each minibatch
+  whiten_batchwise: False
+
+spikes:
+  # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
+  detection: nn
+  # number of features in the temporal dimension to use when applying
+  # dimensionality reduction
+  temporal_features: 3
+
+deconvolution:
+  rank: 3
+  threshold: 4
+  lam: 20
+
+
+neural_network_detector:
+  # model name, can be any of the models included in yass (detectnet1.ckpt),
+  # a relative folder to data.root_fodler (e.g.
+  # $ROOT_FOLDER/models/mymodel.ckpt) or an absolute path to a model
+  # (e.g. /path/to/my/model.ckpt). In the same folder as your model, there
+  # must be a yaml file with the number and size of the filters, the file
+  # should be named exactly as your model but with yaml extension
+  # see yass/src/assets/models/ for an example
+  filename: detect_nn1.ckpt
+  # Threshold for spike event detection
+  threshold_spike: 0.5
+
+
+neural_network_triage:
+  # same rules apply as in neural_network_detector.filename but the
+  # yaml file should only contain size (not number)
+  filename: triage_nn1.ckpt
+  # Threshold for clear/collision detection
+  threshold_collision: 0.9
+
+neural_network_autoencoder:
+  # same rules apply as in neural_network_detector.filename but no
+  # yaml file is needed
+  filename: ae_nn1.ckpt
+
+
+############
+# optional #
+############
+
+cluster_prior:
+  beta: 1
+  a: 1
+  lambda0: 0.01
+  mu: [[0], [0], [0]]
+  nu: 5
+  V: 2
+
+filter:
+  # Order of Butterworth filter
+  order: 3
+  # Low pass frequency (Hz)
+  low_pass_freq: 300
+  # High pass factor (proportion of sampling rate)
+  high_factor: 0.1
+
+triage:
+  # number of nearest neighbors to consider
+  nearest_neighbors: 20
+  # percentage of data to be triaged
+  percent: 0.01
+
+coreset:
+  # Num. of clusters
+  clusters: 10
+  # distance threshold
+  threshold: 0.95
+
+clustering:
+  # Masking threshold
+  masking_threshold: [0.9, 0.5]
+  # Num. of new clusters in split
+  n_split: 5
+
+templates:
+  merge_threshold: [0.8, 0.7]

@@ -17,7 +17,7 @@ class maskedMFM(object):
         usedchan = np.asarray(np.where(np.sum(mask, axis=0) > 1)).ravel()
         score = score[:, :, usedchan]
         mask = mask[:, usedchan]
-        config.nChan = np.sum(usedchan)
+        config.recordings.n_channels = np.sum(usedchan)
 
         self.config = config
         calc_maskedData(self, score, mask, group)
@@ -782,7 +782,7 @@ def weightedKmeansplusplus(X, w, k):
 def birth_move(maskedData, vbParam, suffStat, param, L):
     Khat = suffStat.sumY.shape[1]
     collectionThreshold = 0.1
-    extraK = param.kSplit
+    extraK = param.clustering.n_split
     weight = (suffStat.Nhat + 0.001) * L ** 2
     weight = weight / np.sum(weight)
     idx = np.zeros(1).astype(int)

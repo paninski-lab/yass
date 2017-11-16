@@ -1,0 +1,59 @@
+optional_sections:
+  cluster_prior:
+    beta: 1
+    a: 1
+    lambda0: 0.01
+    mu: [[0], [0], [0]]
+    nu: 5
+    V: 2
+
+  filter:
+    order: 3
+    low_pass_freq: 300
+    high_factor: 0.1
+
+  triage:
+    nearest_neighbors: 20
+    percent: 0.01
+
+  coreset:
+    clusters: 10
+    threshold: 0.95
+
+  clustering:
+    masking_threshold: [0.9, 0.5]
+    n_split: 5
+
+  templates:
+    merge_threshold: [0.8, 0.7]
+
+
+
+fields_validator:
+  recordings:
+      dtype:
+        type: str
+      sampling_rate:
+        type: int
+      n_channels:
+        type: int
+
+  spikes:
+    detection:
+      values: ['threshold', 'nn']
+      type: str
+
+  neural_network_triage:
+    filename:
+      function: expand_asset_model
+      type: str
+
+  neural_network_detector:
+    filename:
+      function: expand_asset_model
+      type: str
+
+  neural_network_autoencoder:
+    filename:
+      function: expand_asset_model
+      type: str

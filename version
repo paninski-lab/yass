@@ -154,6 +154,11 @@ def cli():
 
 @cli.command(help='Sets a new version for the project')
 def new():
+    """
+    Create a new version for the project: updates __init__.py, CHANGELOG,
+    creates new commit for released version (creating a tag) and commits
+    to a new dev version
+    """
     current = Versioner.current_version()
     release = Versioner.release_version()
 
@@ -197,6 +202,9 @@ def new():
 
 @cli.command(help='Merges changes in dev with master')
 def tomaster():
+    """
+    Merges dev with master and pushes
+    """
     click.echo('Checking out master...')
     call(['git', 'checkout', 'master'])
 
@@ -207,7 +215,24 @@ def tomaster():
     call(['git', 'push'])
 
 
-# TODO: command to publish package, check out twine
+@cli.command(help='Publishes to PyPI')
+@click.argument('tag')
+@click.option('--production', is_flag=True)
+def release(tag, production):
+    """
+    Merges dev with master and pushes
+    """
+    click.echo('Checking out tag {}'.format(tag))
+    call(['git', 'checkout',  tag])
+
+    current = Versioner.current_version()
+
+    click.confirm('Version in {} tag is {}. Do you want to continue?'
+                  .format(tag, current))
+
+    click.echo('Publishing to PyPI...')
+    where = 'pypitest' if not production else 'pypi'
+    call(['python', 'setup.py', 'sdist', 'upload', '-r', where])
 
 
 if __name__ == '__main__':

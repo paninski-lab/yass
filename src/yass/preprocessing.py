@@ -6,11 +6,10 @@ import datetime as dt
 import progressbar
 import numpy as np
 
-from .neuralnet import NeuralNetDetector, NeuralNetTriage
+from .neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
 from .preprocess.detect import threshold_detection
-from .preprocess.filter import whitening_matrix, whitening, butterworth
-from .preprocess.score import getPCAProjection, getPcaSS, getScore
-from .preprocess.waveform import get_waveforms
+from .preprocess.filter import whitening_matrix, whitening, localized_whitening_matrix, whitening_score, butterworth
+from .preprocess.score import get_score_pca, get_pca_suff_stat, get_pca_projection
 from .preprocess.standarize import standarize, sd
 from .util import deprecated
 
@@ -33,7 +32,7 @@ class Preprocessor(object):
 
         # make tmp directory if not exist
         try:
-            os.makedirs(os.path.join(config.root, 'tmp'))
+            os.makedirs(os.path.join(config.data.root_folder, 'tmp'))
         except OSError as exception:
             if exception.errno != errno.EEXIST:
                 raise
@@ -42,7 +41,7 @@ class Preprocessor(object):
 
     def openWFile(self, opt):
         self.WFile = open(os.path.join(
-            self.config.root, 'tmp', 'wrec.bin'), opt)
+            self.config.data.root_folder, 'tmp', 'wrec.bin'), opt)
 
     def closeWFile(self):
         if self.WFile == None:
@@ -55,7 +54,7 @@ class Preprocessor(object):
     def openFile(self):
         self.closeFile()
         self.File = open(os.path.join(
-            self.config.root, self.config.filename), 'rb')
+            self.config.data.root_folder, self.config.data.recordings), 'rb')
 
     def closeFile(self):
         if self.File == None:
@@ -68,10 +67,10 @@ class Preprocessor(object):
     # offset should be in terms of timesamples
     def load(self, offset, length):
         dsize = self.config.dsize
-        self.File.seek(offset*dsize*self.config.nChan)
-        rec = self.File.read(dsize*self.config.nChan*length)
-        rec = np.fromstring(rec, dtype=self.config.dtype)
-        rec = rec.reshape(length, self.config.nChan)
+        self.File.seek(offset*dsize*self.config.recordings.n_channels)
+        rec = self.File.read(dsize*self.config.recordings.n_channels*length)
+        rec = np.fromstring(rec, dtype=self.config.recordings.dtype)
+        rec = rec.reshape(length, self.config.recordings.n_channels)
         return rec
 
     # chunck should be in C x T format
@@ -81,10 +80,10 @@ class Preprocessor(object):
     def save(self, fid, chunk, _format='s'):
         if _format == 's':
             chunk = chunk.reshape(chunk.shape[0]*chunk.shape[1])
-            chunk.astype(self.config.dtype).tofile(fid)
+            chunk.astype(self.config.recordings.dtype).tofile(fid)
         else:
             chunk = chunk.transpose().reshape(chunk.shape[0]*chunk.shape[1])
-            chunk.astype(self.config.dtype).tofile(fid)
+            chunk.astype(self.config.recordings.dtype).tofile(fid)
 
     def addZeroBuffer(self, rec, buffSize, option):
         buff = np.zeros((buffSize, rec.shape[1]))
@@ -103,10 +102,12 @@ class Preprocessor(object):
         Time = {'r': 0, 'f': 0, 's': 0, 'd': 0, 'w': 0, 'b': 0, 'e': 0}
 
         # load nueral net detector if necessary:
-        if self.config.detctionMethod == 'nn':
-            self.nnDetector = NeuralNetDetector(self.config)
-            self.proj = self.nnDetector.load_w_ae()
-            self.nnTriage = NeuralNetTriage(self.config)
+        if self.config.spikes.detection == 'nn':                        
+            self.nnDetector = NeuralNetDetector(self.config.neural_network_detector.filename,
+                                                self.config.neural_network_autoencoder.filename
+                                               )
+            self.nnTriage = NeuralNetTriage(self.config.neural_network_triage.filename
+                                           )
 
         self.openFile()
         self.openWFile('wb')
@@ -117,8 +118,13 @@ class Preprocessor(object):
         nPortion = self.config.nPortion
         residual = self.config.residual
         
-        score = 0
+        # initialize output variables
         get_score = 1
+        spike_index_clear = None
+        spike_index_collision = None
+        score = None
+        pca_suff_stat = None
+        spikes_per_channel = None
 
         self.logger.info("Preprocessing the data in progress...")
         bar = progressbar.ProgressBar(maxval=nBatches)
@@ -145,51 +151,50 @@ class Preprocessor(object):
             if i > nPortion:
                 get_score = 0
 
-            score_temp, clr_idx_temp, spt_temp, ss_temp, nspikes_temp, Time = self.batch_process(
-                rec, get_score, BUFF, Time)
+            (si_clr_batch, score_batch, 
+             si_col_batch, pss_batch, 
+             spc_batch, Time) = self.batch_process(rec, get_score, 
+                                                   BUFF, Time)
 
-            # TODO: what's going on here?
-            if score == 0:
-                for c in range(0, self.config.nChan):
-                    spt_temp[c] = np.concatenate((spt_temp[c][:, np.newaxis], np.ones(
-                        (spt_temp[c].shape[0], 1), 'int32')*i), axis=1)
-                score = score_temp
-                clr_idx = clr_idx_temp
-                spt = spt_temp
-                ss = ss_temp
-                nspikes = nspikes_temp
+            # spike time w.r.t. to the whole recording
+            si_clr_batch[:,0] = si_clr_batch[:,0] + i*batch_size - BUFF
+            si_col_batch[:,0] = si_col_batch[:,0] + i*batch_size - BUFF
+            
+            if i == 0:
+                spike_index_clear = si_clr_batch
+                spike_index_collision = si_col_batch
+                score = score_batch
+
+                pca_suff_stat = pss_batch
+                spikes_per_channel = spc_batch
             else:
-                for c in range(0, self.config.nChan):
-                    score[c] = np.concatenate((score[c], score_temp[c]))
-                    clr_idx[c] = np.concatenate(
-                        (clr_idx[c], clr_idx_temp[c]+spt[c].shape[0]))
-                    spt_temp[c] = np.concatenate(
-                        (spt_temp[c][:, np.newaxis], np.ones((spt_temp[c].shape[0], 1),'int32')*i), axis=1)
-                    spt[c] = np.concatenate((spt[c], spt_temp[c]))
-                ss += ss_temp
-                nspikes += nspikes_temp
+                spike_index_clear = np.vstack((spike_index_clear,
+                    si_clr_batch))
+                spike_index_collision = np.vstack((spike_index_collision,
+                    si_col_batch))
+                if get_score == 1 and CONFIG.spikes.detection == 'nn':
+                    score = np.concatenate((score, score_batch), axis = 0)
+                pca_suff_stat += pss_batch
+                spikes_per_channel += spc_batch
 
             bar.update(i+1)
 
         self.closeFile()
         self.closeWFile()
 
-        # TODO: ask peter, why are we only running this for threshold detector?
-        if self.config.detctionMethod != 'nn':
+        if self.config.spikes.detection != 'nn':
             _b = dt.datetime.now()
-            rot = getPCAProjection(ss, nspikes, self.config.nFeat,
-                                   self.config.neighChannels)
-            score, clr_idx = getScore(spt, rot, self.config.nChan,
-                                      self.config.spikeSize,
-                                      self.config.nFeat,
-                                      self.config.neighChannels,
-                                      os.path.join(
-                                          self.config.root, 'tmp', 'wrec.bin'),
-                                      self.config.scaleToSave,
-                                      self.config.nBatches,
-                                      self.config.nPortion,
-                                      self.config.BUFF,
-                                      self.config.batch_size)
+            rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
+                                 self.config.spikes.temporal_features, self.config.neighChannels)
+
+            score = get_score_pca(spike_index_clear, rot, 
+                                  self.config.neighChannels,
+                                  self.config.geom, 
+                                  self.config.batch_size,
+                                  self.config.BUFF,
+                                  self.config.nBatches,
+                                  os.path.join(self.config.data.root_folder, 'tmp', 'wrec.bin'),
+                                  self.config.scaleToSave)
             Time['e'] += (dt.datetime.now()-_b).total_seconds()
 
         # timing
@@ -206,101 +211,123 @@ class Preprocessor(object):
 
         bar.finish()
 
-        return score, clr_idx, spt
+        return score, spike_index_clear, spike_index_collision
 
     def batch_process(self, rec, get_score, BUFF, Time):
         # filter recording
-        if self.config.doFilter == 1:
+        if self.config.preprocess.filter == 1:
             _b = dt.datetime.now()
-            rec = butterworth(rec, self.config.filterLow,
-                              self.config.filterHighFactor,
-                              self.config.filterOrder,
-                              self.config.srate)
+            rec = butterworth(rec, self.config.filter.low_pass_freq,
+                              self.config.filter.high_factor,
+                              self.config.filter.order,
+                              self.config.recordings.sampling_rate)
             Time['f'] += (dt.datetime.now()-_b).total_seconds()
 
         # standardize recording
         _b = dt.datetime.now()
-
         if not hasattr(self, 'sd'):
-            self.sd = sd(rec, self.config.srate)
+            self.sd = sd(rec, self.config.recordings.sampling_rate)
 
         rec = standarize(rec, self.sd)
 
         Time['s'] += (dt.datetime.now()-_b).total_seconds()
 
-        # detect spikes
-        _b = dt.datetime.now()
-        if self.config.detctionMethod == 'nn':
-            index = self.nnDetector.get_spikes(rec)
-        else:
+        # nn detection 
+        if self.config.spikes.detection == 'nn':
+            
+             # detect spikes
+            _b = dt.datetime.now()
+            (spike_index_clear, 
+             spike_index_collision, 
+             score) = nn_detection(rec, 10000, BUFF,
+                                   self.config.neighChannels,
+                                   self.config.geom,
+                                   self.config.spikes.temporal_features,
+                                   3,
+                                   self.config.neural_network_detector.threshold_spike,
+                                   self.config.neural_network_triage.threshold_collision,
+                                   self.nnDetector,
+                                   self.nnTriage
+                                  )
+            
+            # since we alread have scores, no need to calculated sufficient
+            # statistics for pca
+            pca_suff_stat = 0
+            spikes_per_channel = 0
+            
+            Time['d'] += (dt.datetime.now()-_b).total_seconds()
+            
+            if get_score == 0:
+                spike_index_clear = np.zeros((0,2), 'int32')
+                spike_index_collision = np.vstack((spike_index_collision,
+                    spike_index_clear))
+                score = None
+            else:
+                # whiten signal
+                _b = dt.datetime.now()
+                # get withening matrix per batch or onece in total
+                if self.config.preprocess.whiten_batchwise or not hasattr(self, 'Q'):
+                    self.Q = localized_whitening_matrix(rec, 
+                                                        self.config.neighChannels, 
+                                                        self.config.geom, 
+                                                        self.config.spikeSize)
+                score = whitening_score(score, spike_index_clear[:,1], self.Q)
 
-            index = threshold_detection(rec,
+                Time['w'] += (dt.datetime.now()-_b).total_seconds()
+        
+
+        # threshold detection
+        elif self.config.spikes.detection == 'threshold':
+            
+            # detect spikes
+            _b = dt.datetime.now()
+            spike_index = threshold_detection(rec,
                                         self.config.neighChannels,
                                         self.config.spikeSize,
                                         self.config.stdFactor)
-
-        # From Peter: When the recording is too long, I load them by
-        # little chunk by chunk (chunk it time-wise). But I also add
-        # some buffer. If the detected spike time is in the buffer,
-        # i remove that because it will be detected in another chunk
-        index = index[np.logical_and(index[:, 0] > BUFF,
-                              index[:, 0] < (rec.shape[0] - BUFF))]
-
-        Time['d'] += (dt.datetime.now()-_b).total_seconds()
-
-        # get withening matrix per batch or onece in total
-        if self.config.doWhitening == 1:
+            
+            # every spikes are considered as clear spikes as no triage is done
+            if get_score ==0:
+                spike_index_clear = np.zeros((0,2), 'int32')
+                spike_index_collision = spike_index
+            else:
+                spike_index_clear = spike_index
+                spike_index_collision = np.zeros((0,2), 'int32')
+            score = None
+            
+            # get sufficient statistics for pca if we don't have projection matrix
+            pca_suff_stat, spikes_per_channel = get_pca_suff_stat(rec, spike_index,
+                self.config.spikeSize)
+            
+            Time['d'] += (dt.datetime.now()-_b).total_seconds()
+            
+            # whiten recording
             _b = dt.datetime.now()
-
-            if self.config.whitenBatchwise or not hasattr(self, 'Q'):
+            if self.config.preprocess.whiten_batchwise or not hasattr(self, 'Q'):
                 self.Q = whitening_matrix(rec, self.config.neighChannels,
-                                          self.config.spikeSize)
-
+                                      self.config.spikeSize)
             rec = whitening(rec, self.Q)
-
+            
             Time['w'] += (dt.datetime.now()-_b).total_seconds()
+            
 
+        # Remove spikes detectted in buffer area
+        spike_index_clear = spike_index_clear[np.logical_and(
+            spike_index_clear[:, 0] > BUFF, 
+            spike_index_clear[:, 0] < (rec.shape[0] - BUFF))]
+        spike_index_collision = spike_index_collision[np.logical_and(
+            spike_index_collision[:, 0] > BUFF,
+            spike_index_collision[:, 0] < (rec.shape[0] - BUFF))]
+
+
+
+        # saved the processed recording for later deconvolution
         _b = dt.datetime.now()
-
-        # what is being saved here?
         self.save(self.WFile, rec*self.config.scaleToSave)
-
         Time['b'] += (dt.datetime.now()-_b).total_seconds()
 
-        _b = dt.datetime.now()
-        if self.config.detctionMethod == 'nn':
-            score, clr_idx, spt = get_waveforms(rec,
-                                                self.config.neighChannels,
-                                                index,
-                                                1,
-                                                self.proj,
-                                                self.config.spikeSize,
-                                                self.config.nFeat,
-                                                self.config.geom,
-                                                self.nnTriage,
-                                                self.config.nnThreshdoldCol)
-            ss = 0
-            nspikes = 0
-        else:
-            score, clr_idx, spt = get_waveforms(rec,
-                                                self.config.neighChannels,
-                                                index,
-                                                0,
-                                                None,
-                                                self.config.spikeSize,
-                                                self.config.nFeat,
-                                                None,
-                                                None,
-                                                None)
-
-            # TODO: ask peter, why is there a difference? getPcaSS is run
-            # only when doing threshold detector, when doing nnet ss and
-            # nspikes are 0
-            ss, nspikes = getPcaSS(rec, spt, self.config.spikeSize,
-                                   self.config.BUFF)
-        Time['e'] += (dt.datetime.now()-_b).total_seconds()
-
-        return score, clr_idx, spt, ss, nspikes, Time
+        return (spike_index_clear, score, spike_index_collision,
+                pca_suff_stat, spikes_per_channel, Time)
 
     def getTemplates(self, spikeTrain, R):
 
@@ -313,7 +340,7 @@ class Preprocessor(object):
         residual = self.config.residual
         self.openFile()
 
-        summedTemplatesBig = np.zeros((K, 2*R+1, self.config.nChan))
+        summedTemplatesBig = np.zeros((K, 2*R+1, self.config.recordings.n_channels))
         ndata = np.zeros(K)
 
         for i in range(0, nBatches):
@@ -347,15 +374,15 @@ class Preprocessor(object):
                 spt[:, 0] = spt[:, 0] - i*batch_size
 
             # filter recording
-            if self.config.doFilter == 1:
-                rec = butterworth(rec, self.config.filterLow,
-                                  self.config.filterHighFactor,
-                                  self.config.filterOrder,
-                                  self.config.srate)
+            if self.config.preprocess.filter == 1:
+                rec = butterworth(rec, self.config.filter.low_pass_freq,
+                                  self.config.filter.high_factor,
+                                  self.config.filter.order,
+                                  self.config.recordings.sampling_rate)
 
             # standardize recording
             if not hasattr(self, 'sd'):
-                small_t = int(np.min((int(self.config.srate*5), rec.shape[0]))/2)
+                small_t = int(np.min((int(self.config.recordings.sampling_rate*5), rec.shape[0]))/2)
                 mid_T = int(np.ceil(rec.shape[0]/2))
                 rec_temp = rec[np.arange(mid_T-small_t, mid_T+small_t)]
                 self.sd = np.median(np.abs(rec_temp), 0)/0.6745
