@@ -6,7 +6,6 @@ import logging
 
 import yass
 from yass.preprocessing import Preprocessor
-from yass.neuralnet import NeuralNetDetector
 from yass.mainprocess import Mainprocessor
 from yass.deconvolute import Deconvolution
 

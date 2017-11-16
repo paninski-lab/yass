@@ -28,7 +28,7 @@ CustomYAMLDumper.add_representer(map_data, map_data)
 CustomYAMLDumper.add_representer(seq_data, map_rep)
 
 
-def save_detect_network_params(filters, size, output_path):
+def save_detect_network_params(filters, size, n_neighbors, output_path):
     """Generate yaml file with parameters for a detect network
 
     Parameters
@@ -38,28 +38,57 @@ def save_detect_network_params(filters, size, output_path):
 
     size: int
         Temporal filter size
+        
+    n_neighbors: int
+        Number of neighboring channels       
 
     output_path: str
         Where to save the file
     """
-    d = dict(filters=filters, size=size)
+    d = dict(filters=filters, size=size, n_neighbors=n_neighbors)
 
     with open(output_path, 'w') as f:
         yaml.dump(d, f, CustomYAMLDumper)
 
 
-def save_triage_network_params(size, output_path):
+def save_triage_network_params(filters, size, n_neighbors, output_path):
     """Generate yaml file with parameters for a triage network
 
     Parameters
     ----------
-    size: list
+    filters: list
         List filters size
+
+    size: int
+        Temporal filter size
+        
+    n_neighbors: int
+        Number of neighboring channels        
+        
+    output_path: str
+        Where to save the file
+    """
+    d = dict(filters=filters, size=size, n_neighbors=n_neighbors)
+
+    with open(output_path, 'w') as f:
+        yaml.dump(d, f, CustomYAMLDumper)
+
+def save_ae_network_params(n_input, n_features, output_path):
+    """Generate yaml file with parameters for a ae network
+
+    Parameters
+    ----------
+    n_input: int
+        Dimension of input 
+        
+    n_features: int
+        Number of features
 
     output_path: str
         Where to save the file
     """
-    d = dict(size=size)
+    d = dict(n_input=n_input, n_features=n_features)
 
     with open(output_path, 'w') as f:
         yaml.dump(d, f, CustomYAMLDumper)
+        

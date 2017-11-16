@@ -23,14 +23,14 @@ spikes:
   temporal_features: 3
 
 neural_network_triage:
-  filename: triagenet1.ckpt
+  filename: triage_nn1.ckpt
   threshold_collision: 0.75
 
 neural_network_autoencoder:
-  filename: ae_31.ckpt
+  filename: ae_nn1.ckpt
 
 neural_network_detector:
-  filename: detectnet1.ckpt
+  filename: detect_nn1.ckpt
   threshold_spike: 0.5
 
 deconvolution:
