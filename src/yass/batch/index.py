@@ -78,9 +78,9 @@ class BatchIndexer(object):
     """
     """
 
-    def __init__(self, observations, channels, dtype, max_memory):
+    def __init__(self, observations, n_channels, dtype, max_memory):
         self.observations = observations
-        self.channels = channels
+        self.n_channels = n_channels
         self.max_memory = human_bytes(max_memory)
         self.itemsize = np.dtype(dtype).itemsize
 
@@ -144,24 +144,26 @@ class BatchIndexer(object):
                     else slice(0, self.channels, None))
 
         total_t = to_time - from_time
-        total_channels = self.channels if channels != 'all' else len(channels)
-        total_bytes = total_t * total_channels * self.itemsize
+        n_channels = self.channels if channels != 'all' else len(channels)
+        total_bytes = total_t * n_channels * self.itemsize
 
-        self.logger.info('Size to traverse: {}'
-                         .format(human_size(total_bytes)))
+        self.logger.info('Observations per channel: {}. Number of channels: '
+                         '{} Size to traverse: {}'
+                         .format(total_t, n_channels,
+                                 human_size(total_bytes)))
 
-        batches = int(ceil(total_bytes/self.max_memory))
+        n_batches = int(ceil(total_bytes/self.max_memory))
 
-        if batches == 1:
+        if n_batches == 1:
             self.logger.info('One batch of size: {}'
                              .format(human_size(total_bytes)))
             return [(slice(from_time, to_time, None), channels)]
         else:
             self.logger.info('Number of batches: {}'
-                             .format(batches))
+                             .format(n_batches))
 
-            residual_bytes = total_bytes % self.max_memory
-            batch_bytes = int(floor(total_bytes/self.max_memory))
+            residual_bytes = (total_bytes % n_batches) * n_channels
+            batch_bytes = int(floor(total_bytes/n_batches))
 
             self.logger.info('Batch size: {}'
                              .format(human_size(batch_bytes)))
@@ -170,11 +172,10 @@ class BatchIndexer(object):
                              .format(human_size(residual_bytes)))
 
             # compute the number of per-channel observations in a single batch
-            batch_obs_per_channel = (self.max_memory/(self.channels
-                                     * self.itemsize))
+            batch_bytes_per_channel = int(floor(batch_bytes/n_channels))
 
-            self.logger.info('Per-channel observations in each batch: {}'
-                             .format(batch_obs_per_channel))
+            self.logger.info('Per-channel bytes in each batch: {}'
+                             .format(human_bytes(batch_bytes_per_channel)))
 
 
 
