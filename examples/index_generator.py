@@ -14,8 +14,15 @@ indexer = ig.temporalwise(to_time=1000)
 [idx for idx in indexer]
 
 
-indexer = ig.channelwise()
+indexer = ig.channelwise(from_time=1)
 [idx for idx in indexer]
+
+
+indexer = ig.channelwise(from_time=1, complete_channel_batch=False)
+x = [idx for idx in indexer]
+x
+[list(y) for y in x]
+
 
 indexer = ig.channelwise(from_time=10, to_time=20)
 [idx for idx in indexer]

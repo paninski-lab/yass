@@ -2,6 +2,7 @@ from __future__ import division
 import numbers
 from math import ceil, floor
 import logging
+from itertools import chain
 
 
 import numpy as np
@@ -117,17 +118,27 @@ class IndexGenerator(object):
         # size of all observations is any channel
         channel_size = self.observations * self.itemsize
 
-        if complete_channel_batch and channel_size > self.max_memory:
-            raise ValueError('Cannot traverse all observations in a '
-                             'channel at once, each channel has a size of'
-                             ' {} but maximum memory is {}'
-                             .format(human_size(channel_size),
-                                     human_size(self.max_memory)))
+        channel_indexes = (channels if channels != 'all'
+                           else range(self.n_channels))
 
-        channels = channels if channels != 'all' else range(self.n_channels)
+        # traversing all observations in every channel, n_batches = n_channels
+        if complete_channel_batch:
+            if channel_size > self.max_memory:
+                raise ValueError('Cannot traverse all observations in a '
+                                 'channel at once, each channel has a size of'
+                                 ' {} but maximum memory is {}'
+                                 .format(human_size(channel_size),
+                                         human_size(self.max_memory)))
 
-        for ch in channels:
-            yield (slice(from_time, to_time, None), ch)
+            for ch in channel_indexes:
+                yield (slice(from_time, to_time, None), ch)
+
+        # partial onservations per batch
+        else:
+            generators = chain(*(self.temporalwise(from_time, to_time, [ch])
+                                 for ch in channel_indexes))
+            for gen in generators:
+                yield gen
 
     def temporalwise(self, from_time=None, to_time=None, channels='all'):
         """
