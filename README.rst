@@ -13,7 +13,6 @@ YASS: Yet Another Spike Sorter
 .. image:: https://badges.gitter.im/paninski-lab/yass.svg
     :target: https://gitter.im/paninski-lab/yass?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge
 
-State-of-the-art spike sorting.
 
 **Note**: YASS is in an early stage of development. Although it is stable, it has only been tested
 with the data in our lab, but we are working to make it more flexible. Feel free to send
