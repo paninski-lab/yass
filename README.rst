@@ -38,6 +38,13 @@ Installing the last stable version:
    pip install yass-algorithm
 
 
+If you are feeling adventurous, you can install from the master branch:
+
+
+.. code-block:: shell
+
+    pip install git+git://github.com/paninski-lab/yass@master
+
 Example
 -------
 
