@@ -172,7 +172,7 @@ class Preprocessor(object):
                     si_clr_batch))
                 spike_index_collision = np.vstack((spike_index_collision,
                     si_col_batch))
-                if get_score == 1 and CONFIG.spikes.detection == 'nn':
+                if get_score == 1 and self.config.spikes.detection == 'nn':
                     score = np.concatenate((score, score_batch), axis = 0)
                 pca_suff_stat += pss_batch
                 spikes_per_channel += spc_batch
