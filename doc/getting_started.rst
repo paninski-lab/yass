@@ -13,6 +13,18 @@ YASS is configured using a YAML file, below is an example of such configuration:
 .. literalinclude:: ../examples/config_sample.yaml
 
 
+If you want to use a Neural Network as detector, you need to provide your
+own Neural Network. YASS provides tools for easily training the model, see
+this `tutorial`_ for details.
+
+.. _tutorial: https://github.com/paninski-lab/yass-examples/blob/master/NN_training_tutorial.ipynb
+
+If you do now want to use a Neural Network, you can use the `threshold`
+detector instead.
+
+For details regarding the configuration file see :doc:`config`.
+
+
 Running YASS from the command line
 **********************************
 
