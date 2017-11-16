@@ -86,43 +86,64 @@ class BatchIndexer(object):
 
         self.logger = logging.getLogger(__name__)
 
-    def channelwise(self, times='all', channels='all',
+    def channelwise(self, from_time=None, to_time=None, channels='all',
                     complete_channel_batch=True):
         """
         Traverse temporal observations in the selected channels
+
+        Parameters
+        ----------
+        from_time: int, optional
+            Starting time, defaults to None
+
+        to_time: int, optional
+            Ending time, defaults to None
+
+        channels: tuple or str, optional
+            A tuple with the channel indexes or 'all' to traverse all channels,
+            defaults to 'all'
+
+        Notes
+        -----
+        One of from_time/to_time can be None (behavior is similar to what you
+        would do when indexing arrays (e.g. array[:10] or array[10:])), but
+        you cannot leave both as None
         """
-        if times == 'all':
+        if not from_time and not to_time:
+            raise ValueError('from_time and to_time cannot be both None')
 
-            # size of all observations is any channel
-            channel_size = self.observations * self.itemsize
+        # size of all observations is any channel
+        channel_size = self.observations * self.itemsize
 
-            if complete_channel_batch and channel_size > self.max_memory:
-                raise ValueError('Cannot traverse all observations in a '
-                                 'channel at once, each channel has a size of'
-                                 ' {} but maximum memory is {}'
-                                 .format(human_size(channel_size),
-                                         human_size(self.max_memory)))
+        if complete_channel_batch and channel_size > self.max_memory:
+            raise ValueError('Cannot traverse all observations in a '
+                             'channel at once, each channel has a size of'
+                             ' {} but maximum memory is {}'
+                             .format(human_size(channel_size),
+                                     human_size(self.max_memory)))
 
-            channels = channels if channels != 'all' else range(self.channels)
+        channels = channels if channels != 'all' else range(self.channels)
 
-            for ch in channels:
-                yield (slice(None, None, None), ch)
+        for ch in channels:
+            yield (slice(from_time, to_time, None), ch)
 
-        else:
-            raise NotImplementedError('This feature has not been implemented')
-
-    def temporalwise(self, times='all', channels='all'):
+    def temporalwise(self, from_time=None, to_time=None, channels='all'):
         """
         Traverse a temporal window in chunks for selected channels,
-        chunk size is calculated depending on maximum memory
+        chunk size is calculated depending on maximum memory. Each batch
+        includes a chunk of observations from all selected channels
         """
+        if not from_time and not to_time:
+            raise ValueError('from_time and to_time cannot be both None')
+
+        from_time = from_time if from_time else 0
+        to_time = to_time if to_time else self.observations
+
+        # TODO: support channel slices, lists of channels are slow to index
         channels = (channels if channels != 'all'
                     else slice(0, self.channels, None))
 
-        min_t = 0 if times == 'all' else times[0]
-        max_t = self.observations if times == 'all' else times[1]
-
-        total_t = max_t - min_t + 1
+        total_t = to_time - from_time
         total_channels = self.channels if channels != 'all' else len(channels)
         total_bytes = total_t * total_channels * self.itemsize
 
@@ -134,19 +155,27 @@ class BatchIndexer(object):
         if batches == 1:
             self.logger.info('One batch of size: {}'
                              .format(human_size(total_bytes)))
-            return [(slice(min_t, max_t, None), channels)]
+            return [(slice(from_time, to_time, None), channels)]
         else:
             self.logger.info('Number of batches: {}'
                              .format(batches))
 
-            residual = total_bytes % self.max_memory
-            batch_size = int(floor(total_bytes/self.max_memory))
+            residual_bytes = total_bytes % self.max_memory
+            batch_bytes = int(floor(total_bytes/self.max_memory))
 
             self.logger.info('Batch size: {}'
-                             .format(human_size(batch_size)))
+                             .format(human_size(batch_bytes)))
 
             self.logger.info('Residual: {}'
-                             .format(human_size(residual)))
+                             .format(human_size(residual_bytes)))
+
+            # compute the number of per-channel observations in a single batch
+            batch_obs_per_channel = (self.max_memory/(self.channels
+                                     * self.itemsize))
+
+            self.logger.info('Per-channel observations in each batch: {}'
+                             .format(batch_obs_per_channel))
+
 
 
 
