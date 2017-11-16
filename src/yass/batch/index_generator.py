@@ -77,6 +77,12 @@ def human_bytes(size):
 
 class IndexGenerator(object):
     """
+
+    Parameters
+    ----------
+    max_memory: int or str
+        Max memory to use, interpreted as bytes if int, if string, it can be
+        any of {N}KB, {N}MB or {N}GB
     """
 
     def __init__(self, n_observations, n_channels, dtype, max_memory):
@@ -90,14 +96,24 @@ class IndexGenerator(object):
         self.logger.info('Max memory: {} bytes'
                          .format(human_bytes(self.max_memory)))
 
-    def channelwise(self, complete_channel_batch=True, from_time=None,
-                    to_time=None, channels='all'):
+    @property
+    def can_allocate_one_complete_channel(self):
         """
-        Traverse temporal observations in the selected channels
+        Check wheter there is enough memory to allocate all observations
+        in a single channel
+        """
+        channel_size = self.n_observations * self.itemsize
+        return channel_size > self.max_memory
+
+    def single_channel(self, force_complete_channel_batch=True, from_time=None,
+                       to_time=None, channels='all'):
+        """
+        Traverse temporal observations in the selected channels, where
+        every batch data strictly comes from one channel
 
         Parameters
         ----------
-        complete_channel_batch: bool, optional
+        force_complete_channel_batch: bool, optional
             If True, every index generated will correspond to all the
             observations in a single channel, hence
             n_batches = n_selected_channels, defaults to True. If True
@@ -118,16 +134,12 @@ class IndexGenerator(object):
         If both from_time and to_time are None, all the observations along
         the time axis will be traversed
         """
-        if (complete_channel_batch and from_time is not None
-           and to_time is not None):
-            raise ValueError('If complete_channel_batch = True, from_time '
-                             'and to_time must be None')
-
         from_time = from_time if from_time is not None else 0
         to_time = to_time if to_time is not None else self.n_observations
+        t_total = to_time - from_time
 
-        # size of all observations is any channel
-        channel_size = self.n_observations * self.itemsize
+        # size of selected osbervations in a single channel
+        channel_size = t_total * self.itemsize
 
         channel_indexes = (channels if channels != 'all'
                            else range(self.n_channels))
@@ -136,8 +148,8 @@ class IndexGenerator(object):
                            else channel_indexes)
 
         # traversing all observations in every channel, n_batches = n_channels
-        if complete_channel_batch:
-            if channel_size > self.max_memory:
+        if force_complete_channel_batch:
+            if channel_size >= self.max_memory:
                 raise ValueError('Cannot traverse all observations in a '
                                  'channel at once, each channel has a size of'
                                  ' {} but maximum memory is {}'
@@ -149,12 +161,12 @@ class IndexGenerator(object):
 
         # partial onservations per batch
         else:
-            generators = chain(*(self.temporalwise(from_time, to_time, ch)
+            generators = chain(*(self.multi_channel(from_time, to_time, ch)
                                  for ch in channel_indexes))
             for gen in generators:
                 yield gen
 
-    def temporalwise(self, from_time=None, to_time=None, channels='all'):
+    def multi_channel(self, from_time=None, to_time=None, channels='all'):
         """
         Traverse a temporal window in chunks for selected channels,
         chunk size is calculated depending on maximum memory. Each batch
