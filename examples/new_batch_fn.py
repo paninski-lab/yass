@@ -14,21 +14,65 @@ logging.basicConfig(level=logging.INFO)
 
 
 root = '/Users/Edu/data/yass-benchmarks'
+# root = '/ssd/data/eduardo/yass-benchmarks'
 path_to_wide_data = os.path.join(root, 'sample_wide.bin')
 path_to_long_data = os.path.join(root, 'sample_long.bin')
 path_to_wide_out = os.path.join(root, 'out_wide.bin')
 path_to_long_out = os.path.join(root, 'out_long.bin')
 
-path_to_big = os.path.join(root, 'big.bin')
+path_to_big_long = os.path.join(root, 'big_long.bin')
+path_to_big_wide = os.path.join(root, 'big_wide.bin')
 path_to_big_out = os.path.join(root, 'out_big.bin')
-np.memmap(path_to_big, 'int64', 'w+', shape=(5000000, 500))
+
 
 wide_shape = (500, 2000000)
 long_shape = (2000000, 500)
+
+
+def dummy(arr):
+    return arr + 1
+
+
+bp = BatchProcessor(path_to_big,
+                    dtype='int64', channels=500, data_format='long',
+                    max_memory='500MB')
+bp.reader.data.shape
+
+dtype, path = bp.single_channel_apply(dummy, path_to_big_out, 'int64')
+loaded = np.fromfile(path, dtype).reshape(long_shape)
+loaded
+loaded.shape
+
+dtype, path = bp.multi_channel_apply(dummy, path_to_big_out, 'int64')
+loaded = np.fromfile(path, dtype).reshape(long_shape)
+loaded
+loaded.shape
+
+
 ones = np.ones(wide_shape)
 series = np.array(range(wide_shape[1]))
 data_wide = (series * ones).astype('int64')
 data_long = data_wide.T
+
+
+big_long = np.memmap(path_to_big_long, 'int64', 'r+', shape=(5000000, 500))
+big_wide = np.memmap(path_to_big_wide, 'int64', 'r+', shape=(500, 5000000))
+
+big_long.shape
+big_wide.shape
+
+# slow
+big_long[:, 0]
+x_long = big_long[:, 0] + 1
+big_long[:, 0] = x_long
+
+# fast
+big_wide[0, :]
+x_wide = big_wide[0, :] + 1
+big_wide[0, :] = x_wide
+
+big_wide.flush()
+
 
 data_wide
 data_long
@@ -45,10 +89,6 @@ bp_wide = BatchProcessor(path_to_wide_data,
 bp_long = BatchProcessor(path_to_long_data,
                          dtype='int64', channels=50, data_format='long',
                          max_memory='3GB')
-
-
-def dummy(arr):
-    return arr + 1
 
 
 data_wide
@@ -74,21 +114,6 @@ loaded
 loaded.shape
 
 dtype, path = bp_long.multi_channel_apply(dummy, path_to_long_out, 'int64')
-loaded = np.fromfile(path, dtype).reshape(long_shape)
-loaded
-loaded.shape
-
-
-bp = BatchProcessor(path_to_big,
-                    dtype='int64', channels=500, data_format='long',
-                    max_memory='3GB')
-
-dtype, path = bp.single_channel_apply(dummy, path_to_big_out, 'int64')
-loaded = np.fromfile(path, dtype).reshape(long_shape)
-loaded
-loaded.shape
-
-dtype, path = bp.multi_channel_apply(dummy, path_to_big_out, 'int64')
 loaded = np.fromfile(path, dtype).reshape(long_shape)
 loaded
 loaded.shape

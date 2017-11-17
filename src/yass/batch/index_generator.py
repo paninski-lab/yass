@@ -93,8 +93,9 @@ class IndexGenerator(object):
 
         self.logger = logging.getLogger(__name__)
 
-        self.logger.info('Max memory: {} bytes'
-                         .format(human_bytes(self.max_memory)))
+        self.logger.info('Max memory: {} bytes. Itemsize: {} bytes'
+                         .format(human_bytes(self.max_memory),
+                                 self.itemsize))
 
     @property
     def can_allocate_one_complete_channel(self):
@@ -155,6 +156,12 @@ class IndexGenerator(object):
                                  ' {} but maximum memory is {}'
                                  .format(human_size(channel_size),
                                          human_size(self.max_memory)))
+            else:
+                self.logger.info('Loading all observations per channel, '
+                                 'each channel has size of {} '
+                                 '({} observations)'
+                                 .format(human_size(channel_size),
+                                         t_total))
 
             for ch in channel_indexes:
                 yield (slice(from_time, to_time, None), ch)

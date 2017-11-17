@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 
 from . import IndexGenerator, RecordingsReader
@@ -45,6 +47,8 @@ class BatchProcessor(object):
                                       dtype,
                                       max_memory)
 
+        self.logger = logging.getLogger(__name__)
+
     def single_channel(self, force_complete_channel_batch=True, from_time=None,
                        to_time=None, channels='all'):
         indexes = self.indexer.single_channel(force_complete_channel_batch,
@@ -84,10 +88,14 @@ class BatchProcessor(object):
         indexes = self.indexer.single_channel(force_complete_channel_batch,
                                               from_time, to_time,
                                               channels)
-        for idx in indexes:
+        for i, idx in enumerate(indexes):
+            self.logger.info('Processing index {}, {}...'.format(i, idx))
             # TODO: decide what to do with the flipped indexes...
             out_idx = idx if self.data_format == 'long' else idx[::-1]
-            out[out_idx] = function(self.reader[idx])
+            read = self.reader[idx]#function()
+            self.logger.info('Read...')
+            out[out_idx] = read
+            self.logger.info('Assigned...')
 
         out.flush()
 
