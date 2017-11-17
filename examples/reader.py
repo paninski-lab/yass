@@ -6,7 +6,7 @@ from yass.batch import RecordingsReader
 # generate some big files
 output_folder = '/Users/Edu/data/yass-benchmarks'
 wide_data = np.random.rand(50, 1000000)
-long_data = np.random.rand(1000000, 50)
+long_data = wide_data.T
 
 path_to_wide = os.path.join(output_folder, 'wide.bin')
 path_to_long = os.path.join(output_folder, 'long.bin')
@@ -22,12 +22,14 @@ reader_wide = RecordingsReader(path_to_wide, dtype='float64',
 reader_long = RecordingsReader(path_to_long, dtype='float64',
                                channels=50, data_format='long')
 
+reader_wide.shape
+reader_long.shape
 
 # first index is for observations and second index for channels
-reader_wide[10000:20000, 20:30]
-reader_wide.shape
+obs = reader_wide[10000:20000, 20:30]
+obs, obs.shape
 
 # same applies even if your data is in 'long' format, first index for
 # observations, second for channels, the output is converted to 'wide'
-reader_long[10000:20000:, 20:30]
-reader_long.shape
+obs = reader_long[10000:20000, 20:30]
+obs, obs.shape

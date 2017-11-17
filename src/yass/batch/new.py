@@ -1,3 +1,5 @@
+import numpy as np
+
 from . import IndexGenerator, RecordingsReader
 
 
@@ -35,6 +37,7 @@ class BatchProcessor(object):
     """
     def __init__(self, path_to_recordings, dtype, channels,
                  data_format, max_memory):
+        self.data_format = data_format
         self.reader = RecordingsReader(path_to_recordings, dtype, channels,
                                        data_format)
         self.indexer = IndexGenerator(self.reader.observations,
@@ -62,7 +65,7 @@ class BatchProcessor(object):
             # print('index', idx, self.reader[idx].shape)
             yield self.reader[idx]
 
-    def single_channel_apply(self, function, output_path,
+    def single_channel_apply(self, function, output_path, output_dtype,
                              force_complete_channel_batch=True,
                              from_time=None, to_time=None, channels='all',
                              **kwargs):
@@ -75,26 +78,24 @@ class BatchProcessor(object):
         float64), which means that a chunk of 1MB in int16 will have a size
         of 4MB in float64. Take that into account when setting max_memory
         """
-        f = open(output_path, 'wb')
+        out = np.memmap(output_path, output_dtype, 'w+',
+                        shape=self.reader.data.shape)
 
-        data = self.single_channel(force_complete_channel_batch, from_time,
-                                   to_time, channels)
+        indexes = self.indexer.single_channel(force_complete_channel_batch,
+                                              from_time, to_time,
+                                              channels)
+        for idx in indexes:
+            # TODO: decide what to do with the flipped indexes...
+            out_idx = idx if self.data_format == 'long' else idx[::-1]
+            out[out_idx] = function(self.reader[idx])
 
-        if force_complete_channel_batch:
-            for d in data:
-                partial = function(d, **kwargs)
-                partial.tofile(f)
-        else:
-            for d, i in data:
-                partial = function(d, **kwargs)
-                partial.tofile(f)
+        out.flush()
 
-        f.close()
+        return output_dtype, output_path
 
-        return partial.dtype, output_path
-
-    def multi_channel_apply(self, function, output_path, from_time=None,
-                            to_time=None, channels='all', **kwargs):
+    def multi_channel_apply(self, function, output_path, output_dtype,
+                            from_time=None, to_time=None, channels='all',
+                            **kwargs):
         """
         Notes
         -----
@@ -104,16 +105,16 @@ class BatchProcessor(object):
         float64), which means that a chunk of 1MB in int16 will have a size
         of 4MB in float64. Take that into account when setting max_memory
         """
-        f = open(output_path, 'wb')
+        out = np.memmap(output_path, output_dtype, 'w+',
+                        shape=self.reader.data.shape)
 
-        data = self.multi_channel(from_time, to_time, channels)
+        indexes = self.indexer.multi_channel(from_time, to_time, channels)
 
-        for d in data:
-            # print('original', d, d.shape)
-            partial = function(d, **kwargs)
-            # print('transformed', partial, partial.shape)
-            partial.tofile(f)
+        for idx in indexes:
+            # TODO: decide what to do with the flipped indexes...
+            out_idx = idx if self.data_format == 'long' else idx[::-1]
+            out[out_idx] = function(self.reader[idx])
 
-        f.close()
+        out.flush()
 
-        return partial.dtype, output_path
+        return output_dtype, output_path

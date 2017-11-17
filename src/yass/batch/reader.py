@@ -54,8 +54,7 @@ class RecordingsReader(object):
 
     def __getitem__(self, key):
         key = key if self.data_format == 'long' else key[::-1]
-        subset = self.data[key]
-        return subset if self.data_format == 'long' else subset.T
+        return self.data[key]
 
     @property
     def shape(self):
