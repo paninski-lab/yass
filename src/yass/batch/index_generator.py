@@ -81,8 +81,8 @@ class IndexGenerator(object):
     Parameters
     ----------
     max_memory: int or str
-        Max memory to use, interpreted as bytes if int, if string, it can be
-        any of {N}KB, {N}MB or {N}GB
+        Max memory to use in each batch, interpreted as bytes if int,
+        if string, it can be any of {N}KB, {N}MB or {N}GB
     """
 
     def __init__(self, n_observations, n_channels, dtype, max_memory):
@@ -211,10 +211,10 @@ class IndexGenerator(object):
         obs_batch = obs_channel_batch * channels_total
         bytes_batch = obs_batch * self.itemsize
 
-        self.logger.info('Observations per batch: {} ({}), {} observations '
-                         'per channel'.format(obs_batch,
-                                              human_size(bytes_batch),
-                                              obs_channel_batch))
+        self.logger.info('Max observations per batch: {} ({}), {} '
+                         'max observations per channel'
+                         .format(obs_batch, human_size(bytes_batch),
+                                 obs_channel_batch))
 
         n_batches = int(ceil(obs_total / obs_batch))
 

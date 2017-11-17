@@ -4,7 +4,7 @@ import numpy as np
 from yass.batch import RecordingsReader
 
 # generate some big files
-output_folder = '/where/to/save/files'
+output_folder = '/Users/Edu/data/yass-benchmarks'
 wide_data = np.random.rand(50, 1000000)
 long_data = np.random.rand(1000000, 50)
 
@@ -27,5 +27,7 @@ reader_long = RecordingsReader(path_to_long, dtype='float64',
 reader_wide[10000:20000, 20:30]
 reader_wide.shape
 
+# same applies even if your data is in 'long' format, first index for
+# observations, second for channels, the output is converted to 'wide'
 reader_long[10000:20000:, 20:30]
 reader_long.shape
