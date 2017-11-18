@@ -57,7 +57,7 @@ def get_score_pca(spike_index, rot, neighbors, geom, batch_size, BUFF, nBatches,
             if (count == nbuff) or (j == n_spikes_batch -1):
                 # if we seek all spikes before reaching the buffer size,
                 # size of buffer becomes the number of leftover spikes
-                if j == n_spikes-1:
+                if j == n_spikes_batch-1:
                     nbuff = count
                     wf = wf[:nbuff]
 
