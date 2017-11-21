@@ -1,39 +1,57 @@
-from yass import BatchProcessorFactory
-from yass.filter import butterworth
-from yass.standarize import standarize
+from yass.batch.new import BatchProcessor
 
-# initialize factory with default settings, note that input_path and dtype
-# are missing since we will apply processing to different files
-factory = BatchProcessorFactory(observations='all', channels='all',
-                                n_channels=512, max_memory='1gb',
-                                buffer_size=30, mode='single-channel')
 
-# create a new processor
-bp1 = factory.make(input_path='path/to/raw.bin', dtype='int16')
+bp = BatchProcessor('/Users/Edu/data/yass-benchmarks/wide.bin',
+                    dtype='float64', channels=50, data_format='wide',
+                    max_memory='5MB')
 
-# iterate over batches
-for data, data_indexes, buffer_indexes, batch_number, channel_number in bp1:
-    # do stuff
-    pass
+# there are two ways of traversing the data: single_channel and multi_channel
+# single_channel means that the data in a single batch comes from only one
+# channel, multi_channel means that a batch can contain data from multiple
+# channels, let's take a look at single_channel operations
 
-# you can also apply functions
-bp2 = factory.make(input_path='path/to/raw.bin', dtype='int16')
+# traverse the whole dataset, one channel at a time
+data = bp.single_channel()
 
-# first parameter to apply must be a function whose first parameter is the
-# data to be processed, second argument is the path for the output file
-# choose 'temp' if you want to save it in a temp location, file will be
-# removed when the machine ins restarted, third arugument is a flag to run the
-# processing in parallel the rest of the arguments are the arguments for the
-# function
-path_to_filtered, dtype = bp2.apply(butterworth, output_path='tmp',
-                                    parallel=True, low_freq=300,
-                                    high_factor=0.1, order=3,
-                                    sampling_freq=20000)
+# this will raise an error since we cannot fit all observations for a single
+# channel in memory, so we either increase max_memory or set
+# force_complete_channel_batch to False
+for d in data:
+    print(d.shape)
 
-# by using the factory, you can easily chain transformations
-bp3 = factory.make(path=path_to_filtered, dtype=dtype)
+# When force_complete_channel_batch is False, each batch does not necessarily
+# correspond to all observations in the channel, the channel can be splitted
+# in several batches (although every batch data is guaranteed to come from
+# a single channel), in this case, every channel is splitted in two parts
+data = bp.single_channel(force_complete_channel_batch=False)
 
-path_to_standarized, dtype = bp3.apply(standarize, output_path='tmp',
-                                       parallel=True, srate=20000)
+for d, i in data:
+    print(d.shape, 'Data from channel {}'.format(i))
 
-# yass.Pipeline makes chaining transformations even easier
+
+# finally, we can traverse a single channel in a temporal subset
+data = bp.single_channel(from_time=100000, to_time=200000)
+
+for d in data:
+    print(d.shape)
+
+# we can select specific channels
+data = bp.single_channel(from_time=100000, to_time=200000, channels=[0, 1, 2])
+
+for d in data:
+    print(d.shape)
+
+
+# now, let's to some multi_channel operations, here we will traverse all
+# channels and all observations, each batch will contain a subset in the
+# temporal dimension, the window size is determined by max_memory
+data = bp.multi_channel()
+
+for d in data:
+    print(d.shape)
+
+# we can specify the temporal limits and subset channels
+data = bp.multi_channel(from_time=100000, to_time=200000, channels=[0, 1, 2])
+
+for d in data:
+    print(d.shape)
