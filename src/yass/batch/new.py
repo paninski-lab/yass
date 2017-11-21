@@ -50,6 +50,13 @@ class BatchProcessor(object):
     def single_channel(self, force_complete_channel_batch=True, from_time=None,
                        to_time=None, channels='all'):
         """
+        Generate indexes where each index has observations from a single
+        channel
+
+        Returns
+        -------
+        A generator that yields indexes
+
         Examples
         --------
 
@@ -68,6 +75,13 @@ class BatchProcessor(object):
 
     def multi_channel(self, from_time=None, to_time=None, channels='all'):
         """
+        Generate indexes where each index has observations from more than
+        one channel
+
+        Returns
+        -------
+        A generator that yields indexes
+
         Examples
         --------
 
@@ -83,6 +97,37 @@ class BatchProcessor(object):
                              from_time=None, to_time=None, channels='all',
                              **kwargs):
         """
+        Apply a transformation where each batch has observations from a
+        single channel
+
+        Parameters
+        ----------
+        function: callable
+            Function to be applied, must accept a 1D numpy array as its first
+            parameter
+
+        output_path: str
+            Where to save the output
+
+        force_complete_channel_batch: bool, optional
+            If True, every index generated will correspond to all the
+            observations in a single channel, hence
+            n_batches = n_selected_channels, defaults to True. If True
+            from_time and to_time must be None
+
+        from_time: int, optional
+            Starting time, defaults to None
+
+        to_time: int, optional
+            Ending time, defaults to None
+
+        channels: int, tuple or str, optional
+            A tuple with the channel indexes or 'all' to traverse all channels,
+            defaults to 'all'
+
+        **kwargs
+            kwargs to pass to function
+
         Examples
         --------
 
@@ -133,6 +178,38 @@ class BatchProcessor(object):
                             from_time=None, to_time=None, channels='all',
                             **kwargs):
         """
+        Apply a function where each batch has observations from more than
+        one channel
+
+        Parameters
+        ----------
+        function: callable
+            Function to be applied, must accept a 2D numpy array in 'long'
+            format as its first parameter (number of observations, number of
+            channels)
+
+        output_path: str
+            Where to save the output
+
+        force_complete_channel_batch: bool, optional
+            If True, every index generated will correspond to all the
+            observations in a single channel, hence
+            n_batches = n_selected_channels, defaults to True. If True
+            from_time and to_time must be None
+
+        from_time: int, optional
+            Starting time, defaults to None
+
+        to_time: int, optional
+            Ending time, defaults to None
+
+        channels: int, tuple or str, optional
+            A tuple with the channel indexes or 'all' to traverse all channels,
+            defaults to 'all'
+
+        **kwargs
+            kwargs to pass to function
+
         Examples
         --------
 
