@@ -94,7 +94,7 @@ class IndexGenerator(object):
         self.logger = logging.getLogger(__name__)
 
         self.logger.info('Max memory: {} bytes. Itemsize: {} bytes'
-                         .format(human_bytes(self.max_memory),
+                         .format(human_size(self.max_memory),
                                  self.itemsize))
 
     @property

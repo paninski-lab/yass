@@ -83,6 +83,11 @@ class BatchProcessor(object):
                              from_time=None, to_time=None, channels='all',
                              **kwargs):
         """
+        Examples
+        --------
+
+        .. literalinclude:: ../../examples/batch/single_channel_apply.py
+
         Notes
         -----
         Applying functions will incur in memory overhead, which depends
@@ -127,6 +132,11 @@ class BatchProcessor(object):
                             from_time=None, to_time=None, channels='all',
                             **kwargs):
         """
+        Examples
+        --------
+
+        .. literalinclude:: ../../examples/batch/multi_channel_apply.py
+
         Notes
         -----
         Applying functions will incur in memory overhead, which depends
