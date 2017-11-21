@@ -8,6 +8,30 @@ from scipy.signal import butter, lfilter
 from ..geometry import order_channels_by_distance, n_steps_neigh_channels
 
 
+def butterworth_single_channel(ts, low_freq, high_factor, order,
+                               sampling_freq):
+    """Butterworth filter for time series
+
+    Parameters
+    ----------
+    ts: np.array
+        T  numpy array, where T is the number of time samples
+    low_freq: int
+        Low pass frequency (Hz)
+    high_factor: float
+        High pass factor (proportion of sampling rate)
+    order: int
+        Order of Butterworth filter
+    sampling_freq: int
+        Sampling frequency (Hz)
+    """
+    (T,) = ts.shape
+    low = float(low_freq)/sampling_freq * 2
+    high = float(high_factor) * 2
+    b, a = butter(order, [low, high], btype='band')
+    return lfilter(b, a, ts)
+
+
 def butterworth(ts, low_freq, high_factor, order, sampling_freq):
     """Butterworth filter of for time series
 
