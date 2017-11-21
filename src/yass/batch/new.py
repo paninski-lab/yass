@@ -84,6 +84,7 @@ class BatchProcessor(object):
         """
         out = np.memmap(output_path, output_dtype, 'w+',
                         shape=self.reader.data.shape)
+        self.logger.info('Out shape: {}'.format(out.shape))
 
         indexes = self.indexer.single_channel(force_complete_channel_batch,
                                               from_time, to_time,
@@ -94,6 +95,7 @@ class BatchProcessor(object):
             out_idx = idx if self.data_format == 'long' else idx[::-1]
             read = self.reader[idx]#function()
             self.logger.info('Read...')
+            self.logger.info('Saving in index... {}'.format(out_idx))
             out[out_idx] = read
             self.logger.info('Assigned...')
 
