@@ -100,7 +100,7 @@ class BatchProcessor(object):
                                               channels)
         for i, idx in enumerate(indexes):
             self.logger.debug('Processing channel {}...'.format(i))
-            res = function(self.reader[idx])
+            res = function(self.reader[idx], **kwargs)
             res.tofile(f)
 
         dtype = str(res.dtype)
@@ -142,7 +142,7 @@ class BatchProcessor(object):
         indexes = self.indexer.multi_channel(from_time, to_time, channels)
 
         for idx in indexes:
-            res = function(self.reader[idx])
+            res = function(self.reader[idx], **kwargs)
             res.tofile(f)
 
         dtype = str(res.dtype)

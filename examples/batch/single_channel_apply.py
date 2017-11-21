@@ -1,6 +1,11 @@
+import logging
 import os
 
 from yass.batch.new import BatchProcessor
+from yass.batch import RecordingsReader
+from yass.preprocess.filter import butterworth
+
+logging.basicConfig(level=logging.INFO)
 
 
 path_to_neuropixel_data = (os.path.expanduser('~/data/ucl-neuropixel'
@@ -11,13 +16,11 @@ path_to_filtered_data = (os.path.expanduser('~/data/ucl-neuropixel'
 
 bp = BatchProcessor(path_to_neuropixel_data,
                     dtype='int16', n_channels=385, data_format='wide',
-                    max_memory='1MB')
+                    max_memory='500MB')
 
 
+bp.single_channel_apply(butterworth, path_to_filtered_data,
+                        low_freq=300, high_factor=0.1,
+                        order=3, sampling_freq=30000)
 
-bp_long = BatchProcessor(path_to_long,
-                         dtype='int64', n_channels=50, data_format='long',
-                         max_memory='500MB')
-
-path = bp_long.single_channel_apply(dummy, path_to_out)
-
+filtered = RecordingsReader(path_to_filtered_data)
