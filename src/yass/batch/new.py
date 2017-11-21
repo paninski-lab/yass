@@ -151,7 +151,11 @@ class BatchProcessor(object):
                                               channels)
         for i, idx in enumerate(indexes):
             self.logger.debug('Processing channel {}...'.format(i))
-            res = function(self.reader[idx], **kwargs)
+            self.logger.debug('Reading batch...')
+            subset = self.reader[idx]
+            self.logger.debug('Applying function...')
+            res = function(subset, **kwargs)
+            self.logger.debug('Writing to disk...')
             res.tofile(f)
 
         dtype = str(res.dtype)
