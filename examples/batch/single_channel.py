@@ -1,9 +1,15 @@
+import os
+
 from yass.batch.new import BatchProcessor
 
 
-bp = BatchProcessor('/Users/Edu/data/yass-benchmarks/wide.bin',
-                    dtype='float64', channels=50, data_format='wide',
-                    max_memory='5MB')
+path_to_neuropixel_data = (os.path.expanduser('~/data/ucl-neuropixel'
+                           '/rawDataSample.bin'))
+
+
+bp = BatchProcessor(path_to_neuropixel_data,
+                    dtype='int16', n_channels=385, data_format='wide',
+                    max_memory='1MB')
 
 # there are two ways of traversing the data: single_channel and multi_channel
 # single_channel means that the data in a single batch comes from only one
