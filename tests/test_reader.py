@@ -6,7 +6,7 @@ import tempfile
 import numpy as np
 import pytest
 
-from yass import Indexer
+from yass.batch import RecordingsReader
 
 
 @pytest.fixture
@@ -52,9 +52,10 @@ def path_to_wide(request):
 
 
 def test_can_read_in_long_format(path_to_long, path_to_tests):
-    indexer = Indexer(path_to_long, n_channels=10,
-                      mode='long', dtype='float64')
-    res = indexer.read(observations=(1000, 1020), channels=(1, 5))
+    indexer = RecordingsReader(path_to_long, n_channels=10,
+                               data_format='long', dtype='float64',
+                               mmap=False)
+    res = indexer[1000:1020, 1:5]
     expected = np.load(os.path.join(path_to_tests,
                        'data/test_indexer/long.npy'))
 
@@ -62,9 +63,10 @@ def test_can_read_in_long_format(path_to_long, path_to_tests):
 
 
 def test_can_read_in_wide_format(path_to_wide, path_to_tests):
-    indexer = Indexer(path_to_wide, n_channels=10,
-                      mode='wide', dtype='float64')
-    res = indexer.read(observations=(1000, 1020), channels=(1, 5))
+    indexer = RecordingsReader(path_to_wide, n_channels=10,
+                               data_format='wide', dtype='float64',
+                               mmap=False)
+    res = indexer[1000:1020, 1:5]
     expected = np.load(os.path.join(path_to_tests,
                        'data/test_indexer/wide.npy'))
 

@@ -1,10 +1,14 @@
+import os
+import yaml
 import numpy as np
 
 
 class RecordingsReader(object):
     """
-    Neural recordings reader, supports wide and long data. Uses numpy.memmap
-    under the hood to reduce memory usage
+    Neural recordings reader, supports wide and long data. If a file with the
+    same name but yaml extension exists in the directory it looks for
+    dtype, channels and data_format, otherwise you need to pass the parameters
+    in the constructor
 
     Parameters
     ----------
@@ -14,12 +18,16 @@ class RecordingsReader(object):
     dtype: str
         Numpy dtype
 
-    channels: int
+    n_channels: int
         Number of channels
 
     data_format: str
         Data format, it can be either 'long' (observations, channels) or
         'wide' (channels, observations)
+
+    mmap: bool
+        Whether to read the data using numpy.mmap, otherwise it reads
+        the data using numpy.fromfile
 
     Raises
     ------
@@ -33,28 +41,54 @@ class RecordingsReader(object):
     .. literalinclude:: ../../examples/reader.py
     """
 
-    def __init__(self, path_to_recordings, dtype, channels,
-                 data_format):
-        self.data = np.memmap(path_to_recordings, dtype=dtype)
+    def __init__(self, path_to_recordings, dtype=None, n_channels=None,
+                 data_format=None, mmap=True):
+
+        path_to_yaml = path_to_recordings.replace('.bin', '.yaml')
+
+        if (not os.path.isfile(path_to_yaml) and (dtype is None or
+           n_channels is None or data_format is None)):
+            raise ValueError('One or more of dtype, channels or data_format '
+                             'are None, this is only allowed when a yaml '
+                             'file is present in the same location as '
+                             'the bin file, but no {} file exists'
+                             .format(path_to_yaml))
+        elif (os.path.isfile(path_to_yaml) and dtype is None and
+              n_channels is None and data_format is None):
+            with open(path_to_yaml) as f:
+                params = yaml.load(f)
+
+            dtype = params['dtype']
+            n_channels = params['n_channels']
+            data_format = params['data_format']
+
+        loader = np.memmap if mmap else np.fromfile
+        self.data = loader(path_to_recordings, dtype=dtype)
         self.data_format = data_format
-        self._channels = channels
+        self._n_channels = n_channels
 
-        if len(self.data) % channels:
+        if len(self.data) % n_channels:
             raise ValueError('Wrong dimensions, length of the data does not '
-                             'match number of channels (observations % '
-                             'channels != 0, verify that the number of '
-                             'channels and/or the dtype are correct')
+                             'match number of n_channels (observations % '
+                             'n_channels != 0, verify that the number of '
+                             'n_channels and/or the dtype are correct')
 
-        self._observations = int(len(self.data)/channels)
+        self._n_observations = int(len(self.data)/n_channels)
 
-        dim = ((channels, self._observations) if data_format == 'wide' else
-               (self._observations, channels))
+        dim = ((n_channels, self._n_observations) if data_format == 'wide' else
+               (self._n_observations, n_channels))
 
         self.data = self.data.reshape(dim)
 
     def __getitem__(self, key):
         key = key if self.data_format == 'long' else key[::-1]
         return self.data[key]
+
+    def __repr__(self):
+        return ('Reader for recordings with {:,} observations and {:,} '
+                'channels in "{}" format'
+                .format(self.observations, self.channels,
+                        self.data_format))
 
     @property
     def shape(self):
@@ -63,8 +97,8 @@ class RecordingsReader(object):
 
     @property
     def observations(self):
-        return self._observations
+        return self._n_observations
 
     @property
     def channels(self):
-        return self._channels
+        return self._n_channels

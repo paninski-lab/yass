@@ -1,6 +1,7 @@
+import numbers
 import logging
 
-import numpy as np
+import yaml
 
 from . import IndexGenerator, RecordingsReader
 
@@ -17,7 +18,7 @@ class BatchProcessor(object):
     dtype: str
         Numpy dtype
 
-    channels: int
+    n_channels: int
         Number of channels
 
     data_format: str
@@ -37,10 +38,10 @@ class BatchProcessor(object):
     Examples
     --------
     """
-    def __init__(self, path_to_recordings, dtype, channels,
+    def __init__(self, path_to_recordings, dtype, n_channels,
                  data_format, max_memory):
         self.data_format = data_format
-        self.reader = RecordingsReader(path_to_recordings, dtype, channels,
+        self.reader = RecordingsReader(path_to_recordings, dtype, n_channels,
                                        data_format)
         self.indexer = IndexGenerator(self.reader.observations,
                                       self.reader.channels,
@@ -66,10 +67,9 @@ class BatchProcessor(object):
         indexes = self.indexer.multi_channel(from_time, to_time, channels)
 
         for idx in indexes:
-            # print('index', idx, self.reader[idx].shape)
             yield self.reader[idx]
 
-    def single_channel_apply(self, function, output_path, output_dtype,
+    def single_channel_apply(self, function, output_path,
                              force_complete_channel_batch=True,
                              from_time=None, to_time=None, channels='all',
                              **kwargs):
@@ -80,30 +80,41 @@ class BatchProcessor(object):
         on the function implementation, this is an important thing to consider
         if the transformation changes the data's dtype (e.g. converts int16 to
         float64), which means that a chunk of 1MB in int16 will have a size
-        of 4MB in float64. Take that into account when setting max_memory
+        of 4MB in float64. Take that into account when setting max_memory.
+
+        For performance reasons, outputs data in 'wide' format.
         """
-        out = np.memmap(output_path, output_dtype, 'w+',
-                        shape=self.reader.data.shape)
-        self.logger.info('Out shape: {}'.format(out.shape))
+        f = open(output_path, 'wb')
 
         indexes = self.indexer.single_channel(force_complete_channel_batch,
                                               from_time, to_time,
                                               channels)
         for i, idx in enumerate(indexes):
-            self.logger.info('Processing index {}, {}...'.format(i, idx))
-            # TODO: decide what to do with the flipped indexes...
-            # out_idx = idx if self.data_format == 'long' else idx[::-1]
-            read = self.reader[idx]#function()
-            self.logger.info('Read...')
-            self.logger.info('Saving in index... {}'.format(out_idx))
-            out[out_idx] = read
-            self.logger.info('Assigned...')
+            self.logger.debug('Processing channel {}...'.format(i))
+            res = function(self.reader[idx])
+            res.tofile(f)
 
-        # out.flush()
+        dtype = str(res.dtype)
 
-        return output_dtype, output_path
+        if channels == 'all':
+            n_channels = self.reader.channels
+        elif isinstance(channels, numbers.Integral):
+            n_channels = 1
+        else:
+            n_channels = len(channels)
 
-    def multi_channel_apply(self, function, output_path, output_dtype,
+        f.close()
+
+        # save yaml file with params
+        path_to_yaml = output_path.replace('.bin', '.yaml')
+
+        with open(path_to_yaml, 'w') as f:
+            yaml.dump(dict(dtype=dtype, n_channels=n_channels,
+                           data_format='wide'), f)
+
+        return output_path
+
+    def multi_channel_apply(self, function, output_path,
                             from_time=None, to_time=None, channels='all',
                             **kwargs):
         """
@@ -114,17 +125,33 @@ class BatchProcessor(object):
         if the transformation changes the data's dtype (e.g. converts int16 to
         float64), which means that a chunk of 1MB in int16 will have a size
         of 4MB in float64. Take that into account when setting max_memory
+
+        For performance reasons, outputs data in 'long' format.
         """
-        out = np.memmap(output_path, output_dtype, 'w+',
-                        shape=self.reader.data.shape)
+        f = open(output_path, 'wb')
 
         indexes = self.indexer.multi_channel(from_time, to_time, channels)
 
         for idx in indexes:
-            # TODO: decide what to do with the flipped indexes...
-            out_idx = idx if self.data_format == 'long' else idx[::-1]
-            out[out_idx] = function(self.reader[idx])
+            res = function(self.reader[idx])
+            res.tofile(f)
 
-        out.flush()
+        dtype = str(res.dtype)
 
-        return output_dtype, output_path
+        f.close()
+
+        if channels == 'all':
+            n_channels = self.reader.channels
+        elif isinstance(channels, numbers.Integral):
+            n_channels = 1
+        else:
+            n_channels = len(channels)
+
+        # save yaml file with params
+        path_to_yaml = output_path.replace('.bin', '.yaml')
+
+        with open(path_to_yaml, 'w') as f:
+            yaml.dump(dict(dtype=dtype, n_channels=n_channels,
+                           data_format='long'), f)
+
+        return output_path
