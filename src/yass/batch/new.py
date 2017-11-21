@@ -100,6 +100,7 @@ class BatchProcessor(object):
         """
         f = open(output_path, 'wb')
 
+        self.reader.output_shape = 'wide'
         indexes = self.indexer.single_channel(force_complete_channel_batch,
                                               from_time, to_time,
                                               channels)
@@ -149,6 +150,7 @@ class BatchProcessor(object):
         """
         f = open(output_path, 'wb')
 
+        self.reader.output_shape = 'long'
         indexes = self.indexer.multi_channel(from_time, to_time, channels)
 
         for idx in indexes:
