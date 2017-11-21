@@ -34,9 +34,6 @@ class BatchProcessor(object):
     ValueError
         If dimensions do not match according to the file size, dtype and
         number of channels
-
-    Examples
-    --------
     """
     def __init__(self, path_to_recordings, dtype, n_channels,
                  data_format, max_memory):
@@ -52,6 +49,12 @@ class BatchProcessor(object):
 
     def single_channel(self, force_complete_channel_batch=True, from_time=None,
                        to_time=None, channels='all'):
+        """
+        Examples
+        --------
+
+        .. literalinclude:: ../../examples/batch/single_channel.py
+        """
         indexes = self.indexer.single_channel(force_complete_channel_batch,
                                               from_time, to_time,
                                               channels)
@@ -64,6 +67,12 @@ class BatchProcessor(object):
                 yield self.reader[idx], channel_idx
 
     def multi_channel(self, from_time=None, to_time=None, channels='all'):
+        """
+        Examples
+        --------
+
+        .. literalinclude:: ../../examples/batch/multi_channel.py
+        """
         indexes = self.indexer.multi_channel(from_time, to_time, channels)
 
         for idx in indexes:
