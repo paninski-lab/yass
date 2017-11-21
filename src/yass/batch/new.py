@@ -92,14 +92,14 @@ class BatchProcessor(object):
         for i, idx in enumerate(indexes):
             self.logger.info('Processing index {}, {}...'.format(i, idx))
             # TODO: decide what to do with the flipped indexes...
-            out_idx = idx if self.data_format == 'long' else idx[::-1]
+            # out_idx = idx if self.data_format == 'long' else idx[::-1]
             read = self.reader[idx]#function()
             self.logger.info('Read...')
             self.logger.info('Saving in index... {}'.format(out_idx))
             out[out_idx] = read
             self.logger.info('Assigned...')
 
-        out.flush()
+        # out.flush()
 
         return output_dtype, output_path
 

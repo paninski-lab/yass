@@ -47,10 +47,10 @@ def dummy(arr):
 
 x_long = dummy(big_long[(slice(0, 2000000, None), 1)])
 big_long[(slice(0, 2000000, None), 1)] = x_long
+big_long.flush()
 
 x_long = dummy(big_long[:, 1])
 big_long[:, 1] = x_long
-
 
 
 bp_long = BatchProcessor(path_to_long,
