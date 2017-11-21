@@ -8,7 +8,8 @@ class RecordingsReader(object):
     Neural recordings reader, supports wide and long data. If a file with the
     same name but yaml extension exists in the directory it looks for dtype,
     channels and data_format, otherwise you need to pass the parameters in the
-    constructor.
+    constructor. Independent of the data format, this class always returns
+    data in 'wide' format.
 
     Parameters
     ----------
@@ -90,7 +91,8 @@ class RecordingsReader(object):
 
     def __getitem__(self, key):
         key = key if self._data_format == 'long' else key[::-1]
-        return self._data[key]
+        subset = self._data[key]
+        return subset if self._data_format == 'wide' else subset.T
 
     def __repr__(self):
         return ('Reader for recordings with {:,} observations and {:,} '

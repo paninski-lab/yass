@@ -55,9 +55,10 @@ def test_can_read_in_long_format(path_to_long, path_to_tests):
     indexer = RecordingsReader(path_to_long, n_channels=10,
                                data_format='long', dtype='float64',
                                mmap=False)
-    res = indexer[1000:1020, 1:5]
+    res = indexer[1000:1020, [1, 5]]
+    # reader always returns data in wide format
     expected = np.load(os.path.join(path_to_tests,
-                       'data/test_indexer/long.npy'))
+                       'data/test_indexer/wide.npy'))
 
     np.testing.assert_equal(res, expected)
 
@@ -66,7 +67,7 @@ def test_can_read_in_wide_format(path_to_wide, path_to_tests):
     indexer = RecordingsReader(path_to_wide, n_channels=10,
                                data_format='wide', dtype='float64',
                                mmap=False)
-    res = indexer[1000:1020, 1:5]
+    res = indexer[1000:1020, [1, 5]]
     expected = np.load(os.path.join(path_to_tests,
                        'data/test_indexer/wide.npy'))
 
