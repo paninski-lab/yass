@@ -1,6 +1,11 @@
 import numpy as np
 
 
+def _standarize(rec, srate):
+    _sd = sd(rec, srate)
+    return standarize(rec, _sd)
+
+
 def sd(rec, srate):
     """Determine standard deviation of noise in each channel
 

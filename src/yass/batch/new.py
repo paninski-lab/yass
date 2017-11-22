@@ -172,11 +172,12 @@ class BatchProcessor(object):
         # save yaml file with params
         path_to_yaml = output_path.replace('.bin', '.yaml')
 
-        with open(path_to_yaml, 'w') as f:
-            yaml.dump(dict(dtype=dtype, n_channels=n_channels,
-                           data_format='wide'), f)
+        params = dict(dtype=dtype, n_channels=n_channels, data_format='wide')
 
-        return output_path
+        with open(path_to_yaml, 'w') as f:
+            yaml.dump(params, f)
+
+        return output_path, params
 
     def multi_channel_apply(self, function, output_path,
                             from_time=None, to_time=None, channels='all',
@@ -252,8 +253,9 @@ class BatchProcessor(object):
         # save yaml file with params
         path_to_yaml = output_path.replace('.bin', '.yaml')
 
-        with open(path_to_yaml, 'w') as f:
-            yaml.dump(dict(dtype=dtype, n_channels=n_channels,
-                           data_format='long'), f)
+        params = dict(dtype=dtype, n_channels=n_channels, data_format='long')
 
-        return output_path
+        with open(path_to_yaml, 'w') as f:
+            yaml.dump(params, f)
+
+        return output_path, params
