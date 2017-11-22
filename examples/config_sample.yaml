@@ -5,7 +5,6 @@ data:
   root_folder: data/
   recordings: neuropixel.bin
   geometry: neuropixel_channels.npy
-  format: long
 
 resources:
   max_memory: 1000000000
@@ -16,6 +15,7 @@ recordings:
   n_channels: 10
   spatial_radius: 70
   spike_size_ms: 1
+  format: long
 
 preprocess:
   filter: True

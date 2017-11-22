@@ -58,7 +58,7 @@ fields_validator:
       function: expand_asset_model
       type: str
 
-  data:
+  recordings:
     format:
       values: [wide, long]
       type: str

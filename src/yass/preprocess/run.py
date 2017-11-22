@@ -9,6 +9,7 @@ import numpy as np
 
 from .. import read_config
 from ..batch import BatchProcessorFactory
+from ..batch import PipedTransformation, BatchPipeline
 
 from .detect import threshold_detection
 from .filter import whitening_matrix, whitening, localized_whitening_matrix, whitening_score, butterworth
@@ -56,6 +57,10 @@ def run():
     # initialize processor for raw data
     path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
     dtype = CONFIG.recordings.dtype
+
+
+    # pipeline = BatchPipeline(path, dtype, CONFIG.recordings.n_channels,
+    #                          CONFIG.recordings.format)
 
     # initialize factory
     factory = BatchProcessorFactory(path_to_file=None,

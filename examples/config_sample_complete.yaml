@@ -13,9 +13,6 @@ data:
   recordings: neuropixel.bin
   # channel geometry filename
   geometry: neuropixel_channels.npy
-  # data format: wide (number of channel x number of observations)
-  # or long (number of oservations x number of channels)
-  format: long
 
 resources:
   # maximum memory allowed
@@ -32,6 +29,9 @@ recordings:
   spatial_radius: 70
   # temporal length of wavforms in ms
   spike_size_ms: 1
+  # recordings format: wide (number of channel x number of observations)
+  # or long (number of oservations x number of channels)
+  format: long
 
 preprocess:
   # apply butterworth filter in the preprocessing step
