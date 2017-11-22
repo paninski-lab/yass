@@ -96,8 +96,12 @@ class RecordingsReader(object):
         self._data = self._data.reshape(dim)
 
     def __getitem__(self, key):
+        # update key for the buffer
         key = key if self._data_format == 'long' else key[::-1]
+        # TODO: make sure subset is an actual numpy array so modifying it
+        # does not affect the original file (we need to add the buffer)
         subset = self._data[key]
+        # add zero buffer
 
         return subset if self.data_format == self.output_shape else subset.T
 
@@ -143,3 +147,61 @@ class RecordingsReader(object):
         """Underlying numpy data
         """
         return self._data
+
+
+class BufferGenerator(object):
+
+    def __init__(self, n_observations, data_format, buffer_size):
+        self.n_observations = n_observations
+        self.data_format = data_format
+        self.buffer_size = buffer_size
+
+    def _add_zero_buffer(self, data, size, option):
+        """Add zeros to an array
+
+        data: np.ndarray
+            The data that will be modified
+
+        size: int
+            Number of observations to add
+
+        option: str ('start', 'end')
+            Where to add the buffer
+        """
+        rows, cols = data.shape
+        buff_shape = ((size, cols) if self.data_format == 'long'
+                      else (rows, size))
+        buff = np.zeros(buff_shape)
+
+        append = np.vstack if self.data_format == 'long' else np.hstack
+
+        if option == 'start':
+            return append([buff, data])
+        elif option == 'end':
+            return append([data, buff])
+
+    def update_key_with_buffer(self, key):
+        t_slice, ch_slice = key
+        t_start, t_end = t_slice.start, t_slice.stop
+
+        t_start_new = t_start - self.buffer_size
+        t_end_new = t_end + self.buffer_size
+
+        buffer_missing_start = 0
+        buffer_missing_end = 0
+
+        if t_start_new < 0:
+            buffer_missing_start = abs(t_start_new)
+            t_start_new = 0
+
+        if t_end_new > self.n_observations:
+            buffer_missing_end = t_end_new - self.n_observations
+            t_end_new = self.n_observations
+
+        return ((slice(t_start_new, t_end_new, None), ch_slice),
+                (buffer_missing_start, buffer_missing_end))
+
+    def add_buffer(self, data, start, end):
+        data = self._add_zero_buffer(data, start, 'start')
+        data = self._add_zero_buffer(data, end, 'end')
+        return data
