@@ -1,6 +1,6 @@
 import numpy as np
 
-from yass.batch.reader import BufferGenerator
+from yass.batch.buffer import BufferGenerator
 
 
 def test_updates_slice_when_enough_obs_start_end():

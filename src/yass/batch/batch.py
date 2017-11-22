@@ -30,6 +30,9 @@ class BatchProcessor(object):
         Max memory to use in each batch, interpreted as bytes if int,
         if string, it can be any of {N}KB, {N}MB or {N}GB
 
+    buffer: int, optional
+        Buffer size, defaults to 0
+
     Raises
     ------
     ValueError
@@ -37,7 +40,7 @@ class BatchProcessor(object):
         number of channels
     """
     def __init__(self, path_to_recordings, dtype, n_channels,
-                 data_format, max_memory):
+                 data_format, max_memory, buffer=0):
         self.data_format = data_format
         self.reader = RecordingsReader(path_to_recordings, dtype, n_channels,
                                        data_format)
