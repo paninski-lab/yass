@@ -5,6 +5,7 @@ import yaml
 
 from .generator import IndexGenerator
 from .reader import RecordingsReader
+from .buffer import BufferGenerator
 
 
 class BatchProcessor(object):
@@ -30,7 +31,7 @@ class BatchProcessor(object):
         Max memory to use in each batch, interpreted as bytes if int,
         if string, it can be any of {N}KB, {N}MB or {N}GB
 
-    buffer: int, optional
+    buffer_size: int, optional
         Buffer size, defaults to 0
 
     Raises
@@ -40,7 +41,7 @@ class BatchProcessor(object):
         number of channels
     """
     def __init__(self, path_to_recordings, dtype, n_channels,
-                 data_format, max_memory, buffer=0):
+                 data_format, max_memory, buffer_size=0):
         self.data_format = data_format
         self.reader = RecordingsReader(path_to_recordings, dtype, n_channels,
                                        data_format)
@@ -48,6 +49,9 @@ class BatchProcessor(object):
                                       self.reader.channels,
                                       dtype,
                                       max_memory)
+        self.buffer_generator = BufferGenerator(self.reader.observations,
+                                                self.data_format,
+                                                buffer_size=buffer_size)
 
         self.logger = logging.getLogger(__name__)
 
@@ -84,17 +88,25 @@ class BatchProcessor(object):
 
         Returns
         -------
-        A generator that yields indexes
+        generator:
+            A slice that yields indexes
 
         Examples
         --------
-
         .. literalinclude:: ../../examples/batch/multi_channel.py
         """
         indexes = self.indexer.multi_channel(from_time, to_time, channels)
 
         for idx in indexes:
-            yield self.reader[idx]
+            if self.buffer_size:
+                (dx_new,
+                 (buff_start, buff_end)) = (self.buffer_generator
+                                            .update_key_with_buffer(idx))
+                subset = self.reader[idx]
+                yield self.buffer_generator.add_buffer(subset, buff_start,
+                                                       buff_end)
+            else:
+                yield self.reader[idx]
 
     def single_channel_apply(self, function, output_path,
                              force_complete_channel_batch=True,
