@@ -1,10 +1,48 @@
 import numbers
 import logging
 
+import numpy as np
 import yaml
 
 from .generator import IndexGenerator
 from .reader import RecordingsReader
+
+
+class BufferGenerator(object):
+
+    def __init__(self, data, buffer_size):
+        self.data = data
+        self.buffer_size = buffer_size
+
+    def _add_zero_buffer(self, rec, option):
+        """Add zeros to an array
+
+        rec: np.ndarray
+            The data that will be modified
+
+        size: int
+            Number of observations to add
+
+        option: str ('left', 'right', 'both')
+            Where to add the buffer
+        """
+        buff = np.zeros((self.buffer_size, rec.shape[1]))
+
+        if option == 'left':
+            return np.append(buff, rec, axis=0)
+        elif option == 'right':
+            return np.append(rec, buff, axis=0)
+        elif option == 'both':
+            return np.concatenate((buff, rec, buff), axis=0)
+
+    def both_sides(index):
+        pass
+
+    def left(index):
+        pass
+
+    def right(index):
+        pass
 
 
 class BatchProcessor(object):
