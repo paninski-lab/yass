@@ -150,6 +150,20 @@ class RecordingsReader(object):
 
 
 class BufferGenerator(object):
+    """Utility class to generate buffers around numpy 2D arrays
+
+    Parameters
+    ----------
+    n_observations: int
+        Number of observations in the full dataset
+
+    data_format: str
+        Data format, either 'wide' or 'long'
+
+    buffer_size: int
+        Buffer size (in number of observations) to be added at the beginning
+        and at the end
+    """
 
     def __init__(self, n_observations, data_format, buffer_size):
         self.n_observations = n_observations
@@ -159,7 +173,9 @@ class BufferGenerator(object):
     def _add_zero_buffer(self, data, size, option):
         """Add zeros to an array
 
-        data: np.ndarray
+        Parameters
+        ----------
+        data: np.ndarray (2D)
             The data that will be modified
 
         size: int
@@ -167,6 +183,11 @@ class BufferGenerator(object):
 
         option: str ('start', 'end')
             Where to add the buffer
+
+        Returns
+        -------
+        numpy.ndarray
+            An array with zero buffer
         """
         rows, cols = data.shape
         buff_shape = ((size, cols) if self.data_format == 'long'
@@ -181,6 +202,24 @@ class BufferGenerator(object):
             return append([data, buff])
 
     def update_key_with_buffer(self, key):
+        """
+        Updates a slice object to include a buffer in the first axis
+
+        Parameters
+        ----------
+        key: tuple
+            A tuple of slice objects
+
+        Returns
+        -------
+        slice: tuple, size 2
+            A new slice object update to include the buffer at the beginning
+            and end of the slice
+
+        missing_buffer: tuple, size 2
+            A tuple indicating if there are missing observations at the start
+            or end of the slice to complete the buffer size
+        """
         t_slice, ch_slice = key
         t_start, t_end = t_slice.start, t_slice.stop
 
@@ -202,6 +241,21 @@ class BufferGenerator(object):
                 (buffer_missing_start, buffer_missing_end))
 
     def add_buffer(self, data, start, end):
+        """Add zero buffer
+
+        Parameters
+        ----------
+        data: numpy.ndarray
+            Data to be modified
+
+        start: int
+            How many zeros add before the data (left for 'wide' data, top
+            for 'long data')
+
+        end: int
+            How many zeros add after the data (right for 'wide' data and
+            bottom for 'long')
+        """
         data = self._add_zero_buffer(data, start, 'start')
         data = self._add_zero_buffer(data, end, 'end')
         return data
