@@ -6,15 +6,15 @@ import logging
 import os.path
 
 import numpy as np
+import yaml
 
 from .. import read_config
-from ..batch import BatchProcessorFactory
-from ..batch import PipedTransformation, BatchPipeline
+from ..batch import PipedTransformation, BatchPipeline, BatchProcessor
 
 from .detect import threshold_detection
-from .filter import whitening_matrix, whitening, localized_whitening_matrix, whitening_score, butterworth
+from .filter import whitening_matrix, whitening, localized_whitening_matrix, whitening_score, butterworth_single_channel
 from .score import get_score_pca, get_pca_suff_stat, get_pca_projection
-from .standarize import standarize, sd
+from .standarize import _standarize, standarize, sd
 from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
 
 # remove this
@@ -45,6 +45,7 @@ def run():
 
     .. literalinclude:: ../examples/preprocess.py
     """
+
     logger = logging.getLogger(__name__)
 
     start_time = datetime.datetime.now()
@@ -54,66 +55,58 @@ def run():
     CONFIG = read_config()
     whiten_file = open(os.path.join(CONFIG.data.root_folder, 'tmp/whiten.bin'), 'wb')
 
+    tmp = os.path.join(CONFIG.data.root_folder, 'tmp')
+
+    if not os.path.exists(tmp):
+        os.makedirs(tmp)
+
     # initialize processor for raw data
     path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
     dtype = CONFIG.recordings.dtype
 
-
-    # pipeline = BatchPipeline(path, dtype, CONFIG.recordings.n_channels,
-    #                          CONFIG.recordings.format)
-
-    # initialize factory
-    factory = BatchProcessorFactory(path_to_file=None,
-                                    dtype=None,
-                                    n_channels=CONFIG.recordings.n_channels,
-                                    max_memory=CONFIG.resources.max_memory,
-                                    buffer_size=None)
+    pipeline = BatchPipeline(path, dtype, CONFIG.recordings.n_channels,
+                             CONFIG.recordings.format,
+                             CONFIG.resources.max_memory, tmp,
+                             mode='single_channel_one_batch')
 
     if CONFIG.preprocess.filter == 1:
 
         _b = datetime.datetime.now()
-        # make batch processor for raw data -> buterworth -> filtered
-        bp = factory.make(path_to_file=path, dtype=dtype,
-                          buffer_size=0)
-        logger.info('Initialized butterworth batch processor: {}'
-                    .format(bp))
 
-        # run filtering
-        path = os.path.join(CONFIG.data.root_folder,  'tmp/filtered.bin')
-        dtype = bp.process_function(butterworth,
-                                    path,
-                                    CONFIG.filter.low_pass_freq,
-                                    CONFIG.filter.high_factor,
-                                    CONFIG.filter.order,
-                                    CONFIG.recordings.sampling_rate)
+        butterworth = PipedTransformation(butterworth_single_channel,
+                                          'filtered.bin', keep=True,
+                                           low_freq=CONFIG.filter.low_pass_freq,
+                                           high_factor=CONFIG.filter.high_factor,
+                                           order=CONFIG.filter.order,
+                                           sampling_freq=CONFIG.recordings.sampling_rate)
+
+        pipeline.add([butterworth])
+
         time['f'] += (datetime.datetime.now()-_b).total_seconds()
 
-    # TODO: cache computations
-    # make batch processor for filtered -> standarize -> standarized
     _b = datetime.datetime.now()
-    bp = factory.make(path_to_file=path, dtype=dtype, buffer_size=0)
 
-    # compute the standard deviation using the first batch only
-    batch1 = next(bp)
-    sd_ = sd(batch1, CONFIG.recordings.sampling_rate)
+    standarize_op = PipedTransformation(_standarize, 'standarized.bin',
+                                        keep=True,
+                                        srate=CONFIG.recordings.sampling_rate)
 
-    # make another batch processor
-    bp = factory.make(path_to_file=path, dtype=dtype, buffer_size=0)
-    logger.info('Initialized standarization batch processor: {}'
-                .format(bp))
+    pipeline.add([standarize_op])
 
-    # run standarization
-    path = os.path.join(CONFIG.data.root_folder,  'tmp/standarized.bin')
-    dtype = bp.process_function(standarize,
-                                path,
-                                sd_)
+    pipeline.run()
+
     time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
-    # create another batch processor for the rest of the pipeline
-    bp = factory.make(path_to_file=path, dtype=dtype,
-                      buffer_size=CONFIG.BUFF)
-    logger.info('Initialized preprocess batch processor: {}'
-                .format(bp))
+    path_to_standarized = os.path.join(tmp, 'standarized.bin')
+    path_to_params = os.path.join(tmp, 'standarized.yaml')
+
+    with open(path_to_params) as f:
+        params = yaml.load(f)
+
+    bp = BatchProcessor(path_to_standarized, params['dtype'],
+                        params['n_channels'], params['data_format'],
+                        CONFIG.resources.max_memory)
+
+    gen = bp.multi_channel()
 
     # initialize output variables
     get_score = 1
@@ -123,7 +116,7 @@ def run():
     pca_suff_stat = None
     spikes_per_channel = None
 
-    for i, batch in enumerate(bp):
+    for i, batch in enumerate(gen):
 
         # load nueral net detector if necessary:
         if CONFIG.spikes.detection == 'nn':

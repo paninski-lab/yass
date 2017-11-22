@@ -32,6 +32,7 @@ def butterworth_single_channel(ts, low_freq, high_factor, order,
     return lfilter(b, a, ts)
 
 
+# TODO: remove
 def butterworth(ts, low_freq, high_factor, order, sampling_freq):
     """Butterworth filter of for time series
 
