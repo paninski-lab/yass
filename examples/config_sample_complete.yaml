@@ -13,6 +13,9 @@ data:
   recordings: neuropixel.bin
   # channel geometry filename
   geometry: neuropixel_channels.npy
+  # data format: wide (number of channel x number of observations)
+  # or long (number of oservations x number of channels)
+  format: long
 
 resources:
   # maximum memory allowed

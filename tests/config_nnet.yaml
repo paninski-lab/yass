@@ -8,6 +8,7 @@ data:
   root_folder: tests/data
   recordings: neuropixel.bin
   geometry: geometry_fake.txt
+  format: long
 
 resources:
   max_memory: 1000000000

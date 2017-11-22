@@ -4,22 +4,22 @@ from .new import BatchProcessor
 
 
 class PipedTransformation(object):
+    """
+    function: function
+        Function to apply
+
+    output_name: str
+        Name of the file for the output
+
+    keep: bool, optional
+        Whether to keep the results from this step, otherwise the file is
+        deleted after the next transformation is done
+
+    **kwargs
+        Function kwargs
+    """
 
     def __init__(self, function, output_name, keep=False, **kwargs):
-        """
-        function: function
-            Function to apply
-
-        output_name: str
-            Name of the file for the output
-
-        keep: bool, optional
-            Whether to keep the results from this step, otherwise the file is
-            deleted after the next transformation is done
-
-        **kwargs
-            Function kwargs
-        """
         self.function = function
         self.output_name = output_name
         self._keep = keep

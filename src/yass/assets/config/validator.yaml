@@ -57,3 +57,9 @@ fields_validator:
     filename:
       function: expand_asset_model
       type: str
+
+  data:
+    format:
+      values: [wide, long]
+      type: str
+
