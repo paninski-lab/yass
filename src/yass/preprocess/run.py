@@ -117,8 +117,9 @@ def run():
 
     for i, batch in enumerate(gen):
 
-        if i > CONFIG.nPortion:
-            get_score = 0
+        # removed
+        # if i > CONFIG.nPortion:
+            # get_score = 0
 
         # process batch
         # spike index is defined as a location in each minibatch
