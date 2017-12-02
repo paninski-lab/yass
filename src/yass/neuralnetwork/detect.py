@@ -10,6 +10,14 @@ from ..geometry import order_channels_by_distance
 def nn_detection(X, T_batch, buff, neighChannels, geom,
                  n_features, temporal_window, th_detect, th_triage,
                  nnd, nnt):
+    """Detect spikes using a neural network
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
 
     T, C = X.shape
 

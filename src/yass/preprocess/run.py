@@ -63,7 +63,7 @@ def run():
                              CONFIG.resources.max_memory, tmp,
                              mode='single_channel_one_batch')
 
-    if CONFIG.preprocess.filter == 1:
+    if CONFIG.preprocess.filter:
 
         _b = datetime.datetime.now()
 
@@ -107,6 +107,23 @@ def run():
 
     gen = bp.multi_channel()
 
+    # run detector
+    # nnet detector returns scores
+    # threshold detector does not return scores, we need to compute them
+    # in another function
+    # can we split the logic? have one function for nn detection and another
+    # one for nnet scoring
+
+    # since the detector functions do not return one-to-one-data as in the
+    # filter/standarize/whiten transformations we may need the user to define
+    # a merge function to combine results from each batch
+
+    # to make migration easier, let's start refactoring this on a single batch
+    # run and then move to the batch processor implemetation
+    # TODO: add single batch nndetector here
+    # TODO: add single batch threshold detector here
+    # TODO: add single batch threshold scoring here
+
     # initialize output variables
     get_score = 1
     spike_index_clear = None
@@ -117,7 +134,8 @@ def run():
 
     for i, batch in enumerate(gen):
 
-        # removed
+        # TODO: ask peter, why would we only want to get score for a subset
+        # of the data?
         # if i > CONFIG.nPortion:
             # get_score = 0
 
@@ -125,7 +143,7 @@ def run():
         # spike index is defined as a location in each minibatch
         (si_clr_batch, score_batch, si_col_batch,
          pss_batch, spc_batch,
-         time) = process_batch(batch, get_score, CONFIG.BUFF, time)
+         time) = process_batch(batch, CONFIG.BUFF, time)
 
         # spike time w.r.t. to the whole recording
         si_clr_batch[:,0] = si_clr_batch[:,0] + i*CONFIG.batch_size - CONFIG.BUFF
@@ -175,7 +193,7 @@ def run():
     return score, spike_index_clear, spike_index_collision
 
 
-def process_batch(rec, get_score, BUFF, time):
+def process_batch(rec, BUFF, time):
     CONFIG = read_config()
 
     # nn detection
