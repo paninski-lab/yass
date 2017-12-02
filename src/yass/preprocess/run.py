@@ -17,10 +17,6 @@ from .score import get_score_pca, get_pca_suff_stat, get_pca_projection
 from .standarize import _standarize, standarize, sd
 from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
 
-# remove this
-Q = None
-Q_score = None
-
 
 def run():
     """Execute preprocessing pipeline
@@ -51,9 +47,7 @@ def run():
     start_time = datetime.datetime.now()
     time = {'f': 0, 's': 0, 'd': 0, 'w': 0, 'b': 0, 'e': 0}
 
-    # FIXME: remove this
     CONFIG = read_config()
-    whiten_file = open(os.path.join(CONFIG.data.root_folder, 'tmp/whiten.bin'), 'wb')
 
     tmp = os.path.join(CONFIG.data.root_folder, 'tmp')
 
@@ -92,6 +86,11 @@ def run():
 
     pipeline.add([standarize_op])
 
+    # TODO: add whitening
+    # what's the difference between filter.localized_whitening_matrix
+    # and filter whitening_matrix
+    # whiten_file = open(os.path.join(CONFIG.data.root_folder, 'tmp/whiten.bin'), 'wb')
+
     pipeline.run()
 
     time['s'] += (datetime.datetime.now()-_b).total_seconds()
@@ -118,16 +117,6 @@ def run():
 
     for i, batch in enumerate(gen):
 
-        # load nueral net detector if necessary:
-        if CONFIG.spikes.detection == 'nn':
-            nnDetector = NeuralNetDetector(CONFIG.neural_network_detector.filename,
-                                           CONFIG.neural_network_autoencoder.filename)
-            nnTriage = NeuralNetTriage(CONFIG.neural_network_triage.filename)
-            
-        else:
-            nnDetector = None
-            nnTriage = None
-
         if i > CONFIG.nPortion:
             get_score = 0
 
@@ -135,9 +124,7 @@ def run():
         # spike index is defined as a location in each minibatch
         (si_clr_batch, score_batch, si_col_batch,
          pss_batch, spc_batch,
-         time) = process_batch(batch, get_score, CONFIG.BUFF, time,
-                               nnDetector=nnDetector,
-                               nnTriage=nnTriage, whiten_file=whiten_file)
+         time) = process_batch(batch, get_score, CONFIG.BUFF, time)
 
         # spike time w.r.t. to the whole recording
         si_clr_batch[:,0] = si_clr_batch[:,0] + i*CONFIG.batch_size - CONFIG.BUFF
@@ -160,8 +147,6 @@ def run():
                 score = np.concatenate((score, score_batch), axis = 0)
             pca_suff_stat += pss_batch
             spikes_per_channel += spc_batch
-
-    whiten_file.close()
 
     if CONFIG.spikes.detection != 'nn':
         _b = datetime.datetime.now()
@@ -189,21 +174,19 @@ def run():
     return score, spike_index_clear, spike_index_collision
 
 
-def process_batch(rec, get_score, BUFF, time, nnDetector, nnTriage,
-                  whiten_file):
-    logger = logging.getLogger(__name__)
+def process_batch(rec, get_score, BUFF, time):
     CONFIG = read_config()
 
-    global Q
-    global Q_score
-    
-    # nn detection 
+    # nn detection
     if CONFIG.spikes.detection == 'nn':
+        nnDetector = NeuralNetDetector(CONFIG.neural_network_detector.filename,
+                                       CONFIG.neural_network_autoencoder.filename)
+        nnTriage = NeuralNetTriage(CONFIG.neural_network_triage.filename)
 
         # detect spikes
         _b = datetime.datetime.now()
-        (spike_index_clear, 
-         spike_index_collision, 
+        (spike_index_clear,
+         spike_index_collision,
          score) = nn_detection(rec, 10000, BUFF,
                                CONFIG.neighChannels,
                                CONFIG.geom,
@@ -231,16 +214,7 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, nnTriage,
         else:
             # whiten signal
             _b = datetime.datetime.now()
-            # get withening matrix per batch or onece in total
-            if CONFIG.preprocess.whiten_batchwise or Q is None:
-                Q_score = localized_whitening_matrix(rec, 
-                                               CONFIG.neighChannels, 
-                                               CONFIG.geom, 
-                                               CONFIG.spikeSize)
-            score = whitening_score(score, spike_index_clear[:,1], Q_score)
-
             time['w'] += (datetime.datetime.now()-_b).total_seconds()
-
 
     # threshold detection
     elif CONFIG.spikes.detection == 'threshold':
@@ -269,13 +243,8 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, nnTriage,
 
         # whiten recording
         _b = datetime.datetime.now()
-        if CONFIG.preprocess.whiten_batchwise or Q is None:
-            Q = whitening_matrix(rec, CONFIG.neighChannels,
-                                CONFIG.spikeSize)
-        rec = whitening(rec, Q)
 
         time['w'] += (datetime.datetime.now()-_b).total_seconds()
-
 
     # Remove spikes detectted in buffer area
     spike_index_clear = spike_index_clear[np.logical_and(
@@ -285,13 +254,7 @@ def process_batch(rec, get_score, BUFF, time, nnDetector, nnTriage,
       spike_index_collision[:, 0] > BUFF,
       spike_index_collision[:, 0] < (rec.shape[0] - BUFF))]
 
-
     _b = datetime.datetime.now()
-
-    # save whiten data
-    chunk = rec*CONFIG.scaleToSave
-    chunk.reshape(chunk.shape[0]*chunk.shape[1])
-    chunk.astype('int16').tofile(whiten_file)
 
     time['b'] += (datetime.datetime.now()-_b).total_seconds()
 
