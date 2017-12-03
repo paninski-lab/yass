@@ -9,7 +9,8 @@ import numpy as np
 import yaml
 
 from .. import read_config
-from ..batch import PipedTransformation, BatchPipeline, BatchProcessor
+from ..batch import (PipedTransformation, BatchPipeline, BatchProcessor,
+                     RecordingsReader)
 
 from .detect import threshold_detection
 from .filter import whitening_matrix, whitening, localized_whitening_matrix, whitening_score, butterworth_single_channel
@@ -96,6 +97,9 @@ def run():
 
     gen = bp.multi_channel()
 
+    standarized = RecordingsReader(path_to_standarized, mmap=False,
+                                   output_shape='long')
+
     # run detector
     # nnet detector returns scores
     # threshold detector does not return scores, we need to compute them
@@ -113,6 +117,56 @@ def run():
     # TODO: add single batch nndetector here
     # TODO: add single batch threshold detector here
     # TODO: add single batch threshold scoring here
+
+    # if CONFIG.spikes.detection == 'nn':
+    #     nnDetector = NeuralNetDetector(CONFIG.neural_network_detector.filename,
+    #                                    CONFIG.neural_network_autoencoder.filename)
+    #     nnTriage = NeuralNetTriage(CONFIG.neural_network_triage.filename)
+
+    #     # TODO: there is some buffer logic here we need to remove...
+    #     # detect spikes
+    #     (spike_index_clear,
+    #      spike_index_collision,
+    #      score) = nn_detection(standarized, 10000, CONFIG.BUFF,
+    #                            CONFIG.neighChannels, CONFIG.geom,
+    #                            CONFIG.spikes.temporal_features, 3,
+    #                            CONFIG.neural_network_detector.threshold_spike,
+    #                            CONFIG.neural_network_triage.threshold_collision,
+    #                            nnDetector,
+    #                            nnTriage)
+    spike_index = threshold_detection(standarized,
+                                      CONFIG.neighChannels,
+                                      CONFIG.spikeSize,
+                                      CONFIG.stdFactor)
+
+    # don't really understand the logic on this if statement...
+    # if get_score ==0:
+        # spike_index_clear = np.zeros((0,2), 'int32')
+        # spike_index_collision = spike_index
+    # else:
+        # spike_index_clear = spike_index
+        # spike_index_collision = np.zeros((0,2), 'int32')
+
+    spike_index_clear = spike_index
+    spike_index_collision = np.zeros((0, 2), 'int32')
+
+    # score = None
+
+    # get sufficient statistics for pca if we don't have projection matrix
+    pca_suff_stat, spikes_per_channel = get_pca_suff_stat(standarized,
+                                                          spike_index,
+                                                          CONFIG.spikeSize)
+
+    rot = get_pca_projection(pca_suff_stat, spikes_per_channel,
+                                 CONFIG.spikes.temporal_features, CONFIG.neighChannels)
+    score = get_score_pca(spike_index_clear, rot, CONFIG.neighChannels,
+                              CONFIG.geom, CONFIG.batch_size,
+                              CONFIG.BUFF, CONFIG.nBatches,
+                              os.path.join(CONFIG.data.root_folder,'tmp/whiten.bin'),
+                              CONFIG.scaleToSave)
+
+    # remove spikes from buff area
+
 
     return None, None, None
 

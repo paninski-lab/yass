@@ -23,6 +23,7 @@ def nn_detection(X, T_batch, buff, neighChannels, geom,
 
     T_small = np.min((T_batch, T))
     nbatches = int(np.ceil(float(T)/T_small))
+
     if nbatches == 1:
         buff = 0
 
@@ -84,7 +85,7 @@ def nn_detection(X, T_batch, buff, neighChannels, geom,
         counter_collision = 0
         for j in range(nbatches):
             if buff == 0:
-                X_batch = X
+                X_batch = X[:, :]
 
                 T_min = 0
                 T_max = T_small

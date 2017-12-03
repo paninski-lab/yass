@@ -96,6 +96,12 @@ class RecordingsReader(object):
         self._data = self._data.reshape(dim)
 
     def __getitem__(self, key):
+
+        # this happens when doung something like
+        # x[[1,2,3]] or x[np.array([1,2,3])]
+        if not isinstance(key, tuple):
+            key = (key, slice(None))
+
         key = key if self._data_format == 'long' else key[::-1]
         subset = self._data[key]
         return subset if self.data_format == self.output_shape else subset.T
