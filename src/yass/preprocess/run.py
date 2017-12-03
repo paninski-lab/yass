@@ -42,10 +42,7 @@ def run():
     .. literalinclude:: ../examples/preprocess.py
     """
 
-    logger = logging.getLogger(__name__)
-
-    start_time = datetime.datetime.now()
-    time = {'f': 0, 's': 0, 'd': 0, 'w': 0, 'b': 0, 'e': 0}
+    # logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
 
@@ -64,9 +61,6 @@ def run():
                              mode='single_channel_one_batch')
 
     if CONFIG.preprocess.filter:
-
-        _b = datetime.datetime.now()
-
         butterworth = PipedTransformation(butterworth_single_channel,
                                           'filtered.bin', keep=True,
                                            low_freq=CONFIG.filter.low_pass_freq,
@@ -75,10 +69,6 @@ def run():
                                            sampling_freq=CONFIG.recordings.sampling_rate)
 
         pipeline.add([butterworth])
-
-        time['f'] += (datetime.datetime.now()-_b).total_seconds()
-
-    _b = datetime.datetime.now()
 
     standarize_op = PipedTransformation(_standarize, 'standarized.bin',
                                         keep=True,
@@ -89,11 +79,10 @@ def run():
     # TODO: add whitening
     # what's the difference between filter.localized_whitening_matrix
     # and filter whitening_matrix
-    # whiten_file = open(os.path.join(CONFIG.data.root_folder, 'tmp/whiten.bin'), 'wb')
+    # whiten_file = open(os.path.join(CONFIG.data.root_folder,
+    # 'tmp/whiten.bin'), 'wb')
 
     pipeline.run()
-
-    time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
     path_to_standarized = os.path.join(tmp, 'standarized.bin')
     path_to_params = os.path.join(tmp, 'standarized.yaml')
@@ -120,6 +109,7 @@ def run():
 
     # to make migration easier, let's start refactoring this on a single batch
     # run and then move to the batch processor implemetation
+    # TODO: implement time logging inside batch processor
     # TODO: add single batch nndetector here
     # TODO: add single batch threshold detector here
     # TODO: add single batch threshold scoring here
@@ -142,8 +132,7 @@ def run():
         # process batch
         # spike index is defined as a location in each minibatch
         (si_clr_batch, score_batch, si_col_batch,
-         pss_batch, spc_batch,
-         time) = process_batch(batch, CONFIG.BUFF, time)
+         pss_batch, spc_batch) = process_batch(batch, CONFIG.BUFF)
 
         # spike time w.r.t. to the whole recording
         si_clr_batch[:,0] = si_clr_batch[:,0] + i*CONFIG.batch_size - CONFIG.BUFF
@@ -177,23 +166,10 @@ def run():
                               os.path.join(CONFIG.data.root_folder,'tmp/whiten.bin'),
                               CONFIG.scaleToSave)
 
-        time['e'] += (datetime.datetime.now()-_b).total_seconds()
-
-    # timing
-    current_time = datetime.datetime.now()
-    logger.info("Preprocessing done in {0} seconds.".format(
-                     (current_time-start_time).seconds))
-    logger.info("\tfiltering:\t{0} seconds".format(time['f']))
-    logger.info("\tstandardization:\t{0} seconds".format(time['s']))
-    logger.info("\tdetection:\t{0} seconds".format(time['d']))
-    logger.info("\twhitening:\t{0} seconds".format(time['w']))
-    logger.info("\tsaving recording:\t{0} seconds".format(time['b']))
-    logger.info("\tgetting waveforms:\t{0} seconds".format(time['e']))
-
     return score, spike_index_clear, spike_index_collision
 
 
-def process_batch(rec, BUFF, time):
+def process_batch(rec, BUFF):
     CONFIG = read_config()
 
     # nn detection
@@ -221,8 +197,6 @@ def process_batch(rec, BUFF, time):
         # statistics for pca
         pca_suff_stat = 0
         spikes_per_channel = 0
-
-        time['d'] += (datetime.datetime.now()-_b).total_seconds()
 
         if get_score ==0:
             spike_index_clear = np.zeros((0,2), 'int32')
@@ -258,12 +232,8 @@ def process_batch(rec, BUFF, time):
         pca_suff_stat, spikes_per_channel = get_pca_suff_stat(rec, spike_index,
                                                           CONFIG.spikeSize)
 
-        time['d'] += (datetime.datetime.now()-_b).total_seconds()
-
         # whiten recording
         _b = datetime.datetime.now()
-
-        time['w'] += (datetime.datetime.now()-_b).total_seconds()
 
     # Remove spikes detectted in buffer area
     spike_index_clear = spike_index_clear[np.logical_and(
@@ -275,7 +245,5 @@ def process_batch(rec, BUFF, time):
 
     _b = datetime.datetime.now()
 
-    time['b'] += (datetime.datetime.now()-_b).total_seconds()
-
     return (spike_index_clear, score, spike_index_collision,
-        pca_suff_stat, spikes_per_channel, time)
+        pca_suff_stat, spikes_per_channel)
