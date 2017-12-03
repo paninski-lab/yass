@@ -165,10 +165,11 @@ def run():
                               os.path.join(CONFIG.data.root_folder,'tmp/whiten.bin'),
                               CONFIG.scaleToSave)
 
-    # remove spikes from buff area
+    # TODO: remove spikes from buff area
+    # TODO: spike time w.r.t. to the whole recording
 
-
-    return None, None, None
+    return (spike_index_clear, score, spike_index_collision, pca_suff_stat,
+            spikes_per_channel)
 
     # initialize output variables
     get_score = 1
