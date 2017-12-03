@@ -114,6 +114,8 @@ def run():
     # TODO: add single batch threshold detector here
     # TODO: add single batch threshold scoring here
 
+    return None, None, None
+
     # initialize output variables
     get_score = 1
     spike_index_clear = None

@@ -43,6 +43,7 @@ class BatchProcessor(object):
     def __init__(self, path_to_recordings, dtype, n_channels,
                  data_format, max_memory, buffer_size=0):
         self.data_format = data_format
+        self.buffer_size = buffer_size
         self.reader = RecordingsReader(path_to_recordings, dtype, n_channels,
                                        data_format)
         self.indexer = IndexGenerator(self.reader.observations,
