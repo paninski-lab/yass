@@ -114,12 +114,6 @@ def whitening(ts, Q):
     return np.matmul(ts, Q.transpose())
 
 
-def whiten(ts, neighbors, spike_size):
-    Q = whitening_matrix(ts, neighbors, spike_size)
-    return whitening(ts, Q)
-
-
-
 def localized_whitening_matrix(ts, neighbors, geom, spike_size):
     """Spatial whitening filter for time series
 
