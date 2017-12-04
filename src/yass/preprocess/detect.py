@@ -6,6 +6,23 @@ import numpy as np
 from ..geometry import n_steps_neigh_channels
 
 
+def single_channel_threshold_detection(rec, neighbors, spike_size, std_factor):
+    """Threshold-based spike detection
+
+    Parameters
+    ----------
+    rec: np.ndarray
+        One dimensional array with the recordings for a single channel
+    neighbors: np.ndarray
+        Neighbors matrix, two dimensional array
+    spike_size: int
+        Spike size
+    std_factor: ?
+        ?
+    """
+    pass
+
+
 def threshold_detection(rec, neighbors, spike_size, std_factor):
     """Threshold-based spike detection
 
@@ -35,8 +52,10 @@ def threshold_detection(rec, neighbors, spike_size, std_factor):
 
     for c in range(C):
         idx = np.logical_and(rec[:, c] < -th, np.r_[True, rec[1:, c]
-                                                    < rec[:-1, c]] & np.r_[rec[:-1, c] < rec[1:, c], True])
+                             < rec[:-1, c]] & np.r_[rec[:-1, c]
+                             < rec[1:, c], True])
         nc = np.sum(idx)
+
         if nc > 0:
             spt_c = np.where(idx)[0]
             spt_c = spt_c[np.logical_and(spt_c > 2*R, spt_c < T-2*R)]
@@ -44,6 +63,7 @@ def threshold_detection(rec, neighbors, spike_size, std_factor):
             ch_idx = np.where(neighChannels_big[c])[0]
             c_main = np.where(ch_idx == c)[0]
             idx_keep = np.zeros(nc, 'bool')
+
             for j in range(nc):
                 wf_temp = rec[spt_c[j]+np.arange(-2*R, 2*R+1)][:, ch_idx]
                 c_min = np.argmin(np.amin(wf_temp, axis=0))
