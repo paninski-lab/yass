@@ -13,7 +13,8 @@ from ..batch import (PipedTransformation, BatchPipeline, BatchProcessor,
                      RecordingsReader)
 
 from .detect import threshold_detection
-from .filter import whitening_matrix, whitening, localized_whitening_matrix, whitening_score, butterworth_single_channel
+from .filter import localized_whitening_matrix, whitening_score, butterworth_single_channel
+from .whitening import whitening_matrix, whitening
 from .score import get_score_pca, get_pca_suff_stat, get_pca_projection
 from .standarize import _standarize, standarize, sd
 from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
