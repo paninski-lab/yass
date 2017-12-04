@@ -100,10 +100,10 @@ class BatchProcessor(object):
 
         for idx in indexes:
             if self.buffer_size:
-                (dx_new,
+                (idx_new,
                  (buff_start, buff_end)) = (self.buffer_generator
                                             .update_key_with_buffer(idx))
-                subset = self.reader[idx]
+                subset = self.reader[idx_new]
                 yield self.buffer_generator.add_buffer(subset, buff_start,
                                                        buff_end)
             else:
