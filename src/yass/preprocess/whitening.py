@@ -18,12 +18,9 @@ def whitening_matrix(ts, neighbors, spike_size):
     neighChannels = n_steps_neigh_channels(neighbors, steps=2)
 
     chanRange = np.arange(0, C)
-    #timeRange = np.arange(0, T)
-    # masked recording
     spikes_rec = np.ones(ts.shape)
 
     for i in range(0, C):
-        #idxCrossing = timeRange[ts[:, i] < -th[i]]
         idxCrossing = np.where(ts[:, i] < -th)[0]
         idxCrossing = idxCrossing[np.logical_and(
             idxCrossing >= (R+1), idxCrossing <= (T-R-1))]
@@ -46,9 +43,9 @@ def whitening_matrix(ts, neighbors, spike_size):
         V, D, _ = np.linalg.svd(M[ch_idx, :][:, ch_idx])
         eps = 1e-6
         Epsilon = np.diag(1/np.power((D + eps), 0.5))
-        #Q_small       = np.matmul(V, np.matmul(Epsilon, V.transpose()))
         Q_small = np.matmul(np.matmul(V, Epsilon), V.transpose())
         Q[c, ch_idx] = Q_small[ch_idx == c, :]
+
     return Q
 
 
