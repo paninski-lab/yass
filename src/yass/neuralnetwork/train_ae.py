@@ -21,8 +21,8 @@ def train_ae(x_train, y_train, n_feature, n_iter, n_batch, train_step_size, nn_n
     n_data, n_input = x_train.shape
 
     # input tensors
-    x_ = tf.placeholder("float", [n_data, n_input])
-    y_ = tf.placeholder("float", [n_data, n_input])
+    x_ = tf.placeholder("float", [n_batch, n_input])
+    y_ = tf.placeholder("float", [n_batch, n_input])
 
     # encoding
     W_ae = tf.Variable(tf.random_uniform(
