@@ -54,16 +54,14 @@ Steinmetz`_:
 
 .. code-block:: shell
 
-    # clone the repo and move to the main folder
-    git clone https://github.com/paninski-lab/yass
-    cd yass
+    # install last stable version
+    pip install yass-algorithm
 
-    # install package (this is the same as running
-    # pip install git+https://github.com/paninski-lab/yass)
-    pip install .
+    # clone repo to get the sample code and data
+    git clone https://github.com/paninski-lab/yass@master
 
     # move to the examples folder and run yass in the sample data
-    cd examples
+    cd yass/examples
     yass config_sample.yaml
 
     # see the spike train
