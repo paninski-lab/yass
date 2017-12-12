@@ -1,13 +1,12 @@
 """
 Preprocess pipeline
 """
-
 import datetime
 import logging
 import os.path
+from functools import reduce
 
 import numpy as np
-import yaml
 
 from .. import read_config
 from ..batch import BatchPipeline, BatchProcessor
@@ -17,7 +16,7 @@ from .filter import butterworth
 from .standarize import standarize
 from . import whiten
 from . import detect
-from .score import get_score_pca, get_pca_suff_stat, get_pca_projection
+from . import pca
 from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
 
 
@@ -107,10 +106,29 @@ def run():
                         CONFIG.resources.max_memory,
                         buffer_size=0)
 
+    # apply threshold detector on standarize data
     spikes = bp.multi_channel_apply(detect.threshold,
                                     mode='memory',
                                     neighbors=CONFIG.neighChannels,
                                     spike_size=CONFIG.spikeSize,
                                     std_factor=CONFIG.stdFactor)
+    spike_index = np.vstack(spikes)
+
+    # compute per-batch sufficient statistics for PCA on standarized data
+    stats = bp.multi_channel_apply(pca.suff_stat,
+                                   mode='memory',
+                                   spike_index=spike_index,
+                                   spike_size=CONFIG.spikeSize)
+
+    suff_stats = reduce(lambda x, y: np.add(x, y), [e[0] for e in stats])
+
+    spikes_per_channel = reduce(lambda x, y: np.add(x, y),
+                                [e[1] for e in stats])
+
+    # compute rotation matrix
+    rotation = pca.project(suff_stats, spikes_per_channel,
+                           CONFIG.spikes.temporal_features,
+                           CONFIG.neighChannels)
 
     # compute scores
+    return spikes, suff_stats, spikes_per_channel, rotation

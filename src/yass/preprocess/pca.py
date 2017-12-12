@@ -1,5 +1,6 @@
 """
-PCA for multi-channel recordings
+PCA for multi-channel recordings, used for dimensionality reduction
+when using threshold detector
 """
 import os
 import numpy as np
@@ -7,6 +8,8 @@ from ..geometry import order_channels_by_distance
 
 # TODO: improve documentation: look for (?)
 # TODO: remove batching logic
+# TODO: can this be a single-channel operation? that way we can parallelize
+# by channel
 
 
 def suff_stat(recordings, spike_index, spike_size):
@@ -110,6 +113,7 @@ def project(ss, spikes_per_channel, n_features, neighbors):
     return rot
 
 
+# TODO: remove batch logic from here
 def score(spike_index, rot, neighbors, geom, batch_size, BUFF, nBatches,
           wf_path, scale_to_save):
     """PCA scoring
