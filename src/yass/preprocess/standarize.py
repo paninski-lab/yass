@@ -35,5 +35,4 @@ def standard_deviation(rec, sampling_freq):
 
     # find standard deviation using robust method
     sd = np.median(np.abs(rec_temp), 0)/0.6745
-
     return sd

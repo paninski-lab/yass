@@ -19,7 +19,22 @@ def butterworth(ts, low_freq, high_factor, order, sampling_freq):
         Order of Butterworth filter
     sampling_freq: int
         Sampling frequency (Hz)
+
+    Notes
+    -----
+    This function can only be applied to a one dimensional array, to apply
+    it to multiple channels use the BatchProcessor
+
+    Raises
+    ------
+    NotImplementedError
+        If a multidmensional array is passed
     """
+    if ts.ndim > 1:
+        raise NotImplementedError('This function can only be applied to a one'
+                                  ' dimensional array, to apply it to '
+                                  'multiple channels use the BatchProcessor')
+
     (T,) = ts.shape
     low = float(low_freq)/sampling_freq * 2
     high = float(high_factor) * 2
