@@ -43,8 +43,9 @@ def marix(ts, neighbors, spike_size):
         idxCrossing = np.where(ts[:, i] < -th)[0]
         idxCrossing = idxCrossing[np.logical_and(
             idxCrossing >= (R+1), idxCrossing <= (T-R-1))]
-        spike_time = idxCrossing[np.logical_and(ts[idxCrossing, i] <= ts[idxCrossing-1, i],
-                                                ts[idxCrossing, i] <= ts[idxCrossing+1, i])]
+        spike_time = idxCrossing[
+            np.logical_and(ts[idxCrossing, i] <= ts[idxCrossing-1, i],
+                           ts[idxCrossing, i] <= ts[idxCrossing+1, i])]
 
         # the portion of recording where spikes present is set to nan
         for j in np.arange(-spike_size, spike_size+1):
@@ -106,12 +107,12 @@ def matrix_localized(ts, neighbors, geom, spike_size):
     # masked recording
     spikes_rec = np.ones(ts.shape)
     for i in range(0, C):
-        #idxCrossing = timeRange[ts[:, i] < -th[i]]
         idxCrossing = np.where(ts[:, i] < -th)[0]
         idxCrossing = idxCrossing[np.logical_and(
             idxCrossing >= (R+1), idxCrossing <= (T-R-1))]
-        spike_time = idxCrossing[np.logical_and(ts[idxCrossing, i] <= ts[idxCrossing-1, i],
-                                                ts[idxCrossing, i] <= ts[idxCrossing+1, i])]
+        spike_time = idxCrossing[np.logical_and(
+            ts[idxCrossing, i] <= ts[idxCrossing-1, i],
+            ts[idxCrossing, i] <= ts[idxCrossing+1, i])]
 
         # the portion of recording where spikes present is set to nan
         for j in np.arange(-spike_size, spike_size+1):
