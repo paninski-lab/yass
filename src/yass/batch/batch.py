@@ -40,6 +40,7 @@ class BatchProcessor(object):
         If dimensions do not match according to the file size, dtype and
         number of channels
     """
+
     def __init__(self, path_to_recordings, dtype, n_channels,
                  data_format, max_memory, buffer_size=0):
         self.data_format = data_format
@@ -109,7 +110,7 @@ class BatchProcessor(object):
             else:
                 yield self.reader[idx]
 
-    def single_channel_apply(self, function, output_path,
+    def single_channel_apply(self, function, output_path, mode,
                              force_complete_channel_batch=True,
                              from_time=None, to_time=None, channels='all',
                              **kwargs):
@@ -122,26 +123,28 @@ class BatchProcessor(object):
         function: callable
             Function to be applied, must accept a 1D numpy array as its first
             parameter
-
         output_path: str
             Where to save the output
-
+        mode: str
+            'disk' or 'memory', if 'disk', a binary file is created at the
+            beginning of the operation and each partial result is saved
+            (ussing numpy.ndarray.tofile function), at the end of the
+            operation two files are generated: the binary file and a yaml
+            file with some file parameters (useful if you want to later use
+            RecordingsReader to read the file). If 'memory', partial results
+            are kept in memory and returned as a list
         force_complete_channel_batch: bool, optional
             If True, every index generated will correspond to all the
             observations in a single channel, hence
             n_batches = n_selected_channels, defaults to True. If True
             from_time and to_time must be None
-
         from_time: int, optional
             Starting time, defaults to None
-
         to_time: int, optional
             Ending time, defaults to None
-
         channels: int, tuple or str, optional
             A tuple with the channel indexes or 'all' to traverse all channels,
             defaults to 'all'
-
         **kwargs
             kwargs to pass to function
 
@@ -152,14 +155,98 @@ class BatchProcessor(object):
 
         Notes
         -----
+        When applying functions in 'disk' mode will incur in memory overhead,
+        which depends on the function implementation, this is an important
+        thing to consider if the transformation changes the data's dtype (e.g.
+        converts int16 to float64), which means that a chunk of 1MB in int16
+        will have a size of 4MB in float64. Take that into account when
+        setting max_memory.
+
+        For performance reasons in 'disk' mode, output data is in 'wide' format
+        """
+        if mode not in ['disk', 'memory']:
+            raise ValueError('Mode should be disk or memory, received: {}'
+                             .format(mode))
+
+        if mode == 'disk':
+            fn = self._single_channel_apply_disk
+            return fn(function, output_path,
+                      force_complete_channel_batch, from_time,
+                      to_time, channels, **kwargs)
+        else:
+            fn = self._single_channel_apply_memory
+            return fn(function, output_path,
+                      force_complete_channel_batch, from_time,
+                      to_time, channels, **kwargs)
+
+    def multi_channel_apply(self, function, output_path, mode, from_time=None,
+                            to_time=None, channels='all', **kwargs):
+        """
+        Apply a function where each batch has observations from more than
+        one channel
+
+        Parameters
+        ----------
+        function: callable
+            Function to be applied, must accept a 2D numpy array in 'long'
+            format as its first parameter (number of observations, number of
+            channels)
+        output_path: str
+            Where to save the output
+        mode: str
+            'disk' or 'memory', if 'disk', a binary file is created at the
+            beginning of the operation and each partial result is saved
+            (ussing numpy.ndarray.tofile function), at the end of the
+            operation two files are generated: the binary file and a yaml
+            file with some file parameters (useful if you want to later use
+            RecordingsReader to read the file). If 'memory', partial results
+            are kept in memory and returned as a list
+        force_complete_channel_batch: bool, optional
+            If True, every index generated will correspond to all the
+            observations in a single channel, hence
+            n_batches = n_selected_channels, defaults to True. If True
+            from_time and to_time must be None
+        from_time: int, optional
+            Starting time, defaults to None
+        to_time: int, optional
+            Ending time, defaults to None
+        channels: int, tuple or str, optional
+            A tuple with the channel indexes or 'all' to traverse all channels,
+            defaults to 'all'
+        **kwargs
+            kwargs to pass to function
+
+        Examples
+        --------
+
+        .. literalinclude:: ../../examples/batch/multi_channel_apply.py
+
+        Notes
+        -----
         Applying functions will incur in memory overhead, which depends
         on the function implementation, this is an important thing to consider
         if the transformation changes the data's dtype (e.g. converts int16 to
         float64), which means that a chunk of 1MB in int16 will have a size
-        of 4MB in float64. Take that into account when setting max_memory.
+        of 4MB in float64. Take that into account when setting max_memory
 
-        For performance reasons, outputs data in 'wide' format.
+        For performance reasons, outputs data in 'long' format.
         """
+        if mode not in ['disk', 'memory']:
+            raise ValueError('Mode should be disk or memory, received: {}'
+                             .format(mode))
+
+        if mode == 'disk':
+            fn = self._multi_channel_apply_disk
+            return fn(function, output_path, from_time, to_time, channels,
+                      **kwargs)
+        else:
+            fn = self._multi_channel_apply_memory
+            return fn(function, output_path, from_time, to_time, channels,
+                      **kwargs)
+
+    def _single_channel_apply_disk(self, function, output_path,
+                                   force_complete_channel_batch, from_time,
+                                   to_time, channels, **kwargs):
         f = open(output_path, 'wb')
 
         self.reader.output_shape = 'wide'
@@ -197,57 +284,8 @@ class BatchProcessor(object):
 
         return output_path, params
 
-    def multi_channel_apply(self, function, output_path,
-                            from_time=None, to_time=None, channels='all',
-                            **kwargs):
-        """
-        Apply a function where each batch has observations from more than
-        one channel
-
-        Parameters
-        ----------
-        function: callable
-            Function to be applied, must accept a 2D numpy array in 'long'
-            format as its first parameter (number of observations, number of
-            channels)
-
-        output_path: str
-            Where to save the output
-
-        force_complete_channel_batch: bool, optional
-            If True, every index generated will correspond to all the
-            observations in a single channel, hence
-            n_batches = n_selected_channels, defaults to True. If True
-            from_time and to_time must be None
-
-        from_time: int, optional
-            Starting time, defaults to None
-
-        to_time: int, optional
-            Ending time, defaults to None
-
-        channels: int, tuple or str, optional
-            A tuple with the channel indexes or 'all' to traverse all channels,
-            defaults to 'all'
-
-        **kwargs
-            kwargs to pass to function
-
-        Examples
-        --------
-
-        .. literalinclude:: ../../examples/batch/multi_channel_apply.py
-
-        Notes
-        -----
-        Applying functions will incur in memory overhead, which depends
-        on the function implementation, this is an important thing to consider
-        if the transformation changes the data's dtype (e.g. converts int16 to
-        float64), which means that a chunk of 1MB in int16 will have a size
-        of 4MB in float64. Take that into account when setting max_memory
-
-        For performance reasons, outputs data in 'long' format.
-        """
+    def _multi_channel_apply_disk(self, function, output_path, from_time,
+                                  to_time, channels, **kwargs):
         f = open(output_path, 'wb')
 
         self.reader.output_shape = 'long'
@@ -277,3 +315,12 @@ class BatchProcessor(object):
             yaml.dump(params, f)
 
         return output_path, params
+
+    def _single_channel_apply_memory(self, function, output_path,
+                                     force_complete_channel_batch, from_time,
+                                     to_time, channels, **kwargs):
+        pass
+
+    def _multi_channel_apply_memory(self, function, output_path, from_time,
+                                    to_time, channels, **kwargs):
+        pass

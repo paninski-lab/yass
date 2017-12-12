@@ -1,7 +1,7 @@
 import os
 from functools import partial
 
-from .new import BatchProcessor
+from .batch import BatchProcessor
 
 
 class PipedTransformation(object):
@@ -37,7 +37,7 @@ class PipedTransformation(object):
 
 
 class BatchPipeline(object):
-    """Chain batch operations
+    """Chain batch operations and write partial results to disk
 
     Parameters
     ----------
@@ -121,7 +121,9 @@ class BatchPipeline(object):
             else:
                 raise ValueError("Invalid mode {}".format(task.mode))
 
-            _, p = fn(task.function, output_path,
+            _, p = fn(function=task.function,
+                      output_path=output_path,
+                      mode='disk',
                       from_time=self.from_time,
                       to_time=self.to_time,
                       channels=self.channels,
