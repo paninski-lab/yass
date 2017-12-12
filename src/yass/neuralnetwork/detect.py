@@ -6,6 +6,8 @@ from .score import get_score
 
 from ..geometry import order_channels_by_distance
 
+# TODO: remove batching logic from here
+
 
 def nn_detection(X, T_batch, buff, neighChannels, geom,
                  n_features, temporal_window, th_detect, th_triage,
