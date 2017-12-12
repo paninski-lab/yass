@@ -10,7 +10,7 @@ import numpy as np
 import yaml
 
 from .. import read_config
-from ..batch import BatchPipeline, BatchProcessor, RecordingsReader
+from ..batch import BatchPipeline, BatchProcessor
 from ..batch import PipedTransformation as Transform
 
 from .filter import butterworth
@@ -96,10 +96,21 @@ def run():
     pipeline.add([standarize_op, whiten_op])
 
     # run pipeline
-    filtered, standarized, whitened = pipeline.run()
+    ((filtered, standarized, whitened),
+     (filtered_params, standarized_params, whitened_params)) = pipeline.run()
 
     # detect spikes
     # TODO: support neural network, need to remove batch logic first
+    bp = BatchProcessor(standarized, standarized_params['dtype'],
+                        standarized_params['n_channels'],
+                        standarized_params['data_format'],
+                        CONFIG.resources.max_memory,
+                        buffer_size=0)
+
+    spikes = bp.multi_channel_apply(detect.threshold,
+                                    mode='memory',
+                                    neighbors=CONFIG.neighChannels,
+                                    spike_size=CONFIG.spikeSize,
+                                    std_factor=CONFIG.stdFactor)
 
     # compute scores
-

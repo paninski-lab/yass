@@ -96,6 +96,8 @@ class BatchPipeline(object):
         list
             List with path to output files in the order they were run, if
             keep is False, path is still returned but file will not exist
+        list
+            List with parameters
         """
         path_to_input = self.path_to_input
 
@@ -104,6 +106,7 @@ class BatchPipeline(object):
                             self.data_format, self.max_memory)
 
         output_paths = []
+        params = []
 
         while self.tasks:
             task = self.tasks.pop(0)
@@ -129,6 +132,8 @@ class BatchPipeline(object):
                       channels=self.channels,
                       **task.kwargs)
 
+            params.append(p)
+
             # update bp
             bp = BatchProcessor(output_path, p['dtype'],
                                 p['n_channels'], p['data_format'],
@@ -141,4 +146,4 @@ class BatchPipeline(object):
             # update path to input
             path_to_input = output_path
 
-        return output_paths
+        return output_paths, params

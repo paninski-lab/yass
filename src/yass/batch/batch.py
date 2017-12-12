@@ -110,7 +110,7 @@ class BatchProcessor(object):
             else:
                 yield self.reader[idx]
 
-    def single_channel_apply(self, function, output_path, mode,
+    def single_channel_apply(self, function, mode, output_path=None,
                              force_complete_channel_batch=True,
                              from_time=None, to_time=None, channels='all',
                              **kwargs):
@@ -123,8 +123,6 @@ class BatchProcessor(object):
         function: callable
             Function to be applied, must accept a 1D numpy array as its first
             parameter
-        output_path: str
-            Where to save the output
         mode: str
             'disk' or 'memory', if 'disk', a binary file is created at the
             beginning of the operation and each partial result is saved
@@ -133,6 +131,8 @@ class BatchProcessor(object):
             file with some file parameters (useful if you want to later use
             RecordingsReader to read the file). If 'memory', partial results
             are kept in memory and returned as a list
+        output_path: str, optional
+            Where to save the output, required if 'disk' mode
         force_complete_channel_batch: bool, optional
             If True, every index generated will correspond to all the
             observations in a single channel, hence
@@ -168,6 +168,9 @@ class BatchProcessor(object):
             raise ValueError('Mode should be disk or memory, received: {}'
                              .format(mode))
 
+        if mode == 'disk' and output_path is None:
+            raise ValueError('output_path is required in "disk" mode')
+
         if mode == 'disk':
             fn = self._single_channel_apply_disk
             return fn(function, output_path,
@@ -175,12 +178,12 @@ class BatchProcessor(object):
                       to_time, channels, **kwargs)
         else:
             fn = self._single_channel_apply_memory
-            return fn(function, output_path,
-                      force_complete_channel_batch, from_time,
+            return fn(function, force_complete_channel_batch, from_time,
                       to_time, channels, **kwargs)
 
-    def multi_channel_apply(self, function, output_path, mode, from_time=None,
-                            to_time=None, channels='all', **kwargs):
+    def multi_channel_apply(self, function, mode, output_path=None,
+                            from_time=None, to_time=None, channels='all',
+                            **kwargs):
         """
         Apply a function where each batch has observations from more than
         one channel
@@ -191,8 +194,6 @@ class BatchProcessor(object):
             Function to be applied, must accept a 2D numpy array in 'long'
             format as its first parameter (number of observations, number of
             channels)
-        output_path: str
-            Where to save the output
         mode: str
             'disk' or 'memory', if 'disk', a binary file is created at the
             beginning of the operation and each partial result is saved
@@ -201,6 +202,8 @@ class BatchProcessor(object):
             file with some file parameters (useful if you want to later use
             RecordingsReader to read the file). If 'memory', partial results
             are kept in memory and returned as a list
+        output_path: str, optional
+            Where to save the output, required if 'disk' mode
         force_complete_channel_batch: bool, optional
             If True, every index generated will correspond to all the
             observations in a single channel, hence
@@ -235,14 +238,16 @@ class BatchProcessor(object):
             raise ValueError('Mode should be disk or memory, received: {}'
                              .format(mode))
 
+        if mode == 'disk' and output_path is None:
+            raise ValueError('output_path is required in "disk" mode')
+
         if mode == 'disk':
             fn = self._multi_channel_apply_disk
             return fn(function, output_path, from_time, to_time, channels,
                       **kwargs)
         else:
             fn = self._multi_channel_apply_memory
-            return fn(function, output_path, from_time, to_time, channels,
-                      **kwargs)
+            return fn(function, from_time, to_time, channels, **kwargs)
 
     def _single_channel_apply_disk(self, function, output_path,
                                    force_complete_channel_batch, from_time,
@@ -316,11 +321,34 @@ class BatchProcessor(object):
 
         return output_path, params
 
-    def _single_channel_apply_memory(self, function, output_path,
+    def _single_channel_apply_memory(self, function,
                                      force_complete_channel_batch, from_time,
                                      to_time, channels, **kwargs):
-        pass
 
-    def _multi_channel_apply_memory(self, function, output_path, from_time,
-                                    to_time, channels, **kwargs):
-        pass
+        indexes = self.indexer.single_channel(force_complete_channel_batch,
+                                              from_time, to_time,
+                                              channels)
+        results = []
+
+        for i, idx in enumerate(indexes):
+            self.logger.debug('Processing channel {}...'.format(i))
+            self.logger.debug('Reading batch...')
+            subset = self.reader[idx]
+            self.logger.debug('Applying function...')
+            res = function(subset, **kwargs)
+            self.logger.debug('Appending partial result...')
+            results.append(res)
+
+        return results
+
+    def _multi_channel_apply_memory(self, function, from_time, to_time,
+                                    channels, **kwargs):
+
+        indexes = self.indexer.multi_channel(from_time, to_time, channels)
+        results = []
+
+        for idx in indexes:
+            res = function(self.reader[idx], **kwargs)
+            results.append(res)
+
+        return results
