@@ -33,8 +33,9 @@ def parse(path, n_channels):
 
     Returns
     -------
-    2-dimensional numpy array where each row contains the x, y coordinates
-    for a channel
+    numpy.ndarray
+        2-dimensional numpy array where each row contains the x, y coordinates
+        for a channel
     """
     # TODO: infer the number of channels by the number of lines
     extension = path.split('.')[-1]
@@ -56,6 +57,7 @@ def parse(path, n_channels):
     return geom
 
 
+# TODO: improve documentation
 def find_channel_neighbors(geom, radius):
     """Compute a channel neighrborhood matrix
 
@@ -66,25 +68,43 @@ def find_channel_neighbors(geom, radius):
 
     radius: float
         Maximum radius for the channels to be considered neighbors
+
+    Returns
+    -------
     """
     return (squareform(pdist(geom)) <= radius)
 
 
+# TODO: improve documentation
 def n_steps_neigh_channels(neighbors, steps):
     """Compute a n-steps channel neighrborhood matrix
+
+    Parameters
+    ----------
+
+    Returns
+    -------
     """
     C = neighbors.shape[0]
-    neighChan_output = np.eye(C, dtype='bool')
+    output = np.eye(C, dtype='bool')
 
     for j in range(steps):
         for c in range(C):
-            neighChan_output[c][
-                np.sum(neighbors[neighChan_output[c]], axis=0).astype('bool')] = 1
+            output[c][np.sum(neighbors[output[c]], axis=0).astype('bool')] = 1
 
-    return neighChan_output
+    return output
 
 
+# TODO: add documentation
 def make_channel_groups(n_channels, neighbors, geom):
+    """[DESCRIPTION]
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
     channelGroups = list()
     c_left = np.array(range(n_channels))
     neighChan_temp = np.array(neighbors)
@@ -106,7 +126,16 @@ def make_channel_groups(n_channels, neighbors, geom):
     return channelGroups
 
 
+# TODO: add documentation
 def order_channels_by_distance(refc, channels, geom):
+    """[DESCRIPTION]
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
     coord_main = geom[refc]
     coord_others = geom[channels]
     idx = np.argsort(np.sum(np.square(coord_others - coord_main), axis=1))
