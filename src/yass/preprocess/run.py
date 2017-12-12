@@ -13,11 +13,11 @@ from .. import read_config
 from ..batch import BatchPipeline, BatchProcessor, RecordingsReader
 from ..batch import PipedTransformation as Transform
 
-from .detect import threshold_detection
-from .filter import localized_whitening_matrix, whitening_score, butterworth_single_channel
-from .whitening import whitening_matrix, whitening
-from .score import get_score_pca, get_pca_suff_stat, get_pca_projection
+from .filter import butterworth
 from .standarize import standarize
+from .whitening import whitening_matrix, whitening, localized_whitening_matrix, whitening_score
+from .detect import threshold_detection
+from .score import get_score_pca, get_pca_suff_stat, get_pca_projection
 from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
 
 
@@ -65,7 +65,7 @@ def run():
 
     # add filter transformation if necessary
     if CONFIG.preprocess.filter:
-        filter_op = Transform(butterworth_single_channel,
+        filter_op = Transform(butterworth,
                               'filtered.bin', keep=True,
                               low_freq=CONFIG.filter.low_pass_freq,
                               high_factor=CONFIG.filter.high_factor,
