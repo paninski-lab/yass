@@ -107,3 +107,12 @@ def load_yaml(path):
         content = yaml.load(f)
 
     return content
+
+
+def function_path(fn):
+    """
+    Returns the name of the function along with the module containing it:
+    module.submodule.name
+    """
+    module = inspect.getmodule(fn).__name__
+    return '{}.{}'.format(module, fn.__name__)

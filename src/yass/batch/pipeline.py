@@ -1,3 +1,4 @@
+import logging
 import os
 from functools import partial
 
@@ -30,6 +31,7 @@ class PipedTransformation(object):
         self.mode = mode
         self._keep = keep
         self.kwargs = kwargs
+        self.logger = logging.getLogger(__name__)
 
     @property
     def keep(self):
@@ -84,6 +86,8 @@ class BatchPipeline(object):
         self.channels = channels
         self.output_path = output_path
         self.tasks = []
+
+        self.logger = logging.getLogger(__name__)
 
     def add(self, tasks):
         self.tasks.extend(tasks)
@@ -141,6 +145,7 @@ class BatchPipeline(object):
 
             # delete the result if needed
             if not task.keep:
+                self.logger.debug('Removing {}'.format(path_to_input))
                 os.remove(path_to_input)
 
             # update path to input

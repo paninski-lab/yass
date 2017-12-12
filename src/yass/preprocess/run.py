@@ -130,5 +130,6 @@ def run():
                            CONFIG.spikes.temporal_features,
                            CONFIG.neighChannels)
 
-    # compute scores
+    # compute scores for every detected spikes
+
     return spikes, suff_stats, spikes_per_channel, rotation

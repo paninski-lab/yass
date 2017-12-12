@@ -3,6 +3,7 @@ import logging
 
 import yaml
 
+from ..util import function_path
 from .generator import IndexGenerator
 from .reader import RecordingsReader
 from .buffer import BufferGenerator
@@ -171,6 +172,9 @@ class BatchProcessor(object):
         if mode == 'disk' and output_path is None:
             raise ValueError('output_path is required in "disk" mode')
 
+        self.logger.info('Applying function {}...'
+                         .format(function_path(function)))
+
         if mode == 'disk':
             fn = self._single_channel_apply_disk
             return fn(function, output_path,
@@ -241,6 +245,9 @@ class BatchProcessor(object):
         if mode == 'disk' and output_path is None:
             raise ValueError('output_path is required in "disk" mode')
 
+        self.logger.info('Applying function {}...'
+                         .format(function_path(function)))
+
         if mode == 'disk':
             fn = self._multi_channel_apply_disk
             return fn(function, output_path, from_time, to_time, channels,
@@ -262,7 +269,6 @@ class BatchProcessor(object):
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
             subset = self.reader[idx]
-            self.logger.debug('Applying function...')
             res = function(subset, **kwargs)
             self.logger.debug('Writing to disk...')
             res.tofile(f)
@@ -334,7 +340,6 @@ class BatchProcessor(object):
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
             subset = self.reader[idx]
-            self.logger.debug('Applying function...')
             res = function(subset, **kwargs)
             self.logger.debug('Appending partial result...')
             results.append(res)

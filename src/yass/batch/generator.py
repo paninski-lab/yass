@@ -93,9 +93,9 @@ class IndexGenerator(object):
 
         self.logger = logging.getLogger(__name__)
 
-        self.logger.info('Max memory: {}. Itemsize: {} bytes'
-                         .format(human_size(self.max_memory),
-                                 self.itemsize))
+        self.logger.debug('Max memory: {}. Itemsize: {} bytes'
+                          .format(human_size(self.max_memory),
+                                  self.itemsize))
 
     @property
     def can_allocate_one_complete_channel(self):
@@ -157,11 +157,11 @@ class IndexGenerator(object):
                                  .format(human_size(channel_size),
                                          human_size(self.max_memory)))
             else:
-                self.logger.info('Loading all observations per channel, '
-                                 'each channel has size of {} '
-                                 '({} observations)'
-                                 .format(human_size(channel_size),
-                                         t_total))
+                self.logger.debug('Loading all observations per channel, '
+                                  'each channel has size of {} '
+                                  '({} observations)'
+                                  .format(human_size(channel_size),
+                                          t_total))
 
             for ch in channel_indexes:
                 yield (slice(from_time, to_time, None), ch)
@@ -206,35 +206,35 @@ class IndexGenerator(object):
         bytes_total = t_total * channels_total * self.itemsize
         obs_total = t_total * channels_total
 
-        self.logger.info('Observations per channel: {}. Number of channels: '
-                         '{}. Total observations: {} Size to traverse: {}'
-                         .format(t_total, channels_total, obs_total,
-                                 human_size(bytes_total)))
+        self.logger.debug('Observations per channel: {}. Number of channels: '
+                          '{}. Total observations: {} Size to traverse: {}'
+                          .format(t_total, channels_total, obs_total,
+                                  human_size(bytes_total)))
 
         # find how many observations (for every channel selected) we can fit
         # in memory
         obs_channel_batch = int(floor(self.max_memory /
-                                (channels_total*self.itemsize)))
+                                      (channels_total*self.itemsize)))
         obs_batch = obs_channel_batch * channels_total
         bytes_batch = obs_batch * self.itemsize
 
-        self.logger.info('Max observations per batch: {} ({}), {} '
-                         'max observations per channel'
-                         .format(obs_batch, human_size(bytes_batch),
-                                 obs_channel_batch))
+        self.logger.debug('Max observations per batch: {} ({}), {} '
+                          'max observations per channel'
+                          .format(obs_batch, human_size(bytes_batch),
+                                  obs_channel_batch))
 
         n_batches = int(ceil(obs_total / obs_batch))
 
-        self.logger.info('Number of batches: {}'.format(n_batches))
+        self.logger.debug('Number of batches: {}'.format(n_batches))
 
         obs_residual = obs_total - obs_batch * (n_batches - 1)
         obs_channel_residual = int(obs_residual / channels_total)
         bytes_residual = obs_residual * self.itemsize
 
-        self.logger.info('Last batch with {} observations ({}), {} '
-                         'observations per channel'
-                         .format(obs_residual, human_bytes(bytes_residual),
-                                 obs_channel_residual))
+        self.logger.debug('Last batch with {} observations ({}), {} '
+                          'observations per channel'
+                          .format(obs_residual, human_bytes(bytes_residual),
+                                  obs_channel_residual))
 
         # generate list with batch sizes (n of observations per channel
         # per batch)
