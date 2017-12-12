@@ -1,12 +1,12 @@
 import numpy as np
 
 
-def _standarize(rec, srate):
-    _sd = sd(rec, srate)
-    return standarize(rec, _sd)
+def standarize(rec, srate):
+    sd = standard_deviation(rec, srate)
+    return np.divide(rec, sd)
 
 
-def sd(rec, srate):
+def standard_deviation(rec, srate):
     """Determine standard deviation of noise in each channel
 
     Parameters
@@ -31,9 +31,3 @@ def sd(rec, srate):
     sd = np.median(np.abs(rec_temp), 0)/0.6745
 
     return sd
-
-
-def standarize(rec, _sd):
-    """Standarize data
-    """
-    return np.divide(rec, _sd)
