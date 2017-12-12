@@ -5,6 +5,9 @@ import numpy as np
 
 from ..geometry import n_steps_neigh_channels
 
+# TODO: improve documentation
+# TODO: add comments within the functions, it's not clear what is doing
+
 
 def single_channel_threshold_detection(rec, neighbors, spike_size, std_factor):
     """Threshold-based spike detection
@@ -28,19 +31,20 @@ def threshold_detection(rec, neighbors, spike_size, std_factor):
 
     Parameters
     ----------
-    rec
-    neighbors
-    spike_size
-    std_factor
-    n_steps_neigh_channels
-
+    rec: ?
+        ?
+    neighbors: ?
+        ?
+    spike_size: ?
+        ?
+    std_factor: ?
+        ?
 
     Returns
     -------
-    index: matrix [number of spikes, 2]
+    index: np.ndarray (number of spikes, 2)
         First column is spike time, second column is main channel (the channel
-        where spike has the biggest amplitude), the third column is 1 if the
-        spike has a clear spike and 0 if not.
+        where spike has the biggest amplitude)
     """
     T, C = rec.shape
     R = spike_size

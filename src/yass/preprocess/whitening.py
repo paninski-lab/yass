@@ -7,6 +7,10 @@ import numpy as np
 from ..geometry import n_steps_neigh_channels, order_channels_by_distance
 
 
+# TODO: missing documentation
+# TODO: rename functions, purpose is not clear
+
+
 def whitening_matrix(ts, neighbors, spike_size):
     """Spatial whitening filter for time series
     Parameters
