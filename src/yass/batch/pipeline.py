@@ -105,10 +105,10 @@ class BatchPipeline(object):
             elif task.mode == 'single_channel':
                 fn = partial(bp.single_channel_apply,
                              force_complete_channel_batch=False)
-            elif task.mode == 'muti_channel':
+            elif task.mode == 'multi_channel':
                 fn = bp.multi_channel_apply
             else:
-                raise ValueError("Invalid mode {}".format(self.mode))
+                raise ValueError("Invalid mode {}".format(task.mode))
 
             _, p = fn(task.function, output_path,
                       from_time=self.from_time,

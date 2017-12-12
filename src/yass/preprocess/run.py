@@ -21,6 +21,10 @@ from .score import get_score_pca, get_pca_suff_stat, get_pca_projection
 from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
 
 
+# TODO check legacy buffer logic
+# TODO: fix indentation
+
+
 def run():
     """Execute preprocessing pipeline
 
@@ -81,9 +85,16 @@ def run():
                               keep=True,
                               sampling_freq=CONFIG.recordings.sampling_rate)
 
-    pipeline.add([standarize_op])
-
     # whiten
+    # TODO: add option to re-use Q
+    whiten_op = Transform(whiten.apply, 'whitened.bin',
+                          mode='multi_channel',
+                          keep=True,
+                          neighbors=CONFIG.neighChannels,
+                          spike_size=CONFIG.spikeSize)
+
+    pipeline.add([standarize_op, whiten_op])
+
     # detect spikes
     # compute scores
 
