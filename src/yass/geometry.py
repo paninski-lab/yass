@@ -6,28 +6,35 @@ from scipy.spatial.distance import pdist, squareform
 
 
 def _parse_txt(path, n_channels):
+    """Parse a geometry file in txt format
+    """
     f = open(path)
     lines = f.readlines()
     f.close()
 
     geom = np.zeros((0, 2))
 
-    for i, l in zip(range(n_channels), lines):
-        l = l.replace('\r', '')
-        l = l.replace('\n', '')
-        row = l.split(' ')
+    for i, line in zip(range(n_channels), lines):
+        line = line.replace('\r', '')
+        line = line.replace('\n', '')
+        row = line.split(' ')
         geom = np.vstack((geom, row[:2])).astype('float')
 
     return geom
 
 
 def parse(path, n_channels):
-    """Parse a geometry txt file
+    """Parse a geometry txt or npy file
 
     path: str
         Path to geometry file
     n_channels: int
         Number of channels
+
+    Returns
+    -------
+    2-dimensional numpy array where each row contains the x, y coordinates
+    for a channel
     """
     # TODO: infer the number of channels by the number of lines
     extension = path.split('.')[-1]

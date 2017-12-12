@@ -5,39 +5,23 @@ import numpy as np
 
 from ..geometry import n_steps_neigh_channels
 
-# TODO: improve documentation
-# TODO: add comments within the functions, it's not clear what is doing
+# TODO: documentation needs improvements
 
 
-def single_channel_threshold_detection(rec, neighbors, spike_size, std_factor):
+def threshold(rec, neighbors, spike_size, std_factor):
     """Threshold-based spike detection
 
     Parameters
     ----------
-    rec: np.ndarray
-        One dimensional array with the recordings for a single channel
-    neighbors: np.ndarray
-        Neighbors matrix, two dimensional array
+    rec: np.ndarray (n_observations, n_channels)
+        numpy 2-D array with the recordings, first dimension must be
+        n_observations and second n_channels
+    neighbors: np.ndarray (n_channels, n_channels)
+        Boolean numpy 2-D array where a i, j entry is True if i is considered
+        neighbor of j
     spike_size: int
         Spike size
-    std_factor: ?
-        ?
-    """
-    pass
-
-
-def threshold_detection(rec, neighbors, spike_size, std_factor):
-    """Threshold-based spike detection
-
-    Parameters
-    ----------
-    rec: ?
-        ?
-    neighbors: ?
-        ?
-    spike_size: ?
-        ?
-    std_factor: ?
+    std_factor: float?
         ?
 
     Returns
@@ -51,6 +35,7 @@ def threshold_detection(rec, neighbors, spike_size, std_factor):
     th = std_factor
     neighChannels_big = n_steps_neigh_channels(neighbors, steps=2)
 
+    # FIXME: is this a safe thing to do?
     index = np.zeros((1000000, 2), 'int32')
     count = 0
 
