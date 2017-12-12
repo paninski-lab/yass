@@ -4,8 +4,7 @@ Filtering functions
 from scipy.signal import butter, lfilter
 
 
-def butterworth_single_channel(ts, low_freq, high_factor, order,
-                               sampling_freq):
+def butterworth(ts, low_freq, high_factor, order, sampling_freq):
     """Butterworth filter for a one dimensional time series
 
     Parameters

@@ -1,7 +1,13 @@
+"""
+Recording standarization
+"""
+
 import numpy as np
 
 
 def standarize(rec, srate):
+    """Standarize recordings
+    """
     sd = standard_deviation(rec, srate)
     return np.divide(rec, sd)
 

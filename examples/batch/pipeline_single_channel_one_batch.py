@@ -5,8 +5,8 @@ import matplotlib.pyplot as plt
 
 from yass.batch.pipeline import BatchPipeline, PipedTransformation
 from yass.batch import RecordingsReader
-from yass.preprocess.filter import butterworth_single_channel
-from yass.preprocess.standarize import _standarize
+from yass.preprocess.filter import butterworth
+from yass.preprocess.standarize import standarize
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -23,14 +23,14 @@ pipeline = BatchPipeline(path_to_neuropixel_data, dtype='int16',
                          from_time=None, to_time=None, channels='all',
                          output_path=path_output)
 
-butterworth = PipedTransformation(butterworth_single_channel, 'filtered.bin',
-                                  keep=True, low_freq=300, high_factor=0.1,
-                                  order=3, sampling_freq=30000)
+butterworth_op = PipedTransformation(butterworth, 'filtered.bin',
+                                     keep=True, low_freq=300, high_factor=0.1,
+                                     order=3, sampling_freq=30000)
 
-standarize = PipedTransformation(_standarize, 'standarized.bin',
-                                 keep=True, srate=30000)
+standarize_op = PipedTransformation(standarize, 'standarized.bin',
+                                    keep=True, srate=30000)
 
-pipeline.add([butterworth, standarize])
+pipeline.add([butterworth_op, standarize_op])
 
 pipeline.run()
 
