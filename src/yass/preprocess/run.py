@@ -79,8 +79,8 @@ def run():
     pipeline.add([standarize_op])
 
     # TODO: add whitening
-    # what's the difference between filter.localized_whitening_matrix
-    # and filter whitening_matrix
+    # what's the difference between whitening.localized_whitening_matrix
+    # and whitening.whitening_matrix
     # whiten_file = open(os.path.join(CONFIG.data.root_folder,
     # 'tmp/whiten.bin'), 'wb')
 
