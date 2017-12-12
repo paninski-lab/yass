@@ -95,7 +95,11 @@ def run():
 
     pipeline.add([standarize_op, whiten_op])
 
+    # run pipeline
+    filtered, standarized, whitened = pipeline.run()
+
     # detect spikes
+    # TODO: support neural network, need to remove batch logic first
+
     # compute scores
 
-    pipeline.run()

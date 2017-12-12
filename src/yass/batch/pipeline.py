@@ -89,15 +89,26 @@ class BatchPipeline(object):
         self.tasks.extend(tasks)
 
     def run(self):
+        """Run all tasks in the pipeline
+
+        Returns
+        -------
+        list
+            List with path to output files in the order they were run, if
+            keep is False, path is still returned but file will not exist
+        """
         path_to_input = self.path_to_input
 
         bp = BatchProcessor(path_to_input, self.dtype,
                             self.n_channels,
                             self.data_format, self.max_memory)
 
+        output_paths = []
+
         while self.tasks:
             task = self.tasks.pop(0)
             output_path = os.path.join(self.output_path, task.output_name)
+            output_paths.append(output_path)
 
             if task.mode == 'single_channel_one_batch':
                 fn = partial(bp.single_channel_apply,
@@ -127,3 +138,5 @@ class BatchPipeline(object):
 
             # update path to input
             path_to_input = output_path
+
+        return output_paths
