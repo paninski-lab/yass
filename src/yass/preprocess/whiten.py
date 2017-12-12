@@ -12,15 +12,23 @@ from ..geometry import n_steps_neigh_channels, order_channels_by_distance
 # TODO: document why we need different methods for whitening when using
 # threshold detection vs nn detection
 # TODO: how to apply this in batches?
+# TODO: how to enable re-use of Q when using batch processor?
 
 
 def marix(ts, neighbors, spike_size):
-    """Spatial whitening filter for time series, used in threshold detection
+    """
+    Compute spatial whitening matrix for time series, used only in threshold
+    detection
+
     Parameters
     ----------
-    ts: np.array
-        T x C numpy array, where T is the number of time samples and
-        C is the number of channels
+    ts: numpy.ndarray (n_observations, n_channels)
+        Recordings
+    neighbors: numpy.ndarray (n_channels, n_channels)
+        Boolean numpy 2-D array where a i, j entry is True if i is considered
+        neighbor of j
+    spike_size: int
+        Spike size
     """
     # get all necessary parameters from param
     [T, C] = ts.shape
@@ -60,9 +68,23 @@ def marix(ts, neighbors, spike_size):
     return Q
 
 
-def apply(ts, Q):
-    """Used in threshold detection
+def apply(ts, neighbors, spike_size):
+    """Apply spatial whitening
+
+    Parameters
+    ----------
+    ts: numpy.ndarray (n_observations, n_channels)
+        Recordings
+    neighbors: numpy.ndarray (n_channels, n_channels)
+        Boolean numpy 2-D array where a i, j entry is True if i is considered
+        neighbor of j
+    spike_size: int
+        Spike size
+
+    Returns
+    -------
     """
+    Q = marix(ts, neighbors, spike_size)
     return np.matmul(ts, Q.transpose())
 
 

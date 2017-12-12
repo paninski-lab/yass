@@ -60,9 +60,6 @@ filtered = preprocess.butterworth(raw_data,
 
 standarized = preprocess.standarize(filtered, sampling_freq=sampling_freq)
 
-# TODO: add whitening example
-spike_size = 40
-Q = whiten.whitening_matrix(rec, neighbors, spike_size)
 
 fix, (ax1, ax2, ax3) = plt.subplots(nrows=3)
 ax1.plot(raw_data)
@@ -74,6 +71,11 @@ ax3.set_title('Standarized')
 plt.tight_layout()
 plt.show()
 
+spike_size = 40
+whitened = whiten.apply(rec, neighbors, spike_size)
+
+plt.plot(whitened[:1000, 0])
+plt.show()
 
 # run threshold detection, not sure if this is the right
 # place for the threshold detector to be
