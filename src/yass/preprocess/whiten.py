@@ -9,10 +9,13 @@ from ..geometry import n_steps_neigh_channels, order_channels_by_distance
 
 # TODO: missing documentation
 # TODO: rename functions, purpose is not clear
+# TODO: document why we need different methods for whitening when using
+# threshold detection vs nn detection
+# TODO: how to apply this in batches?
 
 
-def whitening_matrix(ts, neighbors, spike_size):
-    """Spatial whitening filter for time series
+def marix(ts, neighbors, spike_size):
+    """Spatial whitening filter for time series, used in threshold detection
     Parameters
     ----------
     ts: np.array
@@ -57,11 +60,13 @@ def whitening_matrix(ts, neighbors, spike_size):
     return Q
 
 
-def whitening(ts, Q):
+def apply(ts, Q):
+    """Used in threshold detection
+    """
     return np.matmul(ts, Q.transpose())
 
 
-def localized_whitening_matrix(ts, neighbors, geom, spike_size):
+def matrix_localized(ts, neighbors, geom, spike_size):
     """Spatial whitening filter for time series
 
     Parameters
@@ -115,7 +120,7 @@ def localized_whitening_matrix(ts, neighbors, geom, spike_size):
     return Q
 
 
-def whitening_score(score, channel_index, Q):
+def score(score, channel_index, Q):
     n_data, n_features, n_neigh = score.shape
     n_channels = Q.shape[2]
 

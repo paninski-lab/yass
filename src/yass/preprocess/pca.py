@@ -6,6 +6,7 @@ import numpy as np
 from ..geometry import order_channels_by_distance
 
 # TODO: improve documentation: look for (?)
+# TODO: remove batching logic
 
 
 def suff_stat(recordings, spike_index, spike_size):

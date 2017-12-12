@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from yass import preprocess
 from yass import geometry
 from yass.preprocess import pca
+from yass.preprocess import whiten
 
 # path to neuropixel data
 root = os.path.expanduser('~/data/ucl-neuropixel')
@@ -60,6 +61,8 @@ filtered = preprocess.butterworth(raw_data,
 standarized = preprocess.standarize(filtered, sampling_freq=sampling_freq)
 
 # TODO: add whitening example
+spike_size = 40
+Q = whiten.whitening_matrix(rec, neighbors, spike_size)
 
 fix, (ax1, ax2, ax3) = plt.subplots(nrows=3)
 ax1.plot(raw_data)
@@ -74,7 +77,6 @@ plt.show()
 
 # run threshold detection, not sure if this is the right
 # place for the threshold detector to be
-spike_size = 40
 standarized = standarized.reshape(1000, 1)
 spike_index = preprocess.detect.threshold(rec, neighbors, spike_size,
                                           std_factor=1)
