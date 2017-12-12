@@ -93,7 +93,7 @@ class IndexGenerator(object):
 
         self.logger = logging.getLogger(__name__)
 
-        self.logger.info('Max memory: {} bytes. Itemsize: {} bytes'
+        self.logger.info('Max memory: {}. Itemsize: {} bytes'
                          .format(human_size(self.max_memory),
                                  self.itemsize))
 

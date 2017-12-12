@@ -15,7 +15,7 @@ from ..batch import PipedTransformation as Transform
 
 from .filter import butterworth
 from .standarize import standarize
-from .whitening import whitening_matrix, whitening, localized_whitening_matrix, whitening_score
+from . import whiten
 from . import detect
 from .score import get_score_pca, get_pca_suff_stat, get_pca_projection
 from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
@@ -60,13 +60,14 @@ def run():
     # initialize pipeline object, one batch per channel
     pipeline = BatchPipeline(path, dtype, CONFIG.recordings.n_channels,
                              CONFIG.recordings.format,
-                             CONFIG.resources.max_memory, tmp,
-                             mode='single_channel_one_batch')
+                             CONFIG.resources.max_memory, tmp)
 
     # add filter transformation if necessary
     if CONFIG.preprocess.filter:
         filter_op = Transform(butterworth,
-                              'filtered.bin', keep=True,
+                              'filtered.bin',
+                              mode='single_channel_one_batch',
+                              keep=True,
                               low_freq=CONFIG.filter.low_pass_freq,
                               high_factor=CONFIG.filter.high_factor,
                               order=CONFIG.filter.order,
@@ -76,8 +77,9 @@ def run():
 
     # standarize
     standarize_op = Transform(standarize, 'standarized.bin',
+                              mode='single_channel_one_batch',
                               keep=True,
-                              srate=CONFIG.recordings.sampling_rate)
+                              sampling_freq=CONFIG.recordings.sampling_rate)
 
     pipeline.add([standarize_op])
 
