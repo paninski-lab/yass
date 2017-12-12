@@ -10,7 +10,7 @@ from ..geometry import order_channels_by_distance
 
 def butterworth_single_channel(ts, low_freq, high_factor, order,
                                sampling_freq):
-    """Butterworth filter for time series
+    """Butterworth filter for a one dimensional time series
 
     Parameters
     ----------
@@ -30,37 +30,6 @@ def butterworth_single_channel(ts, low_freq, high_factor, order,
     high = float(high_factor) * 2
     b, a = butter(order, [low, high], btype='band')
     return lfilter(b, a, ts)
-
-
-# TODO: remove
-def butterworth(ts, low_freq, high_factor, order, sampling_freq):
-    """Butterworth filter of for time series
-
-    Parameters
-    ----------
-    ts: np.array
-        T x C numpy array, where T is the number of time samples and
-        C is the number of channels
-    low_freq: int
-        Low pass frequency (Hz)
-    high_factor: float
-        High pass factor (proportion of sampling rate)
-    order: int
-        Order of Butterworth filter
-    sampling_freq: int
-        Sampling frequency (Hz)
-    """
-    T, C = ts.shape
-
-    low = float(low_freq)/sampling_freq * 2
-    high = float(high_factor) * 2
-    b, a = butter(order, [low, high], btype='band')
-    fts = np.zeros((T, C))
-
-    for i in range(C):
-        fts[:, i] = lfilter(b, a, ts[:, i])
-
-    return fts
 
 
 def localized_whitening_matrix(ts, neighbors, geom, spike_size):
