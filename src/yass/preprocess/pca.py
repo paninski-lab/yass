@@ -5,8 +5,9 @@ import os
 import numpy as np
 from ..geometry import order_channels_by_distance
 
+# TODO: improve documentation: look for (?)
 
-# TODO: improve documentation [Returns section missing]
+
 def suff_stat(recordings, spike_index, spike_size):
     """
     Get PCA SS matrix per recording channel
@@ -23,9 +24,10 @@ def suff_stat(recordings, spike_index, spike_size):
     Returns
     -------
     numpy.ndarray
-        PCA SS
+        3D array (?)
     numpy.ndarray
-        1D array, with n_channels entries, the ith entry contains
+        1D array, with n_channels entries, the ith entry contains the number
+        of spikes found in the ith channel
     """
     # column ids for index matrix
     SPIKE_TIME, MAIN_CHANNEL = 0, 1
@@ -43,8 +45,8 @@ def suff_stat(recordings, spike_index, spike_size):
         channel_spike_times = spike_index[
             spike_index[:, MAIN_CHANNEL] == c, SPIKE_TIME]
         channel_spike_times = channel_spike_times[np.logical_and(
-                              (channel_spike_times > spike_size),
-                              (channel_spike_times < n_obs-spike_size-1))]
+            (channel_spike_times > spike_size),
+            (channel_spike_times < n_obs-spike_size-1))]
 
         channel_spikes = len(channel_spike_times)
 
@@ -77,6 +79,11 @@ def project(ss, spikes_per_channel, n_features, neighbors):
         Number of features
     neighbors: matrix
         Neighbors matrix
+
+    Returns
+    -------
+    numpy.ndarray
+        3D array (?, n_features, n_channels)
     """
     window_size, _, n_channels = ss.shape
     # allocate rotation matrix for each channel
@@ -92,10 +99,12 @@ def project(ss, spikes_per_channel, n_features, neighbors):
                 rot[:, :, c] = rot_all
             else:
                 w, v = np.linalg.eig(np.sum(ss[:, :, neighbors[c, :]], 2))
-                rot[:, :, c] = v[:, np.argsort(w)[window_size:(window_size-n_features-1):-1]]
+                rot[:, :, c] = v[:, np.argsort(
+                    w)[window_size:(window_size-n_features-1):-1]]
         else:
             w, v = np.linalg.eig(ss[:, :, c])
-            rot[:, :, c] = v[:, np.argsort(w)[window_size:(window_size-n_features-1):-1]]
+            rot[:, :, c] = v[:, np.argsort(
+                w)[window_size:(window_size-n_features-1):-1]]
 
     return rot
 
@@ -120,17 +129,17 @@ def score(spike_index, rot, neighbors, geom, batch_size, BUFF, nBatches,
         ch_idx, _ = order_channels_by_distance(c,
                                                np.where(neighbors[c])[0],
                                                geom)
-        c_idx[c,:ch_idx.shape[0]] = ch_idx
+        c_idx[c, :ch_idx.shape[0]] = ch_idx
 
     score = np.zeros((n_spikes, n_features, nneigh), 'float32')
 
     counter_batch = 0
     for i in range(nBatches):
-        idx_batch = np.logical_and(spike_index[:,0] > batch_size*i, 
-                                   spike_index[:,0] < batch_size*(i+1))
-        
+        idx_batch = np.logical_and(spike_index[:, 0] > batch_size*i,
+                                   spike_index[:, 0] < batch_size*(i+1))
+
         spike_index_batch = spike_index[idx_batch]
-        spike_index_batch[:,0] = spike_index_batch[:,0] - batch_size*i + BUFF
+        spike_index_batch[:, 0] = spike_index_batch[:, 0] - batch_size*i + BUFF
         n_spikes_batch = spike_index_batch.shape[0]
 
         wf_file.seek(flattenedLength*i)
@@ -138,18 +147,19 @@ def score(spike_index, rot, neighbors, geom, batch_size, BUFF, nBatches,
         wrec = np.fromstring(wrec, dtype='int16')
         wrec = np.reshape(wrec, (-1, n_channels))
         wrec = wrec.astype('float32')/scale_to_save
-        wrec = np.concatenate((wrec, np.zeros((batch_size + 2*BUFF,1))), axis=1)
+        wrec = np.concatenate(
+            (wrec, np.zeros((batch_size + 2*BUFF, 1))), axis=1)
 
         nbuff = 50000
         wf = np.zeros((nbuff, window_size, nneigh), 'float32')
         count = 0
         for j in range(n_spikes_batch):
-            t = spike_index_batch[j,SPIKE_TIME]
-            ch_idx = c_idx[spike_index_batch[j,MAIN_CHANNEL]]
-            wf[count] = wrec[(t-spike_size):(t+spike_size+1),ch_idx]
+            t = spike_index_batch[j, SPIKE_TIME]
+            ch_idx = c_idx[spike_index_batch[j, MAIN_CHANNEL]]
+            wf[count] = wrec[(t-spike_size):(t+spike_size+1), ch_idx]
             count += 1
 
-            if (count == nbuff) or (j == n_spikes_batch -1):
+            if (count == nbuff) or (j == n_spikes_batch - 1):
                 # if we seek all spikes before reaching the buffer size,
                 # size of buffer becomes the number of leftover spikes
                 if j == n_spikes-1:
@@ -157,10 +167,11 @@ def score(spike_index, rot, neighbors, geom, batch_size, BUFF, nBatches,
                     wf = wf[:nbuff]
 
                 # calculate score and collect into variable 'score'
-                score_temp = np.zeros((wf.shape[0],n_features, nneigh))
+                score_temp = np.zeros((wf.shape[0], n_features, nneigh))
                 for j in range(nneigh):
                     if ch_idx[j] < n_channels:
-                        score_temp[:,:,j] = np.matmul(wf[:,:,j],rot[:,:,ch_idx[j]])
+                        score_temp[:, :, j] = np.matmul(
+                            wf[:, :, j], rot[:, :, ch_idx[j]])
                 score[counter_batch:(counter_batch+nbuff)] = score_temp
 
                 # set counter back to zero
