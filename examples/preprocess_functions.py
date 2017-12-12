@@ -79,10 +79,13 @@ standarized = standarized.reshape(1000, 1)
 spike_index = preprocess.detect.threshold(rec, neighbors, spike_size,
                                           std_factor=1)
 
+n_features = 3
+
 suff_stat, spikes_per_channel = pca.suff_stat(rec, spike_index,
                                               spike_size)
 
-type(suff_stat)
-suff_stat.shape
+proj = pca.project(suff_stat, spikes_per_channel, n_features, neighbors)
 
-spikes_per_channel.shape
+
+scores = pca.score(spike_index, rot, neighbors, geom, batch_size, BUFF, nBatches,
+                    wf_path, scale_to_save)

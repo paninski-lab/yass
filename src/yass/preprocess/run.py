@@ -16,7 +16,7 @@ from ..batch import PipedTransformation as Transform
 from .filter import butterworth
 from .standarize import standarize
 from .whitening import whitening_matrix, whitening, localized_whitening_matrix, whitening_score
-from .detect import threshold_detection
+from . import detect
 from .score import get_score_pca, get_pca_suff_stat, get_pca_projection
 from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
 
