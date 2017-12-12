@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 
 from yass import preprocess
 from yass import geometry
+from yass.preprocess import pca
 
 # path to neuropixel data
 root = os.path.expanduser('~/data/ucl-neuropixel')
@@ -73,6 +74,15 @@ plt.show()
 
 # run threshold detection, not sure if this is the right
 # place for the threshold detector to be
+spike_size = 40
 standarized = standarized.reshape(1000, 1)
-spikes = preprocess.detect.threshold(rec, neighbors=neighbors,
-                                     spike_size=40, std_factor=1)
+spike_index = preprocess.detect.threshold(rec, neighbors, spike_size,
+                                          std_factor=1)
+
+suff_stat, spikes_per_channel = pca.suff_stat(rec, spike_index,
+                                              spike_size)
+
+type(suff_stat)
+suff_stat.shape
+
+spikes_per_channel.shape

@@ -82,5 +82,7 @@ def run():
     pipeline.add([standarize_op])
 
     # whiten
+    # detect spikes
+    # compute scores
 
     pipeline.run()

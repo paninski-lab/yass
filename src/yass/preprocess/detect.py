@@ -6,6 +6,8 @@ import numpy as np
 from ..geometry import n_steps_neigh_channels
 
 # TODO: documentation needs improvements
+# TODO: this is not really a preprocessing step, we should probably split
+# the pipeline in three steps: preprocess -> detect -> cluster (?)
 
 
 def threshold(rec, neighbors, spike_size, std_factor):
