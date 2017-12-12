@@ -33,7 +33,7 @@ class RecordingsReader(object):
         Output shape, if 'wide', all subsets will be returned in 'wide' format
         (even if the data is in 'long' format), if 'long', all subsets are
         returned in 'long' format (even if the data is in 'wide') format.
-        Defaults to 'wide'
+        Defaults to 'long'
 
     Raises
     ------
@@ -55,7 +55,7 @@ class RecordingsReader(object):
     """
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
-                 data_format=None, mmap=True, output_shape='wide'):
+                 data_format=None, mmap=True, output_shape='long'):
 
         path_to_yaml = path_to_recordings.replace('.bin', '.yaml')
 
