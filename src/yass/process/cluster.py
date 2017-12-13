@@ -1,10 +1,11 @@
 import progressbar
 import numpy as np
-import datetime as dt
 
 from yass.MFM import spikesort
 
 
+# TODO: documentation
+# TODO: comment code, it's not clear what it does
 def runSorter(score_all, mask_all, clr_idx_all, group_all,
               channel_groups, neighbors, n_features, config):
     """Run sorting algorithm for every channel group
@@ -54,15 +55,16 @@ def runSorter(score_all, mask_all, clr_idx_all, group_all,
 
                 ndataTemp = score_all[c].shape[0]
 
-                score[count:(count+ndataTemp), :, neighbors[c][neigh_chan]] = score_all[c]
+                score[count:(count+ndataTemp), :, neighbors[c]
+                      [neigh_chan]] = score_all[c]
 
-                
                 clr_idx_temp = clr_idx_all[c]
                 index[count:(count+ndataTemp)] = np.concatenate(
                     (np.ones((ndataTemp, 1))*c,
-                        clr_idx_temp[:,np.newaxis]), axis=1)
+                        clr_idx_temp[:, np.newaxis]), axis=1)
 
-                mask[count:(count+ndataTemp), neighbors[c][neigh_chan]] = mask_all[c]
+                mask[count:(count+ndataTemp), neighbors[c]
+                     [neigh_chan]] = mask_all[c]
 
                 group[count:(count+ndataTemp)] = group_all[c] + Ngroup + 1
 
@@ -77,9 +79,9 @@ def runSorter(score_all, mask_all, clr_idx_all, group_all,
         if score.shape[0] > 0:
             L = spikesort(score, mask, group, config)
             idx_triage = L == -1
-            L = L[~idx_triage] 
+            L = L[~idx_triage]
             index = index[~idx_triage]
-            
+
             spikeTrain_temp = np.concatenate(
                 (L[:, np.newaxis]+K, index), axis=1)
             K += np.amax(L)+1

@@ -180,7 +180,6 @@ def neural_network_detection():
                          CONFIG.neural_network_triage.threshold_collision,
                          CONFIG.neural_network_detector.filename,
                          CONFIG.neural_network_autoencoder.filename,
-                         CONFIG.neural_network_triage.filename
-                         )
+                         CONFIG.neural_network_triage.filename)
 
     return scores, clear, col
