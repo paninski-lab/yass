@@ -71,7 +71,8 @@ def nn_detection(X, T_batch, buff, neighChannels, geom,
         "float", [T_small+2*buff, C, n_features])
     spike_index_clear_tf = tf.placeholder("int64", [None, 2])
     score_tf = get_score(score_train_placeholder,
-                         spike_index_clear_tf, T_small+2*buff, n_features, c_idx)
+                         spike_index_clear_tf, T_small+2*buff,
+                         n_features, c_idx)
 
     ###############################
     # get values of above tensors #
@@ -138,7 +139,8 @@ def nn_detection(X, T_batch, buff, neighChannels, geom,
             spike_index_collision = spike_index[~idx_clean]
 
             score = sess.run(score_tf, feed_dict={
-                             score_train_placeholder: score_train, spike_index_clear_tf: spike_index_clear})
+                             score_train_placeholder: score_train,
+                             spike_index_clear_tf: spike_index_clear})
 
             spike_index_clear[:, 0] = spike_index_clear[:, 0] + t_add
             spike_index_collision[:, 0] = spike_index_collision[:, 0] + t_add
