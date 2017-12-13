@@ -6,12 +6,14 @@ from .score import get_score
 
 from ..geometry import order_channels_by_distance
 
+from . import NeuralNetDetector, NeuralNetTriage
+
 # TODO: remove batching logic from here
 
 
 def nn_detection(X, T_batch, buff, neighChannels, geom,
                  n_features, temporal_window, th_detect, th_triage,
-                 nnd, nnt):
+                 detector_filename, autoencoder_filename, triage_filename):
     """Detect spikes using a neural network
 
     Parameters
@@ -20,6 +22,8 @@ def nn_detection(X, T_batch, buff, neighChannels, geom,
     Returns
     -------
     """
+    nnd = NeuralNetDetector(detector_filename, autoencoder_filename)
+    nnt = NeuralNetTriage(triage_filename)
 
     T, C = X.shape
 
