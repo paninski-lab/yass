@@ -101,6 +101,20 @@ def run():
     ((filtered_path, standarized_path, whitened_path),
      (filtered_params, standarized_params, whitened_params)) = pipeline.run()
 
+    if CONFIG.spikes.detection == 'threshold':
+        return threshold_detection(standarized_path, standarized_params,
+                                   whitened_path)
+    elif CONFIG.spikes.detection == 'nn':
+        raise NotImplementedError('Not implemented...')
+
+
+def threshold_detection(standarized_path, standarized_params, whitened_path):
+    """Run threshold detector and dimensionality reduction using PCA
+    """
+    logger = logging.getLogger(__name__)
+
+    CONFIG = read_config()
+
     # detect spikes
     # TODO: support neural network, need to remove batch logic first
     bp = BatchProcessor(standarized_path, standarized_params['dtype'],
@@ -144,3 +158,9 @@ def run():
                        rotation, CONFIG.neighChannels, CONFIG.geom)
 
     return scores, spike_index_clear, spike_index_collision
+
+
+def neural_network_detection():
+    """Run neural network detection and autoencoder dimensionality reduction
+    """
+    pass
