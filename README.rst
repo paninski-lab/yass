@@ -57,8 +57,8 @@ Steinmetz`_:
     # install last stable version
     pip install yass-algorithm
 
-    # clone repo to get the sample code and data
-    git clone https://github.com/paninski-lab/yass@master
+    # clone repo to get the sample data
+    git clone https://github.com/paninski-lab/yass
 
     # move to the examples folder and run yass in the sample data
     cd yass/examples
