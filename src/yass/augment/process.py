@@ -1,18 +1,27 @@
-import datetime
 import logging
 import os.path
-import numpy as np
 
-from .. import read_config
 from ..batch import BatchProcessorFactory
 
-from ..preprocess.filter import whitening_matrix, whitening, butterworth
+from ..preprocess.filter import butterworth
 from ..preprocess.standarize import standarize, sd
 
+
+# FIXME: remove old factory code from here, i dont think we really need this
+# the preprocessor runs this same code...
+# TODO: documentation
+# TODO: comment code, it's not clear what it does
 def process_data(CONFIG):
-    
+    """[Description]
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
     logger = logging.getLogger(__name__)
-    
+
     # initialize processor for raw data
     path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
     dtype = CONFIG.recordings.dtype
