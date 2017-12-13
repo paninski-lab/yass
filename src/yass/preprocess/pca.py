@@ -117,6 +117,13 @@ def project(ss, spikes_per_channel, n_features, neighbors):
 def score(spike_index, rot, neighbors, geom, batch_size, BUFF, nBatches,
           wf_path, scale_to_save):
     """PCA scoring
+
+    Parameters
+    ----------
+    spike_index
+    rot
+    neighbors
+    geom
     """
     # column ids for index matrix
     SPIKE_TIME, MAIN_CHANNEL = 0, 1
