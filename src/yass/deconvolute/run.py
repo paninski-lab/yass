@@ -26,7 +26,7 @@ def run(spike_train_clear, templates, spike_index_collision):
     """
     CONFIG = read_config()
     deconv = Deconvolution(CONFIG, np.transpose(templates, [1, 0, 2]),
-                           spike_index_collision, filename='whiten.bin')
+                           spike_index_collision, filename='whitened.bin')
     spike_train_deconv = deconv.fullMPMU()
 
     spike_train = np.concatenate((spike_train_deconv, spike_train_clear))
