@@ -1,7 +1,7 @@
 import progressbar
 import numpy as np
 
-from yass.MFM import spikesort
+from yass.mfm import spikesort
 
 
 # TODO: documentation
