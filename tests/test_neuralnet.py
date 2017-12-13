@@ -2,10 +2,6 @@ import os
 
 import pytest
 
-import yass
-from yass.preprocessing import Preprocessor
-from yass.mainprocess import Mainprocessor
-
 
 @pytest.fixture
 def path_to_config():
