@@ -115,12 +115,15 @@ def run():
                                     neighbors=CONFIG.neighChannels,
                                     spike_size=CONFIG.spikeSize,
                                     std_factor=CONFIG.stdFactor)
-    spike_index = np.vstack(spikes)
+    spike_index_clear = np.vstack(spikes)
+
+    # triage is not implemented on threshold detector, return empty array
+    spike_index_collision = np.zeros((0, 2), 'int32')
 
     # compute per-batch sufficient statistics for PCA on standarized data
     stats = bp.multi_channel_apply(pca.suff_stat,
                                    mode='memory',
-                                   spike_index=spike_index,
+                                   spike_index=spike_index_clear,
                                    spike_size=CONFIG.spikeSize)
 
     suff_stats = reduce(lambda x, y: np.add(x, y), [e[0] for e in stats])
@@ -137,7 +140,7 @@ def run():
     # TODO: make this parallel, we can split the spikes, generate batches
     # and score in parallel
     logger.info('Reducing spikes dimensionality with PCA matrix...')
-    scores = pca.score(whitened_path, CONFIG.spikeSize, spike_index, rotation,
-                       CONFIG.neighChannels, CONFIG.geom)
+    scores = pca.score(whitened_path, CONFIG.spikeSize, spike_index_clear,
+                       rotation, CONFIG.neighChannels, CONFIG.geom)
 
-    return scores, spike_index, None
+    return scores, spike_index_clear, spike_index_collision
