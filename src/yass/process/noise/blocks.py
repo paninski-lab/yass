@@ -11,6 +11,7 @@ from ...preprocess import standarize
 from . import util
 
 
+# FIXME: i dont think is is being used
 def covariance(recordings, temporal_size, neigbor_steps):
     """Compute noise spatial and temporal covariance
 

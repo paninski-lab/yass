@@ -4,6 +4,7 @@ Utility functions for noise processing
 import numpy as np
 
 
+# FIXME: i dont think is is being used
 def isolate_noise(recording, spike_size, threshold):
     """
     Isolate noise from signal using a threshold value and filling with
