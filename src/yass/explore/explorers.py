@@ -342,6 +342,8 @@ class SpikeTrainExplorer(object):
         return self.stats_for_groups(groups)
 
 
+# TODO: documentation, proper errors for optional parameters, check
+# plotting functions (matplotlib gca and all that stuff)
 class RecordingExplorer(object):
 
     def __init__(self, path_to_recordings, spike_size=None, path_to_geom=None,
