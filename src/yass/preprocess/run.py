@@ -174,6 +174,7 @@ def neural_network_detection():
                          CONFIG.neighChannels,
                          CONFIG.geom,
                          CONFIG.spikes.temporal_features,
+                         # FIXME: what is this?
                          3,
                          CONFIG.neural_network_detector.threshold_spike,
                          CONFIG.neural_network_triage.threshold_collision,
