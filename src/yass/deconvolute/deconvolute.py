@@ -6,6 +6,7 @@ import numpy as np
 from ..geometry import n_steps_neigh_channels
 
 
+# TODO: refactor this
 class Deconvolution(object):
 
     def __init__(self, config, templates, spike_index, filename='wrec.bin'):
