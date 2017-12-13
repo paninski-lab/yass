@@ -208,8 +208,11 @@ class vbPar:
         # nchannel = maskedData.meanY.shape[2]
         log_rho = np.zeros([Ngroup, Khat])
         for k in range(Khat):
-            log_rho[:, k] = log_rho[:, k] + multivariate_normal_logpdf(maskedData.meanY, self.muhat[:, k, :],
-                                                                       self.Vhat[:, :, k, :] * self.nuhat[k])
+            mvn = multivariate_normal_logpdf(maskedData.meanY,
+                                             self.muhat[:, k, :],
+                                             self.Vhat[:, :, k, :]
+                                             * self.nuhat[k])
+            log_rho[:, k] = log_rho[:, k] + mvn
             log_rho[:, k] = log_rho[:, k] + np.log(pik[k])
         log_rho = log_rho - np.max(log_rho, axis=1)[:, np.newaxis]
         rho = np.exp(log_rho)
@@ -217,7 +220,8 @@ class vbPar:
 
     def update_global(self, suffStat, param):
         """
-            Updates the global variables muhat, invVhat, Vhat, lambdahat, nuhat, ahat for VB inference
+            Updates the global variables muhat, invVhat, Vhat, lambdahat,
+            nuhat, ahat for VB inference
 
             Parameters:
             ----------
