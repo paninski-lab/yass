@@ -16,7 +16,6 @@ from yass.preprocess.standarize import standarize
 
 import yass
 from yass import preprocess
-from yass.preprocessing import Preprocessor
 
 spikeSizeMS = 1
 srate = 30000
@@ -100,24 +99,6 @@ def test_can_whiten_data(data, path_to_geometry):
     neighbors = find_channel_neighbors(geometry, radius=70)
     q = whitening_matrix(data, neighbors, spike_size)
     whitening(data, q)
-
-
-def test_can_preprocess_data(path_to_config):
-    cfg = yass.Config.from_yaml(path_to_config)
-    pp = Preprocessor(cfg)
-    score, clr_idx, spt = pp.process()
-
-
-def test_can_preprocess_data_1k(path_to_config_1k):
-    cfg = yass.Config.from_yaml(path_to_config_1k)
-    pp = Preprocessor(cfg)
-    score, clr_idx, spt = pp.process()
-
-
-def test_can_preprocess_data_with_nnet(path_to_nn_config):
-    cfg = yass.Config.from_yaml(path_to_nn_config)
-    pp = Preprocessor(cfg)
-    score, clr_idx, spt = pp.process()
 
 
 def test_can_preprocess(path_to_config):
