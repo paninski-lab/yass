@@ -147,4 +147,4 @@ def run():
     # scores = pca.score(whitened, spike_index, rotation, CONFIG.neighChannels,
                        # CONFIG.geom)
 
-    return spike_index, whitened, rotation
+    return spike_index, whitened, rotation, whitened_path

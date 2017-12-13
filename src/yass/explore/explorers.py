@@ -344,19 +344,17 @@ class SpikeTrainExplorer(object):
 
 class RecordingExplorer(object):
 
-    def __init__(self, path_to_recordings, path_to_geom, window_size,
-                 neighbor_radius, dtype=None, n_channels=None,
+    def __init__(self, path_to_recordings, window_size=None, path_to_geom=None,
+                 neighbor_radius=None, dtype=None, n_channels=None,
                  data_format=None, mmap=True):
         self.data = RecordingsReader(path_to_recordings, dtype, n_channels,
                                      data_format, mmap, output_shape='long')
-        self.geom = geometry.parse(path_to_geom, n_channels)
-        self.neighbor_radius = neighbor_radius
-        self.neigh_matrix = geometry.find_channel_neighbors(self.geom,
-                                                            neighbor_radius)
-        self.n_channels = n_channels
 
-        obs = int(self.data.shape[0]/n_channels)
-        self.data = self.data.reshape(obs, n_channels)
+        # self.geom = geometry.parse(path_to_geom, n_channels)
+        # self.neighbor_radius = neighbor_radius
+        # self.neigh_matrix = geometry.find_channel_neighbors(self.geom,
+                                                            # neighbor_radius)
+        self.n_channels = self.data.channels
         self.window_size = window_size
 
     def neighbors_for_channel(self, channel):
