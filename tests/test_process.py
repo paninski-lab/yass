@@ -5,7 +5,7 @@ import pytest
 import yass
 from yass import preprocess
 from yass import process
-from yass import set_config, reset_config
+from yass import reset_config
 
 
 def teardown_function(function):
@@ -27,7 +27,7 @@ def path_to_config_1k():
 
 
 def test_process(path_to_config):
-    yass.set_config(set_config(path_to_config))
+    yass.set_config(path_to_config)
 
     score, spike_index_clear, spike_index_collision = preprocess.run()
 
