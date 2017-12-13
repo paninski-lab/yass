@@ -8,6 +8,7 @@ from ..geometry import n_steps_neigh_channels, order_channels_by_distance
 
 
 # TODO: missing documentation
+# TODO: add comments to the code to understand what's going on
 # TODO: rename functions, purpose is not clear
 # TODO: document why we need different methods for whitening when using
 # threshold detection vs nn detection
@@ -29,6 +30,11 @@ def marix(ts, neighbors, spike_size):
         neighbor of j
     spike_size: int
         Spike size
+
+    Returns
+    -------
+    numpy.ndarray (n_channels, n_channels)
+        whitening matrix
     """
     # get all necessary parameters from param
     [T, C] = ts.shape
@@ -84,6 +90,8 @@ def apply(ts, neighbors, spike_size):
 
     Returns
     -------
+    numpy.ndarray (n_observations, n_channels)
+        Whitened data
     """
     Q = marix(ts, neighbors, spike_size)
     return np.matmul(ts, Q.transpose())
@@ -91,12 +99,18 @@ def apply(ts, neighbors, spike_size):
 
 def matrix_localized(ts, neighbors, geom, spike_size):
     """Spatial whitening filter for time series
+    [How is this different from the other method?]
 
     Parameters
     ----------
     ts: np.array
         T x C numpy array, where T is the number of time samples and
         C is the number of channels
+
+    Returns
+    -------
+    numpy.ndarray (n_channels, n_channels)
+        whitening matrix
     """
     # get all necessary parameters from param
     [T, C] = ts.shape
@@ -144,6 +158,16 @@ def matrix_localized(ts, neighbors, geom, spike_size):
 
 
 def score(score, channel_index, Q):
+    """?
+
+    Parameters
+    ----------
+    ?
+
+    Returns
+    -------
+    ?
+    """
     n_data, n_features, n_neigh = score.shape
     n_channels = Q.shape[2]
 

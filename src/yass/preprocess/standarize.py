@@ -1,7 +1,6 @@
 """
 Recording standarization
 """
-
 import numpy as np
 
 
