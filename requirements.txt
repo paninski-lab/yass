@@ -6,3 +6,6 @@ pytest-flake8
 sphinx>=1.6
 sphinxcontrib-blockdiag
 numpydoc
+
+# optional dependencies
+matplotlib
