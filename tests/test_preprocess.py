@@ -66,7 +66,7 @@ def path_to_nn_config():
 
 
 def test_can_apply_butterworth_filter(data):
-    butterworth(data, low_freq=300, high_factor=0.1,
+    butterworth(data[:, 0], low_freq=300, high_factor=0.1,
                 order=3, sampling_freq=20000)
 
 
