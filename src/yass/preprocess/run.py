@@ -105,7 +105,10 @@ def run():
         return threshold_detection(standarized_path, standarized_params,
                                    whitened_path)
     elif CONFIG.spikes.detection == 'nn':
-        return neural_network_detection()
+        # FIXME: need to implement nn detection here
+        return threshold_detection(standarized_path, standarized_params,
+                                   whitened_path)
+        # return neural_network_detection()
 
 
 def threshold_detection(standarized_path, standarized_params, whitened_path):
