@@ -1,10 +1,11 @@
 import numpy as np
-import logging
 
 from .deconvolute import Deconvolution
 from .. import read_config
 
 
+# TODO: documentation
+# TODO: comment code, it's not clear what it does
 def run(spike_train_clear, templates, spike_index_collision):
     """Run deconvolution
 
@@ -23,8 +24,6 @@ def run(spike_train_clear, templates, spike_index_collision):
 
     .. literalinclude:: ../examples/deconvolute.py
     """
-    logger = logging.getLogger(__name__)
-
     CONFIG = read_config()
     deconv = Deconvolution(CONFIG, np.transpose(templates, [1, 0, 2]),
                            spike_index_collision, filename='whiten.bin')
@@ -39,7 +38,9 @@ def run(spike_train_clear, templates, spike_index_collision):
 
     for k in range(templates.shape[2]):
         idx_c = np.where(spike_train[:, 1] == k)[0]
-        idx_keep[idx_c[np.concatenate(([True], np.diff(spike_train[idx_c,0]) > 1))]] = 1
+        idx_keep[idx_c[np.concatenate(([True],
+                                       np.diff(spike_train[idx_c, 0])
+                                       > 1))]] = 1
 
     spike_train = spike_train[idx_keep]
 
