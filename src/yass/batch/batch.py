@@ -17,23 +17,20 @@ class BatchProcessor(object):
     ----------
     path_to_recordings: str
         Path to recordings file
-
     dtype: str
         Numpy dtype
-
     n_channels: int
         Number of channels
-
     data_format: str
         Data format, it can be either 'long' (observations, channels) or
         'wide' (channels, observations)
-
     max_memory: int or str
         Max memory to use in each batch, interpreted as bytes if int,
         if string, it can be any of {N}KB, {N}MB or {N}GB
 
     buffer_size: int, optional
-        Buffer size, defaults to 0
+        Buffer size, defaults to 0. Only relevant when performing multi-channel
+        operations
 
     Raises
     ------
