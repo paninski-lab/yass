@@ -22,6 +22,5 @@ def path_to_output():
     return path
 
 
-@pytest.mark.xfail(reason='bug has not been fixed')
 def test_example_works(path_to_config_sample, path_to_output):
     cli._run_pipeline(path_to_config_sample, path_to_output)

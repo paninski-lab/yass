@@ -40,7 +40,7 @@ preprocess:
 
 spikes:
   # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
-  detection: nn
+  detection: threshold
   # number of features in the temporal dimension to use when applying
   # dimensionality reduction
   temporal_features: 3

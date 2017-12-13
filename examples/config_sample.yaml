@@ -22,7 +22,7 @@ preprocess:
   whiten_batchwise: False
 
 spikes:
-  detection: nn
+  detection: threshold
   temporal_features: 3
 
 deconvolution:
