@@ -1,8 +1,5 @@
-# Sample configuration file, for a complete reference see
-# examples/config_sample_complete.yaml
-
 data:
-  root_folder: data/
+  root_folder: tests/data
   recordings: neuropixel.bin
   geometry: neuropixel_channels.npy
 
@@ -15,7 +12,6 @@ recordings:
   n_channels: 10
   spatial_radius: 70
   spike_size_ms: 1
-  format: long
 
 preprocess:
   filter: True

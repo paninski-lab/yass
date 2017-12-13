@@ -13,7 +13,6 @@ YASS: Yet Another Spike Sorter
 .. image:: https://badges.gitter.im/paninski-lab/yass.svg
     :target: https://gitter.im/paninski-lab/yass?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge
 
-State-of-the-art spike sorting.
 
 **Note**: YASS is in an early stage of development. Although it is stable, it has only been tested
 with the data in our lab, but we are working to make it more flexible. Feel free to send
@@ -38,6 +37,13 @@ Installing the last stable version:
    pip install yass-algorithm
 
 
+If you are feeling adventurous, you can install from the master branch:
+
+
+.. code-block:: shell
+
+    pip install git+git://github.com/paninski-lab/yass@master
+
 Example
 -------
 
@@ -48,16 +54,14 @@ Steinmetz`_:
 
 .. code-block:: shell
 
-    # clone the repo and move to the main folder
-    git clone https://github.com/paninski-lab/yass
-    cd yass
+    # install last stable version
+    pip install yass-algorithm
 
-    # install package (this is the same as running
-    # pip install git+https://github.com/paninski-lab/yass)
-    pip install .
+    # clone repo to get the sample data
+    git clone https://github.com/paninski-lab/yass
 
     # move to the examples folder and run yass in the sample data
-    cd examples
+    cd yass/examples
     yass config_sample.yaml
 
     # see the spike train
