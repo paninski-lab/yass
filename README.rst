@@ -78,15 +78,20 @@ Documentation hosted at `https://yass.readthedocs.io`_
 Running tests
 -------------
 
+To run tests and flake8 checks (from the root folder):
+
 .. code-block:: shell
 
-    pytest
+    pip install -r requirements.txt
+
+    pytest --flake8
 
 
 Building documentation
 ----------------------
 
-You need to install graphviz to build the graphs included in the documentation. On macOS:
+You need to install graphviz to build the graphs included in the
+documentation. On macOS:
 
 
 .. code-block:: shell
@@ -94,10 +99,14 @@ You need to install graphviz to build the graphs included in the documentation. 
     brew install graphviz
 
 
+To build the docs (from the root folder):
+
 .. code-block:: shell
 
+    pip install -r requirements.txt
+
     cd doc
-    make [format]
+    make qhtml
 
 
 Maintainers
