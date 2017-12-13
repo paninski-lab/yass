@@ -144,7 +144,7 @@ def run():
     # TODO: make this parallel, we can split the spikes, generate batches
     # and score in parallel
     logger.info('Reducing spikes dimensionality with PCA matrix...')
-    scores = pca.score(whitened, spike_index, rotation, CONFIG.neighChannels,
-                       CONFIG.geom)
+    # scores = pca.score(whitened, spike_index, rotation, CONFIG.neighChannels,
+                       # CONFIG.geom)
 
-    return spikes, suff_stats, spikes_per_channel, rotation
+    return spike_index, whitened, rotation
