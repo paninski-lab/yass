@@ -142,14 +142,13 @@ class maskData:
         self.sumYSq = sumYSq
         self.sumEta = sumEta
         self.weight = weight
-        self.groupMask = groupMask/ self.weight[:,np.newaxis]
+        self.groupMask = groupMask / self.weight[:, np.newaxis]
         self.meanY = self.sumY / self.weight[:, np.newaxis, np.newaxis]
         self.meanYSq = self.sumYSq / \
             self.weight[:, np.newaxis, np.newaxis, np.newaxis]
         self.meanEta = self.sumEta / \
             self.weight[:, np.newaxis, np.newaxis, np.newaxis]
 
-        
 
 class vbPar:
     """
@@ -195,7 +194,6 @@ class vbPar:
 
             maskedData: maskData object
         """
-
 
         pik = dirichlet(self.ahat.ravel())
         Khat = self.ahat.size
@@ -323,7 +321,6 @@ class suffStatistics:
             suffStat: suffStatistics object
         """
 
-
         if len(args) == 2:
             maskedData, vbParam = args
             Khat = vbParam.rhat.shape[1]
@@ -367,7 +364,6 @@ class suffStatistics:
             nchannel: int
                 Number of channels
         """
-
 
         for n in range(nchannel):
             noMask = maskedData.groupMask[:, n] > 0
@@ -434,8 +430,6 @@ class ELBO_Class:
             Total ELBO total = sum(percluster) + rest_term
     """
 
-
-
     def __init__(self, *args):
         """
             Initializes attributes. Calls cal_ELBO_opti()
@@ -477,7 +471,6 @@ class ELBO_Class:
             K_ind (optional): list
                 Cluster indices for which the partial ELBO is being calculated. Defaults to all clusters
         """
-
 
         if len(args[0]) < 5:
             maskedData, suffStat, vbParam, param = args[0]
@@ -712,7 +705,7 @@ def birth_move(maskedData, vbParam, suffStat, param, L):
     while np.sum(idx) == 0:
         kpicked = np.random.choice(np.arange(Khat).astype(int), p=weight)
         idx = vbParam.rhat[:, kpicked] > collectionThreshold
-    
+
     idx = np.where(idx)[0]
     if idx.size > 10000:
         idx = idx[:10000]
@@ -769,7 +762,7 @@ def birth_move(maskedData, vbParam, suffStat, param, L):
         vbParam.nuhat = np.concatenate(
             (vbParam.nuhat, vbParamPrime.nuhat[goodK]), axis=0)
         L = np.concatenate((L, np.ones(Nbirth)), axis=0)
-    
+
     vbParam.update_local(maskedData)
     suffStat = suffStatistics(maskedData, vbParam)
     vbParam.update_global(suffStat, param)
@@ -903,16 +896,16 @@ def spikesort(score, mask, group, param):
 
     maskedData = maskData(score, mask, group)
 
-    vbParam = split_merge(maskedData, param)        
+    vbParam = split_merge(maskedData, param)
     assignmentTemp = np.argmax(vbParam.rhat, axis=1)
-    
+
     assignment = np.zeros(score.shape[0], 'int16')
     for j in range(score.shape[0]):
         assignment[j] = assignmentTemp[group[j]]
-        
+
     idx_triage = cluster_triage(vbParam, score, 3)
     assignment[idx_triage] = -1
-        
+
     return assignment
 
 
@@ -939,12 +932,16 @@ def split_merge(maskedData, param):
 
     vbParam, suffStat, L = merge_move(
         maskedData, vbParam, suffStat, param, L, 1)
-    
+
     return vbParam
 
-def cluster_triage(vbParam,score,threshold):
-    prec = np.transpose(vbParam.Vhat * vbParam.nuhat[np.newaxis,np.newaxis,:,np.newaxis],axes = [2,3,0,1])
-    scoremhat = np.transpose(score[:,:,np.newaxis,:] - vbParam.muhat, axes = [0,2,3,1])
-    maha = np.sqrt(np.sum(np.matmul(np.matmul(scoremhat[:,:,:,np.newaxis,:],prec),scoremhat[:,:,:,:,np.newaxis]),axis = (3,4),keepdims = False))
+
+def cluster_triage(vbParam, score, threshold):
+    prec = np.transpose(
+        vbParam.Vhat * vbParam.nuhat[np.newaxis, np.newaxis, :, np.newaxis], axes=[2, 3, 0, 1])
+    scoremhat = np.transpose(
+        score[:, :, np.newaxis, :] - vbParam.muhat, axes=[0, 2, 3, 1])
+    maha = np.sqrt(np.sum(np.matmul(np.matmul(scoremhat[:, :, :, np.newaxis, :], prec), scoremhat[
+                   :, :, :, :, np.newaxis]), axis=(3, 4), keepdims=False))
     idx = np.any(np.all(maha >= threshold, axis=1), axis=1)
     return idx
