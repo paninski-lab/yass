@@ -16,22 +16,15 @@ from yass.deconvolute import Deconvolution
 # from . import read_config
 
 
-def main():
-    # removed reference to this file in config, it is not necessary
-    # TODO: let the user specify the name through an option
-    output_file = 'spike_train.csv'
+def _run_pipeline(config, output_file):
+    """Run the entire pipeline given a config and output file
+    """
 
     # configure logging module to get useful information
     logging.basicConfig(level=logging.INFO)
     # logger = logging.getLogger(__name__)
 
-    parser = argparse.ArgumentParser(description='Run YASS.')
-    parser.add_argument('config', type=str,
-                        help='Path to configuration file')
-
-    args = parser.parse_args()
-
-    cfg = yass.Config.from_yaml(args.config)
+    cfg = yass.Config.from_yaml(config)
 
     pp = Preprocessor(cfg)
     score, spike_index_clear, spike_index_collision = pp.process()
@@ -39,8 +32,8 @@ def main():
     mp = Mainprocessor(cfg, score, spike_index_clear, spike_index_collision)
     spikeTrain_clear, spike_index_collision = mp.mainProcess()
 
-    dc = Deconvolution(cfg, np.transpose(mp.templates, [1, 0, 2]),
-                       spike_index_collision)
+    dc = Deconvolution(cfg, np.transpose(
+        mp.templates, [1, 0, 2]), spike_index_collision)
     spikeTrain_col = dc.fullMPMU()
 
     spikeTrain = np.concatenate((spikeTrain_col, spikeTrain_clear))
@@ -77,3 +70,19 @@ def main():
     # path_to_file = os.path.join(cfg.data.root_folder, output_file)
     # np.savetxt(path_to_file, spike_train, fmt='%i, %i')
     # logger.info('Done, spike train saved in: {}'.format(path_to_file))
+
+
+def main():
+    """Entry point for the command line utility
+    """
+    # removed reference to this file in config, it is not necessary
+    # TODO: let the user specify the name through an option
+    output_file = 'spike_train.csv'
+
+    parser = argparse.ArgumentParser(description='Run YASS.')
+    parser.add_argument('config', type=str,
+                        help='Path to configuration file')
+
+    args = parser.parse_args()
+
+    return _run_pipeline(args.config, output_file)
