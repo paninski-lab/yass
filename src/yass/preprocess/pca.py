@@ -87,7 +87,7 @@ def project(ss, spikes_per_channel, n_features, neighbors):
     Returns
     -------
     numpy.ndarray
-        3D array (?, n_features, n_channels)
+        3D array (window_size, n_features, n_channels)
     """
     window_size, _, n_channels = ss.shape
     # allocate rotation matrix for each channel
@@ -114,23 +114,31 @@ def project(ss, spikes_per_channel, n_features, neighbors):
 
 
 # TODO: remove batch logic from here
-def score(spike_index, rot, neighbors, geom, batch_size, BUFF, nBatches,
-          wf_path, scale_to_save):
-    """PCA scoring
+def score(rec, spike_index, rot, neighbors, geom):
+    """Reduce spikes dimensionality with a PCA rotation matrix
 
     Parameters
     ----------
-    spike_index
-    rot
-    neighbors
-    geom
+    rec: numpy.ndarray (n_observations, n_channels)
+        Recordings
+    spike_index: np.ndarray (number of spikes, 2)
+        Spike indexes as returned from the threshold detector
+    rot: ndarray (window_size, n_features, n_channels)
+        PCA rotation matrix
+    neighbors: numpy.ndarray (n_channels, n_channels)
+        Neighbors matrix
+    geom: numpy.ndarray (n_channels, 2)
+        Channels location matrix
+
+    Returns
+    -------
     """
     # column ids for index matrix
     SPIKE_TIME, MAIN_CHANNEL = 0, 1
 
     window_size, n_features, n_channels = rot.shape
     spike_size = int((window_size-1)/2)
-    n_spikes = spike_index.shape[0]
+    n_spikes, _ = spike_index.shape
 
     wf_file = open(os.path.join(wf_path), 'rb')
     flattenedLength = 2*(batch_size + 2*BUFF)*n_channels
@@ -190,5 +198,3 @@ def score(spike_index, rot, neighbors, geom, batch_size, BUFF, nBatches,
                 count = 0
                 counter_batch += nbuff
     wf_file.close()
-
-    return score

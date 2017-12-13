@@ -9,7 +9,7 @@ from functools import reduce
 import numpy as np
 
 from .. import read_config
-from ..batch import BatchPipeline, BatchProcessor
+from ..batch import BatchPipeline, BatchProcessor, RecordingsReader
 from ..batch import PipedTransformation as Transform
 
 from .filter import butterworth
@@ -48,14 +48,18 @@ def run():
     .. literalinclude:: ../examples/preprocess.py
     """
 
-    # logger = logging.getLogger(__name__)
+    logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
 
     tmp = os.path.join(CONFIG.data.root_folder, 'tmp')
 
     if not os.path.exists(tmp):
+        logger.info('Creating temporary folder: {}'.format(tmp))
         os.makedirs(tmp)
+    else:
+        logger.info('Temporary folder {} already exists, output will be '
+                    'stored there'.format(tmp))
 
     path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
     dtype = CONFIG.recordings.dtype
@@ -95,18 +99,18 @@ def run():
     pipeline.add([standarize_op, whiten_op])
 
     # run pipeline
-    ((filtered, standarized, whitened),
+    ((filtered_path, standarized_path, whitened_path),
      (filtered_params, standarized_params, whitened_params)) = pipeline.run()
 
     # detect spikes
     # TODO: support neural network, need to remove batch logic first
-    bp = BatchProcessor(standarized, standarized_params['dtype'],
+    bp = BatchProcessor(standarized_path, standarized_params['dtype'],
                         standarized_params['n_channels'],
                         standarized_params['data_format'],
                         CONFIG.resources.max_memory,
                         buffer_size=0)
 
-    # apply threshold detector on standarize data
+    # apply threshold detector on standarized data
     spikes = bp.multi_channel_apply(detect.threshold,
                                     mode='memory',
                                     neighbors=CONFIG.neighChannels,
@@ -126,10 +130,22 @@ def run():
                                 [e[1] for e in stats])
 
     # compute rotation matrix
+    logger.info('Computing PCA projection matrix...')
     rotation = pca.project(suff_stats, spikes_per_channel,
                            CONFIG.spikes.temporal_features,
                            CONFIG.neighChannels)
 
-    # compute scores for every detected spikes
+    # compute scores for every detected spikes on whitened data (?)
+    whitened = RecordingsReader(whitened_path, whitened_params['dtype'],
+                                whitened_params['n_channels'],
+                                whitened_params['data_format'],
+                                mmap=True,
+                                output_shape='long')
+
+    # TODO: make this parallel, we can split the spikes, generate batches
+    # and score in parallel
+    logger.info('Reducing spikes dimensionality with PCA matrix...')
+    scores = pca.score(whitened, spike_index, rotation, CONFIG.neighChannels,
+                       CONFIG.geom)
 
     return spikes, suff_stats, spikes_per_channel, rotation
