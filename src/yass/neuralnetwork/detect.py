@@ -159,4 +159,4 @@ def nn_detection(X, T_batch, buff, neighChannels, geom,
     spike_index_collision_all = spike_index_collision_all[:counter_collision]
     score_all = score_all[:counter_clear]
 
-    return spike_index_clear_all, spike_index_collision_all, score_all
+    return score_all, spike_index_clear_all, spike_index_collision_all
