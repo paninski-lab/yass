@@ -2,9 +2,8 @@
 PCA for multi-channel recordings, used for dimensionality reduction
 when using threshold detector
 """
-import os
 import numpy as np
-from ..geometry import order_channels_by_distance
+from ..explore import RecordingExplorer
 
 # TODO: improve documentation: look for (?)
 # TODO: remove batching logic
@@ -113,14 +112,15 @@ def project(ss, spikes_per_channel, n_features, neighbors):
     return rot
 
 
-# TODO: remove batch logic from here
-def score(rec, spike_index, rot, neighbors, geom):
+def score(path_to_rec, spike_size, spike_index, rot, neighbors, geom):
     """Reduce spikes dimensionality with a PCA rotation matrix
 
     Parameters
     ----------
-    rec: numpy.ndarray (n_observations, n_channels)
-        Recordings
+    path_to_rec: str
+        Path to recordings
+    spike_size: int
+        Spike size
     spike_index: np.ndarray (number of spikes, 2)
         Spike indexes as returned from the threshold detector
     rot: ndarray (window_size, n_features, n_channels)
@@ -133,68 +133,13 @@ def score(rec, spike_index, rot, neighbors, geom):
     Returns
     -------
     """
-    # column ids for index matrix
-    SPIKE_TIME, MAIN_CHANNEL = 0, 1
+    times = spike_index[:, 0]
+    explorer = RecordingExplorer(path_to_rec, spike_size=spike_size)
 
-    window_size, n_features, n_channels = rot.shape
-    spike_size = int((window_size-1)/2)
-    n_spikes, _ = spike_index.shape
+    spikes = explorer.read_waveforms(times)
 
-    wf_file = open(os.path.join(wf_path), 'rb')
-    flattenedLength = 2*(batch_size + 2*BUFF)*n_channels
+    # TODO: this should be done by the project function
+    rot_ = np.transpose(rot)
+    sp = np.transpose(spikes)
 
-    nneigh = np.max(np.sum(neighbors, 0))
-    c_idx = np.ones((n_channels, nneigh), 'int32')*n_channels
-    for c in range(n_channels):
-        ch_idx, _ = order_channels_by_distance(c,
-                                               np.where(neighbors[c])[0],
-                                               geom)
-        c_idx[c, :ch_idx.shape[0]] = ch_idx
-
-    score = np.zeros((n_spikes, n_features, nneigh), 'float32')
-
-    counter_batch = 0
-    for i in range(nBatches):
-        idx_batch = np.logical_and(spike_index[:, 0] > batch_size*i,
-                                   spike_index[:, 0] < batch_size*(i+1))
-
-        spike_index_batch = spike_index[idx_batch]
-        spike_index_batch[:, 0] = spike_index_batch[:, 0] - batch_size*i + BUFF
-        n_spikes_batch = spike_index_batch.shape[0]
-
-        wf_file.seek(flattenedLength*i)
-        wrec = wf_file.read(flattenedLength)
-        wrec = np.fromstring(wrec, dtype='int16')
-        wrec = np.reshape(wrec, (-1, n_channels))
-        wrec = wrec.astype('float32')/scale_to_save
-        wrec = np.concatenate(
-            (wrec, np.zeros((batch_size + 2*BUFF, 1))), axis=1)
-
-        nbuff = 50000
-        wf = np.zeros((nbuff, window_size, nneigh), 'float32')
-        count = 0
-        for j in range(n_spikes_batch):
-            t = spike_index_batch[j, SPIKE_TIME]
-            ch_idx = c_idx[spike_index_batch[j, MAIN_CHANNEL]]
-            wf[count] = wrec[(t-spike_size):(t+spike_size+1), ch_idx]
-            count += 1
-
-            if (count == nbuff) or (j == n_spikes_batch - 1):
-                # if we seek all spikes before reaching the buffer size,
-                # size of buffer becomes the number of leftover spikes
-                if j == n_spikes-1:
-                    nbuff = count
-                    wf = wf[:nbuff]
-
-                # calculate score and collect into variable 'score'
-                score_temp = np.zeros((wf.shape[0], n_features, nneigh))
-                for j in range(nneigh):
-                    if ch_idx[j] < n_channels:
-                        score_temp[:, :, j] = np.matmul(
-                            wf[:, :, j], rot[:, :, ch_idx[j]])
-                score[counter_batch:(counter_batch+nbuff)] = score_temp
-
-                # set counter back to zero
-                count = 0
-                counter_batch += nbuff
-    wf_file.close()
+    return np.transpose(np.matmul(rot_, sp), (2, 1, 0))

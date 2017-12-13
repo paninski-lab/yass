@@ -344,7 +344,7 @@ class SpikeTrainExplorer(object):
 
 class RecordingExplorer(object):
 
-    def __init__(self, path_to_recordings, window_size=None, path_to_geom=None,
+    def __init__(self, path_to_recordings, spike_size=None, path_to_geom=None,
                  neighbor_radius=None, dtype=None, n_channels=None,
                  data_format=None, mmap=True):
         self.data = RecordingsReader(path_to_recordings, dtype, n_channels,
@@ -355,7 +355,7 @@ class RecordingExplorer(object):
         # self.neigh_matrix = geometry.find_channel_neighbors(self.geom,
                                                             # neighbor_radius)
         self.n_channels = self.data.channels
-        self.window_size = window_size
+        self.spike_size = spike_size
 
     def neighbors_for_channel(self, channel):
         """Get the neighbors for the channel
@@ -363,10 +363,10 @@ class RecordingExplorer(object):
         return np.where(self.neigh_matrix[channel])[0]
 
     def read_waveform(self, time, channels='all'):
-        """Read a waveform over 2*window_size + 1, centered at time
+        """Read a waveform over 2*spike_size + 1, centered at time
         """
-        start = time - self.window_size
-        end = time + self.window_size + 1
+        start = time - self.spike_size
+        end = time + self.spike_size + 1
 
         if isinstance(channels, str) and channels == 'all':
             channels = range(self.n_channels)

@@ -8,7 +8,7 @@ from functools import reduce
 import numpy as np
 
 from .. import read_config
-from ..batch import BatchPipeline, BatchProcessor, RecordingsReader
+from ..batch import BatchPipeline, BatchProcessor
 from ..batch import PipedTransformation as Transform
 
 from .filter import butterworth
@@ -134,17 +134,10 @@ def run():
                            CONFIG.spikes.temporal_features,
                            CONFIG.neighChannels)
 
-    # compute scores for every detected spikes on whitened data (?)
-    whitened = RecordingsReader(whitened_path, whitened_params['dtype'],
-                                whitened_params['n_channels'],
-                                whitened_params['data_format'],
-                                mmap=True,
-                                output_shape='long')
-
     # TODO: make this parallel, we can split the spikes, generate batches
     # and score in parallel
     logger.info('Reducing spikes dimensionality with PCA matrix...')
-    # scores = pca.score(whitened, spike_index, rotation, CONFIG.neighChannels,
-                       # CONFIG.geom)
+    scores = pca.score(whitened_path, CONFIG.spikeSize, spike_index, rotation,
+                       CONFIG.neighChannels, CONFIG.geom)
 
-    return spike_index, whitened, rotation, whitened_path
+    return spike_index, scores
