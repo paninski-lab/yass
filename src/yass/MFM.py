@@ -18,45 +18,59 @@ class maskData:
         -----------
 
         sumY: np.array
-            Ngroup x nfeature x nchannel numpy array which contain the sum of the expectation of the
-             masked virtual data for each group. Here Ngroup is number of unique groups given by the
-             coresetting. nfeature is the number of features and nchannel is the number of channels.
+            Ngroup x nfeature x nchannel numpy array which contain the sum of
+            the expectation of the
+             masked virtual data for each group. Here Ngroup is number of
+             unique groups given by the
+             coresetting. nfeature is the number of features and nchannel is
+             the number of channels.
         sumYSq: np.array
-            Ngroup x nfeature x nchannel numpy array which contain the sum of the expectation of yy.T
+            Ngroup x nfeature x nchannel numpy array which contain the sum of
+            the expectation of yy.T
             where y = M * score for each group.
         sumEta: np.array
-            Ngroup x nfeature x nchannel numpy array sum of the variance for all points in a group.
+            Ngroup x nfeature x nchannel numpy array sum of the variance for
+            all points in a group.
         weight: np.array
-            Ngroup x 1 numpy arraay which contains in the number of points in each group
+            Ngroup x 1 numpy arraay which contains in the number of points in
+            each group
         meanY: np.array
-            Ngroup x nfeature x nchannel numpy array which is sumY/weight or the empirical mean of sumY
+            Ngroup x nfeature x nchannel numpy array which is sumY/weight or
+            the empirical mean of sumY
         meanYSq: np.array
-            Ngroup x nfeature x nfeature x nchannel numpy array which is sumYSq/weight or the empirical
+            Ngroup x nfeature x nfeature x nchannel numpy array which is
+            sumYSq/weight or the empirical
             mean of sumYSq
         meanEta: np.array
-            Ngroup x nfeature x nfeature x nchannel numpy array whihc is sumEta/weight or the empirical
+            Ngroup x nfeature x nfeature x nchannel numpy array whihc is
+            sumEta/weight or the empirical
             mean of sumEta
         groupmask: np.array
-            Ngroup x nchannel emprical average of the mask for the datapoints for a given group
+            Ngroup x nchannel emprical average of the mask for the datapoints
+            for a given group
     """
 
     def __init__(self, *args):
         """
-            Initialization of class attributes. Class method calc_maskedData_mfm() is called to actually
+            Initialization of class attributes. Class method
+            calc_maskedData_mfm() is called to actually
             calculate the attributes.
-
 
             Parameters
             ----------
             score: np.array
-                N x nfeature x nchannel numpy array, where N is the number of spikes, nfeature is the
-                number of features and nchannel is the number of channels. Contains multichannel spike
+                N x nfeature x nchannel numpy array, where N is the number of
+                spikes, nfeature is the
+                number of features and nchannel is the number of channels.
+                Contains multichannel spike
                 data in a low dimensional space.
             mask:  np.array
-                N x nchannel numpy array, where N is the number of spikes, nchannel is the number of
+                N x nchannel numpy array, where N is the number of spikes,
+                nchannel is the number of
                 channels. Mask for the data.
             group: np.array
-                N x 1 numpy array, where N is the number of spikes. Coresetting group assignments for
+                N x 1 numpy array, where N is the number of spikes.
+                Coresetting group assignments for
                 each spike
 
         """
@@ -71,14 +85,18 @@ class maskData:
             Parameters
             ----------
             score: np.array
-                N x nfeature x nchannel numpy array, where N is the number of spikes, nfeature is the
-                number of features and nchannel is the number of channels. Contains multichannel spike
+                N x nfeature x nchannel numpy array, where N is the number of
+                spikes, nfeature is the
+                number of features and nchannel is the number of channels.
+                Contains multichannel spike
                 data in a low dimensional space.
             mask:  np.array
-                N x nchannel numpy array, where N is the number of spikes, nchannel is the number of
+                N x nchannel numpy array, where N is the number of spikes,
+                nchannel is the number of
                 channels. Mask for the data.
             group: np.array
-                N x 1 numpy array, where N is the number of spikes. Coresetting group assignments for
+                N x 1 numpy array, where N is the number of spikes.
+                Coresetting group assignments for
                 each spike
         """
         N, nfeature, nchannel = score.shape
@@ -91,7 +109,8 @@ class maskData:
             y_temp, [0, 3, 2, 1])).transpose((0, 2, 3, 1))
 
         score_temp = score[:, :, np.newaxis, :]
-        scoreSq = np.matmul(np.transpose(score_temp, [0, 3, 1, 2]), np.transpose(
+        scoreSq = np.matmul(np.transpose(score_temp, [0, 3, 1, 2]),
+                            np.transpose(
             score_temp, [0, 3, 2, 1])).transpose((0, 2, 3, 1))
         z = mask[:, np.newaxis, np.newaxis, :] * scoreSq + \
             (1 - mask)[:, np.newaxis, np.newaxis, :] * \
@@ -106,9 +125,6 @@ class maskData:
             weight = np.ones(N)
 
         elif Ngroup < N:
-            #weightmatrix = sparse.csr_matrix((np.ones(N),(group.ravel(),np.arange(N))),[Ngroup,N])
-            #weightmatrix = np.zeros([Ngroup, N])
-            #weightmatrix[group.ravel(), np.asarray(range(N)).ravel()] = 1
 
             sumY = np.zeros((Ngroup, nfeature, nchannel))
             sumYSq = np.zeros((Ngroup, nfeature, nfeature, nchannel))
@@ -122,22 +138,11 @@ class maskData:
                 sumEta[idx] += eta[n]
                 groupMask[idx] += mask[n]
                 weight[idx] += 1
-            # y = y.reshape([N, int(y.size / float(N))], order='F')
-            # ySq = ySq.reshape([N, int(ySq.size / float(N))], order='F')
-            # eta = eta.reshape([N, int(eta.size / float(N))], order='F')
-            # sumY = np.dot(weightmatrix, y)
-            # sumYSq = np.dot(weightmatrix, ySq)
-            # sumEta = np.dot(weightmatrix, eta)
-            # sumY = sumY.reshape([Ngroup, nfeature, nchannel], order='F')
-            # sumYSq = sumYSq.reshape([Ngroup, nfeature, nfeature, nchannel], order='F')
-            # sumEta = sumEta.reshape([Ngroup, nfeature, nfeature, nchannel], order='F')
-            # weight = np.sum(weightmatrix, axis=1)
-            # groupMask = np.dot(weightmatrix, mask) / weight[:, np.newaxis]
-            # self.weightmatrix = weightmatrix
+
         else:
             raise ValueError(
                 "Number of groups is larger than the size of the data")
-        #self.y = y
+        # self.y = y
         self.sumY = sumY
         self.sumYSq = sumYSq
         self.sumEta = sumEta
@@ -158,7 +163,8 @@ class vbPar:
         -----------
 
         rhat: np.array
-            Ngroup x K numpy array containing the probability of each representative point of being assigned
+            Ngroup x K numpy array containing the probability of each
+            representative point of being assigned
             to cluster  0<=k<K. Here K is the number of clusters
 
         ahat: np.array
@@ -166,9 +172,10 @@ class vbPar:
         lambdahat, nuhat: np.array
             K x 1 numpy array. Posterior Normal wishart parameters
         muhat, Vhat, invVhat: np.array
-            nfeaature x K x nchannel, nfeature x nfeature x K x nchannel, nfeature x nfeature x K x nchannel
-            respectively. Posterior parameters for the normal wishart distribution
-
+            nfeaature x K x nchannel, nfeature x nfeature x K x nchannel,
+            nfeature x nfeature x K x nchannel
+            respectively. Posterior parameters for the normal wishart
+            distribution
     """
 
     def __init__(self, rhat):
@@ -201,11 +208,6 @@ class vbPar:
         # nchannel = maskedData.meanY.shape[2]
         log_rho = np.zeros([Ngroup, Khat])
         for k in range(Khat):
-            # for n in range(nchannel):
-            #    log_rho[:, k] = log_rho[:, k] + scipy.stats.multivariate_normal.logpdf(maskedData.meanY[:, :, n],
-            #                                                                           self.muhat[:, k, n],
-            #                                                                           self.invVhat[:, :, k, n] /
-            # self.nuhat[k])
             log_rho[:, k] = log_rho[:, k] + multivariate_normal_logpdf(maskedData.meanY, self.muhat[:, k, :],
                                                                        self.Vhat[:, :, k, :] * self.nuhat[k])
             log_rho[:, k] = log_rho[:, k] + np.log(pik[k])
@@ -249,7 +251,8 @@ class vbPar:
 
     def update_global_selected(self, suffStat, param):
         """
-            Updates the global variables muhat, invVhat, Vhat, lambdahat, nuhat, ahat for VB inference for
+            Updates the global variables muhat, invVhat, Vhat, lambdahat,
+            nuhat, ahat for VB inference for
             a given cluster (Unused; needs work)
 
             Parameters:
@@ -285,22 +288,27 @@ class vbPar:
 
 class suffStatistics:
     """
-        Class to calculate precompute sufficient statistics for increased efficiency
+        Class to calculate precompute sufficient statistics for increased
+        efficiency
 
         Attributes:
         -----------
 
         Nhat : np.array
-            K x 1 numpy array which stores pseudocounts for the number of elements in each cluster. K
+            K x 1 numpy array which stores pseudocounts for the number of
+            elements in each cluster. K
             is the number of clusters
         sumY : np.array
-            nfeature x K x nchannel which stores weighted sum of the maskData.sumY weighted by the cluster
+            nfeature x K x nchannel which stores weighted sum of the
+            maskData.sumY weighted by the cluster
             probabilities. (See maskData for more details)
         sumYSq1: np.array
-            nfeaature x nfeature x K x nchannel which stores weighted sum of the maskData.sumYSq weighted
+            nfeaature x nfeature x K x nchannel which stores weighted sum of
+            the maskData.sumYSq weighted
             by the cluster probabilities. (See maskData for more details)
         sumYSq2: np.array
-            nfeaature x nfeature x K x nchannel which stores weighted sum of the maskData.sumEta weighted
+            nfeaature x nfeature x K x nchannel which stores weighted sum of
+            the maskData.sumEta weighted
             by the cluster probabilities. (See maskData for more details)
         sumYSq: np.array
             nfeature x nfeature x K x nchannel. Stores sumYSq1 + sumYSq2.
@@ -342,9 +350,11 @@ class suffStatistics:
             self.sumYSq1 = args[0].sumYSq1.copy()
             self.sumYSq2 = args[0].sumYSq2.copy()
 
-    def calc_suffstat(self, maskedData, vbParam, Ngroup, Khat, nfeature, nchannel):
+    def calc_suffstat(self, maskedData, vbParam, Ngroup, Khat, nfeature,
+                      nchannel):
         """
-            Calcation of the above attributes happens here. Called by __init__().
+            Calcation of the above attributes happens here. Called by
+            __init__().
 
             Parameters:
             -----------
@@ -420,7 +430,8 @@ class ELBO_Class:
         -----------
 
         percluster: np.array
-            K x 1 numpy array containing part of ELBO value that depends on each cluster. Can be used to calculate
+            K x 1 numpy array containing part of ELBO value that depends on
+            each cluster. Can be used to calculate
             value for only a given cluster
 
         rest_term: float
@@ -445,7 +456,8 @@ class ELBO_Class:
             param: Config object (see Config.py)
 
             K_ind (optional): list
-                Cluster indices for which the partial ELBO is being calculated. Defaults to all clusters
+                Cluster indices for which the partial ELBO is being
+                calculated. Defaults to all clusters
         """
         if len(args) == 1:
             self.total = args[0].total
@@ -469,20 +481,19 @@ class ELBO_Class:
             param: Config object (see Config.py)
 
             K_ind (optional): list
-                Cluster indices for which the partial ELBO is being calculated. Defaults to all clusters
+                Cluster indices for which the partial ELBO is being
+                calculated. Defaults to all clusters
         """
 
         if len(args[0]) < 5:
             maskedData, suffStat, vbParam, param = args[0]
             nfeature, Khat, nchannel = vbParam.muhat.shape
             P = nfeature*nchannel
-            # N = vbParam.rhat.shape[0]
             k_ind = np.arange(Khat)
         else:
             maskedData, suffStat, vbParam, param, k_ind = args[0]
             nfeature, Khat, nchannel = vbParam.muhat.shape
             P = nfeature * nchannel
-            # N = vbParam.rhat.shape[0]
 
         prior = param.cluster_prior
         fit_term = np.zeros(Khat)
@@ -528,9 +539,7 @@ class ELBO_Class:
 
         bmterm3 = 0.5 * (vbParam.nuhat[k_ind]*P + P - P*prior.lambda0/vbParam.lambdahat[k_ind] +
                          P * np.log(prior.lambda0/vbParam.lambdahat[k_ind]))
-        # temp = np.squeeze(np.sum(
-        #     np.matmul(np.matmul(muhat[k_ind, :, np.newaxis, :], Vhat[k_ind, :, :, :]), muhat[k_ind, :, :, np.newaxis]),
-        #     axis=1, keepdims=False), axis=(1, 2))
+
         bmterm4 = - 0.5 * vbParam.nuhat[k_ind]*prior.lambda0*fterm1temp
 
         bmterm5 = nchannel*(specsci.multigammaln(vbParam.nuhat[k_ind]/2.0, nfeature) -
@@ -568,20 +577,23 @@ class ELBO_Class:
 
 def multivariate_normal_logpdf(x, mu, Lam):
     """
-        Calculates the gaussian density of the given point(s). returns N x 1 array which is the density for
+        Calculates the gaussian density of the given point(s). returns N x 1
+        array which is the density for
         the given cluster (see vbPar.update_local())
 
         Parameters:
         -----------
         x: np.array
-            N x nfeature x nchannel where N is the number of datapoints nfeature is the number of features
+            N x nfeature x nchannel where N is the number of datapoints
+            nfeature is the number of features
             and nchannel is the number of channels
 
         mu: np.array
             nfeature x nchannel numpy array. channelwise mean of the gaussians
 
         cov: np.array
-            nfeature x nfeauter x nchannel numpy array. Channelwise covariance of the gaussians
+            nfeature x nfeauter x nchannel numpy array. Channelwise covariance
+            of the gaussians
 
     """
 
@@ -595,7 +607,6 @@ def multivariate_normal_logpdf(x, mu, Lam):
 
     logpart = 0
 
-    # logpart = 0.5*np.sum(np.linalg.slogdet(np.transpose(Lam,[2,0,1]))[1])
     for c in range(C):
         logpart = logpart + logdet(Lam[:, :, c])
     logpart = logpart*0.5
@@ -605,7 +616,8 @@ def multivariate_normal_logpdf(x, mu, Lam):
 
 def logdet(X):
     """
-        Calculates log of the determinant of the given symmetric positive definite matrix. returns float
+        Calculates log of the determinant of the given symmetric positive
+        definite matrix. returns float
 
         parameters:
         -----------
@@ -620,7 +632,8 @@ def logdet(X):
 
 def mult_psi(x, d):
     """
-        Calculates the multivariate digamma function. Returns N x 1 array of the multivariaate digamma values
+        Calculates the multivariate digamma function. Returns N x 1 array of
+        the multivariaate digamma values
 
         parameters:
         -----------
@@ -634,7 +647,8 @@ def mult_psi(x, d):
 
 def init_param(maskedData, K, param):
     """
-        Initializes vbPar object using weighted kmeans++ for initial cluster assignment. Calculates sufficient
+        Initializes vbPar object using weighted kmeans++ for initial cluster
+        assignment. Calculates sufficient
         statistics. Updates global parameters for the created vbPar object.
 
         Parameters:
@@ -743,12 +757,6 @@ def birth_move(maskedData, vbParam, suffStat, param, L):
              > (1.0 / (extraK * 2)))
     Nbirth = np.sum(goodK)
     if Nbirth >= 1:
-        #suffStatPrime.Nhat = suffStatPrime.Nhat[goodK]
-        #suffStatPrime.sumY = suffStatPrime.sumY[:, goodK, :]
-        #suffStatPrime.sumYSq = suffStatPrime.sumYSq[:, :, goodK, :]
-        #suffStatPrime.sumYSq1 = suffStatPrime.sumYSq1[:, :, goodK, :]
-        #suffStatPrime.sumYSq2 = suffStatPrime.sumYSq2[:, :, goodK, :]
-
         vbParam.ahat = np.concatenate(
             (vbParam.ahat, vbParamPrime.ahat[goodK]), axis=0)
         vbParam.lambdahat = np.concatenate(
@@ -766,27 +774,12 @@ def birth_move(maskedData, vbParam, suffStat, param, L):
     vbParam.update_local(maskedData)
     suffStat = suffStatistics(maskedData, vbParam)
     vbParam.update_global(suffStat, param)
-    # vbParam.update_local(maskedData)
-
-    # if Nbirth > 1:
-    #    suffStat_orig = suffStatistics(suffStat)
-    #    idx_birth = Khat + np.asarray(range(Nbirth))
-    #    suffStat.Nhat[idx_birth] = suffStat.Nhat[idx_birth] + suffStatPrime.Nhat
-    #    suffStat.sumY[:, idx_birth, :] = suffStat.sumY[:, idx_birth, :] + suffStatPrime.sumY
-    #    suffStat.sumYSq[:, :, idx_birth, :] = suffStat.sumYSq[:, :, idx_birth, :] + suffStatPrime.sumYSq
-    #    suffStat.sumYSq1[:, :, idx_birth, :] = suffStat.sumYSq1[:, :, idx_birth, :] + suffStatPrime.sumYSq1
-    #    suffStat.sumYSq2[:, :, idx_birth, :] = suffStat.sumYSq2[:, :, idx_birth, :] + suffStatPrime.sumYSq2
-    #    vbParam.update_global_mfm(suffStat, param)
-    #    suffStat = suffStatistics(suffStat_orig)
-    # else:
-    #    vbParam.update_global_mfm(suffStat, param)
 
     return vbParam, suffStat, L
 
 
 def merge_move(maskedData, vbParam, suffStat, param, L, check_full):
     n_merged = 0
-    k_begin = 0
     ELBO = ELBO_Class(maskedData, suffStat, vbParam, param)
     nfeature, K, nchannel = vbParam.muhat.shape
     if K > 1:

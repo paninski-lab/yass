@@ -13,7 +13,7 @@ class Table(object):
     def __init__(self, content, header):
         try:
             self._tabulate = __import__('tabulate').tabulate
-        except Exception as e:
+        except Exception:
             raise ImportError('tabulate is required to use the table module')
 
         self.content = content

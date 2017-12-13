@@ -8,7 +8,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from matplotlib.patches import Circle
-from yass import geometry
+# from yass import geometry
 
 from ..batch import RecordingsReader
 from .util import ensure_iterator, sample
@@ -355,7 +355,7 @@ class RecordingExplorer(object):
         # self.geom = geometry.parse(path_to_geom, n_channels)
         # self.neighbor_radius = neighbor_radius
         # self.neigh_matrix = geometry.find_channel_neighbors(self.geom,
-                                                            # neighbor_radius)
+        # neighbor_radius)
         self.n_channels = self.data.channels
         self.spike_size = spike_size
 

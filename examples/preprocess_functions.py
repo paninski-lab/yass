@@ -91,5 +91,6 @@ suff_stat, spikes_per_channel = pca.suff_stat(rec, spike_index,
 proj = pca.project(suff_stat, spikes_per_channel, n_features, neighbors)
 
 
-scores = pca.score(spike_index, rot, neighbors, geom, batch_size, BUFF, nBatches,
-                    wf_path, scale_to_save)
+# scores = pca.score(spike_index, rot, neighbors, geom, batch_size, BUFF,
+# nBatches,
+# wf_path, scale_to_save)
