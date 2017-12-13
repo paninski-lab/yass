@@ -16,7 +16,7 @@ from .standarize import standarize
 from . import whiten
 from . import detect
 from . import pca
-from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
+from ..neuralnetwork import nn_detection
 
 
 # TODO check legacy buffer logic
@@ -105,7 +105,7 @@ def run():
         return threshold_detection(standarized_path, standarized_params,
                                    whitened_path)
     elif CONFIG.spikes.detection == 'nn':
-        raise NotImplementedError('Not implemented...')
+        return neural_network_detection()
 
 
 def threshold_detection(standarized_path, standarized_params, whitened_path):
@@ -163,4 +163,23 @@ def threshold_detection(standarized_path, standarized_params, whitened_path):
 def neural_network_detection():
     """Run neural network detection and autoencoder dimensionality reduction
     """
-    pass
+    # logger = logging.getLogger(__name__)
+
+    CONFIG = read_config()
+    BUFF = 0
+    rec = None
+
+    (scores, clear,
+     col) = nn_detection(rec, 10000, BUFF,
+                         CONFIG.neighChannels,
+                         CONFIG.geom,
+                         CONFIG.spikes.temporal_features,
+                         3,
+                         CONFIG.neural_network_detector.threshold_spike,
+                         CONFIG.neural_network_triage.threshold_collision,
+                         CONFIG.neural_network_detector.filename,
+                         CONFIG.neural_network_autoencoder.filename,
+                         CONFIG.neural_network_triage.filename
+                         )
+
+    return scores, clear, col
