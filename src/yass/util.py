@@ -135,7 +135,7 @@ def map_parameters_in_fn_call(args, kwargs, func):
     params_missing = params_all - set(kwargs.keys())
 
     # Remove self parameter from params missing since it's not used
-    if 'self' in params_missing:
+    if 'self' in args_spec:
         params_missing.remove('self')
         offset = 1
     else:
@@ -146,6 +146,7 @@ def map_parameters_in_fn_call(args, kwargs, func):
 
     # Parse args
     args_parsed = dict()
+
     for idx in idxs:
         key = args_spec[idx]
 
@@ -167,15 +168,28 @@ def vectorize_parameter(name):
     def vectorize(func):
 
         @wraps(func)
-        def func_wrapper(self, *args, **kwargs):
+        def method_func_wrapper(self, *args, **kwargs):
             params = map_parameters_in_fn_call(args, kwargs, func)
             value = params.pop(name)
-            if _is_collection(value):
-                return [func(o, **params) for o in value]
-            else:
-                return func(value, **params)
 
-        return func_wrapper
+            if _is_collection(value):
+                return [func(self=self, **merge_dicts(params, {name: o}))
+                        for o in value]
+            else:
+                return func(self=self, **merge_dicts(params, {name: value}))
+
+        @wraps(func)
+        def func_wrapper(*args, **kwargs):
+            params = map_parameters_in_fn_call(args, kwargs, func)
+            value = params.pop(name)
+
+            if _is_collection(value):
+                return [func(**merge_dicts(params, {name: o})) for o in value]
+            else:
+                return func(**merge_dicts(params, {name: value}))
+
+        return (method_func_wrapper if 'self' in inspect.getargspec(func).args
+                else func_wrapper)
 
     return vectorize
 
@@ -230,3 +244,10 @@ def sample(data, percentage):
     """
     return np.random.choice(data, size=int(percentage*len(data)),
                             replace=False)
+
+
+def merge_dicts(*dict_args):
+    result = {}
+    for dictionary in dict_args:
+        result.update(dictionary)
+    return result
