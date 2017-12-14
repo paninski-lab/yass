@@ -1,5 +1,5 @@
 """
-Functions for parsing geometry data
+Functions for geometry data
 """
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
@@ -36,6 +36,16 @@ def parse(path, n_channels):
     numpy.ndarray
         2-dimensional numpy array where each row contains the x, y coordinates
         for a channel
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+    from yass import geometry
+
+    geom = geometry.parse('path/to/geom.npy', n_channels=500)
+    geom = geometry.parse('path/to/geom.txt', n_channels=500)
     """
     # TODO: infer the number of channels by the number of lines
     extension = path.split('.')[-1]
@@ -57,7 +67,6 @@ def parse(path, n_channels):
     return geom
 
 
-# TODO: improve documentation
 def find_channel_neighbors(geom, radius):
     """Compute a channel neighrborhood matrix
 
@@ -65,25 +74,33 @@ def find_channel_neighbors(geom, radius):
     ----------
     geom: np.array
         Array with the cartesian coordinates for the channels
-
     radius: float
         Maximum radius for the channels to be considered neighbors
 
     Returns
     -------
+    numpy.ndarray (n_channels, n_channels)
+        Symmetric boolean matrix with the i, j as True if the ith and jth
+        channels are considered neighbors
     """
     return (squareform(pdist(geom)) <= radius)
 
 
-# TODO: improve documentation
 def n_steps_neigh_channels(neighbors, steps):
-    """Compute a n-steps channel neighrborhood matrix
+    """Compute a neighrborhood matrix by considering neighbors of neighbors
 
     Parameters
     ----------
+    neighbors: numpy.ndarray
+        Neighbors matrix
+    steps: int
+        Number of steps to still consider channels as neighbors
 
     Returns
     -------
+    numpy.ndarray (n_channels, n_channels)
+        Symmetric boolean matrix with the i, j as True if the ith and jth
+        channels are considered neighbors
     """
     C = neighbors.shape[0]
     output = np.eye(C, dtype='bool')
@@ -96,14 +113,23 @@ def n_steps_neigh_channels(neighbors, steps):
 
 
 # TODO: add documentation
+# TODO: remove n_channels, we can infer it from neighbors or geom
 def make_channel_groups(n_channels, neighbors, geom):
     """[DESCRIPTION]
 
     Parameters
     ----------
+    n_channels: int
+        Number of channels
+    neighbors: numpy.ndarray
+        Neighbors matrix
+    geom: numpy.ndarray
+        geometry matrix
 
     Returns
     -------
+    list
+        List of channel groups based on [?]
     """
     channelGroups = list()
     c_left = np.array(range(n_channels))
@@ -126,17 +152,27 @@ def make_channel_groups(n_channels, neighbors, geom):
     return channelGroups
 
 
-# TODO: add documentation
-def order_channels_by_distance(refc, channels, geom):
-    """[DESCRIPTION]
+def order_channels_by_distance(reference, channels, geom):
+    """Order channels by distance using certain channel as reference
 
     Parameters
     ----------
+    reference: int
+        Reference channel
+    channels: np.ndarray
+        Channels to order
+    geom
+        Geometry matrix
 
     Returns
     -------
+    numpy.ndarray
+        1D array with the channels ordered by distance using the reference
+        channels
+    numpy.ndarray
+        1D array with the indexes for the ordered channels
     """
-    coord_main = geom[refc]
+    coord_main = geom[reference]
     coord_others = geom[channels]
     idx = np.argsort(np.sum(np.square(coord_others - coord_main), axis=1))
 
