@@ -66,7 +66,8 @@ def run(score, spike_index_clear, spike_index_collision):
     # second column: cluster id
     spike_train_clear = np.zeros((0, 2), 'int32')
 
-    # order of channels
+    # build matrix where each entry contains the neighbors ordered by
+    # distance (?) left entries are filled with n_channels - why?
     c_idx = np.ones((CONFIG.recordings.n_channels, nneigh),
                     'int32')*CONFIG.recordings.n_channels
     for c in range(CONFIG.recordings.n_channels):
@@ -76,6 +77,8 @@ def run(score, spike_index_clear, spike_index_collision):
                                                CONFIG.geom)
         c_idx[c, :ch_idx.shape[0]] = ch_idx
 
+    # iterate over every channel group [missing documentation for this
+    # function]. why is this order needed?
     for g in range(nG):
         logger.info("Processing group {} in {} groups.".format(g+1, nG))
         logger.info("Processiing data (triage, coreset, masking) ...")
@@ -88,6 +91,8 @@ def run(score, spike_index_clear, spike_index_collision):
         coreset_id_group = np.zeros((0), 'int32')
         mask_group = np.zeros((0, neigh_chans.shape[0]))
         spike_index_clear_group = np.zeros((0, 2), 'int32')
+
+        # go through every channel in the group
         for c in channels:
 
             # index of data whose main channel is c
