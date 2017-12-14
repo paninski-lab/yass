@@ -164,6 +164,8 @@ def map_parameters_in_fn_call(args, kwargs, func):
 
 
 # TODO: this should probably be in explore.util
+# TODO: maybe support non-strict mode so the function works with iterable
+# and non-iterable, strict mode should only work with iterable (as it is now)
 def vectorize_parameter(name):
     def vectorize(func):
 
