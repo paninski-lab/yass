@@ -171,22 +171,14 @@ def vectorize_parameter(name):
         def method_func_wrapper(self, *args, **kwargs):
             params = map_parameters_in_fn_call(args, kwargs, func)
             value = params.pop(name)
-
-            if _is_collection(value):
-                return [func(self=self, **merge_dicts(params, {name: o}))
-                        for o in value]
-            else:
-                return func(self=self, **merge_dicts(params, {name: value}))
+            return [func(self=self, **merge_dicts(params, {name: o}))
+                    for o in value]
 
         @wraps(func)
         def func_wrapper(*args, **kwargs):
             params = map_parameters_in_fn_call(args, kwargs, func)
             value = params.pop(name)
-
-            if _is_collection(value):
-                return [func(**merge_dicts(params, {name: o})) for o in value]
-            else:
-                return func(**merge_dicts(params, {name: value}))
+            return [func(**merge_dicts(params, {name: o})) for o in value]
 
         return (method_func_wrapper if 'self' in inspect.getargspec(func).args
                 else func_wrapper)
