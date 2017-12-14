@@ -1,3 +1,7 @@
+"""
+Clustering with coresets
+"""
+
 import numpy as np
 from scipy.stats import chi2
 from sklearn.cluster import KMeans
@@ -5,6 +9,7 @@ from sklearn.cluster import KMeans
 
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
+# FIXME: remove do_coreset
 def coreset(score, coreset_k, coreset_th, do_coreset):
     """[Description]
 
