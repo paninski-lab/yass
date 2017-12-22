@@ -89,7 +89,11 @@ class BatchProcessor(object):
         Returns
         -------
         generator:
-            A slice that yields indexes
+            A tuple of size two: the first element is the subset of the data
+            for the ith batch, second element is the slice object used to
+            obtain the data in [observations, channels] format. When buffer
+            is set, the index returned in the second element does not include
+            the data added (if any)  due to the buffer
 
         Examples
         --------
@@ -103,10 +107,11 @@ class BatchProcessor(object):
                  (buff_start, buff_end)) = (self.buffer_generator
                                             .update_key_with_buffer(idx))
                 subset = self.reader[idx_new]
+                # FIXME: add offset to idx if buffer is added
                 yield self.buffer_generator.add_buffer(subset, buff_start,
-                                                       buff_end)
+                                                       buff_end), idx
             else:
-                yield self.reader[idx]
+                yield self.reader[idx], idx
 
     def single_channel_apply(self, function, mode, output_path=None,
                              force_complete_channel_batch=True,
@@ -297,10 +302,10 @@ class BatchProcessor(object):
         f = open(output_path, 'wb')
 
         self.reader.output_shape = 'long'
-        indexes = self.indexer.multi_channel(from_time, to_time, channels)
+        data = self.multi_channel(from_time, to_time, channels)
 
-        for idx in indexes:
-            res = function(self.reader[idx], **kwargs)
+        for subset, idx in data:
+            res = function(subset, **kwargs)
             res.tofile(f)
 
         dtype = str(res.dtype)
@@ -346,11 +351,11 @@ class BatchProcessor(object):
     def _multi_channel_apply_memory(self, function, from_time, to_time,
                                     channels, **kwargs):
 
-        indexes = self.indexer.multi_channel(from_time, to_time, channels)
+        data = self.multi_channel(from_time, to_time, channels)
         results = []
 
-        for idx in indexes:
-            res = function(self.reader[idx], **kwargs)
+        for subset, idx in data:
+            res = function(subset, **kwargs)
             results.append(res)
 
         return results

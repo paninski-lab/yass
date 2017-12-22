@@ -7,7 +7,7 @@ import os
 
 import matplotlib.pyplot as plt
 
-from yass.batch.new import BatchProcessor
+from yass.batch import BatchProcessor
 from yass.batch import RecordingsReader
 from yass.preprocess.filter import butterworth_single_channel
 

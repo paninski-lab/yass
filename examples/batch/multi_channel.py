@@ -1,6 +1,6 @@
 import os
 
-from yass.batch.new import BatchProcessor
+from yass.batch import BatchProcessor
 
 
 path_to_neuropixel_data = (os.path.expanduser('~/data/ucl-neuropixel'
@@ -16,11 +16,11 @@ bp = BatchProcessor(path_to_neuropixel_data,
 # temporal dimension, the window size is determined by max_memory
 data = bp.multi_channel()
 
-for d in data:
-    print(d.shape)
+for d, idx in data:
+    print('Shape: {}. Index: {}'.format(d.shape, idx))
 
 # we can specify the temporal limits and subset channels
 data = bp.multi_channel(from_time=100000, to_time=200000, channels=[0, 1, 2])
 
-for d in data:
-    print(d.shape)
+for d, idx in data:
+    print('Shape: {}. Index: {}'.format(d.shape, idx))

@@ -8,7 +8,7 @@ import os
 
 import numpy as np
 
-from yass.batch.new import BatchProcessor
+from yass.batch import BatchProcessor
 from yass.batch import RecordingsReader
 
 logging.basicConfig(level=logging.DEBUG)

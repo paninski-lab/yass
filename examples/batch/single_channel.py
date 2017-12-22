@@ -1,6 +1,6 @@
 import os
 
-from yass.batch.new import BatchProcessor
+from yass.batch import BatchProcessor
 
 
 path_to_neuropixel_data = (os.path.expanduser('~/data/ucl-neuropixel'
