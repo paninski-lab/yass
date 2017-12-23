@@ -8,7 +8,7 @@ from yass import process
 logging.basicConfig(level=logging.DEBUG)
 
 # set yass configuration parameters
-yass.set_config('tests/config_sample.yaml')
+yass.set_config('config_sample.yaml')
 
 # run preprocessor
 score, clr_idx, spt = preprocess.run()

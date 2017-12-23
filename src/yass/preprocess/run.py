@@ -129,6 +129,7 @@ def threshold_detection(standarized_path, standarized_params, whitened_path):
     # apply threshold detector on standarized data
     spikes = bp.multi_channel_apply(detect.threshold,
                                     mode='memory',
+                                    cleanup_function=detect.fix_indexes,
                                     neighbors=CONFIG.neighChannels,
                                     spike_size=CONFIG.spikeSize,
                                     std_factor=CONFIG.stdFactor)

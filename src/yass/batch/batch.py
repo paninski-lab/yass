@@ -103,9 +103,9 @@ class BatchProcessor(object):
 
         for idx in indexes:
             obs_idx = idx[0]
-            data_idx = slice(self.buffer_size,
-                             obs_idx.stop - obs_idx.start + self.buffer_size,
-                             obs_idx.step)
+            data_idx = (slice(self.buffer_size,
+                              obs_idx.stop - obs_idx.start + self.buffer_size,
+                              obs_idx.step), slice(None, None, None))
 
             if self.buffer_size:
                 (idx_new,

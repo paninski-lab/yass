@@ -7,7 +7,9 @@ from yass import preprocess
 logging.basicConfig(level=logging.DEBUG)
 
 # set yass configuration parameters
-yass.set_config('tests/config_nnet.yaml')
+yass.set_config('config_sample.yaml')
 
 # run preprocessor
 score, spike_index_clear, spike_index_collision = preprocess.run()
+
+spike_index_clear.shape

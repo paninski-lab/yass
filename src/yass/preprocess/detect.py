@@ -6,6 +6,8 @@ import numpy as np
 from ..geometry import n_steps_neigh_channels
 
 # TODO: documentation needs improvements: see (?) and Notes section
+# FIXME: seems like the detector is throwing slightly different results
+# when n batch > 1
 
 
 def threshold(rec, neighbors, spike_size, std_factor):
@@ -70,3 +72,30 @@ def threshold(rec, neighbors, spike_size, std_factor):
             count += nc
 
     return index[:count]
+
+
+def fix_indexes(spikes, idx_local, idx):
+    """Fixes indexes from detected spikes in batches
+
+    Parameters
+    ----------
+    spikes: numpy.ndarray
+        A 2D array of detected spikes as returned from detect.threshold
+    idx_local: slice
+        A slice object indicating the indices for the data (excluding buffer)
+    idx: slice
+        A slice object indicating the absolute location of the data
+    """
+    # remove spikes detected in the buffer area
+    times = spikes[:, 0]
+
+    data_start = idx_local[0].start
+    data_end = idx_local[0].stop
+
+    not_in_buffer = spikes[np.logical_and(times >= data_start,
+                                          times <= data_end)]
+
+    # offset spikes depending on the absolute location
+    offset = idx[0].start
+    not_in_buffer[:, 0] = not_in_buffer[:, 0] + offset
+    return not_in_buffer
