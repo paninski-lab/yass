@@ -89,11 +89,11 @@ class BatchProcessor(object):
         Returns
         -------
         generator:
-            A tuple of size two: the first element is the subset of the data
+            A tuple of size three: the first element is the subset of the data
             for the ith batch, second element is the slice object used to
-            obtain the data in [observations, channels] format. When buffer
-            is set, the index returned in the second element does not include
-            the data added (if any)  due to the buffer
+            obtain the data in [observations, channels] format (excluding
+            the buffer), the last element is the absolute index of the data
+            again in [observations, channels] format
 
         Examples
         --------
@@ -102,16 +102,20 @@ class BatchProcessor(object):
         indexes = self.indexer.multi_channel(from_time, to_time, channels)
 
         for idx in indexes:
+            obs_idx = idx[0]
+            data_idx = slice(self.buffer_size,
+                             obs_idx.stop - obs_idx.start + self.buffer_size,
+                             obs_idx.step)
+
             if self.buffer_size:
                 (idx_new,
                  (buff_start, buff_end)) = (self.buffer_generator
                                             .update_key_with_buffer(idx))
                 subset = self.reader[idx_new]
-                # FIXME: add offset to idx if buffer is added
                 yield self.buffer_generator.add_buffer(subset, buff_start,
-                                                       buff_end), idx
+                                                       buff_end), data_idx, idx
             else:
-                yield self.reader[idx], idx
+                yield self.reader[idx], data_idx, idx
 
     def single_channel_apply(self, function, mode, output_path=None,
                              force_complete_channel_batch=True,
@@ -304,7 +308,7 @@ class BatchProcessor(object):
         self.reader.output_shape = 'long'
         data = self.multi_channel(from_time, to_time, channels)
 
-        for subset, idx in data:
+        for subset, _, _ in data:
             res = function(subset, **kwargs)
             res.tofile(f)
 
@@ -354,7 +358,7 @@ class BatchProcessor(object):
         data = self.multi_channel(from_time, to_time, channels)
         results = []
 
-        for subset, idx in data:
+        for subset, _, _ in data:
             res = function(subset, **kwargs)
             results.append(res)
 
