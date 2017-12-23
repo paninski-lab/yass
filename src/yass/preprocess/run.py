@@ -19,10 +19,6 @@ from . import pca
 from ..neuralnetwork import nn_detection
 
 
-# TODO check legacy buffer logic
-# TODO: fix indentation
-
-
 def run():
     """Execute preprocessing pipeline
 
