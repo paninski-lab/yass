@@ -13,6 +13,7 @@ from ..geometry import n_steps_neigh_channels
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
 # TODO: remove batching logic from here
+# FIXME: remove scaleToSave and use numpy memmap instead of manual file seek
 class Deconvolution(object):
     """[Description]
 
