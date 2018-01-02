@@ -10,8 +10,8 @@ from matplotlib.ticker import FuncFormatter
 from matplotlib.patches import Circle
 # from yass import geometry
 
+from ..util import ensure_iterator, sample
 from ..batch import RecordingsReader
-from .util import ensure_iterator, sample
 from .table import Table
 
 
