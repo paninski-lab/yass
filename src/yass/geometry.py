@@ -1,5 +1,5 @@
 """
-Functions for geometry data
+Functions for parsing geometry data
 """
 import numpy as np
 from scipy.spatial.distance import pdist, squareform

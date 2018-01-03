@@ -47,6 +47,7 @@ def run(score, spike_index_clear, spike_index_collision):
     --------
 
     .. literalinclude:: ../examples/process.py
+
     """
     CONFIG = read_config()
     MAIN_CHANNEL = 1

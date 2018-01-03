@@ -98,16 +98,16 @@ def run():
      (filtered_params, standarized_params, whitened_params)) = pipeline.run()
 
     if CONFIG.spikes.detection == 'threshold':
-        return threshold_detection(standarized_path, standarized_params,
-                                   whitened_path)
+        return _threshold_detection(standarized_path, standarized_params,
+                                    whitened_path)
     elif CONFIG.spikes.detection == 'nn':
         # FIXME: need to implement nn detection here
-        return threshold_detection(standarized_path, standarized_params,
-                                   whitened_path)
-        # return neural_network_detection()
+        return _threshold_detection(standarized_path, standarized_params,
+                                    whitened_path)
+        # return _neural_network_detection()
 
 
-def threshold_detection(standarized_path, standarized_params, whitened_path):
+def _threshold_detection(standarized_path, standarized_params, whitened_path):
     """Run threshold detector and dimensionality reduction using PCA
     """
     logger = logging.getLogger(__name__)
@@ -161,7 +161,7 @@ def threshold_detection(standarized_path, standarized_params, whitened_path):
     return scores, spike_index_clear, spike_index_collision
 
 
-def neural_network_detection():
+def _neural_network_detection():
     """Run neural network detection and autoencoder dimensionality reduction
     """
     # logger = logging.getLogger(__name__)

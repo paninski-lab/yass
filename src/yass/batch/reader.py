@@ -51,7 +51,7 @@ class RecordingsReader(object):
     Examples
     --------
 
-    .. literalinclude:: ../../examples/reader.py
+    .. literalinclude:: ../../examples/batch/reader.py
     """
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,

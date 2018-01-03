@@ -6,7 +6,10 @@ from .batch import BatchProcessor
 
 
 class PipedTransformation(object):
-    """
+    """Wrapper for functions run with BatchPipeline
+
+    Parameters
+    ----------
     function: function
         Function to apply
     output_name: str
@@ -23,6 +26,7 @@ class PipedTransformation(object):
         deleted after the next transformation is done
     **kwargs
         Function kwargs
+
     """
 
     def __init__(self, function, output_name, mode, keep=False, **kwargs):
@@ -68,8 +72,8 @@ class BatchPipeline(object):
     Examples
     --------
 
-    .. literalinclude:: ../../examples/batch/pipeline_single_channel_one_batch.py
-    # noqa
+    .. literalinclude:: ../../examples/batch/pipeline.py
+
     """
 
     def __init__(self, path_to_input, dtype, n_channels, data_format,
@@ -102,6 +106,7 @@ class BatchPipeline(object):
             keep is False, path is still returned but file will not exist
         list
             List with parameters
+
         """
         path_to_input = self.path_to_input
 
