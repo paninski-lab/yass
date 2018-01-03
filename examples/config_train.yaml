@@ -1,0 +1,24 @@
+# Sample neural network training configuration file
+templates:
+  ids:  [0, 1, 2, 3, 5]
+  minimum_amplitute: 5
+
+
+training:
+  n_spikes: 50000
+  n_iterations: 5000
+  n_batch: 512
+  l2_regularization_scale: 0.00000005
+  train_step_size: 0.001
+
+network_detector:
+    name: detector
+    n_filters: [16, 8]
+
+network_triage:
+  name: triage
+  n_filters: [16, 8]
+
+network_autoencoder:
+  name: autoencoder
+  n_features: 3

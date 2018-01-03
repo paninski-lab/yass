@@ -1,9 +1,10 @@
 import os
 import os.path as path
+import logging
+from functools import partial
 
 import click
 import numpy as np
-import logging
 
 from . import set_config
 from . import preprocess
@@ -94,11 +95,14 @@ def _run_pipeline(config, output_file):
 
 @cli.command()
 @click.argument('spike_train', type=click.Path(exists=True, dir_okay=False))
-def train(config, output_file):
-    """Train neural networks using a SPIKE_TRAIN csv file whose first column
-    is the spike time and second column is the spike ID
+def train(spike_train):
+    """Train neural networks using a SPIKE_TRAIN csv or npy file whose
+    first column is the spike time and second column is the spike ID
     """
-    pass
+    loadtxt = partial(np.loadtxt, dtype='int32', delimiter=',')
+    fn = loadtxt if spike_train.endswith('.csv') else np.load
+
+    spike_train = fn(spike_train)
 
 
 @cli.command()
