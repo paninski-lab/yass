@@ -107,7 +107,7 @@ setup(
     ],
     install_requires=INSTALL_REQUIRES,
     entry_points={
-        'console_scripts': ['yass=yass.command_line:main'],
+        'console_scripts': ['yass=yass.command_line:cli'],
     },
     download_url='{url}/archive/{version}.tar.gz'.format(url=URL,
                                                          version=VERSION),

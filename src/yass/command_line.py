@@ -1,6 +1,6 @@
 import os
-import argparse
 
+import click
 import numpy as np
 import logging
 
@@ -11,8 +11,26 @@ from . import deconvolute
 from . import read_config
 
 
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+@click.argument('config', type=click.Path(exists=True))
+@click.option('--output_file', type=click.Path(), default='spike_train.csv',
+              help='Path to output file, defaults to spike_train.csv')
+def sort(config, output_file):
+    """
+    Sort recordings using a configuration file located in CONFIG
+    """
+    return _run_pipeline(config, output_file)
+
+
 def _run_pipeline(config, output_file):
-    """Run the entire pipeline given a config and output file
+    """
+    Run the entire pipeline given a path to a config file
+    and output path
     """
 
     # configure logging module to get useful information
@@ -68,17 +86,10 @@ def _run_pipeline(config, output_file):
     logger.info('Done, spike train saved in: {}'.format(path_to_file))
 
 
-def main():
-    """Entry point for the command line utility
+@cli.command()
+@click.argument('spike_train', type=click.Path(exists=True))
+def train(config, output_file):
+    """Train neural networks using a SPIKE_TRAIN csv file whose first column
+    is the spike time and second column is the spike ID
     """
-    # removed reference to this file in config, it is not necessary
-    # TODO: let the user specify the name through an option
-    output_file = 'spike_train.csv'
-
-    parser = argparse.ArgumentParser(description='Run YASS.')
-    parser.add_argument('config', type=str,
-                        help='Path to configuration file')
-
-    args = parser.parse_args()
-
-    return _run_pipeline(args.config, output_file)
+    pass
