@@ -107,13 +107,21 @@ def train(config, output_file):
               help=('Path to output directory, defaults to '
                     'CONFIG.data.root_folder/phy/'))
 def export(config, output_dir):
-    """Generates phy input files
+    """Generates phy input files, 'yass sort' must be run first
     """
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
     CONFIG = load_yaml(config)
     ROOT_FOLDER = CONFIG['data']['root_folder']
+
+    # verify that the tmp/ folder exists, otherwise abort
+    path_to_tmp = path.join(ROOT_FOLDER, 'tmp/')
+    if not os.path.exists(path_to_tmp):
+        click.echo("{} directory does not exist, this means you "
+                   "haven't run 'yass sort', run it before running "
+                   "'yass export' again...".format(path_to_tmp))
+        raise click.Abort()
 
     if output_dir is None:
         output_dir = path.join(ROOT_FOLDER, 'phy/')
