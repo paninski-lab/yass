@@ -25,7 +25,7 @@ LICENSE = 'Apache'
 
 INSTALL_REQUIRES = [
     'numpy', 'scipy', 'scikit-learn', 'tensorflow', 'pyyaml',
-    'python-dateutil',
+    'python-dateutil', 'click',
     # FIXME: we should remove this
     'progressbar2'
 ]
