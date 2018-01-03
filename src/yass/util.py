@@ -163,31 +163,6 @@ def map_parameters_in_fn_call(args, kwargs, func):
     return parsed
 
 
-# TODO: this should probably be in explore.util
-# TODO: maybe support non-strict mode so the function works with iterable
-# and non-iterable, strict mode should only work with iterable (as it is now)
-def vectorize_parameter(name):
-    def vectorize(func):
-
-        @wraps(func)
-        def method_func_wrapper(self, *args, **kwargs):
-            params = map_parameters_in_fn_call(args, kwargs, func)
-            value = params.pop(name)
-            return [func(self=self, **merge_dicts(params, {name: o}))
-                    for o in value]
-
-        @wraps(func)
-        def func_wrapper(*args, **kwargs):
-            params = map_parameters_in_fn_call(args, kwargs, func)
-            value = params.pop(name)
-            return [func(**merge_dicts(params, {name: o})) for o in value]
-
-        return (method_func_wrapper if 'self' in inspect.getargspec(func).args
-                else func_wrapper)
-
-    return vectorize
-
-
 def _unwrap_mixed_iterator(mixed_iterator):
     """ [[1,2,3], 4 [5,6]] -> [1,2,3,4,5,6]
     """
