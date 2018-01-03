@@ -17,8 +17,10 @@ def cli():
 
 
 @cli.command()
-@click.argument('config', type=click.Path(exists=True))
-@click.option('--output_file', type=click.Path(), default='spike_train.csv',
+@click.argument('config', type=click.Path(exists=True, dir_okay=False,
+                resolve_path=True))
+@click.option('--output_file', type=click.Path(dir_okay=False),
+              default='spike_train.csv',
               help='Path to output file, defaults to spike_train.csv')
 def sort(config, output_file):
     """
@@ -87,9 +89,19 @@ def _run_pipeline(config, output_file):
 
 
 @cli.command()
-@click.argument('spike_train', type=click.Path(exists=True))
+@click.argument('spike_train', type=click.Path(exists=True, dir_okay=False))
 def train(config, output_file):
     """Train neural networks using a SPIKE_TRAIN csv file whose first column
     is the spike time and second column is the spike ID
+    """
+    pass
+
+
+@cli.command()
+@click.argument('config', type=click.Path(exists=True, dir_okay=False))
+@click.option('--output_dir', type=click.Path(file_okay=False), default='phy/',
+              help='Path to output directory, defaults to ./phy')
+def export(config, output_dir):
+    """Generates phy input files
     """
     pass
