@@ -1,6 +1,6 @@
 data:
   root_folder: /Users/Edu/data/ucl-neuropixel
-  recordings: neurpixel.bin
+  recordings: neuropixel.bin
   geometry: channel_positions.npy
 
 resources:
