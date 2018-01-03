@@ -107,6 +107,20 @@ def load_yaml_asset(path):
     return asset
 
 
+def load_asset(path):
+    """
+    Load a file located in the assets folder
+    by specifying a relative path to the assets/ folder
+    """
+    relative_path = os.path.join('assets', path)
+    absolute_path = resource_filename('yass', relative_path)
+
+    with open(absolute_path) as f:
+        asset = f.read()
+
+    return asset
+
+
 def load_yaml(path):
     with open(path) as f:
         content = yaml.load(f)

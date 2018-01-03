@@ -1,4 +1,5 @@
 import os
+import os.path as path
 
 import click
 import numpy as np
@@ -9,6 +10,8 @@ from . import preprocess
 from . import process
 from . import deconvolute
 from . import read_config
+from .export import generate_params
+from .util import load_yaml
 
 
 @click.group()
@@ -99,9 +102,28 @@ def train(config, output_file):
 
 @cli.command()
 @click.argument('config', type=click.Path(exists=True, dir_okay=False))
-@click.option('--output_dir', type=click.Path(file_okay=False), default='phy/',
-              help='Path to output directory, defaults to ./phy')
+@click.option('--output_dir', type=click.Path(file_okay=False),
+              help=('Path to output directory, defaults to '
+                    'CONFIG.data.root_folder/phy/'))
 def export(config, output_dir):
     """Generates phy input files
     """
-    pass
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    if output_dir is None:
+        root = load_yaml(config)['data']['root_folder']
+        output_dir = path.join(root, 'phy/')
+
+    if not os.path.exists(output_dir):
+        logger.info('Creating directory: {}'.format(output_dir))
+        os.makedirs(output_dir)
+
+    # convert data to wide format
+
+    # generate params.py
+    logger.info('Generating params.py...')
+    params = generate_params(config)
+
+    with open(path.join(output_dir, 'params.py'), 'w') as f:
+        f.write(params)
