@@ -10,6 +10,7 @@ from . import preprocess
 from . import process
 from . import deconvolute
 from . import read_config
+from . import geometry
 from .export import generate_params
 from .util import load_yaml
 
@@ -111,9 +112,11 @@ def export(config, output_dir):
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
+    CONFIG = load_yaml(config)
+    ROOT_FOLDER = CONFIG['data']['root_folder']
+
     if output_dir is None:
-        root = load_yaml(config)['data']['root_folder']
-        output_dir = path.join(root, 'phy/')
+        output_dir = path.join(ROOT_FOLDER, 'phy/')
 
     if not os.path.exists(output_dir):
         logger.info('Creating directory: {}'.format(output_dir))
@@ -127,3 +130,9 @@ def export(config, output_dir):
 
     with open(path.join(output_dir, 'params.py'), 'w') as f:
         f.write(params)
+
+    # channel_positions.npy
+    logger.info('Generating channel_positions.npy')
+    path_to_geom = path.join(ROOT_FOLDER, CONFIG['data']['geometry'])
+    geom = geometry.parse(path_to_geom, CONFIG['recordings']['n_channels'])
+    np.save(path.join(output_dir, 'channel_positions.npy'), geom)
