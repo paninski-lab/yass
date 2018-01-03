@@ -1,10 +1,12 @@
 from datetime import datetime
 import os.path as path
 
+import numpy as np
+
 from ..util import load_asset, load_yaml
 
 
-def generate_params(path_to_config):
+def params(path_to_config):
     """
     Generate phy's params.py from YASS' config.yaml
     """
@@ -27,3 +29,11 @@ def generate_params(path_to_config):
                              hp_filtered='True')
 
     return params
+
+
+def channel_map(n_channels):
+    """
+    Generate channel_map numpy.array. For n_channels, it generates a
+    numpy.array as follows: [0, ..., n_channels - 1]
+    """
+    return np.array(range(n_channels))

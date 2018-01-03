@@ -11,7 +11,7 @@ from . import process
 from . import deconvolute
 from . import read_config
 from . import geometry
-from .export import generate_params
+from .export import generate
 from .util import load_yaml
 
 
@@ -114,6 +114,7 @@ def export(config, output_dir):
 
     CONFIG = load_yaml(config)
     ROOT_FOLDER = CONFIG['data']['root_folder']
+    N_CHANNELS = CONFIG['recordings']['n_channels']
 
     # verify that the tmp/ folder exists, otherwise abort
     path_to_tmp = path.join(ROOT_FOLDER, 'tmp/')
@@ -134,7 +135,7 @@ def export(config, output_dir):
 
     # generate params.py
     logger.info('Generating params.py...')
-    params = generate_params(config)
+    params = generate.params(config)
 
     with open(path.join(output_dir, 'params.py'), 'w') as f:
         f.write(params)
@@ -142,5 +143,10 @@ def export(config, output_dir):
     # channel_positions.npy
     logger.info('Generating channel_positions.npy')
     path_to_geom = path.join(ROOT_FOLDER, CONFIG['data']['geometry'])
-    geom = geometry.parse(path_to_geom, CONFIG['recordings']['n_channels'])
+    geom = geometry.parse(path_to_geom, N_CHANNELS)
     np.save(path.join(output_dir, 'channel_positions.npy'), geom)
+
+    # channel_map.npy
+    logger.info('Generating channel_map.npy')
+    channel_map = generate.channel_map(N_CHANNELS)
+    np.save(path.join(output_dir, 'channel_map.npy'), channel_map)
