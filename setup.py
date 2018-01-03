@@ -24,7 +24,7 @@ AUTHOR = 'Peter Lee, Eduardo Blancas'
 LICENSE = 'Apache'
 
 INSTALL_REQUIRES = [
-    'numpy', 'scipy', 'scikit-learn', 'tensorflow', 'pyyaml',
+    'numpy', 'scipy', 'scikit-learn', 'tensorflow', 'pyyaml', 'dateutil',
     # FIXME: we should remove this
     'progressbar2'
 ]

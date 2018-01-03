@@ -10,6 +10,7 @@ from copy import copy
 from functools import wraps
 
 import numpy as np
+from dateutil.relativedelta import relativedelta
 
 import yaml
 from pkg_resources import resource_filename
@@ -220,3 +221,16 @@ def merge_dicts(*dict_args):
     for dictionary in dict_args:
         result.update(dictionary)
     return result
+
+
+def human_readable_time(seconds):
+    """Return a human readable string for a given amount of seconds
+
+    Notes
+    -----
+    Based on: https://stackoverflow.com/a/26165034
+    """
+    intervals = ['days', 'hours', 'minutes', 'seconds']
+    delta = relativedelta(seconds=seconds)
+    return (' '.join('{} {}'.format(getattr(delta, k), k) for k in intervals
+            if getattr(delta, k)))

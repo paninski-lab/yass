@@ -1,9 +1,10 @@
+import time
 import numbers
 import logging
 
 import yaml
 
-from ..util import function_path
+from ..util import function_path, human_readable_time
 from .generator import IndexGenerator
 from .reader import RecordingsReader
 from .buffer import BufferGenerator
@@ -183,13 +184,27 @@ class BatchProcessor(object):
 
         if mode == 'disk':
             fn = self._single_channel_apply_disk
-            return fn(function, output_path,
-                      force_complete_channel_batch, from_time,
-                      to_time, channels, **kwargs)
+
+            start = time.time()
+            res = fn(function, output_path,
+                     force_complete_channel_batch, from_time,
+                     to_time, channels, **kwargs)
+            elapsed = time.time() - start
+            self.logger.info('{} took {}'
+                             .format(function_path(function),
+                                     human_readable_time(elapsed)))
+            return res
         else:
             fn = self._single_channel_apply_memory
-            return fn(function, force_complete_channel_batch, from_time,
-                      to_time, channels, **kwargs)
+
+            start = time.time()
+            res = fn(function, force_complete_channel_batch, from_time,
+                     to_time, channels, **kwargs)
+            elapsed = time.time() - start
+            self.logger.info('{} took {}'
+                             .format(function_path(function),
+                                     human_readable_time(elapsed)))
+            return res
 
     def multi_channel_apply(self, function, mode, cleanup_function=None,
                             output_path=None, from_time=None, to_time=None,
@@ -260,12 +275,26 @@ class BatchProcessor(object):
 
         if mode == 'disk':
             fn = self._multi_channel_apply_disk
-            return fn(function, cleanup_function, output_path, from_time,
-                      to_time, channels, **kwargs)
+
+            start = time.time()
+            res = fn(function, cleanup_function, output_path, from_time,
+                     to_time, channels, **kwargs)
+            elapsed = time.time() - start
+            self.logger.info('{} took {}'
+                             .format(function_path(function),
+                                     human_readable_time(elapsed)))
+            return res
         else:
             fn = self._multi_channel_apply_memory
-            return fn(function, cleanup_function, from_time, to_time, channels,
-                      **kwargs)
+
+            start = time.time()
+            res = fn(function, cleanup_function, from_time, to_time, channels,
+                     **kwargs)
+            elapsed = time.time() - start
+            self.logger.info('{} took {}'
+                             .format(function_path(function),
+                                     human_readable_time(elapsed)))
+            return res
 
     def _single_channel_apply_disk(self, function, output_path,
                                    force_complete_channel_batch, from_time,
