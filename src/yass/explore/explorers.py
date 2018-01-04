@@ -345,6 +345,17 @@ class SpikeTrainExplorer(object):
 # TODO: documentation, proper errors for optional parameters, check
 # plotting functions (matplotlib gca and all that stuff)
 class RecordingExplorer(object):
+    """Explore neural recordings
+
+    Parameters
+    ----------
+    path_to_recordings: str
+        Path to binary recordings file
+    spike_size: int
+        Spike size, this is used to get waveforms around points in the
+        recordings
+
+    """
 
     def __init__(self, path_to_recordings, spike_size=None, path_to_geom=None,
                  neighbor_radius=None, dtype=None, n_channels=None,
