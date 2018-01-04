@@ -5,6 +5,7 @@ import numpy as np
 
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
+# FIXME: this looks very similary to the method in the process module
 def get_templates(spike_train_clear, batch_size, buff, n_batches, n_channels,
                   spike_size, path_to_rec, dtype):
     """

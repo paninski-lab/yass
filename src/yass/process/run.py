@@ -230,7 +230,6 @@ def run(score, spike_index_clear, spike_index_collision):
                                                  CONFIG.recordings.n_channels,
                                                  CONFIG.spikeSize,
                                                  CONFIG.templatesMaxShift,
-                                                 CONFIG.scaleToSave,
                                                  CONFIG.neighChannels,
                                                  path_to_whiten,
                                                  merge_threshold)

@@ -9,8 +9,8 @@ import logging
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
 def get_templates(spike_train_clear, batch_size, buff, n_batches, n_channels,
-                  spike_size, template_max_shift, scale_to_save, neighbors,
-                  path_to_wrec, t_merge_th):
+                  spike_size, template_max_shift, neighbors, path_to_wrec,
+                  t_merge_th):
     """
     Parameters
     ----------
@@ -38,9 +38,8 @@ def get_templates(spike_train_clear, batch_size, buff, n_batches, n_channels,
         wfile.seek(flattenedLength*i)
 
         wrec = wfile.read(flattenedLength)
-        wrec = np.fromstring(wrec, dtype='int16')
+        wrec = np.fromstring(wrec, dtype='float64')
         wrec = np.reshape(wrec, (-1, n_channels))
-        wrec = wrec.astype('float32')/scale_to_save
 
         idx_batch = np.logical_and(spike_train_clear[:, 0] > i*batch_size,
                                    spike_train_clear[:, 0] < (i+1)*batch_size)
