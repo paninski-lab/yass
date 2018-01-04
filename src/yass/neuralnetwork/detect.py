@@ -9,9 +9,9 @@ from ..geometry import order_channels_by_distance
 from . import NeuralNetDetector, NeuralNetTriage
 
 
-def nn_detection(X, neighChannels, geom,
-                 n_features, temporal_window, th_detect, th_triage,
-                 detector_filename, autoencoder_filename, triage_filename):
+def nn_detection(X, neighbors, geom, temporal_features, temporal_window,
+                 th_detect, th_triage, detector_filename, autoencoder_filename,
+                 triage_filename):
     """Detect spikes using a neural network
 
     Parameters
@@ -26,11 +26,11 @@ def nn_detection(X, neighChannels, geom,
     T, C = X.shape
 
     # neighboring channel info
-    nneigh = np.max(np.sum(neighChannels, 0))
+    nneigh = np.max(np.sum(neighbors, 0))
     c_idx = np.ones((C, nneigh), 'int32')*C
     for c in range(C):
         ch_idx, temp = order_channels_by_distance(
-            c, np.where(neighChannels[c])[0], geom)
+            c, np.where(neighbors[c])[0], geom)
         c_idx[c, :ch_idx.shape[0]] = ch_idx
 
     # input
@@ -60,11 +60,11 @@ def nn_detection(X, neighChannels, geom,
 
     # get score
     score_train_placeholder = tf.placeholder(
-        "float", [T, C, n_features])
+        "float", [T, C, temporal_features])
     spike_index_clear_tf = tf.placeholder("int64", [None, 2])
     score_tf = get_score(score_train_placeholder,
                          spike_index_clear_tf, T,
-                         n_features, c_idx)
+                         temporal_features, c_idx)
 
     ###############################
     # get values of above tensors #

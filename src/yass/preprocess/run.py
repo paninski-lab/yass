@@ -101,10 +101,7 @@ def run():
         return _threshold_detection(standarized_path, standarized_params,
                                     whitened_path)
     elif CONFIG.spikes.detection == 'nn':
-        # FIXME: need to implement nn detection here
-        return _threshold_detection(standarized_path, standarized_params,
-                                    whitened_path)
-        # return _neural_network_detection()
+        return _neural_network_detection(standarized_path, standarized_params)
 
 
 def _threshold_detection(standarized_path, standarized_params, whitened_path):
@@ -115,7 +112,6 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
     CONFIG = read_config()
 
     # detect spikes
-    # TODO: support neural network, need to remove batch logic first
     bp = BatchProcessor(standarized_path, standarized_params['dtype'],
                         standarized_params['n_channels'],
                         standarized_params['data_format'],
@@ -160,25 +156,39 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
     return scores, spike_index_clear, spike_index_collision
 
 
-def _neural_network_detection():
+def _neural_network_detection(standarized_path, standarized_params):
     """Run neural network detection and autoencoder dimensionality reduction
     """
     # logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
-    rec = None
 
-    (scores, clear,
-     col) = nn_detection(rec,
-                         CONFIG.neighChannels,
-                         CONFIG.geom,
-                         CONFIG.spikes.temporal_features,
-                         # FIXME: what is this?
-                         3,
-                         CONFIG.neural_network_detector.threshold_spike,
-                         CONFIG.neural_network_triage.threshold_collision,
-                         CONFIG.neural_network_detector.filename,
-                         CONFIG.neural_network_autoencoder.filename,
-                         CONFIG.neural_network_triage.filename)
+    # detect spikes
+    bp = BatchProcessor(standarized_path, standarized_params['dtype'],
+                        standarized_params['n_channels'],
+                        standarized_params['data_format'],
+                        CONFIG.resources.max_memory,
+                        buffer_size=0)
 
-    return scores, clear, col
+    # apply threshold detector on standarized data
+    mc = bp.multi_channel_apply
+    res = mc(nn_detection,
+             mode='memory',
+             # TODO: implement function to fix indexes
+             cleanup_function=None,
+             neighbors=CONFIG.neighChannels,
+             geom=CONFIG.geom,
+             temporal_features=CONFIG.spikes.temporal_features,
+             # FIXME: what is this?
+             temporal_window=3,
+             th_detect=CONFIG.neural_network_detector.threshold_spike,
+             th_triage=CONFIG.neural_network_triage.threshold_collision,
+             detector_filename=CONFIG.neural_network_detector.filename,
+             autoencoder_filename=CONFIG.neural_network_autoencoder.filename,
+             triage_filename=CONFIG.neural_network_triage.filename)
+
+    scores = np.concatenate([element[0] for element in res], axis=0)
+    clear = np.concatenate([element[1] for element in res], axis=0)
+    collision = np.concatenate([element[2] for element in res], axis=0)
+
+    return scores, clear, collision
