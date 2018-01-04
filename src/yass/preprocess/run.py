@@ -166,11 +166,10 @@ def _neural_network_detection():
     # logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
-    BUFF = 0
     rec = None
 
     (scores, clear,
-     col) = nn_detection(rec, 10000, BUFF,
+     col) = nn_detection(rec,
                          CONFIG.neighChannels,
                          CONFIG.geom,
                          CONFIG.spikes.temporal_features,
