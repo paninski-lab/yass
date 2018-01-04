@@ -153,7 +153,6 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
 
     # TODO: make this parallel, we can split the spikes, generate batches
     # and score in parallel
-    # TODO: only compute scores for neighboring channels, see old pipeline
     logger.info('Reducing spikes dimensionality with PCA matrix...')
     scores = pca.score(whitened_path, CONFIG.spikeSize, spike_index_clear,
                        rotation, CONFIG.neighChannels, CONFIG.geom)
