@@ -1,3 +1,7 @@
+"""
+neuralnetwork module tests
+"""
+
 import os
 
 import pytest
