@@ -345,7 +345,7 @@ class SpikeTrainExplorer(object):
 # TODO: documentation, proper errors for optional parameters, check
 # plotting functions (matplotlib gca and all that stuff)
 class RecordingExplorer(object):
-    """Explore neural recordings
+    """Explore neural recordings: observations, geometry and waveforms
 
     Parameters
     ----------
@@ -354,7 +354,20 @@ class RecordingExplorer(object):
     spike_size: int
         Spike size, this is used to get waveforms around points in the
         recordings
-
+    path_to_geom: str
+        Path to geometry file (npy or csv)
+    neighbor_radius: float
+        Maximum radius to consider two channels as neighbors
+    dtype: str
+        Recordings dtype
+    n_channels: int
+        Number of channels in the recordings
+    data_format: str
+        Data format, it can be either 'long' (observations, channels) or
+        'wide' (channels, observations)
+    mmap: bool
+        Whether to read the data using numpy.mmap, otherwise it reads
+        the data using numpy.fromfile
     """
 
     def __init__(self, path_to_recordings, spike_size=None, path_to_geom=None,
@@ -372,11 +385,29 @@ class RecordingExplorer(object):
 
     def neighbors_for_channel(self, channel):
         """Get the neighbors for the channel
+
+        Returns
+        -------
+        numpy.array
+            An array containing the neighbors of the given channel
         """
         return np.where(self.neigh_matrix[channel])[0]
 
     def read_waveform(self, time, channels='all'):
-        """Read a waveform over 2*spike_size + 1, centered at time
+        """
+        Read a single waveform of size 2*spike_size + 1 observations around
+        the given time
+
+        Parameters
+        ----------
+        time: int
+            Waveform center
+
+        Returns
+        -------
+        numpy.array
+            A (2 * spike_size + 1, channels) 2D array with the waveform around
+            the given time
         """
         start = time - self.spike_size
         end = time + self.spike_size + 1
@@ -387,7 +418,24 @@ class RecordingExplorer(object):
         return self.data[start:end, channels]
 
     def read_waveforms(self, times, channels='all', flatten=False):
-        """Read waveforms at certain times
+        """Read multiple waveforms around certain times
+
+        Parameters
+        ----------
+        times: array-like
+            1D array containing the times
+        channels: array-like, optional
+            Channels to be included in the waveforms, if 'all' it uses all
+            channels
+        flatten: bool, optional
+            Whether to flat the first to dimensions, defaults to True
+
+        Returns
+        -------
+        numpy.array
+            A (times, 2 * spike_size + 1, channels) 3D array with the waveforms
+            around the given times. If flatten is True, ir returns a
+            (times * 2 * spike_size + 1, channels) 2D array
         """
         if isinstance(channels, str) and channels == 'all':
             channels = range(self.n_channels)
@@ -400,6 +448,25 @@ class RecordingExplorer(object):
         return wfs
 
     def read_waveform_around_channel(self, time, channel):
+        """
+        Read a single waveform around a given time and using the neighbors of
+        the given channel
+
+        Parameters
+        ----------
+        time: int
+            Waveform center
+        channel: int
+            The waveform will only contain the channels that are neighbors
+            of this channel
+
+        Returns
+        -------
+        numpy.array
+            A (2 * spike_size + 1, neighbors) 2D array with the waveform around
+            the given time where neighbors is the number of neighbors of the
+            given channel
+        """
         return self.read_waveform(time,
                                   channels=self.neighbors_for_channel(channel))
 
