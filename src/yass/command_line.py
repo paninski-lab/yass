@@ -113,7 +113,7 @@ def train(spike_train, config):
     CONFIG = Config(config)
     CONFIG_TRAIN = load_yaml(config)
 
-    train_neural_networks(CONFIG, CONFIG_TRAIN)
+    train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train)
 
 
 @cli.command()
