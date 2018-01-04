@@ -20,8 +20,8 @@ def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train):
     n_filters_detect = CONFIG_TRAIN['network_detector']['n_filters']
     n_iter = CONFIG_TRAIN['training']['n_iterations']
     n_batch = CONFIG_TRAIN['training']['n_batch']
-    l2_reg_scale = CONFIG_TRAIN['training']['l2_reg_scale']
-    train_step_size = CONFIG_TRAIN['training']['train_step_size']
+    l2_reg_scale = CONFIG_TRAIN['training']['l2_regularization_scale']
+    train_step_size = CONFIG_TRAIN['training']['step_size']
     detectnet_name = CONFIG_TRAIN['network_detector']['name']+'.ckpt'
     n_filters_triage = CONFIG_TRAIN['network_triage']['n_filters']
     triagenet_name = CONFIG_TRAIN['network_triage']['name']+'.ckpt'

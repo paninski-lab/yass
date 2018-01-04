@@ -99,7 +99,7 @@ def _run_pipeline(config, output_file):
 @click.argument('spike_train', type=click.Path(exists=True, dir_okay=False))
 @click.argument('config_train', type=click.Path(exists=True, dir_okay=False))
 @click.argument('config', type=click.Path(exists=True, dir_okay=False))
-def train(spike_train, config):
+def train(spike_train, config_train, config):
     """Train neural networks using a SPIKE_TRAIN csv or npy file whose
     first column is the spike time and second column is the spike ID,
     a CONFIG_TRAIN yaml file with the training parameters and a CONFIG
@@ -110,8 +110,8 @@ def train(spike_train, config):
 
     spike_train = fn(spike_train)
 
-    CONFIG = Config(config)
-    CONFIG_TRAIN = load_yaml(config)
+    CONFIG_TRAIN = load_yaml(config_train)
+    CONFIG = Config.from_yaml(config)
 
     train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train)
 
