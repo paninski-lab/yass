@@ -57,22 +57,26 @@ class SpikeTrainExplorer(object):
 
     Parameters
     ----------
-    templates: np.ndarray
-        Templates
     spike_train: np.ndarray
         Spike train
+    templates: np.ndarray, optional
+        Templates, if None, templates are computed using the recording explorer
     recording_explorer: RecordingExplorer, optional
-        Recording explorer instance
+        Recording explorer instance, if None, methods that get waveforms or
+        use geometry information will not work
     projection_matrix: np.ndarray, optional
-        Projection Matrix
+        Projection Matrix, if None, methods that return scores will not work
     """
 
-    def __init__(self, templates, spike_train, recording_explorer=None,
+    def __init__(self, spike_train, templates=None, recording_explorer=None,
                  projection_matrix=None):
         self.spike_train = spike_train
         self.templates = templates
         self.recording_explorer = recording_explorer
         self.projection_matrix = projection_matrix
+
+        # TODO: directly get from the spike_train as you cannot assume they are
+        # consecutive integers
         self.all_ids = list(range(self.templates.shape[2]))
 
         if projection_matrix is not None:
