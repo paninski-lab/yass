@@ -95,3 +95,43 @@ def nn_detection(X, neighbors, geom, temporal_features, temporal_window,
                          spike_index_clear_tf: spike_index_clear})
 
     return score, spike_index_clear, spike_index_collision
+
+
+def fix_indexes(res, idx_local, idx):
+    """Fixes indexes from detected spikes in batches
+
+    Parameters
+    ----------
+    res: tuple
+        A tuple with the results from the nnet detector
+    idx_local: slice
+        A slice object indicating the indices for the data (excluding buffer)
+    idx: slice
+        A slice object indicating the absolute location of the data
+    """
+
+    score, clear, collision = res
+
+    # get limits for the data (exlude indexes that have buffer data)
+    data_start = idx_local[0].start
+    data_end = idx_local[0].stop
+    # get offset that will be applied
+    offset = idx[0].start
+
+    # fix clear spikes
+    clear_times = clear[:, 0]
+    # get only observations outside the buffer
+    clear_not_in_buffer = clear[np.logical_and(clear_times >= data_start,
+                                               clear_times <= data_end)]
+    # offset spikes depending on the absolute location
+    clear_not_in_buffer[:, 0] = clear_not_in_buffer[:, 0] + offset
+
+    # fix collided spikes
+    col_times = collision[:, 0]
+    # get only observations outside the buffer
+    col_not_in_buffer = collision[np.logical_and(col_times >= data_start,
+                                                 col_times <= data_end)]
+    # offset spikes depending on the absolute location
+    col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset
+
+    return score, clear_not_in_buffer, col_not_in_buffer

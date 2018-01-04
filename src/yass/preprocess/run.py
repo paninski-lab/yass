@@ -16,7 +16,7 @@ from .standarize import standarize
 from . import whiten
 from . import detect
 from . import pca
-from ..neuralnetwork import nn_detection
+from .. import neuralnetwork
 
 
 def run():
@@ -172,10 +172,9 @@ def _neural_network_detection(standarized_path, standarized_params):
 
     # apply threshold detector on standarized data
     mc = bp.multi_channel_apply
-    res = mc(nn_detection,
+    res = mc(neuralnetwork.nn_detection,
              mode='memory',
-             # TODO: implement function to fix indexes
-             cleanup_function=None,
+             cleanup_function=neuralnetwork.fix_indexes,
              neighbors=CONFIG.neighChannels,
              geom=CONFIG.geom,
              temporal_features=CONFIG.spikes.temporal_features,
