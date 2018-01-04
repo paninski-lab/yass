@@ -6,7 +6,8 @@ import numpy as np
 from ..explore import RecordingExplorer
 
 # TODO: improve documentation: look for (?)
-# TODO: remove batching logic
+# TODO: remove batching logic and update preprocessor to run this channel
+# by channel instead of using multi-channel operations
 # TODO: can this be a single-channel operation? that way we can parallelize
 # by channel
 

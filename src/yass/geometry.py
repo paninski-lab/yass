@@ -177,3 +177,38 @@ def order_channels_by_distance(reference, channels, geom):
     idx = np.argsort(np.sum(np.square(coord_others - coord_main), axis=1))
 
     return channels[idx], idx
+
+
+def make_neighbors_matrix(geom, neighbors):
+    """
+    Compute matrix whose every ith row contains the ordered (by distance)
+    group of neighbors for the ith channel, the maximum number of neighbors is
+    determined by the channel with the most neighbors
+
+    Parameters
+    ----------
+    geom: numpy.ndarray
+        geometry matrix
+    neighbors: numpy.ndarray
+        Neighbors matrix
+    """
+    n_channels, _ = neighbors.shape
+
+    # determine the max number of neighbors
+    max_neighbors = np.max(np.sum(neighbors, axis=0))
+
+    # build matrix filled with n_channels
+    channel_indexes = (np.ones((n_channels, max_neighbors), 'int32') *
+                       n_channels)
+
+    for c in range(n_channels):
+        # get neighbors for channel c
+        c_neighs = np.where(neighbors[c])[0]
+
+        # order neighbors by distance
+        ch_idx, _ = order_channels_by_distance(c, c_neighs, geom)
+
+        # set the row for channel c as their ordered neighbors
+        channel_indexes[c, :ch_idx.shape[0]] = ch_idx
+
+    return channel_indexes
