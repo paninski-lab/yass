@@ -14,6 +14,8 @@ from . import read_config
 from . import geometry
 from .export import generate
 from .util import load_yaml
+from .neuralnetwork import train_neural_networks
+from .config import Config
 
 
 @click.group()
@@ -95,14 +97,23 @@ def _run_pipeline(config, output_file):
 
 @cli.command()
 @click.argument('spike_train', type=click.Path(exists=True, dir_okay=False))
-def train(spike_train):
+@click.argument('config_train', type=click.Path(exists=True, dir_okay=False))
+@click.argument('config', type=click.Path(exists=True, dir_okay=False))
+def train(spike_train, config):
     """Train neural networks using a SPIKE_TRAIN csv or npy file whose
-    first column is the spike time and second column is the spike ID
+    first column is the spike time and second column is the spike ID,
+    a CONFIG_TRAIN yaml file with the training parameters and a CONFIG
+    yaml file with the data parameters
     """
     loadtxt = partial(np.loadtxt, dtype='int32', delimiter=',')
     fn = loadtxt if spike_train.endswith('.csv') else np.load
 
     spike_train = fn(spike_train)
+
+    CONFIG = Config(config)
+    CONFIG_TRAIN = load_yaml(config)
+
+    train_neural_networks(CONFIG, CONFIG_TRAIN)
 
 
 @cli.command()

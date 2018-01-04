@@ -6,17 +6,27 @@ from yass.augment import (make_training_data, save_detect_network_params,
 from yass.neuralnetwork import train_detector, train_ae, train_triage
 
 
-def train_neural_networks(CONFIG, spike_train, chosen_templates, min_amp,
-                          nspikes, n_filters_detect, n_iter, n_batch,
-                          l2_reg_scale, train_step_size, detectnet_name,
-                          n_filters_triage, triagenet_name, n_features,
-                          ae_name):
+def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train):
     """Train all neural networks
 
     Parameters
     ----------
     """
     logger = logging.getLogger(__name__)
+
+    chosen_templates = CONFIG_TRAIN['templates']['ids']
+    min_amp = CONFIG_TRAIN['templates']['minimum_amplitude']
+    nspikes = CONFIG_TRAIN['training']['n_spikes']
+    n_filters_detect = CONFIG_TRAIN['network_detector']['n_filters']
+    n_iter = CONFIG_TRAIN['training']['n_iterations']
+    n_batch = CONFIG_TRAIN['training']['n_batch']
+    l2_reg_scale = CONFIG_TRAIN['training']['l2_reg_scale']
+    train_step_size = CONFIG_TRAIN['training']['train_step_size']
+    detectnet_name = CONFIG_TRAIN['network_detector']['name']+'.ckpt'
+    n_filters_triage = CONFIG_TRAIN['network_triage']['n_filters']
+    triagenet_name = CONFIG_TRAIN['network_triage']['name']+'.ckpt'
+    n_features = CONFIG_TRAIN['network_autoencoder']['n_features']
+    ae_name = CONFIG_TRAIN['network_autoencoder']['name']+'.ckpt'
 
     # generate training data
     logger.info('Generating training data...')
