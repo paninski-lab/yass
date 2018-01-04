@@ -1,3 +1,6 @@
+# Sample configuration file, for a complete reference see
+# examples/config_sample_complete.yaml
+
 data:
   root_folder: tests/data
   recordings: neuropixel.bin

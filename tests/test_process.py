@@ -1,3 +1,8 @@
+"""
+process.run tests, checking that the pipeline finishes without errors for
+several configuration files
+"""
+
 import os
 
 import pytest
@@ -16,13 +21,6 @@ def teardown_function(function):
 def path_to_config():
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                         'config_threshold.yaml')
-    return path
-
-
-@pytest.fixture
-def path_to_config_1k():
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'config_threshold_1k.yaml')
     return path
 
 

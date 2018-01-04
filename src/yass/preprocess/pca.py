@@ -4,9 +4,11 @@ when using threshold detector
 """
 import numpy as np
 from ..explore import RecordingExplorer
+from ..geometry import ordered_neighbors
 
 # TODO: improve documentation: look for (?)
-# TODO: remove batching logic
+# TODO: remove batching logic and update preprocessor to run this channel
+# by channel instead of using multi-channel operations
 # TODO: can this be a single-channel operation? that way we can parallelize
 # by channel
 
@@ -142,4 +144,24 @@ def score(path_to_rec, spike_size, spike_index, rot, neighbors, geom):
     rot_ = np.transpose(rot)
     sp = np.transpose(spikes)
 
-    return np.transpose(np.matmul(rot_, sp), (2, 1, 0))
+    # compute scores for every spike
+    score = np.transpose(np.matmul(rot_, sp), (2, 1, 0))
+
+    # for every spike, get the score only for the neighboring channels
+    ord_neighbors, channel_features = ordered_neighbors(geom, neighbors)
+    spikes, temporal_features, n_channels = score.shape
+
+    score_neigh = np.zeros((spikes, temporal_features, channel_features))
+
+    # for every spike...
+    for i in range(spikes):
+        # get main channel
+        main_channel = spike_index[i, 1]
+
+        # get the ordered neighbors for the main channel
+        current_neigh = ord_neighbors[main_channel]
+
+        # assign the scores for those channels to the matrix
+        score_neigh[i, :, :len(current_neigh)] = score[i][:, current_neigh]
+
+    return score_neigh
