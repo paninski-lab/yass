@@ -78,9 +78,8 @@ class Deconvolution(object):
             self.logger.info("batch {}/{}".format(i+1, nBatches))
             self.WFile.seek(flattenedLength*i)
             wrec = self.WFile.read(flattenedLength)
-            wrec = np.fromstring(wrec, dtype='int16')
+            wrec = np.fromstring(wrec, dtype='float64')
             wrec = np.reshape(wrec, (-1, self.config.recordings.n_channels))
-            wrec = wrec.astype('float32')/self.config.scaleToSave
 
             idx_batch = np.logical_and(self.spike_index[:, 0]
                                        > self.config.batch_size*i,
