@@ -27,7 +27,9 @@ INSTALL_REQUIRES = [
     'numpy', 'scipy', 'scikit-learn', 'tensorflow', 'pyyaml',
     'python-dateutil',
     # FIXME: we should remove this
-    'progressbar2'
+    'progressbar2',
+    # FIXME: stability metric depends on this, remove...
+    'tqdm'
 ]
 
 # pass an empty INSTALL_REQUIRES if building the docs, to avoid breaking the

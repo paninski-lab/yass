@@ -1,3 +1,3 @@
 """
-Evaluation code
+Spike sorting results evaluation
 """
