@@ -6,9 +6,27 @@ from scipy import sparse
 import logging
 
 
-def get(recordings, spike_train, template_max_shift, neighbors, merge=False):
+def get(explorer, spike_train, spike_size, neighbors, merge=False):
     """Compute templats from spike train
+
+    Parameters
+    ----------
+    explorer: RecordingExplorer
+        A RecordingExplorer instance with the data that will be used to get
+        the waveforms from
+    spike_train: numpy.array
+        A (n_spikes, 2) array whose first column is the spike index and
+        the second column is the spike ID
+    spike_size: int
+        Spike size
+    merge: bool
+        Whether to merge similar templates
     """
+    # get spike times for every group
+    # get waveforms (taking into account max shift) for every spike in every
+    # group
+    # compute templates for every group
+    # merge templates if merge=True
     pass
 
 
