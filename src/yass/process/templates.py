@@ -6,6 +6,12 @@ from scipy import sparse
 import logging
 
 
+def get(recordings, spike_train, template_max_shift, neighbors, merge=False):
+    """Compute templats from spike train
+    """
+    pass
+
+
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
 def get_templates(spike_train_clear, batch_size, buff, n_batches, n_channels,

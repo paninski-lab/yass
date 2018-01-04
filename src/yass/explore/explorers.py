@@ -50,6 +50,8 @@ def _make_grid_plot(fn, group_ids, ax, sharex, sharey, max_cols=None):
         fn(group_id=g, ax=ax)
 
 
+# TODO: refactor this, templates should be computed from raw data instead
+# of being passed as parameter, or maybe allow both ways?
 class SpikeTrainExplorer(object):
     """Explore spike trains and templates
 
