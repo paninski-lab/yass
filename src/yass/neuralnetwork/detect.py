@@ -83,8 +83,6 @@ def nn_detection(X, neighChannels, geom,
         energy_train[local_max_idx[:, 0], local_max_idx[:, 1]] = energy_val
         spike_index = sess.run(spike_index_tf, feed_dict={
                                energy_train_tf: energy_train})
-        spike_index = spike_index[np.logical_and(
-            spike_index[:, 0] >= T_min, spike_index[:, 0] < T_max)]
 
         idx_clean = triage_prob[spike_index[
             :, 0], spike_index[:, 1]] > th_triage
