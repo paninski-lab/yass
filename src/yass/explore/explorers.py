@@ -524,6 +524,32 @@ class RecordingExplorer(object):
         return self.read_waveform(time,
                                   channels=self.neighbors_for_channel(channel))
 
+    def read_waveform_around_main_channel(self, time):
+        """
+        Read a single waveform around a given time and using the neighbors of
+        the channel with maximum amplitude
+
+        Parameters
+        ----------
+        time: int
+            Waveform center
+
+        Returns
+        -------
+        numpy.array
+            A (2 * spike_size + 1, neighbors) 2D array with the waveform around
+            the given time where neighbors is the number of neighbors of the
+            channel with maximum amplitude
+        """
+
+        # read waveform along every channel and find the one with max amplitude
+        wf = self.read_waveform(time=time, channels='all')
+        channel = np.argmax(np.max(wf, axis=0))
+
+        # read waveform around the max amplitude channel
+        return self.read_waveform(time,
+                                  channels=self.neighbors_for_channel(channel))
+
     def plot_waveform(self, time, channels, ax=None, line_at_t=False,
                       overlay=False):
         """
@@ -553,6 +579,16 @@ class RecordingExplorer(object):
 
     def plot_waveform_around_channel(self, time, channel, ax=None,
                                      line_at_t=False, overlay=False):
+        return self.plot_waveform(time,
+                                  channels=self.neighbors_for_channel(channel),
+                                  ax=ax, line_at_t=line_at_t, overlay=overlay)
+
+    def plot_waveform_around_main_channel(self, time, ax=None,
+                                          line_at_t=False, overlay=False):
+        # read waveform along every channel and find the one with max amplitude
+        wf = self.read_waveform(time=time, channels='all')
+        channel = np.argmax(np.max(wf, axis=0))
+
         return self.plot_waveform(time,
                                   channels=self.neighbors_for_channel(channel),
                                   ax=ax, line_at_t=line_at_t, overlay=overlay)
