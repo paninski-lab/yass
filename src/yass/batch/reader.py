@@ -61,7 +61,7 @@ class RecordingsReader(object):
 
         if (not os.path.isfile(path_to_yaml) and (dtype is None or
            n_channels is None or data_format is None)):
-            raise ValueError('One or more of dtype, channels or data_format '
+            raise ValueError('At least one of: dtype, channels or data_format '
                              'are None, this is only allowed when a yaml '
                              'file is present in the same location as '
                              'the bin file, but no {} file exists'

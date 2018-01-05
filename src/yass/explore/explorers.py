@@ -8,7 +8,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from matplotlib.patches import Circle
-# from yass import geometry
+from yass import geometry
 
 from ..util import ensure_iterator, sample
 from ..batch import RecordingsReader
@@ -24,8 +24,8 @@ def _is_iter(obj):
 def _grid_size(group_ids, max_cols=None):
     total = len(group_ids)
     sq = sqrt(total)
-    cols = floor(sq)
-    rows = ceil(sq)
+    cols = int(floor(sq))
+    rows = int(ceil(sq))
     rows = rows + 1 if rows * cols < len(group_ids) else rows
 
     if max_cols and cols > max_cols:
@@ -58,18 +58,18 @@ class SpikeTrainExplorer(object):
     Parameters
     ----------
     spike_train: str
-        Path to npy spike train file
+        Path to npy spike train file. The first column of the file should be
+        the spike index and the second the spike ID
+    recording_explorer: RecordingExplorer
+        Recording explorer instance
     templates: np.ndarray, optional
         Templates, if None, templates are computed using the recording explorer
-    recording_explorer: RecordingExplorer, optional
-        Recording explorer instance, if None, methods that get waveforms or
-        use geometry information will not work
     projection_matrix: np.ndarray, optional
         Projection Matrix, if None, methods that return scores will not work
     """
 
-    def __init__(self, path_to_spike_train, templates=None,
-                 recording_explorer=None, projection_matrix=None):
+    def __init__(self, path_to_spike_train, recording_explorer,
+                 templates=None, projection_matrix=None):
 
         name, extension = path_to_spike_train.split('.')
 
@@ -81,16 +81,17 @@ class SpikeTrainExplorer(object):
         else:
             raise ValueError('Unsupported extension: {}'.format(extension))
 
-        self.templates = templates
+        self.all_ids = np.unique(self.spike_train[:, 1])
         self.recording_explorer = recording_explorer
         self.projection_matrix = projection_matrix
 
-        # TODO: directly get from the spike_train as you cannot assume they are
-        # consecutive integers
-        if self.templates is not None:
-            self.all_ids = list(range(self.templates.shape[2]))
+        if templates is not None:
+            self.templates = templates
         else:
-            self.all_ids = None
+            self.templates = self._compute_templates()
+
+        self._spike_groups = {id_: self.spike_train[self.spike_train[:, 1] ==
+                              id_, 0] for id_ in self.all_ids}
 
         if projection_matrix is not None:
             ft_space = self._reduce_dimension
@@ -113,20 +114,33 @@ class SpikeTrainExplorer(object):
 
         return reduced
 
-    def compute_templates(spike_size):
-        """Compute templats from spike train
+    def _compute_templates(self):
+        """Compute templates from spike train
 
         Parameters
         ----------
-        spike_size: int
-            Spike size
         """
-        # get spike times for every group
-        # get waveforms (taking into account max shift) for every spike in every
-        # group
+        # get waveforms (taking into account max shift) for every spike in
+        # every group
+        waveforms = [self.waveforms_for_group(id_) for id_ in self.all_ids]
+
         # compute templates for every group
-        # merge templates if merge=True
-        pass
+        templates = [np.mean(w, axis=0) for w in waveforms]
+
+        # return stacked tempaltes
+        return np.stack(templates, axis=2)
+
+    @property
+    def spike_groups(self):
+        """Grouped spike times by ID
+
+        Returns
+        -------
+        dictionary
+            Dictionary where each key is the group ID and the value is a 1D
+            numpy.ndarray with the spike times for that group
+        """
+        return self._spike_groups
 
     @ensure_iterator('group_ids')
     def scores_for_groups(self, group_ids, channels, flatten=True):
@@ -193,7 +207,7 @@ class SpikeTrainExplorer(object):
         """
         return self.templates[:, :, group_id]
 
-    def waveforms_for_group(self, group_id, channels):
+    def waveforms_for_group(self, group_id, channels='all'):
         """Get the waveforms for a group in selected channels
 
         Parameters
@@ -201,6 +215,10 @@ class SpikeTrainExplorer(object):
         group_id: int
             The id for the group
         """
+
+        if isinstance(channels, str) and channels == 'all':
+            channels = range(self.recording_explorer.n_channels)
+
         # get all spike times that form this group
         times = self.times_for_group(group_id)
 
@@ -229,6 +247,8 @@ class SpikeTrainExplorer(object):
     def plot_templates(self, group_ids, ax=None, sharex=True, sharey=False):
         """Plot templates
 
+        Parameters
+        ----------
         group_ids: int or list or str
             Groups to plot, it can be either a single group, a list of groups
             or 'all'
@@ -404,16 +424,16 @@ class RecordingExplorer(object):
         the data using numpy.fromfile
     """
 
-    def __init__(self, path_to_recordings, spike_size=None, path_to_geom=None,
+    def __init__(self, path_to_recordings, path_to_geom, spike_size=None,
                  neighbor_radius=None, dtype=None, n_channels=None,
                  data_format=None, mmap=True):
         self.data = RecordingsReader(path_to_recordings, dtype, n_channels,
                                      data_format, mmap, output_shape='long')
 
-        # self.geom = geometry.parse(path_to_geom, n_channels)
-        # self.neighbor_radius = neighbor_radius
-        # self.neigh_matrix = geometry.find_channel_neighbors(self.geom,
-        # neighbor_radius)
+        self.geom = geometry.parse(path_to_geom, n_channels)
+        self.neighbor_radius = neighbor_radius
+        self.neigh_matrix = geometry.find_channel_neighbors(self.geom,
+                                                            neighbor_radius)
         self.n_channels = self.data.channels
         self.spike_size = spike_size
 
@@ -446,7 +466,7 @@ class RecordingExplorer(object):
         start = time - self.spike_size
         end = time + self.spike_size + 1
 
-        if isinstance(channels, str) and channels == 'all':
+        if channels == 'all':
             channels = range(self.n_channels)
 
         return self.data[start:end, channels]
@@ -471,7 +491,7 @@ class RecordingExplorer(object):
             around the given times. If flatten is True, ir returns a
             (times * 2 * spike_size + 1, channels) 2D array
         """
-        if isinstance(channels, str) and channels == 'all':
+        if channels == 'all':
             channels = range(self.n_channels)
 
         wfs = np.stack([self.read_waveform(t, channels) for t in times])
@@ -573,17 +593,23 @@ class RecordingExplorer(object):
 
         ax.scatter(reduced[:, 0], reduced[:, 1])
 
-    def plot_series(self, from_time, to_time, ax=None):
+    def plot_series(self, from_time, to_time, channels='all', ax=None):
         """Plot observations in a selected number of channels
         """
+
+        if channels == 'all':
+            channels = range(self.n_channels)
+
         ax = ax if ax else plt
 
-        f, axs = plt.subplots(self.n_channels, 1)
+        f, axs = plt.subplots(len(channels), 1)
 
         formatter = FuncFormatter(lambda x, pos: from_time + int(x))
 
-        for ax, ch in zip(axs, range(self.n_channels)):
+        for ax, ch in zip(axs, channels):
             ax.plot(self.data[from_time:to_time, ch])
-            ax.set_title('Channel {}'.format(ch), fontsize=40)
+            ax.set_title('Channel {}'.format(ch), fontsize=25)
             ax.xaxis.set_major_formatter(formatter)
             ax.tick_params(axis='x', which='major', labelsize=25)
+
+        plt.tight_layout()
