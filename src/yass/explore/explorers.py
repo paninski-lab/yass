@@ -57,8 +57,8 @@ class SpikeTrainExplorer(object):
 
     Parameters
     ----------
-    spike_train: np.ndarray
-        Spike train
+    spike_train: str
+        Path to npy spike train file
     templates: np.ndarray, optional
         Templates, if None, templates are computed using the recording explorer
     recording_explorer: RecordingExplorer, optional
@@ -68,16 +68,29 @@ class SpikeTrainExplorer(object):
         Projection Matrix, if None, methods that return scores will not work
     """
 
-    def __init__(self, spike_train, templates=None, recording_explorer=None,
-                 projection_matrix=None):
-        self.spike_train = spike_train
+    def __init__(self, path_to_spike_train, templates=None,
+                 recording_explorer=None, projection_matrix=None):
+
+        name, extension = path_to_spike_train.split('.')
+
+        if extension == 'csv':
+            self.spike_train = np.loadtxt(path_to_spike_train,
+                                          dtype='int32', delimiter=',')
+        elif extension == 'npy':
+            self.spike_train = np.load(path_to_spike_train)
+        else:
+            raise ValueError('Unsupported extension: {}'.format(extension))
+
         self.templates = templates
         self.recording_explorer = recording_explorer
         self.projection_matrix = projection_matrix
 
         # TODO: directly get from the spike_train as you cannot assume they are
         # consecutive integers
-        self.all_ids = list(range(self.templates.shape[2]))
+        if self.templates is not None:
+            self.all_ids = list(range(self.templates.shape[2]))
+        else:
+            self.all_ids = None
 
         if projection_matrix is not None:
             ft_space = self._reduce_dimension
@@ -99,6 +112,21 @@ class SpikeTrainExplorer(object):
             reduced = np.reshape(reduced, [reduced.shape[0], -1])
 
         return reduced
+
+    def compute_templates(spike_size):
+        """Compute templats from spike train
+
+        Parameters
+        ----------
+        spike_size: int
+            Spike size
+        """
+        # get spike times for every group
+        # get waveforms (taking into account max shift) for every spike in every
+        # group
+        # compute templates for every group
+        # merge templates if merge=True
+        pass
 
     @ensure_iterator('group_ids')
     def scores_for_groups(self, group_ids, channels, flatten=True):
