@@ -127,8 +127,11 @@ class SpikeTrainExplorer(object):
         # compute templates for every group
         templates = [np.mean(w, axis=0) for w in waveforms]
 
-        # return stacked tempaltes
-        return np.stack(templates, axis=2)
+        # stack
+        templates = np.stack(templates, axis=2)
+
+        # return transposed templates (makes plotting easier)
+        return templates.transpose(1, 0, 2)
 
     @property
     def spike_groups(self):
