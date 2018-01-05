@@ -8,7 +8,7 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from matplotlib.patches import Circle
-from yass import geometry
+from yass import geometry as geom
 
 from ..util import ensure_iterator, sample
 from ..batch import RecordingsReader
@@ -408,7 +408,7 @@ class RecordingExplorer(object):
     spike_size: int
         Spike size, this is used to get waveforms around points in the
         recordings
-    path_to_geom: str
+    path_to_geom: str, optional
         Path to geometry file (npy or csv)
     neighbor_radius: float
         Maximum radius to consider two channels as neighbors
@@ -424,15 +424,16 @@ class RecordingExplorer(object):
         the data using numpy.fromfile
     """
 
-    def __init__(self, path_to_recordings, path_to_geom, spike_size=None,
+    def __init__(self, path_to_recordings, path_to_geom=None, spike_size=None,
                  neighbor_radius=None, dtype=None, n_channels=None,
                  data_format=None, mmap=True):
         self.data = RecordingsReader(path_to_recordings, dtype, n_channels,
                                      data_format, mmap, output_shape='long')
 
-        self.geom = geometry.parse(path_to_geom, n_channels)
-        self.neighbor_radius = neighbor_radius
-        self.neigh_matrix = geometry.find_channel_neighbors(self.geom,
+        if path_to_geom is not None:
+            self.geom = geom.parse(path_to_geom, n_channels)
+            self.neighbor_radius = neighbor_radius
+            self.neigh_matrix = geom.find_channel_neighbors(self.geom,
                                                             neighbor_radius)
         self.n_channels = self.data.channels
         self.spike_size = spike_size
