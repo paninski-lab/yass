@@ -310,6 +310,23 @@ class BatchProcessor(object):
         self.logger.info('Applying function {}...'
                          .format(function_path(function)))
 
+        if (mode == 'disk' and if_file_exists == 'skip' and
+           os.path.exists(output_path)):
+            # load params...
+            path_to_yaml = output_path.replace('.bin', '.yaml')
+
+            if not os.path.exists(path_to_yaml):
+                raise ValueError("if_file_exists = 'skip', but {}"
+                                 " is missing, aborting..."
+                                 .format(path_to_yaml))
+
+            with open(path_to_yaml) as f:
+                params = yaml.load(f)
+
+            self.logger.info('{} exists, skiping...'.format(output_path))
+
+            return output_path, params
+
         if mode == 'disk':
             fn = self._multi_channel_apply_disk
 
