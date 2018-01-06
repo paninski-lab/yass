@@ -70,6 +70,7 @@ def run():
                               'filtered.bin',
                               mode='single_channel_one_batch',
                               keep=True,
+                              if_file_exists='skip',
                               low_freq=CONFIG.filter.low_pass_freq,
                               high_factor=CONFIG.filter.high_factor,
                               order=CONFIG.filter.order,
@@ -81,6 +82,7 @@ def run():
     standarize_op = Transform(standarize, 'standarized.bin',
                               mode='single_channel_one_batch',
                               keep=True,
+                              if_file_exists='skip',
                               sampling_freq=CONFIG.recordings.sampling_rate)
 
     # whiten
@@ -88,6 +90,7 @@ def run():
     whiten_op = Transform(whiten.apply, 'whitened.bin',
                           mode='multi_channel',
                           keep=True,
+                          if_file_exists='skip',
                           neighbors=CONFIG.neighChannels,
                           spike_size=CONFIG.spikeSize)
 
