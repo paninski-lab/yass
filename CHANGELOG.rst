@@ -4,6 +4,15 @@ Changelog
 0.4dev
 ------
 
+* New stability metric
+* New batch module
+* Rewritten preprocessor
+* Rewritten CLI interface `yass` command is now `yass sort`
+* New CLI tool for training neural networks `yass train`
+* New CLI tool for exporting results to phy `yass export`
+* Comprehensive example using neuropixel data
+* Improved documentation for many modules
+
 
 0.3 (2017-11-15)
 -----------------

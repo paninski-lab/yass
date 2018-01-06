@@ -52,13 +52,6 @@ def path_to_config():
 
 
 @pytest.fixture
-def path_to_config_1k():
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'config_threshold_1k.yaml')
-    return path
-
-
-@pytest.fixture
 def path_to_nn_config():
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                         'config_nnet.yaml')
@@ -103,11 +96,6 @@ def test_can_whiten_data(data, path_to_geometry):
 
 def test_can_preprocess(path_to_config):
     yass.set_config(path_to_config)
-    score, spike_index_clear, spike_index_collision = preprocess.run()
-
-
-def test_can_preprocess_1k(path_to_config_1k):
-    yass.set_config(path_to_config_1k)
     score, spike_index_clear, spike_index_collision = preprocess.run()
 
 
