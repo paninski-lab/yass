@@ -155,7 +155,7 @@ class Preprocessor(object):
              si_col_batch, pss_batch, 
              spc_batch, Time) = self.batch_process(rec, get_score, 
                                                    BUFF, Time)
-
+            
             # spike time w.r.t. to the whole recording
             si_clr_batch[:,0] = si_clr_batch[:,0] + i*batch_size - BUFF
             si_col_batch[:,0] = si_col_batch[:,0] + i*batch_size - BUFF
@@ -243,7 +243,7 @@ class Preprocessor(object):
                                    self.config.neighChannels,
                                    self.config.geom,
                                    self.config.spikes.temporal_features,
-                                   3,
+                                   7,
                                    self.config.neural_network_detector.threshold_spike,
                                    self.config.neural_network_triage.threshold_collision,
                                    self.nnDetector,
@@ -312,9 +312,13 @@ class Preprocessor(object):
             
 
         # Remove spikes detectted in buffer area
-        spike_index_clear = spike_index_clear[np.logical_and(
+        idx_remove = np.logical_and(
             spike_index_clear[:, 0] > BUFF, 
-            spike_index_clear[:, 0] < (rec.shape[0] - BUFF))]
+            spike_index_clear[:, 0] < (rec.shape[0] - BUFF))
+        
+        spike_index_clear = spike_index_clear[idx_remove]
+        score = score[idx_remove]
+        
         spike_index_collision = spike_index_collision[np.logical_and(
             spike_index_collision[:, 0] > BUFF,
             spike_index_collision[:, 0] < (rec.shape[0] - BUFF))]
