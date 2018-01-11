@@ -158,12 +158,21 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
     spike_index_collision = np.zeros((0, 2), 'int32')
 
     # load and dump waveforms from clear spikes
-    explorer = RecordingExplorer(whitened_path, spike_size=CONFIG.spikeSize)
-    waveforms_clear = explorer.read_waveforms(spike_index_clear[:, 0])
     path_to_waveforms_clear = os.path.join(TMP_FOLDER, 'waveforms_clear.npy')
-    np.save(path_to_waveforms_clear, waveforms_clear)
-    logger.info('Saved waveform from clear spikes in: {}'
-                .format(path_to_waveforms_clear))
+
+    if os.path.exists(path_to_waveforms_clear):
+        logger.info('Found clear waveforms in {}, loading them...'
+                    .format(path_to_waveforms_clear))
+        waveforms_clear = np.load(path_to_waveforms_clear)
+    else:
+        logger.info('Did not find clear waveforms in {}, reading them from {}'
+                    .format(path_to_waveforms_clear, whitened_path))
+        explorer = RecordingExplorer(whitened_path,
+                                     spike_size=CONFIG.spikeSize)
+        waveforms_clear = explorer.read_waveforms(spike_index_clear[:, 0])
+        np.save(path_to_waveforms_clear, waveforms_clear)
+        logger.info('Saved waveform from clear spikes in: {}'
+                    .format(path_to_waveforms_clear))
 
     # compute per-batch sufficient statistics for PCA on standarized data
     logger.info('Computing PCA sufficient statistics...')
