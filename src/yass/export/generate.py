@@ -9,6 +9,7 @@ import os.path as path
 import numpy as np
 
 from ..util import load_asset, load_yaml
+from ..geometry import n_steps_neigh_channels
 
 
 def params(path_to_config):
@@ -53,18 +54,40 @@ def channel_map(n_channels):
     return np.arange(n_channels)
 
 
-def pc_feature_ind(n_templates):
+def pc_feature_ind(n_spikes, n_templates, n_channels, geom, neigh_channels,
+                   spike_train, templates):
     """
     pc_feature_ind.npy - [nTemplates, nPCFeatures] uint32 matrix specifying
     which pcFeatures are included in the pc_features matrix.
     """
-    # pc_feature_ind = np.zeros((n_templates, nneigh), 'int32')
 
-    # for k in range(n_templates):
-        # pc_feature_ind[k] = c_idx[templates_mainc[k]]
+    # get main channel for each template
+    templates_mainc = np.argmax(np.max(templates, axis=1), axis=0)
 
-    # return pc_feature_ind
-    pass
+    # main channel for each spike based on templates_mainc
+    spikes_mainc = np.zeros(n_spikes, 'int32')
+
+    for j in range(n_spikes):
+        spikes_mainc[j] = templates_mainc[spike_train[j, 1]]
+
+    # number of neighbors to consider
+    # NOTE: is the '2' ok to be hardcoded?
+    neighbors = n_steps_neigh_channels(neigh_channels, 2)
+    nneigh = np.max(np.sum(neighbors, 0))
+
+    # ordered neighboring channels w.r.t. each channel
+    c_idx = np.zeros((n_channels, nneigh), 'int32')
+
+    for c in range(n_channels):
+        c_idx[c] = (np.argsort(np.sum(np.square(geom - geom[c]), axis=1))
+                    [:nneigh])
+
+    pc_feature_ind = np.zeros((n_templates, nneigh), 'int32')
+
+    for k in range(n_templates):
+        pc_feature_ind[k] = c_idx[templates_mainc[k]]
+
+    return pc_feature_ind
 
 
 def similar_templates(templates):

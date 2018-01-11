@@ -190,7 +190,27 @@ def export(config, output_dir):
     logger.info('Copied {} to {}...'.format(path_to_score,
                                             path_to_pc_features))
 
+    # load spike train
+    path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
+    logger.info('Loading spike train from {}...'.format(path_to_spike_train))
+    spike_train = np.load(path_to_spike_train)
+    N_SPIKES, _ = spike_train.shape
+
+    # load templates
+    logging.info('Loading previously saved templates...')
+    path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
+    templates = np.load(path_to_templates)
+    _, _, N_TEMPLATES = templates.shape
+
     # pc_features_ind.npy
+    path_to_pc_features_ind = path.join(PHY_FOLDER, 'pc_feature_ind.npy')
+    ch_neighbors = geom.find_channel_neighbors
+    neigh_channels = ch_neighbors(geom, CONFIG.recordings.spatial_radius)
+
+    pc_feature_ind = generate.pc_feature_ind(N_SPIKES, N_TEMPLATES, N_CHANNELS,
+                                             geom, neigh_channels, spike_train,
+                                             templates)
+    np.save(path_to_pc_features_ind,  pc_feature_ind)
 
     # similar_templates.npy
     path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
@@ -201,10 +221,6 @@ def export(config, output_dir):
     logger.info('Saved {}...'.format(path_to_similar_templates))
 
     # spike_templates.npy and spike_times.npy
-    path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
-    logger.info('Loading spike train from {}...'.format(path_to_spike_train))
-    spike_train = np.load(path_to_spike_train)
-
     path_to_spike_templates = path.join(PHY_FOLDER, 'spike_templates.npy')
     np.save(path_to_spike_templates,  spike_train[:, 1])
     logger.info('Saved {}...'.format(path_to_spike_templates))
@@ -212,11 +228,6 @@ def export(config, output_dir):
     path_to_spike_times = path.join(PHY_FOLDER, 'spike_times.npy')
     np.save(path_to_spike_times, spike_train[:, 0])
     logger.info('Saved {}...'.format(path_to_spike_times))
-
-    logging.info('Loading previously saved templates...')
-    path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
-    templates = np.load(path_to_templates)
-    _, _, N_TEMPLATES = templates.shape
 
     # template_features.npy
 
