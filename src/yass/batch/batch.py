@@ -122,7 +122,8 @@ class BatchProcessor(object):
     def single_channel_apply(self, function, mode, output_path=None,
                              force_complete_channel_batch=True,
                              from_time=None, to_time=None, channels='all',
-                             if_file_exists='overwrite', **kwargs):
+                             if_file_exists='overwrite', cast_dtype=None,
+                             **kwargs):
         """
         Apply a transformation where each batch has observations from a
         single channel
@@ -159,6 +160,8 @@ class BatchProcessor(object):
             file if it exists, if 'abort' if raise a ValueError exception if
             the file exists, if 'skip' if skips the operation if the file
             exists. Only valid when mode = 'disk'
+        cast_dtype: str, optional
+            Output dtype, defaults to None which means no cast is done
         **kwargs
             kwargs to pass to function
 
@@ -215,7 +218,7 @@ class BatchProcessor(object):
             start = time.time()
             res = fn(function, output_path,
                      force_complete_channel_batch, from_time,
-                     to_time, channels, **kwargs)
+                     to_time, channels, cast_dtype, **kwargs)
             elapsed = time.time() - start
             self.logger.info('{} took {}'
                              .format(function_path(function),
@@ -226,7 +229,7 @@ class BatchProcessor(object):
 
             start = time.time()
             res = fn(function, force_complete_channel_batch, from_time,
-                     to_time, channels, **kwargs)
+                     to_time, channels, cast_dtype, **kwargs)
             elapsed = time.time() - start
             self.logger.info('{} took {}'
                              .format(function_path(function),
@@ -236,7 +239,7 @@ class BatchProcessor(object):
     def multi_channel_apply(self, function, mode, cleanup_function=None,
                             output_path=None, from_time=None, to_time=None,
                             channels='all', if_file_exists='overwrite',
-                            **kwargs):
+                            cast_dtype=None, **kwargs):
         """
         Apply a function where each batch has observations from more than
         one channel
@@ -278,6 +281,8 @@ class BatchProcessor(object):
             file if it exists, if 'abort' if raise a ValueError exception if
             the file exists, if 'skip' if skips the operation if the file
             exists. Only valid when mode = 'disk'
+        cast_dtype: str, optional
+            Output dtype, defaults to None which means no cast is done
         **kwargs
             kwargs to pass to function
 
@@ -332,7 +337,7 @@ class BatchProcessor(object):
 
             start = time.time()
             res = fn(function, cleanup_function, output_path, from_time,
-                     to_time, channels, **kwargs)
+                     to_time, channels, cast_dtype, **kwargs)
             elapsed = time.time() - start
             self.logger.info('{} took {}'
                              .format(function_path(function),
@@ -343,7 +348,7 @@ class BatchProcessor(object):
 
             start = time.time()
             res = fn(function, cleanup_function, from_time, to_time, channels,
-                     **kwargs)
+                     cast_dtype, **kwargs)
             elapsed = time.time() - start
             self.logger.info('{} took {}'
                              .format(function_path(function),
@@ -352,7 +357,7 @@ class BatchProcessor(object):
 
     def _single_channel_apply_disk(self, function, output_path,
                                    force_complete_channel_batch, from_time,
-                                   to_time, channels, **kwargs):
+                                   to_time, channels, cast_dtype, **kwargs):
         f = open(output_path, 'wb')
 
         self.reader.output_shape = 'wide'
@@ -363,7 +368,12 @@ class BatchProcessor(object):
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
             subset = self.reader[idx]
-            res = function(subset, **kwargs)
+
+            if cast_dtype is None:
+                res = function(subset, **kwargs)
+            else:
+                res = function(subset, **kwargs).astype(cast_dtype)
+
             self.logger.debug('Writing to disk...')
             res.tofile(f)
 
@@ -391,14 +401,18 @@ class BatchProcessor(object):
 
     def _multi_channel_apply_disk(self, function, cleanup_function,
                                   output_path, from_time, to_time, channels,
-                                  **kwargs):
+                                  cast_dtype, **kwargs):
         f = open(output_path, 'wb')
 
         self.reader.output_shape = 'long'
         data = self.multi_channel(from_time, to_time, channels)
 
         for subset, idx_local, idx in data:
-            res = function(subset, **kwargs)
+
+            if cast_dtype is None:
+                res = function(subset, **kwargs)
+            else:
+                res = function(subset, **kwargs).astype(cast_dtype)
 
             if cleanup_function:
                 res = cleanup_function(res, idx_local, idx)
@@ -428,7 +442,7 @@ class BatchProcessor(object):
 
     def _single_channel_apply_memory(self, function,
                                      force_complete_channel_batch, from_time,
-                                     to_time, channels, **kwargs):
+                                     to_time, channels, cast_dtype, **kwargs):
 
         indexes = self.indexer.single_channel(force_complete_channel_batch,
                                               from_time, to_time,
@@ -439,20 +453,30 @@ class BatchProcessor(object):
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
             subset = self.reader[idx]
-            res = function(subset, **kwargs)
+
+            if cast_dtype is None:
+                res = function(subset, **kwargs)
+            else:
+                res = function(subset, **kwargs).astype(cast_dtype)
+
             self.logger.debug('Appending partial result...')
             results.append(res)
 
         return results
 
     def _multi_channel_apply_memory(self, function, cleanup_function,
-                                    from_time, to_time, channels, **kwargs):
+                                    from_time, to_time, channels, cast_dtype,
+                                    **kwargs):
 
         data = self.multi_channel(from_time, to_time, channels)
         results = []
 
         for subset, idx_local, idx in data:
-            res = function(subset, **kwargs)
+
+            if cast_dtype is None:
+                res = function(subset, **kwargs)
+            else:
+                res = function(subset, **kwargs).astype(cast_dtype)
 
             if cleanup_function:
                 res = cleanup_function(res, idx_local, idx)

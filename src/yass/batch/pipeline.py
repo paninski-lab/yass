@@ -29,19 +29,22 @@ class PipedTransformation(object):
             file if it exists, if 'abort' if raise a ValueError exception if
             the file exists, if 'skip' if skips the operation if the file
             exists. Only valid when mode = 'disk'
+    cast_dtype: str, optional
+            Output dtype, defaults to None which means no cast is done
     **kwargs
         Function kwargs
 
     """
 
     def __init__(self, function, output_name, mode, keep=False,
-                 if_file_exists='overwrite', **kwargs):
+                 if_file_exists='overwrite', cast_dtype=None, **kwargs):
         self.function = function
         self.output_name = output_name
         self.mode = mode
         self._keep = keep
         self.kwargs = kwargs
         self.if_file_exists = if_file_exists
+        self.cast_dtype = cast_dtype
         self.logger = logging.getLogger(__name__)
 
     @property
@@ -147,6 +150,7 @@ class BatchPipeline(object):
                       to_time=self.to_time,
                       channels=self.channels,
                       if_file_exists=task.if_file_exists,
+                      cast_dtype=task.cast_dtype,
                       **task.kwargs)
 
             params.append(p)

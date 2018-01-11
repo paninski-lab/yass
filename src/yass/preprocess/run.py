@@ -47,6 +47,8 @@ def run():
 
     CONFIG = read_config()
 
+    OUTPUT_DTYPE = 'float16'
+
     tmp = os.path.join(CONFIG.data.root_folder, 'tmp')
 
     if not os.path.exists(tmp):
@@ -71,6 +73,7 @@ def run():
                               mode='single_channel_one_batch',
                               keep=True,
                               if_file_exists='skip',
+                              cast_dtype=OUTPUT_DTYPE,
                               low_freq=CONFIG.filter.low_pass_freq,
                               high_factor=CONFIG.filter.high_factor,
                               order=CONFIG.filter.order,
@@ -83,6 +86,7 @@ def run():
                               mode='single_channel_one_batch',
                               keep=True,
                               if_file_exists='skip',
+                              cast_dtype=OUTPUT_DTYPE,
                               sampling_freq=CONFIG.recordings.sampling_rate)
 
     # whiten
@@ -91,6 +95,7 @@ def run():
                           mode='multi_channel',
                           keep=True,
                           if_file_exists='skip',
+                          cast_dtype=OUTPUT_DTYPE,
                           neighbors=CONFIG.neighChannels,
                           spike_size=CONFIG.spikeSize)
 
