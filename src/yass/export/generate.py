@@ -53,16 +53,45 @@ def channel_map(n_channels):
     return np.arange(n_channels)
 
 
-def whitening_matrices(n_channels):
+def pc_feature_ind(n_templates):
     """
-    whitening_mat.npy - [nChannels, nChannels] double whitening matrix applied
-    to the data during automatic spike sorting
+    pc_feature_ind.npy - [nTemplates, nPCFeatures] uint32 matrix specifying
+    which pcFeatures are included in the pc_features matrix.
+    """
+    # pc_feature_ind = np.zeros((n_templates, nneigh), 'int32')
 
-    whitening_mat_inv.npy - [nChannels, nChannels] double, the inverse of the
-    whitening matrix.
+    # for k in range(n_templates):
+        # pc_feature_ind[k] = c_idx[templates_mainc[k]]
+
+    # return pc_feature_ind
+    pass
+
+
+def similar_templates(templates):
     """
-    # return whitening matrix and the inverse
-    return np.eye(n_channels), np.eye(n_channels)
+    similar_templates.npy - [nTemplates, nTemplates] single matrix giving the
+    similarity score (larger is more similar) between each pair of templates
+    """
+    _, _, n_templates = templates.shape
+    return np.corrcoef(np.reshape(templates, [-1, n_templates]).T)
+
+
+def template_features():
+    """
+    template_features.npy - [nSpikes, nTempFeatures] single matrix giving the
+    magnitude of the projection of each spike onto nTempFeatures other
+    features. Which other features is specified in template_feature_ind.npy
+    """
+    pass
+
+
+def template_feature_ind():
+    """
+    template_feature_ind.npy - [nTemplates, nTempFeatures] uint32 matrix
+    specifying which templateFeatures are included in the template_features
+    matrix.
+    """
+    pass
 
 
 def templates_ind(n_templates, n_channels):
@@ -78,3 +107,15 @@ def templates_ind(n_templates, n_channels):
         templates_ind[k] = np.arange(n_channels)
 
     return templates_ind
+
+
+def whitening_matrices(n_channels):
+    """
+    whitening_mat.npy - [nChannels, nChannels] double whitening matrix applied
+    to the data during automatic spike sorting
+
+    whitening_mat_inv.npy - [nChannels, nChannels] double, the inverse of the
+    whitening matrix.
+    """
+    # return whitening matrix and the inverse
+    return np.eye(n_channels), np.eye(n_channels)

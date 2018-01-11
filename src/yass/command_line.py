@@ -176,6 +176,25 @@ def export(config, output_dir):
     channel_map = generate.channel_map(N_CHANNELS)
     np.save(path.join(output_dir, 'channel_map.npy'), channel_map)
 
+    # move tmp/score.npy to phy/pc_features.npy
+
+    # pc_features_ind.npy
+    # similar_templates.npy
+
+    # TODO: save spike_train.npy in command line yass sort
+    # spike_templates.npy and spike_times.npy
+    path_to_spike_train = path.join(CONFIG.data.root_folder,
+                                    'tmp/spike_train.npy')
+    spike_train = np.load(path_to_spike_train)
+
+    path_to_spike_templates = path.join(CONFIG.data.root_folder,
+                                        'phy/spike_templates.npy')
+    np.save(path_to_spike_templates,  spike_train[:, 1])
+
+    path_to_spike_times = path.join(CONFIG.data.root_folder,
+                                    'phy/spike_times.npy')
+    np.save(path_to_spike_times, spike_train[:, 0])
+
     # templates.npy
     logging.info('Loading previously saved templates...')
     path_to_templates = path.join(CONFIG.data.root_folder,
@@ -185,5 +204,3 @@ def export(config, output_dir):
     np.save(path_to_phy_templates, np.transpose(templates, [2, 1, 0]))
     logging.info('Saved phy-compatible templates in {}'
                  .format(path_to_phy_templates))
-
-    # move tmp/score.npy to phy/pc_features.npy
