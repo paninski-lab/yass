@@ -1,3 +1,8 @@
+"""
+Code for generating Phy input files:
+http://phy-contrib.readthedocs.io/en/latest/template-gui/
+"""
+
 from datetime import datetime
 import os.path as path
 
@@ -31,9 +36,30 @@ def params(path_to_config):
     return params
 
 
+def amplitudes(spike_train):
+    """
+    amplitudes.npy - [nSpikes, ] double vector with the amplitude scaling
+    factor that was applied to the template when extracting that spike
+    """
+    n_spikes, _ = spike_train.shape
+    return np.ones(n_spikes)
+
+
 def channel_map(n_channels):
     """
     Generate channel_map numpy.array. For n_channels, it generates a
     numpy.array as follows: [0, ..., n_channels - 1]
     """
-    return np.array(range(n_channels))
+    return np.arange(n_channels)
+
+
+def whitening_matrices(n_channels):
+    """
+    whitening_mat.npy - [nChannels, nChannels] double whitening matrix applied
+    to the data during automatic spike sorting
+
+    whitening_mat_inv.npy - [nChannels, nChannels] double, the inverse of the
+    whitening matrix.
+    """
+    # return whitening matrix and the inverse
+    return np.eye(n_channels), np.eye(n_channels)
