@@ -114,6 +114,8 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
 
     CONFIG = read_config()
 
+    # FIXME: should we make a distinction here? maybe just save as
+    # spike_index_clear
     path_to_spike_index_clear = os.path.join(CONFIG.data.root_folder, 'tmp',
                                              'threshold_spike_index_clear.npy')
 
@@ -172,13 +174,18 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
     scores = pca.score(whitened_path, CONFIG.spikeSize, spike_index_clear,
                        rotation, CONFIG.neighChannels, CONFIG.geom)
 
+    # save scores
+    path_to_score = os.path.join(CONFIG.data.root_folder, 'tmp', 'score.npy')
+    np.save(path_to_score, scores)
+    logger.info('Saved spike scores in {}...'.format(path_to_score))
+
     return scores, spike_index_clear, spike_index_collision
 
 
 def _neural_network_detection(standarized_path, standarized_params):
     """Run neural network detection and autoencoder dimensionality reduction
     """
-    # logger = logging.getLogger(__name__)
+    logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
 
@@ -206,6 +213,12 @@ def _neural_network_detection(standarized_path, standarized_params):
              triage_filename=CONFIG.neural_network_triage.filename)
 
     scores = np.concatenate([element[0] for element in res], axis=0)
+
+    # save scores
+    path_to_score = os.path.join(CONFIG.data.root_folder, 'tmp', 'score.npy')
+    np.save(path_to_score, scores)
+    logger.info('Saved spike scores in {}...'.format(path_to_score))
+
     clear = np.concatenate([element[1] for element in res], axis=0)
     collision = np.concatenate([element[2] for element in res], axis=0)
 
