@@ -75,6 +75,8 @@ def _run_pipeline(config, output_file):
     # set yass configuration parameters
     set_config(config)
     CONFIG = read_config()
+    ROOT_FOLDER = CONFIG.data.root_folder
+    TMP_FOLDER = path.join(ROOT_FOLDER, 'tmp/')
 
     # run preprocessor
     score, spike_index_clear, spike_index_collision = preprocess.run()
@@ -89,14 +91,13 @@ def _run_pipeline(config, output_file):
                                   spike_index_collision)
 
     # save templates
-    path_to_templates = os.path.join(CONFIG.data.root_folder,
-                                     'tmp/templates.npy')
+    path_to_templates = os.path.join(TMP_FOLDER, 'templates.npy')
     logging.info('Saving templates in {}'.format(path_to_templates))
     np.save(path_to_templates, templates)
 
-    path_to_spike_train = os.path.join(CONFIG.data.root_folder, output_file)
+    path_to_spike_train = os.path.join(TMP_FOLDER, output_file)
     np.save(path_to_spike_train, spike_train)
-    logger.info('Done, spike train saved in: {}'.format(path_to_spike_train))
+    logger.info('Spike train saved in: {}'.format(path_to_spike_train))
 
 
 @cli.command()
@@ -184,7 +185,13 @@ def export(config, output_dir):
     shutil.copy2(path_to_score, path_to_pc_features)
 
     # pc_features_ind.npy
+
     # similar_templates.npy
+    path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
+    path_to_similar_templates = path.join(PHY_FOLDER, 'similar_templates.npy')
+    templates = np.load(path_to_templates)
+    similar_templates = generate.similar_templates(templates)
+    np.save(path_to_similar_templates,  similar_templates)
 
     # spike_templates.npy and spike_times.npy
     path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
