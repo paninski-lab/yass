@@ -374,29 +374,31 @@ class RecordingExplorer(object):
         end = time + self.spike_size + 1
 
         if isinstance(channels, str) and channels == 'all':
-            channels = range(self.n_channels)
-
-        return self.data[start:end, channels]
+            return self.data[start:end, :]
+        else:
+            return self.data[start:end, channels]
 
     def read_waveforms(self, times, channels='all', flatten=False):
         """Read waveforms at certain times
         """
+        # TODO: may be faster by sending :?
         if isinstance(channels, str) and channels == 'all':
             channels = range(self.n_channels)
 
-        wfs = []
         total = len(times)
+        wfs = np.empty((total, self.spike_size * 2 + 1, len(channels)))
 
         for i, t in enumerate(times):
-            wfs.append(self.read_waveform(t, channels))
+            wfs[i, :, :] = self.read_waveform(t, channels)
 
             if i % 10000 == 0 and i > 0:
                 self.logger.info('Loaded {:,}/{:,} waveforms...'
                                  .format(i, total))
 
-        wfs = np.stack(wfs)
+        self.logger.info('Loaded all {:,} waveforms...'.format(total))
 
         if flatten:
+            self.logger.debug('Flattening waveforms...')
             wfs = wfs.reshape(wfs.shape[0], -1)
 
         return wfs
