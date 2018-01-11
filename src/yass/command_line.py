@@ -175,3 +175,13 @@ def export(config, output_dir):
     logger.info('Generating channel_map.npy')
     channel_map = generate.channel_map(N_CHANNELS)
     np.save(path.join(output_dir, 'channel_map.npy'), channel_map)
+
+    # templates.npy
+    logging.info('Loading previously saved templates...')
+    path_to_templates = path.join(CONFIG.data.root_folder,
+                                  'tmp/templates.npy')
+    path_to_phy_templates = path.join(output_dir, 'templates.npy')
+    templates = np.load(path_to_templates)
+    np.save(path_to_phy_templates, np.transpose(templates, [2, 1, 0]))
+    logging.info('Saved phy-compatible templates in {}'
+                 .format(path_to_phy_templates))

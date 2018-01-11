@@ -63,3 +63,18 @@ def whitening_matrices(n_channels):
     """
     # return whitening matrix and the inverse
     return np.eye(n_channels), np.eye(n_channels)
+
+
+def templates_ind(n_templates, n_channels):
+    """
+    templates_ind.npy - [nTemplates, nTempChannels] double matrix specifying
+    the channels on which each template is defined. In the case of Kilosort
+    templates_ind is just the integers from 0 to nChannels-1, since templates
+    are defined on all channels.
+    """
+    templates_ind = np.zeros((n_templates, n_channels), 'int32')
+
+    for k in range(n_templates):
+        templates_ind[k] = np.arange(n_channels)
+
+    return templates_ind
