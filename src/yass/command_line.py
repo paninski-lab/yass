@@ -26,7 +26,7 @@ def cli():
 
 @cli.command()
 @click.argument('config', type=click.Path(exists=True, dir_okay=False,
-                resolve_path=True))
+                                          resolve_path=True))
 def sort(config, output_file):
     """
     Sort recordings using a configuration file located in CONFIG
@@ -161,28 +161,34 @@ def export(config, output_dir):
     # convert data to wide format
 
     # generate params.py
-    logger.info('Generating params.py...')
     params = generate.params(config)
+    path_to_params = path.join(PHY_FOLDER, 'params.py')
 
-    with open(path.join(PHY_FOLDER, 'params.py'), 'w') as f:
+    with open(path_to_params, 'w') as f:
         f.write(params)
+
+    logger.info('Saved {}...'.format(path_to_params))
 
     # channel_positions.npy
     logger.info('Generating channel_positions.npy')
     path_to_geom = path.join(ROOT_FOLDER, CONFIG['data']['geometry'])
     geom = geometry.parse(path_to_geom, N_CHANNELS)
-    np.save(path.join(PHY_FOLDER, 'channel_positions.npy'), geom)
+    path_to_channel_positions = path.join(PHY_FOLDER, 'channel_positions.npy')
+    np.save(path_to_channel_positions, geom)
+    logger.info('Saved {}...'.format(path_to_channel_positions))
 
     # channel_map.npy
-    logger.info('Generating channel_map.npy')
     channel_map = generate.channel_map(N_CHANNELS)
-    np.save(path.join(PHY_FOLDER, 'channel_map.npy'), channel_map)
+    path_to_channel_map = path.join(PHY_FOLDER, 'channel_map.npy')
+    np.save(path_to_channel_map, channel_map)
+    logger.info('Saved {}...'.format(path_to_channel_map))
 
     # move tmp/score.npy to phy/pc_features.npy
-    logger.info('Copying tmp/score.npy to phy/pc_features.npy...')
     path_to_score = path.join(TMP_FOLDER, 'score.npy')
     path_to_pc_features = path.join(PHY_FOLDER, 'pc_features.npy')
     shutil.copy2(path_to_score, path_to_pc_features)
+    logger.info('Copied {} to {}...'.format(path_to_score,
+                                            path_to_pc_features))
 
     # pc_features_ind.npy
 
@@ -192,22 +198,55 @@ def export(config, output_dir):
     templates = np.load(path_to_templates)
     similar_templates = generate.similar_templates(templates)
     np.save(path_to_similar_templates,  similar_templates)
+    logger.info('Saved {}...'.format(path_to_similar_templates))
 
     # spike_templates.npy and spike_times.npy
     path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
+    logger.info('Loading spike train from {}...'.format(path_to_spike_train))
     spike_train = np.load(path_to_spike_train)
 
     path_to_spike_templates = path.join(PHY_FOLDER, 'spike_templates.npy')
     np.save(path_to_spike_templates,  spike_train[:, 1])
+    logger.info('Saved {}...'.format(path_to_spike_templates))
 
     path_to_spike_times = path.join(PHY_FOLDER, 'spike_times.npy')
     np.save(path_to_spike_times, spike_train[:, 0])
+    logger.info('Saved {}...'.format(path_to_spike_times))
 
-    # templates.npy
     logging.info('Loading previously saved templates...')
     path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
-    path_to_phy_templates = path.join(PHY_FOLDER, 'templates.npy')
     templates = np.load(path_to_templates)
+    _, _, N_TEMPLATES = templates.shape
+
+    # template_features.npy
+
+    # template_feature_ind.npy
+    path_to_template_feature_ind = path.join(PHY_FOLDER,
+                                             'template_feature_ind.npy')
+    template_feature_ind = generate.template_feature_ind(N_TEMPLATES)
+    np.save(path_to_template_feature_ind, template_feature_ind)
+    logger.info('Saved {}...'.format(path_to_template_feature_ind))
+
+    # templates.npy
+    path_to_phy_templates = path.join(PHY_FOLDER, 'templates.npy')
     np.save(path_to_phy_templates, np.transpose(templates, [2, 1, 0]))
     logging.info('Saved phy-compatible templates in {}'
                  .format(path_to_phy_templates))
+
+    # templates_ind.npy
+    templates_ind = generate.templates_ind(N_TEMPLATES, N_CHANNELS)
+    path_to_templates_ind = path.join(PHY_FOLDER, 'templates_ind.npy')
+    np.save(path_to_templates_ind, templates_ind)
+    logger.info('Saved {}...'.format(path_to_templates_ind))
+
+    # whitening_mat.npy and whitening_mat_inv.npy
+    logging.info('Generating whitening_mat.npy and whitening_mat_inv.npy...')
+    whitening_mat, whitening_mat_inv = generate.whitening_matrices(N_CHANNELS)
+    path_to_whitening_mat = path.join(PHY_FOLDER, 'whitening_mat.npy')
+    path_to_whitening_mat_inv = path.join(PHY_FOLDER, 'whitening_mat_inv.npy')
+    np.save(path_to_whitening_mat, whitening_mat)
+    np.save(path_to_whitening_mat_inv, whitening_mat_inv)
+    logger.info('Saved {}...'.format(path_to_whitening_mat))
+    logger.info('Saved {}...'.format(path_to_whitening_mat_inv))
+
+    logging.info('Done.')
