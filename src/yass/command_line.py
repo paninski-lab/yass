@@ -1,6 +1,7 @@
 import os
 import os.path as path
 import logging
+import shutil
 from functools import partial
 
 import click
@@ -138,20 +139,23 @@ def export(config, output_dir):
     ROOT_FOLDER = CONFIG['data']['root_folder']
     N_CHANNELS = CONFIG['recordings']['n_channels']
 
+    TMP_FOLDER = path.join(ROOT_FOLDER, 'tmp/')
+
     # verify that the tmp/ folder exists, otherwise abort
-    path_to_tmp = path.join(ROOT_FOLDER, 'tmp/')
-    if not os.path.exists(path_to_tmp):
+    if not os.path.exists(TMP_FOLDER):
         click.echo("{} directory does not exist, this means you "
                    "haven't run 'yass sort', run it before running "
-                   "'yass export' again...".format(path_to_tmp))
+                   "'yass export' again...".format(TMP_FOLDER))
         raise click.Abort()
 
     if output_dir is None:
-        output_dir = path.join(ROOT_FOLDER, 'phy/')
+        PHY_FOLDER = path.join(ROOT_FOLDER, 'phy/')
+    else:
+        PHY_FOLDER = output_dir
 
-    if not os.path.exists(output_dir):
-        logger.info('Creating directory: {}'.format(output_dir))
-        os.makedirs(output_dir)
+    if not os.path.exists(PHY_FOLDER):
+        logger.info('Creating directory: {}'.format(PHY_FOLDER))
+        os.makedirs(PHY_FOLDER)
 
     # convert data to wide format
 
@@ -159,43 +163,43 @@ def export(config, output_dir):
     logger.info('Generating params.py...')
     params = generate.params(config)
 
-    with open(path.join(output_dir, 'params.py'), 'w') as f:
+    with open(path.join(PHY_FOLDER, 'params.py'), 'w') as f:
         f.write(params)
 
     # channel_positions.npy
     logger.info('Generating channel_positions.npy')
     path_to_geom = path.join(ROOT_FOLDER, CONFIG['data']['geometry'])
     geom = geometry.parse(path_to_geom, N_CHANNELS)
-    np.save(path.join(output_dir, 'channel_positions.npy'), geom)
+    np.save(path.join(PHY_FOLDER, 'channel_positions.npy'), geom)
 
     # channel_map.npy
     logger.info('Generating channel_map.npy')
     channel_map = generate.channel_map(N_CHANNELS)
-    np.save(path.join(output_dir, 'channel_map.npy'), channel_map)
+    np.save(path.join(PHY_FOLDER, 'channel_map.npy'), channel_map)
 
     # move tmp/score.npy to phy/pc_features.npy
+    logger.info('Copying tmp/score.npy to phy/pc_features.npy...')
+    path_to_score = path.join(TMP_FOLDER, 'score.npy')
+    path_to_pc_features = path.join(PHY_FOLDER, 'pc_features.npy')
+    shutil.copy2(path_to_score, path_to_pc_features)
 
     # pc_features_ind.npy
     # similar_templates.npy
 
     # spike_templates.npy and spike_times.npy
-    path_to_spike_train = path.join(CONFIG.data.root_folder,
-                                    'tmp/spike_train.npy')
+    path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
     spike_train = np.load(path_to_spike_train)
 
-    path_to_spike_templates = path.join(CONFIG.data.root_folder,
-                                        'phy/spike_templates.npy')
+    path_to_spike_templates = path.join(PHY_FOLDER, 'spike_templates.npy')
     np.save(path_to_spike_templates,  spike_train[:, 1])
 
-    path_to_spike_times = path.join(CONFIG.data.root_folder,
-                                    'phy/spike_times.npy')
+    path_to_spike_times = path.join(PHY_FOLDER, 'spike_times.npy')
     np.save(path_to_spike_times, spike_train[:, 0])
 
     # templates.npy
     logging.info('Loading previously saved templates...')
-    path_to_templates = path.join(CONFIG.data.root_folder,
-                                  'tmp/templates.npy')
-    path_to_phy_templates = path.join(output_dir, 'templates.npy')
+    path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
+    path_to_phy_templates = path.join(PHY_FOLDER, 'templates.npy')
     templates = np.load(path_to_templates)
     np.save(path_to_phy_templates, np.transpose(templates, [2, 1, 0]))
     logging.info('Saved phy-compatible templates in {}'
