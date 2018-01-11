@@ -27,7 +27,7 @@ def cli():
 @cli.command()
 @click.argument('config', type=click.Path(exists=True, dir_okay=False,
                                           resolve_path=True))
-def sort(config, output_file):
+def sort(config):
     """
     Sort recordings using a configuration file located in CONFIG
     """
