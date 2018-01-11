@@ -140,6 +140,8 @@ def score(path_to_rec, spike_size, spike_index, rot, neighbors, geom):
 
     Returns
     -------
+    [n_spikes, n_features_per_channel, n_neighboring_channels]
+        Scores for evert spike
     """
     times = spike_index[:, 0]
     explorer = RecordingExplorer(path_to_rec, spike_size=spike_size)
