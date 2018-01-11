@@ -169,6 +169,10 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
     rotation = pca.project(suff_stats, spikes_per_channel,
                            CONFIG.spikes.temporal_features,
                            CONFIG.neighChannels)
+    path_to_rotation = os.path.join(CONFIG.data.root_folder, 'tmp',
+                                    'rotation.npy')
+    np.save(path_to_rotation, rotation)
+    logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
 
     logger.info('Reducing spikes dimensionality with PCA matrix...')
     scores = pca.score(whitened_path, CONFIG.spikeSize, spike_index_clear,
@@ -218,6 +222,16 @@ def _neural_network_detection(standarized_path, standarized_params):
     path_to_score = os.path.join(CONFIG.data.root_folder, 'tmp', 'score.npy')
     np.save(path_to_score, scores)
     logger.info('Saved spike scores in {}...'.format(path_to_score))
+
+    # save rotation
+    detector_filename = CONFIG.neural_network_detector.filename
+    autoencoder_filename = CONFIG.neural_network_autoencoder.filename
+    rotation = neuralnetwork.load_rotation(detector_filename,
+                                           autoencoder_filename)
+    path_to_rotation = os.path.join(CONFIG.data.root_folder, 'tmp',
+                                    'rotation.npy')
+    np.save(path_to_rotation, rotation)
+    logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
 
     clear = np.concatenate([element[1] for element in res], axis=0)
     collision = np.concatenate([element[2] for element in res], axis=0)

@@ -230,6 +230,17 @@ def export(config, output_dir):
     logger.info('Saved {}...'.format(path_to_spike_times))
 
     # template_features.npy
+    path_to_template_features = path.join(PHY_FOLDER, 'template_features.npy')
+    path_to_rotation = path.join(TMP_FOLDER, 'rotation.npy')
+    score = np.load(path_to_score)
+    rotation = np.load(path_to_rotation)
+    template_features = generate.template_features(N_SPIKES, N_TEMPLATES,
+                                                   N_CHANNELS, templates,
+                                                   rotation, score,
+                                                   neigh_channels, geom,
+                                                   spike_train)
+    np.save(path_to_template_features, template_features)
+    logger.info('Saved {}...'.format(path_to_template_features))
 
     # template_feature_ind.npy
     path_to_template_feature_ind = path.join(PHY_FOLDER,

@@ -99,25 +99,59 @@ def similar_templates(templates):
     return np.corrcoef(np.reshape(templates, [-1, n_templates]).T)
 
 
-def template_features(n_spikes, n_templates, score):
+def template_features(n_spikes, n_templates, n_channels, templates, rotation,
+                      score, neigh_channels, geom, spike_train):
     """
     template_features.npy - [nSpikes, nTempFeatures] single matrix giving the
     magnitude of the projection of each spike onto nTempFeatures other
     features. Which other features is specified in template_feature_ind.npy
     """
+    C, R2, K = templates.shape
+    R = int((R2 - 1)/2)
+
     k_neigh = np.min((5, n_templates))
 
     template_features = np.zeros((n_spikes, k_neigh))
 
-    # for j in range(n_spikes):
+    templates_low_dim = np.zeros((C, rotation.shape[1], K))
 
-    #     ch_idx = c_idx[spikes_mainc[j]]
-    #     kk = spike_train[j, 1]
+    for k in range(K):
+        templates_low_dim[:, :, k] = np.matmul(templates[:, R:(3*R+1), k],
+                                               rotation)
 
-    #     for k in range(k_neigh):
-    #         template_features[j] = np.sum(
-    #             np.multiply(score[j].T,
-    #             templates_low_dim[ch_idx][:, :, template_feature_ind[kk, k]]))
+    # TODO: remove repeated code (check: pc_feature_ind)
+
+    # get main channel for each template
+    templates_mainc = np.argmax(np.max(templates, axis=1), axis=0)
+
+    # main channel for each spike based on templates_mainc
+    spikes_mainc = np.zeros(n_spikes, 'int32')
+
+    for j in range(n_spikes):
+        spikes_mainc[j] = templates_mainc[spike_train[j, 1]]
+
+    # number of neighbors to consider
+    # NOTE: is the '2' ok to be hardcoded?
+    neighbors = n_steps_neigh_channels(neigh_channels, 2)
+    nneigh = np.max(np.sum(neighbors, 0))
+
+    # ordered neighboring channels w.r.t. each channel
+    c_idx = np.zeros((n_channels, nneigh), 'int32')
+
+    for c in range(n_channels):
+        c_idx[c] = (np.argsort(np.sum(np.square(geom - geom[c]), axis=1))
+                    [:nneigh])
+
+    for j in range(n_spikes):
+
+        ch_idx = c_idx[spikes_mainc[j]]
+        kk = spike_train[j, 1]
+
+        for k in range(k_neigh):
+            template_features[j] = np.sum(
+                np.multiply(score[j].T,
+                            templates_low_dim[ch_idx]
+                            [:, :, template_feature_ind[kk, k]]))
 
     return template_features
 
