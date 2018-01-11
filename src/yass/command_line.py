@@ -184,6 +184,7 @@ def export(config, output_dir):
     logger.info('Saved {}...'.format(path_to_channel_map))
 
     # move tmp/score.npy to phy/pc_features.npy
+    # FIXME: should this be scores for clear, collision or both?
     path_to_score = path.join(TMP_FOLDER, 'score.npy')
     path_to_pc_features = path.join(PHY_FOLDER, 'pc_features.npy')
     shutil.copy2(path_to_score, path_to_pc_features)

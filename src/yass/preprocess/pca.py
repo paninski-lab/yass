@@ -159,9 +159,6 @@ def score(waveforms, spike_index, rot, neighbors, geom):
     # for every spike...
     for i in range(spikes):
 
-        if i % 1000 == 0:
-            logger.info('Scored {}/{} spikes...'.format(i, spikes))
-
         # get main channel
         main_channel = spike_index[i, 1]
 

@@ -121,6 +121,10 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
     CONFIG = read_config()
     TMP_FOLDER = os.path.join(CONFIG.data.root_folder, 'tmp/')
 
+    ###################
+    # Spike detection #
+    ###################
+
     path_to_spike_index_clear = os.path.join(CONFIG.data.root_folder, 'tmp',
                                              'spike_index_clear.npy')
 
@@ -130,7 +134,7 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
                         CONFIG.resources.max_memory,
                         buffer_size=0)
 
-    # check if spike_index_clear exists...
+    # clear spikes
     if os.path.exists(path_to_spike_index_clear):
         # if it exists, load it...
         logger.info('Found file in {}, loading it...'
@@ -154,8 +158,26 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
         logger.info('Saving spikes in {}...'.format(path_to_spike_index_clear))
         np.save(path_to_spike_index_clear, spike_index_clear)
 
-    # triage is not implemented on threshold detector, return empty array
-    spike_index_collision = np.zeros((0, 2), 'int32')
+    path_to_spike_index_collision = os.path.join(TMP_FOLDER,
+                                                 'spike_index_collision.npy')
+
+    # collided spikes
+    if os.path.exists(path_to_spike_index_collision):
+        # if it exists, load it...
+        logger.info('Found collided spikes in {}, loading them...'
+                    .format(path_to_spike_index_collision))
+        spike_index_collision = np.load(path_to_spike_index_collision)
+    else:
+        # triage is not implemented on threshold detector, return empty array
+        logger.info('Did not find file in {}, creating empty array for'
+                    ' collided spikes (collision detection is not implemented'
+                    ' with threshold detector...'
+                    .format(path_to_spike_index_clear))
+        spike_index_collision = np.zeros((0, 2), 'int32')
+
+    #######################
+    # Waveform extraction #
+    #######################
 
     # load and dump waveforms from clear spikes
     path_to_waveforms_clear = os.path.join(TMP_FOLDER, 'waveforms_clear.npy')
@@ -173,6 +195,10 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
         np.save(path_to_waveforms_clear, waveforms_clear)
         logger.info('Saved waveform from clear spikes in: {}'
                     .format(path_to_waveforms_clear))
+
+    #########################
+    # PCA - rotation matrix #
+    #########################
 
     # compute per-batch sufficient statistics for PCA on standarized data
     logger.info('Computing PCA sufficient statistics...')
@@ -195,6 +221,10 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
                                     'rotation.npy')
     np.save(path_to_rotation, rotation)
     logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
+
+    ###########################################
+    # PCA - waveform dimensionality reduction #
+    ###########################################
 
     logger.info('Reducing spikes dimensionality with PCA matrix...')
     scores = pca.score(waveforms_clear, spike_index_clear, rotation,
