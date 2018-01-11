@@ -10,9 +10,9 @@ from ..explore import RecordingExplorer, SpikeTrainExplorer
 logger = logging.getLogger(__name__)
 
 
-def get_templates_new(spike_train_clear, path_to_recordings,
-                      spike_size, template_max_shift, t_merge_th,
-                      neighbors):
+def get_templates2(spike_train_clear, path_to_recordings,
+                   spike_size, template_max_shift, t_merge_th,
+                   neighbors):
     logger.info('Computing templates...')
     re = RecordingExplorer(path_to_recordings,
                            spike_size=spike_size + template_max_shift)
@@ -21,10 +21,8 @@ def get_templates_new(spike_train_clear, path_to_recordings,
     templates = spe.templates
     weights = spe.weights
 
-    # scale templates
-    templates = templates/weights[np.newaxis, np.newaxis, :]
-
     logger.info("Merging templates.")
+    # scale and merge templates
     templates = templates/weights[np.newaxis, np.newaxis, :]
     spike_train_clear, templates = mergeTemplates(templates, weights,
                                                   spike_train_clear,

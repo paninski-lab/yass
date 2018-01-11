@@ -57,9 +57,10 @@ class SpikeTrainExplorer(object):
 
     Parameters
     ----------
-    spike_train: str
-        Path to npy spike train file. The first column of the file should be
-        the spike index and the second the spike ID
+    spike_train: str or np.ndarray
+        Path to npy spike train file or spike train np.ndarray. The first
+        column of the file should be the spike index and the second the spike
+        ID
     recording_explorer: RecordingExplorer
         Recording explorer instance
     templates: np.ndarray, optional
@@ -68,18 +69,21 @@ class SpikeTrainExplorer(object):
         Projection Matrix, if None, methods that return scores will not work
     """
 
-    def __init__(self, path_to_spike_train, recording_explorer,
+    def __init__(self, spike_train, recording_explorer,
                  templates=None, projection_matrix=None):
 
-        name, extension = path_to_spike_train.split('.')
+        if isinstance(spike_train, str):
+            name, extension = spike_train.split('.')
 
-        if extension == 'csv':
-            self.spike_train = np.loadtxt(path_to_spike_train,
-                                          dtype='int32', delimiter=',')
-        elif extension == 'npy':
-            self.spike_train = np.load(path_to_spike_train)
+            if extension == 'csv':
+                self.spike_train = np.loadtxt(spike_train,
+                                              dtype='int32', delimiter=',')
+            elif extension == 'npy':
+                self.spike_train = np.load(spike_train)
+            else:
+                raise ValueError('Unsupported extension: {}'.format(extension))
         else:
-            raise ValueError('Unsupported extension: {}'.format(extension))
+            self.spike_train = spike_train
 
         self.all_ids = np.unique(self.spike_train[:, 1])
         self.recording_explorer = recording_explorer

@@ -11,7 +11,7 @@ from .. import read_config
 from .triage import triage
 from .coreset import coreset
 from .mask import getmask
-from .templates import get_templates
+from .templates import get_templates2
 from ..mfm import spikesort
 from ..geometry import order_channels_by_distance
 
@@ -223,16 +223,13 @@ def run(score, spike_index_clear, spike_index_collision):
     logger.info("Getting Templates...")
     path_to_whiten = os.path.join(CONFIG.data.root_folder, 'tmp/whitened.bin')
     merge_threshold = CONFIG.templates.merge_threshold
-    spike_train_clear, templates = get_templates(spike_train_clear,
-                                                 CONFIG.batch_size,
-                                                 CONFIG.BUFF,
-                                                 CONFIG.nBatches,
-                                                 CONFIG.recordings.n_channels,
-                                                 CONFIG.spikeSize,
-                                                 CONFIG.templatesMaxShift,
-                                                 CONFIG.neighChannels,
-                                                 path_to_whiten,
-                                                 merge_threshold)
+    spike_train_clear, templates = get_templates2(spike_train_clear,
+                                                  path_to_whiten,
+                                                  CONFIG.spikeSize,
+                                                  CONFIG.templatesMaxShift,
+                                                  merge_threshold,
+                                                  CONFIG.neighChannels)
+
     Time['e'] += (datetime.datetime.now()-_b).total_seconds()
 
     currentTime = datetime.datetime.now()
