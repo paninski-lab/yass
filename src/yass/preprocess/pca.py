@@ -165,7 +165,7 @@ def score(path_to_rec, spike_size, spike_index, rot, neighbors, geom):
     for i in range(spikes):
 
         if i % 1000 == 0:
-            logger.info('Scored {}/{} spikes...'.format(int(i/1000), spikes))
+            logger.info('Scored {}/{} spikes...'.format(i, spikes))
 
         # get main channel
         main_channel = spike_index[i, 1]

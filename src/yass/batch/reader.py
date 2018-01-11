@@ -1,6 +1,7 @@
 import os
 import yaml
 import numpy as np
+from functools import partial
 
 
 class RecordingsReader(object):
@@ -75,7 +76,7 @@ class RecordingsReader(object):
             n_channels = params['n_channels']
             data_format = params['data_format']
 
-        loader = np.memmap if mmap else np.fromfile
+        loader = partial(np.memmap, mode='r') if mmap else np.fromfile
         self.output_shape = output_shape
         self._data = loader(path_to_recordings, dtype=dtype)
         self._data_format = data_format
