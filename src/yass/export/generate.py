@@ -99,14 +99,15 @@ def similar_templates(templates):
     return np.corrcoef(np.reshape(templates, [-1, n_templates]).T)
 
 
-def template_features(n_spikes, score):
+def template_features(n_spikes, n_templates, score):
     """
     template_features.npy - [nSpikes, nTempFeatures] single matrix giving the
     magnitude of the projection of each spike onto nTempFeatures other
     features. Which other features is specified in template_feature_ind.npy
     """
-    pass
-    # template_features = np.zeros((n_spikes, k_neigh))
+    k_neigh = np.min((5, n_templates))
+
+    template_features = np.zeros((n_spikes, k_neigh))
 
     # for j in range(n_spikes):
 
@@ -118,7 +119,7 @@ def template_features(n_spikes, score):
     #             np.multiply(score[j].T,
     #             templates_low_dim[ch_idx][:, :, template_feature_ind[kk, k]]))
 
-    # template_features
+    return template_features
 
 
 def template_feature_ind(n_templates):
