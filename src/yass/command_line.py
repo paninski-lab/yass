@@ -90,6 +90,12 @@ def _run_pipeline(config, output_file):
     spike_train = deconvolute.run(spike_train_clear, templates,
                                   spike_index_collision)
 
+    # save templates
+    path_to_templates = os.path.join(CONFIG.data.root_folder,
+                                     'tmp/templates.npy')
+    logging.info('Saving templates in {}'.format(path_to_templates))
+    np.save(path_to_templates, templates)
+
     path_to_file = os.path.join(CONFIG.data.root_folder, output_file)
     np.savetxt(path_to_file, spike_train, fmt='%i, %i')
     logger.info('Done, spike train saved in: {}'.format(path_to_file))
