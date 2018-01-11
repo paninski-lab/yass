@@ -114,21 +114,38 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
 
     CONFIG = read_config()
 
-    # detect spikes
+    path_to_spike_index_clear = os.path.join(CONFIG.data.root_folder, 'tmp',
+                                             'threshold_spike_index_clear.npy')
+
     bp = BatchProcessor(standarized_path, standarized_params['dtype'],
                         standarized_params['n_channels'],
                         standarized_params['data_format'],
                         CONFIG.resources.max_memory,
                         buffer_size=0)
 
-    # apply threshold detector on standarized data
-    spikes = bp.multi_channel_apply(detect.threshold,
-                                    mode='memory',
-                                    cleanup_function=detect.fix_indexes,
-                                    neighbors=CONFIG.neighChannels,
-                                    spike_size=CONFIG.spikeSize,
-                                    std_factor=CONFIG.stdFactor)
-    spike_index_clear = np.vstack(spikes)
+    # check if spike_index_clear exists...
+    if os.path.exists(path_to_spike_index_clear):
+        # if it exists, load it...
+        logger.info('Found file in {}, loading it...'
+                    .format(path_to_spike_index_clear))
+        spike_index_clear = np.load(path_to_spike_index_clear)
+    else:
+        # if it doesn't, detect spikes...
+        logger.info('Did not find file in {}, finding spikes using threshold'
+                    ' detector...'
+                    .format(path_to_spike_index_clear))
+
+        # apply threshold detector on standarized data
+        spikes = bp.multi_channel_apply(detect.threshold,
+                                        mode='memory',
+                                        cleanup_function=detect.fix_indexes,
+                                        neighbors=CONFIG.neighChannels,
+                                        spike_size=CONFIG.spikeSize,
+                                        std_factor=CONFIG.stdFactor)
+        spike_index_clear = np.vstack(spikes)
+
+        logger.info('Saving spikes in {}...'.format(path_to_spike_index_clear))
+        np.save(path_to_spike_index_clear, spike_index_clear)
 
     # triage is not implemented on threshold detector, return empty array
     spike_index_collision = np.zeros((0, 2), 'int32')
