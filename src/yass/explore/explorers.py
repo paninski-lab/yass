@@ -384,8 +384,17 @@ class RecordingExplorer(object):
         if isinstance(channels, str) and channels == 'all':
             channels = range(self.n_channels)
 
-        # FIXME: this fails when reading 250K+ waveforms...
-        wfs = np.stack([self.read_waveform(t, channels) for t in times])
+        wfs = []
+        total = len(times)
+
+        for i, t in enumerate(times):
+            wfs.append(self.read_waveform(t, channels))
+
+            if i % 10000 == 0 and i > 0:
+                self.logger.info('Loaded {:,}/{:,} waveforms...'
+                                 .format(i, total))
+
+        wfs = np.stack(wfs)
 
         if flatten:
             wfs = wfs.reshape(wfs.shape[0], -1)
