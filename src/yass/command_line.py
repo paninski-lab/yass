@@ -26,14 +26,11 @@ def cli():
 @cli.command()
 @click.argument('config', type=click.Path(exists=True, dir_okay=False,
                 resolve_path=True))
-@click.option('--output_file', type=click.Path(dir_okay=False),
-              default='spike_train.csv',
-              help='Path to output file, defaults to spike_train.csv')
 def sort(config, output_file):
     """
     Sort recordings using a configuration file located in CONFIG
     """
-    return _run_pipeline(config, output_file)
+    return _run_pipeline(config, output_file='spike_train.npy')
 
 
 def _run_pipeline(config, output_file):
@@ -96,9 +93,9 @@ def _run_pipeline(config, output_file):
     logging.info('Saving templates in {}'.format(path_to_templates))
     np.save(path_to_templates, templates)
 
-    path_to_file = os.path.join(CONFIG.data.root_folder, output_file)
-    np.savetxt(path_to_file, spike_train, fmt='%i, %i')
-    logger.info('Done, spike train saved in: {}'.format(path_to_file))
+    path_to_spike_train = os.path.join(CONFIG.data.root_folder, output_file)
+    np.save(path_to_spike_train, spike_train)
+    logger.info('Done, spike train saved in: {}'.format(path_to_spike_train))
 
 
 @cli.command()
@@ -181,7 +178,6 @@ def export(config, output_dir):
     # pc_features_ind.npy
     # similar_templates.npy
 
-    # TODO: save spike_train.npy in command line yass sort
     # spike_templates.npy and spike_times.npy
     path_to_spike_train = path.join(CONFIG.data.root_folder,
                                     'tmp/spike_train.npy')
