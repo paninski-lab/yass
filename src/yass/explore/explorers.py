@@ -436,11 +436,14 @@ class RecordingExplorer(object):
     mmap: bool
         Whether to read the data using numpy.mmap, otherwise it reads
         the data using numpy.fromfile
+    waveform_dtype: str, optional
+        Waveform output type, defaults to 'default' which matches
+        recordings dtype
     """
 
     def __init__(self, path_to_recordings, path_to_geom=None, spike_size=None,
                  neighbor_radius=None, dtype=None, n_channels=None,
-                 data_format=None, mmap=True):
+                 data_format=None, mmap=True, waveform_dtype='float32'):
         self.data = RecordingsReader(path_to_recordings, dtype, n_channels,
                                      data_format, mmap, output_shape='long')
 
@@ -451,6 +454,11 @@ class RecordingExplorer(object):
                                                             neighbor_radius)
         self.n_channels = self.data.channels
         self.spike_size = spike_size
+
+        if waveform_dtype == 'default':
+            waveform_dtype = dtype
+
+        self.waveform_dtype = waveform_dtype
 
         self.logger = logging.getLogger(__name__)
 
@@ -484,9 +492,9 @@ class RecordingExplorer(object):
         end = time + self.spike_size + 1
 
         if isinstance(channels, str) and channels == 'all':
-            return self.data[start:end, :]
+            return self.data[start:end, :].astype(self.waveform_dtype)
         else:
-            return self.data[start:end, channels]
+            return self.data[start:end, channels].astype(self.waveform_dtype)
 
     def read_waveforms(self, times, channels='all', flatten=False):
         """Read multiple waveforms around certain times
@@ -513,7 +521,8 @@ class RecordingExplorer(object):
             channels = range(self.n_channels)
 
         total = len(times)
-        wfs = np.empty((total, self.spike_size * 2 + 1, len(channels)))
+        wfs = np.empty((total, self.spike_size * 2 + 1, len(channels)),
+                       dtype=self.waveform_dtype)
 
         for i, t in enumerate(times):
             wfs[i, :, :] = self.read_waveform(t, channels)
