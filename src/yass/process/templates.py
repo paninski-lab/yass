@@ -5,6 +5,37 @@ import numpy as np
 from scipy import sparse
 import logging
 
+from ..explore import RecordingExplorer, SpikeTrainExplorer
+
+logger = logging.getLogger(__name__)
+
+
+def get_templates_new(spike_train_clear, path_to_recordings,
+                      spike_size, template_max_shift, t_merge_th,
+                      neighbors):
+    logger.info('Computing templates...')
+    re = RecordingExplorer(path_to_recordings,
+                           spike_size=spike_size + template_max_shift)
+    spe = SpikeTrainExplorer(spike_train_clear, re)
+
+    templates = spe.templates
+    weights = spe.weights
+
+    # scale templates
+    templates = templates/weights[np.newaxis, np.newaxis, :]
+
+    logger.info("Merging templates.")
+    templates = templates/weights[np.newaxis, np.newaxis, :]
+    spike_train_clear, templates = mergeTemplates(templates, weights,
+                                                  spike_train_clear,
+                                                  neighbors,
+                                                  template_max_shift,
+                                                  t_merge_th)
+    templates = templates[:, template_max_shift:(
+        template_max_shift+(2*spike_size+1))]
+
+    return spike_train_clear, templates
+
 
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
@@ -21,8 +52,6 @@ def get_templates(spike_train_clear, batch_size, buff, n_batches, n_channels,
     templates
         n channels x (2*(spike_size+template_max_shift)+1) x
     """
-    logger = logging.getLogger(__name__)
-
     wfile = open(path_to_wrec, 'rb')
 
     flattenedLength = 2*(batch_size + 2*buff)*n_channels
