@@ -1,6 +1,7 @@
 import time
 import numbers
 import logging
+import os.path
 
 import yaml
 
@@ -121,7 +122,7 @@ class BatchProcessor(object):
     def single_channel_apply(self, function, mode, output_path=None,
                              force_complete_channel_batch=True,
                              from_time=None, to_time=None, channels='all',
-                             **kwargs):
+                             if_file_exists='overwrite', **kwargs):
         """
         Apply a transformation where each batch has observations from a
         single channel
@@ -153,6 +154,11 @@ class BatchProcessor(object):
         channels: int, tuple or str, optional
             A tuple with the channel indexes or 'all' to traverse all channels,
             defaults to 'all'
+        if_file_exists: str, optional
+            One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces the
+            file if it exists, if 'abort' if raise a ValueError exception if
+            the file exists, if 'skip' if skips the operation if the file
+            exists. Only valid when mode = 'disk'
         **kwargs
             kwargs to pass to function
 
@@ -178,6 +184,27 @@ class BatchProcessor(object):
 
         if mode == 'disk' and output_path is None:
             raise ValueError('output_path is required in "disk" mode')
+
+        if (mode == 'disk' and if_file_exists == 'abort' and
+           os.path.exists(output_path)):
+            raise ValueError('{} already exists'.format(output_path))
+
+        if (mode == 'disk' and if_file_exists == 'skip' and
+           os.path.exists(output_path)):
+            # load params...
+            path_to_yaml = output_path.replace('.bin', '.yaml')
+
+            if not os.path.exists(path_to_yaml):
+                raise ValueError("if_file_exists = 'skip', but {}"
+                                 " is missing, aborting..."
+                                 .format(path_to_yaml))
+
+            with open(path_to_yaml) as f:
+                params = yaml.load(f)
+
+            self.logger.info('{} exists, skiping...'.format(output_path))
+
+            return output_path, params
 
         self.logger.info('Applying function {}...'
                          .format(function_path(function)))
@@ -208,7 +235,8 @@ class BatchProcessor(object):
 
     def multi_channel_apply(self, function, mode, cleanup_function=None,
                             output_path=None, from_time=None, to_time=None,
-                            channels='all', **kwargs):
+                            channels='all', if_file_exists='overwrite',
+                            **kwargs):
         """
         Apply a function where each batch has observations from more than
         one channel
@@ -245,6 +273,11 @@ class BatchProcessor(object):
         channels: int, tuple or str, optional
             A tuple with the channel indexes or 'all' to traverse all channels,
             defaults to 'all'
+        if_file_exists: str, optional
+            One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces the
+            file if it exists, if 'abort' if raise a ValueError exception if
+            the file exists, if 'skip' if skips the operation if the file
+            exists. Only valid when mode = 'disk'
         **kwargs
             kwargs to pass to function
 
@@ -270,8 +303,29 @@ class BatchProcessor(object):
         if mode == 'disk' and output_path is None:
             raise ValueError('output_path is required in "disk" mode')
 
+        if (mode == 'disk' and if_file_exists == 'abort' and
+           os.path.exists(output_path)):
+            raise ValueError('{} already exists'.format(output_path))
+
         self.logger.info('Applying function {}...'
                          .format(function_path(function)))
+
+        if (mode == 'disk' and if_file_exists == 'skip' and
+           os.path.exists(output_path)):
+            # load params...
+            path_to_yaml = output_path.replace('.bin', '.yaml')
+
+            if not os.path.exists(path_to_yaml):
+                raise ValueError("if_file_exists = 'skip', but {}"
+                                 " is missing, aborting..."
+                                 .format(path_to_yaml))
+
+            with open(path_to_yaml) as f:
+                params = yaml.load(f)
+
+            self.logger.info('{} exists, skiping...'.format(output_path))
+
+            return output_path, params
 
         if mode == 'disk':
             fn = self._multi_channel_apply_disk

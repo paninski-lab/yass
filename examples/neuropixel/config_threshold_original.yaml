@@ -1,0 +1,40 @@
+data:
+  root_folder: /users/Edu/data/yass
+  recordings: ej49_data1_set1.bin
+  geometry: ej49_geometry1.txt
+
+resources:
+  max_memory: 1000000000
+
+recordings:
+  dtype: int16
+  sampling_rate: 20000
+  n_channels: 49
+  spatial_radius: 70
+  spike_size_ms: 1.5
+  format: long
+
+preprocess:
+  filter: True
+  templates_partial_data: 1
+  whiten_batchwise: False
+
+spikes:
+  detection: nn
+  temporal_features: 3
+
+deconvolution:
+  rank: 3
+  threshold: 4
+  lam: 20
+
+neural_network_detector:
+  filename: detect_nn1.ckpt
+  threshold_spike: 0.5
+
+neural_network_triage:
+  filename: triage_nn1.ckpt
+  threshold_collision: 0.9
+
+neural_network_autoencoder:
+  filename: ae_nn1.ckpt

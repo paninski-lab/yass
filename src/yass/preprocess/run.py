@@ -70,6 +70,7 @@ def run():
                               'filtered.bin',
                               mode='single_channel_one_batch',
                               keep=True,
+                              if_file_exists='skip',
                               low_freq=CONFIG.filter.low_pass_freq,
                               high_factor=CONFIG.filter.high_factor,
                               order=CONFIG.filter.order,
@@ -81,6 +82,7 @@ def run():
     standarize_op = Transform(standarize, 'standarized.bin',
                               mode='single_channel_one_batch',
                               keep=True,
+                              if_file_exists='skip',
                               sampling_freq=CONFIG.recordings.sampling_rate)
 
     # whiten
@@ -88,6 +90,7 @@ def run():
     whiten_op = Transform(whiten.apply, 'whitened.bin',
                           mode='multi_channel',
                           keep=True,
+                          if_file_exists='skip',
                           neighbors=CONFIG.neighChannels,
                           spike_size=CONFIG.spikeSize)
 
@@ -111,26 +114,46 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
 
     CONFIG = read_config()
 
-    # detect spikes
+    # FIXME: should we make a distinction here? maybe just save as
+    # spike_index_clear
+    path_to_spike_index_clear = os.path.join(CONFIG.data.root_folder, 'tmp',
+                                             'threshold_spike_index_clear.npy')
+
     bp = BatchProcessor(standarized_path, standarized_params['dtype'],
                         standarized_params['n_channels'],
                         standarized_params['data_format'],
                         CONFIG.resources.max_memory,
                         buffer_size=0)
 
-    # apply threshold detector on standarized data
-    spikes = bp.multi_channel_apply(detect.threshold,
-                                    mode='memory',
-                                    cleanup_function=detect.fix_indexes,
-                                    neighbors=CONFIG.neighChannels,
-                                    spike_size=CONFIG.spikeSize,
-                                    std_factor=CONFIG.stdFactor)
-    spike_index_clear = np.vstack(spikes)
+    # check if spike_index_clear exists...
+    if os.path.exists(path_to_spike_index_clear):
+        # if it exists, load it...
+        logger.info('Found file in {}, loading it...'
+                    .format(path_to_spike_index_clear))
+        spike_index_clear = np.load(path_to_spike_index_clear)
+    else:
+        # if it doesn't, detect spikes...
+        logger.info('Did not find file in {}, finding spikes using threshold'
+                    ' detector...'
+                    .format(path_to_spike_index_clear))
+
+        # apply threshold detector on standarized data
+        spikes = bp.multi_channel_apply(detect.threshold,
+                                        mode='memory',
+                                        cleanup_function=detect.fix_indexes,
+                                        neighbors=CONFIG.neighChannels,
+                                        spike_size=CONFIG.spikeSize,
+                                        std_factor=CONFIG.stdFactor)
+        spike_index_clear = np.vstack(spikes)
+
+        logger.info('Saving spikes in {}...'.format(path_to_spike_index_clear))
+        np.save(path_to_spike_index_clear, spike_index_clear)
 
     # triage is not implemented on threshold detector, return empty array
     spike_index_collision = np.zeros((0, 2), 'int32')
 
     # compute per-batch sufficient statistics for PCA on standarized data
+    logger.info('Computing PCA sufficient statistics...')
     stats = bp.multi_channel_apply(pca.suff_stat,
                                    mode='memory',
                                    spike_index=spike_index_clear,
@@ -146,12 +169,19 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
     rotation = pca.project(suff_stats, spikes_per_channel,
                            CONFIG.spikes.temporal_features,
                            CONFIG.neighChannels)
+    path_to_rotation = os.path.join(CONFIG.data.root_folder, 'tmp',
+                                    'rotation.npy')
+    np.save(path_to_rotation, rotation)
+    logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
 
-    # TODO: make this parallel, we can split the spikes, generate batches
-    # and score in parallel
     logger.info('Reducing spikes dimensionality with PCA matrix...')
     scores = pca.score(whitened_path, CONFIG.spikeSize, spike_index_clear,
                        rotation, CONFIG.neighChannels, CONFIG.geom)
+
+    # save scores
+    path_to_score = os.path.join(CONFIG.data.root_folder, 'tmp', 'score.npy')
+    np.save(path_to_score, scores)
+    logger.info('Saved spike scores in {}...'.format(path_to_score))
 
     return scores, spike_index_clear, spike_index_collision
 
@@ -159,7 +189,7 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
 def _neural_network_detection(standarized_path, standarized_params):
     """Run neural network detection and autoencoder dimensionality reduction
     """
-    # logger = logging.getLogger(__name__)
+    logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
 
@@ -187,6 +217,22 @@ def _neural_network_detection(standarized_path, standarized_params):
              triage_filename=CONFIG.neural_network_triage.filename)
 
     scores = np.concatenate([element[0] for element in res], axis=0)
+
+    # save scores
+    path_to_score = os.path.join(CONFIG.data.root_folder, 'tmp', 'score.npy')
+    np.save(path_to_score, scores)
+    logger.info('Saved spike scores in {}...'.format(path_to_score))
+
+    # save rotation
+    detector_filename = CONFIG.neural_network_detector.filename
+    autoencoder_filename = CONFIG.neural_network_autoencoder.filename
+    rotation = neuralnetwork.load_rotation(detector_filename,
+                                           autoencoder_filename)
+    path_to_rotation = os.path.join(CONFIG.data.root_folder, 'tmp',
+                                    'rotation.npy')
+    np.save(path_to_rotation, rotation)
+    logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
+
     clear = np.concatenate([element[1] for element in res], axis=0)
     collision = np.concatenate([element[2] for element in res], axis=0)
 

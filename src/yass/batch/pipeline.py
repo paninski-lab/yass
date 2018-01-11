@@ -24,17 +24,24 @@ class PipedTransformation(object):
     keep: bool, optional
         Whether to keep the results from this step, otherwise the file is
         deleted after the next transformation is done
+    if_file_exists: str, optional
+            One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces the
+            file if it exists, if 'abort' if raise a ValueError exception if
+            the file exists, if 'skip' if skips the operation if the file
+            exists. Only valid when mode = 'disk'
     **kwargs
         Function kwargs
 
     """
 
-    def __init__(self, function, output_name, mode, keep=False, **kwargs):
+    def __init__(self, function, output_name, mode, keep=False,
+                 if_file_exists='overwrite', **kwargs):
         self.function = function
         self.output_name = output_name
         self.mode = mode
         self._keep = keep
         self.kwargs = kwargs
+        self.if_file_exists = if_file_exists
         self.logger = logging.getLogger(__name__)
 
     @property
@@ -139,6 +146,7 @@ class BatchPipeline(object):
                       from_time=self.from_time,
                       to_time=self.to_time,
                       channels=self.channels,
+                      if_file_exists=task.if_file_exists,
                       **task.kwargs)
 
             params.append(p)

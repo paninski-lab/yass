@@ -3,7 +3,7 @@ import numpy as np
 
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
-def choose_templates(templates, template_choice):
+def choose_templates(templates, chosen_templates):
     """[Description]
 
     Parameters
@@ -12,8 +12,11 @@ def choose_templates(templates, template_choice):
     Returns
     -------
     """
-    chosen_templates = np.arange(49)
-    templates = templates[chosen_templates]
+    try:
+        templates = templates[chosen_templates]
+    except IndexError:
+        raise IndexError('Error getting chosen_templates, make sure the ids'
+                         'exist')
 
     templates_small = np.max(templates, axis=(1, 2)) > 4
     templates = templates[templates_small]

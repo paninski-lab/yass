@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+from . import NeuralNetDetector
+
 
 def get_score(score_train_tf, spike_index_tf, T, n_features, c_idx):
     score_train_tf_zero = tf.concat((tf.transpose(score_train_tf, [1, 0, 2]),
@@ -9,3 +11,19 @@ def get_score(score_train_tf, spike_index_tf, T, n_features, c_idx):
     score = tf.gather_nd(temp, spike_index_tf)
 
     return score
+
+
+def load_rotation(detector_filename, autoencoder_filename):
+    """
+    Load neural network rotation matrix
+    """
+
+    # FIXME: this function should not ask for detector_filename, it is not
+    # needed
+    nnd = NeuralNetDetector(detector_filename, autoencoder_filename)
+
+    with tf.Session() as sess:
+        nnd.saver_ae.restore(sess, nnd.path_to_ae_model)
+        rotation = sess.run(nnd.W_ae)
+
+    return rotation

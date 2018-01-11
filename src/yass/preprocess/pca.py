@@ -2,7 +2,11 @@
 PCA for multi-channel recordings, used for dimensionality reduction
 when using threshold detector
 """
+import logging
+
+
 import numpy as np
+
 from ..explore import RecordingExplorer
 from ..geometry import ordered_neighbors
 
@@ -11,6 +15,8 @@ from ..geometry import ordered_neighbors
 # by channel instead of using multi-channel operations
 # TODO: can this be a single-channel operation? that way we can parallelize
 # by channel
+
+logger = logging.getLogger(__name__)
 
 
 def suff_stat(recordings, spike_index, spike_size):
@@ -134,6 +140,8 @@ def score(path_to_rec, spike_size, spike_index, rot, neighbors, geom):
 
     Returns
     -------
+    [n_spikes, n_features_per_channel, n_neighboring_channels]
+        Scores for evert spike
     """
     times = spike_index[:, 0]
     explorer = RecordingExplorer(path_to_rec, spike_size=spike_size)
@@ -153,8 +161,14 @@ def score(path_to_rec, spike_size, spike_index, rot, neighbors, geom):
 
     score_neigh = np.zeros((spikes, temporal_features, channel_features))
 
+    logger.info('Scoring {} spikes...'.format(spikes))
+
     # for every spike...
     for i in range(spikes):
+
+        if i % 1000 == 0:
+            logger.info('Scored {}/{} spikes...'.format(i, spikes))
+
         # get main channel
         main_channel = spike_index[i, 1]
 

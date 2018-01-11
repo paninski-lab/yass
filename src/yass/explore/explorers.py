@@ -1,6 +1,7 @@
 import collections
 from math import sqrt, ceil, floor
 from functools import partial
+import logging
 
 import numpy as np
 from sklearn.decomposition import PCA
@@ -451,6 +452,8 @@ class RecordingExplorer(object):
         self.n_channels = self.data.channels
         self.spike_size = spike_size
 
+        self.logger = logging.getLogger(__name__)
+
     def neighbors_for_channel(self, channel):
         """Get the neighbors for the channel
 
@@ -480,10 +483,10 @@ class RecordingExplorer(object):
         start = time - self.spike_size
         end = time + self.spike_size + 1
 
-        if channels == 'all':
-            channels = range(self.n_channels)
-
-        return self.data[start:end, channels]
+        if isinstance(channels, str) and channels == 'all':
+            return self.data[start:end, :]
+        else:
+            return self.data[start:end, channels]
 
     def read_waveforms(self, times, channels='all', flatten=False):
         """Read multiple waveforms around certain times
@@ -505,12 +508,24 @@ class RecordingExplorer(object):
             around the given times. If flatten is True, ir returns a
             (times * 2 * spike_size + 1, channels) 2D array
         """
-        if channels == 'all':
+        # TODO: may be faster by sending :?
+        if isinstance(channels, str) and channels == 'all':
             channels = range(self.n_channels)
 
-        wfs = np.stack([self.read_waveform(t, channels) for t in times])
+        total = len(times)
+        wfs = np.empty((total, self.spike_size * 2 + 1, len(channels)))
+
+        for i, t in enumerate(times):
+            wfs[i, :, :] = self.read_waveform(t, channels)
+
+            if i % 10000 == 0 and i > 0:
+                self.logger.info('Loaded {:,}/{:,} waveforms...'
+                                 .format(i, total))
+
+        self.logger.info('Loaded all {:,} waveforms...'.format(total))
 
         if flatten:
+            self.logger.debug('Flattening waveforms...')
             wfs = wfs.reshape(wfs.shape[0], -1)
 
         return wfs
