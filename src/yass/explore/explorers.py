@@ -121,8 +121,12 @@ class SpikeTrainExplorer(object):
     def _compute_templates(self):
         """Compute templates from spike train
 
-        Parameters
-        ----------
+        Returns
+        -------
+        numpy.ndarray
+            [n_channels, n_features, n_templates] array with the templates
+        numpy.ndarray
+            1D array with the number of spikes used to form the ith template
         """
         # get waveforms
         waveforms = [self.waveforms_for_group(id_) for id_ in self.all_ids]
