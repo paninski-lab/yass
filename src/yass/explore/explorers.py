@@ -88,7 +88,7 @@ class SpikeTrainExplorer(object):
         if templates is not None:
             self.templates = templates
         else:
-            self.templates = self._compute_templates()
+            self.templates, self.weights = self._compute_templates()
 
         self._spike_groups = {id_: self.spike_train[self.spike_train[:, 1] ==
                               id_, 0] for id_ in self.all_ids}
@@ -120,18 +120,20 @@ class SpikeTrainExplorer(object):
         Parameters
         ----------
         """
-        # get waveforms (taking into account max shift) for every spike in
-        # every group
+        # get waveforms
         waveforms = [self.waveforms_for_group(id_) for id_ in self.all_ids]
 
         # compute templates for every group
         templates = [np.mean(w, axis=0) for w in waveforms]
 
+        # get weights (number of waveforms used to compute each template)
+        weights = np.array([len(w) for w in waveforms])
+
         # stack
         templates = np.stack(templates, axis=2)
 
-        # return transposed templates (makes plotting easier)
-        return templates.transpose(1, 0, 2)
+        # return transposed templates (makes plotting easier) and weights
+        return templates.transpose(1, 0, 2), weights
 
     @property
     def spike_groups(self):
