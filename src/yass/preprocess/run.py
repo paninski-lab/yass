@@ -188,8 +188,8 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
     logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
 
     logger.info('Reducing spikes dimensionality with PCA matrix...')
-    scores = pca.score(whitened_path, CONFIG.spikeSize, spike_index_clear,
-                       rotation, CONFIG.neighChannels, CONFIG.geom)
+    scores = pca.score(waveforms_clear, spike_index_clear, rotation,
+                       CONFIG.neighChannels, CONFIG.geom)
 
     # save scores
     path_to_score = os.path.join(CONFIG.data.root_folder, 'tmp', 'score.npy')

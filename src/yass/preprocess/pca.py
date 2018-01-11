@@ -120,15 +120,13 @@ def project(ss, spikes_per_channel, n_features, neighbors):
     return rot
 
 
-def score(path_to_rec, spike_size, spike_index, rot, neighbors, geom):
+def score(waveforms, spike_index, rot, neighbors, geom):
     """Reduce spikes dimensionality with a PCA rotation matrix
 
     Parameters
     ----------
-    path_to_rec: str
-        Path to recordings
-    spike_size: int
-        Spike size
+    waveforms: numpy.ndarray
+        Waveforms to score
     spike_index: np.ndarray (number of spikes, 2)
         Spike indexes as returned from the threshold detector
     rot: ndarray (window_size, n_features, n_channels)
@@ -143,11 +141,6 @@ def score(path_to_rec, spike_size, spike_index, rot, neighbors, geom):
     [n_spikes, n_features_per_channel, n_neighboring_channels]
         Scores for evert spike
     """
-    times = spike_index[:, 0]
-    explorer = RecordingExplorer(path_to_rec, spike_size=spike_size)
-
-    waveforms = explorer.read_waveforms(times)
-
     # TODO: this should be done by the project function
     rot_ = np.transpose(rot)
     sp = np.transpose(waveforms)
