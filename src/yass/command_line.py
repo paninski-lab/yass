@@ -185,3 +185,5 @@ def export(config, output_dir):
     np.save(path_to_phy_templates, np.transpose(templates, [2, 1, 0]))
     logging.info('Saved phy-compatible templates in {}'
                  .format(path_to_phy_templates))
+
+    # move tmp/score.npy to phy/pc_features.npy
