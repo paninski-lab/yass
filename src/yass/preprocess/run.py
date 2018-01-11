@@ -151,6 +151,7 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
     spike_index_collision = np.zeros((0, 2), 'int32')
 
     # compute per-batch sufficient statistics for PCA on standarized data
+    logger.info('Computing PCA sufficient statistics...')
     stats = bp.multi_channel_apply(pca.suff_stat,
                                    mode='memory',
                                    spike_index=spike_index_clear,
@@ -167,8 +168,6 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
                            CONFIG.spikes.temporal_features,
                            CONFIG.neighChannels)
 
-    # TODO: make this parallel, we can split the spikes, generate batches
-    # and score in parallel
     logger.info('Reducing spikes dimensionality with PCA matrix...')
     scores = pca.score(whitened_path, CONFIG.spikeSize, spike_index_clear,
                        rotation, CONFIG.neighChannels, CONFIG.geom)

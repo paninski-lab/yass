@@ -1,6 +1,7 @@
 import collections
 from math import sqrt, ceil, floor
 from functools import partial
+import logging
 
 import numpy as np
 from sklearn.decomposition import PCA
@@ -359,6 +360,8 @@ class RecordingExplorer(object):
         self.n_channels = self.data.channels
         self.spike_size = spike_size
 
+        self.logger = logging.getLogger(__name__)
+
     def neighbors_for_channel(self, channel):
         """Get the neighbors for the channel
         """
@@ -381,6 +384,7 @@ class RecordingExplorer(object):
         if isinstance(channels, str) and channels == 'all':
             channels = range(self.n_channels)
 
+        # FIXME: this fails when reading 250K+ waveforms...
         wfs = np.stack([self.read_waveform(t, channels) for t in times])
 
         if flatten:
