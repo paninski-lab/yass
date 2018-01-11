@@ -10,6 +10,7 @@ import numpy as np
 from .. import read_config
 from ..batch import BatchPipeline, BatchProcessor
 from ..batch import PipedTransformation as Transform
+from ..explore import RecordingExplorer
 
 from .filter import butterworth
 from .standarize import standarize
@@ -119,10 +120,8 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
 
     CONFIG = read_config()
 
-    # FIXME: should we make a distinction here? maybe just save as
-    # spike_index_clear
     path_to_spike_index_clear = os.path.join(CONFIG.data.root_folder, 'tmp',
-                                             'threshold_spike_index_clear.npy')
+                                             'spike_index_clear.npy')
 
     bp = BatchProcessor(standarized_path, standarized_params['dtype'],
                         standarized_params['n_channels'],
@@ -156,6 +155,11 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
 
     # triage is not implemented on threshold detector, return empty array
     spike_index_collision = np.zeros((0, 2), 'int32')
+
+    # load and dump waveforms from clear spikes
+    indexes = spike_index_clear[:, 0]
+    explorer = RecordingExplorer(whitened_path, spike_size=CONFIG.spikeSize)
+    waveforms = explorer.read_waveforms(indexes)
 
     # compute per-batch sufficient statistics for PCA on standarized data
     logger.info('Computing PCA sufficient statistics...')

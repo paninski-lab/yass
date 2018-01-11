@@ -146,11 +146,11 @@ def score(path_to_rec, spike_size, spike_index, rot, neighbors, geom):
     times = spike_index[:, 0]
     explorer = RecordingExplorer(path_to_rec, spike_size=spike_size)
 
-    spikes = explorer.read_waveforms(times)
+    waveforms = explorer.read_waveforms(times)
 
     # TODO: this should be done by the project function
     rot_ = np.transpose(rot)
-    sp = np.transpose(spikes)
+    sp = np.transpose(waveforms)
 
     # compute scores for every spike
     score = np.transpose(np.matmul(rot_, sp), (2, 1, 0))
