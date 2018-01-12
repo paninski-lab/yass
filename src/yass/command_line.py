@@ -211,8 +211,8 @@ def export(config, output_dir):
 
     # pc_features_ind.npy
     path_to_pc_features_ind = path.join(PHY_FOLDER, 'pc_feature_ind.npy')
-    ch_neighbors = geom.find_channel_neighbors
-    neigh_channels = ch_neighbors(geom, CONFIG.recordings.spatial_radius)
+    ch_neighbors = geometry.find_channel_neighbors
+    neigh_channels = ch_neighbors(geom, CONFIG['recordings']['spatial_radius'])
 
     pc_feature_ind = generate.pc_feature_ind(N_SPIKES, N_TEMPLATES, N_CHANNELS,
                                              geom, neigh_channels, spike_train,
