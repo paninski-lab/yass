@@ -221,7 +221,8 @@ def run(score, spike_index_clear, spike_index_collision):
 
     _b = datetime.datetime.now()
     logger.info("Getting Templates...")
-    path_to_whiten = os.path.join(CONFIG.data.root_folder, 'tmp/whitened.bin')
+    path_to_whiten = os.path.join(CONFIG.data.root_folder,
+                                  'tmp/standarized.bin')
     merge_threshold = CONFIG.templates.merge_threshold
     spike_train_clear, templates = get_templates2(spike_train_clear,
                                                   path_to_whiten,
