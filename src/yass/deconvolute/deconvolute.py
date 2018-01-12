@@ -11,8 +11,6 @@ from ..geometry import n_steps_neigh_channels
 
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
-# TODO: remove batching logic from here
-# FIXME: use numpy memmap instead of manual file seek
 class Deconvolution(object):
 
     def __init__(self, config, templates, spike_index, wrec):
@@ -74,7 +72,8 @@ class Deconvolution(object):
 
                     for j in range(nc):
                         wf[j] = self.wrec[
-                            spt_c[j]+np.arange(-(R+shift), R+shift+1)][:, ch_idx]
+                            spt_c[j]+np.arange(-(R+shift), R+shift+1)][:,
+                                                                       ch_idx]
 
                     n = np.arange(nc)
                     i0 = 0
@@ -83,13 +82,19 @@ class Deconvolution(object):
                         nc = n.shape[0]
                         wf_projs = np.zeros((nc, 2*(R+shift)+1, nrank, Kc))
                         for k in range(Kc):
-                            wf_projs[:, :, :, k] = np.reshape(np.matmul(np.reshape(
-                                wf[n], [-1, ch_idx.shape[0]]), U_all[ch_idx, k_idx[k]]), [nc, -1, nrank])
+                            wf_projs[:, :, :, k] = np.reshape(np.matmul(
+                                np.reshape(wf[n], [-1,
+                                                   ch_idx.shape[0]]),
+                                U_all[ch_idx, k_idx[k]]),
+                                [nc, -1, nrank])
 
                         obj = np.zeros((nc, 2*shift+1, Kc))
                         for j in range(2*shift+1):
                             obj[:, j, :] = np.sum((wf_projs[:, j:(
-                                j+2*R+1)]*np.transpose(W_all[:, k_idx], [0, 2, 1])[np.newaxis, :]), axis=(1, 2))
+                                j+2*R+1)]*np.transpose(W_all[:, k_idx],
+                                                       [0, 2, 1])[np.newaxis,
+                                                                  :]),
+                                axis=(1, 2))
 
                         Ci = obj+(mu*lam1)
                         Ci = np.square(Ci)/(1+lam1)
@@ -111,7 +116,7 @@ class Deconvolution(object):
                             for j in range(n_detected):
 
                                 if (np.sum(ids[:i0][ns[:i0] == n[j]] ==
-                                   idd[j]) == 0):
+                                           idd[j]) == 0):
                                     idx_keep2[j] = 1
                             st = st[idx_keep2]
                             idd = idd[idx_keep2]
