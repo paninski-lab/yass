@@ -8,6 +8,7 @@ from .choose import choose_templates
 from .crop import crop_templates
 from .noise import noise_cov
 from ..process.templates import get_templates
+from ..util import load_yaml
 
 
 # TODO: documentation
@@ -28,14 +29,17 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     # process data (filter and standardize)
     process_data(CONFIG)
 
-    path = os.path.join(CONFIG.data.root_folder,  'tmp/standarized.bin')
-    # FIXME: read from yaml
-    dtype = 'float64'
+    TMP_FOLDER = os.path.join(CONFIG.data.root_folder,  'tmp/')
+
+    path_to_data = os.path.join(TMP_FOLDER, 'standarized.bin')
+    path_to_config = os.path.join(TMP_FOLDER, 'standarized.yaml')
+
+    dtype = load_yaml(path_to_config)['dtype']
 
     logger.info('Getting templates...')
 
     # get templates
-    templates, _ = get_templates(spike_train, path, CONFIG.spikeSize)
+    templates, _ = get_templates(spike_train, path_to_data, CONFIG.spikeSize)
 
     templates = np.transpose(templates, (2, 1, 0))
 
@@ -54,7 +58,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                                CONFIG.neighChannels, CONFIG.geom)
 
     # determine noise covariance structure
-    spatial_SIG, temporal_SIG = noise_cov(path, dtype,
+    spatial_SIG, temporal_SIG = noise_cov(path_to_data, dtype,
                                           CONFIG.batch_size,
                                           CONFIG.recordings.n_channels,
                                           CONFIG.neighChannels, CONFIG.geom,
