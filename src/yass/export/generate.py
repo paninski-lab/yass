@@ -157,6 +157,7 @@ def template_features(n_spikes, n_templates, n_channels, templates, rotation,
         kk = spike_train[j, 1]
 
         for k in range(k_neigh):
+            # score is returning 7 channels but ch_idx is returning 19?!
             template_features_[j] = np.sum(
                 np.multiply(score[j].T,
                             templates_low_dim[ch_idx]

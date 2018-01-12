@@ -202,6 +202,7 @@ def export(config, output_dir):
     logger.info('Loading spike train from {}...'.format(path_to_spike_train))
     spike_train = np.load(path_to_spike_train)
     N_SPIKES, _ = spike_train.shape
+    logger.info('Spike train contains {:,} spikes'.format(N_SPIKES))
 
     # load templates
     logging.info('Loading previously saved templates...')
