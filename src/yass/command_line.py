@@ -110,14 +110,17 @@ def train(spike_train, config_train, config):
     a CONFIG_TRAIN yaml file with the training parameters and a CONFIG
     yaml file with the data parameters
     """
-
-    # configure logging module to get useful information
     logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
 
     loadtxt = partial(np.loadtxt, dtype='int32', delimiter=',')
     fn = loadtxt if spike_train.endswith('.csv') else np.load
 
     spike_train = fn(spike_train)
+
+    logger.info('Loaded spike train with: {:,} spikes and {:,} different IDs'
+                .format(len(spike_train),
+                        len(np.unique(spike_train[:, 1]))))
 
     CONFIG_TRAIN = load_yaml(config_train)
     CONFIG = Config.from_yaml(config)
