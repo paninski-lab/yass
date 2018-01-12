@@ -29,12 +29,13 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     process_data(CONFIG)
 
     path = os.path.join(CONFIG.data.root_folder,  'tmp/standarized.bin')
+    # FIXME: read from yaml
     dtype = 'float64'
 
     logger.info('Getting templates...')
 
     # get templates
-    templates, _ = get_templates(spike_train, path, CONFIG)
+    templates, _ = get_templates(spike_train, path, CONFIG.spikeSize)
 
     templates = np.transpose(templates, (2, 1, 0))
 
