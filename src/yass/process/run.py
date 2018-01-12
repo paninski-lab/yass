@@ -224,12 +224,12 @@ def run(score, spike_index_clear, spike_index_collision):
     path_to_whiten = os.path.join(CONFIG.data.root_folder,
                                   'tmp/standarized.bin')
     merge_threshold = CONFIG.templates.merge_threshold
-    spike_train_clear, templates = get_templates2(spike_train_clear,
-                                                  path_to_whiten,
-                                                  CONFIG.spikeSize,
-                                                  CONFIG.templatesMaxShift,
-                                                  merge_threshold,
-                                                  CONFIG.neighChannels)
+    spike_train_clear, templates = get_templates(spike_train_clear,
+                                                 path_to_whiten,
+                                                 CONFIG.spikeSize,
+                                                 CONFIG.templatesMaxShift,
+                                                 merge_threshold,
+                                                 CONFIG.neighChannels)
 
     Time['e'] += (datetime.datetime.now()-_b).total_seconds()
 
