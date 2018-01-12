@@ -7,7 +7,6 @@ import logging
 
 import numpy as np
 
-from ..explore import RecordingExplorer
 from ..geometry import ordered_neighbors
 
 # TODO: improve documentation: look for (?)
