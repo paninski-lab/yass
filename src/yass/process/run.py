@@ -11,7 +11,7 @@ from .. import read_config
 from .triage import triage
 from .coreset import coreset
 from .mask import getmask
-from .templates import get_templates2
+from .templates import get_templates
 from ..mfm import spikesort
 from ..geometry import order_channels_by_distance
 

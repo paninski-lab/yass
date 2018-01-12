@@ -10,9 +10,10 @@ from ..explore import RecordingExplorer, SpikeTrainExplorer
 logger = logging.getLogger(__name__)
 
 
-def get_templates2(spike_train_clear, path_to_recordings,
-                   spike_size, template_max_shift, t_merge_th,
-                   neighbors):
+# TODO: docs
+def get_templates(spike_train_clear, path_to_recordings,
+                  spike_size, template_max_shift, t_merge_th,
+                  neighbors):
     logger.info('Computing templates...')
     re = RecordingExplorer(path_to_recordings,
                            spike_size=spike_size + template_max_shift)
@@ -31,73 +32,6 @@ def get_templates2(spike_train_clear, path_to_recordings,
                                                   t_merge_th)
     templates = templates[:, template_max_shift:(
         template_max_shift+(2*spike_size+1))]
-
-    return spike_train_clear, templates
-
-
-# TODO: documentation
-# TODO: comment code, it's not clear what it does
-def get_templates(spike_train_clear, batch_size, buff, n_batches, n_channels,
-                  spike_size, template_max_shift, neighbors, path_to_wrec,
-                  t_merge_th):
-    """
-    Parameters
-    ----------
-
-    Returns
-    -------
-    spike_train_clear
-    templates
-        n channels x (2*(spike_size+template_max_shift)+1) x
-    """
-    wfile = open(path_to_wrec, 'rb')
-
-    flattenedLength = 2*(batch_size + 2*buff)*n_channels
-
-    K = np.max(spike_train_clear[:, 1])+1
-
-    templates = np.zeros((n_channels, 2*(spike_size+template_max_shift)+1, K))
-    weights = np.zeros(K)
-
-    for i in range(n_batches):
-        logger.info("extracting waveforms from batch {} out of {} batches"
-                    .format(i+1, n_batches))
-        wfile.seek(flattenedLength*i)
-
-        wrec = wfile.read(flattenedLength)
-        wrec = np.fromstring(wrec, dtype='float64')
-        wrec = np.reshape(wrec, (-1, n_channels))
-
-        idx_batch = np.logical_and(spike_train_clear[:, 0] > i*batch_size,
-                                   spike_train_clear[:, 0] < (i+1)*batch_size)
-
-        if np.sum(idx_batch) > 0:
-
-            spike_train_batch = spike_train_clear[idx_batch]
-            spt_batch = spike_train_batch[:, 0] - i*batch_size + buff
-            L_batch = spike_train_batch[:, 1]
-
-            wf = np.zeros((spt_batch.shape[0], templates.shape[1], n_channels))
-            for j in range(spt_batch.shape[0]):
-                wf[j] = wrec[
-                    spt_batch[j]+np.arange(-(spike_size+template_max_shift),
-                                           spike_size+template_max_shift+1)]
-
-            for k in range(K):
-                templates[:, :, k] += np.sum(wf[L_batch == k], axis=0).T
-                weights[k] += np.sum(L_batch == k)
-
-    logger.info("Merging templates.")
-    templates = templates/weights[np.newaxis, np.newaxis, :]
-    spike_train_clear, templates = mergeTemplates(templates, weights,
-                                                  spike_train_clear,
-                                                  neighbors,
-                                                  template_max_shift,
-                                                  t_merge_th)
-    templates = templates[:, template_max_shift:(
-        template_max_shift+(2*spike_size+1))]
-
-    wfile.close()
 
     return spike_train_clear, templates
 
