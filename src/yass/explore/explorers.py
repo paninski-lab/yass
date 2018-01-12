@@ -73,6 +73,8 @@ class SpikeTrainExplorer(object):
     def __init__(self, spike_train, recording_explorer,
                  templates=None, projection_matrix=None):
 
+        self.logger = logging.getLogger(__name__)
+
         if isinstance(spike_train, str):
             name, extension = spike_train.split('.')
 
@@ -103,8 +105,6 @@ class SpikeTrainExplorer(object):
             self.templates_feature_space = ft_space(self.templates)
         else:
             self.templates_feature_space = None
-
-        self.logger = logging.getLogger(__name__)
 
     def _reduce_dimension(self, data, flatten=False):
         """Reduce dimensionality
@@ -144,6 +144,9 @@ class SpikeTrainExplorer(object):
 
         # stack
         templates = np.stack(templates, axis=2)
+
+        self.logger.debug('Finished computing templates, shape is: {}'
+                          .format(templates.shape))
 
         # return transposed templates (makes plotting easier) and weights
         return templates.transpose(1, 0, 2), weights

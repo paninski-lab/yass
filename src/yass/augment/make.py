@@ -44,6 +44,9 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     # choose good templates (good looking and big enough)
     templates = choose_templates(templates, chosen_templates)
 
+    if templates.shape[0] == 0:
+        raise ValueError("Coulndt find any good templates...")
+
     logger.info('Good looking templates of shape: {}'.format(templates.shape))
 
     # align and crop templates
