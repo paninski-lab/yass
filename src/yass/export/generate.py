@@ -100,7 +100,8 @@ def similar_templates(templates):
 
 
 def template_features(n_spikes, n_templates, n_channels, templates, rotation,
-                      score, neigh_channels, geom, spike_train):
+                      score, neigh_channels, geom, spike_train,
+                      template_feature_ind_):
     """
     template_features.npy - [nSpikes, nTempFeatures] single matrix giving the
     magnitude of the projection of each spike onto nTempFeatures other
@@ -111,13 +112,21 @@ def template_features(n_spikes, n_templates, n_channels, templates, rotation,
 
     k_neigh = np.min((5, n_templates))
 
-    template_features = np.zeros((n_spikes, k_neigh))
-
+    template_features_ = np.zeros((n_spikes, k_neigh))
     templates_low_dim = np.zeros((C, rotation.shape[1], K))
 
-    for k in range(K):
-        templates_low_dim[:, :, k] = np.matmul(templates[:, R:(3*R+1), k],
-                                               rotation)
+    # for k in range(K):
+    #     # FIXME: why R:(3*R+1)?
+    #     low_dim = np.matmul(templates[:, R:(3*R+1), k], rotation)
+    #     templates_low_dim[:, :, k] = low_dim
+
+    # (49, 31, 137)
+    # print(templates.shape)
+    # print(rotation.shape)
+
+    # TODO: is there any better way to do this? check pca.score
+    rotation = np.transpose(rotation)
+    templates_low_dim = np.matmul(rotation, templates)
 
     # TODO: remove repeated code (check: pc_feature_ind)
 
@@ -148,15 +157,15 @@ def template_features(n_spikes, n_templates, n_channels, templates, rotation,
         kk = spike_train[j, 1]
 
         for k in range(k_neigh):
-            template_features[j] = np.sum(
+            template_features_[j] = np.sum(
                 np.multiply(score[j].T,
                             templates_low_dim[ch_idx]
-                            [:, :, template_feature_ind[kk, k]]))
+                            [:, :, template_feature_ind_[kk, k]]))
 
-    return template_features
+    return template_features_
 
 
-def template_feature_ind(n_templates):
+def template_feature_ind(n_templates, similar_templates_):
     """
     template_feature_ind.npy - [nTemplates, nTempFeatures] uint32 matrix
     specifying which templateFeatures are included in the template_features
@@ -166,9 +175,9 @@ def template_feature_ind(n_templates):
     template_feature_ind = np.zeros((n_templates, k_neigh), 'int32')
 
     for k in range(n_templates):
-        template_feature_ind[k] = np.argsort(-similar_templates[k])[:k_neigh]
+        template_feature_ind[k] = np.argsort(-similar_templates_[k])[:k_neigh]
 
-    return templates_ind
+    return template_feature_ind
 
 
 def templates_ind(n_templates, n_channels):

@@ -236,6 +236,14 @@ def export(config, output_dir):
     np.save(path_to_spike_times, spike_train[:, 0])
     logger.info('Saved {}...'.format(path_to_spike_times))
 
+    # template_feature_ind.npy
+    path_to_template_feature_ind = path.join(PHY_FOLDER,
+                                             'template_feature_ind.npy')
+    template_feature_ind = generate.template_feature_ind(N_TEMPLATES,
+                                                         similar_templates)
+    np.save(path_to_template_feature_ind, template_feature_ind)
+    logger.info('Saved {}...'.format(path_to_template_feature_ind))
+
     # template_features.npy
     path_to_template_features = path.join(PHY_FOLDER, 'template_features.npy')
     path_to_rotation = path.join(TMP_FOLDER, 'rotation.npy')
@@ -245,16 +253,10 @@ def export(config, output_dir):
                                                    N_CHANNELS, templates,
                                                    rotation, score,
                                                    neigh_channels, geom,
-                                                   spike_train)
+                                                   spike_train,
+                                                   template_feature_ind)
     np.save(path_to_template_features, template_features)
     logger.info('Saved {}...'.format(path_to_template_features))
-
-    # template_feature_ind.npy
-    path_to_template_feature_ind = path.join(PHY_FOLDER,
-                                             'template_feature_ind.npy')
-    template_feature_ind = generate.template_feature_ind(N_TEMPLATES)
-    np.save(path_to_template_feature_ind, template_feature_ind)
-    logger.info('Saved {}...'.format(path_to_template_feature_ind))
 
     # templates.npy
     path_to_phy_templates = path.join(PHY_FOLDER, 'templates.npy')
