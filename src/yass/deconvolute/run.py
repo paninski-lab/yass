@@ -1,19 +1,24 @@
+import os.path
+
 import numpy as np
 
 from .deconvolute import Deconvolution
 from .. import read_config
+from ..batch import RecordingsReader
 
 
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
-def run(spike_train_clear, templates, spike_index_collision):
+def run(spike_train_clear, templates, spike_index_collision,
+        recordings_filename='standarized.bin'):
     """Run deconvolution
 
     Parameters
     ----------
-    spike_train
-    spikes_left
+    spike_train_clear
     templates
+    spike_index_collision
+    recordings_filename
 
     Returns
     -------
@@ -25,8 +30,12 @@ def run(spike_train_clear, templates, spike_index_collision):
     .. literalinclude:: ../examples/deconvolute.py
     """
     CONFIG = read_config()
+
+    recordings = RecordingsReader(os.path.join(CONFIG.data.root_folder, 'tmp',
+                                               recordings_filename))
+
     deconv = Deconvolution(CONFIG, np.transpose(templates, [1, 0, 2]),
-                           spike_index_collision, filename='whitened.bin')
+                           spike_index_collision, recordings)
     spike_train_deconv = deconv.fullMPMU()
 
     spike_train = np.concatenate((spike_train_deconv, spike_train_clear))

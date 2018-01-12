@@ -21,8 +21,9 @@ class Deconvolution(object):
         self.templates = templates
         self.spike_index = spike_index
         self.logger = logging.getLogger(__name__)
+        self.wrec = wrec
 
-    def fullMPMU(self, wrec):
+    def fullMPMU(self):
 
         start_time = dt.datetime.now()
 
@@ -72,7 +73,7 @@ class Deconvolution(object):
                     wf = np.zeros((nc, 2*(R+shift)+1, ch_idx.shape[0]))
 
                     for j in range(nc):
-                        wf[j] = wrec[
+                        wf[j] = self.wrec[
                             spt_c[j]+np.arange(-(R+shift), R+shift+1)][:, ch_idx]
 
                     n = np.arange(nc)
