@@ -11,7 +11,7 @@ from .. import read_config
 from .triage import triage
 from .coreset import coreset
 from .mask import getmask
-from .templates import get_templates
+from .templates import get_and_merge_templates as gam_templates
 from ..mfm import spikesort
 from ..geometry import order_channels_by_distance
 
@@ -224,7 +224,7 @@ def run(score, spike_index_clear, spike_index_collision):
     path_to_whiten = os.path.join(CONFIG.data.root_folder,
                                   'tmp/standarized.bin')
     merge_threshold = CONFIG.templates.merge_threshold
-    spike_train_clear, templates = get_templates(spike_train_clear,
+    spike_train_clear, templates = gam_templates(spike_train_clear,
                                                  path_to_whiten,
                                                  CONFIG.spikeSize,
                                                  CONFIG.templatesMaxShift,

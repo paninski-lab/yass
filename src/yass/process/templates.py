@@ -11,20 +11,30 @@ logger = logging.getLogger(__name__)
 
 
 # TODO: docs
-def get_templates(spike_train_clear, path_to_recordings,
-                  spike_size, template_max_shift, t_merge_th,
-                  neighbors):
+def get_templates(spike_train_clear, path_to_recordings, spike_size):
     logger.info('Computing templates...')
     re = RecordingExplorer(path_to_recordings,
-                           spike_size=spike_size + template_max_shift)
+                           spike_size=spike_size)
     spe = SpikeTrainExplorer(spike_train_clear, re)
 
     templates = spe.templates
     weights = spe.weights
 
-    logger.info("Merging templates.")
+    logger.info("Scaling templates...")
+
     # scale and merge templates
     templates = templates/weights[np.newaxis, np.newaxis, :]
+
+    return templates, weights
+
+
+# TODO: docs
+def get_and_merge_templates(spike_train_clear, path_to_recordings,
+                            spike_size, template_max_shift, t_merge_th,
+                            neighbors):
+    templates, weights = get_templates(spike_train_clear, path_to_recordings,
+                                       spike_size + template_max_shift)
+
     spike_train_clear, templates = mergeTemplates(templates, weights,
                                                   spike_train_clear,
                                                   neighbors,
@@ -251,7 +261,7 @@ def TemplatesSimilarity(t1, t2, th, W):
         if np.min(cos_per_channel) > th[0]:
             diff = np.max(np.abs(t2), axis=1)/np.max(np.abs(t1), axis=1)
             if (1/np.max(diff) > th[1] and np.min(diff) > th[1] and
-               np.min(diff)/np.max(diff) > th[1]):
+                    np.min(diff)/np.max(diff) > th[1]):
                 similar = 1
 
     return similar

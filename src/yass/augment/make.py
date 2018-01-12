@@ -28,17 +28,14 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     # process data (filter and standardize)
     process_data(CONFIG)
 
-    # TODO: why standarized and not the whitened data?
     path = os.path.join(CONFIG.data.root_folder,  'tmp/standarized.bin')
     dtype = 'float64'
 
     logger.info('Getting templates...')
 
     # get templates
-    templates = get_templates(spike_train, CONFIG.batch_size,
-                              CONFIG.BUFF, CONFIG.nBatches,
-                              CONFIG.recordings.n_channels, CONFIG.spikeSize*4,
-                              path, dtype)
+    templates, _ = get_templates(spike_train, path, CONFIG)
+
     templates = np.transpose(templates, (2, 1, 0))
 
     logger.info('Got templates ndarray of shape: {}'.format(templates.shape))
