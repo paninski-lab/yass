@@ -104,13 +104,16 @@ def _run_pipeline(config, output_file):
 @click.argument('spike_train', type=click.Path(exists=True, dir_okay=False))
 @click.argument('config_train', type=click.Path(exists=True, dir_okay=False))
 @click.argument('config', type=click.Path(exists=True, dir_okay=False))
-def train(spike_train, config_train, config):
+@click.option('-l', '--logger_level',
+              help='Python logger level, defaults to INFO',
+              default='INFO')
+def train(spike_train, config_train, config, logger_level):
     """Train neural networks using a SPIKE_TRAIN csv or npy file whose
     first column is the spike time and second column is the spike ID,
     a CONFIG_TRAIN yaml file with the training parameters and a CONFIG
     yaml file with the data parameters
     """
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=getattr(logging, logger_level))
     logger = logging.getLogger(__name__)
 
     loadtxt = partial(np.loadtxt, dtype='int32', delimiter=',')

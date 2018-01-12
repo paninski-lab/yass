@@ -104,6 +104,8 @@ class SpikeTrainExplorer(object):
         else:
             self.templates_feature_space = None
 
+        self.logger = logging.getLogger(__name__)
+
     def _reduce_dimension(self, data, flatten=False):
         """Reduce dimensionality
         """
@@ -131,6 +133,8 @@ class SpikeTrainExplorer(object):
         """
         # get waveforms
         waveforms = [self.waveforms_for_group(id_) for id_ in self.all_ids]
+
+        self.logger.debug('Loaded {:,} waveforms'.format(len(waveforms)))
 
         # compute templates for every group
         templates = [np.mean(w, axis=0) for w in waveforms]
