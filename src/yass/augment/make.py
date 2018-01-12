@@ -4,10 +4,10 @@ import logging
 
 
 from .process import process_data
-from .templates import get_templates
 from .choose import choose_templates
 from .crop import crop_templates
 from .noise import noise_cov
+from ..process.templates import get_templates
 
 
 # TODO: documentation
