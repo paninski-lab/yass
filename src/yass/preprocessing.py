@@ -317,7 +317,8 @@ class Preprocessor(object):
             spike_index_clear[:, 0] < (rec.shape[0] - BUFF))
         
         spike_index_clear = spike_index_clear[idx_remove]
-        score = score[idx_remove]
+        if self.config.spikes.detection == 'nn':
+            score = score[idx_remove]
         
         spike_index_collision = spike_index_collision[np.logical_and(
             spike_index_collision[:, 0] > BUFF,
