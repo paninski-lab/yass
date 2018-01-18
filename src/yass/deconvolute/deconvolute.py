@@ -37,14 +37,13 @@ class Deconvolution(object):
                              + 2*self.config.BUFF)*self.config.recordings.n_channels
 
         neighchan = n_steps_neigh_channels(self.config.neighChannels, steps = 3)
-        C = self.config.recordings.n_channels
-        R = self.config.spikeSize
         shift = 3  # int(R/2)
-        K = self.templates.shape[2]
+        R2, C, K = self.templates.shape
+        R = int((R2-1)/2)
         nrank = self.config.deconvolution.rank
         lam = self.config.deconvolution.lam
         Th = self.config.deconvolution.threshold
-        iter_max = 3
+        iter_max = 1
 
         amps = np.max(np.abs(self.templates), axis=0)
         amps_max = np.max(amps, axis=0)
@@ -72,6 +71,7 @@ class Deconvolution(object):
             spike_index_batch[:,0] = spike_index_batch[:,0] - self.config.batch_size*i + self.config.BUFF
             
             for c in range(C):
+
                 nmax = 1000000
                 ids = np.zeros(nmax, 'int32')
                 sts = np.zeros(nmax, 'int32')
@@ -82,6 +82,7 @@ class Deconvolution(object):
                 if nc > 0:
                     spt_c = spike_index_batch[idx_c, 0]
                     ch_idx = np.where(neighchan[c])[0]
+                    ch_idx = np.arange(C)
 
                     k_idx = np.where(templatesMask[:, c])[0]
                     tt = self.templates[:, ch_idx][:, :, k_idx]
@@ -111,9 +112,15 @@ class Deconvolution(object):
                                 obj[:, j, :] = np.sum((wf_projs[:, j:(
                                     j+2*R+1)]*np.transpose(W_all[:, k_idx], [0, 2, 1])[np.newaxis, :]), axis=(1, 2))
 
-                            Ci = obj+(mu*lam1)
-                            Ci = np.square(Ci)/(1+lam1)
-                            Ci = Ci - lam1*np.square(mu)
+                            #Ci = obj+(mu*lam1)
+                            #Ci = np.square(Ci)/(1+lam1)
+                            #Ci = Ci - lam1*np.square(mu)
+                            
+                            scale = np.abs((obj-mu)/np.sqrt(mu/lam)) - 3
+                            scale = np.minimum(np.maximum(scale,0),1)
+                            scale[scale<0] = 0
+                            scale[scale>1] = 1
+                            Ci = np.multiply(np.square(obj),(1-scale))
 
                             mX = np.max(Ci, axis=1)
                             st = np.argmax(Ci, axis=1)
@@ -151,7 +158,7 @@ class Deconvolution(object):
                                             st[j]+2*R+1)] -= tt[:, :, idd[j]]
 
                         ids = k_idx[ids[:i0]]
-                        sts = sts[:i0] - shift - 1 + spt_c[ns[:i0]] + \
+                        sts = sts[:i0] - shift + spt_c[ns[:i0]] + \
                             i*self.config.batch_size - self.config.BUFF
                         spiketime_all = np.concatenate((spiketime_all, sts))
                         assignment_all = np.concatenate((assignment_all, ids))
