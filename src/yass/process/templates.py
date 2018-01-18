@@ -23,8 +23,9 @@ def get_templates(spike_train_clear, batch_size, buff, n_batches, n_channels,
     flattenedLength = 2*(batch_size + 2*buff)*n_channels
 
     K = np.max(spike_train_clear[:, 1])+1
-
-    templates = np.zeros((n_channels, 2*(spike_size+template_max_shift)+1, K))
+    big_spike_size = 2*spike_size + template_max_shift
+    
+    templates = np.zeros((n_channels, 2*big_spike_size+1, K))
     weights = np.zeros(K)
 
     for i in range(n_batches):
@@ -45,29 +46,58 @@ def get_templates(spike_train_clear, batch_size, buff, n_batches, n_channels,
             spt_batch = spike_train_batch[:,0] - i*batch_size + buff
             L_batch = spike_train_batch[:,1]
 
-            wf = np.zeros((spt_batch.shape[0], templates.shape[1], n_channels))
             for j in range(spt_batch.shape[0]):
-                wf[j] = wrec[
-                    spt_batch[j]+np.arange(-(spike_size+template_max_shift),
-                                       spike_size+template_max_shift+1)]
-
-            for k in range(K):
-                templates[:, :, k] += np.sum(wf[L_batch == k], axis=0).T
-                weights[k] += np.sum(L_batch == k)
+                tt = spt_batch[j]
+                k = L_batch[j]
+                templates[:, :, k] += wrec[(tt-big_spike_size):(tt+big_spike_size+1)].T
+                weights[k] += 1
 
     logger.info("Merging templates.")
     templates = templates/weights[np.newaxis, np.newaxis, :]
+    
+    merge_shift = 3
+    templates = align_templates(templates, template_max_shift-merge_shift)
+    
     spike_train_clear, templates = mergeTemplates(templates, weights,
                                                   spike_train_clear,
                                                   neighbors,
-                                                  template_max_shift,
+                                                  merge_shift,
                                                   t_merge_th)
-    templates = templates[:, template_max_shift:(template_max_shift+(2*spike_size+1))]
+    templates = templates[:, merge_shift:(merge_shift+(4*spike_size+1))]
 
     wfile.close()
 
     return spike_train_clear, templates
 
+def align_templates(templates, max_shift):
+    C, R, K = templates.shape
+    spike_size = int((R-1)/2 - max_shift)
+    
+    # get main channel for each template
+    mainc = np.argmax(np.max(templates[:,max_shift:(max_shift+2*spike_size+1)], axis=1), axis=0)
+    
+    # get templates on their main channel only
+    templates_mainc = np.zeros((R,K))
+    for k in range(K):
+        templates_mainc[:,k] = templates[mainc[k], :, k]
+    
+    # reference template
+    biggest_template_k = np.argmax(np.max(templates_mainc, axis=0))
+    biggest_template = templates_mainc[max_shift:(max_shift+2*spike_size+1), biggest_template_k]
+    
+    # find best shift
+    fit_per_shift = np.zeros((2*max_shift+1,K))
+    for s in range(2*max_shift+1):
+        fit_per_shift[s] = np.matmul(
+            biggest_template[np.newaxis,:],templates_mainc[s:(s+2*spike_size+1)])
+    best_shift = np.argmax(fit_per_shift, axis=0)
+    
+    templates_final = np.zeros((C,2*spike_size+1,K))
+    for k in range(K):
+        s = best_shift[k]
+        templates_final[:,:,k] = templates[:, s:(s+2*spike_size+1), k]
+        
+    return templates_final
 
 def mergeTemplates(templates, weights, spike_train, neighbors,
                    template_max_shift, t_merge_th):
