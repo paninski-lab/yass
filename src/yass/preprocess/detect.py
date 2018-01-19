@@ -99,3 +99,25 @@ def fix_indexes(spikes, idx_local, idx):
     offset = idx[0].start
     not_in_buffer[:, 0] = not_in_buffer[:, 0] + offset
     return not_in_buffer
+
+
+def remove_incomplete_waveforms(spike_index, spike_size, recordings_length):
+    """
+
+    Parameters
+    ----------
+    spikes: numpy.ndarray
+        A 2D array of detected spikes as returned from detect.threshold
+
+    Returns
+    -------
+    numpy.ndarray
+        A new 2D array with some spikes removed. If the spike index is in a
+        position (beginning or end of the recordings) where it is not possible
+        to draw a complete waveform, it will be removed
+    """
+    max_index = recordings_length - 1 - spike_size
+    min_index = spike_size
+    include = np.logical_and(spike_index[:, 0] <= max_index,
+                             spike_index[:, 0] >= min_index)
+    return spike_index[include]

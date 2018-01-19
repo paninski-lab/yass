@@ -179,6 +179,10 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
     # Waveform extraction #
     #######################
 
+    # TODO: what should the behaviour be for spike indexes that are when
+    # starting/ending the recordings and it is not possible ti draw a complete
+    # waveform?
+
     # load and dump waveforms from clear spikes
     path_to_waveforms_clear = os.path.join(TMP_FOLDER, 'waveforms_clear.npy')
 
