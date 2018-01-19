@@ -8,7 +8,7 @@ from functools import reduce
 import numpy as np
 
 from .. import read_config
-from ..batch import BatchPipeline, BatchProcessor
+from ..batch import BatchPipeline, BatchProcessor, RecordingsReader
 from ..batch import PipedTransformation as Transform
 from ..explore import RecordingExplorer
 
@@ -106,7 +106,7 @@ def run():
     ((filtered_path, standarized_path, whitened_path),
      (filtered_params, standarized_params, whitened_params)) = pipeline.run()
 
-    standarized = RecordingExplorer(standarized_path)
+    standarized = RecordingsReader(standarized_path)
     n_observations = standarized.observations
     del standarized
 
