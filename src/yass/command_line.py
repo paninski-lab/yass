@@ -1,3 +1,11 @@
+"""
+Command line utility:
+
+Spike sorting `yass sort`
+Neural network training `yass train`
+Phy integration `yass export`
+"""
+
 import os
 import os.path as path
 import logging
@@ -27,21 +35,25 @@ def cli():
 @cli.command()
 @click.argument('config', type=click.Path(exists=True, dir_okay=False,
                                           resolve_path=True))
-def sort(config):
+@click.option('-l', '--logger_level',
+              help='Python logger level, defaults to INFO',
+              default='INFO')
+def sort(config, logger_level):
     """
     Sort recordings using a configuration file located in CONFIG
     """
-    return _run_pipeline(config, output_file='spike_train.npy')
+    return _run_pipeline(config, output_file='spike_train.npy',
+                         logger_level=logger_level)
 
 
-def _run_pipeline(config, output_file):
+def _run_pipeline(config, output_file, logger_level=logging.INFO):
     """
     Run the entire pipeline given a path to a config file
     and output path
     """
 
     # configure logging module to get useful information
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=getattr(logging, logger_level))
     logger = logging.getLogger(__name__)
 
     # cfg = yass.Config.from_yaml(config)
