@@ -256,4 +256,6 @@ def human_readable_time(seconds):
 def save_metadata(path):
     timestamp = datetime.datetime.now().strftime('%c')
     metadata = dict(version=__version__, timestamp=timestamp)
-    yaml.dump(metadata, path)
+
+    with open(path, 'w') as f:
+        yaml.dump(metadata, f)
