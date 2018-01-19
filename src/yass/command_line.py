@@ -90,6 +90,11 @@ def _run_pipeline(config, output_file, logger_level=logging.INFO):
     ROOT_FOLDER = CONFIG.data.root_folder
     TMP_FOLDER = path.join(ROOT_FOLDER, 'tmp/')
 
+    path_to_config_copy = path.join(TMP_FOLDER, 'config.yaml')
+    shutil.copy2(config, path_to_config_copy)
+    logging.info('Saving copy of config: {} in {}'.format(config,
+                                                          path_to_config_copy))
+
     # run preprocessor
     score, spike_index_clear, spike_index_collision = preprocess.run()
 
@@ -103,11 +108,11 @@ def _run_pipeline(config, output_file, logger_level=logging.INFO):
                                   spike_index_collision)
 
     # save templates
-    path_to_templates = os.path.join(TMP_FOLDER, 'templates.npy')
+    path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
     logging.info('Saving templates in {}'.format(path_to_templates))
     np.save(path_to_templates, templates)
 
-    path_to_spike_train = os.path.join(TMP_FOLDER, output_file)
+    path_to_spike_train = path.join(TMP_FOLDER, output_file)
     np.save(path_to_spike_train, spike_train)
     logger.info('Spike train saved in: {}'.format(path_to_spike_train))
 
