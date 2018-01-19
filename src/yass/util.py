@@ -1,6 +1,9 @@
 """
 Utility functions
 """
+from . import __version__
+
+import datetime
 import os
 import functools
 import inspect
@@ -248,3 +251,9 @@ def human_readable_time(seconds):
     delta = relativedelta(seconds=seconds)
     return (' '.join('{} {}'.format(getattr(delta, k), k) for k in intervals
             if getattr(delta, k)))
+
+
+def save_metadata(path):
+    timestamp = datetime.datetime.now().strftime('%c')
+    metadata = dict(version=__version__, timestamp=timestamp)
+    yaml.dump(metadata, path)

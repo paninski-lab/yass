@@ -22,7 +22,7 @@ from . import deconvolute
 from . import read_config
 from . import geometry
 from .export import generate
-from .util import load_yaml
+from .util import load_yaml, save_metadata
 from .neuralnetwork import train_neural_networks
 from .config import Config
 
@@ -90,10 +90,16 @@ def _run_pipeline(config, output_file, logger_level=logging.INFO):
     ROOT_FOLDER = CONFIG.data.root_folder
     TMP_FOLDER = path.join(ROOT_FOLDER, 'tmp/')
 
+    # save config.yaml copy in tmp/
     path_to_config_copy = path.join(TMP_FOLDER, 'config.yaml')
     shutil.copy2(config, path_to_config_copy)
     logging.info('Saving copy of config: {} in {}'.format(config,
                                                           path_to_config_copy))
+
+    # save metadata in tmp
+    path_to_metadata = path.join(TMP_FOLDER, 'metadata.yaml')
+    logging.info('Saving metadata in {}'.format(path_to_metadata))
+    save_metadata(path_to_metadata)
 
     # run preprocessor
     score, spike_index_clear, spike_index_collision = preprocess.run()
