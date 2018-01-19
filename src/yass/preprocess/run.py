@@ -163,10 +163,10 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
 
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
-        spike_index_clear = (detect
-                             .remove_incomplete_waveforms(spike_index_clear,
-                                                          CONFIG.spikeSize,
-                                                          n_observations))
+        spike_index_clear, _ = (detect
+                                .remove_incomplete_waveforms(spike_index_clear,
+                                                             CONFIG.spikeSize,
+                                                             n_observations))
 
         logger.info('Saving spikes in {}...'.format(path_to_spike_index_clear))
         np.save(path_to_spike_index_clear, spike_index_clear)
@@ -313,17 +313,13 @@ def _neural_network_detection(standarized_path, standarized_params,
                  autoencoder_filename=autoencoder_filename,
                  triage_filename=CONFIG.neural_network_triage.filename)
 
-        # save scores
-        scores = np.concatenate([element[0] for element in res], axis=0)
-        np.save(path_to_score, scores)
-        logger.info('Saved spike scores in {}...'.format(path_to_score))
-
         # save clear spikes
         clear = np.concatenate([element[1] for element in res], axis=0)
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
-        clear = detect.remove_incomplete_waveforms(clear, CONFIG.spikeSize,
-                                                   n_observations)
+        clear, idx = detect.remove_incomplete_waveforms(clear,
+                                                        CONFIG.spikeSize,
+                                                        n_observations)
         np.save(path_to_spike_index_clear, clear)
         logger.info('Saved spike index clear in {}...'
                     .format(path_to_spike_index_clear))
@@ -332,12 +328,20 @@ def _neural_network_detection(standarized_path, standarized_params,
         collision = np.concatenate([element[2] for element in res], axis=0)
         logger.info('Removing collision indexes outside the allowed range to '
                     'draw a complete waveform...')
-        collision = detect.remove_incomplete_waveforms(collision,
-                                                       CONFIG.spikeSize,
-                                                       n_observations)
+        collision, _ = detect.remove_incomplete_waveforms(collision,
+                                                          CONFIG.spikeSize,
+                                                          n_observations)
         np.save(path_to_spike_index_collision, collision)
         logger.info('Saved spike index collision in {}...'
                     .format(path_to_spike_index_collision))
+
+        # save scores
+        scores = np.concatenate([element[0] for element in res], axis=0)
+        logger.info('Removing scores for indexes outside the allowed range to '
+                    'draw a complete waveform...')
+        scores = scores[idx]
+        np.save(path_to_score, scores)
+        logger.info('Saved spike scores in {}...'.format(path_to_score))
 
         # save rotation
         detector_filename = CONFIG.neural_network_detector.filename
