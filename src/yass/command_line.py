@@ -82,8 +82,12 @@ def _run_pipeline(config, output_file, logger_level=logging.INFO):
                                           spike_index_collision)
 
     # run deconvolution
-    spike_train = deconvolute.run(spike_train_clear, templates,
-                                  spike_index_collision)
+    spike_train_deconv = deconvolute.run(spike_train_clear, templates,
+                                         spike_index_collision)
+
+    # merge spikes in one array
+    spike_train = np.concatenate((spike_train_deconv, spike_train_clear))
+    spike_train = spike_train[np.argsort(spike_train[:, 0])]
 
     # save templates
     path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
