@@ -1,8 +1,8 @@
 Changelog
 =========
 
-0.4dev
-------
+0.4 (2018-01-19)
+-----------------
 
 * Fixes bug in preprocessing (#38)
 * Increased template size
