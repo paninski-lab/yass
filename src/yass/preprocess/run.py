@@ -106,14 +106,20 @@ def run():
     ((filtered_path, standarized_path, whitened_path),
      (filtered_params, standarized_params, whitened_params)) = pipeline.run()
 
+    standarized = RecordingExplorer(standarized_path)
+    n_observations = standarized.observations
+    del standarized
+
     if CONFIG.spikes.detection == 'threshold':
         return _threshold_detection(standarized_path, standarized_params,
-                                    whitened_path)
+                                    whitened_path, n_observations)
     elif CONFIG.spikes.detection == 'nn':
-        return _neural_network_detection(standarized_path, standarized_params)
+        return _neural_network_detection(standarized_path, standarized_params,
+                                         n_observations)
 
 
-def _threshold_detection(standarized_path, standarized_params, whitened_path):
+def _threshold_detection(standarized_path, standarized_params, whitened_path,
+                         n_observations):
     """Run threshold detector and dimensionality reduction using PCA
     """
     logger = logging.getLogger(__name__)
@@ -154,6 +160,11 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
                                         spike_size=CONFIG.spikeSize,
                                         std_factor=CONFIG.stdFactor)
         spike_index_clear = np.vstack(spikes)
+
+        logger.info('Removing clear indexes outside the allowed range to '
+                    'draw a complete waveform...')
+        spike_index_clear = (detect
+                             .remove_incomplete_waveforms(spike_index_clear))
 
         logger.info('Saving spikes in {}...'.format(path_to_spike_index_clear))
         np.save(path_to_spike_index_clear, spike_index_clear)
@@ -242,7 +253,8 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path):
     return scores, spike_index_clear, spike_index_collision
 
 
-def _neural_network_detection(standarized_path, standarized_params):
+def _neural_network_detection(standarized_path, standarized_params,
+                              n_observations):
     """Run neural network detection and autoencoder dimensionality reduction
     """
     logger = logging.getLogger(__name__)
@@ -306,12 +318,18 @@ def _neural_network_detection(standarized_path, standarized_params):
 
         # save clear spikes
         clear = np.concatenate([element[1] for element in res], axis=0)
+        logger.info('Removing clear indexes outside the allowed range to '
+                    'draw a complete waveform...')
+        clear = detect.remove_incomplete_waveforms(clear)
         np.save(path_to_spike_index_clear, clear)
         logger.info('Saved spike index clear in {}...'
                     .format(path_to_spike_index_clear))
 
         # save collided spikes
         collision = np.concatenate([element[2] for element in res], axis=0)
+        logger.info('Removing collision indexes outside the allowed range to '
+                    'draw a complete waveform...')
+        collision = detect.remove_incomplete_waveforms(collision)
         np.save(path_to_spike_index_collision, collision)
         logger.info('Saved spike index collision in {}...'
                     .format(path_to_spike_index_collision))
