@@ -4,6 +4,10 @@ Changelog
 0.4dev
 ------
 
+* Fixes bug in preprocessing (#38)
+* Increased template size
+* Updates deconvolution method
+
 
 0.3 (2017-11-15)
 -----------------
