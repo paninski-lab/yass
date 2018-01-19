@@ -206,10 +206,10 @@ class IndexGenerator(object):
         bytes_total = t_total * channels_total * self.itemsize
         obs_total = t_total * channels_total
 
-        self.logger.debug('Observations per channel: {}. Number of channels: '
-                          '{}. Total observations: {} Size to traverse: {}'
-                          .format(t_total, channels_total, obs_total,
-                                  human_size(bytes_total)))
+        self.logger.debug('Observations per channel: {:,}. Number of channels:'
+                          ' {:,}. Total observations: {:,} Size to traverse: '
+                          '{}'.format(t_total, channels_total, obs_total,
+                                      human_size(bytes_total)))
 
         # find how many observations (for every channel selected) we can fit
         # in memory
@@ -218,20 +218,20 @@ class IndexGenerator(object):
         obs_batch = obs_channel_batch * channels_total
         bytes_batch = obs_batch * self.itemsize
 
-        self.logger.debug('Max observations per batch: {} ({}), {} '
+        self.logger.debug('Max observations per batch: {:,} ({}), {:,} '
                           'max observations per channel'
                           .format(obs_batch, human_size(bytes_batch),
                                   obs_channel_batch))
 
         n_batches = int(ceil(obs_total / obs_batch))
 
-        self.logger.debug('Number of batches: {}'.format(n_batches))
+        self.logger.debug('Number of batches: {:,}'.format(n_batches))
 
         obs_residual = obs_total - obs_batch * (n_batches - 1)
         obs_channel_residual = int(obs_residual / channels_total)
         bytes_residual = obs_residual * self.itemsize
 
-        self.logger.debug('Last batch with {} observations ({}), {} '
+        self.logger.debug('Last batch with {:,} observations ({}), {:,} '
                           'observations per channel'
                           .format(obs_residual, human_bytes(bytes_residual),
                                   obs_channel_residual))
