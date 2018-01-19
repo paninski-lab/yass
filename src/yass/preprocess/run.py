@@ -244,6 +244,7 @@ def _neural_network_detection(standarized_path, standarized_params):
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
+    TMP_FOLDER = os.path.join(CONFIG.data.root_folder, 'tmp/')
 
     # detect spikes
     bp = BatchProcessor(standarized_path, standarized_params['dtype'],
@@ -252,40 +253,72 @@ def _neural_network_detection(standarized_path, standarized_params):
                         CONFIG.resources.max_memory,
                         buffer_size=0)
 
-    # apply threshold detector on standarized data
-    mc = bp.multi_channel_apply
-    res = mc(neuralnetwork.nn_detection,
-             mode='memory',
-             cleanup_function=neuralnetwork.fix_indexes,
-             neighbors=CONFIG.neighChannels,
-             geom=CONFIG.geom,
-             temporal_features=CONFIG.spikes.temporal_features,
-             # FIXME: what is this?
-             temporal_window=3,
-             th_detect=CONFIG.neural_network_detector.threshold_spike,
-             th_triage=CONFIG.neural_network_triage.threshold_collision,
-             detector_filename=CONFIG.neural_network_detector.filename,
-             autoencoder_filename=CONFIG.neural_network_autoencoder.filename,
-             triage_filename=CONFIG.neural_network_triage.filename)
+    # check if all scores, clear and collision spikes exist..
+    path_to_score = os.path.join(TMP_FOLDER, 'score.npy')
+    path_to_spike_index_clear = os.path.join(TMP_FOLDER,
+                                             'spike_index_clear.npy')
+    path_to_spike_index_collision = os.path.join(TMP_FOLDER,
+                                                 'spike_index_collision.npy')
 
-    scores = np.concatenate([element[0] for element in res], axis=0)
+    if all([os.path.exists(path_to_score),
+            os.path.exists(path_to_spike_index_clear),
+            os.path.exists(path_to_spike_index_collision)]):
+        logger.info('Loading "{}", "{}" and "{}"'
+                    .format(path_to_score,
+                            path_to_spike_index_clear,
+                            path_to_spike_index_collision))
 
-    # save scores
-    path_to_score = os.path.join(CONFIG.data.root_folder, 'tmp', 'score.npy')
-    np.save(path_to_score, scores)
-    logger.info('Saved spike scores in {}...'.format(path_to_score))
+        scores = np.load(path_to_score)
+        clear = np.load(path_to_spike_index_clear)
+        collision = np.load(path_to_spike_index_collision)
 
-    # save rotation
-    detector_filename = CONFIG.neural_network_detector.filename
-    autoencoder_filename = CONFIG.neural_network_autoencoder.filename
-    rotation = neuralnetwork.load_rotation(detector_filename,
-                                           autoencoder_filename)
-    path_to_rotation = os.path.join(CONFIG.data.root_folder, 'tmp',
-                                    'rotation.npy')
-    np.save(path_to_rotation, rotation)
-    logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
+    else:
+        logger.info('One or more of "{}", "{}" or "{}" files were missing, '
+                    'computing...'.format(path_to_score,
+                                          path_to_spike_index_clear,
+                                          path_to_spike_index_collision))
 
-    clear = np.concatenate([element[1] for element in res], axis=0)
-    collision = np.concatenate([element[2] for element in res], axis=0)
+        # apply threshold detector on standarized data
+        autoencoder_filename = CONFIG.neural_network_autoencoder.filename
+        mc = bp.multi_channel_apply
+        res = mc(neuralnetwork.nn_detection,
+                 mode='memory',
+                 cleanup_function=neuralnetwork.fix_indexes,
+                 neighbors=CONFIG.neighChannels,
+                 geom=CONFIG.geom,
+                 temporal_features=CONFIG.spikes.temporal_features,
+                 # FIXME: what is this?
+                 temporal_window=3,
+                 th_detect=CONFIG.neural_network_detector.threshold_spike,
+                 th_triage=CONFIG.neural_network_triage.threshold_collision,
+                 detector_filename=CONFIG.neural_network_detector.filename,
+                 autoencoder_filename=autoencoder_filename,
+                 triage_filename=CONFIG.neural_network_triage.filename)
+
+        # save scores
+        scores = np.concatenate([element[0] for element in res], axis=0)
+        np.save(path_to_score, scores)
+        logger.info('Saved spike scores in {}...'.format(path_to_score))
+
+        # save clear spikes
+        clear = np.concatenate([element[1] for element in res], axis=0)
+        np.save(path_to_spike_index_clear, clear)
+        logger.info('Saved spike index clear in {}...'
+                    .format(path_to_spike_index_clear))
+
+        # save collided spikes
+        collision = np.concatenate([element[2] for element in res], axis=0)
+        np.save(path_to_spike_index_collision, collision)
+        logger.info('Saved spike index collision in {}...'
+                    .format(path_to_spike_index_collision))
+
+        # save rotation
+        detector_filename = CONFIG.neural_network_detector.filename
+        autoencoder_filename = CONFIG.neural_network_autoencoder.filename
+        rotation = neuralnetwork.load_rotation(detector_filename,
+                                               autoencoder_filename)
+        path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
+        np.save(path_to_rotation, rotation)
+        logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
 
     return scores, clear, collision
