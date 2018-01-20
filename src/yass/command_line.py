@@ -38,20 +38,22 @@ def cli():
 @click.option('-l', '--logger_level',
               help='Python logger level, defaults to INFO',
               default='INFO')
-def sort(config, logger_level):
+@click.option('-c', '--clean',
+              help='Delete CONFIG.data.root_folder/tmp/ before running',
+              is_flag=True, default=False)
+def sort(config, logger_level, clean):
     """
     Sort recordings using a configuration file located in CONFIG
     """
     return _run_pipeline(config, output_file='spike_train.npy',
-                         logger_level=logger_level)
+                         logger_level=logger_level, clean=clean)
 
 
-def _run_pipeline(config, output_file, logger_level='INFO'):
+def _run_pipeline(config, output_file, logger_level='INFO', clean=True):
     """
     Run the entire pipeline given a path to a config file
     and output path
     """
-
     # configure logging module to get useful information
     logging.basicConfig(level=getattr(logging, logger_level))
     logger = logging.getLogger(__name__)
@@ -61,6 +63,10 @@ def _run_pipeline(config, output_file, logger_level='INFO'):
     CONFIG = read_config()
     ROOT_FOLDER = CONFIG.data.root_folder
     TMP_FOLDER = path.join(ROOT_FOLDER, 'tmp/')
+
+    if os.path.exists(TMP_FOLDER) and clean:
+        logger.info('Deleting {}...'.format(TMP_FOLDER))
+        shutil.rmtree(TMP_FOLDER)
 
     # run preprocessor
     score, spike_index_clear, spike_index_collision = preprocess.run()
