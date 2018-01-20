@@ -14,6 +14,9 @@ from .preprocess.standarize import standarize, sd
 from .util import deprecated
 
 
+SAVE_PARTIAL_RESULTS = True
+
+
 @deprecated('Use function in preprocess module, see examples/preprocess.py')
 class Preprocessor(object):
 
@@ -210,6 +213,15 @@ class Preprocessor(object):
         self.logger.info("\tgetting waveforms:\t{0} seconds".format(Time['e']))
 
         bar.finish()
+
+        # save partial results...
+        if SAVE_PARTIAL_RESULTS:
+            self.logger.info('Saving partial results...')
+            TMP = os.path.join(self.config.data.root_folder, 'tmp/')
+            np.save(os.path.join(TMP, 'score.npy'), score)
+            np.save(os.path.join(TMP, 'spike_index_clear.npy'), spike_index_clear)
+            np.save(os.path.join(TMP, 'spike_index_collision.npy'),
+                    spike_index_collision)
 
         return score, spike_index_clear, spike_index_collision
 

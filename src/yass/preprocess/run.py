@@ -16,8 +16,6 @@ from .score import get_score_pca, get_pca_suff_stat, get_pca_projection
 from .standarize import standarize, sd
 from ..neuralnetwork import NeuralNetDetector, NeuralNetTriage, nn_detection
 
-SAVE_PARTIAL_RESULTS = True
-
 # remove this
 Q = None
 Q_score = None
@@ -189,15 +187,6 @@ def run():
     logger.info("\twhitening:\t{0} seconds".format(time['w']))
     logger.info("\tsaving recording:\t{0} seconds".format(time['b']))
     logger.info("\tgetting waveforms:\t{0} seconds".format(time['e']))
-
-    # save partial results...
-    if SAVE_PARTIAL_RESULTS:
-        logger.info('Saving partial results...')
-        TMP = os.path.join(CONFIG.data.root_folder, 'tmp/')
-        np.save(os.path.join(TMP, 'score.npy'), score)
-        np.save(os.path.join(TMP, 'spike_index_clear.npy'), spike_index_clear)
-        np.save(os.path.join(TMP, 'spike_index_collision.npy'),
-                spike_index_collision)
 
     return score, spike_index_clear, spike_index_collision
 
