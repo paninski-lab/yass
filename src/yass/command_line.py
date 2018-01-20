@@ -46,7 +46,7 @@ def sort(config, logger_level):
                          logger_level=logger_level)
 
 
-def _run_pipeline(config, output_file, logger_level=logging.INFO):
+def _run_pipeline(config, output_file, logger_level='INFO'):
     """
     Run the entire pipeline given a path to a config file
     and output path
