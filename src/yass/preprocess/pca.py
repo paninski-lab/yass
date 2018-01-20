@@ -124,11 +124,11 @@ def score(waveforms, spike_index, rot, neighbors, geom):
 
     Parameters
     ----------
-    waveforms: numpy.ndarray
+    waveforms: numpy.ndarray (n_spikes, temporal_window, n_channels)
         Waveforms to score
-    spike_index: np.ndarray (number of spikes, 2)
+    spike_index: numpy.ndarray (n_spikes, 2)
         Spike indexes as returned from the threshold detector
-    rot: ndarray (window_size, n_features, n_channels)
+    rot: numpy.ndarray (temporal_window, n_features, n_channels)
         PCA rotation matrix
     neighbors: numpy.ndarray (n_channels, n_channels)
         Neighbors matrix
@@ -140,6 +140,8 @@ def score(waveforms, spike_index, rot, neighbors, geom):
     [n_spikes, n_features_per_channel, n_neighboring_channels]
         Scores for evert spike
     """
+    # check dimensions
+
     # TODO: this should be done by the project function
     rot_ = np.transpose(rot)
     sp = np.transpose(waveforms)
@@ -150,6 +152,8 @@ def score(waveforms, spike_index, rot, neighbors, geom):
     # for every spike, get the score only for the neighboring channels
     ord_neighbors, channel_features = ordered_neighbors(geom, neighbors)
     spikes, temporal_features, n_channels = score.shape
+
+    print('score shape', score.shape)
 
     score_neigh = np.zeros((spikes, temporal_features, channel_features))
 
