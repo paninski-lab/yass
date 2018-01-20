@@ -9,6 +9,7 @@ Phy integration `yass export`
 import os
 import os.path as path
 import logging
+import logging.config
 import shutil
 from functools import partial
 
@@ -22,7 +23,7 @@ from . import deconvolute
 from . import read_config
 from . import geometry
 from .export import generate
-from .util import load_yaml, save_metadata
+from .util import load_yaml, save_metadata, load_logging_config_file
 from .neuralnetwork import train_neural_networks
 from .config import Config
 
@@ -60,19 +61,31 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
     Run the entire pipeline given a path to a config file
     and output path
     """
-    # configure logging module to get useful information
-    logging.basicConfig(level=getattr(logging, logger_level))
-    logger = logging.getLogger(__name__)
-
-    # set yass configuration parameters
+    # load yass configuration parameters
     set_config(config)
     CONFIG = read_config()
     ROOT_FOLDER = CONFIG.data.root_folder
     TMP_FOLDER = path.join(ROOT_FOLDER, output_dir)
 
+    # remove tmp folder if needed
     if os.path.exists(TMP_FOLDER) and clean:
-        logger.info('Deleting {}...'.format(TMP_FOLDER))
         shutil.rmtree(TMP_FOLDER)
+
+    # create TMP_FOLDER if needed
+    if not os.path.exists(TMP_FOLDER):
+        os.makedirs(TMP_FOLDER)
+
+    # load logging config file
+    logging_config = load_logging_config_file()
+    logging_config['handlers']['file']['filename'] = path.join(TMP_FOLDER,
+                                                               'yass.log')
+    logging_config['root']['level'] = logger_level
+
+    # configure logging
+    logging.config.dictConfig(logging_config)
+
+    # instantiate logger
+    logger = logging.getLogger(__name__)
 
     # run preprocessor
     (score, spike_index_clear,

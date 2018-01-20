@@ -124,6 +124,11 @@ def load_asset(path):
     return asset
 
 
+def load_logging_config_file():
+    content = load_yaml_asset(os.path.join('logger', 'py3.yaml'))
+    return content
+
+
 def load_yaml(path):
     with open(path) as f:
         content = yaml.load(f)

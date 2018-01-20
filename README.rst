@@ -62,7 +62,7 @@ Steinmetz`_:
 
     # move to the examples folder and run yass in the sample data
     cd yass/examples
-    yass config_sample.yaml
+    yass sort config_sample.yaml
 
     # see the spike train
     cat data/spike_train.csv
