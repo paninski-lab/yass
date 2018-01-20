@@ -187,7 +187,8 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
                              'detection is not implemented for threshold '
                              'detector so array must have dimensios (0, 2) '
                              'but had ({}, {})'
-                             .format(*spike_index_collision.shape))
+                             .format(path_to_spike_index_collision,
+                                     *spike_index_collision.shape))
     else:
         # triage is not implemented on threshold detector, return empty array
         logger.info('Creating empty array for'
