@@ -131,7 +131,7 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
     # Spike detection #
     ###################
 
-    path_to_spike_index_clear = os.path.join(CONFIG.data.root_folder, 'tmp',
+    path_to_spike_index_clear = os.path.join(TMP_FOLDER,
                                              'spike_index_clear.npy')
 
     bp = BatchProcessor(standarized_path, standarized_params['dtype'],
@@ -234,8 +234,7 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
     rotation = pca.project(suff_stats, spikes_per_channel,
                            CONFIG.spikes.temporal_features,
                            CONFIG.neighChannels)
-    path_to_rotation = os.path.join(CONFIG.data.root_folder, 'tmp',
-                                    'rotation.npy')
+    path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
     np.save(path_to_rotation, rotation)
     logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
 
@@ -248,7 +247,7 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
                        CONFIG.neighChannels, CONFIG.geom)
 
     # save scores
-    path_to_score = os.path.join(CONFIG.data.root_folder, 'tmp', 'score.npy')
+    path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
     np.save(path_to_score, scores)
     logger.info('Saved spike scores in {}...'.format(path_to_score))
 
@@ -272,7 +271,7 @@ def _neural_network_detection(standarized_path, standarized_params,
                         buffer_size=0)
 
     # check if all scores, clear and collision spikes exist..
-    path_to_score = os.path.join(TMP_FOLDER, 'score.npy')
+    path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
     path_to_spike_index_clear = os.path.join(TMP_FOLDER,
                                              'spike_index_clear.npy')
     path_to_spike_index_collision = os.path.join(TMP_FOLDER,
