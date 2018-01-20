@@ -30,12 +30,12 @@ def run():
         the number of spikes, second is the nymber of features and third the
         number of channels
 
-    spike_index_clear: numpy.ndarray (n_spikes, 2)
+    spike_index_clear: numpy.ndarray (n_clear_spikes, 2)
         2D array with indexes for clear spikes, first column contains the
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
 
-    spike_index_collision: numpy.ndarray
+    spike_index_collision: numpy.ndarray (n_collided_spikes, 2)
         2D array with indexes for collided spikes, first column contains the
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)

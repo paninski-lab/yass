@@ -17,31 +17,39 @@ from ..geometry import order_channels_by_distance
 
 
 def run(score, spike_index_clear, spike_index_collision):
-    """Run process pipeline
+    """Process spikes
 
     Parameters
     ----------
-    score: list
-        As returned from the preprocessor
-    clear_index: list
-        As returned from the preprocessor
-    spike_times: list
-        As returned form the preprocessor
+    score: numpy.ndarray (n_spikes, n_features, n_channels)
+        3D array with the scores for the clear spikes, first simension is
+        the number of spikes, second is the nymber of features and third the
+        number of channels
+
+    spike_index_clear: numpy.ndarray (n_clear_spikes, 2)
+        2D array with indexes for clear spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
+
+    spike_index_collision: numpy.ndarray (n_collided_spikes, 2)
+        2D array with indexes for collided spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
 
     Returns
     -------
-    spike_train:
-        A (number of spikes x 2) matrix whose first column indicates whe
-        spike time and the second column the neuron id, where the neuron id
-        is determined by the clustering algorithm
+    spike_train_clear: numpy.ndarray (n_clear_spikes, 2)
+        A 2D array for clear spikes whose first column indicates the spike
+        time and the second column the neuron id determined by the clustering
+        algorithm
 
-    spike_times_left: list
-        A list of length n_chanels whose first column indicates the spike
-        time for a potential spike
+    templates: numpy.ndarray (n_channels, waveform_size, n_templates)
+        A 3D array with the templates
 
-    templates: numpy.ndarray
-        A (number of channels x waveform size x number of templates)
-        multidimensional array containing the templates obtained
+    spike_index_collision: numpy.ndarray (n_collided_spikes, 2)
+        A 2D array for collided spikes whose first column indicates the spike
+        time and the second column the neuron id determined by the clustering
+        algorithm
 
     Examples
     --------
