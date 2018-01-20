@@ -98,11 +98,11 @@ def test_can_whiten_data(data, path_to_geometry):
 
 def test_can_preprocess(path_to_config):
     yass.set_config(path_to_config)
-    score, spike_index_clear, spike_index_collision = preprocess.run()
+    clear_scores, spike_index_clear, spike_index_collision = preprocess.run()
     clean_tmp()
 
 
 def test_can_preprocess_with_nnet(path_to_nn_config):
     yass.set_config(path_to_nn_config)
-    score, spike_index_clear, spike_index_collision = preprocess.run()
+    clear_scores, spike_index_clear, spike_index_collision = preprocess.run()
     clean_tmp()

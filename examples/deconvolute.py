@@ -15,7 +15,9 @@ yass.set_config('tests/config_nnet.yaml')
 score, clr_idx, spt = preprocess.run()
 
 # run processor
-spike_train, spikes_left, templates = process.run(score, clr_idx, spt)
+spike_train_clear, templates, spike_index_collision = process.run(score,
+                                                                  clr_idx, spt)
 
 # run deconvolution
-spikes = deconvolute.run(spike_train, spikes_left, templates)
+spike_train = deconvolute.run(spike_train_clear, templates,
+                              spike_index_collision)

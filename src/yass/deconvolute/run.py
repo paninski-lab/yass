@@ -22,7 +22,9 @@ def run(spike_train_clear, templates, spike_index_collision,
 
     Returns
     -------
-    spike_train
+    spike_train: numpy.ndarray (n_clear_spikes, 2)
+        A 2D array with the spike train, first column indicates the spike
+        time and the second column the neuron ID
 
     Examples
     --------

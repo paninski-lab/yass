@@ -30,10 +30,10 @@ def path_to_config():
 def test_process(path_to_config):
     yass.set_config(path_to_config)
 
-    score, spike_index_clear, spike_index_collision = preprocess.run()
+    clear_scores, spike_index_clear, spike_index_collision = preprocess.run()
 
     (spike_train_clear, templates,
-     spike_index_collision) = process.run(score, spike_index_clear,
+     spike_index_collision) = process.run(clear_scores, spike_index_clear,
                                           spike_index_collision)
 
 
