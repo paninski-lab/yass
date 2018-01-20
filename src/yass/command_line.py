@@ -40,7 +40,7 @@ def cli():
               help='Python logger level, defaults to INFO',
               default='INFO')
 @click.option('-c', '--clean',
-              help='Delete CONFIG.data.root_folder/tmp/ before running',
+              help='Delete CONFIG.data.root_folder/output_dir/ before running',
               is_flag=True, default=False)
 @click.option('-o', '--output_dir',
               help='Output directory (relative to CONFIG.data.root_folder '
