@@ -108,7 +108,7 @@ def template_features(n_spikes, n_templates, n_channels, templates, rotation,
     features. Which other features is specified in template_feature_ind.npy
     """
     C, R2, K = templates.shape
-    R = int((R2 - 1)/2)
+    # R = int((R2 - 1)/2)
 
     k_neigh = np.min((5, n_templates))
 
