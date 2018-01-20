@@ -7,7 +7,6 @@ from .. import read_config
 from ..batch import RecordingsReader
 
 
-# TODO: documentation
 # TODO: comment code, it's not clear what it does
 def run(spike_train_clear, templates, spike_index_collision,
         recordings_filename='standarized.bin'):
@@ -15,10 +14,22 @@ def run(spike_train_clear, templates, spike_index_collision,
 
     Parameters
     ----------
-    spike_train_clear
-    templates
-    spike_index_collision
-    recordings_filename
+    spike_train_clear: numpy.ndarray (n_clear_spikes, 2)
+        A 2D array for clear spikes whose first column indicates the spike
+        time and the second column the neuron id determined by the clustering
+        algorithm
+
+    templates: numpy.ndarray (n_channels, waveform_size, n_templates)
+        A 3D array with the templates
+
+    spike_index_collision: numpy.ndarray (n_collided_spikes, 2)
+        A 2D array for collided spikes whose first column indicates the spike
+        time and the second column the neuron id determined by the clustering
+        algorithm
+
+    recordings_filename: str, optional
+        Filename for the recordings which will be used for deconvolution,
+        file must be located at CONFIG.data.root_folder/tmp/
 
     Returns
     -------
