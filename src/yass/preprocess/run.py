@@ -25,18 +25,39 @@ def run():
 
     Returns
     -------
-    scores: numpy.ndarray (n_spikes, n_features, n_channels)
-        List of size n_channels, each list contains a (clear spikes x
-        number of features x number of channels) multidimensional array
-        score for every clear spike
+    clear_scores: numpy.ndarray (n_spikes, n_features, n_channels)
+        3D array with the scores for the clear spikes, first simension is
+        the number of spikes, second is the nymber of features and third the
+        number of channels
 
-    clear_index: numpy.ndarray
-        List of size n_channels, each list contains the indexes in
-        spike_times (first column) where the spike was clear
+    spike_index_clear: numpy.ndarray (n_spikes, 2)
+        2D array with indexes for clear spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
 
-    spike_times: numpy.ndarray
-        List with n_channels elements, each element contains spike times
-        in the first column and [SECOND COLUMN?]
+    spike_index_collision: numpy.ndarray
+        2D array with indexes for collided spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
+
+    Notes
+    -----
+    Running the preprocessor will generate some files in
+    CONFIG.data.root_folder/tmp/, the files are the following:
+
+    * ``config.yaml`` - Copy of the configuration file
+    * ``metadata.yaml`` - Experiment metadata
+    * ``filtered.bin`` - Filtered recordings
+    * ``filtered.yaml`` - Filtered recordings metadata
+    * ``standarized.bin`` - Standarized recordings
+    * ``standarized.yaml`` - Standarized recordings metadata
+    * ``whitened.bin`` - Whitened recordings
+    * ``whitened.yaml`` - Whitened recordings metadata
+    * ``rotation.npy`` - Rotation matrix for dimensionality reduction
+    * ``spike_index_clear.npy`` - Same as spike_index_clear returned
+    * ``spike_index_collision.npy`` - Same as spike_index_collision returned
+    * ``score_clear.npy`` - Scores for clear spikes
+    * ``waveforms_clear.npy`` - Waveforms for clear spikes
 
     Examples
     --------
