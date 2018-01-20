@@ -140,7 +140,7 @@ def score(waveforms, spike_index, rot, neighbors, geom):
     [n_spikes, n_features_per_channel, n_neighboring_channels]
         Scores for evert spike
     """
-    # check dimensions
+    # TODO: check dimensions
 
     # TODO: this should be done by the project function
     rot_ = np.transpose(rot)
