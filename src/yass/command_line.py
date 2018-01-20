@@ -41,15 +41,21 @@ def cli():
 @click.option('-c', '--clean',
               help='Delete CONFIG.data.root_folder/tmp/ before running',
               is_flag=True, default=False)
-def sort(config, logger_level, clean):
+@click.option('-o', '--output_dir',
+              help='Output directory (relative to CONFIG.data.root_folder '
+              'to store the output data, defaults to tmp/',
+              default='tmp/')
+def sort(config, logger_level, clean, output_dir):
     """
     Sort recordings using a configuration file located in CONFIG
     """
     return _run_pipeline(config, output_file='spike_train.npy',
-                         logger_level=logger_level, clean=clean)
+                         logger_level=logger_level, clean=clean,
+                         output_dir=output_dir)
 
 
-def _run_pipeline(config, output_file, logger_level='INFO', clean=True):
+def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
+                  output_dir='tmp/'):
     """
     Run the entire pipeline given a path to a config file
     and output path
@@ -62,23 +68,26 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True):
     set_config(config)
     CONFIG = read_config()
     ROOT_FOLDER = CONFIG.data.root_folder
-    TMP_FOLDER = path.join(ROOT_FOLDER, 'tmp/')
+    TMP_FOLDER = path.join(ROOT_FOLDER, output_dir)
 
     if os.path.exists(TMP_FOLDER) and clean:
         logger.info('Deleting {}...'.format(TMP_FOLDER))
         shutil.rmtree(TMP_FOLDER)
 
     # run preprocessor
-    score, spike_index_clear, spike_index_collision = preprocess.run()
+    (score, spike_index_clear,
+     spike_index_collision) = preprocess.run(output_directory=output_dir)
 
     # run processor
     (spike_train_clear, templates,
      spike_index_collision) = process.run(score, spike_index_clear,
-                                          spike_index_collision)
+                                          spike_index_collision,
+                                          output_directory=output_dir)
 
     # run deconvolution
     spike_train_deconv = deconvolute.run(spike_train_clear, templates,
-                                         spike_index_collision)
+                                         spike_index_collision,
+                                         output_directory=output_dir)
 
     # merge spikes in one array
     spike_train = np.concatenate((spike_train_deconv, spike_train_clear))
