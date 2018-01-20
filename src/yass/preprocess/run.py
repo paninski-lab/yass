@@ -20,8 +20,14 @@ from . import pca
 from .. import neuralnetwork
 
 
-def run():
+def run(output_directory='tmp/'):
     """Execute preprocessing pipeline
+
+    Parameters
+    ----------
+    output_directory: str, optional
+      Location to store partial results, relative to CONFIG.data.root_folder,
+      defaults to tmp/
 
     Returns
     -------
@@ -42,8 +48,8 @@ def run():
 
     Notes
     -----
-    Running the preprocessor will generate some files in
-    CONFIG.data.root_folder/tmp/, the files are the following:
+    Running the preprocessor will generate the followiing files in
+    CONFIG.data.root_folder/output_directory/:
 
     * ``config.yaml`` - Copy of the configuration file
     * ``metadata.yaml`` - Experiment metadata
@@ -74,7 +80,7 @@ def run():
     logger.info('Output dtype for transformed data will be {}'
                 .format(OUTPUT_DTYPE))
 
-    tmp = os.path.join(CONFIG.data.root_folder, 'tmp')
+    tmp = os.path.join(CONFIG.data.root_folder, output_directory)
 
     if not os.path.exists(tmp):
         logger.info('Creating temporary folder: {}'.format(tmp))
@@ -136,20 +142,21 @@ def run():
 
     if CONFIG.spikes.detection == 'threshold':
         return _threshold_detection(standarized_path, standarized_params,
-                                    whitened_path, n_observations)
+                                    whitened_path, n_observations,
+                                    output_directory)
     elif CONFIG.spikes.detection == 'nn':
         return _neural_network_detection(standarized_path, standarized_params,
-                                         n_observations)
+                                         n_observations, output_directory)
 
 
 def _threshold_detection(standarized_path, standarized_params, whitened_path,
-                         n_observations):
+                         n_observations, output_directory):
     """Run threshold detector and dimensionality reduction using PCA
     """
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
-    TMP_FOLDER = os.path.join(CONFIG.data.root_folder, 'tmp/')
+    TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
 
     ###################
     # Spike detection #
@@ -289,13 +296,13 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
 
 
 def _neural_network_detection(standarized_path, standarized_params,
-                              n_observations):
+                              n_observations, output_directory):
     """Run neural network detection and autoencoder dimensionality reduction
     """
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
-    TMP_FOLDER = os.path.join(CONFIG.data.root_folder, 'tmp/')
+    TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
 
     # detect spikes
     bp = BatchProcessor(standarized_path, standarized_params['dtype'],
