@@ -146,21 +146,23 @@ def train(spike_train, config_train, config, logger_level):
 
 
 @cli.command()
-@click.argument('config', type=click.Path(exists=True, dir_okay=False))
+@click.argument('directory', type=click.Path(exists=True, dir_okay=False))
 @click.option('--output_dir', type=click.Path(file_okay=False),
               help=('Path to output directory, defaults to '
-                    'CONFIG.data.root_folder/phy/'))
-def export(config, output_dir):
-    """Generates phy input files, 'yass sort' must be run first
+                    'directory/phy/'))
+def export(directory, output_dir):
+    """
+    Generates phy input files, 'yass sort' must be run first to generate
+    all the necessary files
     """
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
-    CONFIG = load_yaml(config)
+    TMP_FOLDER = directory
+    PATH_TO_CONFIG = path.join(TMP_FOLDER, 'config.yaml')
+    CONFIG = load_yaml(PATH_TO_CONFIG)
     ROOT_FOLDER = CONFIG['data']['root_folder']
     N_CHANNELS = CONFIG['recordings']['n_channels']
-
-    TMP_FOLDER = path.join(ROOT_FOLDER, 'tmp/')
 
     # verify that the tmp/ folder exists, otherwise abort
     if not os.path.exists(TMP_FOLDER):
@@ -170,7 +172,7 @@ def export(config, output_dir):
         raise click.Abort()
 
     if output_dir is None:
-        PHY_FOLDER = path.join(ROOT_FOLDER, 'phy/')
+        PHY_FOLDER = path.join(TMP_FOLDER, 'phy/')
     else:
         PHY_FOLDER = output_dir
 
@@ -181,7 +183,7 @@ def export(config, output_dir):
     # convert data to wide format
 
     # generate params.py
-    params = generate.params(config)
+    params = generate.params(PATH_TO_CONFIG)
     path_to_params = path.join(PHY_FOLDER, 'params.py')
 
     with open(path_to_params, 'w') as f:
