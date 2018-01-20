@@ -603,7 +603,8 @@ class RecordingExplorer(object):
         ax = ax if ax else plt
 
         n_channels = len(channels)
-        formatter = FuncFormatter(lambda x, pos: time + int(x))
+        formatter = FuncFormatter(lambda x, pos: time - self.spike_size +
+                                  int(x))
 
         if overlay:
             axs = [ax] * n_channels
@@ -617,8 +618,8 @@ class RecordingExplorer(object):
             ax.xaxis.set_major_formatter(formatter)
             ax.tick_params(axis='x', which='major', labelsize=10)
 
-            # if line_at_t:
-            #     ax.axvline(x=time + 1)
+            if line_at_t:
+                ax.axvline(x=time)
 
         plt.tight_layout()
 
