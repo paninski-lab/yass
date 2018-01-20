@@ -10,7 +10,7 @@ from ..batch import RecordingsReader
 # TODO: comment code, it's not clear what it does
 def run(spike_train_clear, templates, spike_index_collision,
         recordings_filename='standarized.bin'):
-    """Run deconvolution
+    """Deconvolute spikes
 
     Parameters
     ----------

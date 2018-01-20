@@ -69,7 +69,10 @@ def run():
 
     CONFIG = read_config()
 
-    OUTPUT_DTYPE = 'float16'
+    OUTPUT_DTYPE = CONFIG.preprocess.dtype
+
+    logger.info('Output dtype for transformed data will be {}'
+                .format(OUTPUT_DTYPE))
 
     tmp = os.path.join(CONFIG.data.root_folder, 'tmp')
 

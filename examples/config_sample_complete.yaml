@@ -40,6 +40,8 @@ preprocess:
   templates_partial_data: 1
   # determine whitening matrix in each minibatch
   whiten_batchwise: False
+  # output dtype for transformed data
+  dtype: float32
 
 spikes:
   # 'nn' for neural net detction, 'threshold' for amplitude threshold detection

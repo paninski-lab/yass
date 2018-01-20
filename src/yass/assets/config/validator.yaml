@@ -38,6 +38,10 @@ fields_validator:
       n_channels:
         type: int
 
+  preprocess:
+    dtype:
+      type: str
+
   spikes:
     detection:
       values: ['threshold', 'nn']
