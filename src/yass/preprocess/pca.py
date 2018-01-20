@@ -153,8 +153,6 @@ def score(waveforms, spike_index, rot, neighbors, geom):
     ord_neighbors, channel_features = ordered_neighbors(geom, neighbors)
     spikes, temporal_features, n_channels = score.shape
 
-    print('score shape', score.shape)
-
     score_neigh = np.zeros((spikes, temporal_features, channel_features))
 
     logger.info('Scoring {} spikes...'.format(spikes))
