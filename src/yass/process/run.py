@@ -16,7 +16,8 @@ from ..mfm import spikesort
 from ..geometry import order_channels_by_distance
 
 
-def run(score, spike_index_clear, spike_index_collision):
+def run(score, spike_index_clear, spike_index_collision,
+        output_directory='tmp/', recordings_filename='standarized.bin'):
     """Process spikes
 
     Parameters
@@ -35,6 +36,15 @@ def run(score, spike_index_clear, spike_index_collision):
         2D array with indexes for collided spikes, first column contains the
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
+
+    output_directory: str, optional
+        Output directory (relative to CONFIG.data.root_folder) used to load
+        the recordings to generate templates, defaults to tmp/
+
+    recordings_filename: str, optional
+        Recordings filename (relative to CONFIG.data.root_folder/
+        output_directory) used to generate the templates, defaults to
+        standarized.bin
 
     Returns
     -------
@@ -229,11 +239,12 @@ def run(score, spike_index_clear, spike_index_collision):
 
     _b = datetime.datetime.now()
     logger.info("Getting Templates...")
-    path_to_whiten = os.path.join(CONFIG.data.root_folder,
-                                  'tmp/standarized.bin')
+    path_to_recordings = os.path.join(CONFIG.data.root_folder,
+                                      output_directory,
+                                      recordings_filename)
     merge_threshold = CONFIG.templates.merge_threshold
     spike_train_clear, templates = gam_templates(spike_train_clear,
-                                                 path_to_whiten,
+                                                 path_to_recordings,
                                                  CONFIG.spikeSize,
                                                  CONFIG.templatesMaxShift,
                                                  merge_threshold,
