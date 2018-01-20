@@ -62,11 +62,6 @@ def _run_pipeline(config, output_file, logger_level='INFO'):
     ROOT_FOLDER = CONFIG.data.root_folder
     TMP_FOLDER = path.join(ROOT_FOLDER, 'tmp/')
 
-    # save metadata in tmp
-    path_to_metadata = path.join(TMP_FOLDER, 'metadata.yaml')
-    logging.info('Saving metadata in {}'.format(path_to_metadata))
-    save_metadata(path_to_metadata)
-
     # run preprocessor
     score, spike_index_clear, spike_index_collision = preprocess.run()
 
@@ -82,6 +77,11 @@ def _run_pipeline(config, output_file, logger_level='INFO'):
     # merge spikes in one array
     spike_train = np.concatenate((spike_train_deconv, spike_train_clear))
     spike_train = spike_train[np.argsort(spike_train[:, 0])]
+
+    # save metadata in tmp
+    path_to_metadata = path.join(TMP_FOLDER, 'metadata.yaml')
+    logging.info('Saving metadata in {}'.format(path_to_metadata))
+    save_metadata(path_to_metadata)
 
     # save config.yaml copy in tmp/
     path_to_config_copy = path.join(TMP_FOLDER, 'config.yaml')

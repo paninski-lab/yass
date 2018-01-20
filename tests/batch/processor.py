@@ -15,6 +15,8 @@ n_channels = 10
 obs_size = dsize * n_channels
 
 
+# TODO: fix this file
+
 @pytest.fixture
 def path():
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)),

@@ -12,9 +12,12 @@ from yass import preprocess
 from yass import process
 from yass import reset_config
 
+from util import clean_tmp
+
 
 def teardown_function(function):
     reset_config()
+    clean_tmp()
 
 
 @pytest.fixture

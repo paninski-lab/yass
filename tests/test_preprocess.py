@@ -18,6 +18,8 @@ from yass.preprocess.standarize import standarize
 import yass
 from yass import preprocess
 
+from util import clean_tmp
+
 spikeSizeMS = 1
 srate = 30000
 spike_size = int(np.round(spikeSizeMS*srate/2000))
@@ -97,8 +99,10 @@ def test_can_whiten_data(data, path_to_geometry):
 def test_can_preprocess(path_to_config):
     yass.set_config(path_to_config)
     score, spike_index_clear, spike_index_collision = preprocess.run()
+    clean_tmp()
 
 
 def test_can_preprocess_with_nnet(path_to_nn_config):
     yass.set_config(path_to_nn_config)
     score, spike_index_clear, spike_index_collision = preprocess.run()
+    clean_tmp()

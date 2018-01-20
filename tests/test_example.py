@@ -7,6 +7,8 @@ import pytest
 
 from yass import command_line as cli
 
+from util import clean_tmp
+
 
 @pytest.fixture
 def path_to_config_sample():
@@ -24,3 +26,4 @@ def path_to_output():
 
 def test_example_works(path_to_config_sample, path_to_output):
     cli._run_pipeline(path_to_config_sample, path_to_output)
+    clean_tmp()
