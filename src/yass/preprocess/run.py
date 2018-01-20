@@ -180,13 +180,22 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
         logger.info('Found collided spikes in {}, loading them...'
                     .format(path_to_spike_index_collision))
         spike_index_collision = np.load(path_to_spike_index_collision)
+
+        if spike_index_collision.shape[0] != 0:
+            raise ValueError('Found non-empty collision spike index in {}, '
+                             'but threshold detector is selected, collision '
+                             'detection is not implemented for threshold '
+                             'detector so array must have dimensios (0, 2) '
+                             'but had ({}, {})'
+                             .format(*spike_index_collision.shape))
     else:
         # triage is not implemented on threshold detector, return empty array
-        logger.info('Did not find file in {}, creating empty array for'
+        logger.info('Creating empty array for'
                     ' collided spikes (collision detection is not implemented'
-                    ' with threshold detector...'
-                    .format(path_to_spike_index_clear))
+                    ' with threshold detector. Saving them in {}'
+                    .format(path_to_spike_index_collision))
         spike_index_collision = np.zeros((0, 2), 'int32')
+        np.save(path_to_spike_index_collision, spike_index_collision)
 
     #######################
     # Waveform extraction #
