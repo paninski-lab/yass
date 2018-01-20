@@ -9,12 +9,6 @@ from yass.preprocessing import Preprocessor
 from yass.mainprocess import Mainprocessor
 from yass.deconvolute import Deconvolution
 
-#from . import set_config
-#from . import preprocess
-#from . import process
-#from . import deconvolute
-#from . import read_config
-
 
 def _run_pipeline(config, output_file):
     """Run the entire pipeline given a config and output file
@@ -49,25 +43,6 @@ def _run_pipeline(config, output_file):
 
     np.savetxt(path_to_file, spikeTrain, fmt='%i, %i')
     print('Done, spike train saved in: {}'.format(path_to_file))
-
-    # set yass configuration parameters
-    #set_config(args.config)
-    #CONFIG = read_config()
-
-    # run preprocessor
-    #score, spike_index_clear, spike_index_collision = preprocess.run()
-
-    # run processor
-    #spike_train_clear, templates, spike_index_collision = process.run(score,
-    #    spike_index_clear, spike_index_collision)
-
-    # run deconvolution
-    #spike_train = deconvolute.run(spike_train_clear, templates,
-    #    spike_index_collision)
-
-    # path_to_file = os.path.join(cfg.data.root_folder, output_file)
-    #np.savetxt(path_to_file, spike_train, fmt='%i, %i')
-    #logger.info('Done, spike train saved in: {}'.format(path_to_file))
 
 
 def main():
