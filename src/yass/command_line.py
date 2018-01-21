@@ -39,7 +39,7 @@ def _run_pipeline(config, output_file):
         idx_keep[idx_c[np.concatenate(([True], np.diff(spikeTrain[idx_c,0]) > 1))]] = 1
     spikeTrain = spikeTrain[idx_keep]
 
-    path_to_file = os.path.join(cfg.data.root_folder, output_file)
+    path_to_file = os.path.join(cfg.data.root_folder, 'tmp/', output_file)
 
     np.savetxt(path_to_file, spikeTrain, fmt='%i, %i')
     print('Done, spike train saved in: {}'.format(path_to_file))
