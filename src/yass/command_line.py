@@ -41,7 +41,7 @@ def _run_pipeline(config, output_file):
 
     path_to_file = os.path.join(cfg.data.root_folder, 'tmp/', output_file)
 
-    np.save(path_to_file, spikeTrain, fmt='%i, %i')
+    np.save(path_to_file, spikeTrain)
     print('Done, spike train saved in: {}'.format(path_to_file))
 
 
