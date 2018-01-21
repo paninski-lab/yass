@@ -130,7 +130,6 @@ class Config(FrozenJSON):
         # the waveform
         self._set_param('spikeSize',
                         int(np.round(self.recordings.spike_size_ms*self.recordings.sampling_rate/(2*1000))))
-        self._set_param('BUFF', self.spikeSize*4)
         self._set_param('templatesMaxShift', int(self.recordings.sampling_rate/1000))
         self._set_param('stdFactor', 4)
 
@@ -154,17 +153,6 @@ class Config(FrozenJSON):
             self._set_param('batch_size', batch_size)
             self._set_param('residual', self.size % batch_size)
             self._set_param('nPortion', np.ceil(self.preprocess.templates_partial_data*self.nBatches))
-
-        self._logger.debug('Computed params: spikeSize: {},'
-                           'BUFF: {}, templatesMaxShift: {}, stdFactor: {}, '
-                           'size: {}, dsize: {}, nBatches: {}, batch_size: {}'
-                           ', residual: {}, nPortion: {}'
-                           .format(self.spikeSize,
-                                   self.BUFF, self.templatesMaxShift,
-                                   self.stdFactor, self.size,
-                                   self.dsize, self.nBatches,
-                                   self.batch_size, self.residual,
-                                   self.nPortion))
 
     def __setattr__(self, name, value):
         if not name.startswith('_'):
