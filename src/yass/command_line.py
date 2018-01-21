@@ -41,21 +41,17 @@ def _run_pipeline(config, output_file):
 
     path_to_file = os.path.join(cfg.data.root_folder, 'tmp/', output_file)
 
-    np.savetxt(path_to_file, spikeTrain, fmt='%i, %i')
+    np.save(path_to_file, spikeTrain, fmt='%i, %i')
     print('Done, spike train saved in: {}'.format(path_to_file))
 
 
 def main():
     """Entry point for the command line utility
     """
-    # removed reference to this file in config, it is not necessary
-    # TODO: let the user specify the name through an option
-    output_file = 'spike_train.csv'
-
     parser = argparse.ArgumentParser(description='Run YASS.')
     parser.add_argument('config', type=str,
                         help='Path to configuration file')
 
     args = parser.parse_args()
 
-    return _run_pipeline(args.config, output_file)
+    return _run_pipeline(args.config, 'spike_train.npy')
