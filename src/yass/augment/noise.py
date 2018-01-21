@@ -15,6 +15,8 @@ def noise_cov(path, dtype, batch_size, n_channels, neighbors, geom,
     Returns
     -------
     """
+
+    # FIXME: remove this file thing, replace with memorymap
     wfile = open(path, 'rb')
     dsize = np.dtype(dtype).itemsize
     flattenedLength = dsize*batch_size*n_channels
