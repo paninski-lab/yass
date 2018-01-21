@@ -145,14 +145,11 @@ class Config(FrozenJSON):
         if batch_size > self.size:
             self._set_param('nBatches', 1)
             self._set_param('batch_size', self.size)
-            self._set_param('residual', 0)
-            self._set_param('nPortion', 1)
+            self._set_param('batch_size', 0)
         else:
             nBatches = int(np.ceil(float(self.size)/batch_size))
             self._set_param('nBatches', nBatches)
             self._set_param('batch_size', batch_size)
-            self._set_param('residual', self.size % batch_size)
-            self._set_param('nPortion', np.ceil(self.preprocess.templates_partial_data*self.nBatches))
 
     def __setattr__(self, name, value):
         if not name.startswith('_'):
@@ -185,6 +182,7 @@ class Config(FrozenJSON):
         return reduce(lambda x, y: x+', '+y, it)
 
 
+# TODO: remove
 def sizeof(dtype):
     SIZE_ = {'int16': 2,
              'uint16': 2,
