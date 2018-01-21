@@ -2,6 +2,7 @@ import numpy as np
 
 
 # TODO: missing documentation
+# FIXME: doesnt seem like this is used at all
 def clean_output(spike_train_clear, spt, clr_idx, batch_size, buff):
     """[Description]
 

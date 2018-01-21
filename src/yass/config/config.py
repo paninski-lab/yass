@@ -134,10 +134,8 @@ class Config(FrozenJSON):
         self._set_param('stdFactor', 4)
 
         file_size = path.getsize(path.join(self.data.root_folder, self.data.recordings))
-        # seems unused...
-        self._set_param('size', int(file_size/(sizeof(self.recordings.dtype)*self.recordings.n_channels)))
 
-        # FIXME: remove BATCH PARAMETERS
+        self._set_param('size', int(file_size/(sizeof(self.recordings.dtype)*self.recordings.n_channels)))
         self._set_param('dsize', sizeof(self.recordings.dtype))
 
         batch_size = int(np.floor(self.resources.max_memory/(self.recordings.n_channels*self.dsize)))

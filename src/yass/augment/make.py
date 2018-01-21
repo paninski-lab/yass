@@ -29,6 +29,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     # process data (filter and standardize)
     process_data(CONFIG)
 
+    # FIXME: convert 'tmp/' to a parameter
     TMP_FOLDER = os.path.join(CONFIG.data.root_folder,  'tmp/')
 
     path_to_data = os.path.join(TMP_FOLDER, 'standarized.bin')
@@ -58,6 +59,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                                CONFIG.neighChannels, CONFIG.geom)
 
     # determine noise covariance structure
+    # FIXME: remove batch_size
     spatial_SIG, temporal_SIG = noise_cov(path_to_data, dtype,
                                           CONFIG.batch_size,
                                           CONFIG.recordings.n_channels,
