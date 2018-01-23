@@ -10,22 +10,13 @@ from ..explore import RecordingExplorer, SpikeTrainExplorer
 logger = logging.getLogger(__name__)
 
 
-# TODO: docs
+# TODO: remove this function and use the explorer directly
 def get_templates(spike_train_clear, path_to_recordings, spike_size):
     logger.info('Computing templates...')
     re = RecordingExplorer(path_to_recordings,
                            spike_size=spike_size)
     spe = SpikeTrainExplorer(spike_train_clear, re)
-
-    templates = spe.templates
-    weights = spe.weights
-
-    logger.info("Scaling templates...")
-
-    # scale and merge templates
-    templates = templates/weights[np.newaxis, np.newaxis, :]
-
-    return templates, weights
+    return spe.templates, spe.weights
 
 
 # TODO: docs
