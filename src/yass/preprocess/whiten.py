@@ -9,11 +9,9 @@ from ..geometry import n_steps_neigh_channels, order_channels_by_distance
 
 # TODO: missing documentation
 # TODO: add comments to the code to understand what's going on
-# TODO: rename functions, purpose is not clear
 # TODO: document why we need different methods for whitening when using
 # threshold detection vs nn detection
-# TODO: how to apply this in batches?
-# TODO: how to enable re-use of Q when using batch processor?
+# TODO: how to apply this in batches
 
 
 def matrix(ts, neighbors, spike_size):
