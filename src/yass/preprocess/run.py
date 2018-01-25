@@ -133,7 +133,7 @@ def run(output_directory='tmp/'):
                         standarized_params['data_format'],
                         CONFIG.resources.max_memory)
     batches = bp.multi_channel()
-    first_batch, _, _ = batches.next()
+    first_batch, _, _ = next(batches)
     Q = whiten.matrix(first_batch, CONFIG.neighChannels, CONFIG.spikeSize)
 
     # apply whitening to every batch
