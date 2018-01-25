@@ -80,14 +80,14 @@ def run(output_directory='tmp/'):
     logger.info('Output dtype for transformed data will be {}'
                 .format(OUTPUT_DTYPE))
 
-    tmp = os.path.join(CONFIG.data.root_folder, output_directory)
+    TMP = os.path.join(CONFIG.data.root_folder, output_directory)
 
-    if not os.path.exists(tmp):
-        logger.info('Creating temporary folder: {}'.format(tmp))
-        os.makedirs(tmp)
+    if not os.path.exists(TMP):
+        logger.info('Creating temporary folder: {}'.format(TMP))
+        os.makedirs(TMP)
     else:
         logger.info('Temporary folder {} already exists, output will be '
-                    'stored there'.format(tmp))
+                    'stored there'.format(TMP))
 
     path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
     dtype = CONFIG.recordings.dtype
@@ -95,7 +95,7 @@ def run(output_directory='tmp/'):
     # initialize pipeline object, one batch per channel
     pipeline = BatchPipeline(path, dtype, CONFIG.recordings.n_channels,
                              CONFIG.recordings.format,
-                             CONFIG.resources.max_memory, tmp)
+                             CONFIG.resources.max_memory, TMP)
 
     # add filter transformation if necessary
     if CONFIG.preprocess.filter:
@@ -120,26 +120,34 @@ def run(output_directory='tmp/'):
                               cast_dtype=OUTPUT_DTYPE,
                               sampling_freq=CONFIG.recordings.sampling_rate)
 
+    pipeline.add([standarize_op])
+
+    # run filtered and standarized transformations
+    ((filtered_path, standarized_path),
+     (filtered_params, standarized_params)) = pipeline.run()
+
+    # whiten data
     # compute Q for whitening
-    # apply whitening
-    # TODO: add option to re-use Q
-    whiten_op = Transform(whiten.apply, 'whitened.bin',
-                          mode='multi_channel',
-                          keep=True,
-                          if_file_exists='skip',
-                          cast_dtype=OUTPUT_DTYPE,
-                          neighbors=CONFIG.neighChannels,
-                          spike_size=CONFIG.spikeSize)
+    bp = BatchProcessor(standarized_path, standarized_params['dtype'],
+                        standarized_params['n_channels'],
+                        standarized_params['data_format'],
+                        CONFIG.resources.max_memory)
+    batches = bp.multi_channel()
+    first_batch, _, _ = batches.next()
+    Q = whiten.matrix(first_batch, CONFIG.neighChannels, CONFIG.spikeSize)
 
-    pipeline.add([standarize_op, whiten_op])
-
-    # run pipeline
-    ((filtered_path, standarized_path, whitened_path),
-     (filtered_params, standarized_params, whitened_params)) = pipeline.run()
+    # apply whitening to every batch
+    (whitened_path,
+     whitened_params) = bp.multi_channel_apply(np.matmul,
+                                               mode='disk',
+                                               output_path=os.path.join(
+                                                   TMP, 'whitened.bin'),
+                                               if_file_exists='skip',
+                                               cast_dtype=OUTPUT_DTYPE,
+                                               b=Q)
 
     standarized = RecordingsReader(standarized_path)
     n_observations = standarized.observations
-    del standarized
 
     if CONFIG.spikes.detection == 'threshold':
         return _threshold_detection(standarized_path, standarized_params,

@@ -286,6 +286,13 @@ class BatchProcessor(object):
         **kwargs
             kwargs to pass to function
 
+        Returns
+        -------
+        output_path
+            Path to output binary file
+        params
+            Binary file params
+
         Examples
         --------
 

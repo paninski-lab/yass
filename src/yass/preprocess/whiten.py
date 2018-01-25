@@ -70,10 +70,11 @@ def matrix(ts, neighbors, spike_size):
         Q_small = np.matmul(np.matmul(V, Epsilon), V.transpose())
         Q[c, ch_idx] = Q_small[ch_idx == c, :]
 
-    return Q
+    return Q.transpose()
 
 
-def apply(ts, neighbors, spike_size):
+# TODO: remove
+def apply(ts, neighbors, spike_size, Q=None):
     """Apply spatial whitening
 
     Parameters
@@ -91,8 +92,7 @@ def apply(ts, neighbors, spike_size):
     numpy.ndarray (n_observations, n_channels)
         Whitened data
     """
-    Q = matrix(ts, neighbors, spike_size)
-    return np.matmul(ts, Q.transpose())
+    return np.matmul(ts, Q)
 
 
 def matrix_localized(ts, neighbors, geom, spike_size):
@@ -152,7 +152,8 @@ def matrix_localized(ts, neighbors, geom, spike_size):
         Epsilon = np.diag(1/np.power((D + eps), 0.5))
         Q_small = np.matmul(np.matmul(V, Epsilon), V.transpose())
         Q[:nneigh_c][:, :nneigh_c, c] = Q_small
-    return Q
+
+    return Q.transpose()
 
 
 def score(score, channel_index, Q):

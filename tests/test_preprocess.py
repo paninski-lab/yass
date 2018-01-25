@@ -90,10 +90,10 @@ def test_can_use_threshold_detector(data, path_to_geometry):
     threshold(data, neighbors, spike_size, 5)
 
 
-def test_can_whiten_data(data, path_to_geometry):
+def test_can_compute_whiten_matrix(data, path_to_geometry):
     geometry = parse(path_to_geometry, n_channels)
     neighbors = find_channel_neighbors(geometry, radius=70)
-    whiten.apply(data, neighbors, spike_size)
+    whiten.matrix(data, neighbors, spike_size)
 
 
 def test_can_preprocess(path_to_config):
