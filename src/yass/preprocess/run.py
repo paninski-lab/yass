@@ -120,7 +120,8 @@ def run(output_directory='tmp/'):
                               cast_dtype=OUTPUT_DTYPE,
                               sampling_freq=CONFIG.recordings.sampling_rate)
 
-    # whiten
+    # compute Q for whitening
+    # apply whitening
     # TODO: add option to re-use Q
     whiten_op = Transform(whiten.apply, 'whitened.bin',
                           mode='multi_channel',

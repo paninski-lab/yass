@@ -16,7 +16,7 @@ from ..geometry import n_steps_neigh_channels, order_channels_by_distance
 # TODO: how to enable re-use of Q when using batch processor?
 
 
-def marix(ts, neighbors, spike_size):
+def matrix(ts, neighbors, spike_size):
     """
     Compute spatial whitening matrix for time series, used only in threshold
     detection
@@ -93,7 +93,7 @@ def apply(ts, neighbors, spike_size):
     numpy.ndarray (n_observations, n_channels)
         Whitened data
     """
-    Q = marix(ts, neighbors, spike_size)
+    Q = matrix(ts, neighbors, spike_size)
     return np.matmul(ts, Q.transpose())
 
 
