@@ -284,14 +284,25 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
         #############
         # Denoising #
         #############
-
+        main_channel = spike_index_clear[:,1]
         logger.info('Denoising...')
-        denoised_waveforms = pca.denoise(waveforms_clear,rotation)
+        path_to_denoised_waveforms = os.path.join(TMP_FOLDER,'denoised_waveforms.npy')
+        if os.path.exists(path_to_denoised_waveforms):
+            logger.info('Found denoised waveforms in {}, loading them...'
+                        .format(path_to_denoised_waveforms))
+            denoised_waveforms = np.load(path_to_denoised_waveforms)
+        else:
+            logger.info('Did not find denoised waveforms in {}, evaluating them from {}'
+                        .format(path_to_denoised_waveforms, path_to_waveforms_clear))
+            waveforms_clear = np.load(path_to_waveforms_clear)
+            denoised_waveforms = pca.denoise(waveforms_clear,rotation,CONFIG)
+            logger.info('Saving denoised waveforms to {}'.format(path_to_denoised_waveforms))
+            np.save(path_to_denoised_waveforms,denoised_waveforms)
         
-        isolated_index,x,y = get_isolated_spikes(denoised_waveforms, main_channel, CONFIG)
+        isolated_index,x,y = get_isolated_spikes_and_locations(denoised_waveforms, main_channel, CONFIG)
         x = (x - np.mean(x))/np.std(x)
         y = (y - np.mean(y))/np.std(y)
-        corrupted_index = np.logical_not(np.in1d(isolated_index,np.arange(spike_index_clear.shape[0])))
+        corrupted_index = np.logical_not(np.in1d(np.arange(spike_index_clear.shape[0]),isolated_index))
         spike_index_collision = np.concatenate([spike_index_collision, spike_index_clear[corrupted_index]],axis = 0)
         spike_index_clear = spike_index_clear[isolated_index]
         waveforms_clear = waveforms_clear[isolated_index]
@@ -300,8 +311,8 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
         # Dimensionality reduction (Isolated Waveforms) #
         #################################################
         
-        scores = pca.main_channel_scores(waveforms_clear,rotation,spike_index_clear)
-        scores = (scores - np.mean(scores))/np.std(scores)
+        scores = pca.main_channel_scores(waveforms_clear,rotation, spike_index_clear,CONFIG)
+        scores = (scores - np.mean(scores,axis = 0))/np.std(scores)
         scores = np.concatenate([x[:,np.newaxis,np.newaxis],y[:,np.newaxis,np.newaxis],scores[:,:,np.newaxis]],axis = 1)
           
     else:
@@ -449,11 +460,12 @@ def _neural_network_detection(standarized_path, standarized_params, whitened_pat
                 logger.info('Did not find denoised waveforms in {}, evaluating them from {}'
                             .format(path_to_denoised_waveforms, path_to_waveforms_clear))
                 waveforms_clear = np.load(path_to_waveforms_clear)
-                denoised_waveforms = pca.denoise(waveforms_clear,rotation)
+                denoised_waveforms = pca.denoise(waveforms_clear,rotation,CONFIG)
                 logger.info('Saving denoised waveforms to {}'.format(path_to_denoised_waveforms))
                 np.save(path_to_denoised_waveforms,denoised_waveforms)
 
             isolated_index,x,y = get_isolated_spikes_and_locations(denoised_waveforms, main_channel, CONFIG)
+            print(isolated_index)
             x = (x - np.mean(x))/np.std(x)
             y = (y - np.mean(y))/np.std(y)
             corrupted_index = np.logical_not(np.in1d(np.arange(clear.shape[0]),isolated_index))
@@ -465,7 +477,7 @@ def _neural_network_detection(standarized_path, standarized_params, whitened_pat
             # Dimensionality reduction (Isolated Waveforms) #
             #################################################
 
-            scores = pca.main_channel_scores(waveforms_clear,rotation, clear)
+            scores = pca.main_channel_scores(waveforms_clear,rotation, clear,CONFIG)
             scores = (scores - np.mean(scores,axis = 0))/np.std(scores)
             scores = np.concatenate([x[:,np.newaxis,np.newaxis],y[:,np.newaxis,np.newaxis],scores[:,:,np.newaxis]],axis = 1)
             

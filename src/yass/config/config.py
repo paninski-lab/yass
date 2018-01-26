@@ -43,7 +43,7 @@ class FrozenJSON(object):
 
     def __init__(self, mapping):
         self._logger = logging.getLogger(__name__)
-        self._logger.debug('Loaded with params: {}'.format(mapping))
+#         self._logger.debug('Loaded with params: {}'.format(mapping))
         self._path_to_file = None
 
         self._data = {}

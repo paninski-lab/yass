@@ -119,7 +119,7 @@ def project(ss, spikes_per_channel, n_features, neighbors):
     return rot
 
 
-def denoise(waveforms, rot):
+def denoise(waveforms, rot,CONFIG):
     """Denoise waveforms by projecting into PCA space and back
     
     Parameters
@@ -128,18 +128,26 @@ def denoise(waveforms, rot):
     rot: numpy.ndarray (window_size, n_features, n_channels)
         PCA Rotation matrix
     """
-    
-    rot_ = np.transpose(rot)
-    
-    denoising_rot = np.matmul(rot,rot_)
-    sp = np.transpose(waveforms)
-    
-    denoised_waveforms = np.transpose(np.matmul(denoising_rot,sp))
+    if CONFIG.spikes.detection == 'threshold':
+        rot_ = np.transpose(rot)
+        rot2_ = np.transpose(rot_,[0,2,1])
+        
+        denoising_rot = np.matmul(rot2_,rot_)
+        sp = np.transpose(waveforms,[0,2,1])
+        
+        denoised_waveforms = np.transpose(np.squeeze(np.matmul(sp[:,:,np.newaxis],denoising_rot),axis = 2),[0,2,1])
+    else:
+        rot_ = np.transpose(rot)
+
+        denoising_rot = np.matmul(rot,rot_)
+        sp = np.transpose(waveforms)
+
+        denoised_waveforms = np.transpose(np.matmul(denoising_rot,sp))
     
     return denoised_waveforms
     
 
-def main_channel_scores(waveforms, rot, spike_index):
+def main_channel_scores(waveforms, rot, spike_index,CONFIG):
     """Returns PCA scores for the main channel only
     
     Parameters
@@ -150,15 +158,25 @@ def main_channel_scores(waveforms, rot, spike_index):
     spike_index: np.ndarray (number of spikes, 2)
         Spike indexes as returned from the threshold detector
     """
-    
-    spikes,_, n_channels = waveforms.shape
-    _,n_features = rot.shape
-    
-    score = np.zeros([spikes,n_features])
-    main_channel = spike_index[:,1]
-    
-    for i in range(spikes):
-        score[i,:] = np.squeeze(np.matmul(waveforms[i,:,main_channel[i]][np.newaxis],rot))
+    if CONFIG.spikes.detection == 'threshold':
+        spikes,_, n_channels = waveforms.shape
+        _,n_features,_ = rot.shape
+
+        score = np.zeros([spikes,n_features])
+        main_channel = spike_index[:,1]
+
+        for i in range(spikes):
+            score[i,:] = np.squeeze(np.matmul(waveforms[i,:,main_channel[i]][np.newaxis],rot[:,:,main_channel[i]]))
+        
+    else:
+        spikes,_, n_channels = waveforms.shape
+        _,n_features = rot.shape
+
+        score = np.zeros([spikes,n_features])
+        main_channel = spike_index[:,1]
+
+        for i in range(spikes):
+            score[i,:] = np.squeeze(np.matmul(waveforms[i,:,main_channel[i]][np.newaxis],rot))
     
 
     return score
