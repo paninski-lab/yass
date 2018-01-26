@@ -84,13 +84,13 @@ def run(score, spike_index_clear, spike_index_collision,
 
     # first column: spike_time
     # second column: cluster id
-    print(score.shape)
     spike_train_clear = np.zeros((0, 2), 'int32')
-    _b = datetime.datetime.now()
+    
     if CONFIG.clusterType == '2+3':
         spike_index_clear_proc = np.zeros((0,2),'int32')
         main_channel_index = spike_index_clear[:,MAIN_CHANNEL]
         for i,c in enumerate(np.unique(main_channel_index)):
+            logger.info('Processing channel {}'.format(i))
             idx = main_channel_index == c
             score_c = score[idx]
             spike_index_clear_c = spike_index_clear[idx]
@@ -100,12 +100,12 @@ def run(score, spike_index_clear, spike_index_collision,
 
             # TODO: refactor this as CONFIG.doTriage was removed
             doTriage = True
-
-            
+            _b = datetime.datetime.now()
+            logger.info('Triaging events with main channel {}'.format(c))
             index_keep = triage(score_c, 0,
                                 CONFIG.triage.nearest_neighbors,
                                 CONFIG.triage.percent, doTriage)
-#             Time['t'] += (datetime.datetime.now()-_b).total_seconds()
+            Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
             # add untriaged spike index to spike_index_clear_group
             # and triaged spike index to spike_index_collision
@@ -120,6 +120,8 @@ def run(score, spike_index_clear, spike_index_collision,
             score_c = score_c[index_keep]
             group = np.arange(score_c.shape[0])
             mask = np.ones([score_c.shape[0],1])
+            _b = datetime.datetime.now()
+            logger.info('Clustering events with main channel {}'.format(c))
             if i == 0:
                 global_vbParam, global_maskedData = spikesort(score_c,mask,group,CONFIG)
                 score_proc = score_c
@@ -140,7 +142,8 @@ def run(score, spike_index_clear, spike_index_collision,
                 global_maskedData.meanYSq = np.concatenate([global_maskedData.meanYSq,local_maskedData.meanYSq],axis = 0)
                 global_maskedData.meanEta = np.concatenate([global_maskedData.meanEta,local_maskedData.meanEta],axis = 0)
                 score_proc = np.concatenate([score_proc,score_c],axis = 0)
-
+        
+        logger.info('merging all channels')
         L = np.ones(global_vbParam.muhat.shape[1])
         global_vbParam.update_local(global_maskedData)
         suffStat = suffStatistics(global_maskedData,global_vbParam)
@@ -152,11 +155,12 @@ def run(score, spike_index_clear, spike_index_collision,
             
         idx_triage = cluster_triage(global_vbParam, score_proc, 3)
         assignment[idx_triage] = -1
+        Time['s'] += (datetime.datetime.now()-_b).total_seconds()
         
         ############
         # Cleaning #
         ############
-        print(spike_index_clear_proc[~idx_triage,0:1:].shape,assignment[~idx_triage,np.newaxis].shape)
+        
         spike_train_clear = np.concatenate([spike_index_clear_proc[~idx_triage,0:1:],assignment[~idx_triage,np.newaxis]],axis = 1)
         spike_index_collision = np.concatenate([spike_index_collision,spike_index_clear_proc[idx_triage]])
             
@@ -331,13 +335,17 @@ def run(score, spike_index_clear, spike_index_collision,
     Time['e'] += (datetime.datetime.now()-_b).total_seconds()
 
     currentTime = datetime.datetime.now()
-
-    logger.info("Mainprocess done in {0} seconds.".format(
-        (currentTime-startTime).seconds))
-    logger.info("\ttriage:\t{0} seconds".format(Time['t']))
-    logger.info("\tcoreset:\t{0} seconds".format(Time['c']))
-    logger.info("\tmasking:\t{0} seconds".format(Time['m']))
-    logger.info("\tclustering:\t{0} seconds".format(Time['s']))
-    logger.info("\ttemplates:\t{0} seconds".format(Time['e']))
+    if CONFIG.clusterType == '2+3':
+        logger.info("Mainprocess done in {0} seconds.".format(
+            (currentTime-startTime).seconds))
+        logger.info("\ttriage:\t{0} seconds".format(Time['t']))
+        logger.info("\tclustering:\t{0} seconds".format(Time['s']))
+        logger.info("\ttemplates:\t{0} seconds".format(Time['e']))
+    else:
+        logger.info("\ttriage:\t{0} seconds".format(Time['t']))
+        logger.info("\tcoreset:\t{0} seconds".format(Time['c']))
+        logger.info("\tmasking:\t{0} seconds".format(Time['m']))
+        logger.info("\tclustering:\t{0} seconds".format(Time['s']))
+        logger.info("\ttemplates:\t{0} seconds".format(Time['e']))
 
     return spike_train_clear, templates, spike_index_collision
