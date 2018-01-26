@@ -4,10 +4,12 @@ Recording standarization
 import numpy as np
 
 
-def standarize(rec, sampling_freq):
+def standarize(rec, sampling_freq=None, sd=None):
     """Standarize recordings
     """
-    sd = standard_deviation(rec, sampling_freq)
+    if sd is None:
+        sd = standard_deviation(rec, sampling_freq)
+
     return np.divide(rec, sd)
 
 

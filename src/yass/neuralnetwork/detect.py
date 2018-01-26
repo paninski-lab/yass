@@ -19,6 +19,20 @@ def nn_detection(X, neighbors, geom, temporal_features, temporal_window,
 
     Returns
     -------
+    clear_scores: numpy.ndarray (n_spikes, n_features, n_channels)
+        3D array with the scores for the clear spikes, first simension is
+        the number of spikes, second is the nymber of features and third the
+        number of channels
+
+    spike_index_clear: numpy.ndarray (n_clear_spikes, 2)
+        2D array with indexes for clear spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
+
+    spike_index_collision: numpy.ndarray (n_collided_spikes, 2)
+        2D array with indexes for collided spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
     """
     nnd = NeuralNetDetector(detector_filename, autoencoder_filename)
     nnt = NeuralNetTriage(triage_filename)
