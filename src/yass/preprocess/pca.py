@@ -132,7 +132,6 @@ def denoise(waveforms, rot):
     rot_ = np.transpose(rot)
     
     denoising_rot = np.matmul(rot,rot_)
-    print(waveforms.shape)
     sp = np.transpose(waveforms)
     
     denoised_waveforms = np.transpose(np.matmul(denoising_rot,sp))

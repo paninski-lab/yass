@@ -475,6 +475,14 @@ def _neural_network_detection(standarized_path, standarized_params, whitened_pat
             logger.info('Removing scores for indexes outside the allowed range to '
                         'draw a complete waveform...')
             scores = scores[idx]
+            
+            detector_filename = CONFIG.neural_network_detector.filename
+            autoencoder_filename = CONFIG.neural_network_autoencoder.filename
+            rotation = neuralnetwork.load_rotation(detector_filename,
+                                                    autoencoder_filename)
+            path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
+            np.save(path_to_rotation, rotation)
+            logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
         
         
         
