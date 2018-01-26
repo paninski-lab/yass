@@ -18,6 +18,7 @@ from . import whiten
 from . import detect
 from . import pca
 from .. import neuralnetwork
+import scipy.spatial as ss
 
 
 def run(output_directory='tmp/'):
@@ -155,7 +156,7 @@ def run(output_directory='tmp/'):
                                     output_directory)
     elif CONFIG.spikes.detection == 'nn':
         return _neural_network_detection(standarized_path, standarized_params,
-                                         n_observations, output_directory)
+                                         whitened_path, n_observations, output_directory)
 
 
 def _threshold_detection(standarized_path, standarized_params, whitened_path,
@@ -288,13 +289,49 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
     np.save(path_to_rotation, rotation)
     logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
 
-    ###########################################
-    # PCA - waveform dimensionality reduction #
-    ###########################################
+    if CONFIG.clusterType == '2+3':
+        #############
+        # Denoising #
+        #############
+        main_channel = spike_index_clear[:,1]
+        logger.info('Denoising...')
+        path_to_denoised_waveforms = os.path.join(TMP_FOLDER,'denoised_waveforms.npy')
+        if os.path.exists(path_to_denoised_waveforms):
+            logger.info('Found denoised waveforms in {}, loading them...'
+                        .format(path_to_denoised_waveforms))
+            denoised_waveforms = np.load(path_to_denoised_waveforms)
+        else:
+            logger.info('Did not find denoised waveforms in {}, evaluating them from {}'
+                        .format(path_to_denoised_waveforms, path_to_waveforms_clear))
+            waveforms_clear = np.load(path_to_waveforms_clear)
+            denoised_waveforms = pca.denoise(waveforms_clear,rotation,CONFIG)
+            logger.info('Saving denoised waveforms to {}'.format(path_to_denoised_waveforms))
+            np.save(path_to_denoised_waveforms,denoised_waveforms)
+        
+        isolated_index,x,y = get_isolated_spikes_and_locations(denoised_waveforms, main_channel, CONFIG)
+        x = (x - np.mean(x))/np.std(x)
+        y = (y - np.mean(y))/np.std(y)
+        corrupted_index = np.logical_not(np.in1d(np.arange(spike_index_clear.shape[0]),isolated_index))
+        spike_index_collision = np.concatenate([spike_index_collision, spike_index_clear[corrupted_index]],axis = 0)
+        spike_index_clear = spike_index_clear[isolated_index]
+        waveforms_clear = waveforms_clear[isolated_index]
+        
+        #################################################
+        # Dimensionality reduction (Isolated Waveforms) #
+        #################################################
+        
+        scores = pca.main_channel_scores(waveforms_clear,rotation, spike_index_clear,CONFIG)
+        scores = (scores - np.mean(scores,axis = 0))/np.std(scores)
+        scores = np.concatenate([x[:,np.newaxis,np.newaxis],y[:,np.newaxis,np.newaxis],scores[:,:,np.newaxis]],axis = 1)
+          
+    else:
+        ###########################################
+        # PCA - waveform dimensionality reduction #
+        ###########################################
 
-    logger.info('Reducing spikes dimensionality with PCA matrix...')
-    scores = pca.score(waveforms_clear, spike_index_clear, rotation,
-                       CONFIG.neighChannels, CONFIG.geom)
+        logger.info('Reducing spikes dimensionality with PCA matrix...')
+        scores = pca.score(waveforms_clear, spike_index_clear, rotation,
+                           CONFIG.neighChannels, CONFIG.geom)
 
     # save scores
     path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
@@ -304,7 +341,7 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
     return scores, spike_index_clear, spike_index_collision
 
 
-def _neural_network_detection(standarized_path, standarized_params,
+def _neural_network_detection(standarized_path, standarized_params, whitened_path,
                               n_observations, output_directory):
     """Run neural network detection and autoencoder dimensionality reduction
     """
@@ -383,22 +420,122 @@ def _neural_network_detection(standarized_path, standarized_params,
         np.save(path_to_spike_index_collision, collision)
         logger.info('Saved spike index collision in {}...'
                     .format(path_to_spike_index_collision))
+        if CONFIG.clusterType == '2+3':
+            #######################
+            # Waveform extraction #
+            #######################
 
+            # TODO: what should the behaviour be for spike indexes that are when
+            # starting/ending the recordings and it is not possible ti draw a complete
+            # waveform?
+
+            # load and dump waveforms from clear spikes
+
+            path_to_waveforms_clear = os.path.join(TMP_FOLDER, 'waveforms_clear.npy')
+
+            if os.path.exists(path_to_waveforms_clear):
+                logger.info('Found clear waveforms in {}, loading them...'
+                            .format(path_to_waveforms_clear))
+                waveforms_clear = np.load(path_to_waveforms_clear)
+            else:
+                logger.info('Did not find clear waveforms in {}, reading them from {}'
+                            .format(path_to_waveforms_clear, whitened_path))
+                explorer = RecordingExplorer(whitened_path,
+                                             spike_size=CONFIG.spikeSize)
+                waveforms_clear = explorer.read_waveforms(clear[:,0],'all')
+                np.save(path_to_waveforms_clear, waveforms_clear)
+                logger.info('Saved waveform from clear spikes in: {}'
+                            .format(path_to_waveforms_clear))
+
+            main_channel = clear[:,1]
+
+            # save rotation
+            detector_filename = CONFIG.neural_network_detector.filename
+            autoencoder_filename = CONFIG.neural_network_autoencoder.filename
+            rotation = neuralnetwork.load_rotation(detector_filename,
+                                                   autoencoder_filename)
+            path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
+            logger.info("rotation_matrix_shape = {}".format(rotation.shape))
+            np.save(path_to_rotation, rotation)
+            logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
+
+            logger.info('Denoising...')
+            path_to_denoised_waveforms = os.path.join(TMP_FOLDER,'denoised_waveforms.npy')
+            if os.path.exists(path_to_denoised_waveforms):
+                logger.info('Found denoised waveforms in {}, loading them...'
+                            .format(path_to_denoised_waveforms))
+                denoised_waveforms = np.load(path_to_denoised_waveforms)
+            else:
+                logger.info('Did not find denoised waveforms in {}, evaluating them from {}'
+                            .format(path_to_denoised_waveforms, path_to_waveforms_clear))
+                waveforms_clear = np.load(path_to_waveforms_clear)
+                denoised_waveforms = pca.denoise(waveforms_clear,rotation,CONFIG)
+                logger.info('Saving denoised waveforms to {}'.format(path_to_denoised_waveforms))
+                np.save(path_to_denoised_waveforms,denoised_waveforms)
+
+            isolated_index,x,y = get_isolated_spikes_and_locations(denoised_waveforms, main_channel, CONFIG)
+            x = (x - np.mean(x))/np.std(x)
+            y = (y - np.mean(y))/np.std(y)
+            corrupted_index = np.logical_not(np.in1d(np.arange(clear.shape[0]),isolated_index))
+            collision = np.concatenate([collision, clear[corrupted_index]],axis = 0)
+            clear = clear[isolated_index]
+            waveforms_clear = waveforms_clear[isolated_index]
+            
+            #################################################
+            # Dimensionality reduction (Isolated Waveforms) #
+            #################################################
+
+            scores = pca.main_channel_scores(waveforms_clear,rotation, clear,CONFIG)
+            scores = (scores - np.mean(scores,axis = 0))/np.std(scores)
+            scores = np.concatenate([x[:,np.newaxis,np.newaxis],y[:,np.newaxis,np.newaxis],scores[:,:,np.newaxis]],axis = 1)
+            
+        else:    
         # save scores
-        scores = np.concatenate([element[0] for element in res], axis=0)
-        logger.info('Removing scores for indexes outside the allowed range to '
-                    'draw a complete waveform...')
-        scores = scores[idx]
+            scores = np.concatenate([element[0] for element in res], axis=0)
+            logger.info('Removing scores for indexes outside the allowed range to '
+                        'draw a complete waveform...')
+            scores = scores[idx]
+            
+            detector_filename = CONFIG.neural_network_detector.filename
+            autoencoder_filename = CONFIG.neural_network_autoencoder.filename
+            rotation = neuralnetwork.load_rotation(detector_filename,
+                                                    autoencoder_filename)
+            path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
+            np.save(path_to_rotation, rotation)
+            logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
+        
+        
+        
         np.save(path_to_score, scores)
         logger.info('Saved spike scores in {}...'.format(path_to_score))
 
-        # save rotation
-        detector_filename = CONFIG.neural_network_detector.filename
-        autoencoder_filename = CONFIG.neural_network_autoencoder.filename
-        rotation = neuralnetwork.load_rotation(detector_filename,
-                                               autoencoder_filename)
-        path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
-        np.save(path_to_rotation, rotation)
-        logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
+        
 
     return scores, clear, collision
+
+def get_isolated_spikes_and_locations(denoised_waveforms,main_channel, CONFIG):
+    power_all_chan_denoised = np.linalg.norm(denoised_waveforms,axis = 1)
+    th = CONFIG.level2_triage_threshold
+    isolated_index = []
+    dist = ss.distance_matrix(CONFIG.geom,CONFIG.geom)
+    for i in range(denoised_waveforms.shape[0]-1):
+        if dist[main_channel[i],main_channel[i+1]] > th:
+            if i == 0:
+                isolated_index += [i]
+            elif dist[main_channel[i],main_channel[i-1]]>th:
+                isolated_index += [i]
+    isolated_index = np.asarray(isolated_index,dtype = np.int32)
+    
+    mask = np.ones([isolated_index.shape[0],49])
+    for i,j in enumerate(isolated_index):
+        nn = np.where(CONFIG.neighChannels[main_channel[j]])[0]
+        for k in range(49):
+            if mask[i,k] and k not in nn:
+                mask[i,k] = 0
+                
+    x = np.sum(mask*power_all_chan_denoised[isolated_index]*CONFIG.geom[:,0],axis = 1)/ np.sum(mask*power_all_chan_denoised[isolated_index],axis = 1)
+    y = np.sum(mask*power_all_chan_denoised[isolated_index]*CONFIG.geom[:,1],axis = 1)/ np.sum(mask*power_all_chan_denoised[isolated_index],axis = 1)
+
+    
+    
+    return isolated_index,x,y

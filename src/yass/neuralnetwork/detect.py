@@ -47,6 +47,7 @@ def nn_detection(X, neighbors, geom, temporal_features, temporal_window,
             c, np.where(neighbors[c])[0], geom)
         c_idx[c, :ch_idx.shape[0]] = ch_idx
 
+#     with tf.device("/device:GPU:0"):
     # input
     x_tf = tf.placeholder("float", [T, C])
 

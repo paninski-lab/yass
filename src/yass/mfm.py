@@ -669,7 +669,10 @@ def init_param(maskedData, K, param):
     N, nfeature, nchannel = maskedData.sumY.shape
     allocation = weightedKmeansplusplus(maskedData.meanY.reshape([N, nfeature * nchannel], order='F').T,
                                         maskedData.weight, K)
-    rhat = np.zeros([N, K])
+    if N < K:
+        rhat = np.zeros([N,N])
+    else:
+        rhat = np.zeros([N, K])
     rhat[np.arange(N), allocation] = 1
     vbParam = vbPar(rhat)
     suffStat = suffStatistics(maskedData, vbParam)
@@ -886,7 +889,7 @@ def check_merge(maskedData, vbParam, suffStat, ka, kb, param, L, ELBO):
 
 
 def spikesort(score, mask, group, param):
-    usedchan = np.asarray(np.where(np.sum(mask, axis=0) > 1)).ravel()
+    usedchan = np.asarray(np.where(np.sum(mask, axis=0) >= 1)).ravel()
     score = score[:, :, usedchan]
     mask = mask[:, usedchan]
     # FIXME: seems like this is never used
@@ -895,16 +898,19 @@ def spikesort(score, mask, group, param):
     maskedData = maskData(score, mask, group)
 
     vbParam = split_merge(maskedData, param)
-    assignmentTemp = np.argmax(vbParam.rhat, axis=1)
+    if param.clusterType == '2+3':
+        return vbParam, maskedData
+    else:
+        assignmentTemp = np.argmax(vbParam.rhat, axis=1)
 
-    assignment = np.zeros(score.shape[0], 'int16')
-    for j in range(score.shape[0]):
-        assignment[j] = assignmentTemp[group[j]]
+        assignment = np.zeros(score.shape[0], 'int16')
+        for j in range(score.shape[0]):
+            assignment[j] = assignmentTemp[group[j]]
 
-    idx_triage = cluster_triage(vbParam, score, 3)
-    assignment[idx_triage] = -1
+        idx_triage = cluster_triage(vbParam, score, 3)
+        assignment[idx_triage] = -1
 
-    return assignment
+        return assignment
 
 
 def split_merge(maskedData, param):
