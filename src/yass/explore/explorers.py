@@ -477,7 +477,6 @@ class RecordingExplorer(object):
         numpy.array
             An array containing the neighbors of the given channel
         """
-        print(np.where(self.neigh_matrix[channel])[0])
         return np.where(self.neigh_matrix[channel])[0]
 
     def read_waveform(self, time, channels='all'):

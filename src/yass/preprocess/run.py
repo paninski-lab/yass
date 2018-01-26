@@ -465,7 +465,6 @@ def _neural_network_detection(standarized_path, standarized_params, whitened_pat
                 np.save(path_to_denoised_waveforms,denoised_waveforms)
 
             isolated_index,x,y = get_isolated_spikes_and_locations(denoised_waveforms, main_channel, CONFIG)
-            print(isolated_index)
             x = (x - np.mean(x))/np.std(x)
             y = (y - np.mean(y))/np.std(y)
             corrupted_index = np.logical_not(np.in1d(np.arange(clear.shape[0]),isolated_index))
@@ -516,7 +515,7 @@ def get_isolated_spikes_and_locations(denoised_waveforms,main_channel, CONFIG):
                 isolated_index += [i]
             elif dist[main_channel[i],main_channel[i-1]]>th:
                 isolated_index += [i]
-    isolated_index = np.asarray(isolated_index,dtype = np.int16)
+    isolated_index = np.asarray(isolated_index,dtype = np.int32)
     
     mask = np.ones([isolated_index.shape[0],49])
     for i,j in enumerate(isolated_index):
