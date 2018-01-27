@@ -9,13 +9,19 @@ from ..geometry import order_channels_by_distance
 from . import NeuralNetDetector, NeuralNetTriage
 
 
-def nn_detection(X, neighbors, geom, temporal_features, temporal_window,
-                 th_detect, th_triage, detector_filename, autoencoder_filename,
-                 triage_filename):
+def nn_detection(recordings, neighbors, geom, temporal_features,
+                 temporal_window, th_detect, th_triage, detector_filename,
+                 autoencoder_filename, triage_filename):
     """Detect spikes using a neural network
 
     Parameters
     ----------
+    recordings: numpy.ndarray (n_observations, n_channels)
+        Neural recordings
+    neighbors: numpy.ndarray (n_channels, n_channels)
+        Channels neighbors matric
+    geom: numpy.ndarray (n_channels, 2)
+        Cartesian coordinates for the channels
 
     Returns
     -------
@@ -37,14 +43,15 @@ def nn_detection(X, neighbors, geom, temporal_features, temporal_window,
     nnd = NeuralNetDetector(detector_filename, autoencoder_filename)
     nnt = NeuralNetTriage(triage_filename)
 
-    T, C = X.shape
+    T, C = recordings.shape
 
     # neighboring channel info
     nneigh = np.max(np.sum(neighbors, 0))
     c_idx = np.ones((C, nneigh), 'int32')*C
+
     for c in range(C):
-        ch_idx, temp = order_channels_by_distance(
-            c, np.where(neighbors[c])[0], geom)
+        ch_idx, temp = order_channels_by_distance(c, np.where(neighbors[c])[0],
+                                                  geom)
         c_idx[c, :ch_idx.shape[0]] = ch_idx
 
     # input
@@ -91,7 +98,7 @@ def nn_detection(X, neighbors, geom, temporal_features, temporal_window,
         nnt.saver.restore(sess, nnt.path_to_triage_model)
 
         local_max_idx, score_train, energy_val, triage_prob = sess.run(
-            result, feed_dict={x_tf: X})
+            result, feed_dict={x_tf: recordings})
 
         energy_train = np.zeros((T, C))
         energy_train[local_max_idx[:, 0], local_max_idx[:, 1]] = energy_val

@@ -39,7 +39,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
         PARAMS = yaml.load(f)
 
     bp = BatchProcessor(PATH_TO_DATA, PARAMS['dtype'], PARAMS['n_channels'],
-                        PARAMS['data_format'], '100KB')
+                        PARAMS['data_format'], '100KB', buffer_size=40)
     mc = bp.multi_channel_apply
     res = mc(nn,
              mode='memory',
