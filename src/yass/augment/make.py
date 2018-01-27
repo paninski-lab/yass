@@ -26,13 +26,17 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     logger = logging.getLogger(__name__)
 
-    # process data (filter and standardize)
-    process_data(CONFIG)
-
     TMP_FOLDER = os.path.join(CONFIG.data.root_folder,  'tmp/')
 
     path_to_data = os.path.join(TMP_FOLDER, 'standarized.bin')
     path_to_config = os.path.join(TMP_FOLDER, 'standarized.yaml')
+
+    # make sure standarized data already exists
+    if not os.path.exists(path_to_data):
+        raise ValueError('Standarized data does not exist in: {}, this is '
+                         'needed to generate training data, run the '
+                         'preprocesor first to generate it'
+                         .format(path_to_data))
 
     dtype = load_yaml(path_to_config)['dtype']
 
