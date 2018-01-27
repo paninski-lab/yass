@@ -17,7 +17,7 @@ from ..geometry import order_channels_by_distance
 
 
 def run(score, spike_index_clear, spike_index_collision,
-        output_directory='tmp/', recordings_filename='standarized.bin'):
+        output_directory='tmp/', recordings_filename='whitened.bin'):
     """Process spikes
 
     Parameters
@@ -44,7 +44,7 @@ def run(score, spike_index_clear, spike_index_collision,
     recordings_filename: str, optional
         Recordings filename (relative to CONFIG.data.root_folder/
         output_directory) used to generate the templates, defaults to
-        standarized.bin
+        whitened.bin
 
     Returns
     -------
