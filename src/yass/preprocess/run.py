@@ -13,7 +13,7 @@ from ..batch import PipedTransformation as Transform
 from ..explore import RecordingExplorer
 
 from .filter import butterworth
-from .standarize import standarize
+from .standarize import standarize, standard_deviation
 from . import whiten
 from . import detect
 from . import pca
@@ -112,19 +112,25 @@ def run(output_directory='tmp/'):
 
         pipeline.add([filter_op])
 
+    (filtered_path,), (filtered_params,) = pipeline.run()
+
     # standarize
-    standarize_op = Transform(standarize, 'standarized.bin',
-                              mode='single_channel_one_batch',
-                              keep=True,
-                              if_file_exists='skip',
-                              cast_dtype=OUTPUT_DTYPE,
-                              sampling_freq=CONFIG.recordings.sampling_rate)
+    bp = BatchProcessor(filtered_path, filtered_params['dtype'],
+                        filtered_params['n_channels'],
+                        filtered_params['data_format'],
+                        CONFIG.resources.max_memory)
+    batches = bp.multi_channel()
+    first_batch, _, _ = next(batches)
+    sd = standard_deviation(first_batch, CONFIG.recordings.sampling_rate)
 
-    pipeline.add([standarize_op])
-
-    # run filtered and standarized transformations
-    ((filtered_path, standarized_path),
-     (filtered_params, standarized_params)) = pipeline.run()
+    (standarized_path,
+     standarized_params) = bp.multi_channel_apply(standarize,
+                                                  mode='disk',
+                                                  output_path=os.path.join(
+                                                      TMP, 'standarized.bin'),
+                                                  if_file_exists='skip',
+                                                  cast_dtype=OUTPUT_DTYPE,
+                                                  sd=sd)
 
     # whiten data
     # compute Q for whitening
