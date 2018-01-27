@@ -46,13 +46,16 @@ class BatchProcessor(object):
         self.data_format = data_format
         self.buffer_size = buffer_size
         self.reader = RecordingsReader(path_to_recordings, dtype, n_channels,
-                                       data_format)
+                                       data_format,
+                                       output_shape='long')
         self.indexer = IndexGenerator(self.reader.observations,
                                       self.reader.channels,
                                       dtype,
                                       max_memory)
+
+        # data format is long since reader will return data in that format
         self.buffer_generator = BufferGenerator(self.reader.observations,
-                                                self.data_format,
+                                                data_format='long',
                                                 buffer_size=buffer_size)
 
         self.logger = logging.getLogger(__name__)
@@ -92,8 +95,8 @@ class BatchProcessor(object):
         -------
         generator:
             A tuple of size three: the first element is the subset of the data
-            for the ith batch, second element is the slice object used to
-            obtain the data in [observations, channels] format (excluding
+            for the ith batch, second element is the slice object with the
+            limits of the data in [observations, channels] format (excluding
             the buffer), the last element is the absolute index of the data
             again in [observations, channels] format
 
@@ -114,8 +117,10 @@ class BatchProcessor(object):
                  (buff_start, buff_end)) = (self.buffer_generator
                                             .update_key_with_buffer(idx))
                 subset = self.reader[idx_new]
-                yield self.buffer_generator.add_buffer(subset, buff_start,
-                                                       buff_end), data_idx, idx
+                subset_buff = self.buffer_generator.add_buffer(subset,
+                                                               buff_start,
+                                                               buff_end)
+                yield subset_buff, data_idx, idx
             else:
                 yield self.reader[idx], data_idx, idx
 

@@ -45,6 +45,16 @@ def nn_detection(recordings, neighbors, geom, temporal_features,
 
     T, C = recordings.shape
 
+    a, b = neighbors.shape
+
+    if a != b:
+        raise ValueError('neighbors is not a square matrix, verify')
+
+    if a != C:
+        raise ValueError('Number of channels in recording are {} but the '
+                         'neighbors matrix has {} elements, they must match'
+                         .format(C, a))
+
     # neighboring channel info
     nneigh = np.max(np.sum(neighbors, 0))
     c_idx = np.ones((C, nneigh), 'int32')*C
