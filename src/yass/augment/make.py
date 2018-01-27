@@ -3,7 +3,6 @@ import numpy as np
 import logging
 
 
-from .process import process_data
 from .choose import choose_templates
 from .crop import crop_templates
 from .noise import noise_cov
