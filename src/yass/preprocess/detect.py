@@ -74,7 +74,7 @@ def threshold(rec, neighbors, spike_size, std_factor):
     return index[:count]
 
 
-def fix_indexes(spikes, idx_local, idx):
+def fix_indexes(spikes, idx_local, idx, buffer_size):
     """Fixes indexes from detected spikes in batches
 
     Parameters
@@ -85,6 +85,9 @@ def fix_indexes(spikes, idx_local, idx):
         A slice object indicating the indices for the data (excluding buffer)
     idx: slice
         A slice object indicating the absolute location of the data
+    buffer_size: int
+        Buffer size (unused, but required to be compatible with the batch
+        processor)
     """
     # remove spikes detected in the buffer area
     times = spikes[:, 0]

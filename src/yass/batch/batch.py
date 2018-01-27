@@ -427,7 +427,7 @@ class BatchProcessor(object):
                 res = function(subset, **kwargs).astype(cast_dtype)
 
             if cleanup_function:
-                res = cleanup_function(res, idx_local, idx)
+                res = cleanup_function(res, idx_local, idx, self.buffer_size)
 
             res.tofile(f)
 
@@ -491,7 +491,7 @@ class BatchProcessor(object):
                 res = function(subset, **kwargs).astype(cast_dtype)
 
             if cleanup_function:
-                res = cleanup_function(res, idx_local, idx)
+                res = cleanup_function(res, idx_local, idx, self.buffer_size)
 
             results.append(res)
 

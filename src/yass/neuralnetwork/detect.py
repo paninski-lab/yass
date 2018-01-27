@@ -128,7 +128,7 @@ def nn_detection(recordings, neighbors, geom, temporal_features,
     return score, spike_index_clear, spike_index_collision
 
 
-def fix_indexes(res, idx_local, idx):
+def fix_indexes(res, idx_local, idx, buffer_size):
     """Fixes indexes from detected spikes in batches
 
     Parameters
@@ -139,6 +139,8 @@ def fix_indexes(res, idx_local, idx):
         A slice object indicating the indices for the data (excluding buffer)
     idx: slice
         A slice object indicating the absolute location of the data
+    buffer_size: int
+        Buffer size
     """
 
     score, clear, collision = res
@@ -155,7 +157,8 @@ def fix_indexes(res, idx_local, idx):
     clear_not_in_buffer = clear[np.logical_and(clear_times >= data_start,
                                                clear_times <= data_end)]
     # offset spikes depending on the absolute location
-    clear_not_in_buffer[:, 0] = clear_not_in_buffer[:, 0] + offset
+    clear_not_in_buffer[:, 0] = (clear_not_in_buffer[:, 0] + offset
+                                 - buffer_size)
 
     # fix collided spikes
     col_times = collision[:, 0]
@@ -163,6 +166,6 @@ def fix_indexes(res, idx_local, idx):
     col_not_in_buffer = collision[np.logical_and(col_times >= data_start,
                                                  col_times <= data_end)]
     # offset spikes depending on the absolute location
-    col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset
+    col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset - buffer_size
 
     return score, clear_not_in_buffer, col_not_in_buffer
