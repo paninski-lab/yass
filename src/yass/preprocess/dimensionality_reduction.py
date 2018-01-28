@@ -1,6 +1,5 @@
 """
-PCA for multi-channel recordings, used for dimensionality reduction
-when using threshold detector
+Functions for dimensionality reduction
 """
 import logging
 

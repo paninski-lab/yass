@@ -16,7 +16,7 @@ from .filter import butterworth
 from .standarize import standarize, standard_deviation
 from . import whiten
 from . import detect
-from . import pca
+from . import dimensionality_reduction as dim_red
 from .. import neuralnetwork
 
 
@@ -275,7 +275,7 @@ def _threshold_detection(standarized_path, standarized_params,
 
     # compute per-batch sufficient statistics for PCA on standarized data
     logger.info('Computing PCA sufficient statistics...')
-    stats = bp.multi_channel_apply(pca.suff_stat,
+    stats = bp.multi_channel_apply(dim_red.suff_stat,
                                    mode='memory',
                                    spike_index=spike_index_clear,
                                    spike_size=CONFIG.spikeSize)
@@ -287,9 +287,9 @@ def _threshold_detection(standarized_path, standarized_params,
 
     # compute rotation matrix
     logger.info('Computing PCA projection matrix...')
-    rotation = pca.project(suff_stats, spikes_per_channel,
-                           CONFIG.spikes.temporal_features,
-                           CONFIG.neighChannels)
+    rotation = dim_red.project(suff_stats, spikes_per_channel,
+                               CONFIG.spikes.temporal_features,
+                               CONFIG.neighChannels)
     path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
     np.save(path_to_rotation, rotation)
     logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
@@ -299,8 +299,8 @@ def _threshold_detection(standarized_path, standarized_params,
     ###########################################
 
     logger.info('Reducing spikes dimensionality with PCA matrix...')
-    scores = pca.score(waveforms_clear, spike_index_clear, rotation,
-                       CONFIG.neighChannels, CONFIG.geom)
+    scores = dim_red.score(waveforms_clear, spike_index_clear, rotation,
+                           CONFIG.neighChannels, CONFIG.geom)
 
     # save scores
     path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
