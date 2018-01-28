@@ -64,6 +64,7 @@ def run(spike_train_clear, templates, spike_index_collision,
 
     idx_keep = np.zeros(spike_train.shape[0], 'bool')
 
+    # TODO: check if we can remove this
     for k in range(templates.shape[2]):
         idx_c = np.where(spike_train[:, 1] == k)[0]
         idx_keep[idx_c[np.concatenate(([True],
