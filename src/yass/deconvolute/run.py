@@ -58,10 +58,9 @@ def run(spike_train_clear, templates, spike_index_collision,
                            spike_index_collision, recordings)
     spike_train_deconv = deconv.fullMPMU()
 
+    # merge spikes in one array
     spike_train = np.concatenate((spike_train_deconv, spike_train_clear))
-
-    idx_sort = np.argsort(spike_train[:, 0])
-    spike_train = spike_train[idx_sort]
+    spike_train = spike_train[np.argsort(spike_train[:, 0])]
 
     idx_keep = np.zeros(spike_train.shape[0], 'bool')
 

@@ -98,13 +98,9 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
                                           output_directory=output_dir)
 
     # run deconvolution
-    spike_train_deconv = deconvolute.run(spike_train_clear, templates,
-                                         spike_index_collision,
-                                         output_directory=output_dir)
-
-    # merge spikes in one array
-    spike_train = np.concatenate((spike_train_deconv, spike_train_clear))
-    spike_train = spike_train[np.argsort(spike_train[:, 0])]
+    spike_train = deconvolute.run(spike_train_clear, templates,
+                                  spike_index_collision,
+                                  output_directory=output_dir)
 
     # save metadata in tmp
     path_to_metadata = path.join(TMP_FOLDER, 'metadata.yaml')
