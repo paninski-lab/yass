@@ -10,7 +10,7 @@ import numpy as np
 
 from ..util import load_asset, load_yaml
 from ..geometry import n_steps_neigh_channels
-from ..dimensionality_reduction import dimensionality_reduction as dim_red
+from ..preprocess import dimensionality_reduction as dim_red
 
 
 def params(path_to_config):
