@@ -299,7 +299,7 @@ def _threshold_detection(standarized_path, standarized_params,
     ###########################################
 
     logger.info('Reducing spikes dimensionality with PCA matrix...')
-    scores = dim_red.score(waveforms_clear, spike_index_clear, rotation,
+    scores = dim_red.score(waveforms_clear, rotation, spike_index_clear,
                            CONFIG.neighChannels, CONFIG.geom)
 
     # save scores
