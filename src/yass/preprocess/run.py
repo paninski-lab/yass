@@ -132,26 +132,6 @@ def run(output_directory='tmp/'):
                                                   cast_dtype=OUTPUT_DTYPE,
                                                   sd=sd)
 
-    # whiten data
-    # compute Q for whitening
-    bp = BatchProcessor(standarized_path, standarized_params['dtype'],
-                        standarized_params['n_channels'],
-                        standarized_params['data_format'],
-                        CONFIG.resources.max_memory)
-    batches = bp.multi_channel()
-    first_batch, _, _ = next(batches)
-    Q = whiten.matrix(first_batch, CONFIG.neighChannels, CONFIG.spikeSize)
-
-    # apply whitening to every batch
-    (whitened_path,
-     whitened_params) = bp.multi_channel_apply(np.matmul,
-                                               mode='disk',
-                                               output_path=os.path.join(
-                                                   TMP, 'whitened.bin'),
-                                               if_file_exists='skip',
-                                               cast_dtype=OUTPUT_DTYPE,
-                                               b=Q)
-
     standarized = RecordingsReader(standarized_path)
     n_observations = standarized.observations
 
@@ -170,7 +150,31 @@ def _threshold_detection(standarized_path, standarized_params,
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
+    OUTPUT_DTYPE = CONFIG.preprocess.dtype
     TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
+
+    ###############
+    # Whiten data #
+    ###############
+
+    # compute Q for whitening
+    bp = BatchProcessor(standarized_path, standarized_params['dtype'],
+                        standarized_params['n_channels'],
+                        standarized_params['data_format'],
+                        CONFIG.resources.max_memory)
+    batches = bp.multi_channel()
+    first_batch, _, _ = next(batches)
+    Q = whiten.matrix(first_batch, CONFIG.neighChannels, CONFIG.spikeSize)
+
+    # apply whitening to every batch
+    (whitened_path,
+     whitened_params) = bp.multi_channel_apply(np.matmul,
+                                               mode='disk',
+                                               output_path=os.path.join(
+                                                   TMP_FOLDER, 'whitened.bin'),
+                                               if_file_exists='skip',
+                                               cast_dtype=OUTPUT_DTYPE,
+                                               b=Q)
 
     ###################
     # Spike detection #
