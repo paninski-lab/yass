@@ -34,7 +34,7 @@ def run(spike_train_clear, templates, spike_index_collision,
 
     recordings_filename: str, optional
         Recordings filename (relative to CONFIG.data.root_folder/
-        output_directory) used to generate the templates, defaults to
+        output_directory) used to draw the waveforms from, defaults to
         standarized.bin
 
     Returns

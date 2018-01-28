@@ -158,6 +158,7 @@ def _threshold_detection(standarized_path, standarized_params,
     ###############
 
     # compute Q for whitening
+    logger.info('Computing whitening matrix...')
     bp = BatchProcessor(standarized_path, standarized_params['dtype'],
                         standarized_params['n_channels'],
                         standarized_params['data_format'],
@@ -395,9 +396,24 @@ def _neural_network_detection(standarized_path, standarized_params,
 
         # save scores
         scores = np.concatenate([element[0] for element in res], axis=0)
+
         logger.info('Removing scores for indexes outside the allowed range to '
                     'draw a complete waveform...')
         scores = scores[idx]
+
+        # compute Q for whitening
+        # logger.info('Computing whitening matrix...')
+        # bp = BatchProcessor(standarized_path, standarized_params['dtype'],
+        #                     standarized_params['n_channels'],
+        #                     standarized_params['data_format'],
+        #                     CONFIG.resources.max_memory)
+        # batches = bp.multi_channel()
+        # first_batch, _, _ = next(batches)
+        # Q = whiten.matrix_localized(first_batch, CONFIG.neighChannels,
+        #                             CONFIG.geom, CONFIG.spikeSize)
+
+        # scores = whiten.score(scores, clear[:, 1], Q)
+
         np.save(path_to_score, scores)
         logger.info('Saved spike scores in {}...'.format(path_to_score))
 
