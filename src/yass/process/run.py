@@ -17,7 +17,7 @@ from ..geometry import order_channels_by_distance
 
 
 def run(score, spike_index_clear, spike_index_collision,
-        output_directory='tmp/', recordings_filename='whitened.bin'):
+        output_directory='tmp/', recordings_filename='standarized.bin'):
     """Process spikes
 
     Parameters
