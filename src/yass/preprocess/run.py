@@ -157,14 +157,13 @@ def run(output_directory='tmp/'):
 
     if CONFIG.spikes.detection == 'threshold':
         return _threshold_detection(standarized_path, standarized_params,
-                                    whitened_path, n_observations,
-                                    output_directory)
+                                    n_observations, output_directory)
     elif CONFIG.spikes.detection == 'nn':
         return _neural_network_detection(standarized_path, standarized_params,
                                          n_observations, output_directory)
 
 
-def _threshold_detection(standarized_path, standarized_params, whitened_path,
+def _threshold_detection(standarized_path, standarized_params,
                          n_observations, output_directory):
     """Run threshold detector and dimensionality reduction using PCA
     """
@@ -261,8 +260,8 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
         waveforms_clear = np.load(path_to_waveforms_clear)
     else:
         logger.info('Did not find clear waveforms in {}, reading them from {}'
-                    .format(path_to_waveforms_clear, whitened_path))
-        explorer = RecordingExplorer(whitened_path,
+                    .format(path_to_waveforms_clear, standarized_path))
+        explorer = RecordingExplorer(standarized_path,
                                      spike_size=CONFIG.spikeSize)
         waveforms_clear = explorer.read_waveforms(spike_index_clear[:, 0])
         np.save(path_to_waveforms_clear, waveforms_clear)
