@@ -402,17 +402,17 @@ def _neural_network_detection(standarized_path, standarized_params,
         scores = scores[idx]
 
         # compute Q for whitening
-        # logger.info('Computing whitening matrix...')
-        # bp = BatchProcessor(standarized_path, standarized_params['dtype'],
-        #                     standarized_params['n_channels'],
-        #                     standarized_params['data_format'],
-        #                     CONFIG.resources.max_memory)
-        # batches = bp.multi_channel()
-        # first_batch, _, _ = next(batches)
-        # Q = whiten.matrix_localized(first_batch, CONFIG.neighChannels,
-        #                             CONFIG.geom, CONFIG.spikeSize)
+        logger.info('Computing whitening matrix...')
+        bp = BatchProcessor(standarized_path, standarized_params['dtype'],
+                            standarized_params['n_channels'],
+                            standarized_params['data_format'],
+                            CONFIG.resources.max_memory)
+        batches = bp.multi_channel()
+        first_batch, _, _ = next(batches)
+        Q = whiten.matrix_localized(first_batch, CONFIG.neighChannels,
+                                    CONFIG.geom, CONFIG.spikeSize)
 
-        # scores = whiten.score(scores, clear[:, 1], Q)
+        scores = whiten.score(scores, clear[:, 1], Q)
 
         np.save(path_to_score, scores)
         logger.info('Saved spike scores in {}...'.format(path_to_score))

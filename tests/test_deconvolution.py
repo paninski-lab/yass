@@ -24,7 +24,6 @@ def test_decovnolution(path_to_config):
     (spike_train_clear,
      templates,
      spike_index_collision) = process.run(clear_scores, spike_index_clear,
-                                          spike_index_collision,
-                                          'standarized.bin')
+                                          spike_index_collision)
     deconvolute.run(spike_train_clear, templates, spike_index_collision)
     clean_tmp()
