@@ -499,9 +499,17 @@ class RecordingExplorer(object):
         end = time + self.spike_size + 1
 
         if isinstance(channels, str) and channels == 'all':
-            return self.data[start:end, :].astype(self.waveform_dtype)
+            wf = self.data[start:end, :].astype(self.waveform_dtype)
         else:
-            return self.data[start:end, channels].astype(self.waveform_dtype)
+            wf = self.data[start:end, channels].astype(self.waveform_dtype)
+
+        if len(wf) != 2 * self.spike_size + 1:
+            raise ValueError('Cannot read waveform at time {}, there is not '
+                             'enough data to draw a complete waveform ({} '
+                             'observations are needed to the left and to the '
+                             'right)'.format(time, self.spike_size))
+
+        return wf
 
     def read_waveforms(self, times, channels='all', flatten=False):
         """Read multiple waveforms around certain times
