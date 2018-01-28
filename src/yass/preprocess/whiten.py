@@ -153,7 +153,7 @@ def matrix_localized(ts, neighbors, geom, spike_size):
         Q_small = np.matmul(np.matmul(V, Epsilon), V.transpose())
         Q[:nneigh_c][:, :nneigh_c, c] = Q_small
 
-    return Q.transpose()
+    return Q
 
 
 def score(score, channel_index, Q):
