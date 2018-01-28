@@ -48,17 +48,20 @@ def cli():
               help='Output directory (relative to CONFIG.data.root_folder '
               'to store the output data, defaults to tmp/',
               default='tmp/')
-def sort(config, logger_level, clean, output_dir):
+@click.option('-c', '--complete',
+              help='Generates extra files (needed to generate phy files)',
+              is_flag=True, default=False)
+def sort(config, logger_level, clean, output_dir, complete):
     """
     Sort recordings using a configuration file located in CONFIG
     """
     return _run_pipeline(config, output_file='spike_train.npy',
                          logger_level=logger_level, clean=clean,
-                         output_dir=output_dir)
+                         output_dir=output_dir, complete=complete)
 
 
 def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
-                  output_dir='tmp/'):
+                  output_dir='tmp/', complete=False):
     """
     Run the entire pipeline given a path to a config file
     and output path
@@ -68,6 +71,7 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
     CONFIG = read_config()
     ROOT_FOLDER = CONFIG.data.root_folder
     TMP_FOLDER = path.join(ROOT_FOLDER, output_dir)
+    STANDARIZED_PATH = path.join(TMP_FOLDER, 'standarized.bin')
 
     # remove tmp folder if needed
     if os.path.exists(TMP_FOLDER) and clean:
@@ -123,6 +127,39 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
     path_to_spike_train = path.join(TMP_FOLDER, output_file)
     np.save(path_to_spike_train, spike_train)
     logger.info('Spike train saved in: {}'.format(path_to_spike_train))
+
+    # this part loads waveforms for all spikes in the spike train and scores
+    # them, this data is needed to later generate phy files
+    if complete:
+        # load waveforms for all spikes in the spike train
+        logger.info('Loading waveforms from all spikes in the spike train...')
+        explorer = RecordingExplorer(STANDARIZED_PATH,
+                                     spike_size=CONFIG.spikeSize)
+        waveforms = explorer.read_waveforms(spike_train[:, 0])
+
+        path_to_waveforms = path.join(TMP_FOLDER, 'spike_train_waveforms.npy')
+        np.save(waveforms,  path_to_waveforms)
+        logger.info('Saved all waveforms from the spike train in {}...'
+                    .format(path_to_waveforms))
+
+        # score all waveforms
+        logger.info('Scoring waveforms from all spikes in the spike train...')
+        path_to_rotation = path.join(TMP_FOLDER, 'rotation.npy')
+        rotation = np.load(path_to_rotation)
+        waveforms_score = dim_red.score(waveforms, rotation)
+        path_to_waveforms_score = path.join(TMP_FOLDER, 'waveforms_score.npy')
+        np.save(waveforms_score,  path_to_waveforms_score)
+        logger.info('Saved all scores in {}...'.format(path_to_waveforms))
+
+        # score templates...
+        # TODO: dimesionality_reduction.score must accept an array with the
+        # max amplitude channel instead of spike_index, RecordingExplorer
+        # should have an option to compute the main channel given an array
+        # of waveforms, whith those two things it will be easier score the
+        # waveform and the templates.
+        # TODO: first add new tests to RecordingExplorer, we do not have many
+        # it may be a good idea to use the same function that reads waveforms
+        # to include an option to also return the main channel
 
 
 @cli.command()
@@ -266,20 +303,6 @@ def export(directory, output_dir):
     logger.info('Saved {}...'.format(path_to_template_feature_ind))
 
     # template_features.npy
-
-    # load waveforms for all spikes in the spike train
-    explorer = RecordingExplorer(STANDARIZED_PATH, spike_size=CONFIG.spikeSize)
-    waveforms = explorer.read_waveforms(spike_train[:, 0])
-    # path_to_waveforms = path.join(PHY_FOLDER, 'spike_train_waveforms.npy')
-    # np.save(waveforms,  path_to_waveforms)
-    # logger.info('Saved all waveforms in {}...'.format(path_to_channel_map))
-
-    # score all waveforms
-    path_to_rotation = path.join(TMP_FOLDER, 'rotation.npy')
-    rotation = np.load(path_to_rotation)
-    score = dim_red.score(waveforms, rotation)
-
-    # generate tempalte_features
     path_to_template_features = path.join(PHY_FOLDER, 'template_features.npy')
     template_features = generate.template_features(N_SPIKES, N_TEMPLATES,
                                                    N_CHANNELS, templates,
