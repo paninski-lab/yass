@@ -26,6 +26,8 @@ from .export import generate
 from .util import load_yaml, save_metadata, load_logging_config_file
 from .neuralnetwork import train_neural_networks
 from .config import Config
+from .explore import RecordingExplorer
+from .preprocess import dimesionality_reduction as dim_red
 
 
 @click.group()
@@ -172,6 +174,7 @@ def export(directory, output_dir):
     CONFIG = load_yaml(PATH_TO_CONFIG)
     ROOT_FOLDER = CONFIG['data']['root_folder']
     N_CHANNELS = CONFIG['recordings']['n_channels']
+    STANDARIZED_PATH = path.join(TMP_FOLDER, 'standarized.bin')
 
     # verify that the tmp/ folder exists, otherwise abort
     if not os.path.exists(TMP_FOLDER):
@@ -189,7 +192,7 @@ def export(directory, output_dir):
         logger.info('Creating directory: {}'.format(PHY_FOLDER))
         os.makedirs(PHY_FOLDER)
 
-    # convert data to wide format
+    # TODO: convert data to wide format
 
     # generate params.py
     params = generate.params(PATH_TO_CONFIG)
@@ -213,14 +216,6 @@ def export(directory, output_dir):
     path_to_channel_map = path.join(PHY_FOLDER, 'channel_map.npy')
     np.save(path_to_channel_map, channel_map)
     logger.info('Saved {}...'.format(path_to_channel_map))
-
-    # move tmp/score.npy to phy/pc_features.npy
-    # FIXME: should this be scores for clear, collision or both?
-    path_to_score = path.join(TMP_FOLDER, 'score.npy')
-    path_to_pc_features = path.join(PHY_FOLDER, 'pc_features.npy')
-    shutil.copy2(path_to_score, path_to_pc_features)
-    logger.info('Copied {} to {}...'.format(path_to_score,
-                                            path_to_pc_features))
 
     # load spike train
     path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
@@ -271,10 +266,21 @@ def export(directory, output_dir):
     logger.info('Saved {}...'.format(path_to_template_feature_ind))
 
     # template_features.npy
-    path_to_template_features = path.join(PHY_FOLDER, 'template_features.npy')
+
+    # load waveforms for all spikes in the spike train
+    explorer = RecordingExplorer(STANDARIZED_PATH, spike_size=CONFIG.spikeSize)
+    waveforms = explorer.read_waveforms(spike_train[:, 0])
+    # path_to_waveforms = path.join(PHY_FOLDER, 'spike_train_waveforms.npy')
+    # np.save(waveforms,  path_to_waveforms)
+    # logger.info('Saved all waveforms in {}...'.format(path_to_channel_map))
+
+    # score all waveforms
     path_to_rotation = path.join(TMP_FOLDER, 'rotation.npy')
-    score = np.load(path_to_score)
     rotation = np.load(path_to_rotation)
+    score = dim_red.score(waveforms, rotation)
+
+    # generate tempalte_features
+    path_to_template_features = path.join(PHY_FOLDER, 'template_features.npy')
     template_features = generate.template_features(N_SPIKES, N_TEMPLATES,
                                                    N_CHANNELS, templates,
                                                    rotation, score,
