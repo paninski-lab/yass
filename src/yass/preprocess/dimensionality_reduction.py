@@ -119,7 +119,8 @@ def project(ss, spikes_per_channel, n_features, neighbors):
 
 
 def score(waveforms, spike_index, rot, neighbors, geom):
-    """Reduce spikes dimensionality with a PCA rotation matrix
+    """
+    Reduce spikes dimensionality using a rotation matrix
 
     Parameters
     ----------
@@ -127,8 +128,10 @@ def score(waveforms, spike_index, rot, neighbors, geom):
         Waveforms to score
     spike_index: numpy.ndarray (n_spikes, 2)
         Spike indexes as returned from the threshold detector
-    rot: numpy.ndarray (temporal_window, n_features, n_channels)
-        PCA rotation matrix
+    rot: numpy.ndarray
+        Rotation matrix. Array with dimensions (temporal_window, n_features,
+        n_channels) for PCA matrix or (temporal_window, n_features) for
+        autoencoder matrix
     neighbors: numpy.ndarray (n_channels, n_channels)
         Neighbors matrix
     geom: numpy.ndarray (n_channels, 2)
