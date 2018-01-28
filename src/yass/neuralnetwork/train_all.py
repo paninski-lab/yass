@@ -4,6 +4,7 @@ import logging
 from yass.augment import (make_training_data, save_detect_network_params,
                           save_triage_network_params, save_ae_network_params)
 from yass.neuralnetwork import train_detector, train_ae, train_triage
+from yass.util import change_extension
 
 
 def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train):
@@ -45,8 +46,8 @@ def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train):
     save_detect_network_params(filters=n_filters_detect,
                                size=x_detect.shape[1],
                                n_neighbors=x_detect.shape[2],
-                               output_path=detectnet_name.replace('ckpt',
-                                                                  'yaml'))
+                               output_path=change_extension(detectnet_name,
+                                                            'yaml'))
 
     # train triage
     logger.info('Training triage network...')
@@ -58,8 +59,8 @@ def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train):
     save_triage_network_params(filters=n_filters_triage,
                                size=x_detect.shape[1],
                                n_neighbors=x_detect.shape[2],
-                               output_path=triagenet_name.replace('ckpt',
-                                                                  'yaml'))
+                               output_path=change_extension(triagenet_name,
+                                                            'yaml'))
 
     # train autoencoder
     logger.info('Training autoencoder network...')
@@ -69,4 +70,4 @@ def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train):
     logger.info('Saving autoencoder network parameters...')
     save_ae_network_params(n_input=x_ae.shape[1],
                            n_features=n_features,
-                           output_path=ae_name.replace('ckpt', 'yaml'))
+                           output_path=change_extension(ae_name, 'yaml'))

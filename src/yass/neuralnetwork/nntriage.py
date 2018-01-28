@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from .utils import weight_variable, bias_variable, conv2d, conv2d_VALID
-from ..util import load_yaml
+from ..util import load_yaml, change_extension
 
 
 class NeuralNetTriage(object):
@@ -49,7 +49,7 @@ class NeuralNetTriage(object):
 
         self.path_to_triage_model = path_to_triage_model
 
-        path_to_filters = path_to_triage_model.replace('ckpt', 'yaml')
+        path_to_filters = change_extension(path_to_triage_model, 'yaml')
         self.filters_dict = load_yaml(path_to_filters)
 
         R1 = self.filters_dict['size']

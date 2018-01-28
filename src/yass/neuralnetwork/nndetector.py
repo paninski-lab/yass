@@ -3,7 +3,7 @@ import tensorflow as tf
 
 from .utils import (weight_variable, bias_variable, conv2d, conv2d_VALID,
                     max_pool)
-from ..util import load_yaml
+from ..util import load_yaml, change_extension
 
 
 class NeuralNetDetector(object):
@@ -52,7 +52,7 @@ class NeuralNetDetector(object):
         self.path_to_detector_model = path_to_detector_model
         self.path_to_ae_model = path_to_ae_model
 
-        path_to_filters = path_to_detector_model.replace('ckpt', 'yaml')
+        path_to_filters = change_extension(path_to_detector_model, 'yaml')
         self.filters_dict = load_yaml(path_to_filters)
 
         R1 = self.filters_dict['size']
@@ -69,7 +69,7 @@ class NeuralNetDetector(object):
         self.b2 = bias_variable([1])
 
         # output of ae encoding (1st layer)
-        path_to_filters_ae = path_to_ae_model.replace('ckpt', 'yaml')
+        path_to_filters_ae = change_extension(path_to_ae_model, 'yaml')
         ae_dict = load_yaml(path_to_filters_ae)
         n_input = ae_dict['n_input']
         n_features = ae_dict['n_features']
