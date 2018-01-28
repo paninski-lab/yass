@@ -10,6 +10,7 @@ import numpy as np
 
 from ..util import load_asset, load_yaml
 from ..geometry import n_steps_neigh_channels
+from ..dimensionality_reduction import dimensionality_reduction as dim_red
 
 
 def params(path_to_config):
@@ -113,20 +114,19 @@ def template_features(n_spikes, n_templates, n_channels, templates, rotation,
     k_neigh = np.min((5, n_templates))
 
     template_features_ = np.zeros((n_spikes, k_neigh))
-    templates_low_dim = np.zeros((C, rotation.shape[1], K))
+    # templates_low_dim = np.zeros((C, rotation.shape[1], K))
 
     # for k in range(K):
     #     # FIXME: why R:(3*R+1)?
     #     low_dim = np.matmul(templates[:, R:(3*R+1), k], rotation)
     #     templates_low_dim[:, :, k] = low_dim
 
-    # (49, 31, 137)
-    # print(templates.shape)
-    # print(rotation.shape)
-
-    # TODO: is there any better way to do this? check pca.score
     rotation = np.transpose(rotation)
+
     templates_low_dim = np.matmul(rotation, templates)
+
+    # TODO: templates should be rertuned in (n_templates, ... shape)
+    templates_low_dim = dim_red.score(templates.T, rotation)
 
     # TODO: remove repeated code (check: pc_feature_ind)
 
@@ -157,7 +157,6 @@ def template_features(n_spikes, n_templates, n_channels, templates, rotation,
         kk = spike_train[j, 1]
 
         for k in range(k_neigh):
-            # score is returning 7 channels but ch_idx is returning 19?!
             template_features_[j] = np.sum(
                 np.multiply(score[j].T,
                             templates_low_dim[ch_idx]

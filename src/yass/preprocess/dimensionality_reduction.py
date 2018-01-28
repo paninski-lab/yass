@@ -3,12 +3,11 @@ Functions for dimensionality reduction
 """
 import logging
 
-
 import numpy as np
 
 from ..geometry import ordered_neighbors
 
-# TODO: improve documentation: look for (?)
+# TODO: improve documentation
 # TODO: remove batching logic and update preprocessor to run this channel
 # by channel instead of using multi-channel operations
 # TODO: can this be a single-channel operation? that way we can parallelize

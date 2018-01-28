@@ -155,7 +155,7 @@ def train(spike_train, config_train, config, logger_level):
 
 
 @cli.command()
-@click.argument('directory', type=click.Path(exists=True, dir_okay=False))
+@click.argument('directory', type=click.Path(exists=True, file_okay=False))
 @click.option('--output_dir', type=click.Path(file_okay=False),
               help=('Path to output directory, defaults to '
                     'directory/phy/'))
