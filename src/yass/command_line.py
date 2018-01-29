@@ -27,7 +27,7 @@ from .util import load_yaml, save_metadata, load_logging_config_file
 from .neuralnetwork import train_neural_networks
 from .config import Config
 from .explore import RecordingExplorer
-from .preprocess import dimesionality_reduction as dim_red
+from .preprocess import dimensionality_reduction as dim_red
 
 
 @click.group()
