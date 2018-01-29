@@ -101,7 +101,7 @@ def similar_templates(templates):
 
 
 def template_features(n_spikes, n_channels, n_templates, spike_train,
-                      main_channel_template, neigh_channels,
+                      templates_main_channel, neigh_channels,
                       geom, templates_low_dim, template_feature_ind_,
                       waveforms_score):
     """
@@ -116,7 +116,7 @@ def template_features(n_spikes, n_channels, n_templates, spike_train,
     spikes_mainc = np.zeros(n_spikes, 'int32')
 
     for j in range(n_spikes):
-        spikes_mainc[j] = main_channel_template[spike_train[j, 1]]
+        spikes_mainc[j] = templates_main_channel[spike_train[j, 1]]
 
     # number of neighbors to consider
     # NOTE: is the '2' ok to be hardcoded?

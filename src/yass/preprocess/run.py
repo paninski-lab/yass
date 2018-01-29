@@ -167,6 +167,11 @@ def _threshold_detection(standarized_path, standarized_params,
     first_batch, _, _ = next(batches)
     Q = whiten.matrix(first_batch, CONFIG.neighChannels, CONFIG.spikeSize)
 
+    path_to_whitening_matrix = os.path.join(TMP_FOLDER, 'whitening.npy')
+    np.save(path_to_whitening_matrix, Q)
+    logger.info('Saved whitening matrix in {}'
+                .format(path_to_whitening_matrix))
+
     # apply whitening to every batch
     (whitened_path,
      whitened_params) = bp.multi_channel_apply(np.matmul,
@@ -407,6 +412,11 @@ def _neural_network_detection(standarized_path, standarized_params,
         first_batch, _, _ = next(batches)
         Q = whiten.matrix_localized(first_batch, CONFIG.neighChannels,
                                     CONFIG.geom, CONFIG.spikeSize)
+
+        path_to_whitening_matrix = os.path.join(TMP_FOLDER, 'whitening.npy')
+        np.save(path_to_whitening_matrix, Q)
+        logger.info('Saved whitening matrix in {}'
+                    .format(path_to_whitening_matrix))
 
         scores = whiten.score(scores, clear[:, 1], Q)
 
