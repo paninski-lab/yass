@@ -143,7 +143,7 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
         waveforms = explorer.read_waveforms(spike_train[:, 0])
 
         path_to_waveforms = path.join(TMP_FOLDER, 'spike_train_waveforms.npy')
-        np.save(waveforms,  path_to_waveforms)
+        np.save(path_to_waveforms, waveforms)
         logger.info('Saved all waveforms from the spike train in {}...'
                     .format(path_to_waveforms))
 
@@ -157,7 +157,7 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
         waveforms_score = dim_red.score(waveforms, rotation, main_channels,
                                         CONFIG.neighChannels, CONFIG.geom)
         path_to_waveforms_score = path.join(TMP_FOLDER, 'waveforms_score.npy')
-        np.save(waveforms_score,  path_to_waveforms_score)
+        np.save(path_to_waveforms_score, waveforms_score)
         logger.info('Saved all scores in {}...'.format(path_to_waveforms))
 
         # score templates
@@ -168,7 +168,7 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
                                         main_channels_tmpls,
                                         CONFIG.neighChannels, CONFIG.geom)
         path_to_templates_score = path.join(TMP_FOLDER, 'templates_score.npy')
-        np.save(templates_score,  path_to_templates_score)
+        np.save(path_to_templates_score, templates_score)
         logger.info('Saved all templates scores in {}...'
                     .format(path_to_waveforms))
 
