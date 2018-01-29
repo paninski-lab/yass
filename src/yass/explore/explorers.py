@@ -619,6 +619,29 @@ class RecordingExplorer(object):
         return self.read_waveform(time,
                                   channels=self.neighbors_for_channel(channel))
 
+    def main_channel_for_waveforms(waveforms):
+        """Get the main channel (biggest amplitude) for the given waveforms
+
+        Parameters
+        ----------
+        waveforms: numpy.ndarray
+            An array of size (n_temporal_features, n_channels) if only one
+            waveform or one of size (n_waveforms, n_temporal_features,
+            n_channels) if more than one waveform
+
+        Returns
+        -------
+        int/numpy.ndarray
+            The main channel for every waveform, int if only one waveform or
+            a 1D array if more than one
+        """
+        if waveforms.ndim == 2:
+            return np.argmax(np.max(waveforms, axis=0), axis=0)
+        elif waveforms.ndum == 3:
+            return np.argmax(np.max(waveforms, axis=1), axis=1)
+        else:
+            raise ValueError('waveforms must be an 2D or 3D array')
+
     @requires(_matplotlib, _matplotlib_message)
     def plot_waveform(self, time, channels, ax=None, line_at_t=False,
                       overlay=False):
