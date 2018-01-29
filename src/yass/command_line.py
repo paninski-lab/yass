@@ -154,6 +154,12 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
 
         # TODO: should we use 2 steps neighbor channels here?
         main_channels = explorer.main_channel_for_waveforms(waveforms)
+        path_to_main_channels = path.join(TMP_FOLDER,
+                                          'waveforms_main_channel.npy')
+        np.save(path_to_main_channels, main_channels)
+        logger.info('Saved all waveforms main channels in {}...'
+                    .format(path_to_waveforms))
+
         waveforms_score = dim_red.score(waveforms, rotation, main_channels,
                                         CONFIG.neighChannels, CONFIG.geom)
         path_to_waveforms_score = path.join(TMP_FOLDER, 'waveforms_score.npy')
@@ -164,6 +170,12 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
         # TODO: templates should be returned in the right shape to avoid .T
         templates_ = templates.T
         main_channels_tmpls = explorer.main_channel_for_waveforms(templates_)
+        path_to_templates_main_c = path.join(TMP_FOLDER,
+                                             'templates_main_channel.npy')
+        np.save(path_to_templates_main_c, main_channels_tmpls)
+        logger.info('Saved all templates main channels in {}...'
+                    .format(path_to_templates_main_c))
+
         templates_score = dim_red.score(templates_, rotation,
                                         main_channels_tmpls,
                                         CONFIG.neighChannels, CONFIG.geom)
