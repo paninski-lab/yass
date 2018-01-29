@@ -223,8 +223,8 @@ def train(spike_train, config_train, config, logger_level):
                     'directory/phy/'))
 def export(directory, output_dir):
     """
-    Generates phy input files, 'yass sort' must be run first to generate
-    all the necessary files
+    Generates phy input files, 'yass sort' (with the `--complete` option)
+    must be run first to generate all the necessary files
     """
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
