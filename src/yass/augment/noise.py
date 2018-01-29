@@ -1,34 +1,42 @@
 import numpy as np
 
 from ..geometry import order_channels_by_distance
+from ..batch import RecordingReader
 
 
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
-def noise_cov(path, dtype, batch_size, n_channels, neighbors, geom,
+def noise_cov(path_to_data, dtype, n_channels, data_format, neighbors, geom,
               temporal_size):
     """[Description]
 
     Parameters
     ----------
+    path_to_data: str
+        Path to recordings data
+    dtype: str
+        dtype for recordings
+    n_channels: int
+        Number of channels in the recordings
+    data_format: str
+        Recordings shape ('wide', 'long')
+    neighbors: numpy.ndarray
+        Neighbors matrix
+    geom: numpy.ndarray
+        Cartesian coordinates for the channels
+    temporal_size:
+        Waveform size
 
     Returns
     -------
     """
-    wfile = open(path, 'rb')
-    dsize = np.dtype(dtype).itemsize
-    flattenedLength = dsize*batch_size*n_channels
-
-    wfile.seek(0)
-    rec = wfile.read(flattenedLength)
-    rec = np.fromstring(rec, dtype=dtype)
-    rec = np.reshape(rec, (-1, n_channels))
-
     c_ref = np.argmax(np.sum(neighbors, 0))
     ch_idx = np.where(neighbors[c_ref])[0]
     ch_idx, temp = order_channels_by_distance(c_ref, ch_idx, geom)
+
+    rec = RecordingReader(path_to_data, dtype=dtype, n_channels=n_channels,
+                          data_format=data_format)
     rec = rec[:, ch_idx]
-    wfile.close()
 
     T, C = rec.shape
     idxNoise = np.zeros((T, C))
