@@ -48,7 +48,7 @@ def cli():
               help='Output directory (relative to CONFIG.data.root_folder '
               'to store the output data, defaults to tmp/',
               default='tmp/')
-@click.option('-c', '--complete',
+@click.option('-cm', '--complete',
               help='Generates extra files (needed to generate phy files)',
               is_flag=True, default=False)
 def sort(config, logger_level, clean, output_dir, complete):
