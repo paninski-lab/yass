@@ -314,12 +314,13 @@ def export(directory, output_dir):
 
     # template_features.npy
     path_to_template_features = path.join(PHY_FOLDER, 'template_features.npy')
-    template_features = generate.template_features(N_SPIKES, N_TEMPLATES,
-                                                   N_CHANNELS, templates,
-                                                   rotation, score,
+    template_features = generate.template_features(N_SPIKES, N_CHANNELS,
+                                                   N_TEMPLATES, spike_train,
+                                                   templates_main_channel,
                                                    neigh_channels, geom,
-                                                   spike_train,
-                                                   template_feature_ind)
+                                                   templates_score,
+                                                   template_feature_ind,
+                                                   waveforms_score)
     np.save(path_to_template_features, template_features)
     logger.info('Saved {}...'.format(path_to_template_features))
 

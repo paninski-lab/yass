@@ -100,14 +100,19 @@ def similar_templates(templates):
     return np.corrcoef(np.reshape(templates, [-1, n_templates]).T)
 
 
-def template_features(n_spikes, n_channels, spike_train,
+def template_features(n_spikes, n_channels, n_templates, spike_train,
                       main_channel_template, neigh_channels,
-                      geom, templates_low_dim):
+                      geom, templates_low_dim, template_feature_ind_,
+                      waveforms_score):
     """
     template_features.npy - [nSpikes, nTempFeatures] single matrix giving the
     magnitude of the projection of each spike onto nTempFeatures other
     features. Which other features is specified in template_feature_ind.npy
     """
+    k_neigh = np.min((5, n_templates))
+
+    template_features_ = np.zeros((n_spikes, k_neigh))
+
     spikes_mainc = np.zeros(n_spikes, 'int32')
 
     for j in range(n_spikes):
@@ -132,7 +137,7 @@ def template_features(n_spikes, n_channels, spike_train,
 
         for k in range(k_neigh):
             template_features_[j] = np.sum(
-                np.multiply(score[j].T,
+                np.multiply(waveforms_score[j].T,
                             templates_low_dim[ch_idx]
                             [:, :, template_feature_ind_[kk, k]]))
 
