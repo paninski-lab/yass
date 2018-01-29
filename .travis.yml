@@ -1,5 +1,4 @@
 # new travis images are giving trouble...
-dist: trusty
 group: deprecated-2017Q4
 
 language: python
