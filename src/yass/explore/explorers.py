@@ -637,7 +637,7 @@ class RecordingExplorer(object):
         """
         if waveforms.ndim == 2:
             return np.argmax(np.max(waveforms, axis=0), axis=0)
-        elif waveforms.ndum == 3:
+        elif waveforms.ndim == 3:
             return np.argmax(np.max(waveforms, axis=1), axis=1)
         else:
             raise ValueError('waveforms must be an 2D or 3D array')
