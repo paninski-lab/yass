@@ -355,12 +355,16 @@ def export(directory, output_dir):
 
     # whitening_mat.npy and whitening_mat_inv.npy
     logging.info('Generating whitening_mat.npy and whitening_mat_inv.npy...')
-    whitening_mat, whitening_mat_inv = generate.whitening_matrices(N_CHANNELS)
+    path_to_whitening = path.join(TMP_FOLDER, 'whitening.npy')
     path_to_whitening_mat = path.join(PHY_FOLDER, 'whitening_mat.npy')
+    shutil.copy2(path_to_whitening, )
+    logging.info('Saving copy of whitening: {} in {}'
+                 .format(path_to_whitening, path_to_whitening_mat))
+
     path_to_whitening_mat_inv = path.join(PHY_FOLDER, 'whitening_mat_inv.npy')
-    np.save(path_to_whitening_mat, whitening_mat)
-    np.save(path_to_whitening_mat_inv, whitening_mat_inv)
-    logger.info('Saved {}...'.format(path_to_whitening_mat))
-    logger.info('Saved {}...'.format(path_to_whitening_mat_inv))
+    whitening = np.load(path_to_whitening)
+    np.save(path_to_whitening_mat_inv, np.linalg.inv(whitening))
+    logger.info('Saving inverse of whitening matrix in {}...'
+                .format(path_to_whitening_mat_inv))
 
     logging.info('Done.')

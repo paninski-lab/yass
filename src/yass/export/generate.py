@@ -10,7 +10,6 @@ import numpy as np
 
 from ..util import load_asset, load_yaml
 from ..geometry import n_steps_neigh_channels
-from ..preprocess import dimensionality_reduction as dim_red
 
 
 def params(path_to_config):
@@ -172,15 +171,3 @@ def templates_ind(n_templates, n_channels):
         templates_ind[k] = np.arange(n_channels)
 
     return templates_ind
-
-
-def whitening_matrices(n_channels):
-    """
-    whitening_mat.npy - [nChannels, nChannels] double whitening matrix applied
-    to the data during automatic spike sorting
-
-    whitening_mat_inv.npy - [nChannels, nChannels] double, the inverse of the
-    whitening matrix.
-    """
-    # TODO: return whitening matrix and the inverse
-    return np.eye(n_channels), np.eye(n_channels)
