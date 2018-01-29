@@ -71,8 +71,6 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
     CONFIG = read_config()
     ROOT_FOLDER = CONFIG.data.root_folder
     TMP_FOLDER = path.join(ROOT_FOLDER, output_dir)
-    STANDARIZED_PATH = path.join(TMP_FOLDER, 'standarized.bin')
-    PARAMS = load_yaml(path.join(TMP_FOLDER, 'standarized.yaml'))
 
     # remove tmp folder if needed
     if os.path.exists(TMP_FOLDER) and clean:
@@ -132,6 +130,9 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
     # this part loads waveforms for all spikes in the spike train and scores
     # them, this data is needed to later generate phy files
     if complete:
+        STANDARIZED_PATH = path.join(TMP_FOLDER, 'standarized.bin')
+        PARAMS = load_yaml(path.join(TMP_FOLDER, 'standarized.yaml'))
+
         # load waveforms for all spikes in the spike train
         logger.info('Loading waveforms from all spikes in the spike train...')
         explorer = RecordingExplorer(STANDARIZED_PATH,
