@@ -72,6 +72,7 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
     ROOT_FOLDER = CONFIG.data.root_folder
     TMP_FOLDER = path.join(ROOT_FOLDER, output_dir)
     STANDARIZED_PATH = path.join(TMP_FOLDER, 'standarized.bin')
+    PARAMS = load_yaml(path.join(TMP_FOLDER, 'standarized.yaml'))
 
     # remove tmp folder if needed
     if os.path.exists(TMP_FOLDER) and clean:
@@ -134,7 +135,10 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
         # load waveforms for all spikes in the spike train
         logger.info('Loading waveforms from all spikes in the spike train...')
         explorer = RecordingExplorer(STANDARIZED_PATH,
-                                     spike_size=CONFIG.spikeSize)
+                                     spike_size=CONFIG.spikeSize,
+                                     dtype=PARAMS['dtype'],
+                                     n_channels=PARAMS['n_channels'],
+                                     data_format=PARAMS['data_format'])
         waveforms = explorer.read_waveforms(spike_train[:, 0])
 
         path_to_waveforms = path.join(TMP_FOLDER, 'spike_train_waveforms.npy')
@@ -146,20 +150,26 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
         logger.info('Scoring waveforms from all spikes in the spike train...')
         path_to_rotation = path.join(TMP_FOLDER, 'rotation.npy')
         rotation = np.load(path_to_rotation)
-        waveforms_score = dim_red.score(waveforms, rotation)
+
+        # TODO: should we use 2 steps neighbor channels here?
+        main_channels = explorer.main_channel_for_waveforms(waveforms)
+        waveforms_score = dim_red.score(waveforms, rotation, main_channels,
+                                        CONFIG.neighChannels, CONFIG.geom)
         path_to_waveforms_score = path.join(TMP_FOLDER, 'waveforms_score.npy')
         np.save(waveforms_score,  path_to_waveforms_score)
         logger.info('Saved all scores in {}...'.format(path_to_waveforms))
 
-        # score templates...
-        # TODO: dimesionality_reduction.score must accept an array with the
-        # max amplitude channel instead of spike_index, RecordingExplorer
-        # should have an option to compute the main channel given an array
-        # of waveforms, whith those two things it will be easier score the
-        # waveform and the templates.
-        # TODO: first add new tests to RecordingExplorer, we do not have many
-        # it may be a good idea to use the same function that reads waveforms
-        # to include an option to also return the main channel
+        # score templates
+        # TODO: templates should be returned in the right shape to avoid .T
+        templates_ = templates.T
+        main_channels_tmpls = explorer.main_channel_for_waveforms(templates_)
+        templates_score = dim_red.score(templates_, rotation,
+                                        main_channels_tmpls,
+                                        CONFIG.neighChannels, CONFIG.geom)
+        path_to_templates_score = path.join(TMP_FOLDER, 'templates_score.npy')
+        np.save(templates_score,  path_to_templates_score)
+        logger.info('Saved all templates scores in {}...'
+                    .format(path_to_waveforms))
 
 
 @cli.command()
@@ -211,7 +221,6 @@ def export(directory, output_dir):
     CONFIG = load_yaml(PATH_TO_CONFIG)
     ROOT_FOLDER = CONFIG['data']['root_folder']
     N_CHANNELS = CONFIG['recordings']['n_channels']
-    STANDARIZED_PATH = path.join(TMP_FOLDER, 'standarized.bin')
 
     # verify that the tmp/ folder exists, otherwise abort
     if not os.path.exists(TMP_FOLDER):

@@ -117,7 +117,7 @@ def project(ss, spikes_per_channel, n_features, neighbors):
     return rot
 
 
-def score(waveforms, rot, spike_index=None, neighbors=None, geom=None):
+def score(waveforms, rot, main_channels=None, neighbors=None, geom=None):
     """
     Reduce waveform dimensionality using a rotation matrix. Optionally
     return scores only for neighboring channels instead of all channels
@@ -132,9 +132,8 @@ def score(waveforms, rot, spike_index=None, neighbors=None, geom=None):
         n_features, n_channels) for PCA matrix or (n_temporal_features,
         n_features) for autoencoder matrix
 
-    spike_index: numpy.ndarray (n_waveforms, 2), optional
-        Spike indexes, first column is the spike inde and second column is
-        the main channel for that spike
+    main_channels: numpy.ndarray (n_waveforms), optional
+        Main channel (biggest amplitude) for each waveform
 
     neighbors: numpy.ndarray (n_channels, n_channels), optional
         Neighbors matrix
@@ -147,10 +146,10 @@ def score(waveforms, rot, spike_index=None, neighbors=None, geom=None):
     (n_waveforms, n_reduced_features, n_channels/n_neighboring_channels)
         Scores for every waveform, second dimension in the array is reduced
         from n_temporal_features to n_reduced_features, third dimension
-        is n_channels if no information about the geometry is passed
-        (spike_index, neighbors, geom), otherwise this information is used
-        to only return the scores for the neighboring channels for the main
-        channel in each waveform so the last dimension is
+        is n_channels if no information about the main channel and geometry is
+        passed (main_channels, neighbors, geom), otherwise this information
+        is used to only return the scores for the neighboring channels for
+        the main channel in each waveform so the last dimension is
         n_neighboring_channels
     """
     if waveforms.ndim != 3:
@@ -189,17 +188,16 @@ def score(waveforms, rot, spike_index=None, neighbors=None, geom=None):
 
     # if passed information about neighbors, get scores only for them instead
     # of all channels
-    if spike_index is not None and neighbors is not None and geom is not None:
+    if (main_channels is not None and neighbors is not None and
+       geom is not None):
         # for every spike, get the score only for the neighboring channels
         ord_neighbors, channel_features = ordered_neighbors(geom, neighbors)
         score_neigh = np.zeros((n_waveforms, n_reduced_features,
                                channel_features))
 
         for i in range(n_waveforms):
-            # get main channel
-            main_channel = spike_index[i, 1]
             # get the ordered neighbors for the main channel
-            current_neigh = ord_neighbors[main_channel]
+            current_neigh = ord_neighbors[main_channels[i]]
             # assign the scores for those channels to the matrix
             score_neigh[i, :, :len(current_neigh)] = reduced[i][:,
                                                                 current_neigh]
