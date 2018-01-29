@@ -100,48 +100,22 @@ def similar_templates(templates):
     return np.corrcoef(np.reshape(templates, [-1, n_templates]).T)
 
 
-def template_features(n_spikes, n_templates, n_channels, templates, rotation,
-                      score, neigh_channels, geom, spike_train,
-                      template_feature_ind_):
+def template_features(n_spikes, n_channels, spike_train,
+                      main_channel_template, neigh_channels,
+                      geom, templates_low_dim):
     """
     template_features.npy - [nSpikes, nTempFeatures] single matrix giving the
     magnitude of the projection of each spike onto nTempFeatures other
     features. Which other features is specified in template_feature_ind.npy
     """
-    C, R2, K = templates.shape
-    # R = int((R2 - 1)/2)
-
-    k_neigh = np.min((5, n_templates))
-
-    template_features_ = np.zeros((n_spikes, k_neigh))
-    # templates_low_dim = np.zeros((C, rotation.shape[1], K))
-
-    # for k in range(K):
-    #     # FIXME: why R:(3*R+1)?
-    #     low_dim = np.matmul(templates[:, R:(3*R+1), k], rotation)
-    #     templates_low_dim[:, :, k] = low_dim
-
-    rotation = np.transpose(rotation)
-
-    templates_low_dim = np.matmul(rotation, templates)
-
-    # TODO: templates should be rertuned in (n_templates, ... shape)
-    templates_low_dim = dim_red.score(templates.T, rotation)
-
-    # TODO: remove repeated code (check: pc_feature_ind)
-
-    # get main channel for each template
-    templates_mainc = np.argmax(np.max(templates, axis=1), axis=0)
-
-    # main channel for each spike based on templates_mainc
     spikes_mainc = np.zeros(n_spikes, 'int32')
 
     for j in range(n_spikes):
-        spikes_mainc[j] = templates_mainc[spike_train[j, 1]]
+        spikes_mainc[j] = main_channel_template[spike_train[j, 1]]
 
     # number of neighbors to consider
     # NOTE: is the '2' ok to be hardcoded?
-    neighbors = n_steps_neigh_channels(neigh_channels, 2)
+    neighbors = n_steps_neigh_channels(neigh_channels, 1)
     nneigh = np.max(np.sum(neighbors, 0))
 
     # ordered neighboring channels w.r.t. each channel
@@ -203,5 +177,5 @@ def whitening_matrices(n_channels):
     whitening_mat_inv.npy - [nChannels, nChannels] double, the inverse of the
     whitening matrix.
     """
-    # return whitening matrix and the inverse
+    # TODO: return whitening matrix and the inverse
     return np.eye(n_channels), np.eye(n_channels)
