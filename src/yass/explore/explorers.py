@@ -619,7 +619,7 @@ class RecordingExplorer(object):
         return self.read_waveform(time,
                                   channels=self.neighbors_for_channel(channel))
 
-    def main_channel_for_waveforms(waveforms):
+    def main_channel_for_waveforms(self, waveforms):
         """Get the main channel (biggest amplitude) for the given waveforms
 
         Parameters
