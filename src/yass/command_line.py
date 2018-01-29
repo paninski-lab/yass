@@ -325,6 +325,11 @@ def export(directory, output_dir):
     logger.info('Saved {}...'.format(path_to_template_feature_ind))
 
     # template_features.npy
+    templates_score = np.load(path.join(TMP_FOLDER, 'templates_score.npy'))
+    templates_main_channel = np.load(path.join(TMP_FOLDER,
+                                     'templates_main_channel.npy'))
+    waveforms_score = np.load(path.join(TMP_FOLDER, 'waveforms_score.npy'))
+
     path_to_template_features = path.join(PHY_FOLDER, 'template_features.npy')
     template_features = generate.template_features(N_SPIKES, N_CHANNELS,
                                                    N_TEMPLATES, spike_train,
