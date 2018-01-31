@@ -1,7 +1,7 @@
 Changelog
 =========
 
-0.5dev
+0.6dev
 ------
 * New stability metric
 * New batch module
@@ -13,6 +13,12 @@ Changelog
 * Rewritten CLI interface `yass` command is now `yass sort`
 * New CLI tool for training neural networks `yass train`
 * New CLI tool for exporting results to phy `yass export`
+
+
+0.5 (2018-01-31)
+-----------------
+* Improved logging
+* Last release with old codebase
 
 
 0.4 (2018-01-19)
