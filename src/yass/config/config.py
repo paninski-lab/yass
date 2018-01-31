@@ -106,7 +106,8 @@ class Config(FrozenJSON):
 
         # GEOMETRY PARAMETERS
         path_to_geom = path.join(self.data.root_folder, self.data.geometry)
-        self._set_param('geom', geom.parse(path_to_geom, self.recordings.n_channels))
+        self._set_param('geom', geom.parse(path_to_geom,
+                        self.recordings.n_channels))
 
         neighChannels = geom.find_channel_neighbors(self.geom,
                                                     self.recordings.spatial_radius)
@@ -122,32 +123,10 @@ class Config(FrozenJSON):
                            .format(self.geom, self.neighChannels,
                                    self.channelGroups))
 
-        # FIXME: REMOVE BATCH RELATED BELOW.
-        # THIS IS NOW DONE IN BATCH PROCESSOR
-
-        # BUFFER/SPIKE SIZE PARAMETERS
-        # compute spikeSize which is the number of observations for half
-        # the waveform
         self._set_param('spikeSize',
                         int(np.round(self.recordings.spike_size_ms*self.recordings.sampling_rate/(2*1000))))
         self._set_param('templatesMaxShift', int(self.recordings.sampling_rate/1000))
         self._set_param('stdFactor', 4)
-
-        file_size = path.getsize(path.join(self.data.root_folder, self.data.recordings))
-
-        self._set_param('size', int(file_size/(sizeof(self.recordings.dtype)*self.recordings.n_channels)))
-        self._set_param('dsize', sizeof(self.recordings.dtype))
-
-        batch_size = int(np.floor(self.resources.max_memory/(self.recordings.n_channels*self.dsize)))
-
-        if batch_size > self.size:
-            self._set_param('nBatches', 1)
-            self._set_param('batch_size', self.size)
-            self._set_param('batch_size', 0)
-        else:
-            nBatches = int(np.ceil(float(self.size)/batch_size))
-            self._set_param('nBatches', nBatches)
-            self._set_param('batch_size', batch_size)
 
     def __setattr__(self, name, value):
         if not name.startswith('_'):
