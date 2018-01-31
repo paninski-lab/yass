@@ -1,8 +1,8 @@
 Changelog
 =========
 
-0.5dev
-------
+0.5 (2018-01-31)
+-----------------
 * Improved logging
 * Last release with old codebase
 
