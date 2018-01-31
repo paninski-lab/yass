@@ -1,4 +1,5 @@
 import os.path
+import logging
 
 import numpy as np
 
@@ -48,6 +49,8 @@ def run(spike_train_clear, templates, spike_index_collision,
 
     .. literalinclude:: ../examples/deconvolute.py
     """
+    logger = logging.getLogger(__name__)
+
     CONFIG = read_config()
 
     recordings = RecordingsReader(os.path.join(CONFIG.data.root_folder,
@@ -58,9 +61,15 @@ def run(spike_train_clear, templates, spike_index_collision,
                            spike_index_collision, recordings)
     spike_train_deconv = deconv.fullMPMU()
 
+    logger.debug('spike_train_deconv.shape: {}'
+                 .format(spike_train_deconv.shape))
+
     # merge spikes in one array
     spike_train = np.concatenate((spike_train_deconv, spike_train_clear))
     spike_train = spike_train[np.argsort(spike_train[:, 0])]
+
+    logger.debug('spike_train.shape: {}'
+                 .format(spike_train.shape))
 
     idx_keep = np.zeros(spike_train.shape[0], 'bool')
 
@@ -70,6 +79,9 @@ def run(spike_train_clear, templates, spike_index_collision,
         idx_keep[idx_c[np.concatenate(([True],
                                        np.diff(spike_train[idx_c, 0])
                                        > 1))]] = 1
+
+    logger.debug('deduplicated spike_train_deconv.shape: {}'
+                 .format(spike_train.shape))
 
     spike_train = spike_train[idx_keep]
 
