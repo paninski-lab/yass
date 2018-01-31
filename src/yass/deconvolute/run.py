@@ -30,6 +30,9 @@ def run(spike_train_clear, templates, spike_index_collision):
                            spike_index_collision, filename='whiten.bin')
     spike_train_deconv = deconv.fullMPMU()
 
+    logger.debug('spike_train_deconv.shape: {}'
+                 .format(spike_train_deconv.shape))
+
     spike_train = np.concatenate((spike_train_deconv, spike_train_clear))
 
     idx_sort = np.argsort(spike_train[:, 0])
@@ -42,5 +45,7 @@ def run(spike_train_clear, templates, spike_index_collision):
         idx_keep[idx_c[np.concatenate(([True], np.diff(spike_train[idx_c,0]) > 1))]] = 1
 
     spike_train = spike_train[idx_keep]
+
+    logger.debug('spike_train.shape: {}'.format(spike_train.shape))
 
     return spike_train
