@@ -62,7 +62,6 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                                CONFIG.neighChannels, CONFIG.geom)
 
     # determine noise covariance structure
-    # FIXME: remove batch_size
     spatial_SIG, temporal_SIG = noise_cov(path_to_data,
                                           PARAMS['dtype'],
                                           CONFIG.recordings.n_channels,
