@@ -11,7 +11,6 @@ import os.path as path
 import logging
 import logging.config
 import shutil
-from functools import partial
 
 import click
 import numpy as np
@@ -186,7 +185,7 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
 
 
 @cli.command()
-@click.argument('directory', type=click.Path(exists=True, dir_okay=False))
+@click.argument('directory', type=click.Path(exists=True, file_okay=False))
 @click.argument('config_train', type=click.Path(exists=True, dir_okay=False))
 @click.option('-l', '--logger_level',
               help='Python logger level, defaults to INFO',
