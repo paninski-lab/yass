@@ -38,12 +38,12 @@ class Deconvolution(object):
 
         neighchan = n_steps_neigh_channels(self.config.neighChannels, steps = 3)
         shift = 3  # int(R/2)
-        R2, C, K = self.templates.shape
+        C, R2, K = self.templates.shape
         R = int((R2-1)/2)
         nrank = self.config.deconvolution.rank
         lam = self.config.deconvolution.lam
         Th = self.config.deconvolution.threshold
-        iter_max = 1
+        iter_max = 3
 
         amps = np.max(np.abs(self.templates), axis=0)
         amps_max = np.max(amps, axis=0)
