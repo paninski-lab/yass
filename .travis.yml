@@ -1,7 +1,7 @@
 language: python
 python:
   - 2.7
-  - 3.6
+  - 3.5
 sudo: required
 install:
   - sudo apt-get install gfortran python-liblas libblas-dev liblapack-dev libatlas-dev
@@ -9,5 +9,5 @@ install:
   - pip install -r requirements.txt
 script:
   - pip install .
-  - pytest
+  - pytest --flake8
 after_success: coveralls
