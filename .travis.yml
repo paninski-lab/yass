@@ -9,5 +9,5 @@ install:
   - pip install -r requirements.txt
 script:
   - pip install .
-  - pytest --flake8
+  - pytest
 after_success: coveralls
