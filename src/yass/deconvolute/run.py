@@ -57,6 +57,10 @@ def run(spike_train_clear, templates, spike_index_collision,
                                                output_directory,
                                                recordings_filename))
 
+    logging.debug('Starting deconvolution. templates.shape: {}, '
+                  'spike_index_collision.shape: {}'
+                  .format(templates.shape, spike_index_collision.shape))
+
     deconv = Deconvolution(CONFIG, np.transpose(templates, [1, 0, 2]),
                            spike_index_collision, recordings)
     spike_train_deconv = deconv.fullMPMU()
