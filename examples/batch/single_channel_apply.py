@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from yass.batch import BatchProcessor
 from yass.batch import RecordingsReader
-from yass.preprocess.filter import butterworth_single_channel
+from yass.preprocess.filter import butterworth
 
 
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +27,7 @@ bp = BatchProcessor(path_to_neuropixel_data,
 
 # appply a single channel transformation, each batch will be all observations
 # from one channel
-bp.single_channel_apply(butterworth_single_channel, path_to_filtered_data,
+bp.single_channel_apply(butterworth, path_to_filtered_data,
                         low_freq=300, high_factor=0.1,
                         order=3, sampling_freq=30000)
 

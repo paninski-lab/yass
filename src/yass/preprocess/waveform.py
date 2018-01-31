@@ -6,6 +6,7 @@ from ..geometry import order_channels_by_distance
 logger = logging.getLogger(__name__)
 
 
+# TODO: remove, not used anymore
 def get_waveforms(recording, spike_index, proj, neighbors, geom, nnt, th):
     """Extract waveforms from detected spikes
 

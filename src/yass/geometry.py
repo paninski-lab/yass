@@ -68,7 +68,7 @@ def parse(path, n_channels):
 
 
 def find_channel_neighbors(geom, radius):
-    """Compute a channel neighrborhood matrix
+    """Compute a channel neighbors matrix
 
     Parameters
     ----------
@@ -87,7 +87,7 @@ def find_channel_neighbors(geom, radius):
 
 
 def n_steps_neigh_channels(neighbors, steps):
-    """Compute a neighrborhood matrix by considering neighbors of neighbors
+    """Compute a neighbors matrix by considering neighbors of neighbors
 
     Parameters
     ----------

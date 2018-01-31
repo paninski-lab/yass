@@ -10,7 +10,7 @@ import inspect
 import warnings
 import collections
 from copy import copy
-from functools import wraps
+from functools import wraps, reduce
 
 import numpy as np
 from dateutil.relativedelta import relativedelta
@@ -264,3 +264,30 @@ def save_metadata(path):
 
     with open(path, 'w') as f:
         yaml.dump(metadata, f)
+
+
+def change_extension(path, new_extension):
+    elements = path.split('.')
+    elements[-1] = new_extension
+    return reduce(lambda x, y: x+'.'+y, elements)
+
+
+def requires(condition, message):
+    """
+    Utilify function to raise exception when an optional requirement is
+    not installed
+    """
+
+    def _requires(func):
+
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+
+            if not condition:
+                raise ImportError(message)
+
+            return func(self, *args, **kwargs)
+
+        return wrapper
+
+    return _requires

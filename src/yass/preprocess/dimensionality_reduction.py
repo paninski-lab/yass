@@ -1,15 +1,13 @@
 """
-PCA for multi-channel recordings, used for dimensionality reduction
-when using threshold detector
+Functions for dimensionality reduction
 """
 import logging
-
 
 import numpy as np
 
 from ..geometry import ordered_neighbors
 
-# TODO: improve documentation: look for (?)
+# TODO: improve documentation
 # TODO: remove batching logic and update preprocessor to run this channel
 # by channel instead of using multi-channel operations
 # TODO: can this be a single-channel operation? that way we can parallelize
@@ -119,54 +117,92 @@ def project(ss, spikes_per_channel, n_features, neighbors):
     return rot
 
 
-def score(waveforms, spike_index, rot, neighbors, geom):
-    """Reduce spikes dimensionality with a PCA rotation matrix
+def score(waveforms, rot, main_channels=None, neighbors=None, geom=None):
+    """
+    Reduce waveform dimensionality using a rotation matrix. Optionally
+    return scores only for neighboring channels instead of all channels
 
     Parameters
     ----------
-    waveforms: numpy.ndarray (n_spikes, temporal_window, n_channels)
+    waveforms: numpy.ndarray (n_waveforms, n_temporal_features, n_channels)
         Waveforms to score
-    spike_index: numpy.ndarray (n_spikes, 2)
-        Spike indexes as returned from the threshold detector
-    rot: numpy.ndarray (temporal_window, n_features, n_channels)
-        PCA rotation matrix
-    neighbors: numpy.ndarray (n_channels, n_channels)
+
+    rot: numpy.ndarray
+        Rotation matrix. Array with dimensions (n_temporal_features,
+        n_features, n_channels) for PCA matrix or (n_temporal_features,
+        n_features) for autoencoder matrix
+
+    main_channels: numpy.ndarray (n_waveforms), optional
+        Main channel (biggest amplitude) for each waveform
+
+    neighbors: numpy.ndarray (n_channels, n_channels), optional
         Neighbors matrix
-    geom: numpy.ndarray (n_channels, 2)
+
+    geom: numpy.ndarray (n_channels, 2), optional
         Channels location matrix
 
     Returns
     -------
-    [n_spikes, n_features_per_channel, n_neighboring_channels]
-        Scores for evert spike
+    (n_waveforms, n_reduced_features, n_channels/n_neighboring_channels)
+        Scores for every waveform, second dimension in the array is reduced
+        from n_temporal_features to n_reduced_features, third dimension
+        is n_channels if no information about the main channel and geometry is
+        passed (main_channels, neighbors, geom), otherwise this information
+        is used to only return the scores for the neighboring channels for
+        the main channel in each waveform so the last dimension is
+        n_neighboring_channels
     """
-    # TODO: check dimensions
+    if waveforms.ndim != 3:
+        raise ValueError('waveforms must have dimension 3 (has {})'
+                         .format(waveforms.ndim))
 
-    # TODO: this should be done by the project function
-    rot_ = np.transpose(rot)
-    sp = np.transpose(waveforms)
+    n_waveforms, n_temporal_features, n_channels = waveforms.shape
 
-    # compute scores for every spike
-    score = np.transpose(np.matmul(rot_, sp), (2, 1, 0))
+    if rot.ndim == 2:
+        # neural net case
+        n_temporal_features_, n_reduced_features = rot.shape
 
-    # for every spike, get the score only for the neighboring channels
-    ord_neighbors, channel_features = ordered_neighbors(geom, neighbors)
-    spikes, temporal_features, n_channels = score.shape
+        if n_temporal_features != n_temporal_features_:
+            raise ValueError('n_temporal_features does not match between '
+                             'waveforms ({}) and the rotation matrix ({})'
+                             .format(n_temporal_features,
+                                     n_temporal_features_))
 
-    score_neigh = np.zeros((spikes, temporal_features, channel_features))
+        reduced = np.matmul(rot.T, waveforms)
 
-    logger.info('Scoring {} spikes...'.format(spikes))
+    elif rot.ndim == 3:
+        # pca case
+        n_temporal_features_, n_reduced_features, n_channels = rot.shape
 
-    # for every spike...
-    for i in range(spikes):
+        if n_temporal_features != n_temporal_features_:
+            raise ValueError('n_temporal_features does not match between '
+                             'waveforms ({}) and the rotation matrix ({})'
+                             .format(n_temporal_features,
+                                     n_temporal_features_))
 
-        # get main channel
-        main_channel = spike_index[i, 1]
+        reduced = np.matmul(rot.T, waveforms.T).T
 
-        # get the ordered neighbors for the main channel
-        current_neigh = ord_neighbors[main_channel]
+    else:
+        raise ValueError('rot must have 2 or 3 dimensions (has {})'
+                         .format(rot.ndim))
 
-        # assign the scores for those channels to the matrix
-        score_neigh[i, :, :len(current_neigh)] = score[i][:, current_neigh]
+    # if passed information about neighbors, get scores only for them instead
+    # of all channels
+    if (main_channels is not None and neighbors is not None and
+       geom is not None):
+        # for every spike, get the score only for the neighboring channels
+        ord_neighbors, channel_features = ordered_neighbors(geom, neighbors)
+        score_neigh = np.zeros((n_waveforms, n_reduced_features,
+                               channel_features))
 
-    return score_neigh
+        for i in range(n_waveforms):
+            # get the ordered neighbors for the main channel
+            current_neigh = ord_neighbors[main_channels[i]]
+            # assign the scores for those channels to the matrix
+            score_neigh[i, :, :len(current_neigh)] = reduced[i][:,
+                                                                current_neigh]
+
+        return score_neigh
+
+    else:
+        return reduced

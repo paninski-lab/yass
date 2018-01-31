@@ -99,49 +99,27 @@ def similar_templates(templates):
     return np.corrcoef(np.reshape(templates, [-1, n_templates]).T)
 
 
-def template_features(n_spikes, n_templates, n_channels, templates, rotation,
-                      score, neigh_channels, geom, spike_train,
-                      template_feature_ind_):
+def template_features(n_spikes, n_channels, n_templates, spike_train,
+                      templates_main_channel, neigh_channels,
+                      geom, templates_low_dim, template_feature_ind_,
+                      waveforms_score):
     """
     template_features.npy - [nSpikes, nTempFeatures] single matrix giving the
     magnitude of the projection of each spike onto nTempFeatures other
     features. Which other features is specified in template_feature_ind.npy
     """
-    C, R2, K = templates.shape
-    # R = int((R2 - 1)/2)
-
     k_neigh = np.min((5, n_templates))
 
     template_features_ = np.zeros((n_spikes, k_neigh))
-    templates_low_dim = np.zeros((C, rotation.shape[1], K))
 
-    # for k in range(K):
-    #     # FIXME: why R:(3*R+1)?
-    #     low_dim = np.matmul(templates[:, R:(3*R+1), k], rotation)
-    #     templates_low_dim[:, :, k] = low_dim
-
-    # (49, 31, 137)
-    # print(templates.shape)
-    # print(rotation.shape)
-
-    # TODO: is there any better way to do this? check pca.score
-    rotation = np.transpose(rotation)
-    templates_low_dim = np.matmul(rotation, templates)
-
-    # TODO: remove repeated code (check: pc_feature_ind)
-
-    # get main channel for each template
-    templates_mainc = np.argmax(np.max(templates, axis=1), axis=0)
-
-    # main channel for each spike based on templates_mainc
     spikes_mainc = np.zeros(n_spikes, 'int32')
 
     for j in range(n_spikes):
-        spikes_mainc[j] = templates_mainc[spike_train[j, 1]]
+        spikes_mainc[j] = templates_main_channel[spike_train[j, 1]]
 
     # number of neighbors to consider
     # NOTE: is the '2' ok to be hardcoded?
-    neighbors = n_steps_neigh_channels(neigh_channels, 2)
+    neighbors = n_steps_neigh_channels(neigh_channels, 1)
     nneigh = np.max(np.sum(neighbors, 0))
 
     # ordered neighboring channels w.r.t. each channel
@@ -157,9 +135,8 @@ def template_features(n_spikes, n_templates, n_channels, templates, rotation,
         kk = spike_train[j, 1]
 
         for k in range(k_neigh):
-            # score is returning 7 channels but ch_idx is returning 19?!
             template_features_[j] = np.sum(
-                np.multiply(score[j].T,
+                np.multiply(waveforms_score[j].T,
                             templates_low_dim[ch_idx]
                             [:, :, template_feature_ind_[kk, k]]))
 
@@ -194,15 +171,3 @@ def templates_ind(n_templates, n_channels):
         templates_ind[k] = np.arange(n_channels)
 
     return templates_ind
-
-
-def whitening_matrices(n_channels):
-    """
-    whitening_mat.npy - [nChannels, nChannels] double whitening matrix applied
-    to the data during automatic spike sorting
-
-    whitening_mat_inv.npy - [nChannels, nChannels] double, the inverse of the
-    whitening matrix.
-    """
-    # return whitening matrix and the inverse
-    return np.eye(n_channels), np.eye(n_channels)

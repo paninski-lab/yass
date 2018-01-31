@@ -113,12 +113,14 @@ To build the docs (from the root folder):
     make qhtml
 
 
-Maintainers
------------
+Contributors
+------------
 
-`Peter Lee`_, `Eduardo Blancas`_
-
-
+`Peter Lee`_, `Eduardo Blancas`_, `Nishchal Dethe`_, `Shenghao Wu`_,
+`Hooshmand Shokri`_
 
 .. _Peter Lee: https://github.com/pjl4303
-.. _Eduardo Blancas: https://edublancas.github.io/
+.. _Eduardo Blancas: https://blancas.io
+.. _Nishchal Dethe: https://github.com/nd2506
+.. _Shenghao Wu: https://github.com/ShenghaoWu
+.. _Hooshmand Shokri: https://github.com/hooshmandshr

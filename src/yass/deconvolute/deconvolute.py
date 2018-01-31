@@ -33,7 +33,9 @@ class Deconvolution(object):
         nrank = self.config.deconvolution.rank
         lam = self.config.deconvolution.lam
         Th = self.config.deconvolution.threshold
-        iter_max = 3
+
+        # used to have 3
+        iter_max = 1
 
         amps = np.max(np.abs(self.templates), axis=0)
         amps_max = np.max(amps, axis=0)
@@ -56,9 +58,13 @@ class Deconvolution(object):
 
             idx_c = self.spike_index[:, 1] == c
             nc = np.sum(idx_c)
+
             if nc > 0:
                 spt_c = self.spike_index[idx_c, 0]
                 ch_idx = np.where(neighchan[c])[0]
+
+                # this line is in the old pipeline
+                ch_idx = np.arange(C)
 
                 k_idx = np.where(templatesMask[:, c])[0]
                 tt = self.templates[:, ch_idx][:, :, k_idx]
@@ -66,7 +72,9 @@ class Deconvolution(object):
 
                 if nc > 0 and Kc > 0:
                     mu = np.reshape(mu_all[k_idx], [1, 1, Kc])
-                    lam1 = lam/np.square(mu)
+
+                    # commented out since it is unused
+                    # lam1 = lam/np.square(mu)
 
                     wf = np.zeros((nc, 2*(R+shift)+1, ch_idx.shape[0]))
 
@@ -78,9 +86,11 @@ class Deconvolution(object):
                     n = np.arange(nc)
                     i0 = 0
                     it = 0
+
                     while it < iter_max:
                         nc = n.shape[0]
                         wf_projs = np.zeros((nc, 2*(R+shift)+1, nrank, Kc))
+
                         for k in range(Kc):
                             wf_projs[:, :, :, k] = np.reshape(np.matmul(
                                 np.reshape(wf[n], [-1,
@@ -89,6 +99,7 @@ class Deconvolution(object):
                                 [nc, -1, nrank])
 
                         obj = np.zeros((nc, 2*shift+1, Kc))
+
                         for j in range(2*shift+1):
                             obj[:, j, :] = np.sum((wf_projs[:, j:(
                                 j+2*R+1)]*np.transpose(W_all[:, k_idx],
@@ -96,9 +107,17 @@ class Deconvolution(object):
                                                                   :]),
                                 axis=(1, 2))
 
-                        Ci = obj+(mu*lam1)
-                        Ci = np.square(Ci)/(1+lam1)
-                        Ci = Ci - lam1*np.square(mu)
+                        # this block is commented out in the old pipeline
+                        # Ci = obj+(mu*lam1)
+                        # Ci = np.square(Ci)/(1+lam1)
+                        # Ci = Ci - lam1*np.square(mu)
+
+                        # this block is in the old pipeline
+                        scale = np.abs((obj-mu)/np.sqrt(mu/lam)) - 3
+                        scale = np.minimum(np.maximum(scale, 0), 1)
+                        scale[scale < 0] = 0
+                        scale[scale > 1] = 1
+                        Ci = np.multiply(np.square(obj), (1-scale))
 
                         mX = np.max(Ci, axis=1)
                         st = np.argmax(Ci, axis=1)
@@ -111,13 +130,16 @@ class Deconvolution(object):
                         n = n[idx_keep]
 
                         n_detected = np.sum(idx_keep)
+
                         if it > 0:
                             idx_keep2 = np.zeros(n_detected, 'bool')
+
                             for j in range(n_detected):
 
                                 if (np.sum(ids[:i0][ns[:i0] == n[j]] ==
                                            idd[j]) == 0):
                                     idx_keep2[j] = 1
+
                             st = st[idx_keep2]
                             idd = idd[idx_keep2]
                             n = n[idx_keep2]

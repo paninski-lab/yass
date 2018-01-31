@@ -13,10 +13,10 @@ from ..batch import PipedTransformation as Transform
 from ..explore import RecordingExplorer
 
 from .filter import butterworth
-from .standarize import standarize
+from .standarize import standarize, standard_deviation
 from . import whiten
 from . import detect
-from . import pca
+from . import dimensionality_reduction as dim_red
 from .. import neuralnetwork
 
 
@@ -80,14 +80,14 @@ def run(output_directory='tmp/'):
     logger.info('Output dtype for transformed data will be {}'
                 .format(OUTPUT_DTYPE))
 
-    tmp = os.path.join(CONFIG.data.root_folder, output_directory)
+    TMP = os.path.join(CONFIG.data.root_folder, output_directory)
 
-    if not os.path.exists(tmp):
-        logger.info('Creating temporary folder: {}'.format(tmp))
-        os.makedirs(tmp)
+    if not os.path.exists(TMP):
+        logger.info('Creating temporary folder: {}'.format(TMP))
+        os.makedirs(TMP)
     else:
         logger.info('Temporary folder {} already exists, output will be '
-                    'stored there'.format(tmp))
+                    'stored there'.format(TMP))
 
     path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
     dtype = CONFIG.recordings.dtype
@@ -95,7 +95,7 @@ def run(output_directory='tmp/'):
     # initialize pipeline object, one batch per channel
     pipeline = BatchPipeline(path, dtype, CONFIG.recordings.n_channels,
                              CONFIG.recordings.format,
-                             CONFIG.resources.max_memory, tmp)
+                             CONFIG.resources.max_memory, TMP)
 
     # add filter transformation if necessary
     if CONFIG.preprocess.filter:
@@ -112,51 +112,75 @@ def run(output_directory='tmp/'):
 
         pipeline.add([filter_op])
 
+    (filtered_path,), (filtered_params,) = pipeline.run()
+
     # standarize
-    standarize_op = Transform(standarize, 'standarized.bin',
-                              mode='single_channel_one_batch',
-                              keep=True,
-                              if_file_exists='skip',
-                              cast_dtype=OUTPUT_DTYPE,
-                              sampling_freq=CONFIG.recordings.sampling_rate)
+    bp = BatchProcessor(filtered_path, filtered_params['dtype'],
+                        filtered_params['n_channels'],
+                        filtered_params['data_format'],
+                        CONFIG.resources.max_memory)
+    batches = bp.multi_channel()
+    first_batch, _, _ = next(batches)
+    sd = standard_deviation(first_batch, CONFIG.recordings.sampling_rate)
 
-    # whiten
-    # TODO: add option to re-use Q
-    whiten_op = Transform(whiten.apply, 'whitened.bin',
-                          mode='multi_channel',
-                          keep=True,
-                          if_file_exists='skip',
-                          cast_dtype=OUTPUT_DTYPE,
-                          neighbors=CONFIG.neighChannels,
-                          spike_size=CONFIG.spikeSize)
-
-    pipeline.add([standarize_op, whiten_op])
-
-    # run pipeline
-    ((filtered_path, standarized_path, whitened_path),
-     (filtered_params, standarized_params, whitened_params)) = pipeline.run()
+    (standarized_path,
+     standarized_params) = bp.multi_channel_apply(standarize,
+                                                  mode='disk',
+                                                  output_path=os.path.join(
+                                                      TMP, 'standarized.bin'),
+                                                  if_file_exists='skip',
+                                                  cast_dtype=OUTPUT_DTYPE,
+                                                  sd=sd)
 
     standarized = RecordingsReader(standarized_path)
     n_observations = standarized.observations
-    del standarized
 
     if CONFIG.spikes.detection == 'threshold':
         return _threshold_detection(standarized_path, standarized_params,
-                                    whitened_path, n_observations,
-                                    output_directory)
+                                    n_observations, output_directory)
     elif CONFIG.spikes.detection == 'nn':
         return _neural_network_detection(standarized_path, standarized_params,
                                          n_observations, output_directory)
 
 
-def _threshold_detection(standarized_path, standarized_params, whitened_path,
+def _threshold_detection(standarized_path, standarized_params,
                          n_observations, output_directory):
     """Run threshold detector and dimensionality reduction using PCA
     """
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
+    OUTPUT_DTYPE = CONFIG.preprocess.dtype
     TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
+
+    ###############
+    # Whiten data #
+    ###############
+
+    # compute Q for whitening
+    logger.info('Computing whitening matrix...')
+    bp = BatchProcessor(standarized_path, standarized_params['dtype'],
+                        standarized_params['n_channels'],
+                        standarized_params['data_format'],
+                        CONFIG.resources.max_memory)
+    batches = bp.multi_channel()
+    first_batch, _, _ = next(batches)
+    Q = whiten.matrix(first_batch, CONFIG.neighChannels, CONFIG.spikeSize)
+
+    path_to_whitening_matrix = os.path.join(TMP_FOLDER, 'whitening.npy')
+    np.save(path_to_whitening_matrix, Q)
+    logger.info('Saved whitening matrix in {}'
+                .format(path_to_whitening_matrix))
+
+    # apply whitening to every batch
+    (whitened_path,
+     whitened_params) = bp.multi_channel_apply(np.matmul,
+                                               mode='disk',
+                                               output_path=os.path.join(
+                                                   TMP_FOLDER, 'whitened.bin'),
+                                               if_file_exists='skip',
+                                               cast_dtype=OUTPUT_DTYPE,
+                                               b=Q)
 
     ###################
     # Spike detection #
@@ -233,10 +257,6 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
     # Waveform extraction #
     #######################
 
-    # TODO: what should the behaviour be for spike indexes that are when
-    # starting/ending the recordings and it is not possible ti draw a complete
-    # waveform?
-
     # load and dump waveforms from clear spikes
     path_to_waveforms_clear = os.path.join(TMP_FOLDER, 'waveforms_clear.npy')
 
@@ -246,8 +266,8 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
         waveforms_clear = np.load(path_to_waveforms_clear)
     else:
         logger.info('Did not find clear waveforms in {}, reading them from {}'
-                    .format(path_to_waveforms_clear, whitened_path))
-        explorer = RecordingExplorer(whitened_path,
+                    .format(path_to_waveforms_clear, standarized_path))
+        explorer = RecordingExplorer(standarized_path,
                                      spike_size=CONFIG.spikeSize)
         waveforms_clear = explorer.read_waveforms(spike_index_clear[:, 0])
         np.save(path_to_waveforms_clear, waveforms_clear)
@@ -260,7 +280,7 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
 
     # compute per-batch sufficient statistics for PCA on standarized data
     logger.info('Computing PCA sufficient statistics...')
-    stats = bp.multi_channel_apply(pca.suff_stat,
+    stats = bp.multi_channel_apply(dim_red.suff_stat,
                                    mode='memory',
                                    spike_index=spike_index_clear,
                                    spike_size=CONFIG.spikeSize)
@@ -272,9 +292,9 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
 
     # compute rotation matrix
     logger.info('Computing PCA projection matrix...')
-    rotation = pca.project(suff_stats, spikes_per_channel,
-                           CONFIG.spikes.temporal_features,
-                           CONFIG.neighChannels)
+    rotation = dim_red.project(suff_stats, spikes_per_channel,
+                               CONFIG.spikes.temporal_features,
+                               CONFIG.neighChannels)
     path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
     np.save(path_to_rotation, rotation)
     logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
@@ -284,8 +304,8 @@ def _threshold_detection(standarized_path, standarized_params, whitened_path,
     ###########################################
 
     logger.info('Reducing spikes dimensionality with PCA matrix...')
-    scores = pca.score(waveforms_clear, spike_index_clear, rotation,
-                       CONFIG.neighChannels, CONFIG.geom)
+    scores = dim_red.score(waveforms_clear, rotation, spike_index_clear[:, 1],
+                           CONFIG.neighChannels, CONFIG.geom)
 
     # save scores
     path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
@@ -377,9 +397,29 @@ def _neural_network_detection(standarized_path, standarized_params,
 
         # save scores
         scores = np.concatenate([element[0] for element in res], axis=0)
+
         logger.info('Removing scores for indexes outside the allowed range to '
                     'draw a complete waveform...')
         scores = scores[idx]
+
+        # compute Q for whitening
+        logger.info('Computing whitening matrix...')
+        bp = BatchProcessor(standarized_path, standarized_params['dtype'],
+                            standarized_params['n_channels'],
+                            standarized_params['data_format'],
+                            CONFIG.resources.max_memory)
+        batches = bp.multi_channel()
+        first_batch, _, _ = next(batches)
+        Q = whiten.matrix_localized(first_batch, CONFIG.neighChannels,
+                                    CONFIG.geom, CONFIG.spikeSize)
+
+        path_to_whitening_matrix = os.path.join(TMP_FOLDER, 'whitening.npy')
+        np.save(path_to_whitening_matrix, Q)
+        logger.info('Saved whitening matrix in {}'
+                    .format(path_to_whitening_matrix))
+
+        scores = whiten.score(scores, clear[:, 1], Q)
+
         np.save(path_to_score, scores)
         logger.info('Saved spike scores in {}...'.format(path_to_score))
 

@@ -9,28 +9,59 @@ from ..geometry import order_channels_by_distance
 from . import NeuralNetDetector, NeuralNetTriage
 
 
-def nn_detection(X, neighbors, geom, temporal_features, temporal_window,
-                 th_detect, th_triage, detector_filename, autoencoder_filename,
-                 triage_filename):
+def nn_detection(recordings, neighbors, geom, temporal_features,
+                 temporal_window, th_detect, th_triage, detector_filename,
+                 autoencoder_filename, triage_filename):
     """Detect spikes using a neural network
 
     Parameters
     ----------
+    recordings: numpy.ndarray (n_observations, n_channels)
+        Neural recordings
+    neighbors: numpy.ndarray (n_channels, n_channels)
+        Channels neighbors matric
+    geom: numpy.ndarray (n_channels, 2)
+        Cartesian coordinates for the channels
 
     Returns
     -------
+    clear_scores: numpy.ndarray (n_spikes, n_features, n_channels)
+        3D array with the scores for the clear spikes, first simension is
+        the number of spikes, second is the nymber of features and third the
+        number of channels
+
+    spike_index_clear: numpy.ndarray (n_clear_spikes, 2)
+        2D array with indexes for clear spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
+
+    spike_index_collision: numpy.ndarray (n_collided_spikes, 2)
+        2D array with indexes for collided spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
     """
     nnd = NeuralNetDetector(detector_filename, autoencoder_filename)
     nnt = NeuralNetTriage(triage_filename)
 
-    T, C = X.shape
+    T, C = recordings.shape
+
+    a, b = neighbors.shape
+
+    if a != b:
+        raise ValueError('neighbors is not a square matrix, verify')
+
+    if a != C:
+        raise ValueError('Number of channels in recording are {} but the '
+                         'neighbors matrix has {} elements, they must match'
+                         .format(C, a))
 
     # neighboring channel info
     nneigh = np.max(np.sum(neighbors, 0))
     c_idx = np.ones((C, nneigh), 'int32')*C
+
     for c in range(C):
-        ch_idx, temp = order_channels_by_distance(
-            c, np.where(neighbors[c])[0], geom)
+        ch_idx, temp = order_channels_by_distance(c, np.where(neighbors[c])[0],
+                                                  geom)
         c_idx[c, :ch_idx.shape[0]] = ch_idx
 
     # input
@@ -77,7 +108,7 @@ def nn_detection(X, neighbors, geom, temporal_features, temporal_window,
         nnt.saver.restore(sess, nnt.path_to_triage_model)
 
         local_max_idx, score_train, energy_val, triage_prob = sess.run(
-            result, feed_dict={x_tf: X})
+            result, feed_dict={x_tf: recordings})
 
         energy_train = np.zeros((T, C))
         energy_train[local_max_idx[:, 0], local_max_idx[:, 1]] = energy_val
@@ -97,7 +128,7 @@ def nn_detection(X, neighbors, geom, temporal_features, temporal_window,
     return score, spike_index_clear, spike_index_collision
 
 
-def fix_indexes(res, idx_local, idx):
+def fix_indexes(res, idx_local, idx, buffer_size):
     """Fixes indexes from detected spikes in batches
 
     Parameters
@@ -108,6 +139,8 @@ def fix_indexes(res, idx_local, idx):
         A slice object indicating the indices for the data (excluding buffer)
     idx: slice
         A slice object indicating the absolute location of the data
+    buffer_size: int
+        Buffer size
     """
 
     score, clear, collision = res
@@ -124,7 +157,8 @@ def fix_indexes(res, idx_local, idx):
     clear_not_in_buffer = clear[np.logical_and(clear_times >= data_start,
                                                clear_times <= data_end)]
     # offset spikes depending on the absolute location
-    clear_not_in_buffer[:, 0] = clear_not_in_buffer[:, 0] + offset
+    clear_not_in_buffer[:, 0] = (clear_not_in_buffer[:, 0] + offset
+                                 - buffer_size)
 
     # fix collided spikes
     col_times = collision[:, 0]
@@ -132,6 +166,6 @@ def fix_indexes(res, idx_local, idx):
     col_not_in_buffer = collision[np.logical_and(col_times >= data_start,
                                                  col_times <= data_end)]
     # offset spikes depending on the absolute location
-    col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset
+    col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset - buffer_size
 
     return score, clear_not_in_buffer, col_not_in_buffer

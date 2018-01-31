@@ -3,6 +3,7 @@ import tensorflow as tf
 from . import NeuralNetDetector
 
 
+# TODO: what is this for?
 def get_score(score_train_tf, spike_index_tf, T, n_features, c_idx):
     score_train_tf_zero = tf.concat((tf.transpose(score_train_tf, [1, 0, 2]),
                                      tf.zeros((1, T, n_features))

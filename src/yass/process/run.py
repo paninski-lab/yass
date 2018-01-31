@@ -44,7 +44,7 @@ def run(score, spike_index_clear, spike_index_collision,
     recordings_filename: str, optional
         Recordings filename (relative to CONFIG.data.root_folder/
         output_directory) used to generate the templates, defaults to
-        standarized.bin
+        whitened.bin
 
     Returns
     -------

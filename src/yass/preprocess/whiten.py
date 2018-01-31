@@ -9,14 +9,12 @@ from ..geometry import n_steps_neigh_channels, order_channels_by_distance
 
 # TODO: missing documentation
 # TODO: add comments to the code to understand what's going on
-# TODO: rename functions, purpose is not clear
 # TODO: document why we need different methods for whitening when using
 # threshold detection vs nn detection
-# TODO: how to apply this in batches?
-# TODO: how to enable re-use of Q when using batch processor?
+# TODO: how to apply this in batches
 
 
-def marix(ts, neighbors, spike_size):
+def matrix(ts, neighbors, spike_size):
     """
     Compute spatial whitening matrix for time series, used only in threshold
     detection
@@ -72,10 +70,11 @@ def marix(ts, neighbors, spike_size):
         Q_small = np.matmul(np.matmul(V, Epsilon), V.transpose())
         Q[c, ch_idx] = Q_small[ch_idx == c, :]
 
-    return Q
+    return Q.transpose()
 
 
-def apply(ts, neighbors, spike_size):
+# TODO: remove
+def apply(ts, neighbors, spike_size, Q=None):
     """Apply spatial whitening
 
     Parameters
@@ -93,8 +92,7 @@ def apply(ts, neighbors, spike_size):
     numpy.ndarray (n_observations, n_channels)
         Whitened data
     """
-    Q = marix(ts, neighbors, spike_size)
-    return np.matmul(ts, Q.transpose())
+    return np.matmul(ts, Q)
 
 
 def matrix_localized(ts, neighbors, geom, spike_size):
@@ -154,6 +152,7 @@ def matrix_localized(ts, neighbors, geom, spike_size):
         Epsilon = np.diag(1/np.power((D + eps), 0.5))
         Q_small = np.matmul(np.matmul(V, Epsilon), V.transpose())
         Q[:nneigh_c][:, :nneigh_c, c] = Q_small
+
     return Q
 
 

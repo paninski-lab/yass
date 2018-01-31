@@ -6,12 +6,21 @@ import logging
 import numpy as np
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
-import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
-from matplotlib.patches import Circle
 from yass import geometry as geom
 
-from ..util import ensure_iterator, sample
+try:
+    import matplotlib.pyplot as plt
+    from matplotlib.ticker import FuncFormatter
+    from matplotlib.patches import Circle
+except ImportError:
+    _matplotlib = False
+    _matplotlib_message = ('Matplotlib is required to run this function, '
+                           'install it and try again')
+else:
+    _matplotlib = True
+    _matplotlib_message = None
+
+from ..util import ensure_iterator, sample, requires
 from ..batch import RecordingsReader
 from .table import Table
 
@@ -265,6 +274,7 @@ class SpikeTrainExplorer(object):
         ax.set_title('Template {}'.format(group_id))
         plt.tight_layout()
 
+    @requires(_matplotlib, _matplotlib_message)
     def plot_templates(self, group_ids, ax=None, sharex=True, sharey=False):
         """Plot templates
 
@@ -282,6 +292,7 @@ class SpikeTrainExplorer(object):
         group_ids = group_ids if _is_iter(group_ids) else [group_ids]
         _make_grid_plot(self._plot_template, group_ids, ax, sharex, sharey)
 
+    @requires(_matplotlib, _matplotlib_message)
     def plot_pca(self, group_ids, channels, sample=None, ax=None):
         """
         Reduce dimensionality using PCA and plot data
@@ -305,6 +316,7 @@ class SpikeTrainExplorer(object):
 
         ax.legend()
 
+    @requires(_matplotlib, _matplotlib_message)
     def plot_lda(self, group_ids, channels, sample=None, ax=None):
         """
         Reduce dimensionality using LDA and plot data
@@ -328,6 +340,7 @@ class SpikeTrainExplorer(object):
 
         ax.legend()
 
+    @requires(_matplotlib, _matplotlib_message)
     def plot_closest_clusters_to(self, group_id, k, mode='LDA',
                                  sample=None, ax=None):
         """Visualize close clusters
@@ -348,6 +361,7 @@ class SpikeTrainExplorer(object):
         else:
             raise ValueError('Only PCA and LDA modes are supported')
 
+    @requires(_matplotlib, _matplotlib_message)
     def plot_closest_templates_to(self, group_id, k, ax=None,
                                   sharex=True, sharey=False):
         """Visualize close templates
@@ -357,6 +371,7 @@ class SpikeTrainExplorer(object):
         groups = self.close_templates(group_id, k)
         self.plot_templates(groups, ax=ax, sharex=sharex, sharey=sharey)
 
+    @requires(_matplotlib, _matplotlib_message)
     def plot_all_clusters(self, k, mode='LDA', sample=None, ax=None,
                           sharex=True, sharey=False, max_cols=None):
         ax = plt if ax is None else ax
@@ -366,6 +381,7 @@ class SpikeTrainExplorer(object):
 
         _make_grid_plot(fn, self.all_ids, ax, sharex, sharey, max_cols)
 
+    @requires(_matplotlib, _matplotlib_message)
     def plot_waveforms_and_clusters(self, group_id, ax=None):
         """
         """
@@ -499,9 +515,17 @@ class RecordingExplorer(object):
         end = time + self.spike_size + 1
 
         if isinstance(channels, str) and channels == 'all':
-            return self.data[start:end, :].astype(self.waveform_dtype)
+            wf = self.data[start:end, :].astype(self.waveform_dtype)
         else:
-            return self.data[start:end, channels].astype(self.waveform_dtype)
+            wf = self.data[start:end, channels].astype(self.waveform_dtype)
+
+        if len(wf) != 2 * self.spike_size + 1:
+            raise ValueError('Cannot read waveform at time {}, there is not '
+                             'enough data to draw a complete waveform ({} '
+                             'observations are needed to the left and to the '
+                             'right)'.format(time, self.spike_size))
+
+        return wf
 
     def read_waveforms(self, times, channels='all', flatten=False):
         """Read multiple waveforms around certain times
@@ -595,6 +619,30 @@ class RecordingExplorer(object):
         return self.read_waveform(time,
                                   channels=self.neighbors_for_channel(channel))
 
+    def main_channel_for_waveforms(self, waveforms):
+        """Get the main channel (biggest amplitude) for the given waveforms
+
+        Parameters
+        ----------
+        waveforms: numpy.ndarray
+            An array of size (n_temporal_features, n_channels) if only one
+            waveform or one of size (n_waveforms, n_temporal_features,
+            n_channels) if more than one waveform
+
+        Returns
+        -------
+        int/numpy.ndarray
+            The main channel for every waveform, int if only one waveform or
+            a 1D array if more than one
+        """
+        if waveforms.ndim == 2:
+            return np.argmax(np.max(waveforms, axis=0), axis=0)
+        elif waveforms.ndim == 3:
+            return np.argmax(np.max(waveforms, axis=1), axis=1)
+        else:
+            raise ValueError('waveforms must be an 2D or 3D array')
+
+    @requires(_matplotlib, _matplotlib_message)
     def plot_waveform(self, time, channels, ax=None, line_at_t=False,
                       overlay=False):
         """
@@ -623,12 +671,14 @@ class RecordingExplorer(object):
 
         plt.tight_layout()
 
+    @requires(_matplotlib, _matplotlib_message)
     def plot_waveform_around_channel(self, time, channel, ax=None,
                                      line_at_t=False, overlay=False):
         return self.plot_waveform(time,
                                   channels=self.neighbors_for_channel(channel),
                                   ax=ax, line_at_t=line_at_t, overlay=overlay)
 
+    @requires(_matplotlib, _matplotlib_message)
     def plot_waveform_around_main_channel(self, time, ax=None,
                                           line_at_t=False, overlay=False):
         # read waveform along every channel and find the one with max amplitude
@@ -639,6 +689,7 @@ class RecordingExplorer(object):
                                   channels=self.neighbors_for_channel(channel),
                                   ax=ax, line_at_t=line_at_t, overlay=overlay)
 
+    @requires(_matplotlib, _matplotlib_message)
     def plot_geometry(self, channel_label=True, neighbor_radius=False,
                       ax=None):
         """Plot geometry file
@@ -660,6 +711,7 @@ class RecordingExplorer(object):
                            fill=False)
                 ax.add_artist(c)
 
+    @requires(_matplotlib, _matplotlib_message)
     def plot_clusters(self, times, sample_percentage=None, ax=None):
         """
         """
@@ -675,6 +727,7 @@ class RecordingExplorer(object):
 
         ax.scatter(reduced[:, 0], reduced[:, 1])
 
+    @requires(_matplotlib, _matplotlib_message)
     def plot_series(self, from_time, to_time, channels='all', ax=None):
         """Plot observations in a selected number of channels
         """
