@@ -33,7 +33,9 @@ class Deconvolution(object):
         nrank = self.config.deconvolution.rank
         lam = self.config.deconvolution.lam
         Th = self.config.deconvolution.threshold
-        iter_max = 3
+
+        # used to have 3
+        iter_max = 1
 
         amps = np.max(np.abs(self.templates), axis=0)
         amps_max = np.max(amps, axis=0)
@@ -96,9 +98,17 @@ class Deconvolution(object):
                                                                   :]),
                                 axis=(1, 2))
 
-                        Ci = obj+(mu*lam1)
-                        Ci = np.square(Ci)/(1+lam1)
-                        Ci = Ci - lam1*np.square(mu)
+                        # this block was commented out in the old pipeline
+                        # Ci = obj+(mu*lam1)
+                        # Ci = np.square(Ci)/(1+lam1)
+                        # Ci = Ci - lam1*np.square(mu)
+
+                        # this block was in the old pipeline
+                        scale = np.abs((obj-mu)/np.sqrt(mu/lam)) - 3
+                        scale = np.minimum(np.maximum(scale, 0), 1)
+                        scale[scale < 0] = 0
+                        scale[scale > 1] = 1
+                        Ci = np.multiply(np.square(obj), (1-scale))
 
                         mX = np.max(Ci, axis=1)
                         st = np.argmax(Ci, axis=1)
