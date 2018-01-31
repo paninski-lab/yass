@@ -38,6 +38,8 @@ def run(spike_train_clear, templates, spike_index_collision):
     idx_sort = np.argsort(spike_train[:, 0])
     spike_train = spike_train[idx_sort]
 
+    logger.debug('spike_train.shape: {}'.format(spike_train.shape))
+
     idx_keep = np.zeros(spike_train.shape[0], 'bool')
 
     for k in range(templates.shape[2]):
@@ -46,6 +48,7 @@ def run(spike_train_clear, templates, spike_index_collision):
 
     spike_train = spike_train[idx_keep]
 
-    logger.debug('spike_train.shape: {}'.format(spike_train.shape))
+    logger.debug('deduplicated spike_train.shape: {}'
+                 .format(spike_train.shape))
 
     return spike_train
