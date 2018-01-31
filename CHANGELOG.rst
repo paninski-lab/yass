@@ -3,6 +3,8 @@ Changelog
 
 0.5dev
 ------
+* Improved logging
+* Last release with old codebase
 
 
 0.4 (2018-01-19)

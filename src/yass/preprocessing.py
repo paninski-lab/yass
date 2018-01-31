@@ -14,7 +14,7 @@ from .preprocess.standarize import standarize, sd
 from .util import deprecated
 
 
-SAVE_PARTIAL_RESULTS = True
+SAVE_PARTIAL_RESULTS = False
 
 
 @deprecated('Use function in preprocess module, see examples/preprocess.py')
