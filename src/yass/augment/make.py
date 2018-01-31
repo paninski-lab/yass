@@ -38,7 +38,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                          'preprocesor first to generate it'
                          .format(path_to_data))
 
-    dtype = load_yaml(path_to_config)['dtype']
+    PARAMS = load_yaml(path_to_config)
 
     logger.info('Getting templates...')
 
@@ -63,10 +63,12 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     # determine noise covariance structure
     # FIXME: remove batch_size
-    spatial_SIG, temporal_SIG = noise_cov(path_to_data, dtype,
-                                          CONFIG.batch_size,
+    spatial_SIG, temporal_SIG = noise_cov(path_to_data,
+                                          PARAMS['dtype'],
                                           CONFIG.recordings.n_channels,
-                                          CONFIG.neighChannels, CONFIG.geom,
+                                          PARAMS['data_format'],
+                                          CONFIG.neighChannels,
+                                          CONFIG.geom,
                                           templates.shape[1])
 
     # make training data set
