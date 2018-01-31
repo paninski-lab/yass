@@ -7,7 +7,7 @@ from yass.neuralnetwork import train_detector, train_ae, train_triage
 from yass.util import change_extension
 
 
-def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train):
+def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
     """Train all neural networks
 
     Parameters
@@ -34,7 +34,8 @@ def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train):
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
-                                      min_amp, nspikes)
+                                      min_amp, nspikes,
+                                      data_folder=data_folder)
 
     # train detector
     logger.info('Training detector network...')

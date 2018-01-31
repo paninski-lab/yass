@@ -13,7 +13,7 @@ from ..util import load_yaml
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
 def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
-                       nspikes):
+                       nspikes, data_folder):
     """[Description]
 
     Parameters
@@ -25,11 +25,8 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     logger = logging.getLogger(__name__)
 
-    # FIXME: convert 'tmp/' to a parameter
-    TMP_FOLDER = os.path.join(CONFIG.data.root_folder,  'tmp/')
-
-    path_to_data = os.path.join(TMP_FOLDER, 'standarized.bin')
-    path_to_config = os.path.join(TMP_FOLDER, 'standarized.yaml')
+    path_to_data = os.path.join(data_folder, 'standarized.bin')
+    path_to_config = os.path.join(data_folder, 'standarized.yaml')
 
     # make sure standarized data already exists
     if not os.path.exists(path_to_data):

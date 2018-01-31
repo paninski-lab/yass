@@ -186,34 +186,34 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
 
 
 @cli.command()
-@click.argument('spike_train', type=click.Path(exists=True, dir_okay=False))
+@click.argument('directory', type=click.Path(exists=True, dir_okay=False))
 @click.argument('config_train', type=click.Path(exists=True, dir_okay=False))
-@click.argument('config', type=click.Path(exists=True, dir_okay=False))
 @click.option('-l', '--logger_level',
               help='Python logger level, defaults to INFO',
               default='INFO')
-def train(spike_train, config_train, config, logger_level):
-    """Train neural networks using a SPIKE_TRAIN csv or npy file whose
-    first column is the spike time and second column is the spike ID,
-    a CONFIG_TRAIN yaml file with the training parameters and a CONFIG
-    yaml file with the data parameters
+def train(directory, config_train, logger_level):
+    """
+    Train neural networks, DIRECTORY must be a folder containing the
+    output of `yass sort`, CONFIG_TRAIN must be the location of a file with
+    the training parameters
     """
     logging.basicConfig(level=getattr(logging, logger_level))
     logger = logging.getLogger(__name__)
 
-    loadtxt = partial(np.loadtxt, dtype='int32', delimiter=',')
-    fn = loadtxt if spike_train.endswith('.csv') else np.load
-
-    spike_train = fn(spike_train)
+    path_to_spike_train = path.join(directory, 'spike_train.npy')
+    spike_train = np.load(path_to_spike_train)
 
     logger.info('Loaded spike train with: {:,} spikes and {:,} different IDs'
                 .format(len(spike_train),
                         len(np.unique(spike_train[:, 1]))))
 
-    CONFIG_TRAIN = load_yaml(config_train)
-    CONFIG = Config.from_yaml(config)
+    path_to_config = path.join(directory, 'config.yaml')
+    CONFIG = Config.from_yaml(path_to_config)
 
-    train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train)
+    CONFIG_TRAIN = load_yaml(config_train)
+
+    train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train,
+                          data_folder=directory)
 
 
 @cli.command()
