@@ -58,9 +58,13 @@ class Deconvolution(object):
 
             idx_c = self.spike_index[:, 1] == c
             nc = np.sum(idx_c)
+
             if nc > 0:
                 spt_c = self.spike_index[idx_c, 0]
                 ch_idx = np.where(neighchan[c])[0]
+
+                # this line is in the old pipeline
+                ch_idx = np.arange(C)
 
                 k_idx = np.where(templatesMask[:, c])[0]
                 tt = self.templates[:, ch_idx][:, :, k_idx]
@@ -68,7 +72,9 @@ class Deconvolution(object):
 
                 if nc > 0 and Kc > 0:
                     mu = np.reshape(mu_all[k_idx], [1, 1, Kc])
-                    lam1 = lam/np.square(mu)
+
+                    # commented out since it is unused
+                    # lam1 = lam/np.square(mu)
 
                     wf = np.zeros((nc, 2*(R+shift)+1, ch_idx.shape[0]))
 
