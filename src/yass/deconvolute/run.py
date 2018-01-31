@@ -25,6 +25,10 @@ def run(spike_train_clear, templates, spike_index_collision):
     """
     logger = logging.getLogger(__name__)
 
+    logging.debug('Starting deconvolution. templates.shape: {}, '
+                  'spike_index_collision.shape: {}'
+                  .format(templates.shape, spike_index_collision.shape))
+
     CONFIG = read_config()
     deconv = Deconvolution(CONFIG, np.transpose(templates, [1, 0, 2]),
                            spike_index_collision, filename='whiten.bin')
