@@ -157,12 +157,3 @@ class Config(FrozenJSON):
 
     def _pretty_iterator(self, it):
         return reduce(lambda x, y: x+', '+y, it)
-
-
-# TODO: remove
-def sizeof(dtype):
-    SIZE_ = {'int16': 2,
-             'uint16': 2,
-             'single': 4,
-             'double': 8}
-    return SIZE_[dtype]
