@@ -19,8 +19,6 @@ recordings:
 
 preprocess:
   filter: True
-  templates_partial_data: 1
-  whiten_batchwise: False
   dtype: float32
 
 spikes:

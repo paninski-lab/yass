@@ -36,10 +36,6 @@ recordings:
 preprocess:
   # apply butterworth filter in the preprocessing step
   filter: True
-  # [0,1] to use parital data to estimate templates
-  templates_partial_data: 1
-  # determine whitening matrix in each minibatch
-  whiten_batchwise: False
   # output dtype for transformed data
   dtype: float32
 
