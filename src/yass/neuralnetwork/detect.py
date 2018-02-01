@@ -18,10 +18,33 @@ def nn_detection(recordings, neighbors, geom, temporal_features,
     ----------
     recordings: numpy.ndarray (n_observations, n_channels)
         Neural recordings
+
     neighbors: numpy.ndarray (n_channels, n_channels)
         Channels neighbors matric
+
     geom: numpy.ndarray (n_channels, 2)
         Cartesian coordinates for the channels
+
+    temporal_features: int
+        ?
+
+    temporal_window: int
+        ?
+
+    th_detect: float?
+        Spike threshold [improve this explanation]
+
+    th_triage: float?
+        Triage threshold [improve this explanation]
+
+    detector_filename: str
+        Path to neural network detector
+
+    autoencoder_filename: str
+        Path to neural network autoencoder
+
+    triage_filename: str
+        Path to triage neural network
 
     Returns
     -------
