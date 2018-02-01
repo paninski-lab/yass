@@ -572,7 +572,7 @@ def get_isolated_spikes_and_locations(denoised_waveforms, main_channel,
                 isolated_index += [i]
     isolated_index = np.asarray(isolated_index, dtype=np.int32)
 
-    mask = np.ones([isolated_index.shape[0], 49])
+    mask = np.ones([isolated_index.shape[0], CONFIG.recordings.n_channels])
     for i, j in enumerate(isolated_index):
         nn = np.where(CONFIG.neighChannels[main_channel[j]])[0]
         for k in range(49):
