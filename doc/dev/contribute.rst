@@ -4,7 +4,7 @@ Git workflow
 Internal contributors have write permissins to the repo, you can create
 new branches, do your work and submit pull requests:
 
-::
+.. code:: shell
 
     # move to the repo
     cd path/to/repo
@@ -188,7 +188,7 @@ PEP8 compliance as well as other common errors:
 
 To check a file:
 
-::
+.. code:: shell
 
     flake8 my_script.py
 

@@ -5,14 +5,14 @@ First, we need to install YASS in develop mode.
 
 Clone the repo:
 
-::
+.. code:: shell
 
     git clone https://github.com/paninski-lab/yass
 
 Move to the folder containing the ``setup.py`` file and install the
 package in development mode:
 
-::
+.. code:: shell
 
     cd yass
     pip install --editable .
@@ -24,20 +24,20 @@ the session).
 Make sure you can import the package and that it's loaded from the
 location where you ran ``git clone``. First open a Python intrepreter:
 
-::
+.. code:: shell
 
     python
 
 And load the package you installed:
 
-::
+.. code:: shell
 
     import yass
     yass
 
 You should see something like this:
 
-::
+.. code:: shell
 
     path/to/cloned/repository
 
