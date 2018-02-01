@@ -100,38 +100,37 @@ def run(output_directory='tmp/'):
 
     # add filter transformation if necessary
     if CONFIG.preprocess.filter:
-        filter_op = Transform(butterworth,
-                              'filtered.bin',
-                              mode='single_channel_one_batch',
-                              keep=True,
-                              if_file_exists='skip',
-                              cast_dtype=OUTPUT_DTYPE,
-                              low_freq=CONFIG.filter.low_pass_freq,
-                              high_factor=CONFIG.filter.high_factor,
-                              order=CONFIG.filter.order,
-                              sampling_freq=CONFIG.recordings.sampling_rate)
+        filter_op = Transform(
+            butterworth,
+            'filtered.bin',
+            mode='single_channel_one_batch',
+            keep=True,
+            if_file_exists='skip',
+            cast_dtype=OUTPUT_DTYPE,
+            low_freq=CONFIG.filter.low_pass_freq,
+            high_factor=CONFIG.filter.high_factor,
+            order=CONFIG.filter.order,
+            sampling_freq=CONFIG.recordings.sampling_rate)
 
         pipeline.add([filter_op])
 
-    (filtered_path,), (filtered_params,) = pipeline.run()
+    (filtered_path, ), (filtered_params, ) = pipeline.run()
 
     # standarize
-    bp = BatchProcessor(filtered_path, filtered_params['dtype'],
-                        filtered_params['n_channels'],
-                        filtered_params['data_format'],
-                        CONFIG.resources.max_memory)
+    bp = BatchProcessor(
+        filtered_path, filtered_params['dtype'], filtered_params['n_channels'],
+        filtered_params['data_format'], CONFIG.resources.max_memory)
     batches = bp.multi_channel()
     first_batch, _, _ = next(batches)
     sd = standard_deviation(first_batch, CONFIG.recordings.sampling_rate)
 
-    (standarized_path,
-     standarized_params) = bp.multi_channel_apply(standarize,
-                                                  mode='disk',
-                                                  output_path=os.path.join(
-                                                      TMP, 'standarized.bin'),
-                                                  if_file_exists='skip',
-                                                  cast_dtype=OUTPUT_DTYPE,
-                                                  sd=sd)
+    (standarized_path, standarized_params) = bp.multi_channel_apply(
+        standarize,
+        mode='disk',
+        output_path=os.path.join(TMP, 'standarized.bin'),
+        if_file_exists='skip',
+        cast_dtype=OUTPUT_DTYPE,
+        sd=sd)
 
     standarized = RecordingsReader(standarized_path)
     n_observations = standarized.observations
@@ -144,8 +143,8 @@ def run(output_directory='tmp/'):
                                          n_observations, output_directory)
 
 
-def _threshold_detection(standarized_path, standarized_params,
-                         n_observations, output_directory):
+def _threshold_detection(standarized_path, standarized_params, n_observations,
+                         output_directory):
     """Run threshold detector and dimensionality reduction using PCA
     """
     logger = logging.getLogger(__name__)
@@ -174,14 +173,13 @@ def _threshold_detection(standarized_path, standarized_params,
                 .format(path_to_whitening_matrix))
 
     # apply whitening to every batch
-    (whitened_path,
-     whitened_params) = bp.multi_channel_apply(np.matmul,
-                                               mode='disk',
-                                               output_path=os.path.join(
-                                                   TMP_FOLDER, 'whitened.bin'),
-                                               if_file_exists='skip',
-                                               cast_dtype=OUTPUT_DTYPE,
-                                               b=Q)
+    (whitened_path, whitened_params) = bp.multi_channel_apply(
+        np.matmul,
+        mode='disk',
+        output_path=os.path.join(TMP_FOLDER, 'whitened.bin'),
+        if_file_exists='skip',
+        cast_dtype=OUTPUT_DTYPE,
+        b=Q)
 
     ###################
     # Spike detection #
@@ -190,11 +188,13 @@ def _threshold_detection(standarized_path, standarized_params,
     path_to_spike_index_clear = os.path.join(TMP_FOLDER,
                                              'spike_index_clear.npy')
 
-    bp = BatchProcessor(standarized_path, standarized_params['dtype'],
-                        standarized_params['n_channels'],
-                        standarized_params['data_format'],
-                        CONFIG.resources.max_memory,
-                        buffer_size=0)
+    bp = BatchProcessor(
+        standarized_path,
+        standarized_params['dtype'],
+        standarized_params['n_channels'],
+        standarized_params['data_format'],
+        CONFIG.resources.max_memory,
+        buffer_size=0)
 
     # clear spikes
     if os.path.exists(path_to_spike_index_clear):
@@ -205,24 +205,22 @@ def _threshold_detection(standarized_path, standarized_params,
     else:
         # if it doesn't, detect spikes...
         logger.info('Did not find file in {}, finding spikes using threshold'
-                    ' detector...'
-                    .format(path_to_spike_index_clear))
+                    ' detector...'.format(path_to_spike_index_clear))
 
         # apply threshold detector on standarized data
-        spikes = bp.multi_channel_apply(detect.threshold,
-                                        mode='memory',
-                                        cleanup_function=detect.fix_indexes,
-                                        neighbors=CONFIG.neighChannels,
-                                        spike_size=CONFIG.spikeSize,
-                                        std_factor=CONFIG.stdFactor)
+        spikes = bp.multi_channel_apply(
+            detect.threshold,
+            mode='memory',
+            cleanup_function=detect.fix_indexes,
+            neighbors=CONFIG.neighChannels,
+            spike_size=CONFIG.spikeSize,
+            std_factor=CONFIG.stdFactor)
         spike_index_clear = np.vstack(spikes)
 
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
-        spike_index_clear, _ = (detect
-                                .remove_incomplete_waveforms(spike_index_clear,
-                                                             CONFIG.spikeSize,
-                                                             n_observations))
+        spike_index_clear, _ = (detect.remove_incomplete_waveforms(
+            spike_index_clear, CONFIG.spikeSize, n_observations))
 
         logger.info('Saving spikes in {}...'.format(path_to_spike_index_clear))
         np.save(path_to_spike_index_clear, spike_index_clear)
@@ -268,8 +266,8 @@ def _threshold_detection(standarized_path, standarized_params,
     else:
         logger.info('Did not find clear waveforms in {}, reading them from {}'
                     .format(path_to_waveforms_clear, standarized_path))
-        explorer = RecordingExplorer(standarized_path,
-                                     spike_size=CONFIG.spikeSize)
+        explorer = RecordingExplorer(
+            standarized_path, spike_size=CONFIG.spikeSize)
         waveforms_clear = explorer.read_waveforms(spike_index_clear[:, 0])
         np.save(path_to_waveforms_clear, waveforms_clear)
         logger.info('Saved waveform from clear spikes in: {}'
@@ -281,10 +279,11 @@ def _threshold_detection(standarized_path, standarized_params,
 
     # compute per-batch sufficient statistics for PCA on standarized data
     logger.info('Computing PCA sufficient statistics...')
-    stats = bp.multi_channel_apply(dim_red.suff_stat,
-                                   mode='memory',
-                                   spike_index=spike_index_clear,
-                                   spike_size=CONFIG.spikeSize)
+    stats = bp.multi_channel_apply(
+        dim_red.suff_stat,
+        mode='memory',
+        spike_index=spike_index_clear,
+        spike_size=CONFIG.spikeSize)
 
     suff_stats = reduce(lambda x, y: np.add(x, y), [e[0] for e in stats])
 
@@ -327,11 +326,13 @@ def _neural_network_detection(standarized_path, standarized_params,
     TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
 
     # detect spikes
-    bp = BatchProcessor(standarized_path, standarized_params['dtype'],
-                        standarized_params['n_channels'],
-                        standarized_params['data_format'],
-                        CONFIG.resources.max_memory,
-                        buffer_size=0)
+    bp = BatchProcessor(
+        standarized_path,
+        standarized_params['dtype'],
+        standarized_params['n_channels'],
+        standarized_params['data_format'],
+        CONFIG.resources.max_memory,
+        buffer_size=0)
 
     # check if all scores, clear and collision spikes exist..
     path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
@@ -340,13 +341,14 @@ def _neural_network_detection(standarized_path, standarized_params,
     path_to_spike_index_collision = os.path.join(TMP_FOLDER,
                                                  'spike_index_collision.npy')
 
-    if all([os.path.exists(path_to_score),
+    if all([
+            os.path.exists(path_to_score),
             os.path.exists(path_to_spike_index_clear),
-            os.path.exists(path_to_spike_index_collision)]):
-        logger.info('Loading "{}", "{}" and "{}"'
-                    .format(path_to_score,
-                            path_to_spike_index_clear,
-                            path_to_spike_index_collision))
+            os.path.exists(path_to_spike_index_collision)
+    ]):
+        logger.info('Loading "{}", "{}" and "{}"'.format(
+            path_to_score, path_to_spike_index_clear,
+            path_to_spike_index_collision))
 
         scores = np.load(path_to_score)
         clear = np.load(path_to_spike_index_clear)
@@ -361,27 +363,27 @@ def _neural_network_detection(standarized_path, standarized_params,
         # apply threshold detector on standarized data
         autoencoder_filename = CONFIG.neural_network_autoencoder.filename
         mc = bp.multi_channel_apply
-        res = mc(neuralnetwork.nn_detection,
-                 mode='memory',
-                 cleanup_function=neuralnetwork.fix_indexes,
-                 neighbors=CONFIG.neighChannels,
-                 geom=CONFIG.geom,
-                 temporal_features=CONFIG.spikes.temporal_features,
-                 # FIXME: what is this?
-                 temporal_window=3,
-                 th_detect=CONFIG.neural_network_detector.threshold_spike,
-                 th_triage=CONFIG.neural_network_triage.threshold_collision,
-                 detector_filename=CONFIG.neural_network_detector.filename,
-                 autoencoder_filename=autoencoder_filename,
-                 triage_filename=CONFIG.neural_network_triage.filename)
+        res = mc(
+            neuralnetwork.nn_detection,
+            mode='memory',
+            cleanup_function=neuralnetwork.fix_indexes,
+            neighbors=CONFIG.neighChannels,
+            geom=CONFIG.geom,
+            temporal_features=CONFIG.spikes.temporal_features,
+            # FIXME: what is this?
+            temporal_window=3,
+            th_detect=CONFIG.neural_network_detector.threshold_spike,
+            th_triage=CONFIG.neural_network_triage.threshold_collision,
+            detector_filename=CONFIG.neural_network_detector.filename,
+            autoencoder_filename=autoencoder_filename,
+            triage_filename=CONFIG.neural_network_triage.filename)
 
         # save clear spikes
         clear = np.concatenate([element[1] for element in res], axis=0)
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
-        clear, idx = detect.remove_incomplete_waveforms(clear,
-                                                        CONFIG.spikeSize,
-                                                        n_observations)
+        clear, idx = detect.remove_incomplete_waveforms(
+            clear, CONFIG.spikeSize, n_observations)
         np.save(path_to_spike_index_clear, clear)
         logger.info('Saved spike index clear in {}...'
                     .format(path_to_spike_index_clear))
@@ -390,9 +392,8 @@ def _neural_network_detection(standarized_path, standarized_params,
         collision = np.concatenate([element[2] for element in res], axis=0)
         logger.info('Removing collision indexes outside the allowed range to '
                     'draw a complete waveform...')
-        collision, _ = detect.remove_incomplete_waveforms(collision,
-                                                          CONFIG.spikeSize,
-                                                          n_observations)
+        collision, _ = detect.remove_incomplete_waveforms(
+            collision, CONFIG.spikeSize, n_observations)
         np.save(path_to_spike_index_collision, collision)
         logger.info('Saved spike index collision in {}...'
                     .format(path_to_spike_index_collision))
@@ -412,43 +413,41 @@ def _neural_network_detection(standarized_path, standarized_params,
                                 CONFIG.resources.max_memory)
             batches = bp.multi_channel()
             first_batch, _, _ = next(batches)
-            Q = whiten.matrix(
-                first_batch,
-                CONFIG.neighChannels,
-                CONFIG.spikeSize)
+            Q = whiten.matrix(first_batch, CONFIG.neighChannels,
+                              CONFIG.spikeSize)
 
-            path_to_whitening_matrix = os.path.join(
-                TMP_FOLDER, 'whitening.npy')
+            path_to_whitening_matrix = os.path.join(TMP_FOLDER,
+                                                    'whitening.npy')
             np.save(path_to_whitening_matrix, Q)
             logger.info('Saved whitening matrix in {}'
                         .format(path_to_whitening_matrix))
 
             # apply whitening to every batch
-            (whitened_path,
-             whitened_params) = bp.multi_channel_apply(np.matmul,
-                                                       mode='disk',
-                                                       output_path=os.path.join(
-                                                           TMP_FOLDER, 'whitened.bin'),
-                                                       if_file_exists='skip',
-                                                       cast_dtype=OUTPUT_DTYPE,
-                                                       b=Q)
+            (whitened_path, whitened_params) = bp.multi_channel_apply(
+                np.matmul,
+                mode='disk',
+                output_path=os.path.join(TMP_FOLDER, 'whitened.bin'),
+                if_file_exists='skip',
+                cast_dtype=OUTPUT_DTYPE,
+                b=Q)
 
             main_channel = clear[:, 1]
 
             # load and dump waveforms from clear spikes
 
-            path_to_waveforms_clear = os.path.join(
-                TMP_FOLDER, 'waveforms_clear.npy')
+            path_to_waveforms_clear = os.path.join(TMP_FOLDER,
+                                                   'waveforms_clear.npy')
 
             if os.path.exists(path_to_waveforms_clear):
                 logger.info('Found clear waveforms in {}, loading them...'
                             .format(path_to_waveforms_clear))
                 waveforms_clear = np.load(path_to_waveforms_clear)
             else:
-                logger.info('Did not find clear waveforms in {}, reading them from {}'
-                            .format(path_to_waveforms_clear, whitened_path))
-                explorer = RecordingExplorer(whitened_path,
-                                             spike_size=CONFIG.spikeSize)
+                logger.info(
+                    'Did not find clear waveforms in {}, reading them from {}'
+                    .format(path_to_waveforms_clear, whitened_path))
+                explorer = RecordingExplorer(
+                    whitened_path, spike_size=CONFIG.spikeSize)
                 waveforms_clear = explorer.read_waveforms(clear[:, 0], 'all')
                 np.save(path_to_waveforms_clear, waveforms_clear)
                 logger.info('Saved waveform from clear spikes in: {}'
@@ -468,18 +467,20 @@ def _neural_network_detection(standarized_path, standarized_params,
                 'Saved rotation matrix in {}...'.format(path_to_rotation))
 
             logger.info('Denoising...')
-            path_to_denoised_waveforms = os.path.join(
-                TMP_FOLDER, 'denoised_waveforms.npy')
+            path_to_denoised_waveforms = os.path.join(TMP_FOLDER,
+                                                      'denoised_waveforms.npy')
             if os.path.exists(path_to_denoised_waveforms):
                 logger.info('Found denoised waveforms in {}, loading them...'
                             .format(path_to_denoised_waveforms))
                 denoised_waveforms = np.load(path_to_denoised_waveforms)
             else:
-                logger.info('Did not find denoised waveforms in {}, evaluating them from {}'
-                            .format(path_to_denoised_waveforms, path_to_waveforms_clear))
+                logger.info(
+                    'Did not find denoised waveforms in {}, evaluating them from {}'
+                    .format(path_to_denoised_waveforms,
+                            path_to_waveforms_clear))
                 waveforms_clear = np.load(path_to_waveforms_clear)
-                denoised_waveforms = dim_red.denoise(
-                    waveforms_clear, rotation, CONFIG)
+                denoised_waveforms = dim_red.denoise(waveforms_clear, rotation,
+                                                     CONFIG)
                 logger.info('Saving denoised waveforms to {}'.format(
                     path_to_denoised_waveforms))
                 np.save(path_to_denoised_waveforms, denoised_waveforms)
@@ -499,27 +500,24 @@ def _neural_network_detection(standarized_path, standarized_params,
             # Dimensionality reduction (Isolated Waveforms) #
             #################################################
 
-            scores = dim_red.main_channel_scores(
-                waveforms_clear, rotation, clear, CONFIG)
+            scores = dim_red.main_channel_scores(waveforms_clear, rotation,
+                                                 clear, CONFIG)
             scores = (scores - np.mean(scores, axis=0)) / np.std(scores)
-            scores = np.concatenate([x[:,
-                                       np.newaxis,
-                                       np.newaxis],
-                                     y[:,
-                                       np.newaxis,
-                                       np.newaxis],
-                                     scores[:,
-                                            :,
-                                            np.newaxis]],
-                                    axis=1)
+            scores = np.concatenate(
+                [
+                    x[:, np.newaxis, np.newaxis], y[:, np.newaxis, np.newaxis],
+                    scores[:, :, np.newaxis]
+                ],
+                axis=1)
 
         else:
 
             # save scores
             scores = np.concatenate([element[0] for element in res], axis=0)
 
-            logger.info('Removing scores for indexes outside the allowed range to '
-                        'draw a complete waveform...')
+            logger.info(
+                'Removing scores for indexes outside the allowed range to '
+                'draw a complete waveform...')
             scores = scores[idx]
 
             # compute Q for whitening
@@ -533,8 +531,8 @@ def _neural_network_detection(standarized_path, standarized_params,
             Q = whiten.matrix_localized(first_batch, CONFIG.neighChannels,
                                         CONFIG.geom, CONFIG.spikeSize)
 
-            path_to_whitening_matrix = os.path.join(
-                TMP_FOLDER, 'whitening.npy')
+            path_to_whitening_matrix = os.path.join(TMP_FOLDER,
+                                                    'whitening.npy')
             np.save(path_to_whitening_matrix, Q)
             logger.info('Saved whitening matrix in {}'
                         .format(path_to_whitening_matrix))
@@ -560,8 +558,8 @@ def _neural_network_detection(standarized_path, standarized_params,
     return scores, clear, collision
 
 
-def get_isolated_spikes_and_locations(
-        denoised_waveforms, main_channel, CONFIG):
+def get_isolated_spikes_and_locations(denoised_waveforms, main_channel,
+                                      CONFIG):
     power_all_chan_denoised = np.linalg.norm(denoised_waveforms, axis=1)
     th = CONFIG.level2_triage_threshold
     isolated_index = []
@@ -581,9 +579,13 @@ def get_isolated_spikes_and_locations(
             if mask[i, k] and k not in nn:
                 mask[i, k] = 0
 
-    x = np.sum(mask * power_all_chan_denoised[isolated_index] * CONFIG.geom[:, 0],
-               axis=1) / np.sum(mask * power_all_chan_denoised[isolated_index], axis=1)
-    y = np.sum(mask * power_all_chan_denoised[isolated_index] * CONFIG.geom[:, 1],
-               axis=1) / np.sum(mask * power_all_chan_denoised[isolated_index], axis=1)
+    x = np.sum(
+        mask * power_all_chan_denoised[isolated_index] * CONFIG.geom[:, 0],
+        axis=1) / np.sum(
+            mask * power_all_chan_denoised[isolated_index], axis=1)
+    y = np.sum(
+        mask * power_all_chan_denoised[isolated_index] * CONFIG.geom[:, 1],
+        axis=1) / np.sum(
+            mask * power_all_chan_denoised[isolated_index], axis=1)
 
     return isolated_index, x, y

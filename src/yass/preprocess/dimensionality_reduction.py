@@ -50,8 +50,8 @@ def suff_stat(recordings, spike_index, spike_size):
     # iterate over every channel
     for c in range(n_channels):
         # get spikes times for the current channel
-        channel_spike_times = spike_index[
-            spike_index[:, MAIN_CHANNEL] == c, SPIKE_TIME]
+        channel_spike_times = spike_index[spike_index[:, MAIN_CHANNEL] == c,
+                                          SPIKE_TIME]
         channel_spike_times = channel_spike_times[np.logical_and(
             (channel_spike_times > spike_size),
             (channel_spike_times < n_obs - spike_size - 1))]
@@ -99,8 +99,8 @@ def project(ss, spikes_per_channel, n_features, neighbors):
 
     ss_all = np.sum(ss, 2)
     w, v = np.linalg.eig(ss_all)
-    rot_all = v[:, np.argsort(w)[window_size:(
-        window_size - n_features - 1):-1]]
+    rot_all = v[:,
+                np.argsort(w)[window_size:(window_size - n_features - 1):-1]]
 
     for c in range(n_channels):
         if spikes_per_channel[c] <= window_size:
@@ -108,12 +108,14 @@ def project(ss, spikes_per_channel, n_features, neighbors):
                 rot[:, :, c] = rot_all
             else:
                 w, v = np.linalg.eig(np.sum(ss[:, :, neighbors[c, :]], 2))
-                rot[:, :, c] = v[:, np.argsort(
-                    w)[window_size:(window_size - n_features - 1):-1]]
+                rot[:, :, c] = v[:,
+                                 np.argsort(w)[window_size:(
+                                     window_size - n_features - 1):-1]]
         else:
             w, v = np.linalg.eig(ss[:, :, c])
-            rot[:, :, c] = v[:, np.argsort(
-                w)[window_size:(window_size - n_features - 1):-1]]
+            rot[:, :, c] = v[:,
+                             np.argsort(w)[window_size:(
+                                 window_size - n_features - 1):-1]]
 
     return rot
 
@@ -154,8 +156,8 @@ def score(waveforms, rot, main_channels=None, neighbors=None, geom=None):
         n_neighboring_channels
     """
     if waveforms.ndim != 3:
-        raise ValueError('waveforms must have dimension 3 (has {})'
-                         .format(waveforms.ndim))
+        raise ValueError('waveforms must have dimension 3 (has {})'.format(
+            waveforms.ndim))
 
     n_waveforms, n_temporal_features, n_channels = waveforms.shape
 
@@ -184,13 +186,13 @@ def score(waveforms, rot, main_channels=None, neighbors=None, geom=None):
         reduced = np.matmul(rot.T, waveforms.T).T
 
     else:
-        raise ValueError('rot must have 2 or 3 dimensions (has {})'
-                         .format(rot.ndim))
+        raise ValueError('rot must have 2 or 3 dimensions (has {})'.format(
+            rot.ndim))
 
     # if passed information about neighbors, get scores only for them instead
     # of all channels
-    if (main_channels is not None and neighbors is not None and
-            geom is not None):
+    if (main_channels is not None and neighbors is not None
+            and geom is not None):
         # for every spike, get the score only for the neighboring channels
         ord_neighbors, channel_features = ordered_neighbors(geom, neighbors)
         score_neigh = np.zeros((n_waveforms, n_reduced_features,
@@ -228,8 +230,9 @@ def main_channel_scores(waveforms, rot, spike_index, CONFIG):
         main_channel = spike_index[:, 1]
 
         for i in range(spikes):
-            score[i, :] = np.squeeze(np.matmul(
-                waveforms[i, :, main_channel[i]][np.newaxis], rot[:, :, main_channel[i]]))
+            score[i, :] = np.squeeze(
+                np.matmul(waveforms[i, :, main_channel[i]][np.newaxis],
+                          rot[:, :, main_channel[i]]))
 
     else:
         spikes, _, n_channels = waveforms.shape
@@ -261,8 +264,9 @@ def denoise(waveforms, rot, CONFIG):
         denoising_rot = np.matmul(rot2_, rot_)
         sp = np.transpose(waveforms, [0, 2, 1])
 
-        denoised_waveforms = np.transpose(np.squeeze(
-            np.matmul(sp[:, :, np.newaxis], denoising_rot), axis=2), [0, 2, 1])
+        denoised_waveforms = np.transpose(
+            np.squeeze(np.matmul(sp[:, :, np.newaxis], denoising_rot), axis=2),
+            [0, 2, 1])
     else:
         rot_ = np.transpose(rot)
 

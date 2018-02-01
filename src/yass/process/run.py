@@ -16,8 +16,11 @@ from ..mfm import *
 from ..geometry import order_channels_by_distance
 
 
-def run(score, spike_index_clear, spike_index_collision,
-        output_directory='tmp/', recordings_filename='standarized.bin'):
+def run(score,
+        spike_index_clear,
+        spike_index_collision,
+        output_directory='tmp/',
+        recordings_filename='standarized.bin'):
     """Process spikes
 
     Parameters
@@ -101,18 +104,17 @@ def run(score, spike_index_clear, spike_index_collision,
             doTriage = True
             _b = datetime.datetime.now()
             logger.info('Triaging events with main channel {}'.format(c))
-            index_keep = triage(score_c, 0,
-                                CONFIG.triage.nearest_neighbors,
+            index_keep = triage(score_c, 0, CONFIG.triage.nearest_neighbors,
                                 CONFIG.triage.percent, doTriage)
             Time['t'] += (datetime.datetime.now() - _b).total_seconds()
 
             # add untriaged spike index to spike_index_clear_group
             # and triaged spike index to spike_index_collision
-            spike_index_clear_proc = np.concatenate((
-                spike_index_clear_proc, spike_index_clear_c[index_keep]),
+            spike_index_clear_proc = np.concatenate(
+                (spike_index_clear_proc, spike_index_clear_c[index_keep]),
                 axis=0)
-            spike_index_collision = np.concatenate((
-                spike_index_collision, spike_index_clear_c[~index_keep]),
+            spike_index_collision = np.concatenate(
+                (spike_index_collision, spike_index_clear_c[~index_keep]),
                 axis=0)
 
             # keep untriaged score only
@@ -135,7 +137,8 @@ def run(score, spike_index_clear, spike_index_collision,
                 global_vbParam.invVhat = np.concatenate(
                     [global_vbParam.invVhat, local_vbParam.invVhat], axis=2)
                 global_vbParam.lambdahat = np.concatenate(
-                    [global_vbParam.lambdahat, local_vbParam.lambdahat], axis=0)
+                    [global_vbParam.lambdahat, local_vbParam.lambdahat],
+                    axis=0)
                 global_vbParam.nuhat = np.concatenate(
                     [global_vbParam.nuhat, local_vbParam.nuhat], axis=0)
                 global_vbParam.ahat = np.concatenate(
@@ -143,19 +146,25 @@ def run(score, spike_index_clear, spike_index_collision,
                 global_maskedData.sumY = np.concatenate(
                     [global_maskedData.sumY, local_maskedData.sumY], axis=0)
                 global_maskedData.sumYSq = np.concatenate(
-                    [global_maskedData.sumYSq, local_maskedData.sumYSq], axis=0)
+                    [global_maskedData.sumYSq, local_maskedData.sumYSq],
+                    axis=0)
                 global_maskedData.sumEta = np.concatenate(
-                    [global_maskedData.sumEta, local_maskedData.sumEta], axis=0)
+                    [global_maskedData.sumEta, local_maskedData.sumEta],
+                    axis=0)
                 global_maskedData.weight = np.concatenate(
-                    [global_maskedData.weight, local_maskedData.weight], axis=0)
+                    [global_maskedData.weight, local_maskedData.weight],
+                    axis=0)
                 global_maskedData.groupMask = np.concatenate(
-                    [global_maskedData.groupMask, local_maskedData.groupMask], axis=0)
+                    [global_maskedData.groupMask, local_maskedData.groupMask],
+                    axis=0)
                 global_maskedData.meanY = np.concatenate(
                     [global_maskedData.meanY, local_maskedData.meanY], axis=0)
                 global_maskedData.meanYSq = np.concatenate(
-                    [global_maskedData.meanYSq, local_maskedData.meanYSq], axis=0)
+                    [global_maskedData.meanYSq, local_maskedData.meanYSq],
+                    axis=0)
                 global_maskedData.meanEta = np.concatenate(
-                    [global_maskedData.meanEta, local_maskedData.meanEta], axis=0)
+                    [global_maskedData.meanEta, local_maskedData.meanEta],
+                    axis=0)
                 score_proc = np.concatenate([score_proc, score_c], axis=0)
 
         logger.info('merging all channels')
@@ -178,7 +187,11 @@ def run(score, spike_index_clear, spike_index_collision,
         ############
 
         spike_train_clear = np.concatenate(
-            [spike_index_clear_proc[~idx_triage, 0:1:], assignment[~idx_triage, np.newaxis]], axis=1)
+            [
+                spike_index_clear_proc[~idx_triage, 0:1:],
+                assignment[~idx_triage, np.newaxis]
+            ],
+            axis=1)
         spike_index_collision = np.concatenate(
             [spike_index_collision, spike_index_clear_proc[idx_triage]])
 
@@ -186,13 +199,12 @@ def run(score, spike_index_clear, spike_index_collision,
 
         # build matrix where each entry contains the neighbors ordered by
         # distance (?) left entries are filled with n_channels - why?
-        c_idx = np.ones((CONFIG.recordings.n_channels, nneigh),
-                        'int32') * CONFIG.recordings.n_channels
+        c_idx = np.ones((CONFIG.recordings.n_channels,
+                         nneigh), 'int32') * CONFIG.recordings.n_channels
         for c in range(CONFIG.recordings.n_channels):
-            ch_idx, _ = order_channels_by_distance(c,
-                                                   np.where(
-                                                       CONFIG.neighChannels[c])[0],
-                                                   CONFIG.geom)
+            ch_idx, _ = order_channels_by_distance(
+                c,
+                np.where(CONFIG.neighChannels[c])[0], CONFIG.geom)
             c_idx[c, :ch_idx.shape[0]] = ch_idx
 
         # iterate over every channel group [missing documentation for this
@@ -204,8 +216,8 @@ def run(score, spike_index_clear, spike_index_collision,
             neigh_chans = np.where(
                 np.sum(CONFIG.neighChannels[channels], axis=0) > 0)[0]
 
-            score_group = np.zeros(
-                (0, CONFIG.spikes.temporal_features, neigh_chans.shape[0]))
+            score_group = np.zeros((0, CONFIG.spikes.temporal_features,
+                                    neigh_chans.shape[0]))
             coreset_id_group = np.zeros((0), 'int32')
             mask_group = np.zeros((0, neigh_chans.shape[0]))
             spike_index_clear_group = np.zeros((0, 2), 'int32')
@@ -237,11 +249,13 @@ def run(score, spike_index_clear, spike_index_collision,
 
                     # add untriaged spike index to spike_index_clear_group
                     # and triaged spike index to spike_index_collision
-                    spike_index_clear_group = np.concatenate((
-                        spike_index_clear_group, spike_index_clear_c[index_keep]),
+                    spike_index_clear_group = np.concatenate(
+                        (spike_index_clear_group,
+                         spike_index_clear_c[index_keep]),
                         axis=0)
-                    spike_index_collision = np.concatenate((
-                        spike_index_collision, spike_index_clear_c[~index_keep]),
+                    spike_index_collision = np.concatenate(
+                        (spike_index_collision,
+                         spike_index_clear_c[~index_keep]),
                         axis=0)
 
                     # keep untriaged score only
@@ -264,9 +278,9 @@ def run(score, spike_index_clear, spike_index_collision,
                     ###########
 
                     _b = datetime.datetime.now()
-                    mask = getmask(
-                        score_c, coreset_id, CONFIG.clustering.masking_threshold,
-                        CONFIG.spikes.temporal_features)
+                    mask = getmask(score_c, coreset_id,
+                                   CONFIG.clustering.masking_threshold,
+                                   CONFIG.spikes.temporal_features)
                     Time['m'] += (datetime.datetime.now() - _b).total_seconds()
 
                     ################
@@ -275,9 +289,9 @@ def run(score, spike_index_clear, spike_index_collision,
 
                     # restructure score_c and mask to have same number of channels
                     # as score_group
-                    score_temp = np.zeros((score_c.shape[0],
-                                           CONFIG.spikes.temporal_features,
-                                           neigh_chans.shape[0]))
+                    score_temp = np.zeros(
+                        (score_c.shape[0], CONFIG.spikes.temporal_features,
+                         neigh_chans.shape[0]))
                     mask_temp = np.zeros((mask.shape[0], neigh_chans.shape[0]))
                     nneigh_c = np.sum(c_idx[c] < CONFIG.recordings.n_channels)
                     for j in range(nneigh_c):
@@ -304,8 +318,8 @@ def run(score, spike_index_clear, spike_index_collision,
                 logger.info("Clustering...")
                 coreset_id_group = coreset_id_group - 1
                 n_coreset = 0
-                cluster_id = spikesort(
-                    score_group, mask_group, coreset_id_group, CONFIG)
+                cluster_id = spikesort(score_group, mask_group,
+                                       coreset_id_group, CONFIG)
                 Time['s'] += (datetime.datetime.now() - _b).total_seconds()
 
                 ############
@@ -329,8 +343,9 @@ def run(score, spike_index_clear, spike_index_collision,
 
                 # concatenate triaged spike_index_clear_group
                 # into spike_index_collision
-                spike_index_collision = np.concatenate((
-                    spike_index_collision, spike_index_clear_group[idx_triage]),
+                spike_index_collision = np.concatenate(
+                    (spike_index_collision,
+                     spike_index_clear_group[idx_triage]),
                     axis=0)
 
     #################
@@ -340,15 +355,11 @@ def run(score, spike_index_clear, spike_index_collision,
     _b = datetime.datetime.now()
     logger.info("Getting Templates...")
     path_to_recordings = os.path.join(CONFIG.data.root_folder,
-                                      output_directory,
-                                      recordings_filename)
+                                      output_directory, recordings_filename)
     merge_threshold = CONFIG.templates.merge_threshold
-    spike_train_clear, templates = gam_templates(spike_train_clear,
-                                                 path_to_recordings,
-                                                 CONFIG.spikeSize,
-                                                 CONFIG.templatesMaxShift,
-                                                 merge_threshold,
-                                                 CONFIG.neighChannels)
+    spike_train_clear, templates = gam_templates(
+        spike_train_clear, path_to_recordings, CONFIG.spikeSize,
+        CONFIG.templatesMaxShift, merge_threshold, CONFIG.neighChannels)
 
     Time['e'] += (datetime.datetime.now() - _b).total_seconds()
 
