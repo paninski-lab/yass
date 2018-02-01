@@ -27,6 +27,8 @@ preprocess:
 spikes:
   detection: nn
   temporal_features: 3
+  
+clustering_method: '2+3'
 
 neural_network_triage:
   filename: triage_nn1.ckpt
