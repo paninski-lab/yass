@@ -110,7 +110,7 @@ To build the docs (from the root folder):
     pip install -r requirements.txt
 
     cd doc
-    make qhtml
+    make html
 
 
 Contributors
