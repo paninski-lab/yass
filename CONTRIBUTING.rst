@@ -8,7 +8,7 @@ Contributing to YASS
 This guide will walk you through the basics for contributing to
 YASS.
 
-1. `Python environment setup <doc/devconda.rst>`__
+1. `Python environment setup <doc/dev/conda.rst>`__
 2. `Installing YASS in development mode <doc/dev/dev_mode.rst>`__
 3. `Contributing to YASS <doc/dev/contribute.rst>`__
 4. `Testing code <doc/dev/testing.rst>`__
