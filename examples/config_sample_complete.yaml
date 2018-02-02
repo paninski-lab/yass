@@ -115,6 +115,11 @@ clustering:
   masking_threshold: [0.9, 0.5]
   # Num. of new clusters in split
   n_split: 5
+  # TODO: documentation for this
+  clustering_method: '2+3'
+
+# TODO: documentation for this, can we find a better place for this?
+isolation_threshold: 200
 
 templates:
   merge_threshold: [0.8, 0.7]
