@@ -15,18 +15,18 @@ import shutil
 import click
 import numpy as np
 
-from . import set_config
-from . import preprocess
-from . import process
-from . import deconvolute
-from . import read_config
-from . import geometry
-from .export import generate
-from .util import load_yaml, save_metadata, load_logging_config_file
-from .neuralnetwork import train_neural_networks
-from .config import Config
-from .explore import RecordingExplorer
-from .preprocess import dimensionality_reduction as dim_red
+from yass import set_config
+from yass import preprocess
+from yass import process
+from yass import deconvolute
+from yass import read_config
+from yass import geometry
+from yass.export import generate
+from yass.util import load_yaml, save_metadata, load_logging_config_file
+from yass.neuralnetwork import train_neural_networks
+from yass.config import Config
+from yass.explore import RecordingExplorer
+from yass.preprocess import dimensionality_reduction as dim_red
 
 
 @click.group()
