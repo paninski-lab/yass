@@ -3,12 +3,12 @@ Blocks for noise processing
 """
 import numpy as np
 
-from ... import read_config
-from ...preprocess.filter import butterworth
-from ...geometry import (n_steps_neigh_channels,
+from yass import read_config
+from yass.preprocess.filter import butterworth
+from yass.geometry import (n_steps_neigh_channels,
                          order_channels_by_distance)
-from ...preprocess import standarize
-from . import util
+from yass.preprocess import standarize
+from yass.process.noise import util
 
 
 # FIXME: i dont think is is being used
