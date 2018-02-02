@@ -45,7 +45,7 @@ extensions = [
 # mock dependencies
 # http://www.sphinx-doc.org/en/stable/ext/autodoc.html#confval-autodoc_mock_imports
 autodoc_mock_imports = ['numpy', 'scipy', 'sklearn', 'tensorflow', 'yaml',
-                        'progressbar']
+                        'progressbar', 'matplotlib']
 
 numpydoc_show_class_members = False
 
@@ -174,7 +174,8 @@ html_theme = 'alabaster'
 # html_logo = None
 
 # The name of an image file (relative to this directory) to use as a favicon of
-# the docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
+# the docs.  This file should be a Windows icon file (.ico) being 16x16 or
+# 32x32
 # pixels large.
 #
 # html_favicon = None

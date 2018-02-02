@@ -6,8 +6,8 @@ from ..geometry import order_channels_by_distance
 logger = logging.getLogger(__name__)
 
 
+# TODO: remove, not used anymore
 def get_waveforms(recording, spike_index, proj, neighbors, geom, nnt, th):
-
     """Extract waveforms from detected spikes
 
     Parameters
@@ -49,16 +49,16 @@ def get_waveforms(recording, spike_index, proj, neighbors, geom, nnt, th):
     spike_size = int((window_size-1)/2)
     nneigh = np.max(np.sum(neighbors, 0))
 
-    recording = np.concatenate((recording, np.zeros((n_times,1))), axis=1)
+    recording = np.concatenate((recording, np.zeros((n_times, 1))), axis=1)
     c_idx = np.ones((n_channels, nneigh), 'int32')*n_channels
     for c in range(n_channels):
         ch_idx, _ = order_channels_by_distance(c,
                                                np.where(neighbors[c])[0],
                                                geom)
-        c_idx[c,:ch_idx.shape[0]] = ch_idx
+        c_idx[c, :ch_idx.shape[0]] = ch_idx
 
-    spike_index_clear = np.zeros((0,2), 'int32')
-    spike_index_collision = np.zeros((0,2), 'int32')
+    spike_index_clear = np.zeros((0, 2), 'int32')
+    spike_index_collision = np.zeros((0, 2), 'int32')
     score = np.zeros((0, n_features, nneigh), 'float32')
 
     nbuff = 500000
@@ -66,13 +66,13 @@ def get_waveforms(recording, spike_index, proj, neighbors, geom, nnt, th):
 
     count = 0
     for j in range(n_spikes):
-        t = spike_index[j,SPIKE_TIME]
-        c = c_idx[spike_index[j,MAIN_CHANNEL]]
-        wf[count] = recording[(t-spike_size):(t+spike_size+1),c]
+        t = spike_index[j, SPIKE_TIME]
+        c = c_idx[spike_index[j, MAIN_CHANNEL]]
+        wf[count] = recording[(t-spike_size):(t+spike_size+1), c]
         count += 1
 
         # when we gathered enough spikes, go through triage NN and save score
-        if (count == nbuff) or (j == n_spikes -1):
+        if (count == nbuff) or (j == n_spikes - 1):
             # if we seek all spikes before reaching the buffer size,
             # size of buffer becomes the number of leftover spikes
             if j == n_spikes-1:
@@ -86,16 +86,18 @@ def get_waveforms(recording, spike_index, proj, neighbors, geom, nnt, th):
             # collect clear and colliding spikes
             spike_index_buff = spike_index[(j-nbuff+1):(j+1)]
             spike_index_clear = np.concatenate((spike_index_clear,
-                spike_index_buff[clear_spike]))
+                                                spike_index_buff[clear_spike]))
             spike_index_collision = np.concatenate((spike_index_collision,
-                spike_index_buff[~clear_spike]))
+                                                    spike_index_buff
+                                                    [~clear_spike]))
 
             # calculate score and collect into variable 'score'
-            reshaped_wf = np.reshape(np.transpose(wf[clear_spike],(0,2,1)),
-                (-1,window_size))
+            reshaped_wf = np.reshape(np.transpose(wf[clear_spike], (0, 2, 1)),
+                                     (-1, window_size))
             score_temp = np.transpose(np.reshape(np.matmul(reshaped_wf, proj),
-                (-1, nneigh, n_features)), (0,2,1))
-            score = np.concatenate((score,score_temp), axis = 0)
+                                                 (-1, nneigh, n_features)),
+                                      (0, 2, 1))
+            score = np.concatenate((score, score_temp), axis=0)
 
             # set counter back to zero
             count = 0

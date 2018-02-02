@@ -25,8 +25,11 @@ LICENSE = 'Apache'
 
 INSTALL_REQUIRES = [
     'numpy', 'scipy', 'scikit-learn', 'tensorflow', 'pyyaml',
+    'python-dateutil', 'click',
     # FIXME: we should remove this
-    'progressbar2'
+    'progressbar2',
+    # FIXME: stability metric depends on this, remove...
+    'tqdm'
 ]
 
 # pass an empty INSTALL_REQUIRES if building the docs, to avoid breaking the
@@ -106,7 +109,7 @@ setup(
     ],
     install_requires=INSTALL_REQUIRES,
     entry_points={
-        'console_scripts': ['yass=yass.command_line:main'],
+        'console_scripts': ['yass=yass.command_line:cli'],
     },
     download_url='{url}/archive/{version}.tar.gz'.format(url=URL,
                                                          version=VERSION),

@@ -4,19 +4,21 @@ import numpy as np
 import pytest
 
 
-from yass.preprocess.filter import butterworth, whitening_matrix, whitening
+from yass.preprocess.filter import butterworth
+from yass.preprocess import whiten
 
 # FIXME: MOVE THIS TO A DIFFERENT TEST SUITE
 from yass.geometry import (parse, find_channel_neighbors,
                            n_steps_neigh_channels)
 
-from yass.preprocess.detect import threshold_detection
-from yass.preprocess.waveform import get_waveforms
+from yass.preprocess.detect import threshold
+# from yass.preprocess.waveform import get_waveforms
 from yass.preprocess.standarize import standarize
 
 import yass
 from yass import preprocess
-from yass.preprocessing import Preprocessor
+
+from util import clean_tmp
 
 spikeSizeMS = 1
 srate = 30000
@@ -52,13 +54,6 @@ def path_to_config():
 
 
 @pytest.fixture
-def path_to_config_1k():
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'config_threshold_1k.yaml')
-    return path
-
-
-@pytest.fixture
 def path_to_nn_config():
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                         'config_nnet.yaml')
@@ -66,7 +61,7 @@ def path_to_nn_config():
 
 
 def test_can_apply_butterworth_filter(data):
-    butterworth(data, low_freq=300, high_factor=0.1,
+    butterworth(data[:, 0], low_freq=300, high_factor=0.1,
                 order=3, sampling_freq=20000)
 
 
@@ -92,44 +87,22 @@ def test_can_compute_n_steps_neighbors(path_to_geometry):
 def test_can_use_threshold_detector(data, path_to_geometry):
     geometry = parse(path_to_geometry, n_channels)
     neighbors = find_channel_neighbors(geometry, radius=70)
-    threshold_detection(data, neighbors, spike_size, 5)
+    threshold(data, neighbors, spike_size, 5)
 
 
-def test_can_whiten_data(data, path_to_geometry):
+def test_can_compute_whiten_matrix(data, path_to_geometry):
     geometry = parse(path_to_geometry, n_channels)
     neighbors = find_channel_neighbors(geometry, radius=70)
-    q = whitening_matrix(data, neighbors, spike_size)
-    whitening(data, q)
-
-
-def test_can_preprocess_data(path_to_config):
-    cfg = yass.Config.from_yaml(path_to_config)
-    pp = Preprocessor(cfg)
-    score, clr_idx, spt = pp.process()
-
-
-def test_can_preprocess_data_1k(path_to_config_1k):
-    cfg = yass.Config.from_yaml(path_to_config_1k)
-    pp = Preprocessor(cfg)
-    score, clr_idx, spt = pp.process()
-
-
-def test_can_preprocess_data_with_nnet(path_to_nn_config):
-    cfg = yass.Config.from_yaml(path_to_nn_config)
-    pp = Preprocessor(cfg)
-    score, clr_idx, spt = pp.process()
+    whiten.matrix(data, neighbors, spike_size)
 
 
 def test_can_preprocess(path_to_config):
     yass.set_config(path_to_config)
-    score, spike_index_clear, spike_index_collision = preprocess.run()
-
-
-def test_can_preprocess_1k(path_to_config_1k):
-    yass.set_config(path_to_config_1k)
-    score, spike_index_clear, spike_index_collision = preprocess.run()
+    clear_scores, spike_index_clear, spike_index_collision = preprocess.run()
+    clean_tmp()
 
 
 def test_can_preprocess_with_nnet(path_to_nn_config):
     yass.set_config(path_to_nn_config)
-    score, spike_index_clear, spike_index_collision = preprocess.run()
+    clear_scores, spike_index_clear, spike_index_collision = preprocess.run()
+    clean_tmp()

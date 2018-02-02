@@ -62,7 +62,7 @@ Steinmetz`_:
 
     # move to the examples folder and run yass in the sample data
     cd yass/examples
-    yass config_sample.yaml
+    yass sort config_sample.yaml
 
     # see the spike train
     cat data/spike_train.csv
@@ -82,15 +82,20 @@ Documentation hosted at `https://yass.readthedocs.io`_
 Running tests
 -------------
 
+To run tests and flake8 checks (from the root folder):
+
 .. code-block:: shell
 
-    pytest
+    pip install -r requirements.txt
+
+    pytest --flake8
 
 
 Building documentation
 ----------------------
 
-You need to install graphviz to build the graphs included in the documentation. On macOS:
+You need to install graphviz to build the graphs included in the
+documentation. On macOS:
 
 
 .. code-block:: shell
@@ -98,18 +103,24 @@ You need to install graphviz to build the graphs included in the documentation. 
     brew install graphviz
 
 
+To build the docs (from the root folder):
+
 .. code-block:: shell
 
+    pip install -r requirements.txt
+
     cd doc
-    make [format]
+    make html
 
 
-Maintainers
------------
+Contributors
+------------
 
-`Peter Lee`_, `Eduardo Blancas`_
-
-
+`Peter Lee`_, `Eduardo Blancas`_, `Nishchal Dethe`_, `Shenghao Wu`_,
+`Hooshmand Shokri`_
 
 .. _Peter Lee: https://github.com/pjl4303
-.. _Eduardo Blancas: https://edublancas.github.io/
+.. _Eduardo Blancas: https://blancas.io
+.. _Nishchal Dethe: https://github.com/nd2506
+.. _Shenghao Wu: https://github.com/ShenghaoWu
+.. _Hooshmand Shokri: https://github.com/hooshmandshr

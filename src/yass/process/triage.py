@@ -1,10 +1,20 @@
+"""
+Triage spikes in clean or collision
+"""
+
 import numpy as np
 from scipy.spatial import cKDTree
 
 
-# FIXME: dotriage should not be here
+# FIXME: remove dotriage parameter
+# TODO: documentation
+# TODO: comment code, it's not clear what it does
 def triage(score, channel_index, triage_k, triage_percent, do_triage):
-    """
+    """[?]
+
+    Parameters
+    ----------
+    ?
 
     Note
     ----
@@ -16,7 +26,7 @@ def triage(score, channel_index, triage_k, triage_percent, do_triage):
     nmax = 10000
 
     n_data, n_features, n_channels = score.shape
-    index_keep_bool = np.zeros(n_data,'bool')
+    index_keep_bool = np.zeros(n_data, 'bool')
     if n_data > nmax:
         index_keep = np.random.permutation(n_data)[:nmax]
         score = score[index_keep]

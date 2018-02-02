@@ -28,19 +28,19 @@ For details regarding the configuration file see :doc:`config`.
 Running YASS from the command line
 **********************************
 
-After installing `yass`, you can run it from the command line:
+After installing `yass`, you can sort spikes from the command line:
 
 
 .. code-block:: shell
 
-    yass path/to/config.yaml
+    yass sort path/to/config.yaml
 
 
 Run the following command for more information:
 
 .. code-block:: shell
 
-    yass --help
+    yass sort --help
 
 
 Running YASS in a Python script

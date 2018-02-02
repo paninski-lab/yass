@@ -16,7 +16,7 @@ def map_rep(dumper, data):
 
 
 class seq_data(list):
-        pass
+    pass
 
 
 def seq_rep(dumper, data):
@@ -38,9 +38,9 @@ def save_detect_network_params(filters, size, n_neighbors, output_path):
 
     size: int
         Temporal filter size
-        
+
     n_neighbors: int
-        Number of neighboring channels       
+        Number of neighboring channels
 
     output_path: str
         Where to save the file
@@ -61,10 +61,10 @@ def save_triage_network_params(filters, size, n_neighbors, output_path):
 
     size: int
         Temporal filter size
-        
+
     n_neighbors: int
-        Number of neighboring channels        
-        
+        Number of neighboring channels
+
     output_path: str
         Where to save the file
     """
@@ -73,14 +73,15 @@ def save_triage_network_params(filters, size, n_neighbors, output_path):
     with open(output_path, 'w') as f:
         yaml.dump(d, f, CustomYAMLDumper)
 
+
 def save_ae_network_params(n_input, n_features, output_path):
     """Generate yaml file with parameters for a ae network
 
     Parameters
     ----------
     n_input: int
-        Dimension of input 
-        
+        Dimension of input
+
     n_features: int
         Number of features
 
@@ -91,4 +92,3 @@ def save_ae_network_params(n_input, n_features, output_path):
 
     with open(output_path, 'w') as f:
         yaml.dump(d, f, CustomYAMLDumper)
-        

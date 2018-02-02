@@ -1,6 +1,8 @@
-Using pre-built pipelines
-=========================
+Using pre-built pipeline
+========================
 
+YASS provides with a pre-built pipeline for spike sorting, which consists of
+three parts: preprocessing, processing and decovolution.
 
 Preprocessing
 -------------

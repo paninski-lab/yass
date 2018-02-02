@@ -1,16 +1,14 @@
 import os
 
-import numpy as np
 import pytest
 
 import yass
-from yass.preprocessing import Preprocessor
-from yass.mainprocess import Mainprocessor
-from yass.deconvolute import Deconvolution
 
 from yass import preprocess
 from yass import process
 from yass import deconvolute
+
+from util import clean_tmp
 
 
 @pytest.fixture
@@ -20,21 +18,12 @@ def path_to_config():
     return path
 
 
-def test_deconvolute(path_to_config):
-    cfg = yass.Config.from_yaml(path_to_config)
-
-    pp = Preprocessor(cfg)
-    score, clr_idx, spt = pp.process()
-
-    mp = Mainprocessor(cfg, score, clr_idx, spt)
-    spike_train, spt_left = mp.mainProcess()
-
-    dc = Deconvolution(cfg, np.transpose(mp.templates, [1, 0, 2]), spt_left)
-    dc.fullMPMU()
-
-
-def test_decovnolute_new_pipeline(path_to_config):
+def test_decovnolution(path_to_config):
     yass.set_config('tests/config_nnet.yaml')
-    score, clr_idx, spt = preprocess.run()
-    spike_train, spikes_left, templates = process.run(score, clr_idx, spt)
-    deconvolute.run(spike_train, spikes_left, templates)
+    clear_scores, spike_index_clear, spike_index_collision = preprocess.run()
+    (spike_train_clear,
+     templates,
+     spike_index_collision) = process.run(clear_scores, spike_index_clear,
+                                          spike_index_collision)
+    deconvolute.run(spike_train_clear, templates, spike_index_collision)
+    clean_tmp()

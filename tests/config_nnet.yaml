@@ -18,11 +18,11 @@ recordings:
   n_channels: 10
   spatial_radius: 70
   spike_size_ms: 1.5
+  format: long
 
 preprocess:
   filter: True
-  templates_partial_data: 1
-  whiten_batchwise: False
+  dtype: float32
 
 spikes:
   detection: nn
