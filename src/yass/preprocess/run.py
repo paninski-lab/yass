@@ -403,9 +403,9 @@ def _neural_network_detection(standarized_path, standarized_params,
             # Waveform extraction #
             #######################
 
-            # TODO: what should the behaviour be for spike indexes that are when
-            # starting/ending the recordings and it is not possible ti draw a
-            # complete waveform?
+            # TODO: what should the behaviour be for spike indexes that are
+            # when starting/ending the recordings and it is not possible to
+            # draw a complete waveform?
             logger.info('Computing whitening matrix...')
             bp = BatchProcessor(standarized_path, standarized_params['dtype'],
                                 standarized_params['n_channels'],
@@ -445,7 +445,7 @@ def _neural_network_detection(standarized_path, standarized_params,
             else:
                 logger.info(
                     'Did not find clear waveforms in {}, reading them from {}'
-                        .format(path_to_waveforms_clear, whitened_path))
+                    .format(path_to_waveforms_clear, whitened_path))
                 explorer = RecordingExplorer(
                     whitened_path, spike_size=CONFIG.spikeSize)
                 waveforms_clear = explorer.read_waveforms(clear[:, 0], 'all')
