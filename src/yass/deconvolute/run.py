@@ -3,7 +3,7 @@ import logging
 
 import numpy as np
 
-from .deconvolute import Deconvolution
+from .deconvolve import greedy_deconvolve
 from .. import read_config
 from ..batch import RecordingsReader
 
@@ -60,11 +60,17 @@ def run(spike_train_clear, templates, spike_index_collision,
     logging.debug('Starting deconvolution. templates.shape: {}, '
                   'spike_index_collision.shape: {}'
                   .format(templates.shape, spike_index_collision.shape))
-
-    deconv = Deconvolution(CONFIG, np.transpose(templates, [1, 0, 2]),
-                           spike_index_collision, recordings)
-    spike_train_deconv = deconv.fullMPMU()
-
+    
+    
+    n_rf = int(CONFIG.deconvolution.n_rf*CONFIG.recordings.sampling_rate/10000)
+    spike_train_deconv = greedy_deconvolve(recordings, templates, 
+                                           spike_index_collision,
+                                           CONFIG.deconvolution2.n_explore, 
+                                           n_rf, 
+                                           CONFIG.deconvolution2.upsample_factor, 
+                                           CONFIG.deconvolution.threshold_a, 
+                                           CONFIG.deconvolution.threshold_dd)
+    
     logger.debug('spike_train_deconv.shape: {}'
                  .format(spike_train_deconv.shape))
 

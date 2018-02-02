@@ -26,6 +26,11 @@ optional_sections:
 
   templates:
     merge_threshold: [0.8, 0.7]
+    
+  deconvolution2:
+    n_explore: 2 
+    upsample_factor: 5
+    
 
 
 

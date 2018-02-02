@@ -1,6 +1,14 @@
 import numpy as np
 
-def greedy_deconvolve(rec, template, n_explore, n_rf, upsample_factor, threshold_a, threshold_dd):
+from .util import upsample_templates, make_spt_list, get_longer_spt_list
+from .match import make_tf_tensors, template_match
+
+def greedy_deconvolve(recording, templates, spike_index, 
+                      n_explore, n_rf, upsample_factor, 
+                      threshold_a, threshold_dd):
+    
+    # writable recording
+    rec = np.copy(recording)
     
     # get useful parameters
     T = rec.shape[0]
@@ -28,7 +36,7 @@ def greedy_deconvolve(rec, template, n_explore, n_rf, upsample_factor, threshold
     
     
     # change the format of spike index for easier access
-    spt_list = make_spt_list(spike_index_collision, n_channels)
+    spt_list = make_spt_list(spike_index, n_channels)
     
     
     # do template matching in a greedy way from biggest template

@@ -1,5 +1,5 @@
 import tensorflow as tf
-import numpy
+import numpy as np
 from scipy.interpolate import interp1d
 
 def make_tf_tensors(T, n_timebins, upsample_factor, R, 
