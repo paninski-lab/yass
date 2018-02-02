@@ -14,9 +14,10 @@ install-yass: ## Install Yass package
 	@echo "--> Installing Yass Package"
 	pip install -e .
 
+
 test: ## Run Tests
 	@echo "--> Running Tests"
-	py.test . --flake8
+	py.test . --flake8 --cov=yass
 
 
 # self-documenting makefile as described in http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
