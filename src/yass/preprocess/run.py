@@ -7,6 +7,7 @@ from functools import reduce
 
 import numpy as np
 
+<<<<<<< HEAD
 from .. import read_config
 from ..batch import BatchPipeline, BatchProcessor, RecordingsReader
 from ..batch import PipedTransformation as Transform
@@ -19,6 +20,19 @@ from . import detect
 from . import dimensionality_reduction as dim_red
 from .. import neuralnetwork
 import scipy.spatial as ss
+=======
+from yass import read_config
+from yass.batch import BatchPipeline, BatchProcessor, RecordingsReader
+from yass.batch import PipedTransformation as Transform
+from yass.explore import RecordingExplorer
+
+from yass.preprocess.filter import butterworth
+from yass.preprocess.standarize import standarize, standard_deviation
+from yass.preprocess import whiten
+from yass.preprocess import detect
+from yass.preprocess import dimensionality_reduction as dim_red
+from yass import neuralnetwork
+>>>>>>> 6e37383... switch preprocess to abs imports
 
 
 def run(output_directory='tmp/'):

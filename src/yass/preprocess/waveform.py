@@ -1,7 +1,7 @@
 import logging
 
 import numpy as np
-from ..geometry import order_channels_by_distance
+from yass.geometry import order_channels_by_distance
 
 logger = logging.getLogger(__name__)
 
