@@ -32,6 +32,8 @@ deconvolution:
 
 clustering:
   clustering_method: '2+3'
+  masking_threshold: [0.9, 0.5]
+  n_split: 5
 
 isolation_threshold: 200
 
