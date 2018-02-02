@@ -35,7 +35,7 @@ clustering:
   masking_threshold: [0.9, 0.5]
   n_split: 5
 
-isolation_threshold: 1000
+isolation_threshold: 0
 
 neural_network_detector:
   filename: detect_nn1.ckpt
