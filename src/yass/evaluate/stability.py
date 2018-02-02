@@ -10,8 +10,8 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from tqdm import tqdm
 
-from ..geometry import find_channel_neighbors
-from .stability_filters import butterworth, whitening
+from yass.geometry import find_channel_neighbors
+from yass.evaluate.stability_filters import butterworth, whitening
 
 
 def clean_spike_train(spt):
