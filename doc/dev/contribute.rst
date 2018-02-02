@@ -1,3 +1,6 @@
+Contributing to YASS
+====================
+
 Git workflow
 ------------
 

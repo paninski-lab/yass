@@ -17,7 +17,7 @@ Contents
    config
    blocks
    api
-   developers
+   devs
 
 
 Indices and tables

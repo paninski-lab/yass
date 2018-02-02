@@ -124,4 +124,4 @@ Contributors
 .. _Nishchal Dethe: https://github.com/nd2506
 .. _Shenghao Wu: https://github.com/ShenghaoWu
 .. _Hooshmand Shokri: https://github.com/hooshmandshr
-.. _Calving Tong: https://github.com/calvinytong
+.. _Calvin Tong: https://github.com/calvinytong
