@@ -16,11 +16,8 @@ from ..mfm import *
 from ..geometry import order_channels_by_distance
 
 
-def run(score,
-        spike_index_clear,
-        spike_index_collision,
-        output_directory='tmp/',
-        recordings_filename='standarized.bin'):
+def run(score, spike_index_clear, spike_index_collision,
+        output_directory='tmp/', recordings_filename='standarized.bin'):
     """Process spikes
 
     Parameters
@@ -88,7 +85,7 @@ def run(score,
     # second column: cluster id
     spike_train_clear = np.zeros((0, 2), 'int32')
 
-    if CONFIG.clustering_method == '2+3':
+    if CONFIG.clustering.clustering_method == '2+3':
         spike_index_clear_proc = np.zeros((0, 2), 'int32')
         main_channel_index = spike_index_clear[:, MAIN_CHANNEL]
         for i, c in enumerate(np.unique(main_channel_index)):
@@ -96,6 +93,7 @@ def run(score,
             idx = main_channel_index == c
             score_c = score[idx]
             spike_index_clear_c = spike_index_clear[idx]
+
             ##########
             # Triage #
             ##########
@@ -110,9 +108,10 @@ def run(score,
 
             # add untriaged spike index to spike_index_clear_group
             # and triaged spike index to spike_index_collision
-            spike_index_clear_proc = np.concatenate(
-                (spike_index_clear_proc, spike_index_clear_c[index_keep]),
-                axis=0)
+            spike_index_clear_proc = np.concatenate((spike_index_clear_proc,
+                                                     spike_index_clear_c[
+                                                         index_keep]),
+                                                    axis=0)
             spike_index_collision = np.concatenate(
                 (spike_index_collision, spike_index_clear_c[~index_keep]),
                 axis=0)
@@ -124,46 +123,63 @@ def run(score,
             _b = datetime.datetime.now()
             logger.info('Clustering events with main channel {}'.format(c))
             if i == 0:
-                global_vbParam, global_maskedData = spikesort(
-                    score_c, mask, group, CONFIG)
+                global_vbParam, global_maskedData = spikesort(score_c, mask,
+                                                              group, CONFIG)
                 score_proc = score_c
             else:
-                local_vbParam, local_maskedData = spikesort(
-                    score_c, mask, group, CONFIG)
-                global_vbParam.muhat = np.concatenate(
-                    [global_vbParam.muhat, local_vbParam.muhat], axis=1)
-                global_vbParam.Vhat = np.concatenate(
-                    [global_vbParam.Vhat, local_vbParam.Vhat], axis=2)
-                global_vbParam.invVhat = np.concatenate(
-                    [global_vbParam.invVhat, local_vbParam.invVhat], axis=2)
+                local_vbParam, local_maskedData = spikesort(score_c,
+                                                            mask,
+                                                            group,
+                                                            CONFIG)
+                global_vbParam.muhat = np.concatenate([global_vbParam.muhat,
+                                                       local_vbParam.muhat],
+                                                      axis=1)
+                global_vbParam.Vhat = np.concatenate([global_vbParam.Vhat,
+                                                      local_vbParam.Vhat],
+                                                     axis=2)
+                global_vbParam.invVhat = np.concatenate([global_vbParam.invVhat,
+                                                         local_vbParam.invVhat],
+                                                        axis=2)
                 global_vbParam.lambdahat = np.concatenate(
-                    [global_vbParam.lambdahat, local_vbParam.lambdahat],
+                    [global_vbParam.lambdahat,
+                     local_vbParam.lambdahat],
                     axis=0)
-                global_vbParam.nuhat = np.concatenate(
-                    [global_vbParam.nuhat, local_vbParam.nuhat], axis=0)
-                global_vbParam.ahat = np.concatenate(
-                    [global_vbParam.ahat, local_vbParam.ahat], axis=0)
-                global_maskedData.sumY = np.concatenate(
-                    [global_maskedData.sumY, local_maskedData.sumY], axis=0)
+                global_vbParam.nuhat = np.concatenate([global_vbParam.nuhat,
+                                                       local_vbParam.nuhat],
+                                                      axis=0)
+                global_vbParam.ahat = np.concatenate([global_vbParam.ahat,
+                                                      local_vbParam.ahat],
+                                                     axis=0)
+                global_maskedData.sumY = np.concatenate([global_maskedData.sumY,
+                                                         local_maskedData.sumY],
+                                                        axis=0)
                 global_maskedData.sumYSq = np.concatenate(
-                    [global_maskedData.sumYSq, local_maskedData.sumYSq],
+                    [global_maskedData.sumYSq,
+                     local_maskedData.sumYSq],
                     axis=0)
                 global_maskedData.sumEta = np.concatenate(
-                    [global_maskedData.sumEta, local_maskedData.sumEta],
+                    [global_maskedData.sumEta,
+                     local_maskedData.sumEta],
                     axis=0)
                 global_maskedData.weight = np.concatenate(
-                    [global_maskedData.weight, local_maskedData.weight],
+                    [global_maskedData.weight,
+                     local_maskedData.weight],
                     axis=0)
                 global_maskedData.groupMask = np.concatenate(
-                    [global_maskedData.groupMask, local_maskedData.groupMask],
+                    [global_maskedData.groupMask,
+                     local_maskedData.groupMask],
                     axis=0)
                 global_maskedData.meanY = np.concatenate(
-                    [global_maskedData.meanY, local_maskedData.meanY], axis=0)
+                    [global_maskedData.meanY,
+                     local_maskedData.meanY],
+                    axis=0)
                 global_maskedData.meanYSq = np.concatenate(
-                    [global_maskedData.meanYSq, local_maskedData.meanYSq],
+                    [global_maskedData.meanYSq,
+                     local_maskedData.meanYSq],
                     axis=0)
                 global_maskedData.meanEta = np.concatenate(
-                    [global_maskedData.meanEta, local_maskedData.meanEta],
+                    [global_maskedData.meanEta,
+                     local_maskedData.meanEta],
                     axis=0)
                 score_proc = np.concatenate([score_proc, score_c], axis=0)
 
@@ -287,8 +303,8 @@ def run(score,
                     # collect data #
                     ################
 
-                    # restructure score_c and mask to have same number of channels
-                    # as score_group
+                    # restructure score_c and mask to have same number of
+                    # channels as score_group
                     score_temp = np.zeros(
                         (score_c.shape[0], CONFIG.spikes.temporal_features,
                          neigh_chans.shape[0]))
@@ -309,7 +325,6 @@ def run(score,
                     n_coreset += np.max(coreset_id) + 1
 
             if score_group.shape[0] > 0:
-
                 ##############
                 # Clustering #
                 ##############
@@ -365,7 +380,7 @@ def run(score,
 
     currentTime = datetime.datetime.now()
 
-    if CONFIG.clustering_method == '2+3':
+    if CONFIG.clustering.clustering_method == '2+3':
         logger.info("Mainprocess done in {0} seconds.".format(
             (currentTime - startTime).seconds))
         logger.info("\ttriage:\t{0} seconds".format(Time['t']))

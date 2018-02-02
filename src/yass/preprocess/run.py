@@ -114,7 +114,7 @@ def run(output_directory='tmp/'):
 
         pipeline.add([filter_op])
 
-    (filtered_path, ), (filtered_params, ) = pipeline.run()
+    (filtered_path,), (filtered_params,) = pipeline.run()
 
     # standarize
     bp = BatchProcessor(
@@ -342,9 +342,9 @@ def _neural_network_detection(standarized_path, standarized_params,
                                                  'spike_index_collision.npy')
 
     if all([
-            os.path.exists(path_to_score),
-            os.path.exists(path_to_spike_index_clear),
-            os.path.exists(path_to_spike_index_collision)
+        os.path.exists(path_to_score),
+        os.path.exists(path_to_spike_index_clear),
+        os.path.exists(path_to_spike_index_collision)
     ]):
         logger.info('Loading "{}", "{}" and "{}"'.format(
             path_to_score, path_to_spike_index_clear,
@@ -398,14 +398,14 @@ def _neural_network_detection(standarized_path, standarized_params,
         logger.info('Saved spike index collision in {}...'
                     .format(path_to_spike_index_collision))
 
-        if CONFIG.clustering_method == '2+3':
+        if CONFIG.clustering.clustering_method == '2+3':
             #######################
             # Waveform extraction #
             #######################
 
             # TODO: what should the behaviour be for spike indexes that are when
-            # starting/ending the recordings and it is not possible ti draw a complete
-            # waveform?
+            # starting/ending the recordings and it is not possible ti draw a
+            # complete waveform?
             logger.info('Computing whitening matrix...')
             bp = BatchProcessor(standarized_path, standarized_params['dtype'],
                                 standarized_params['n_channels'],
@@ -445,7 +445,7 @@ def _neural_network_detection(standarized_path, standarized_params,
             else:
                 logger.info(
                     'Did not find clear waveforms in {}, reading them from {}'
-                    .format(path_to_waveforms_clear, whitened_path))
+                        .format(path_to_waveforms_clear, whitened_path))
                 explorer = RecordingExplorer(
                     whitened_path, spike_size=CONFIG.spikeSize)
                 waveforms_clear = explorer.read_waveforms(clear[:, 0], 'all')
@@ -475,9 +475,9 @@ def _neural_network_detection(standarized_path, standarized_params,
                 denoised_waveforms = np.load(path_to_denoised_waveforms)
             else:
                 logger.info(
-                    'Did not find denoised waveforms in {}, evaluating them from {}'
-                    .format(path_to_denoised_waveforms,
-                            path_to_waveforms_clear))
+                    'Did not find denoised waveforms in {}, evaluating them'
+                    'from {}'.format(path_to_denoised_waveforms,
+                                     path_to_waveforms_clear))
                 waveforms_clear = np.load(path_to_waveforms_clear)
                 denoised_waveforms = dim_red.denoise(waveforms_clear, rotation,
                                                      CONFIG)
@@ -582,10 +582,10 @@ def get_isolated_spikes_and_locations(denoised_waveforms, main_channel,
     x = np.sum(
         mask * power_all_chan_denoised[isolated_index] * CONFIG.geom[:, 0],
         axis=1) / np.sum(
-            mask * power_all_chan_denoised[isolated_index], axis=1)
+        mask * power_all_chan_denoised[isolated_index], axis=1)
     y = np.sum(
         mask * power_all_chan_denoised[isolated_index] * CONFIG.geom[:, 1],
         axis=1) / np.sum(
-            mask * power_all_chan_denoised[isolated_index], axis=1)
+        mask * power_all_chan_denoised[isolated_index], axis=1)
 
     return isolated_index, x, y

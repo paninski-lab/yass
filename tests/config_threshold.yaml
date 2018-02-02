@@ -21,10 +21,11 @@ preprocess:
 spikes:
   detection: threshold
   temporal_features: 3
+
+clustering:
+  clustering_method: '2+3'
   
-clustering_method: '2+3'
-  
-level2_triage_threshold: 200
+isolation_threshold: 200
 
 neural_network_triage:
   filename: triage_nn1.ckpt

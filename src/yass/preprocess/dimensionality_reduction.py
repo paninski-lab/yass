@@ -100,7 +100,7 @@ def project(ss, spikes_per_channel, n_features, neighbors):
     ss_all = np.sum(ss, 2)
     w, v = np.linalg.eig(ss_all)
     rot_all = v[:,
-                np.argsort(w)[window_size:(window_size - n_features - 1):-1]]
+              np.argsort(w)[window_size:(window_size - n_features - 1):-1]]
 
     for c in range(n_channels):
         if spikes_per_channel[c] <= window_size:
@@ -109,13 +109,13 @@ def project(ss, spikes_per_channel, n_features, neighbors):
             else:
                 w, v = np.linalg.eig(np.sum(ss[:, :, neighbors[c, :]], 2))
                 rot[:, :, c] = v[:,
-                                 np.argsort(w)[window_size:(
-                                     window_size - n_features - 1):-1]]
+                               np.argsort(w)[window_size:(
+                                   window_size - n_features - 1):-1]]
         else:
             w, v = np.linalg.eig(ss[:, :, c])
             rot[:, :, c] = v[:,
-                             np.argsort(w)[window_size:(
-                                 window_size - n_features - 1):-1]]
+                           np.argsort(w)[window_size:(
+                               window_size - n_features - 1):-1]]
 
     return rot
 
@@ -192,7 +192,7 @@ def score(waveforms, rot, main_channels=None, neighbors=None, geom=None):
     # if passed information about neighbors, get scores only for them instead
     # of all channels
     if (main_channels is not None and neighbors is not None
-            and geom is not None):
+        and geom is not None):
         # for every spike, get the score only for the neighboring channels
         ord_neighbors, channel_features = ordered_neighbors(geom, neighbors)
         score_neigh = np.zeros((n_waveforms, n_reduced_features,
@@ -203,7 +203,7 @@ def score(waveforms, rot, main_channels=None, neighbors=None, geom=None):
             current_neigh = ord_neighbors[main_channels[i]]
             # assign the scores for those channels to the matrix
             score_neigh[i, :, :len(current_neigh)] = reduced[i][:,
-                                                                current_neigh]
+                                                     current_neigh]
 
         return score_neigh
 
