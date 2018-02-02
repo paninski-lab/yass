@@ -15,7 +15,7 @@ install-dev: ## Install Yass + Dev Requirements
 
 test: ## Run Tests
 	@echo "--> Running Tests"
-	py.test .
+	py.test . --flake8
 
 
 # self-documenting makefile as described in http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
