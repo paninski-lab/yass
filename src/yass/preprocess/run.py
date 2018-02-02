@@ -383,8 +383,8 @@ def _neural_network_detection(standarized_path, standarized_params,
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
         clear, idx = detect.remove_incomplete_waveforms(
-            clear, CONFIG.spikeSize + CONFIG.templatesMaxShift, 
-                n_observations)
+            clear, CONFIG.spikeSize + CONFIG.templatesMaxShift,
+            n_observations)
         np.save(path_to_spike_index_clear, clear)
         logger.info('Saved spike index clear in {}...'
                     .format(path_to_spike_index_clear))
@@ -395,7 +395,7 @@ def _neural_network_detection(standarized_path, standarized_params,
                     'draw a complete waveform...')
         collision, _ = detect.remove_incomplete_waveforms(
             collision, CONFIG.spikeSize + CONFIG.templatesMaxShift, 
-                n_observations)
+            n_observations)
         np.save(path_to_spike_index_collision, collision)
         logger.info('Saved spike index collision in {}...'
                     .format(path_to_spike_index_collision))
