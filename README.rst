@@ -117,10 +117,11 @@ Contributors
 ------------
 
 `Peter Lee`_, `Eduardo Blancas`_, `Nishchal Dethe`_, `Shenghao Wu`_,
-`Hooshmand Shokri`_
+`Hooshmand Shokri`_, `Calvin Tong`_
 
 .. _Peter Lee: https://github.com/pjl4303
 .. _Eduardo Blancas: https://blancas.io
 .. _Nishchal Dethe: https://github.com/nd2506
 .. _Shenghao Wu: https://github.com/ShenghaoWu
 .. _Hooshmand Shokri: https://github.com/hooshmandshr
+.. _Calvin Tong: https://github.com/calvinytong

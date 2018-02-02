@@ -1,3 +1,6 @@
+Contributing to YASS
+====================
+
 Git workflow
 ------------
 
@@ -9,21 +12,19 @@ new branches, do your work and submit pull requests:
     # move to the repo
     cd path/to/repo
 
-    # move to the dev branch
-    git checkout dev
-
-    # when you start working on something new, create a new branch from dev
+    # when you start working on something new, create a new branch from master
     git checkout -b new-feature
 
-    # work on new feature and remember to merge from the dev branch from time
-    git merge dev
+    # work on new feature and remember to keep in sync with the master branch
+    # from time to time
+    git merge master
 
     # remember to push you changes to the remote branch
     git push
 
-    # when the new feature is done open a pull request to merge new-feature to dev
+    # when the new feature is done open a pull request to merge new-feature to master
 
-    # once the pull request is accepted and merged to dev, don't forget to remove
+    # once the pull request is accepted and merged to master, don't forget to remove
     # the branch if you no longer are going to use it
     # remove from the remote repository
     git push -d origin new-feature

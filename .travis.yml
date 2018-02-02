@@ -6,8 +6,7 @@ sudo: required
 install:
   - sudo apt-get install gfortran python-liblas libblas-dev liblapack-dev libatlas-dev
   - pip install --upgrade pip
-  - pip install -r requirements.txt
+  - make install
 script:
-  - pip install .
-  - pytest --flake8
+  - make test
 after_success: coveralls

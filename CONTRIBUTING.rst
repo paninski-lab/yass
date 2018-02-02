@@ -17,5 +17,4 @@ YASS.
 Other resources
 ---------------
 
--  `The Hitchhiker’s Guide to
-   Python! <http://docs.python-guide.org/en/latest/>`__
+-  `The Hitchhiker’s Guide to Python! <http://docs.python-guide.org/en/latest/>`__
