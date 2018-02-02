@@ -12,7 +12,7 @@ from .triage import triage
 from .coreset import coreset
 from .mask import getmask
 from .templates import get_and_merge_templates as gam_templates
-from ..mfm import *
+from ..mfm import spikesort, suffStatistics, merge_move, cluster_triage
 from ..geometry import order_channels_by_distance
 
 
@@ -137,9 +137,10 @@ def run(score, spike_index_clear, spike_index_collision,
                 global_vbParam.Vhat = np.concatenate([global_vbParam.Vhat,
                                                       local_vbParam.Vhat],
                                                      axis=2)
-                global_vbParam.invVhat = np.concatenate([global_vbParam.invVhat,
-                                                         local_vbParam.invVhat],
-                                                        axis=2)
+                global_vbParam.invVhat = np.concatenate(
+                    [global_vbParam.invVhat,
+                     local_vbParam.invVhat],
+                    axis=2)
                 global_vbParam.lambdahat = np.concatenate(
                     [global_vbParam.lambdahat,
                      local_vbParam.lambdahat],
@@ -150,9 +151,10 @@ def run(score, spike_index_clear, spike_index_collision,
                 global_vbParam.ahat = np.concatenate([global_vbParam.ahat,
                                                       local_vbParam.ahat],
                                                      axis=0)
-                global_maskedData.sumY = np.concatenate([global_maskedData.sumY,
-                                                         local_maskedData.sumY],
-                                                        axis=0)
+                global_maskedData.sumY = np.concatenate(
+                    [global_maskedData.sumY,
+                     local_maskedData.sumY],
+                    axis=0)
                 global_maskedData.sumYSq = np.concatenate(
                     [global_maskedData.sumYSq,
                      local_maskedData.sumYSq],
