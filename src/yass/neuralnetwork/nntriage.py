@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from .utils import weight_variable, bias_variable, conv2d, conv2d_VALID
-from ..util import load_yaml, change_extension
+from yass.neuralnetwork.utils import weight_variable, bias_variable, conv2d, conv2d_VALID
+from yass.util import load_yaml, change_extension
 
 
 class NeuralNetTriage(object):

@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 import progressbar
 
-from .utils import weight_variable, bias_variable, conv2d, conv2d_VALID
+from yass.neuralnetwork.utils import weight_variable, bias_variable, conv2d, conv2d_VALID
 
 
 def train_triage(x_train, y_train, n_filters, n_iter, n_batch, l2_reg_scale,

@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from .utils import max_pool
+from yass.neuralnetwork.utils import max_pool
 
 
 def remove_duplicate_spikes_by_energy(energy_train_tf, T, c_idx,

@@ -1,9 +1,9 @@
 import numpy as np
 import tensorflow as tf
 
-from .utils import (weight_variable, bias_variable, conv2d, conv2d_VALID,
+from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d, conv2d_VALID,
                     max_pool)
-from ..util import load_yaml, change_extension
+from yass.util import load_yaml, change_extension
 
 
 class NeuralNetDetector(object):
