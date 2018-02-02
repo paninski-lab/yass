@@ -561,7 +561,7 @@ def _neural_network_detection(standarized_path, standarized_params,
 def get_isolated_spikes_and_locations(denoised_waveforms, main_channel,
                                       CONFIG):
     power_all_chan_denoised = np.linalg.norm(denoised_waveforms, axis=1)
-    th = CONFIG.level2_triage_threshold
+    th = CONFIG.isolation_threshold
     isolated_index = []
     dist = ss.distance_matrix(CONFIG.geom, CONFIG.geom)
     for i in range(denoised_waveforms.shape[0] - 1):
