@@ -220,7 +220,8 @@ def _threshold_detection(standarized_path, standarized_params, n_observations,
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
         spike_index_clear, _ = (detect.remove_incomplete_waveforms(
-            spike_index_clear, CONFIG.spikeSize, n_observations))
+            spike_index_clear, CONFIG.spikeSize + CONFIG.templatesMaxShift,
+            n_observations))
 
         logger.info('Saving spikes in {}...'.format(path_to_spike_index_clear))
         np.save(path_to_spike_index_clear, spike_index_clear)
