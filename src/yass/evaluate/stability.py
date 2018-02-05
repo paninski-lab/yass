@@ -79,7 +79,7 @@ class RecordingBatchIterator(object):
         if not self.filter_std:
             return ts / self.scale
         ts = butterworth(ts, 300, 0.1, 3, self.s_rate)
-        ts = ts/np.std(ts)
+        ts = ts / np.std(ts)
         if not self.whiten:
             return ts
         ts = whitening(ts, self.neighbs, 40)
@@ -131,7 +131,7 @@ class MeanWaveCalculator(object):
         for i in tqdm(range(n_batches)):
             batch_idx = np.logical_and(
                 self.spike_train[:, 0] > i * n_samples,
-                self.spike_train[:, 0] < (i+1) * n_samples)
+                self.spike_train[:, 0] < (i + 1) * n_samples)
             spt = self.spike_train[batch_idx, :]
             spt[:, 0] -= n_samples * i
             ts = self.batch_reader.next_batch()
@@ -207,16 +207,20 @@ class RecordingAugmentation(object):
         # according to a binomial distribution with n_channel trial
         # on a sorted channel list based on distance from the original
         # channel.
-        new_main_channel = self.closest_channels[
-            main_channel, np.random.binomial(n=self.n_chan, p=self.dist_factor)]
-        translation = self.geometry[new_main_channel, :] - self.geometry[main_channel, :]
+        rand_int = np.random.binomial(n=self.n_chan, p=self.dist_factor)
+        new_main_channel = self.closest_channels[main_channel, rand_int]
+        prior_coordinates = self.geometry[main_channel, :]
+        new_coordinates = self.geometry[new_main_channel, :]
+        translation = new_coordinates - prior_coordinates
         x_move = translation[0]
         y_move = translation[1]
         # the vector of translation from original location to new one.
         trans = np.zeros([len(location), 2]).astype('int') - 1
         trans[:, 0] = location
         for i, l in enumerate(location):
-            candidate = (self.geometry[l, 0] + x_move, self.geometry[l, 1] + y_move)
+            new_x_coord = self.geometry[l, 0] + x_move
+            new_y_coord = self.geometry[l, 1] + y_move
+            candidate = (new_x_coord, new_y_coord)
             if candidate in self.geom_map:
                 trans[i, 1] = self.geom_map[candidate]
             else:
