@@ -369,7 +369,6 @@ class RecordingAugmentation(object):
                     if moved[cid]:
                         sup_signal = moved_templates[:, :, moved[cid]]
                         ts[spike_win, :] += sup_signal
-                                       
                     else:
                         sup_signal = orig_templates[:, :, cid]
                         ts[spike_win, :] += sup_signal
