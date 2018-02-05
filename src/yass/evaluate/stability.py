@@ -344,7 +344,6 @@ class RecordingAugmentation(object):
         for i, u in enumerate(moved_units):
             moved[u] = i
             # Spatial distance is drawn from a poisson distribution.
-            dist = np.sign(np.random.rand() - 0.5) * np.random.poisson(15)
             moved_templates[:, :, i] = self.move_spatial_trace(
                 orig_templates[:, :, u])
         # Create augmented spike train.
@@ -358,19 +357,22 @@ class RecordingAugmentation(object):
         for i in tqdm(range(length)):
             batch_idx = np.logical_and(
                 aug_spt[:, 0] > i * n_samples,
-                aug_spt[:, 0] < (i+1) * n_samples)
+                aug_spt[:, 0] < (i + 1) * n_samples)
             spt = aug_spt[batch_idx, :]
             spt[:, 0] -= n_samples * i
             ts = reader.next_batch()
             for j in range(spt.shape[0]):
                 cid = spt[j, 1]
                 try:
+                    # Time window around spike
+                    spike_win = spt[j, 0] + self.template_comp.window
                     if moved[cid]:
-                        ts[spt[j, 0] + self.template_comp.window, :] +=\
-                                       moved_templates[:, :, moved[cid]]
+                        sup_signal = moved_templates[:, :, moved[cid]]
+                        ts[spike_win, :] += sup_signal
+                                       
                     else:
-                        ts[spt[j, 0] + self.template_comp.window, :] +=\
-                                       orig_templates[:, :, cid]
+                        sup_signal = orig_templates[:, :, cid]
+                        ts[spike_win, :] += sup_signal
                 except Exception as e:
                     status.append('warning:{}'.format(str(e)))
                     boundary_violation += 1
@@ -506,11 +508,11 @@ class SpikeSortingEvaluation(object):
 
             if len(unmatched_clusters) < 1:
                 break
-            #TODO(hooshmand): Find a fix for template comparison.
+            # TODO(hooshmand): Find a fix for template comparison.
             # If the closest template is not very similar skip it.
-            #if (np.min(energy_dist[unit, unmatched_clusters]) >
-            #   1/4 * np.linalg.norm(energy_base[:, unit])):
-            #    continue
+            # if (np.min(energy_dist[unit, unmatched_clusters]) >
+            # 1/4 * np.linalg.norm(energy_base[:, unit])):
+            # continue
 
             matched_cluster_id = unmatched_clusters[np.argmin(
                 energy_dist[unit, unmatched_clusters])]
