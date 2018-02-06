@@ -125,6 +125,7 @@ class MeanWaveCalculator(object):
 
     def compute_templates(self, n_batches):
         """Computes the templates from a given number of batches."""
+        self.batch_reader.reset_cursor()
         counts = np.zeros(self.n_units)
         boundary_violation = 0
         n_samples = self.batch_reader.batch_time_samples
