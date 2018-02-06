@@ -21,7 +21,7 @@ else:
     _matplotlib_message = None
 
 from yass.util import ensure_iterator, sample, requires
-from ..batch import RecordingsReader
+from yass.batch import RecordingsReader
 from yass.explore.table import Table
 
 
