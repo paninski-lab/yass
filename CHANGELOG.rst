@@ -1,6 +1,10 @@
 Changelog
 =========
 
+0.7dev
+------
+
+
 0.6 (2018-02-05)
 -----------------
 * New stability metric

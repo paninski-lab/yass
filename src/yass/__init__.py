@@ -7,7 +7,7 @@ from .config import Config
 
 logging.getLogger(__name__).addHandler(NullHandler())
 
-__version__ = '0.6'
+__version__ = '0.7dev'
 
 CONFIG = None
 
