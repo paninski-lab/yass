@@ -31,7 +31,7 @@ deconvolution:
   lam: 20
 
 clustering:
-  clustering_method: 'neigh_chan'
+  clustering_method: 'location'
   masking_threshold: [0.9, 0.5]
   n_split: 5
 
