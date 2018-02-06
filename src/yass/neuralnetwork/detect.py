@@ -1,12 +1,12 @@
 import tensorflow as tf
 import numpy as np
 
-from .remove import remove_duplicate_spikes_by_energy
-from .score import get_score
+from yass.neuralnetwork.remove import remove_duplicate_spikes_by_energy
+from yass.neuralnetwork.score import get_score
 
-from ..geometry import order_channels_by_distance
+from yass.geometry import order_channels_by_distance
 
-from . import NeuralNetDetector, NeuralNetTriage
+from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage
 
 
 def nn_detection(recordings, neighbors, geom, temporal_features,

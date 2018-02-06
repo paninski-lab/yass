@@ -8,8 +8,8 @@ import os.path as path
 
 import numpy as np
 
-from ..util import load_asset, load_yaml
-from ..geometry import n_steps_neigh_channels
+from yass.util import load_asset, load_yaml
+from yass.geometry import n_steps_neigh_channels
 
 
 def params(path_to_config):

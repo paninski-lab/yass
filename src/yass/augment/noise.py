@@ -1,7 +1,7 @@
 import numpy as np
 
-from ..geometry import order_channels_by_distance
-from ..batch import RecordingsReader
+from yass.geometry import order_channels_by_distance
+from yass.batch import RecordingsReader
 
 
 # TODO: documentation

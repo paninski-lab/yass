@@ -2,7 +2,7 @@ import logging
 import os
 from functools import partial
 
-from .batch import BatchProcessor
+from yass.batch.batch import BatchProcessor
 
 
 class PipedTransformation(object):

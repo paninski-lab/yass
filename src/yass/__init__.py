@@ -3,7 +3,7 @@ from logging import NullHandler
 
 import tensorflow as tf
 
-from .config import Config
+from yass.config import Config
 
 logging.getLogger(__name__).addHandler(NullHandler())
 

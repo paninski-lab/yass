@@ -5,7 +5,7 @@ import logging
 
 import numpy as np
 
-from ..geometry import ordered_neighbors
+from yass.geometry import ordered_neighbors
 
 # TODO: improve documentation
 # TODO: remove batching logic and update preprocessor to run this channel

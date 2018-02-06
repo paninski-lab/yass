@@ -3,7 +3,7 @@ Functions for detecting spikes
 """
 import numpy as np
 
-from ..geometry import n_steps_neigh_channels
+from yass.geometry import n_steps_neigh_channels
 
 # TODO: documentation needs improvements: see (?) and Notes section
 # FIXME: seems like the detector is throwing slightly different results
