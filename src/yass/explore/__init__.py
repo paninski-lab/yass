@@ -1,4 +1,4 @@
-from .explorers import SpikeTrainExplorer, RecordingExplorer
+from yass.explore.explorers import SpikeTrainExplorer, RecordingExplorer
 
 __all__ = ['SpikeTrainExplorer', 'RecordingExplorer']
 

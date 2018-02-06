@@ -3,12 +3,11 @@ Blocks for noise processing
 """
 import numpy as np
 
-from ... import read_config
-from ...preprocess.filter import butterworth
-from ...geometry import (n_steps_neigh_channels,
-                         order_channels_by_distance)
-from ...preprocess import standarize
-from . import util
+from yass import read_config
+from yass.preprocess.filter import butterworth
+from yass.geometry import (n_steps_neigh_channels, order_channels_by_distance)
+from yass.preprocess import standarize
+from yass.process.noise import util
 
 
 # FIXME: i dont think is is being used
@@ -37,7 +36,7 @@ def covariance(recordings, temporal_size, neigbor_steps):
     channel = np.argmax(np.sum(neigh_channels, 0))
 
     # get the neighbor channels for "channel"
-    (neighbords_idx,) = np.where(neigh_channels[channel])
+    (neighbords_idx, ) = np.where(neigh_channels[channel])
 
     # order neighbors by distance
     neighbords_idx, temp = order_channels_by_distance(channel, neighbords_idx,
@@ -50,8 +49,7 @@ def covariance(recordings, temporal_size, neigbor_steps):
     # filter recording
     if CONFIG.preprocess.filter == 1:
         rec = butterworth(rec, CONFIG.filter.low_pass_freq,
-                          CONFIG.filter.high_factor,
-                          CONFIG.filter.order,
+                          CONFIG.filter.high_factor, CONFIG.filter.order,
                           CONFIG.recordings.sampling_rate)
 
     # standardize recording
@@ -59,5 +57,4 @@ def covariance(recordings, temporal_size, neigbor_steps):
     rec = standarize.standarize(rec, sd_)
 
     # compute and return spatial and temporal covariance
-    return util.covariance(rec, temporal_size, neigbor_steps,
-                           CONFIG.spikeSize)
+    return util.covariance(rec, temporal_size, neigbor_steps, CONFIG.spikeSize)

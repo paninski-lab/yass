@@ -6,7 +6,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 
-# FIXME: remove dotriage parameter
+# FIXME: why is there a do_triage parameter on this function?
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
 def triage(score, channel_index, triage_k, triage_percent, do_triage):

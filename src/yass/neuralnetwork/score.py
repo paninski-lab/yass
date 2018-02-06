@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from . import NeuralNetDetector
+from yass.neuralnetwork import NeuralNetDetector
 
 
 # TODO: what is this for?

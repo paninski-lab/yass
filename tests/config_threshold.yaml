@@ -22,6 +22,14 @@ spikes:
   detection: threshold
   temporal_features: 3
 
+clustering:
+  clustering_method: '3x7'
+  masking_threshold: [0.9, 0.5]
+  n_split: 5
+  
+location:
+  isolation_threshold: 0
+
 neural_network_triage:
   filename: triage_nn1.ckpt
   threshold_collision: 0.75

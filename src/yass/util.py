@@ -1,7 +1,7 @@
 """
 Utility functions
 """
-from . import __version__
+from yass import __version__
 
 import datetime
 import os

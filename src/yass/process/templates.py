@@ -5,7 +5,7 @@ import numpy as np
 from scipy import sparse
 import logging
 
-from ..explore import RecordingExplorer, SpikeTrainExplorer
+from yass.explore import RecordingExplorer, SpikeTrainExplorer
 
 logger = logging.getLogger(__name__)
 
