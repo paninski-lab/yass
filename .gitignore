@@ -109,3 +109,6 @@ ENV/
 
 # mkdocs documentation
 /site
+
+# gvim temp files
+*~
