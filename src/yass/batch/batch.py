@@ -5,10 +5,10 @@ import os.path
 
 import yaml
 
-from ..util import function_path, human_readable_time
-from .generator import IndexGenerator
-from .reader import RecordingsReader
-from .buffer import BufferGenerator
+from yass.util import function_path, human_readable_time
+from yass.batch.generator import IndexGenerator
+from yass.batch.reader import RecordingsReader
+from yass.batch.buffer import BufferGenerator
 
 
 class BatchProcessor(object):

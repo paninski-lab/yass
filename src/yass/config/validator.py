@@ -1,4 +1,4 @@
-from . import custom_rules
+from yass.config import custom_rules
 
 from functools import reduce
 

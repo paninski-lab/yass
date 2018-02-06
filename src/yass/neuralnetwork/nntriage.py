@@ -1,7 +1,8 @@
 import tensorflow as tf
 
-from .utils import weight_variable, bias_variable, conv2d, conv2d_VALID
-from ..util import load_yaml, change_extension
+from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
+                                      conv2d_VALID)
+from yass.util import load_yaml, change_extension
 
 
 class NeuralNetTriage(object):
@@ -65,9 +66,14 @@ class NeuralNetTriage(object):
         self.W2 = weight_variable([1, C, K2, 1])
         self.b2 = bias_variable([1])
 
-        self.saver = tf.train.Saver(
-            {"W1": self.W1, "W11": self.W11, "W2": self.W2, "b1": self.b1,
-             "b11": self.b11, "b2": self.b2})
+        self.saver = tf.train.Saver({
+            "W1": self.W1,
+            "W11": self.W11,
+            "W2": self.W2,
+            "b1": self.b1,
+            "b11": self.b11,
+            "b2": self.b2
+        })
 
     def triage_prob(self, x_tf, T, nneigh, c_idx):
         """
@@ -99,16 +105,17 @@ class NeuralNetTriage(object):
         K1, K2 = self.filters_dict['filters']
 
         # NN structures
-        layer1 = tf.nn.relu(conv2d(tf.expand_dims(
-            tf.expand_dims(x_tf, -1), 0), self.W1) + self.b1)
+        layer1 = tf.nn.relu(
+            conv2d(tf.expand_dims(tf.expand_dims(x_tf, -1), 0), self.W1) +
+            self.b1)
         layer11 = tf.nn.relu(conv2d(layer1, self.W11) + self.b11)
-        zero_added_layer11 = tf.concat((tf.transpose(layer11, [2, 0, 1, 3]),
-                                        tf.zeros((1, 1, T, K2))
-                                        ), axis=0)
+        zero_added_layer11 = tf.concat(
+            (tf.transpose(layer11, [2, 0, 1, 3]), tf.zeros((1, 1, T, K2))),
+            axis=0)
         temp = tf.transpose(
             tf.gather(zero_added_layer11, c_idx), [0, 2, 3, 1, 4])
-        temp2 = conv2d_VALID(tf.reshape(
-            temp, [-1, T, nneigh, K2]), self.W2) + self.b2
+        temp2 = conv2d_VALID(tf.reshape(temp, [-1, T, nneigh, K2]),
+                             self.W2) + self.b2
         o_layer = tf.transpose(temp2, [2, 1, 0, 3])
         prob = tf.squeeze(tf.sigmoid(o_layer))
 

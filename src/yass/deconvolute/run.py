@@ -3,9 +3,9 @@ import logging
 
 import numpy as np
 
-from .deconvolute import Deconvolution
-from .. import read_config
-from ..batch import RecordingsReader
+from yass.deconvolute.deconvolute import Deconvolution
+from yass import read_config
+from yass.batch import RecordingsReader
 
 
 # TODO: comment code, it's not clear what it does

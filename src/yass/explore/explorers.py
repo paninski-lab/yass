@@ -20,9 +20,9 @@ else:
     _matplotlib = True
     _matplotlib_message = None
 
-from ..util import ensure_iterator, sample, requires
-from ..batch import RecordingsReader
-from .table import Table
+from yass.util import ensure_iterator, sample, requires
+from yass.batch import RecordingsReader
+from yass.explore.table import Table
 
 
 # TODO: use functions in util module
