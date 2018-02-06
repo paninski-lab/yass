@@ -299,16 +299,62 @@ def _threshold_detection(standarized_path, standarized_params, n_observations,
     path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
     np.save(path_to_rotation, rotation)
     logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
-
+    
+    main_channel = spike_index_clear[:,1]
     ###########################################
     # PCA - waveform dimensionality reduction #
     ###########################################
+    if CONFIG.clustering.clustering_method == 'location':
+        logger.info('Denoising...')
+        path_to_denoised_waveforms = os.path.join(TMP_FOLDER,
+                                                  'denoised_waveforms.npy')
+        if os.path.exists(path_to_denoised_waveforms):
+            logger.info('Found denoised waveforms in {}, loading them...'
+                        .format(path_to_denoised_waveforms))
+            denoised_waveforms = np.load(path_to_denoised_waveforms)
+        else:
+            logger.info(
+                'Did not find denoised waveforms in {}, evaluating them'
+                'from {}'.format(path_to_denoised_waveforms,
+                                 path_to_waveforms_clear))
+            waveforms_clear = np.load(path_to_waveforms_clear)
+            denoised_waveforms = dim_red.denoise(waveforms_clear, rotation,
+                                                 CONFIG)
+            logger.info('Saving denoised waveforms to {}'.format(
+                path_to_denoised_waveforms))
+            np.save(path_to_denoised_waveforms, denoised_waveforms)
+            
+        isolated_index, x, y = get_isolated_spikes_and_locations(
+                denoised_waveforms, main_channel, CONFIG)
+        x = (x - np.mean(x)) / np.std(x)
+        y = (y - np.mean(y)) / np.std(y)
+        corrupted_index = np.logical_not(
+            np.in1d(np.arange(spike_index_clear.shape[0]), isolated_index))
+        spike_index_collision = np.concatenate(
+            [spike_index_collision, spike_index_clear[corrupted_index]], axis=0)
+        spike_index_clear = spike_index_clear[isolated_index]
+        waveforms_clear = waveforms_clear[isolated_index]
+        
+        
+        #################################################
+        # Dimensionality reduction (Isolated Waveforms) #
+        #################################################
 
-    logger.info('Reducing spikes dimensionality with PCA matrix...')
-    scores = dim_red.score(waveforms_clear, rotation, spike_index_clear[:, 1],
-                           CONFIG.neighChannels, CONFIG.geom)
+        scores = dim_red.main_channel_scores(waveforms_clear, rotation,
+                                             spike_index_clear, CONFIG)
+        scores = (scores - np.mean(scores, axis=0)) / np.std(scores)
+        scores = np.concatenate(
+            [
+                x[:, np.newaxis, np.newaxis], y[:, np.newaxis, np.newaxis],
+                scores[:, :, np.newaxis]
+            ],
+            axis=1)
+    else:
+        logger.info('Reducing spikes dimensionality with PCA matrix...')
+        scores = dim_red.score(waveforms_clear, rotation, spike_index_clear[:, 1],
+                               CONFIG.neighChannels, CONFIG.geom)
 
-    # save scores
+        # save scores
     path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
     np.save(path_to_score, scores)
     logger.info('Saved spike scores in {}...'.format(path_to_score))
@@ -562,14 +608,14 @@ def _neural_network_detection(standarized_path, standarized_params,
 def get_isolated_spikes_and_locations(denoised_waveforms, main_channel,
                                       CONFIG):
     power_all_chan_denoised = np.linalg.norm(denoised_waveforms, axis=1)
-    th = CONFIG.isolation_threshold
+    th = CONFIG.location.isolation_threshold
     isolated_index = []
     dist = ss.distance_matrix(CONFIG.geom, CONFIG.geom)
     for i in range(denoised_waveforms.shape[0] - 1):
-        if dist[main_channel[i], main_channel[i + 1]] > th:
+        if dist[main_channel[i], main_channel[i + 1]] >= th:
             if i == 0:
                 isolated_index += [i]
-            elif dist[main_channel[i], main_channel[i - 1]] > th:
+            elif dist[main_channel[i], main_channel[i - 1]] >= th:
                 isolated_index += [i]
     isolated_index = np.asarray(isolated_index, dtype=np.int32)
 
