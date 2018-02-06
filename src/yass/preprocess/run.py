@@ -495,7 +495,7 @@ def _neural_network_detection(standarized_path, standarized_params,
             else:
                 logger.info(
                     'Did not find clear waveforms in {}, reading them from {}'
-                        .format(path_to_waveforms_clear, whitened_path))
+                    .format(path_to_waveforms_clear, whitened_path))
                 explorer = RecordingExplorer(
                     whitened_path, spike_size=CONFIG.spikeSize)
                 waveforms_clear = explorer.read_waveforms(clear[:, 0], 'all')
