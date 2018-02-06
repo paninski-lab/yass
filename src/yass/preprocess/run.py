@@ -299,8 +299,8 @@ def _threshold_detection(standarized_path, standarized_params, n_observations,
     path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
     np.save(path_to_rotation, rotation)
     logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
-    
-    main_channel = spike_index_clear[:,1]
+
+    main_channel = spike_index_clear[:, 1]
     ###########################################
     # PCA - waveform dimensionality reduction #
     ###########################################
@@ -323,19 +323,19 @@ def _threshold_detection(standarized_path, standarized_params, n_observations,
             logger.info('Saving denoised waveforms to {}'.format(
                 path_to_denoised_waveforms))
             np.save(path_to_denoised_waveforms, denoised_waveforms)
-            
+
         isolated_index, x, y = get_isolated_spikes_and_locations(
-                denoised_waveforms, main_channel, CONFIG)
+            denoised_waveforms, main_channel, CONFIG)
         x = (x - np.mean(x)) / np.std(x)
         y = (y - np.mean(y)) / np.std(y)
         corrupted_index = np.logical_not(
             np.in1d(np.arange(spike_index_clear.shape[0]), isolated_index))
         spike_index_collision = np.concatenate(
-            [spike_index_collision, spike_index_clear[corrupted_index]], axis=0)
+            [spike_index_collision, spike_index_clear[corrupted_index]],
+            axis=0)
         spike_index_clear = spike_index_clear[isolated_index]
         waveforms_clear = waveforms_clear[isolated_index]
-        
-        
+
         #################################################
         # Dimensionality reduction (Isolated Waveforms) #
         #################################################
@@ -351,7 +351,8 @@ def _threshold_detection(standarized_path, standarized_params, n_observations,
             axis=1)
     else:
         logger.info('Reducing spikes dimensionality with PCA matrix...')
-        scores = dim_red.score(waveforms_clear, rotation, spike_index_clear[:, 1],
+        scores = dim_red.score(waveforms_clear, rotation,
+                               spike_index_clear[:, 1],
                                CONFIG.neighChannels, CONFIG.geom)
 
         # save scores
@@ -494,7 +495,7 @@ def _neural_network_detection(standarized_path, standarized_params,
             else:
                 logger.info(
                     'Did not find clear waveforms in {}, reading them from {}'
-                    .format(path_to_waveforms_clear, whitened_path))
+                        .format(path_to_waveforms_clear, whitened_path))
                 explorer = RecordingExplorer(
                     whitened_path, spike_size=CONFIG.spikeSize)
                 waveforms_clear = explorer.read_waveforms(clear[:, 0], 'all')
