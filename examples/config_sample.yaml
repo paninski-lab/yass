@@ -17,6 +17,12 @@ recordings:
   spike_size_ms: 1
   format: long
 
+clustering:
+  clustering_method: neigh_chan
+  
+location:
+  isolation_threshold: 200
+
 preprocess:
   filter: True
   dtype: float32

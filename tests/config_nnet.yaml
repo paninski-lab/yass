@@ -25,11 +25,11 @@ preprocess:
   dtype: float32
 
 spikes:
-  detection: nn
+  detection: threshold
   temporal_features: 3
   
 clustering:
-  clustering_method: '3x7'
+  clustering_method: 'location'
   masking_threshold: [0.9, 0.5]
   n_split: 5
 
