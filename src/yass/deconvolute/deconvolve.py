@@ -44,7 +44,11 @@ def greedy_deconvolve(recording, templates, spike_index,
     spike_train: numpy.ndarray (n_spikes_recovered, 2)
         A 2D array of deconvolved spike train with two columns, 
         where the first column is spike time and the second is 
-        cluster id.  
+        cluster id.
+
+    Notes
+    -----
+    [Add a brief description of the method]
     """
     
     # get useful parameters
