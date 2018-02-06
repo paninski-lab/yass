@@ -9,7 +9,7 @@ import numpy as np
 from pkg_resources import resource_filename
 
 from yass import geometry as geom
-from .validator import Validator
+from yass.config.validator import Validator
 
 
 class FrozenJSON(object):
