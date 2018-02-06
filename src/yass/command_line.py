@@ -15,18 +15,18 @@ import shutil
 import click
 import numpy as np
 
-from . import set_config
-from . import preprocess
-from . import process
-from . import deconvolute
-from . import read_config
-from . import geometry
-from .export import generate
-from .util import load_yaml, save_metadata, load_logging_config_file
-from .neuralnetwork import train_neural_networks
-from .config import Config
-from .explore import RecordingExplorer
-from .preprocess import dimensionality_reduction as dim_red
+from yass import set_config
+from yass import preprocess
+from yass import process
+from yass import deconvolute
+from yass import read_config
+from yass import geometry
+from yass.export import generate
+from yass.util import load_yaml, save_metadata, load_logging_config_file
+from yass.neuralnetwork import train_neural_networks
+from yass.config import Config
+from yass.explore import RecordingExplorer
+from yass.preprocess import dimensionality_reduction as dim_red
 
 
 @click.group()
@@ -151,7 +151,6 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
         path_to_rotation = path.join(TMP_FOLDER, 'rotation.npy')
         rotation = np.load(path_to_rotation)
 
-        # TODO: should we use 2 steps neighbor channels here?
         main_channels = explorer.main_channel_for_waveforms(waveforms)
         path_to_main_channels = path.join(TMP_FOLDER,
                                           'waveforms_main_channel.npy')

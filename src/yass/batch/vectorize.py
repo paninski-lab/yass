@@ -8,7 +8,7 @@ from copy import copy
 from functools import wraps
 import inspect
 
-from ..util import merge_dicts, map_parameters_in_fn_call
+from yass.util import merge_dicts, map_parameters_in_fn_call
 
 
 # TODO: this should probably be in explore.util

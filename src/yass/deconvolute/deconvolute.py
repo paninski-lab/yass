@@ -6,7 +6,7 @@ import logging
 import datetime as dt
 import numpy as np
 
-from ..geometry import n_steps_neigh_channels
+from yass.geometry import n_steps_neigh_channels
 
 
 # TODO: documentation

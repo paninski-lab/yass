@@ -8,7 +8,7 @@ https://github.com/hooshmandshr/yass_visualization/blob/master/src/stability/fil
 import numpy as np
 from scipy.signal import butter, lfilter
 
-from ..geometry import n_steps_neigh_channels
+from yass.geometry import n_steps_neigh_channels
 
 # FIXME: these functions were copied from yass when this was in a separate repo
 # the yass versions have been updated, we need to update the stability copied

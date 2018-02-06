@@ -116,6 +116,9 @@ def run(score, spike_index_clear, spike_index_collision,
                 (spike_index_collision, spike_index_clear_c[~index_keep]),
                 axis=0)
 
+            # TODO: add documentation for all of this part, until the
+            # "cleaning" commend
+
             # keep untriaged score only
             score_c = score_c[index_keep]
             group = np.arange(score_c.shape[0])
@@ -193,6 +196,7 @@ def run(score, spike_index_clear, spike_index_collision,
             global_maskedData, global_vbParam, suffStat, CONFIG, L, 0)
         assignmentTemp = np.argmax(global_vbParam.rhat, axis=1)
         assignment = np.zeros(score_proc.shape[0], 'int16')
+
         for j in range(score_proc.shape[0]):
             assignment[j] = assignmentTemp[j]
 
@@ -203,6 +207,8 @@ def run(score, spike_index_clear, spike_index_collision,
         ############
         # Cleaning #
         ############
+
+        # TODO: describe this step
 
         spike_train_clear = np.concatenate(
             [
@@ -215,10 +221,13 @@ def run(score, spike_index_clear, spike_index_collision,
 
     else:
 
-        # build matrix where each entry contains the neighbors ordered by
-        # distance (?) left entries are filled with n_channels - why?
+        # according to the docs if clustering method is not 2+3, you can set
+        # 3 x neighboring_channels, but I do not see where the
+        # neighboring_channels is being parsed on this else statemente
+
         c_idx = np.ones((CONFIG.recordings.n_channels,
                          nneigh), 'int32') * CONFIG.recordings.n_channels
+
         for c in range(CONFIG.recordings.n_channels):
             ch_idx, _ = order_channels_by_distance(
                 c,

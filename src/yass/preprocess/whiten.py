@@ -4,7 +4,7 @@ Whitening functions
 
 import numpy as np
 
-from ..geometry import n_steps_neigh_channels, order_channels_by_distance
+from yass.geometry import n_steps_neigh_channels, order_channels_by_distance
 
 
 # TODO: missing documentation

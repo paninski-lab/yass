@@ -3,11 +3,11 @@ import numpy as np
 import logging
 
 
-from .choose import choose_templates
-from .crop import crop_templates
-from .noise import noise_cov
-from ..process.templates import get_templates
-from ..util import load_yaml
+from yass.augment.choose import choose_templates
+from yass.augment.crop import crop_templates
+from yass.augment.noise import noise_cov
+from yass.process.templates import get_templates
+from yass.util import load_yaml
 
 
 # TODO: documentation
