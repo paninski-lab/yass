@@ -7,7 +7,7 @@ https://github.com/hooshmandshr/yass_visualization/blob/master/src/stability/sta
 
 import numpy as np
 
-from scipy.spatial.distance import cdist
+from scipy.spatial.distance import pdist, squareform, cdist
 from tqdm import tqdm
 
 from yass.geometry import find_channel_neighbors
@@ -79,7 +79,7 @@ class RecordingBatchIterator(object):
         if not self.filter_std:
             return ts / self.scale
         ts = butterworth(ts, 300, 0.1, 3, self.s_rate)
-        ts = ts/np.std(ts)
+        ts = ts / np.std(ts)
         if not self.whiten:
             return ts
         ts = whitening(ts, self.neighbs, 40)
@@ -125,13 +125,14 @@ class MeanWaveCalculator(object):
 
     def compute_templates(self, n_batches):
         """Computes the templates from a given number of batches."""
+        self.batch_reader.reset_cursor()
         counts = np.zeros(self.n_units)
         boundary_violation = 0
         n_samples = self.batch_reader.batch_time_samples
         for i in tqdm(range(n_batches)):
             batch_idx = np.logical_and(
                 self.spike_train[:, 0] > i * n_samples,
-                self.spike_train[:, 0] < (i+1) * n_samples)
+                self.spike_train[:, 0] < (i + 1) * n_samples)
             spt = self.spike_train[batch_idx, :]
             spt[:, 0] -= n_samples * i
             ts = self.batch_reader.next_batch()
@@ -153,12 +154,18 @@ class MeanWaveCalculator(object):
 
 class RecordingAugmentation(object):
 
-    def __init__(self, mean_wave_calculator, move_rate, augment_rate):
+    def __init__(self, mean_wave_calculator,
+                 move_rate, augment_rate, dist_factor=0.5):
         """Sets up the object for stability metric computations.
 
         Parameters
         ----------
         mean_wave_calculator: MeanWaveCalculator
+            mean_wave_calculator: MeanWaveCalculator object.
+            move_rate: float [0, 1]. The rate at which original clusters
+            will be moved spatially around.
+            dist_factor: float [0, 1]. How far the should the template
+            move spatially. 0 represents no movement and 1 furtherst.
         """
         self.template_comp = mean_wave_calculator
         self.geometry = mean_wave_calculator.batch_reader.geometry
@@ -169,14 +176,17 @@ class RecordingAugmentation(object):
         self.compute_stat_summary()
         self.move_rate = move_rate
         self.augment_rate = augment_rate
+        self.dist_factor = dist_factor
 
     def construct_channel_map(self):
         """Constucts a map of coordinate to channel index."""
         self.geom_map = {}
         for i in range(self.n_chan):
             self.geom_map[(self.geometry[i, 0], self.geometry[i, 1])] = i
+        pair_dist = squareform(pdist(self.geometry))
+        self.closest_channels = np.argsort(pair_dist, axis=1)
 
-    def move_spatial_trace(self, template, dist, spatial_size=10, mode='amp'):
+    def move_spatial_trace(self, template, spatial_size=10, mode='amp'):
         """Moves the waveform spatially around the probe.
 
         Parameters
@@ -193,12 +203,25 @@ class RecordingAugmentation(object):
         if mode == 'amp':
             location = np.argsort(
                 np.max(np.abs(template), axis=0))[-spatial_size:]
-        x_move = dist * self.x_unit
+        main_channel = location[-1]
+        # Move the main channel to another channel which is sampled
+        # according to a binomial distribution with n_channel trial
+        # on a sorted channel list based on distance from the original
+        # channel.
+        rand_int = np.random.binomial(n=self.n_chan, p=self.dist_factor)
+        new_main_channel = self.closest_channels[main_channel, rand_int]
+        prior_coordinates = self.geometry[main_channel, :]
+        new_coordinates = self.geometry[new_main_channel, :]
+        translation = new_coordinates - prior_coordinates
+        x_move = translation[0]
+        y_move = translation[1]
         # the vector of translation from original location to new one.
         trans = np.zeros([len(location), 2]).astype('int') - 1
         trans[:, 0] = location
         for i, l in enumerate(location):
-            candidate = (self.geometry[l, 0] + x_move, self.geometry[l, 1])
+            new_x_coord = self.geometry[l, 0] + x_move
+            new_y_coord = self.geometry[l, 1] + y_move
+            candidate = (new_x_coord, new_y_coord)
             if candidate in self.geom_map:
                 trans[i, 1] = self.geom_map[candidate]
             else:
@@ -322,9 +345,8 @@ class RecordingAugmentation(object):
         for i, u in enumerate(moved_units):
             moved[u] = i
             # Spatial distance is drawn from a poisson distribution.
-            dist = np.sign(np.random.rand() - 0.5) * np.random.poisson(15)
             moved_templates[:, :, i] = self.move_spatial_trace(
-                orig_templates[:, :, u], dist)
+                orig_templates[:, :, u])
         # Create augmented spike train.
         aug_spt = self.make_fake_spike_train(self.move_rate)
         reader = self.template_comp.batch_reader
@@ -336,19 +358,21 @@ class RecordingAugmentation(object):
         for i in tqdm(range(length)):
             batch_idx = np.logical_and(
                 aug_spt[:, 0] > i * n_samples,
-                aug_spt[:, 0] < (i+1) * n_samples)
+                aug_spt[:, 0] < (i + 1) * n_samples)
             spt = aug_spt[batch_idx, :]
             spt[:, 0] -= n_samples * i
             ts = reader.next_batch()
             for j in range(spt.shape[0]):
                 cid = spt[j, 1]
                 try:
+                    # Time window around spike
+                    spike_win = spt[j, 0] + self.template_comp.window
                     if moved[cid]:
-                        ts[spt[j, 0] + self.template_comp.window, :] +=\
-                                       moved_templates[:, :, moved[cid]]
+                        sup_signal = moved_templates[:, :, moved[cid]]
+                        ts[spike_win, :] += sup_signal
                     else:
-                        ts[spt[j, 0] + self.template_comp.window, :] +=\
-                                       orig_templates[:, :, cid]
+                        sup_signal = orig_templates[:, :, cid]
+                        ts[spike_win, :] += sup_signal
                 except Exception as e:
                     status.append('warning:{}'.format(str(e)))
                     boundary_violation += 1
@@ -362,8 +386,14 @@ class RecordingAugmentation(object):
                 aug_spt[aug_spt[:, 1] == u, 1] = new_unit_id
                 new_unit_id += 1
         f.close()
+        orig_count = self.template_comp.spike_train.shape[0]
+        aug_count = aug_spt.shape[0]
         return np.append(
-            self.template_comp.spike_train, aug_spt, axis=0), status
+            np.append(self.template_comp.spike_train,
+                      np.zeros([orig_count, 1], dtype='int'),
+                      axis=1),
+            np.append(aug_spt, np.ones([aug_count, 1], dtype='int'), axis=1),
+            axis=0), status
 
 
 class SpikeSortingEvaluation(object):
@@ -478,10 +508,11 @@ class SpikeSortingEvaluation(object):
 
             if len(unmatched_clusters) < 1:
                 break
+            # TODO(hooshmand): Find a fix for template comparison.
             # If the closest template is not very similar skip it.
-            if (np.min(energy_dist[unit, unmatched_clusters]) >
-               1/4 * np.linalg.norm(energy_base[:, unit])):
-                continue
+            # if (np.min(energy_dist[unit, unmatched_clusters]) >
+            # 1/4 * np.linalg.norm(energy_base[:, unit])):
+            # continue
 
             matched_cluster_id = unmatched_clusters[np.argmin(
                 energy_dist[unit, unmatched_clusters])]
