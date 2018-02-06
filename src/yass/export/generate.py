@@ -71,7 +71,6 @@ def pc_feature_ind(n_spikes, n_templates, n_channels, geom, neigh_channels,
         spikes_mainc[j] = templates_mainc[spike_train[j, 1]]
 
     # number of neighbors to consider
-    # NOTE: is the '2' ok to be hardcoded?
     neighbors = n_steps_neigh_channels(neigh_channels, 2)
     nneigh = np.max(np.sum(neighbors, 0))
 
@@ -108,6 +107,11 @@ def template_features(n_spikes, n_channels, n_templates, spike_train,
     magnitude of the projection of each spike onto nTempFeatures other
     features. Which other features is specified in template_feature_ind.npy
     """
+    # TODO: fix this, assume you can receive the waveforms from the spike
+    # train as a parameter and templates, main channel for templates templates
+    # score and waveforms score for every waveform in the spike train, for
+    # scoring other waveforms, use function in dimensionality_reduction.score
+
     k_neigh = np.min((5, n_templates))
 
     template_features_ = np.zeros((n_spikes, k_neigh))
@@ -118,8 +122,7 @@ def template_features(n_spikes, n_channels, n_templates, spike_train,
         spikes_mainc[j] = templates_main_channel[spike_train[j, 1]]
 
     # number of neighbors to consider
-    # NOTE: is the '2' ok to be hardcoded?
-    neighbors = n_steps_neigh_channels(neigh_channels, 1)
+    neighbors = n_steps_neigh_channels(neigh_channels, 2)
     nneigh = np.max(np.sum(neighbors, 0))
 
     # ordered neighboring channels w.r.t. each channel
