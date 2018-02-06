@@ -6,17 +6,59 @@ from .match import make_tf_tensors, template_match
 def greedy_deconvolve(recording, templates, spike_index, 
                       n_explore, n_rf, upsample_factor, 
                       threshold_a, threshold_dd):
+    """
+    run greedy deconvolution algorithm
     
-    # writable recording
-    rec = np.copy(recording)
+    Parameters
+    ----------
+
+    recording: numpy.ndarray (T, n_channels)
+       A 2D array of a recording
+       
+    templates: numpy.ndarray (n_channels, n_timebins, n_templates)
+       A 3D array of templates
+    
+    spike_index: numpy.ndarray (n_spikes, 2)
+       A 2D array containing spikes information with two columns, 
+       where the first column is spike time and the second is channel. 
+    
+    n_explore: int
+       parameter for a function, get_longer_spt_list
+    
+    n_rf: int 
+       refractory period violation in timebin unit
+       
+    upsample_factor: int
+       number of shifted templates to create
+       
+    threshold_a: int
+        threhold on waveform scale when fitted to template
+        (check make_tf_tensors)
+      
+    threshold_d: int
+        threshold on decrease in l2 norm of recording after
+        subtracting a template (check make_tf_tensors)
+
+    Returns
+    -------
+    spike_train: numpy.ndarray (n_spikes_recovered, 2)
+        A 2D array of deconvolved spike train with two columns, 
+        where the first column is spike time and the second is 
+        cluster id.  
+    """
     
     # get useful parameters
-    T = rec.shape[0]
+    T = recording.shape[0]
     n_channels, n_timebins, n_templates = templates.shape
     R = int((n_timebins - 1)/2)
     #n_explore = 1
     #n_rf = int(1.5*cfg.recordings.sampling_rate/1000)
     #upsample_factor = 5
+    print(recording)
+    print(recording[:,1:10].shape)
+    # writable recording
+    rec = np.memmap.copy(recording)
+    print(rec[:,1:10].shape)
 
     # determine principal channels for each template
     # and order templates by it energy
@@ -24,6 +66,8 @@ def greedy_deconvolve(recording, templates, spike_index,
     principal_channels = np.argmax(template_max_energy,0)
     templates_order = np.argsort(np.max(
         template_max_energy,0))[::-1]
+    
+    
 
     
     # make tensorflow tensors in advance so that we don't
@@ -31,7 +75,7 @@ def greedy_deconvolve(recording, templates, spike_index,
     (rec_local_tf, template_local_tf,
         spt_tf, result) = make_tf_tensors(T, n_timebins, 
                                        upsample_factor, 
-                                       R, threshold_a, 
+                                       threshold_a, 
                                        threshold_dd)
     
     
@@ -71,7 +115,6 @@ def greedy_deconvolve(recording, templates, spike_index,
         # spike times of interest too
         spt_interest = get_longer_spt_list(spt_interest, n_explore)
 
-        
         # run template match
         spt_good, ahat_good, max_idx_good = template_match(
             rec_local, spt_interest, upsampled_template_local, 
