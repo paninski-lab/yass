@@ -381,6 +381,7 @@ def _neural_network_detection(standarized_path, standarized_params,
 
         # save clear spikes
         clear = np.concatenate([element[1] for element in res], axis=0)
+        print(clear.shape[0])
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
         clear, idx = detect.remove_incomplete_waveforms(
@@ -392,6 +393,7 @@ def _neural_network_detection(standarized_path, standarized_params,
 
         # save collided spikes
         collision = np.concatenate([element[2] for element in res], axis=0)
+        print(collision.shape[0])
         logger.info('Removing collision indexes outside the allowed range to '
                     'draw a complete waveform...')
         collision, _ = detect.remove_incomplete_waveforms(
@@ -401,7 +403,7 @@ def _neural_network_detection(standarized_path, standarized_params,
         logger.info('Saved spike index collision in {}...'
                     .format(path_to_spike_index_collision))
 
-        if CONFIG.clustering.clustering_method == '2+3':
+        if CONFIG.clustering.clustering_method == 'location':
             #######################
             # Waveform extraction #
             #######################
@@ -492,13 +494,14 @@ def _neural_network_detection(standarized_path, standarized_params,
                 denoised_waveforms, main_channel, CONFIG)
             x = (x - np.mean(x)) / np.std(x)
             y = (y - np.mean(y)) / np.std(y)
+            print(clear.shape[0] + collision.shape[0])
             corrupted_index = np.logical_not(
                 np.in1d(np.arange(clear.shape[0]), isolated_index))
             collision = np.concatenate(
                 [collision, clear[corrupted_index]], axis=0)
             clear = clear[isolated_index]
             waveforms_clear = waveforms_clear[isolated_index]
-
+            print(clear.shape[0] + collision.shape[0])
             #################################################
             # Dimensionality reduction (Isolated Waveforms) #
             #################################################
@@ -557,7 +560,7 @@ def _neural_network_detection(standarized_path, standarized_params,
 
         np.save(path_to_score, scores)
         logger.info('Saved spike scores in {}...'.format(path_to_score))
-
+    print(clear.shape[0] + collision.shape[0])
     return scores, clear, collision
 
 
