@@ -1,8 +1,8 @@
 Changelog
 =========
 
-0.6dev
-------
+0.6 (2018-02-05)
+-----------------
 * New stability metric
 * New batch module
 * Rewritten preprocessor
@@ -11,8 +11,6 @@ Changelog
 * Removed a lot of legacy code
 * Removed batching logic from old functions, they are now using the `batch` module
 * Rewritten CLI interface `yass` command is now `yass sort`
-* New CLI tool for training neural networks `yass train`
-* New CLI tool for exporting results to phy `yass export`
 
 
 0.5 (2018-01-31)
