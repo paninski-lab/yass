@@ -109,4 +109,6 @@ ENV/
 
 # mkdocs documentation
 /site
-src/yass/evaluate/stability.py~
+
+# gvim temp files
+*~
