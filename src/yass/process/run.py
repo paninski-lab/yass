@@ -7,13 +7,13 @@ import os
 import logging
 import datetime
 
-from .. import read_config
-from .triage import triage
-from .coreset import coreset
-from .mask import getmask
-from .templates import get_and_merge_templates as gam_templates
-from ..mfm import spikesort, suffStatistics, merge_move, cluster_triage
-from ..geometry import order_channels_by_distance
+from yass import read_config
+from yass.process.triage import triage
+from yass.process.coreset import coreset
+from yass.process.mask import getmask
+from yass.process.templates import get_and_merge_templates as gam_templates
+from yass.mfm import spikesort, suffStatistics, merge_move, cluster_triage
+from yass.geometry import order_channels_by_distance
 
 
 def run(score, spike_index_clear, spike_index_collision,
