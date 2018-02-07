@@ -26,9 +26,11 @@ spikes:
   temporal_features: 3
 
 deconvolution:
-  rank: 3
-  threshold: 4
-  lam: 20
+  n_rf: 1.5
+  threshold_a: 0.3
+  threshold_dd: 0
+  n_explore: 2 
+  upsample_factor: 5
 
 clustering:
   clustering_method: '3x7'
