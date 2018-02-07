@@ -7,7 +7,7 @@ import yaml
 from numpy import genfromtxt
 from subprocess import call
 from yass.evaluate.stability import (MeanWaveCalculator,
-    RecordingAugmentation, RecordingBatchIterator, SpikeSortingEvaluation)
+        RecordingAugmentation, RecordingBatchIterator, SpikeSortingEvaluation)
 
 
 def main_channels(template):
@@ -44,9 +44,8 @@ def temp_snr(templates):
 class EvaluationPlot(object):
     """Standard figure for evaluation comparison."""
 
-    def __init__(
-        self, data_set_title, n_dataset, methods=['Method'],
-        logit_y=True, eval_type='Accuracy'):
+    def __init__(self, data_set_title, n_dataset, methods=['Method'],
+                 logit_y=True, eval_type='Accuracy'):
         """Setup pyplot figures.
 
         Parameters
@@ -98,7 +97,7 @@ class EvaluationPlot(object):
         return np.log(x / (1 - x))
 
     def set_logit_labels(
-        self, labs=np.array([0.001, 0.01, 0.1, 0.5, 0.9, 0.99, 0.999])):
+            self, labs=np.array([0.001, 0.01, 0.1, 0.5, 0.9, 0.99, 0.999])):
         """Logit transforms the y axis.
 
         Parameters
@@ -111,8 +110,8 @@ class EvaluationPlot(object):
             self.ax[i].set_yticks(self.logit(labs))
             self.ax[i].set_yticklabels(labs)
 
-    def add_metric(
-        self, snr_list, percent_list, dataset_number, method_name='Method'):
+    def add_metric(self, snr_list, percent_list, dataset_number,
+                   method_name='Method'):
         """Adds accuracy percentages for clusters/units of a method.
 
         Parameters
@@ -164,6 +163,7 @@ class EvaluationPlot(object):
                         method, i + 1)
         self.fig.set_size_inches(12, 4 * self.n_dataset)
         plt.savefig('{}_{}.pdf'.format(self.data_set_title, self.eval_type))
+
 
 def main(n_batches=6):
     """Runs the procedure for evaluating yass on retinal data."""
@@ -274,6 +274,7 @@ def main(n_batches=6):
     # Render the plots and save them.
     acc_plot.generate_snr_metric_plot()
     stb_plot.generate_snr_metric_plot()
+
 
 if __name__ == '__main__':
     main()
