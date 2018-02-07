@@ -17,10 +17,8 @@ import logging
 import os
 
 import numpy as np
-import matplotlib.pyplot as plt
 
 from yass.batch import BatchProcessor
-from yass.batch import RecordingsReader
 
 
 # configure logging to get information about the process
