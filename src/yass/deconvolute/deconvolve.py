@@ -119,7 +119,7 @@ def deconvolve(recording, templates, spike_index,
         spt_good, ahat_good, max_idx_good = template_match(
             rec_local, spt_interest, upsampled_template_local,
             n_rf, rec_local_tf, template_local_tf, spt_tf, result)
-        
+
         # subtract off deconvolved spikes from the recording
         for j in range(spt_good.shape[0]):
             rec[spt_good[j]-R:spt_good[j]+R+1
