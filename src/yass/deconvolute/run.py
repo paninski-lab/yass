@@ -80,9 +80,9 @@ def run(spike_train_clear, templates, spike_index_collision,
     n_rf = int(CONFIG.deconvolution.n_rf*CONFIG.recordings.sampling_rate/10000)
     spike_train_deconv = deconvolve(writable_recordings, templates, 
                                     spike_index_collision,
-                                    CONFIG.deconvolution2.n_explore, 
+                                    CONFIG.deconvolution.n_explore, 
                                     n_rf, 
-                                    CONFIG.deconvolution2.upsample_factor, 
+                                    CONFIG.deconvolution.upsample_factor, 
                                     CONFIG.deconvolution.threshold_a, 
                                     CONFIG.deconvolution.threshold_dd)
 
