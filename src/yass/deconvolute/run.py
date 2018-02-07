@@ -76,7 +76,7 @@ def run(spike_train_clear, templates, spike_index_collision,
                   .format(templates.shape, spike_index_collision.shape))
 
     # run deconvolution algorithm
-    n_rf = int(CONFIG.deconvolution.n_rf*CONFIG.recordings.sampling_rate/10000)
+    n_rf = int(CONFIG.deconvolution.n_rf*CONFIG.recordings.sampling_rate/1000)
     spike_train_deconv = deconvolve(writable_recordings, templates,
                                     spike_index_collision,
                                     CONFIG.deconvolution.n_explore,
