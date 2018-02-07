@@ -6,7 +6,7 @@ import yaml
 
 from numpy import genfromtxt
 from subprocess import call
-from stability import *
+from yass.evaluate.stability import *
 
 
 def main_channels(template):
@@ -274,4 +274,4 @@ def main(n_batches=6):
     stb_plot.generate_snr_metric_plot()
 
 if __name__ == '__main__':
-    print("This only executes when %s is executed rather than imported" % __file__)
+    main()
