@@ -13,7 +13,7 @@ def upsample_templates(template, n_shifts=5):
 
     templates: numpy.ndarray (n_channels, waveform_size)
        A 2D array of a template
-    
+
     n_shifts: int
        number of shifted templates to make
 
@@ -37,7 +37,7 @@ def upsample_templates(template, n_shifts=5):
     for j in range(n_shifts):
         xnew = x - shifts[j]
         idx_good = np.logical_and(xnew >= 0, xnew <= waveform_size-1)
-        shifted_templates[j][:,idx_good] = ff(xnew[idx_good])
+        shifted_templates[j][:, idx_good] = ff(xnew[idx_good])
 
     return shifted_templates
 
@@ -67,8 +67,8 @@ def make_spt_list(spike_index, n_channels):
     spike_index_list = [None]*n_channels
 
     for c in range(n_channels):
-        spike_index_list[c] = spike_index[spike_index[:,1]==c,0]
-    
+        spike_index_list[c] = spike_index[spike_index[:, 1] == c, 0]
+
     return spike_index_list
 
 
@@ -96,7 +96,9 @@ def get_longer_spt_list(spt, n_explore):
     spt = np.sort(spt)
 
     # add -n_explore to n_explore points around each spike time
-    all_spikes = np.reshape(np.add(spt[:,np.newaxis],np.arange(-n_explore,n_explore+1)[np.newaxis,:]),-1)
+    all_spikes = np.reshape(np.add(spt[:, np.newaxis],
+                                   np.arange(-n_explore, n_explore+1)
+                                   [np.newaxis, :]), -1)
 
     # if there are any duplicate remove it
     spt_long = np.sort(np.unique(all_spikes))

@@ -1,13 +1,14 @@
 import numpy as np
 import logging
 
-from yass.deconvolute.util import *
-from yass.deconvolute.match import *
+from yass.deconvolute.util import upsample_templates, \
+    make_spt_list, get_longer_spt_list
+from yass.deconvolute.match import make_tf_tensors, template_match
 
 
 def deconvolve(recording, templates, spike_index,
-                      n_explore, n_rf, upsample_factor,
-                      threshold_a, threshold_dd):
+               n_explore, n_rf, upsample_factor,
+               threshold_a, threshold_dd):
     """
     run greedy deconvolution algorithm
 
@@ -62,27 +63,27 @@ def deconvolve(recording, templates, spike_index,
 
     # determine principal channels for each template
     # and order templates by it energy
-    template_max_energy = np.max(np.abs(templates),1)
-    principal_channels = np.argmax(template_max_energy,0)
+    template_max_energy = np.max(np.abs(templates), 1)
+    principal_channels = np.argmax(template_max_energy, 0)
     templates_order = np.argsort(np.max(
-        template_max_energy,0))[::-1]
+        template_max_energy, 0))[::-1]
 
     rec = np.copy(recording)
-    
+
     # make tensorflow tensors in advance so that we don't
     # have to create multiple times in a loop
     (rec_local_tf, template_local_tf,
         spt_tf, result) = make_tf_tensors(T, n_timebins,
-                                       upsample_factor,
-                                       threshold_a,
-                                       threshold_dd)
+                                          upsample_factor,
+                                          threshold_a,
+                                          threshold_dd)
 
     # change the format of spike index for easier access
     spt_list = make_spt_list(spike_index, n_channels)
 
     # do template matching in a greedy way from biggest template
     # to the smallest
-    spike_train = np.zeros((0,2), 'int32')
+    spike_train = np.zeros((0, 2), 'int32')
     for j in range(n_templates):
         logger.info("Deconvolving {0} out of {1} templates.".format(
             j+1, n_templates))
@@ -94,16 +95,16 @@ def deconvolve(recording, templates, spike_index,
         # channels with big enough energy relative to energy
         # in the principal channel
         channels_big = np.where(
-            template_max_energy[:, k] > \
+            template_max_energy[:, k] >
             template_max_energy[mainc, k]*0.7)[0]
 
         # upsample and localize template
-        upsampled_template = upsample_templates(templates[:,:,k],
+        upsampled_template = upsample_templates(templates[:, :, k],
                                                 upsample_factor)
-        upsampled_template_local = upsampled_template[:,channels_big,:]
+        upsampled_template_local = upsampled_template[:, channels_big, :]
 
         # localize recording
-        rec_local = rec[:,channels_big]
+        rec_local = rec[:, channels_big]
 
         # localize spike times
         spt_interest = np.zeros(0, 'int32')
@@ -122,7 +123,7 @@ def deconvolve(recording, templates, spike_index,
         # subtract off deconvolved spikes from the recording
         for j in range(spt_good.shape[0]):
             rec[spt_good[j]-R:spt_good[j]+R+1
-               ] -= ahat_good[j]*upsampled_template[max_idx_good[j]].T
+                ] -= ahat_good[j]*upsampled_template[max_idx_good[j]].T
 
         # collect detected spike times
         spike_train = np.vstack((spike_train, np.vstack((
