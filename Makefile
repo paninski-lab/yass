@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-
+.PHONY: test integration-test
 
 install: install-dev install-yass ## Install Yass + Dev Requirements
 	@echo "--> Installing Yass and Dev Requirements"
@@ -18,6 +18,10 @@ install-yass: ## Install Yass package
 test: ## Run Tests
 	@echo "--> Running Tests"
 	py.test . --flake8 --cov=yass
+
+
+integration-test:
+	bash integration-test/integration-test.sh
 
 
 # self-documenting makefile as described in http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html

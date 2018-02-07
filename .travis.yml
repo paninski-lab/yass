@@ -9,5 +9,5 @@ install:
   - make install
 script:
   - make test
-  - "./integration-test/integration-test.sh"
+  - make integration-test
 after_success: coveralls
