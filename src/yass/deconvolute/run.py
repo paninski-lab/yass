@@ -4,13 +4,11 @@ import logging
 import numpy as np
 import datetime
 
-from yass.deconvolute import greedy_deconvolve
+from yass.deconvolute import deconvolve
 from yass.neuralnetwork import fix_indexes
 from yass import read_config
 from yass.batch import RecordingsReader
 
-
-# TODO: comment code, it's not clear what it does
 def run(spike_train_clear, templates, spike_index_collision,
         output_directory='tmp/',
         recordings_filename='standarized.bin'):
@@ -80,13 +78,13 @@ def run(spike_train_clear, templates, spike_index_collision,
     
     # run deconvolution algorithm
     n_rf = int(CONFIG.deconvolution.n_rf*CONFIG.recordings.sampling_rate/10000)
-    spike_train_deconv = greedy_deconvolve(writable_recordings, templates, 
-                                           spike_index_collision,
-                                           CONFIG.deconvolution2.n_explore, 
-                                           n_rf, 
-                                           CONFIG.deconvolution2.upsample_factor, 
-                                           CONFIG.deconvolution.threshold_a, 
-                                           CONFIG.deconvolution.threshold_dd)
+    spike_train_deconv = deconvolve(writable_recordings, templates, 
+                                    spike_index_collision,
+                                    CONFIG.deconvolution2.n_explore, 
+                                    n_rf, 
+                                    CONFIG.deconvolution2.upsample_factor, 
+                                    CONFIG.deconvolution.threshold_a, 
+                                    CONFIG.deconvolution.threshold_dd)
 
     logger.debug('spike_train_deconv.shape: {}'
                  .format(spike_train_deconv.shape))

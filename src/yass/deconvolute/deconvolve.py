@@ -1,10 +1,10 @@
 import numpy as np
 import logging
 
-from yass.deconvolute.util import upsample_templates, make_spt_list, get_longer_spt_list
-from yass.deconvolute.match import make_tf_tensors, template_match
+from yass.deconvolute.util import *
+from yass.deconvolute.match import *
 
-def greedy_deconvolve(recording, templates, spike_index, 
+def deconvolve(recording, templates, spike_index, 
                       n_explore, n_rf, upsample_factor, 
                       threshold_a, threshold_dd):
     """
