@@ -293,15 +293,19 @@ class BatchProcessor(object):
 
         Returns
         -------
-        output_path
-            Path to output binary file
-        params
-            Binary file params
+        output_path, params (when mode is 'disk')
+            Path to output binary file, Binary file params
+
+        list (when mode is 'memory')
+            List where every element is the result of applying the function
+            to one batch
 
         Examples
         --------
 
-        .. literalinclude:: ../../examples/batch/multi_channel_apply.py
+        .. literalinclude:: ../../examples/batch/multi_channel_apply_disk.py
+
+        .. literalinclude:: ../../examples/batch/multi_channel_apply_memory.py
 
         Notes
         -----
