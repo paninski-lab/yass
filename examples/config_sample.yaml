@@ -26,9 +26,11 @@ spikes:
   temporal_features: 3
 
 deconvolution:
-  rank: 3
-  threshold: 4
-  lam: 20
+  n_rf: 1.5
+  threshold_a: 0.3
+  threshold_dd: 0
+  n_explore: 2 
+  upsample_factor: 5
 
 neural_network_detector:
   filename: detect_nn1.ckpt
@@ -36,7 +38,7 @@ neural_network_detector:
 
 neural_network_triage:
   filename: triage_nn1.ckpt
-  threshold_collision: 0.9
+  threshold_collision: 0.5
 
 neural_network_autoencoder:
   filename: ae_nn1.ckpt
