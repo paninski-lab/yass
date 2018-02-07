@@ -6,7 +6,8 @@ import yaml
 
 from numpy import genfromtxt
 from subprocess import call
-from yass.evaluate.stability import *
+from yass.evaluate.stability import (MeanWaveCalculator,
+    RecordingAugmentation, RecordingBatchIterator, SpikeSortingEvaluation)
 
 
 def main_channels(template):
@@ -33,7 +34,6 @@ def temp_snr(templates):
         time samples, C number of channels and K total number of
         units/clusters.
     """
-    n_samples = templates.shape[0]
     tot = templates.shape[2]
     res = np.zeros(tot)
     for unit, c in enumerate(main_channels(templates)[:, -1]):
@@ -44,8 +44,9 @@ def temp_snr(templates):
 class EvaluationPlot(object):
     """Standard figure for evaluation comparison."""
 
-    def __init__(self, data_set_title, n_dataset, methods=['Method'],
-            logit_y=True, eval_type='Accuracy'):
+    def __init__(
+        self, data_set_title, n_dataset, methods=['Method'],
+        logit_y=True, eval_type='Accuracy'):
         """Setup pyplot figures.
 
         Parameters
@@ -96,8 +97,8 @@ class EvaluationPlot(object):
             return 1 / (1 + np.exp(-x))
         return np.log(x / (1 - x))
 
-    def set_logit_labels(self,
-        labs=np.array([0.001, 0.01, 0.1, 0.5, 0.9, 0.99, 0.999])):
+    def set_logit_labels(
+        self, labs=np.array([0.001, 0.01, 0.1, 0.5, 0.9, 0.99, 0.999])):
         """Logit transforms the y axis.
 
         Parameters
@@ -110,8 +111,8 @@ class EvaluationPlot(object):
             self.ax[i].set_yticks(self.logit(labs))
             self.ax[i].set_yticklabels(labs)
 
-    def add_metric(self, snr_list, percent_list, dataset_number,
-            method_name='Method'):
+    def add_metric(
+        self, snr_list, percent_list, dataset_number, method_name='Method'):
         """Adds accuracy percentages for clusters/units of a method.
 
         Parameters
@@ -134,8 +135,8 @@ class EvaluationPlot(object):
         if np.any(percent_list < 0) or np.any(percent_list > 1):
             raise TypeError(
                     'Percent accuracy list should contain only [0-1] values.')
-        self.metric_matrix[method_name][dataset_number] = (snr_list,
-                percent_list)
+        eval_tup = (snr_list, percent_list)
+        self.metric_matrix[method_name][dataset_number] = eval_tup
 
     def generate_snr_metric_plot(self):
         """Generate pdf plots of evaluations for the datasets and methods."""
@@ -155,8 +156,9 @@ class EvaluationPlot(object):
                     metrics = metric_tuple[1]
                     if self.logit_y:
                         metrics = self.logit(metrics)
-                    self.ax[i].scatter(metric_tuple[0], metrics,
-                            color=self.new_colors[method_idx])
+                    self.ax[i].scatter(
+                        metric_tuple[0], metrics,
+                        color=self.new_colors[method_idx])
                 except Exception:
                     print "No metric found for {} for dataset {}".format(
                         method, i + 1)
@@ -192,9 +194,9 @@ def main(n_batches=6):
         with open('config_ej49.yaml', 'w') as yaml_file:
             yaml.dump(config, yaml_file, default_flow_style=False)
         # TODO(hooshmand): Find the internal call for yass.
-        # call(['yass', 'config_ej49.yaml'])
+        call(['yass', 'config_ej49.yaml'])
         yass_spike_train_file = 'yass_spike_train_{}.csv'.format(data_number)
-        # call(['cp', 'spike_train.csv', yass_spike_train_file])
+        call(['cp', 'spike_train.csv', yass_spike_train_file])
         spike_train = genfromtxt(
             yass_spike_train_file, delimiter=',').astype('int32')
         # Data augmentation setup.
@@ -223,15 +225,15 @@ def main(n_batches=6):
         with open('config_ej49.yaml', 'w') as yaml_file:
             yaml.dump(config, yaml_file, default_flow_style=False)
         # TODO(hooshmand): Find the internal call for yass.
-        # call(['yass', 'config_ej49.yaml'])
+        call(['yass', 'config_ej49.yaml'])
         yass_aug_spike_train_file = 'yass_aug_spike_train_{}.csv'.format(
                 data_number)
-        # call(['cp', 'spike_train.csv', yass_aug_spike_train_file])
+        call(['cp', 'spike_train.csv', yass_aug_spike_train_file])
 
         # Evaluate accuracy of yass.
         gold_std_spike_train_file = 'groundtruth_ej49_data{}.mat'.format(
                 data_number)
-        gold_std_map =scipy.io.loadmat(gold_std_spike_train_file)
+        gold_std_map = scipy.io.loadmat(gold_std_spike_train_file)
         gold_std_spike_train = np.append(
             gold_std_map['spt_gt'], gold_std_map['L_gt'], axis=1)
         gold_standard_mean_wave = MeanWaveCalculator(
