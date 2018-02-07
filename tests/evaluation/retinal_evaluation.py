@@ -7,7 +7,9 @@ import yaml
 from numpy import genfromtxt
 from subprocess import call
 from yass.evaluate.stability import (MeanWaveCalculator,
-        RecordingAugmentation, RecordingBatchIterator, SpikeSortingEvaluation)
+                                     RecordingAugmentation,
+                                     RecordingBatchIterator,
+                                     SpikeSortingEvaluation)
 
 
 def main_channels(template):
