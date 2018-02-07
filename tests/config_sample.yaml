@@ -33,7 +33,7 @@ deconvolution:
   upsample_factor: 5
 
 clustering:
-  clustering_method: '3x7'
+  clustering_method: 'location'
   masking_threshold: [0.9, 0.5]
   n_split: 5
 
