@@ -161,8 +161,8 @@ class EvaluationPlot(object):
                         metric_tuple[0], metrics,
                         color=self.new_colors[method_idx])
                 except Exception:
-                    print "No metric found for {} for dataset {}".format(
-                        method, i + 1)
+                    print("No metric found for {} for dataset {}".format(
+                        method, i + 1))
         self.fig.set_size_inches(12, 4 * self.n_dataset)
         plt.savefig('{}_{}.pdf'.format(self.data_set_title, self.eval_type))
 
