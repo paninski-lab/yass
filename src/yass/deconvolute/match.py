@@ -100,8 +100,8 @@ def make_tf_tensors(T, waveform_size, n_shifts,
 
     # calculate decrease in L2 norm
     dd_tf = tf.multiply(
-        2*tf.multiply(ahat_adjusted_tf, ahat_max_tf) - \
-        tf.square(ahat_adjusted_tf), 
+        2*tf.multiply(ahat_tf, ahat_max_tf) - \
+        tf.square(ahat_tf), 
         tf.gather(template_norm_tf, max_idx_tf))
 
     # obtain good locations only
@@ -111,7 +111,7 @@ def make_tf_tensors(T, waveform_size, n_shifts,
     max_idx_good_tf = tf.boolean_mask(max_idx_tf, idx_good)
     ahat_good_tf = tf.boolean_mask(ahat_tf, idx_good)
     result = (dd_good_tf, spt_good_tf, max_idx_good_tf, 
-              ahat_adjusted_good_tf)
+              ahat_good_tf)
 
     return rec_local_tf, template_local_tf, spt_tf, result
 

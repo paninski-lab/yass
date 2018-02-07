@@ -1,7 +1,8 @@
 import numpy as np
+import logging
 
-from .util import upsample_templates, make_spt_list, get_longer_spt_list
-from .match import make_tf_tensors, template_match
+from yass.deconvolute.util import upsample_templates, make_spt_list, get_longer_spt_list
+from yass.deconvolute.match import make_tf_tensors, template_match
 
 def greedy_deconvolve(recording, templates, spike_index, 
                       n_explore, n_rf, upsample_factor, 
@@ -35,7 +36,7 @@ def greedy_deconvolve(recording, templates, spike_index,
         threhold on waveform scale when fitted to template
         (check make_tf_tensors)
       
-    threshold_d: int
+    threshold_dd: int
         threshold on decrease in l2 norm of recording after
         subtracting a template (check make_tf_tensors)
 
@@ -51,6 +52,9 @@ def greedy_deconvolve(recording, templates, spike_index,
     [Add a brief description of the method]
     """
     
+    logger = logging.getLogger(__name__)
+
+        
     # get useful parameters
     T = recording.shape[0]
     n_channels, n_timebins, n_templates = templates.shape
@@ -58,11 +62,6 @@ def greedy_deconvolve(recording, templates, spike_index,
     #n_explore = 1
     #n_rf = int(1.5*cfg.recordings.sampling_rate/1000)
     #upsample_factor = 5
-    print(recording)
-    print(recording[:,1:10].shape)
-    # writable recording
-    rec = np.memmap.copy(recording)
-    print(rec[:,1:10].shape)
 
     # determine principal channels for each template
     # and order templates by it energy
@@ -72,7 +71,7 @@ def greedy_deconvolve(recording, templates, spike_index,
         template_max_energy,0))[::-1]
     
     
-
+    rec = np.copy(recording)
     
     # make tensorflow tensors in advance so that we don't
     # have to create multiple times in a loop
@@ -91,6 +90,9 @@ def greedy_deconvolve(recording, templates, spike_index,
     # to the smallest
     spike_train = np.zeros((0,2), 'int32')
     for j in range(n_templates):
+        
+        logger.info("Deconvolving {0} out of {1} templates.".format(
+            j+1, n_templates))
         
         # cluster and its main channel
         k = templates_order[j]

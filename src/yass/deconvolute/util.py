@@ -27,15 +27,15 @@ def upsample_templates(template, n_shifts = 5):
     n_channels, waveform_size = template.shape
     
     # upsample using cubic interpolation
-    x = np.linspace(0, n_times-1, num=n_times, endpoint=True)
+    x = np.linspace(0, waveform_size-1, num=waveform_size, endpoint=True)
     ff = interp1d(x, template, kind='cubic')
     
     # get shifted templates
     shifts = np.linspace(-0.5, 0.5, n_shifts, endpoint=False)
-    shifted_templates = np.zeros((n_shifts, n_channels, n_times))
+    shifted_templates = np.zeros((n_shifts, n_channels, waveform_size))
     for j in range(n_shifts):
         xnew = x - shifts[j]
-        idx_good = np.logical_and(xnew >= 0, xnew <= n_times-1)
+        idx_good = np.logical_and(xnew >= 0, xnew <= waveform_size-1)
         shifted_templates[j][:,idx_good] = ff(xnew[idx_good])
     
     return shifted_templates
