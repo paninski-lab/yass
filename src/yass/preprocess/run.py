@@ -141,12 +141,17 @@ def run(output_directory='tmp/'):
         standarized_params['data_format'],
         CONFIG.resources.max_memory)
 
+           
+    # determine neighboring channel info
+    channel_index = make_channel_index(CONFIG.neighChannels, 
+                                       CONFIG.geom)
+
     # compute whiten_filter (Q) for whitening
     logger.info('Computing whitening matrix...')
     batches = bp.multi_channel()
     first_batch, _, _ = next(batches)
-    whiten_filter = whiten.matrix_localized(first_batch, CONFIG.neighChannels,
-                                CONFIG.geom, CONFIG.spikeSize)
+    whiten_filter = whiten.matrix(first_batch, channel_index, 
+                                  CONFIG.spikeSize)
 
     path_to_whitening_matrix = os.path.join(TMP, 'whitening.npy')
     np.save(path_to_whitening_matrix, whiten_filter)
@@ -156,14 +161,14 @@ def run(output_directory='tmp/'):
     # run detection
     if CONFIG.spikes.detection == 'threshold':
         return _threshold_detection(standarized_path, standarized_params,
-                                    whiten_filter, output_directory)
+                                    channel_index, whiten_filter, output_directory)
     elif CONFIG.spikes.detection == 'nn':
         return _neural_network_detection(standarized_path, standarized_params,
-                                         whiten_filter, output_directory)
+                                         channel_index, whiten_filter, output_directory)
 
 
-def _threshold_detection(standarized_path, standarized_params, whiten_filter,
-                         output_directory):
+def _threshold_detection(standarized_path, standarized_params, channel_index,
+                         whiten_filter, output_directory):
     """Run threshold detector and dimensionality reduction using PCA
     """
     logger = logging.getLogger(__name__)
@@ -172,41 +177,11 @@ def _threshold_detection(standarized_path, standarized_params, whiten_filter,
     OUTPUT_DTYPE = CONFIG.preprocess.dtype
     TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
 
-    ###############
-    # Whiten data #
-    ###############
-
-    # compute Q for whitening
-    logger.info('Computing whitening matrix...')
-    bp = BatchProcessor(standarized_path, standarized_params['dtype'],
-                        standarized_params['n_channels'],
-                        standarized_params['data_format'],
-                        CONFIG.resources.max_memory)
-    batches = bp.multi_channel()
-    first_batch, _, _ = next(batches)
-    Q = whiten.matrix(first_batch, CONFIG.neighChannels, CONFIG.spikeSize)
-
-    path_to_whitening_matrix = os.path.join(TMP_FOLDER, 'whitening.npy')
-    np.save(path_to_whitening_matrix, Q)
-    logger.info('Saved whitening matrix in {}'
-                .format(path_to_whitening_matrix))
-
-    # apply whitening to every batch
-    (whitened_path, whitened_params) = bp.multi_channel_apply(
-        np.matmul,
-        mode='disk',
-        output_path=os.path.join(TMP_FOLDER, 'whitened.bin'),
-        if_file_exists='skip',
-        cast_dtype=OUTPUT_DTYPE,
-        b=Q)
-
     ###################
     # Spike detection #
     ###################
 
-    path_to_spike_index_clear = os.path.join(TMP_FOLDER,
-                                             'spike_index_clear.npy')
-
+    # FIXME: buffer_size
     bp = BatchProcessor(
         standarized_path,
         standarized_params['dtype'],
@@ -214,13 +189,16 @@ def _threshold_detection(standarized_path, standarized_params, whiten_filter,
         standarized_params['data_format'],
         CONFIG.resources.max_memory,
         buffer_size=0)
-
+    
+    path_to_spike_index_clear = os.path.join(TMP_FOLDER,
+                                             'spike_index_clear.npy')
+    
     # clear spikes
     if os.path.exists(path_to_spike_index_clear):
         # if it exists, load it...
         logger.info('Found file in {}, loading it...'
                     .format(path_to_spike_index_clear))
-        spike_index_clear = np.load(path_to_spike_index_clear)
+        clear = np.load(path_to_spike_index_clear)
     else:
         # if it doesn't, detect spikes...
         logger.info('Did not find file in {}, finding spikes using threshold'
@@ -234,16 +212,16 @@ def _threshold_detection(standarized_path, standarized_params, whiten_filter,
             neighbors=CONFIG.neighChannels,
             spike_size=CONFIG.spikeSize,
             std_factor=CONFIG.stdFactor)
-        spike_index_clear = np.vstack(spikes)
+        clear = np.vstack(spikes)
 
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
-        spike_index_clear, _ = (detect.remove_incomplete_waveforms(
-            spike_index_clear, CONFIG.spikeSize + CONFIG.templatesMaxShift,
-            n_observations))
+        clear, _ = (detect.remove_incomplete_waveforms(
+            clear, CONFIG.spikeSize + CONFIG.templatesMaxShift,
+            bp.reader._n_observations))
 
         logger.info('Saving spikes in {}...'.format(path_to_spike_index_clear))
-        np.save(path_to_spike_index_clear, spike_index_clear)
+        np.save(path_to_spike_index_clear, clear)
 
     path_to_spike_index_collision = os.path.join(TMP_FOLDER,
                                                  'spike_index_collision.npy')
@@ -253,45 +231,25 @@ def _threshold_detection(standarized_path, standarized_params, whiten_filter,
         # if it exists, load it...
         logger.info('Found collided spikes in {}, loading them...'
                     .format(path_to_spike_index_collision))
-        spike_index_collision = np.load(path_to_spike_index_collision)
+        collision = np.load(path_to_spike_index_collision)
 
-        if spike_index_collision.shape[0] != 0:
-            raise ValueError('Found non-empty collision spike index in {}, '
-                             'but threshold detector is selected, collision '
-                             'detection is not implemented for threshold '
-                             'detector so array must have dimensios (0, 2) '
-                             'but had ({}, {})'
+        if collision.shape[0] != clear.shape[0]:
+            raise ValueError('Found collision spike index in {}, '
+                             'Since threshold detector is selected,'
+                             'all clear spikes are considered collision,'
+                             'but number are different. There are {}'
+                             'collision spikes and {} clear spikes'
                              .format(path_to_spike_index_collision,
-                                     *spike_index_collision.shape))
+                                     collision.shape[0],
+                                     clear.shape[0]))
     else:
         # triage is not implemented on threshold detector, return empty array
         logger.info('Creating empty array for'
                     ' collided spikes (collision detection is not implemented'
                     ' with threshold detector. Saving them in {}'
                     .format(path_to_spike_index_collision))
-        spike_index_collision = np.zeros((0, 2), 'int32')
+        collision = clear
         np.save(path_to_spike_index_collision, spike_index_collision)
-
-    #######################
-    # Waveform extraction #
-    #######################
-
-    # load and dump waveforms from clear spikes
-    path_to_waveforms_clear = os.path.join(TMP_FOLDER, 'waveforms_clear.npy')
-
-    if os.path.exists(path_to_waveforms_clear):
-        logger.info('Found clear waveforms in {}, loading them...'
-                    .format(path_to_waveforms_clear))
-        waveforms_clear = np.load(path_to_waveforms_clear)
-    else:
-        logger.info('Did not find clear waveforms in {}, reading them from {}'
-                    .format(path_to_waveforms_clear, standarized_path))
-        explorer = RecordingExplorer(
-            standarized_path, spike_size=CONFIG.spikeSize)
-        waveforms_clear = explorer.read_waveforms(spike_index_clear[:, 0])
-        np.save(path_to_waveforms_clear, waveforms_clear)
-        logger.info('Saved waveform from clear spikes in: {}'
-                    .format(path_to_waveforms_clear))
 
     #########################
     # PCA - rotation matrix #
@@ -302,7 +260,7 @@ def _threshold_detection(standarized_path, standarized_params, whiten_filter,
     stats = bp.multi_channel_apply(
         dim_red.suff_stat,
         mode='memory',
-        spike_index=spike_index_clear,
+        spike_index=clear,
         spike_size=CONFIG.spikeSize)
 
     suff_stats = reduce(lambda x, y: np.add(x, y), [e[0] for e in stats])
@@ -319,71 +277,35 @@ def _threshold_detection(standarized_path, standarized_params, whiten_filter,
     np.save(path_to_rotation, rotation)
     logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
 
-    main_channel = spike_index_clear[:, 1]
+
     ###########################################
     # PCA - waveform dimensionality reduction #
     ###########################################
+    logger.info('Reducing spikes dimensionality with PCA matrix...')
+    recordings = RecordingsReader(standarized_path)
+    scores = dim_red.score(recordings, rotation,
+                           channel_index,
+                           clear)
+    
+    #################
+    # Whiten scores #
+    #################
+    scores = whiten.score(scores, clear[:, 1], whiten_filter)
+    
+    # transform scores to location + shape feature space
     if CONFIG.clustering.clustering_method == 'location':
-        logger.info('Denoising...')
-        path_to_denoised_waveforms = os.path.join(TMP_FOLDER,
-                                                  'denoised_waveforms.npy')
-        if os.path.exists(path_to_denoised_waveforms):
-            logger.info('Found denoised waveforms in {}, loading them...'
-                        .format(path_to_denoised_waveforms))
-            denoised_waveforms = np.load(path_to_denoised_waveforms)
-        else:
-            logger.info(
-                'Did not find denoised waveforms in {}, evaluating them'
-                'from {}'.format(path_to_denoised_waveforms,
-                                 path_to_waveforms_clear))
-            waveforms_clear = np.load(path_to_waveforms_clear)
-            denoised_waveforms = dim_red.denoise(waveforms_clear, rotation,
-                                                 CONFIG)
-            logger.info('Saving denoised waveforms to {}'.format(
-                path_to_denoised_waveforms))
-            np.save(path_to_denoised_waveforms, denoised_waveforms)
-
-        isolated_index, x, y = get_isolated_spikes_and_locations(
-            denoised_waveforms, main_channel, CONFIG)
-        x = (x - np.mean(x)) / np.std(x)
-        y = (y - np.mean(y)) / np.std(y)
-        corrupted_index = np.logical_not(
-            np.in1d(np.arange(spike_index_clear.shape[0]), isolated_index))
-        spike_index_collision = np.concatenate(
-            [spike_index_collision, spike_index_clear[corrupted_index]],
-            axis=0)
-        spike_index_clear = spike_index_clear[isolated_index]
-        waveforms_clear = waveforms_clear[isolated_index]
-
-        #################################################
-        # Dimensionality reduction (Isolated Waveforms) #
-        #################################################
-
-        scores = dim_red.main_channel_scores(waveforms_clear, rotation,
-                                             spike_index_clear, CONFIG)
-        scores = (scores - np.mean(scores, axis=0)) / np.std(scores)
-        scores = np.concatenate(
-            [
-                x[:, np.newaxis, np.newaxis], y[:, np.newaxis, np.newaxis],
-                scores[:, :, np.newaxis]
-            ],
-            axis=1)
-    else:
-        logger.info('Reducing spikes dimensionality with PCA matrix...')
-        scores = dim_red.score(waveforms_clear, rotation,
-                               spike_index_clear[:, 1],
-                               CONFIG.neighChannels, CONFIG.geom)
-
-        # save scores
+        scores = get_locations_features_threshold(scores, clear[:,1], 
+                                        channel_index, CONFIG.geom)  
+    # saves score
     path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
     np.save(path_to_score, scores)
     logger.info('Saved spike scores in {}...'.format(path_to_score))
 
-    return scores, spike_index_clear, spike_index_collision
+    return scores, clear, collision
 
 
 def _neural_network_detection(standarized_path, standarized_params,
-                              whiten_filter, output_directory):
+                              channel_index, whiten_filter, output_directory):
     """Run neural network detection and autoencoder dimensionality reduction
     """
     logger = logging.getLogger(__name__)
@@ -431,10 +353,6 @@ def _neural_network_detection(standarized_path, standarized_params,
         buffer_size=0)
     
         # make tensorflow tensors and neural net classes
-        # determine neighboring channel info
-        channel_index = make_channel_index(CONFIG.neighChannels, 
-                                           CONFIG.geom)
-        # get parameters
         detection_th = CONFIG.neural_network_detector.threshold_spike
         triage_th = CONFIG.neural_network_triage.threshold_collision
         detection_fname = CONFIG.neural_network_detector.filename
@@ -490,33 +408,31 @@ def _neural_network_detection(standarized_path, standarized_params,
             'draw a complete waveform...')
         scores = scores[idx]
         
-        # transform scores to location + shape feature space
-        if CONFIG.clustering.clustering_method == 'location':
-
-            scores = get_locations_features(scores, rotation, clear[:,1], 
-                                            channel_index, CONFIG.geom)
-        # saves score
-        np.save(path_to_score, scores)
-        logger.info('Saved spike scores in {}...'.format(path_to_score))
-
-                                                    
         # save rotation
         detector_filename = CONFIG.neural_network_detector.filename
         autoencoder_filename = CONFIG.neural_network_autoencoder.filename
         
-        NND = NeuralNetDetector(detector_filename,
+        NND = neuralnetwork.NeuralNetDetector(detector_filename,
                                 autoencoder_filename)
         rotation = NND.load_rotation()
         path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
         np.save(path_to_rotation, rotation)
         logger.info(
             'Saved rotation matrix in {}...'.format(path_to_rotation))
+        
+        # transform scores to location + shape feature space
+        if CONFIG.clustering.clustering_method == 'location':
+            scores = get_locations_features(scores, rotation, clear[:,1], 
+                                            channel_index, CONFIG.geom)
+        # saves score
+        np.save(path_to_score, scores)
+        logger.info('Saved spike scores in {}...'.format(path_to_score))
 
     return scores, clear, collision
 
 
 def get_locations_features(scores, rotation, main_channel, 
-                  channel_index, channel_geomerty):
+                  channel_index, channel_geometry):
     
     n_data, n_features, n_neigh = scores.shape
 
@@ -525,17 +441,49 @@ def get_locations_features(scores, rotation, main_channel,
                                 [n_data*n_neigh , n_features])
     energy = np.sqrt(np.sum(
         np.reshape(np.multiply(np.matmul(reshaped_score, rot_rot), 
-                               np.transpose(reshaped_score)), 
-                   [n_data, n_neigh, n_featuers]), 2))
+                               reshaped_score), 
+                   [n_data, n_neigh, n_features]), 2))
     
-    channel_index_per_data = channel_index[main_channels,:]
+    channel_index_per_data = channel_index[main_channel,:]
     
-    
+    channel_geometry = np.vstack((channel_geometry, np.zeros((1,2), 'int32')))
     channel_locations_all = channel_geometry[channel_index_per_data]
-    xy = np.divide(np.sum(np.multiply(energy, channel_locations_all), axis = 1),
-                   np.sum(energy, 1)
+    xy = np.divide(np.sum(np.multiply(energy[:, :, np.newaxis], channel_locations_all), axis=1),
+                   np.sum(energy, axis=1, keepdims=True)
                   )
-    scores = np.concatenate((xy, score[:, :, 0]), 1)
+    scores = np.concatenate((xy, scores[:, :, 0]), 1)
+
+    
+    if scores.shape[0] != n_data:
+        raise ValueError('Number of clear spikes changed from {} to {}'
+                     .format(n_data, scores.shape[0]))
+        
+    if scores.shape[1] != (n_features+channel_geometry.shape[1]):
+        raise ValueError('There are {} shape features and {} location features'
+                         'but {} features are created'
+                        .format(n_features, channel_geometry.shape[1], scores.shape[1]
+                               ))
+        
+    scores = np.divide((scores - np.mean(scores, axis=0, keepdims=True)),
+                   np.std(scores, axis=0, keepdims=True))
+    
+    return scores[:, :, np.newaxis]
+
+def get_locations_features_threshold(scores, main_channel, 
+                  channel_index, channel_geometry):
+    
+    n_data, n_features, n_neigh = scores.shape
+
+    energy = np.linalg.norm(scores, axis=1)
+    
+    channel_index_per_data = channel_index[main_channel,:]
+    
+    channel_geometry = np.vstack((channel_geometry, np.zeros((1,2), 'int32')))
+    channel_locations_all = channel_geometry[channel_index_per_data]
+    xy = np.divide(np.sum(np.multiply(energy[:, :, np.newaxis], channel_locations_all), axis=1),
+                   np.sum(energy, axis=1, keepdims=True)
+                  )
+    scores = np.concatenate((xy, scores[:, :, 0]), 1)
 
     
     if scores.shape[0] != n_data:

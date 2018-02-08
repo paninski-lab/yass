@@ -120,7 +120,7 @@ def project(ss, spikes_per_channel, n_features, neighbors):
     return rot
 
 
-def score(waveforms, rot, main_channels=None, neighbors=None, geom=None):
+def score(recording, rot, channel_index, spike_index):
     """
     Reduce waveform dimensionality using a rotation matrix. Optionally
     return scores only for neighboring channels instead of all channels
@@ -155,124 +155,53 @@ def score(waveforms, rot, main_channels=None, neighbors=None, geom=None):
         the main channel in each waveform so the last dimension is
         n_neighboring_channels
     """
-    if waveforms.ndim != 3:
-        raise ValueError('waveforms must have dimension 3 (has {})'.format(
-            waveforms.ndim))
 
-    n_waveforms, n_temporal_features, n_channels = waveforms.shape
+    n_observations, n_channels = recording.shape
+    n_data = spike_index.shape[0]
+    n_neigh = channel_index.shape[1]
 
     if rot.ndim == 2:
         # neural net case
-        n_temporal_features_, n_reduced_features = rot.shape
-
-        if n_temporal_features != n_temporal_features_:
-            raise ValueError('n_temporal_features does not match between '
-                             'waveforms ({}) and the rotation matrix ({})'
-                             .format(n_temporal_features,
-                                     n_temporal_features_))
-
-        reduced = np.matmul(rot.T, waveforms)
+        n_temporal_features, n_reduced_features = rot.shape
+        
+        rot = np.tile(rot[:, :, np.newaxis], [1, 1, n_channels])
 
     elif rot.ndim == 3:
         # pca case
-        n_temporal_features_, n_reduced_features, n_channels = rot.shape
+        n_temporal_features, n_features, n_channels_ = rot.shape
 
-        if n_temporal_features != n_temporal_features_:
-            raise ValueError('n_temporal_features does not match between '
-                             'waveforms ({}) and the rotation matrix ({})'
-                             .format(n_temporal_features,
-                                     n_temporal_features_))
-
-        reduced = np.matmul(rot.T, waveforms.T).T
-
+        if n_channels != n_channels_:
+            raise ValueError('n_channels does not match between '
+                             'recording ({}) and the rotation matrix ({})'
+                             .format(n_channels,
+                                     n_channels_))
+            
     else:
         raise ValueError('rot must have 2 or 3 dimensions (has {})'.format(
             rot.ndim))
-
-    # if passed information about neighbors, get scores only for them instead
-    # of all channels
-    if (main_channels is not None and neighbors is not None
-            and geom is not None):
-        # for every spike, get the score only for the neighboring channels
-        ord_neighbors, channel_features = ordered_neighbors(geom, neighbors)
-        score_neigh = np.zeros((n_waveforms, n_reduced_features,
-                                channel_features))
-
-        for i in range(n_waveforms):
-            # get the ordered neighbors for the main channel
-            current_neigh = ord_neighbors[main_channels[i]]
-            # assign the scores for those channels to the matrix
-            score_neigh[i, :, :len(current_neigh)] = reduced[i][:,
-                                                                current_neigh]
-
-        return score_neigh
-
-    else:
-        return reduced
-
-
-def main_channel_scores(waveforms, rot, spike_index, CONFIG):
-    """Returns PCA scores for the main channel only
-
-    Parameters
-    ----------
-    waveforms: numpy.ndarray
-    rot: numpy.ndarray (window_size,n_features, n_channels)
-        PCA rotation matrix
-    spike_index: np.ndarray (number of spikes, 2)
-        Spike indexes as returned from the threshold detector
-    """
-    if CONFIG.spikes.detection == 'threshold':
-        spikes, _, n_channels = waveforms.shape
-        _, n_features, _ = rot.shape
-
-        score = np.zeros([spikes, n_features])
-        main_channel = spike_index[:, 1]
-
-        for i in range(spikes):
-            score[i, :] = np.squeeze(
-                np.matmul(waveforms[i, :, main_channel[i]][np.newaxis],
-                          rot[:, :, main_channel[i]]))
-
-    else:
-        spikes, _, n_channels = waveforms.shape
-        _, n_features = rot.shape
-
-        score = np.zeros([spikes, n_features])
-        main_channel = spike_index[:, 1]
-
-        for i in range(spikes):
-            score[i, :] = np.squeeze(
-                np.matmul(waveforms[i, :, main_channel[i]][np.newaxis], rot))
-
-    return score
-
-
-def denoise(waveforms, rot, CONFIG):
-    """Denoise waveforms by projecting into PCA space and back
-
-    Parameters
-    ----------
-    Waveforms: numpy.ndarray
-    rot: numpy.ndarray (window_size, n_features, n_channels)
-        PCA Rotation matrix
-    """
-    if CONFIG.spikes.detection == 'threshold':
-        rot_ = np.transpose(rot)
-        rot2_ = np.transpose(rot_, [0, 2, 1])
-
-        denoising_rot = np.matmul(rot2_, rot_)
-        sp = np.transpose(waveforms, [0, 2, 1])
-
-        denoised_waveforms = np.transpose(
-            np.squeeze(np.matmul(sp[:, :, np.newaxis], denoising_rot), axis=2),
+        
+    if n_temporal_features % 2 != 1:
+        raise ValueError('waveform length needs to be an odd number (has {})'.format(
+            n_temporal_features))        
+    R = int((n_temporal_features-1)/2)
+    
+    rot = np.transpose(rot, [2, 1, 0])
+    scores = np.zeros((n_data, n_features, n_neigh))        
+    for channel in range(n_channels):
+        
+        ch_idx = channel_index[channel][
+            channel_index[channel] < n_channels]
+        
+        idx_c = spike_index[:, 1] == channel
+        spt_c = spike_index[idx_c, 0] 
+        waveforms = np.zeros((spt_c.shape[0], ch_idx.shape[0], n_temporal_features))
+        
+        for j in range(spt_c.shape[0]):
+            waveforms[j] = recording[spt_c[j]-R:spt_c[j]+R+1, ch_idx].T
+            
+        scores[idx_c, :, :ch_idx.shape[0]] = np.transpose(
+            np.matmul(np.expand_dims(rot[ch_idx], 0), 
+                      np.expand_dims(waveforms, -1))[:, :, :, 0], 
             [0, 2, 1])
-    else:
-        rot_ = np.transpose(rot)
-
-        denoising_rot = np.matmul(rot, rot_)
-        sp = np.transpose(waveforms)
-
-        denoised_waveforms = np.transpose(np.matmul(denoising_rot, sp))
-
-    return denoised_waveforms
+        
+    return scores
