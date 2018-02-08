@@ -138,6 +138,19 @@ class NeuralNetDetector(object):
         nneigh_tf = tf.shape(waveform_tf)[2]
     
         reshaped_wf = tf.reshape(tf.transpose(waveform_tf, [0, 2, 1]),[-1, n_input])
-        score_tf = tf.reshape(tf.matmul(reshaped_wf, self.W_ae), [-1, nneigh_tf, n_features])
+        score_tf = tf.transpose(tf.reshape(tf.matmul(reshaped_wf, self.W_ae),
+                                           [-1, nneigh_tf, n_features]), [0, 2, 1])
     
         return score_tf
+    
+    
+    def load_rotation(self):
+        """
+        Load neural network rotation matrix
+        """
+
+        with tf.Session() as sess:
+            self.saver_ae.restore(sess, self.path_to_ae_model)
+            rotation = sess.run(self.W_ae)
+
+        return rotation

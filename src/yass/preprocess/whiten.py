@@ -140,7 +140,7 @@ def matrix_localized(ts, neighbors, geom, spike_size):
     M = np.matmul(np.matmul(invhalf_var, M), invhalf_var)
 
     # get localized whitening filter
-    Q = np.zeros((nneigh, nneigh, C))
+    Q = np.zeros((nneigh, nneigh, C), 'float32')
     for c in range(0, C):
         ch_idx, _ = order_channels_by_distance(c,
                                                np.where(neighbors[c])[0],

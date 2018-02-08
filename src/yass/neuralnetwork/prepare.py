@@ -4,7 +4,7 @@ import numpy as np
 from yass.geometry import order_channels_by_distance
 from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage
 
-def prepare_nn(neighbors, channel_geometry,
+def prepare_nn(channel_index, whiten_filter,
                         threshold_detect, threshold_triage,
                         detector_filename, 
                         autoencoder_filename, 
@@ -12,9 +12,6 @@ def prepare_nn(neighbors, channel_geometry,
     
     # placeholder for input recording
     x_tf = tf.placeholder("float", [None, None])
-    
-    # determine neighboring channels
-    channel_index = make_channel_index(neighbors, channel_geometry)
     
     # load Neural Net's
     NND = NeuralNetDetector(detector_filename, autoencoder_filename)
@@ -55,16 +52,38 @@ def prepare_nn(neighbors, channel_geometry,
     score_clear_tf = tf.boolean_mask(score_keep_tf, idx_clean)
     spike_index_clear_tf = tf.boolean_mask(spike_index_keep_tf, idx_clean)
 
+    # whiten score
+    whiten_score_clear_tf = make_whitened_score(score_clear_tf,
+                                                spike_index_clear_tf[:, 1],
+                                                whiten_filter)
+    
     # gather all output tensors
-    output_tf = (score_clear_tf, spike_index_clear_tf, spike_index_tf)
+    output_tf = (whiten_score_clear_tf, spike_index_clear_tf, spike_index_tf)
     
     return x_tf, output_tf, NND, NNT
+
+def make_whitened_score(score_tf, channel_index, whiten_filter):
+    """?
+
+    Parameters
+    ----------
+    ?
+
+    Returns
+    -------
+    ?
+    """
+    
+    whiten_filter_per_data = tf.gather(tf.transpose(
+        whiten_filter, [2, 0, 1]), channel_index)
+    
+    return tf.matmul(score_tf, whiten_filter_per_data)
 
 
 def remove_uncetered(score_tf, waveform_tf, spike_index_tf):
     
-    energy_tf = tf.reduce_sum(tf.square(score_tf),2)
-    idx_centered = tf.equal(tf.argmax(energy_tf,1),0)
+    energy_tf = tf.reduce_sum(tf.square(score_tf), 1)
+    idx_centered = tf.equal(tf.argmax(energy_tf, 1), 0)
     
     wf_keep_tf = tf.boolean_mask(waveform_tf, idx_centered)
     score_keep_tf = tf.boolean_mask(score_tf, idx_centered)
@@ -96,22 +115,3 @@ def make_waveform_tf_tensor(x_tf, spike_index_tf, channel_index, waveform_length
                        ),3)
     
     return tf.gather_nd(x_tf,wf_idx)
-
-def make_channel_index(neighbors, channel_geometry):
-
-    C, C2 = neighbors.shape
-    if C != C2:
-        raise ValueError('neighbors is not a square matrix, verify')
-    
-    # neighboring channel info
-    nneigh = np.max(np.sum(neighbors, 0))
-    
-    channel_index = np.ones((C, nneigh), 'int32')*C
-    for c_ref in range(C):
-        neighbor_channels = np.where(neighbors[c_ref])[0]
-        ch_idx, temp = order_channels_by_distance(c_ref, neighbor_channels,
-                                                  channel_geometry)
-        channel_index[c_ref, :ch_idx.shape[0]] = ch_idx
-        
-    return channel_index
-        

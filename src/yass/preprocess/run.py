@@ -12,6 +12,7 @@ from yass import read_config
 from yass.batch import BatchPipeline, BatchProcessor, RecordingsReader
 from yass.batch import PipedTransformation as Transform
 from yass.explore import RecordingExplorer
+from yass.geometry import make_channel_index
 
 from yass.preprocess.filter import butterworth
 from yass.preprocess.standarize import standarize, standard_deviation
@@ -132,18 +133,36 @@ def run(output_directory='tmp/'):
         cast_dtype=OUTPUT_DTYPE,
         sd=sd)
 
-    standarized = RecordingsReader(standarized_path)
-    n_observations = standarized.observations
+    # Whiten
+    bp = BatchProcessor(
+        standarized_path,
+        standarized_params['dtype'],
+        standarized_params['n_channels'],
+        standarized_params['data_format'],
+        CONFIG.resources.max_memory)
 
+    # compute whiten_filter (Q) for whitening
+    logger.info('Computing whitening matrix...')
+    batches = bp.multi_channel()
+    first_batch, _, _ = next(batches)
+    whiten_filter = whiten.matrix_localized(first_batch, CONFIG.neighChannels,
+                                CONFIG.geom, CONFIG.spikeSize)
+
+    path_to_whitening_matrix = os.path.join(TMP, 'whitening.npy')
+    np.save(path_to_whitening_matrix, whiten_filter)
+    logger.info('Saved whitening matrix in {}'
+                .format(path_to_whitening_matrix))
+
+    # run detection
     if CONFIG.spikes.detection == 'threshold':
         return _threshold_detection(standarized_path, standarized_params,
-                                    n_observations, output_directory)
+                                    whiten_filter, output_directory)
     elif CONFIG.spikes.detection == 'nn':
         return _neural_network_detection(standarized_path, standarized_params,
-                                         n_observations, output_directory)
+                                         whiten_filter, output_directory)
 
 
-def _threshold_detection(standarized_path, standarized_params, n_observations,
+def _threshold_detection(standarized_path, standarized_params, whiten_filter,
                          output_directory):
     """Run threshold detector and dimensionality reduction using PCA
     """
@@ -364,7 +383,7 @@ def _threshold_detection(standarized_path, standarized_params, n_observations,
 
 
 def _neural_network_detection(standarized_path, standarized_params,
-                              n_observations, output_directory):
+                              whiten_filter, output_directory):
     """Run neural network detection and autoencoder dimensionality reduction
     """
     logger = logging.getLogger(__name__)
@@ -372,15 +391,6 @@ def _neural_network_detection(standarized_path, standarized_params,
     CONFIG = read_config()
     OUTPUT_DTYPE = CONFIG.preprocess.dtype
     TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
-
-    # detect spikes
-    bp = BatchProcessor(
-        standarized_path,
-        standarized_params['dtype'],
-        standarized_params['n_channels'],
-        standarized_params['data_format'],
-        CONFIG.resources.max_memory,
-        buffer_size=0)
 
     # check if all scores, clear and collision spikes exist..
     path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
@@ -408,16 +418,31 @@ def _neural_network_detection(standarized_path, standarized_params,
                                           path_to_spike_index_clear,
                                           path_to_spike_index_collision))
 
-        # apply neural net detector on standardized data
+        # Run neural net preprocessor
+        
+        # Batch processor
+        # FIXME: buffer_size
+        bp = BatchProcessor(
+        standarized_path,
+        standarized_params['dtype'],
+        standarized_params['n_channels'],
+        standarized_params['data_format'],
+        CONFIG.resources.max_memory,
+        buffer_size=0)
+    
+        # make tensorflow tensors and neural net classes
+        # determine neighboring channel info
+        channel_index = make_channel_index(CONFIG.neighChannels, 
+                                           CONFIG.geom)
+        # get parameters
         detection_th = CONFIG.neural_network_detector.threshold_spike
         triage_th = CONFIG.neural_network_triage.threshold_collision
         detection_fname = CONFIG.neural_network_detector.filename
         ae_fname = CONFIG.neural_network_autoencoder.filename
-        triage_fname = CONFIG.neural_network_triage.filename
-        
+        triage_fname = CONFIG.neural_network_triage.filename        
         (x_tf, output_tf,
-         NND, NNT) = neuralnetwork.prepare_nn(CONFIG.neighChannels, 
-                                          CONFIG.geom, 
+         NND, NNT) = neuralnetwork.prepare_nn(channel_index,
+                                          whiten_filter,
                                           detection_th,
                                           triage_th,
                                           detection_fname,
@@ -425,7 +450,7 @@ def _neural_network_detection(standarized_path, standarized_params,
                                           triage_fname
                                          )
         
-        # run detection batch-wsie
+        # run nn preprocess batch-wsie
         mc = bp.multi_channel_apply
         res = mc(
             neuralnetwork.run_detect_triage_featurize,
@@ -442,7 +467,7 @@ def _neural_network_detection(standarized_path, standarized_params,
                     'draw a complete waveform...')
         clear, idx = detect.remove_incomplete_waveforms(
             clear, CONFIG.spikeSize + CONFIG.templatesMaxShift,
-            n_observations)
+            bp.reader._n_observations)
         np.save(path_to_spike_index_clear, clear)
         logger.info('Saved spike index clear in {}...'
                     .format(path_to_spike_index_clear))
@@ -453,197 +478,77 @@ def _neural_network_detection(standarized_path, standarized_params,
                     'draw a complete waveform...')
         collision, _ = detect.remove_incomplete_waveforms(
             collision, CONFIG.spikeSize + CONFIG.templatesMaxShift,
-            n_observations)
+            bp.reader._n_observations)
         np.save(path_to_spike_index_collision, collision)
         logger.info('Saved spike index collision in {}...'
                     .format(path_to_spike_index_collision))
-
+        
+        # get scores
+        scores = np.concatenate([element[0] for element in res], axis=0)
+        logger.info(
+            'Removing scores for indexes outside the allowed range to '
+            'draw a complete waveform...')
+        scores = scores[idx]
+        
+        # transform scores to location + shape feature space
         if CONFIG.clustering.clustering_method == 'location':
-            #######################
-            # Waveform extraction #
-            #######################
 
-            # TODO: what should the behaviour be for spike indexes that are
-            # when starting/ending the recordings and it is not possible to
-            # draw a complete waveform?
-            logger.info('Computing whitening matrix...')
-            bp = BatchProcessor(standarized_path, standarized_params['dtype'],
-                                standarized_params['n_channels'],
-                                standarized_params['data_format'],
-                                CONFIG.resources.max_memory)
-            batches = bp.multi_channel()
-            first_batch, _, _ = next(batches)
-            Q = whiten.matrix(first_batch, CONFIG.neighChannels,
-                              CONFIG.spikeSize)
-
-            path_to_whitening_matrix = os.path.join(TMP_FOLDER,
-                                                    'whitening.npy')
-            np.save(path_to_whitening_matrix, Q)
-            logger.info('Saved whitening matrix in {}'
-                        .format(path_to_whitening_matrix))
-
-            # apply whitening to every batch
-            (whitened_path, whitened_params) = bp.multi_channel_apply(
-                np.matmul,
-                mode='disk',
-                output_path=os.path.join(TMP_FOLDER, 'whitened.bin'),
-                if_file_exists='skip',
-                cast_dtype=OUTPUT_DTYPE,
-                b=Q)
-
-            main_channel = clear[:, 1]
-
-            # load and dump waveforms from clear spikes
-
-            path_to_waveforms_clear = os.path.join(TMP_FOLDER,
-                                                   'waveforms_clear.npy')
-
-            if os.path.exists(path_to_waveforms_clear):
-                logger.info('Found clear waveforms in {}, loading them...'
-                            .format(path_to_waveforms_clear))
-                waveforms_clear = np.load(path_to_waveforms_clear)
-            else:
-                logger.info(
-                    'Did not find clear waveforms in {}, reading them from {}'
-                    .format(path_to_waveforms_clear, whitened_path))
-                explorer = RecordingExplorer(
-                    whitened_path, spike_size=CONFIG.spikeSize)
-                waveforms_clear = explorer.read_waveforms(clear[:, 0], 'all')
-                np.save(path_to_waveforms_clear, waveforms_clear)
-                logger.info('Saved waveform from clear spikes in: {}'
-                            .format(path_to_waveforms_clear))
-
-            main_channel = clear[:, 1]
-
-            # save rotation
-            detector_filename = CONFIG.neural_network_detector.filename
-            autoencoder_filename = CONFIG.neural_network_autoencoder.filename
-            rotation = neuralnetwork.load_rotation(detector_filename,
-                                                   autoencoder_filename)
-            path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
-            logger.info("rotation_matrix_shape = {}".format(rotation.shape))
-            np.save(path_to_rotation, rotation)
-            logger.info(
-                'Saved rotation matrix in {}...'.format(path_to_rotation))
-
-            logger.info('Denoising...')
-            path_to_denoised_waveforms = os.path.join(TMP_FOLDER,
-                                                      'denoised_waveforms.npy')
-            if os.path.exists(path_to_denoised_waveforms):
-                logger.info('Found denoised waveforms in {}, loading them...'
-                            .format(path_to_denoised_waveforms))
-                denoised_waveforms = np.load(path_to_denoised_waveforms)
-            else:
-                logger.info(
-                    'Did not find denoised waveforms in {}, evaluating them'
-                    'from {}'.format(path_to_denoised_waveforms,
-                                     path_to_waveforms_clear))
-                waveforms_clear = np.load(path_to_waveforms_clear)
-                denoised_waveforms = dim_red.denoise(waveforms_clear, rotation,
-                                                     CONFIG)
-                logger.info('Saving denoised waveforms to {}'.format(
-                    path_to_denoised_waveforms))
-                np.save(path_to_denoised_waveforms, denoised_waveforms)
-
-            isolated_index, x, y = get_isolated_spikes_and_locations(
-                denoised_waveforms, main_channel, CONFIG)
-            x = (x - np.mean(x)) / np.std(x)
-            y = (y - np.mean(y)) / np.std(y)
-            corrupted_index = np.logical_not(
-                np.in1d(np.arange(clear.shape[0]), isolated_index))
-            collision = np.concatenate(
-                [collision, clear[corrupted_index]], axis=0)
-            clear = clear[isolated_index]
-            waveforms_clear = waveforms_clear[isolated_index]
-            #################################################
-            # Dimensionality reduction (Isolated Waveforms) #
-            #################################################
-
-            scores = dim_red.main_channel_scores(waveforms_clear, rotation,
-                                                 clear, CONFIG)
-            scores = (scores - np.mean(scores, axis=0)) / np.std(scores)
-            scores = np.concatenate(
-                [
-                    x[:, np.newaxis, np.newaxis], y[:, np.newaxis, np.newaxis],
-                    scores[:, :, np.newaxis]
-                ],
-                axis=1)
-
-        else:
-
-            # save scores
-            scores = np.concatenate([element[0] for element in res], axis=0)
-
-            logger.info(
-                'Removing scores for indexes outside the allowed range to '
-                'draw a complete waveform...')
-            scores = scores[idx]
-
-            # compute Q for whitening
-            logger.info('Computing whitening matrix...')
-            bp = BatchProcessor(standarized_path, standarized_params['dtype'],
-                                standarized_params['n_channels'],
-                                standarized_params['data_format'],
-                                CONFIG.resources.max_memory)
-            batches = bp.multi_channel()
-            first_batch, _, _ = next(batches)
-            Q = whiten.matrix_localized(first_batch, CONFIG.neighChannels,
-                                        CONFIG.geom, CONFIG.spikeSize)
-
-            path_to_whitening_matrix = os.path.join(TMP_FOLDER,
-                                                    'whitening.npy')
-            np.save(path_to_whitening_matrix, Q)
-            logger.info('Saved whitening matrix in {}'
-                        .format(path_to_whitening_matrix))
-
-            scores = whiten.score(scores, clear[:, 1], Q)
-
-            np.save(path_to_score, scores)
-            logger.info('Saved spike scores in {}...'.format(path_to_score))
-
-            # save rotation
-            detector_filename = CONFIG.neural_network_detector.filename
-            autoencoder_filename = CONFIG.neural_network_autoencoder.filename
-            rotation = neuralnetwork.load_rotation(detector_filename,
-                                                   autoencoder_filename)
-            path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
-            np.save(path_to_rotation, rotation)
-            logger.info(
-                'Saved rotation matrix in {}...'.format(path_to_rotation))
-
+            scores = get_locations_features(scores, rotation, clear[:,1], 
+                                            channel_index, CONFIG.geom)
+        # saves score
         np.save(path_to_score, scores)
         logger.info('Saved spike scores in {}...'.format(path_to_score))
+
+                                                    
+        # save rotation
+        detector_filename = CONFIG.neural_network_detector.filename
+        autoencoder_filename = CONFIG.neural_network_autoencoder.filename
+        
+        NND = NeuralNetDetector(detector_filename,
+                                autoencoder_filename)
+        rotation = NND.load_rotation()
+        path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
+        np.save(path_to_rotation, rotation)
+        logger.info(
+            'Saved rotation matrix in {}...'.format(path_to_rotation))
+
     return scores, clear, collision
 
 
-def get_isolated_spikes_and_locations(denoised_waveforms, main_channel,
-                                      CONFIG):
-    power_all_chan_denoised = np.linalg.norm(denoised_waveforms, axis=1)
-    th = CONFIG.location.isolation_threshold
-    isolated_index = []
-    dist = ss.distance_matrix(CONFIG.geom, CONFIG.geom)
-    for i in range(denoised_waveforms.shape[0] - 1):
-        if dist[main_channel[i], main_channel[i + 1]] >= th:
-            if i == 0:
-                isolated_index += [i]
-            elif dist[main_channel[i], main_channel[i - 1]] >= th:
-                isolated_index += [i]
-    isolated_index = np.asarray(isolated_index, dtype=np.int32)
+def get_locations_features(scores, rotation, main_channel, 
+                  channel_index, channel_geomerty):
+    
+    n_data, n_features, n_neigh = scores.shape
 
-    mask = np.ones([isolated_index.shape[0], CONFIG.recordings.n_channels])
-    for i, j in enumerate(isolated_index):
-        nn = np.where(CONFIG.neighChannels[main_channel[j]])[0]
-        for k in range(CONFIG.recordings.n_channels):
-            if mask[i, k] and k not in nn:
-                mask[i, k] = 0
+    rot_rot = np.matmul(np.transpose(rotation), rotation)
+    reshaped_score = np.reshape(np.transpose(scores, [0, 2, 1]), 
+                                [n_data*n_neigh , n_features])
+    energy = np.sqrt(np.sum(
+        np.reshape(np.multiply(np.matmul(reshaped_score, rot_rot), 
+                               np.transpose(reshaped_score)), 
+                   [n_data, n_neigh, n_featuers]), 2))
+    
+    channel_index_per_data = channel_index[main_channels,:]
+    
+    
+    channel_locations_all = channel_geometry[channel_index_per_data]
+    xy = np.divide(np.sum(np.multiply(energy, channel_locations_all), axis = 1),
+                   np.sum(energy, 1)
+                  )
+    scores = np.concatenate((xy, score[:, :, 0]), 1)
 
-    x = np.sum(
-        mask * power_all_chan_denoised[isolated_index] * CONFIG.geom[:, 0],
-        axis=1) / np.sum(
-        mask * power_all_chan_denoised[isolated_index], axis=1)
-    y = np.sum(
-        mask * power_all_chan_denoised[isolated_index] * CONFIG.geom[:, 1],
-        axis=1) / np.sum(
-        mask * power_all_chan_denoised[isolated_index], axis=1)
-
-    return isolated_index, x, y
+    
+    if scores.shape[0] != n_data:
+        raise ValueError('Number of clear spikes changed from {} to {}'
+                     .format(n_data, scores.shape[0]))
+        
+    if scores.shape[1] != (n_features+channel_geometry.shape[1]):
+        raise ValueError('There are {} shape features and {} location features'
+                         'but {} features are created'
+                        .format(n_features, channel_geometry.shape[1], scores.shape[1]
+                               ))
+        
+    scores = np.divide((scores - np.mean(scores, axis=0, keepdims=True)),
+                   np.std(scores, axis=0, keepdims=True))
+    
+    return scores[:, :, np.newaxis]
