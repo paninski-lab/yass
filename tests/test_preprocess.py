@@ -9,9 +9,11 @@ from yass.preprocess import whiten
 
 # FIXME: MOVE THIS TO A DIFFERENT TEST SUITE
 from yass.geometry import (parse, find_channel_neighbors,
-                           n_steps_neigh_channels)
+                           n_steps_neigh_channels,
+                           make_channel_index)
 
-from yass.preprocess.detect import threshold
+from yass.threshold.detect import run as threshold
+
 # from yass.preprocess.waveform import get_waveforms
 from yass.preprocess.standarize import standarize
 
@@ -93,7 +95,9 @@ def test_can_use_threshold_detector(data, path_to_geometry):
 def test_can_compute_whiten_matrix(data, path_to_geometry):
     geometry = parse(path_to_geometry, n_channels)
     neighbors = find_channel_neighbors(geometry, radius=70)
-    whiten.matrix(data, neighbors, spike_size)
+    channel_index = make_channel_index(neighbors, geometry)
+
+    whiten.matrix(data, channel_index, spike_size)
 
 
 def test_can_preprocess(path_to_config):

@@ -26,7 +26,7 @@ from yass.util import load_yaml, save_metadata, load_logging_config_file
 from yass.neuralnetwork import train_neural_networks
 from yass.config import Config
 from yass.explore import RecordingExplorer
-from yass.preprocess import dimensionality_reduction as dim_red
+from yass.threshold import dimensionality_reduction as dim_red
 
 
 @click.group()
