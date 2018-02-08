@@ -25,10 +25,10 @@ Standarization
     :members:
 
 
-PCA
----
+Dimensionality reduction
+------------------------
 
-.. automodule:: yass.preprocess.pca
+.. automodule:: yass.preprocess.dimensionality_reduction
     :members:
 
 
