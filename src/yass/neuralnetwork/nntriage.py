@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID)
@@ -120,3 +121,45 @@ class NeuralNetTriage(object):
         prob = tf.squeeze(tf.sigmoid(o_layer))
 
         return prob
+
+    def triage_wf(self, wf_tf, threshold):
+        """
+            Detects and indexes spikes from the recording. The recording will
+            be chopped to minibatches if its temporal length
+            exceeds 10000. A spike is detected at [t, c] when the output
+            probability of the neural network detector crosses
+            the detection threshold at time t and channel c. For temporal
+            duplicates within a certain temporal radius,
+            the temporal index corresponding to the largest output probability
+            is assigned. For spatial duplicates within
+            certain neighboring channels, the channel with the highest energy
+            is assigned.
+
+            Parameters:
+            -----------
+            X: np.array
+                [number of channels, temporal length] raw recording.
+
+            Returns:
+            -----------
+            index: np.array
+                [number of detected spikes, 3] returned indices for spikes.
+                First column corresponds to temporal location;
+                second column corresponds to spatial (channel) location.
+
+        """
+        # get parameters
+        R1 = self.filters_dict['size']
+        K1, K2 = self.filters_dict['filters']
+        C = self.filters_dict['n_neighbors']
+        
+        # first layer: temporal feature
+        layer1 = tf.nn.relu(conv2d_VALID(tf.expand_dims(wf_tf, -1), self.W1) + self.b1)
+
+        # second layer: feataure mapping
+        layer11 = tf.nn.relu(conv2d(layer1, self.W11) + self.b11)
+
+        # third layer: spatial convolution
+        o_layer = conv2d_VALID(layer11, self.W2) + self.b2
+
+        return o_layer[:,0,0,0] > np.log(threshold / (1 - threshold))

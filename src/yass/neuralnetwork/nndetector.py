@@ -70,9 +70,9 @@ class NeuralNetDetector(object):
 
         # output of ae encoding (1st layer)
         path_to_filters_ae = change_extension(path_to_ae_model, 'yaml')
-        ae_dict = load_yaml(path_to_filters_ae)
-        n_input = ae_dict['n_input']
-        n_features = ae_dict['n_features']
+        self.ae_dict = load_yaml(path_to_filters_ae)
+        n_input = self.ae_dict['n_input']
+        n_features = self.ae_dict['n_features']
         self.W_ae = tf.Variable(
             tf.random_uniform((n_input, n_features), -1.0 / np.sqrt(n_input),
                               1.0 / np.sqrt(n_input)))
@@ -87,59 +87,57 @@ class NeuralNetDetector(object):
             "b2": self.b2
         })
 
-    def get_spikes(self, x_tf, T, nneigh, c_idx, temporal_window, th):
-        """
-            Detects and indexes spikes from the recording. The recording will
-            be chopped to minibatches if its temporal length
-            exceeds 10000. A spike is detected at [t, c] when the output
-            probability of the neural network detector crosses
-            the detection threshold at time t and channel c. For temporal
-            duplicates within a certain temporal radius,
-            the temporal index corresponding to the largest output probability
-            is assigned. For spatial duplicates within
-            certain neighboring channels, the channel with the highest energy
-            is assigned.
+    def make_detection_tf_tensors(self, x_tf, channel_index, threshold):
 
-            Parameters:
-            -----------
-            X: np.array
-                [number of channels, temporal length] raw recording.
-
-            Returns:
-            -----------
-            index: np.array
-                [number of detected spikes, 3] returned indices for spikes.
-                First column corresponds to temporal location;
-                second column corresponds to spatial (channel) location.
-
-        """
         # get parameters
         K1, K2 = self.filters_dict['filters']
+        nneigh = channel_index.shape[1]  
+        
+        # save neighbor channel index
+        self.channel_index = channel_index
+
+        # Temporal shape of input
+        T = tf.shape(x_tf)[0]
+
+        # input tensor into CNN
+        x_cnn_tf = tf.expand_dims(tf.expand_dims(x_tf, -1), 0)
 
         # NN structures
-        layer1 = tf.nn.relu(
-            conv2d(tf.expand_dims(tf.expand_dims(x_tf, -1), 0), self.W1) +
-            self.b1)
+        # first temporal layer
+        layer1 = tf.nn.relu(conv2d(x_cnn_tf, self.W1) + self.b1)
+
+        # second temporal layer
         layer11 = tf.nn.relu(conv2d(layer1, self.W11) + self.b11)
+
+        # first spatial layer
         zero_added_layer11 = tf.concat(
             (tf.transpose(layer11, [2, 0, 1, 3]), tf.zeros((1, 1, T, K2))),
             axis=0)
         temp = tf.transpose(
-            tf.gather(zero_added_layer11, c_idx), [0, 2, 3, 1, 4])
+            tf.gather(zero_added_layer11, channel_index), [0, 2, 3, 1, 4])
         temp2 = conv2d_VALID(tf.reshape(temp, [-1, T, nneigh, K2]),
                              self.W2) + self.b2
+        
+        # output layer
         o_layer = tf.transpose(temp2, [2, 1, 0, 3])
 
-        temporal_max = max_pool(o_layer, [1, temporal_window, 1, 1])
-        local_max_idx = tf.where(
+        # temporal max
+        temporal_max = max_pool(o_layer, [1, 3, 1, 1]) - 1e-8
+        
+        # spike index is local maximum crossing a threshold
+        spike_index_tf = tf.cast(tf.where(
             tf.logical_and(o_layer[0, :, :, 0] >= temporal_max[0, :, :, 0],
-                           o_layer[0, :, :, 0] > np.log(th / (1 - th))))
+                           o_layer[0, :, :, 0] > np.log(threshold / (1 - threshold)))),'int32')
+        
+        return spike_index_tf
 
-        return local_max_idx
-
-    def get_score_train(self, x_tf):
-        W_ae_conv = tf.expand_dims(tf.expand_dims(self.W_ae, 1), 1)
-
-        scores = conv2d(tf.expand_dims(tf.expand_dims(x_tf, -1), 0), W_ae_conv)
-
-        return tf.squeeze(scores)
+    def make_score_tf_tensor(self, waveform_tf):
+        
+        n_input = self.ae_dict['n_input']
+        n_features = self.ae_dict['n_features']
+        nneigh_tf = tf.shape(waveform_tf)[2]
+    
+        reshaped_wf = tf.reshape(tf.transpose(waveform_tf, [0, 2, 1]),[-1, n_input])
+        score_tf = tf.reshape(tf.matmul(reshaped_wf, self.W_ae), [-1, nneigh_tf, n_features])
+    
+        return score_tf

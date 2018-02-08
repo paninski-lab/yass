@@ -408,23 +408,33 @@ def _neural_network_detection(standarized_path, standarized_params,
                                           path_to_spike_index_clear,
                                           path_to_spike_index_collision))
 
-        # apply threshold detector on standarized data
-        autoencoder_filename = CONFIG.neural_network_autoencoder.filename
+        # apply neural net detector on standardized data
+        detection_th = CONFIG.neural_network_detector.threshold_spike
+        triage_th = CONFIG.neural_network_triage.threshold_collision
+        detection_fname = CONFIG.neural_network_detector.filename
+        ae_fname = CONFIG.neural_network_autoencoder.filename
+        triage_fname = CONFIG.neural_network_triage.filename
+        
+        (x_tf, output_tf,
+         NND, NNT) = neuralnetwork.prepare_nn(CONFIG.neighChannels, 
+                                          CONFIG.geom, 
+                                          detection_th,
+                                          triage_th,
+                                          detection_fname,
+                                          ae_fname,
+                                          triage_fname
+                                         )
+        
+        # run detection batch-wsie
         mc = bp.multi_channel_apply
         res = mc(
-            neuralnetwork.nn_detection,
+            neuralnetwork.run_detect_triage_featurize,
             mode='memory',
             cleanup_function=neuralnetwork.fix_indexes,
-            neighbors=CONFIG.neighChannels,
-            geom=CONFIG.geom,
-            temporal_features=CONFIG.spikes.temporal_features,
-            # FIXME: what is this?
-            temporal_window=3,
-            th_detect=CONFIG.neural_network_detector.threshold_spike,
-            th_triage=CONFIG.neural_network_triage.threshold_collision,
-            detector_filename=CONFIG.neural_network_detector.filename,
-            autoencoder_filename=autoencoder_filename,
-            triage_filename=CONFIG.neural_network_triage.filename)
+            x_tf=x_tf,
+            output_tf=output_tf,
+            NND=NND,
+            NNT=NNT)
 
         # save clear spikes
         clear = np.concatenate([element[1] for element in res], axis=0)
