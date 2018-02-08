@@ -17,8 +17,8 @@ from yass.geometry import make_channel_index
 from yass.preprocess.filter import butterworth
 from yass.preprocess.standarize import standarize, standard_deviation
 from yass.preprocess import whiten
-from yass.preprocess import detect
-from yass.preprocess import dimensionality_reduction as dim_red
+from yass.threshold import detect
+from yass.threshold import dimensionality_reduction as dim_red
 from yass import neuralnetwork
 
 
@@ -206,7 +206,7 @@ def _threshold_detection(standarized_path, standarized_params, channel_index,
 
         # apply threshold detector on standarized data
         spikes = bp.multi_channel_apply(
-            detect.threshold,
+            detect.run,
             mode='memory',
             cleanup_function=detect.fix_indexes,
             neighbors=CONFIG.neighChannels,
@@ -249,7 +249,7 @@ def _threshold_detection(standarized_path, standarized_params, channel_index,
                     ' with threshold detector. Saving them in {}'
                     .format(path_to_spike_index_collision))
         collision = clear
-        np.save(path_to_spike_index_collision, spike_index_collision)
+        np.save(path_to_spike_index_collision, collision)
 
     #########################
     # PCA - rotation matrix #

@@ -10,7 +10,7 @@ from yass.geometry import n_steps_neigh_channels
 # when n batch > 1
 
 
-def threshold(rec, neighbors, spike_size, std_factor):
+def run(rec, neighbors, spike_size, std_factor):
     """Threshold-based spike detection
 
     Parameters
