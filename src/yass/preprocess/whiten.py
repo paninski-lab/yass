@@ -4,24 +4,39 @@ Whitening functions
 
 import numpy as np
 
-from yass.geometry import n_steps_neigh_channels, order_channels_by_distance
 
 def matrix(recording, channel_index, spike_size):
-    """Spatial whitening filter for time series
-    [How is this different from the other method?]
+    """
+    Spatial whitening filter for time series
+    For every channel, spatial whitening filter is calculated along
+    with its neighboring channels.
 
     Parameters
     ----------
-    recording: np.array
-        T x C numpy array, where T is the number of time samples and
-        C is the number of channels
+    recording: np.array (n_observations, n_channels)
+        n_observations is the number of time samples and
+        n_channels is the number of channels
+
+    channel_index: np.array (n_channels, n_neigh)
+        Each row indexes its neighboring channels.
+        For example, channel_index[c] is the index of
+        neighboring channels (including itself)
+        If any value is equal to n_channels, it is nothing but
+        a space holder in a case that a channel has less than
+        n_neigh neighboring channels
+
+    spike_size: int
+        half of waveform temporal spike size in number of time bins.
+
 
     Returns
     -------
-    numpy.ndarray (n_channels, n_channels)
-        whitening matrix
+    whiten_filter: numpy.ndarray (n_channels, n_neigh, n_neigh)
+        whitening matrix such that whiten_filter[c] is the whitening
+        filter of channel c and its neighboring channel determined from
+        channel_index.
     """
-    # get all necessary parameters from param
+    # get all necessary parameters
     n_observations, n_channels = recording.shape
     R = spike_size*2 + 1
     th = 4
@@ -66,25 +81,39 @@ def matrix(recording, channel_index, spike_size):
 
 
 def score(scores, main_channel, whiten_filter):
-    """?
+    """
+    Whiten scores using whitening filter
 
     Parameters
     ----------
-    ?
+    scores: np.array (n_data, n_features, n_neigh)
+        n_data is the number of spikes
+        n_feature is the number features
+        n_neigh is the number of neighboring channels considered
+
+    main_channel: np.array (n_data,)
+        The main channel information for each spike
+
+    whilten_filter: np.array (n_channels, n_neigh, n_neigh)
+        whitening filter as described above
 
     Returns
     -------
-    ?
+    whiten_scores: np.array (n_data, n_features, n_neigh)
+        scores whitened after applying whitening filter
     """
+    # get necessary parameters
     n_data, n_features, n_neigh = scores.shape
     n_channels = whiten_filter.shape[0]
 
+    # apply whitening filter
     whitened_scores = np.zeros(scores.shape)
     for c in range(n_channels):
+        # index of spikes with main channel as c
         idx = main_channel == c
         whitened_scores_c = np.matmul(
             np.reshape(scores[idx], [-1, n_neigh]), whiten_filter[c])
         whitened_scores[idx] = np.reshape(whitened_scores_c,
-                                         [-1, n_features, n_neigh])
+                                          [-1, n_features, n_neigh])
 
     return whitened_scores
