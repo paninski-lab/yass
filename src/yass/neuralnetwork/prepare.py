@@ -74,8 +74,7 @@ def make_whitened_score(score_tf, channel_index, whiten_filter):
     ?
     """
     
-    whiten_filter_per_data = tf.gather(tf.transpose(
-        whiten_filter, [2, 0, 1]), channel_index)
+    whiten_filter_per_data = tf.gather(whiten_filter, channel_index)
     
     return tf.matmul(score_tf, whiten_filter_per_data)
 
