@@ -520,8 +520,9 @@ class SpikeSortingEvaluation(object):
 
         elif method == 'greedy':
             # First match the largest energy ground truth templates.
-            for unit in reversed(
-                np.argsort(np.linalg.norm(energy_base, axis=0))):
+            ordered_units = reversed(
+                np.argsort(np.linalg.norm(energy_base, axis=0)))
+            for unit in ordered_units:
 
                 if len(unmatched_clusters) < 1:
                     break
