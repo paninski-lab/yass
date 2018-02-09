@@ -16,7 +16,7 @@ from yass.mfm import spikesort, suffStatistics, merge_move, cluster_triage
 from yass.geometry import order_channels_by_distance
 
 
-def run(score, spike_index_clear, spike_index_collision,
+def run(score, spike_index, channel_index,
         output_directory='tmp/', recordings_filename='standarized.bin'):
     """Process spikes
 
@@ -27,16 +27,11 @@ def run(score, spike_index_clear, spike_index_collision,
         the number of spikes, second is the nymber of features and third the
         number of channels
 
-    spike_index_clear: numpy.ndarray (n_clear_spikes, 2)
-        2D array with indexes for clear spikes, first column contains the
+    spike_index: numpy.ndarray (n_clear_spikes, 2)
+        2D array with indexes for spikes, first column contains the
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
-
-    spike_index_collision: numpy.ndarray (n_collided_spikes, 2)
-        2D array with indexes for collided spikes, first column contains the
-        spike location in the recording and the second the main channel
-        (channel whose amplitude is maximum)
-
+        
     output_directory: str, optional
         Output directory (relative to CONFIG.data.root_folder) used to load
         the recordings to generate templates, defaults to tmp/
@@ -56,11 +51,6 @@ def run(score, spike_index_clear, spike_index_collision,
     templates: numpy.ndarray (n_channels, waveform_size, n_templates)
         A 3D array with the templates
 
-    spike_index_collision: numpy.ndarray (n_collided_spikes, 2)
-        A 2D array for collided spikes whose first column indicates the spike
-        time and the second column the neuron id determined by the clustering
-        algorithm
-
     Examples
     --------
 
@@ -76,6 +66,50 @@ def run(score, spike_index_clear, spike_index_collision,
 
     logger = logging.getLogger(__name__)
 
+    
+    
+
+    ##########
+    # Triage #
+    ##########
+    _b = datetime.datetime.now()
+    logger.info("Triaging...")
+    score, spike_index = triage(scores, spike_index,
+                                CONFIG.triageK,
+                                CONFIG.triagePercent)
+    Time['t'] += (datetime.datetime.now()-_b).total_seconds()
+
+
+    ###########
+    # Coreset #
+    ###########
+    _b = datetime.datetime.now()
+    groups = coreset(scores, channel_index,
+                     CONFIG.coreset.clusters,
+                     CONFIG.coreset.threshold)
+    Time['c'] += (datetime.datetime.now() - _b).total_seconds()
+
+    
+    ###########
+    # Masking #
+    ###########
+    _b = datetime.datetime.now()
+    masks = getmask(scores, groups, 
+                    CONFIG.clustering.masking_threshold)
+    Time['m'] += (datetime.datetime.now() - _b).total_seconds()
+    
+    
+    ##############
+    # Clustering #
+    ##############
+    _b = datetime.datetime.now()
+    logger.info("Clustering...")
+    spike_train_clear = runSorter(scores, masks, groups, 
+                                  spike_index_clear,
+                                  CONFIG)
+    Time['s'] += (datetime.datetime.now()-_b).total_seconds()
+    
+    
     nG = len(CONFIG.channelGroups)
     nneigh = np.max(np.sum(CONFIG.neighChannels, 0))
     n_coreset = 0
