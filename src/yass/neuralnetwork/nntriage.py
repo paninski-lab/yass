@@ -14,11 +14,9 @@ class NeuralNetTriage(object):
 
         Attributes:
         -----------
-        config: configuration object
-            configuration object containing the training parameters.
         C: int
             spatial filter size of the spatial convolutional layer.
-        R: int
+        R1: int
             temporal filter sizes for the temporal convolutional layers.
         K1,K2: int
             number of filters for each convolutional layer.
@@ -28,36 +26,30 @@ class NeuralNetTriage(object):
             for the covolutional layers.
         b1, b11, b2: tf.Variable
             bias variable for the convolutional layers.
-        nFeat: int
-            number of features to be extracted from the detected waveforms.
-        R: float
-            temporal size of a spike.
-        W_ae: tf.Variable
-            [R, nFeat] weight matrix for the autoencoder.
-        saver_ae: tf.train.Saver
-            saver object for the autoencoder.
         saver: tf.train.Saver
             saver object for the neural network detector.
     """
 
     def __init__(self, path_to_triage_model):
         """
-            Initializes the attributes for the class NeuralNetDetector.
+            Initializes the attributes for the class NeuralNetTriage.
 
             Parameters:
             -----------
-            config: configuration file
+            path_to_detector_model: str
+                location of trained neural net triage
         """
-
+        # save path to the model as an attribute
         self.path_to_triage_model = path_to_triage_model
 
+        # load necessary parameters
         path_to_filters = change_extension(path_to_triage_model, 'yaml')
         self.filters_dict = load_yaml(path_to_filters)
-
         R1 = self.filters_dict['size']
         K1, K2 = self.filters_dict['filters']
         C = self.filters_dict['n_neighbors']
 
+        # initialize and save nn weights
         self.W1 = weight_variable([R1, 1, 1, K1])
         self.b1 = bias_variable([K1])
 
@@ -67,6 +59,7 @@ class NeuralNetTriage(object):
         self.W2 = weight_variable([1, C, K2, 1])
         self.b2 = bias_variable([1])
 
+        # initialize savers
         self.saver = tf.train.Saver({
             "W1": self.W1,
             "W11": self.W11,
@@ -76,85 +69,31 @@ class NeuralNetTriage(object):
             "b2": self.b2
         })
 
-    def triage_prob(self, x_tf, T, nneigh, c_idx):
-        """
-            Detects and indexes spikes from the recording. The recording will
-            be chopped to minibatches if its temporal length
-            exceeds 10000. A spike is detected at [t, c] when the output
-            probability of the neural network detector crosses
-            the detection threshold at time t and channel c. For temporal
-            duplicates within a certain temporal radius,
-            the temporal index corresponding to the largest output probability
-            is assigned. For spatial duplicates within
-            certain neighboring channels, the channel with the highest energy
-            is assigned.
-
-            Parameters:
-            -----------
-            X: np.array
-                [number of channels, temporal length] raw recording.
-
-            Returns:
-            -----------
-            index: np.array
-                [number of detected spikes, 3] returned indices for spikes.
-                First column corresponds to temporal location;
-                second column corresponds to spatial (channel) location.
-
-        """
-        # get parameters
-        K1, K2 = self.filters_dict['filters']
-
-        # NN structures
-        layer1 = tf.nn.relu(
-            conv2d(tf.expand_dims(tf.expand_dims(x_tf, -1), 0), self.W1) +
-            self.b1)
-        layer11 = tf.nn.relu(conv2d(layer1, self.W11) + self.b11)
-        zero_added_layer11 = tf.concat(
-            (tf.transpose(layer11, [2, 0, 1, 3]), tf.zeros((1, 1, T, K2))),
-            axis=0)
-        temp = tf.transpose(
-            tf.gather(zero_added_layer11, c_idx), [0, 2, 3, 1, 4])
-        temp2 = conv2d_VALID(tf.reshape(temp, [-1, T, nneigh, K2]),
-                             self.W2) + self.b2
-        o_layer = tf.transpose(temp2, [2, 1, 0, 3])
-        prob = tf.squeeze(tf.sigmoid(o_layer))
-
-        return prob
-
     def triage_wf(self, wf_tf, threshold):
         """
-            Detects and indexes spikes from the recording. The recording will
-            be chopped to minibatches if its temporal length
-            exceeds 10000. A spike is detected at [t, c] when the output
-            probability of the neural network detector crosses
-            the detection threshold at time t and channel c. For temporal
-            duplicates within a certain temporal radius,
-            the temporal index corresponding to the largest output probability
-            is assigned. For spatial duplicates within
-            certain neighboring channels, the channel with the highest energy
-            is assigned.
+            Run neural net triage on given spike waveforms
 
             Parameters:
             -----------
-            X: np.array
-                [number of channels, temporal length] raw recording.
+            wf_tf: tf tensor (n_spikes, n_temporal_length, n_neigh)
+                tf tensor that produces spikes waveforms
+
+            threshold: int
+                threshold used on a probability obtained after nn to determine
+                whether it is a clear spike
 
             Returns:
             -----------
-            index: np.array
-                [number of detected spikes, 3] returned indices for spikes.
-                First column corresponds to temporal location;
-                second column corresponds to spatial (channel) location.
-
+            tf tensor (n_spikes,)
+                a boolean tensorflow tensor that produces indices of
+                clear spikes
         """
         # get parameters
-        R1 = self.filters_dict['size']
         K1, K2 = self.filters_dict['filters']
-        C = self.filters_dict['n_neighbors']
-        
+
         # first layer: temporal feature
-        layer1 = tf.nn.relu(conv2d_VALID(tf.expand_dims(wf_tf, -1), self.W1) + self.b1)
+        layer1 = tf.nn.relu(conv2d_VALID(tf.expand_dims(wf_tf, -1),
+                                         self.W1) + self.b1)
 
         # second layer: feataure mapping
         layer11 = tf.nn.relu(conv2d(layer1, self.W11) + self.b11)
@@ -162,4 +101,5 @@ class NeuralNetTriage(object):
         # third layer: spatial convolution
         o_layer = conv2d_VALID(layer11, self.W2) + self.b2
 
-        return o_layer[:,0,0,0] > np.log(threshold / (1 - threshold))
+        # thrshold it
+        return o_layer[:, 0, 0, 0] > np.log(threshold / (1 - threshold))

@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
-    
+
+
 def run_detect_triage_featurize(recordings, x_tf, output_tf, NND, NNT):
     """Detect spikes using a neural network
 
@@ -9,12 +10,19 @@ def run_detect_triage_featurize(recordings, x_tf, output_tf, NND, NNT):
     recordings: numpy.ndarray (n_observations, n_channels)
         Neural recordings
 
+    x_tf: tf.tensors (n_observations, n_channels)
+        placeholder of recording for running tensorflow
+
+    output_tf: tuple of tf.tensors
+        a tuple of tensorflow tensors that produce score, spike_index_clear,
+        and spike_index_collision
+
     Returns
     -------
-    clear_scores: numpy.ndarray (n_spikes, n_features, n_channels)
-        3D array with the scores for the clear spikes, first simension is
+    scores: numpy.ndarray (n_clear_spikes, n_features, n_neigh)
+        3D array with the scores for the clear spikes, first dimension is
         the number of spikes, second is the nymber of features and third the
-        number of channels
+        number of neighboring channels
 
     spike_index_clear: numpy.ndarray (n_clear_spikes, 2)
         2D array with indexes for clear spikes, first column contains the
@@ -26,18 +34,17 @@ def run_detect_triage_featurize(recordings, x_tf, output_tf, NND, NNT):
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
     """
-    
+
     # get values of above tensors
     with tf.Session() as sess:
         NND.saver.restore(sess, NND.path_to_detector_model)
         NND.saver_ae.restore(sess, NND.path_to_ae_model)
         NNT.saver.restore(sess, NNT.path_to_triage_model)
-        
-        
-        score, spike_index_clear, spike_index_all = sess.run(
+
+        score, spike_index_clear, spike_index_collision = sess.run(
             output_tf, feed_dict={x_tf: recordings})
 
-    return (score, spike_index_clear, spike_index_all)
+    return (score, spike_index_clear, spike_index_collision)
 
 
 def fix_indexes(res, idx_local, idx, buffer_size):
