@@ -47,9 +47,16 @@ spikes:
   temporal_features: 3
 
 deconvolution:
-  rank: 3
-  threshold: 4
-  lam: 20
+  # refractory period violation in time bins
+  n_rf: 1.5
+  # threshold on template scale
+  threshold_a: 0.3
+  # threshold on decrease in L2 difference
+  threshold_dd: 0
+  # size of windows to look consider around spike time for deconv. 
+  n_explore: 2 
+  # upsampling factor of templates
+  upsample_factor: 5
 
 
 neural_network_detector:
@@ -70,7 +77,7 @@ neural_network_triage:
   # yaml file should only contain size (not number)
   filename: triage_nn1.ckpt
   # Threshold for clear/collision detection
-  threshold_collision: 0.9
+  threshold_collision: 0.5
 
 neural_network_autoencoder:
   # same rules apply as in neural_network_detector.filename but no
