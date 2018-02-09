@@ -7,7 +7,6 @@ https://github.com/hooshmandshr/yass_visualization/blob/master/src/stability/sta
 
 import numpy as np
 
-from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import pdist, squareform, cdist
 from tqdm import tqdm
 
@@ -492,13 +491,7 @@ class SpikeSortingEvaluation(object):
         return count
 
     def compute_accuracies(self):
-        """Computes the TP/FP accuracies for the given spike trains.
-
-        Parameters:
-        -----------
-        method: str. 'hungarian', 'greedy'
-            Method of matching base units to clusters.
-        """
+        """Computes the TP/FP accuracies for the given spike trains."""
         # Calculate and match energy of templates.
         # energy_base = np.linalg.norm(self.tmp_base, axis=0)
         # energy = np.linalg.norm(self.tmp, axis=0)
@@ -510,31 +503,21 @@ class SpikeSortingEvaluation(object):
         unmatched_clusters = range(self.n_clusters)
         self.unit_cluster_map = np.zeros(self.n_units, dtype='int') - 1
 
-        if method == 'hungarian':
-            # Compute the accuracy confusion matrix.
-            percent_matrix = self.confusion_matrix / np.reshape(
-                self.spike_count_base, [self.n_units, 1])
-            units, clusters = linear_sum_assignment(
-                -percent_matrix)
-            self.unit_cluster_map[units] = clusters
+        # First match the largest energy ground truth templates.
+        for unit in reversed(np.argsort(np.linalg.norm(energy_base, axis=0))):
 
-        elif method == 'greedy':
-            # First match the largest energy ground truth templates.
-            for unit in reversed(
-                    np.argsort(np.linalg.norm(energy_base, axis=0))):
+            if len(unmatched_clusters) < 1:
+                break
+            # TODO(hooshmand): Find a fix for template comparison.
+            # If the closest template is not very similar skip it.
+            # if (np.min(energy_dist[unit, unmatched_clusters]) >
+            # 1/4 * np.linalg.norm(energy_base[:, unit])):
+            # continue
 
-                if len(unmatched_clusters) < 1:
-                    break
-                # TODO(hooshmand): Find a fix for template comparison.
-                # If the closest template is not very similar skip it.
-                # if (np.min(energy_dist[unit, unmatched_clusters]) >
-                # 1/4 * np.linalg.norm(energy_base[:, unit])):
-                # continue
-
-                matched_cluster_id = unmatched_clusters[np.argmin(
-                    energy_dist[unit, unmatched_clusters])]
-                unmatched_clusters.remove(matched_cluster_id)
-                self.unit_cluster_map[unit] = matched_cluster_id
+            matched_cluster_id = unmatched_clusters[np.argmin(
+                energy_dist[unit, unmatched_clusters])]
+            unmatched_clusters.remove(matched_cluster_id)
+            self.unit_cluster_map[unit] = matched_cluster_id
         # Units which have a match in the clusters.
         rec_units = np.where(self.unit_cluster_map > -1)[0]
         recovered = np.zeros(self.n_units)
@@ -546,4 +529,3 @@ class SpikeSortingEvaluation(object):
         self.true_positive = recovered / self.spike_count_base
         match_count = self.spike_count_cluster[self.unit_cluster_map]
         self.false_positive = (match_count - recovered) / match_count
-
