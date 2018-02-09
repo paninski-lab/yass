@@ -491,7 +491,7 @@ class SpikeSortingEvaluation(object):
                 j += 1
         return count
 
-    def compute_accuracies(self):
+    def compute_accuracies(self, method='greedy'):
         """Computes the TP/FP accuracies for the given spike trains.
 
         Parameters:
