@@ -63,12 +63,14 @@ class BatchProcessor(object):
     def single_channel(self, force_complete_channel_batch=True, from_time=None,
                        to_time=None, channels='all'):
         """
-        Generate indexes where each index has observations from a single
+        Generate batches where each index has observations from a single
         channel
 
         Returns
         -------
-        A generator that yields indexes
+        A generator that yields batches, if force_complete_channel_batch is
+        False, each generated value is a tuple with the batch and the
+        channel for the index for the corresponding channel
 
         Examples
         --------
@@ -252,9 +254,12 @@ class BatchProcessor(object):
         Parameters
         ----------
         function: callable
-            Function to be applied, must accept a 2D numpy array in 'long'
-            format as its first parameter (number of observations, number of
-            channels)
+            Function to be applied, first parameter passed will be a 2D numpy
+            array in 'long' shape (number of observations, number of
+            channels), second parameter is the slice object with the
+            limits of the data in [observations, channels] format (excluding
+            the buffer), third parameter is the absolute index of the data
+            again in [observations, channels] format
         mode: str
             'disk' or 'memory', if 'disk', a binary file is created at the
             beginning of the operation and each partial result is saved
@@ -422,9 +427,10 @@ class BatchProcessor(object):
         for subset, idx_local, idx in data:
 
             if cast_dtype is None:
-                res = function(subset, **kwargs)
+                res = function(subset, idx_local, idx, **kwargs)
             else:
-                res = function(subset, **kwargs).astype(cast_dtype)
+                res = (function(subset, idx_local, idx, **kwargs)
+                       .astype(cast_dtype))
 
             if cleanup_function:
                 res = cleanup_function(res, idx_local, idx, self.buffer_size)
@@ -486,9 +492,10 @@ class BatchProcessor(object):
         for subset, idx_local, idx in data:
 
             if cast_dtype is None:
-                res = function(subset, **kwargs)
+                res = function(subset, idx_local, idx, **kwargs)
             else:
-                res = function(subset, **kwargs).astype(cast_dtype)
+                res = (function(subset, idx_local, idx,
+                       **kwargs).astype(cast_dtype))
 
             if cleanup_function:
                 res = cleanup_function(res, idx_local, idx, self.buffer_size)
