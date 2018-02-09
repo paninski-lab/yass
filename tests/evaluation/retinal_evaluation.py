@@ -5,7 +5,7 @@ import scipy.io
 import yaml
 
 from numpy import genfromtxt
-from subprocess import call
+from yass.command_line import _run_pipeline
 from yass.evaluate.stability import (MeanWaveCalculator,
                                      RecordingAugmentation,
                                      RecordingBatchIterator,
@@ -195,10 +195,10 @@ def main(n_batches=6):
         config['data']['geometry'] = geom_file
         with open('config_ej49.yaml', 'w') as yaml_file:
             yaml.dump(config, yaml_file, default_flow_style=False)
-        # TODO(hooshmand): Find the internal call for yass.
-        call(['yass', 'config_ej49.yaml'])
+        # TODO(hooshmand): Replace with the finalized pipeline function.
         yass_spike_train_file = 'yass_spike_train_{}.csv'.format(data_number)
-        call(['cp', 'spike_train.csv', yass_spike_train_file])
+        _run_pipeline(
+          config='config_ej49.yaml', output_file=yass_spike_train_file)
         spike_train = genfromtxt(
             yass_spike_train_file, delimiter=',').astype('int32')
         # Data augmentation setup.
@@ -226,11 +226,11 @@ def main(n_batches=6):
         config['data']['geometry'] = geom_file
         with open('config_ej49.yaml', 'w') as yaml_file:
             yaml.dump(config, yaml_file, default_flow_style=False)
-        # TODO(hooshmand): Find the internal call for yass.
-        call(['yass', 'config_ej49.yaml'])
+        # TODO(hooshmand): Replace with the finalized pipeline function.
         yass_aug_spike_train_file = 'yass_aug_spike_train_{}.csv'.format(
                 data_number)
-        call(['cp', 'spike_train.csv', yass_aug_spike_train_file])
+        _run_pipeline(
+          config='config_ej49.yaml', output_file=yass_aug_spike_train_file)
 
         # Evaluate accuracy of yass.
         gold_std_spike_train_file = 'groundtruth_ej49_data{}.mat'.format(
