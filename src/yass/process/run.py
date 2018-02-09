@@ -85,7 +85,7 @@ def run(score, spike_index_clear, spike_index_collision,
     # second column: cluster id
     spike_train_clear = np.zeros((0, 2), 'int32')
 
-    if CONFIG.clustering.clustering_method == '2+3':
+    if CONFIG.clustering.clustering_method == 'location':
         spike_index_clear_proc = np.zeros((0, 2), 'int32')
         main_channel_index = spike_index_clear[:, MAIN_CHANNEL]
         for i, c in enumerate(np.unique(main_channel_index)):
@@ -391,7 +391,7 @@ def run(score, spike_index_clear, spike_index_collision,
 
     currentTime = datetime.datetime.now()
 
-    if CONFIG.clustering.clustering_method == '2+3':
+    if CONFIG.clustering.clustering_method == 'location':
         logger.info("Mainprocess done in {0} seconds.".format(
             (currentTime - startTime).seconds))
         logger.info("\ttriage:\t{0} seconds".format(Time['t']))

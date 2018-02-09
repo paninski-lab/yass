@@ -45,7 +45,8 @@ extensions = [
 # mock dependencies
 # http://www.sphinx-doc.org/en/stable/ext/autodoc.html#confval-autodoc_mock_imports
 autodoc_mock_imports = ['numpy', 'scipy', 'sklearn', 'tensorflow', 'yaml',
-                        'progressbar', 'matplotlib']
+                        'dateutil', 'click', 'progressbar', 'matplotlib',
+                        'tdqm']
 
 numpydoc_show_class_members = False
 
@@ -148,7 +149,7 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = 'nature'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the

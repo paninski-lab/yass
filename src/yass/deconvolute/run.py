@@ -2,13 +2,13 @@ import os.path
 import logging
 
 import numpy as np
+import datetime
 
-from yass.deconvolute.deconvolute import Deconvolution
+from yass.deconvolute.deconvolve import deconvolve
 from yass import read_config
 from yass.batch import RecordingsReader
 
 
-# TODO: comment code, it's not clear what it does
 def run(spike_train_clear, templates, spike_index_collision,
         output_directory='tmp/',
         recordings_filename='standarized.bin'):
@@ -49,21 +49,41 @@ def run(spike_train_clear, templates, spike_index_collision,
 
     .. literalinclude:: ../examples/deconvolute.py
     """
-    logger = logging.getLogger(__name__)
 
+    logger = logging.getLogger(__name__)
+    start_time = datetime.datetime.now()
+
+    # read config file
     CONFIG = read_config()
 
-    recordings = RecordingsReader(os.path.join(CONFIG.data.root_folder,
-                                               output_directory,
-                                               recordings_filename))
+    # read recording
+    recording_path = os.path.join(CONFIG.data.root_folder,
+                                  output_directory,
+                                  recordings_filename)
+    recordings = RecordingsReader(recording_path)
+
+    # make another memory mapping file with write-access
+    writable_recording_path = os.path.join(CONFIG.data.root_folder,
+                                           output_directory,
+                                           'deconvolved_recording.bin')
+    writable_recordings = np.memmap(writable_recording_path,
+                                    dtype='float32', mode='w+',
+                                    shape=recordings.shape)
+    writable_recordings = np.copy(recordings.data)
 
     logging.debug('Starting deconvolution. templates.shape: {}, '
                   'spike_index_collision.shape: {}'
                   .format(templates.shape, spike_index_collision.shape))
 
-    deconv = Deconvolution(CONFIG, np.transpose(templates, [1, 0, 2]),
-                           spike_index_collision, recordings)
-    spike_train_deconv = deconv.fullMPMU()
+    # run deconvolution algorithm
+    n_rf = int(CONFIG.deconvolution.n_rf*CONFIG.recordings.sampling_rate/1000)
+    spike_train_deconv = deconvolve(writable_recordings, templates,
+                                    spike_index_collision,
+                                    CONFIG.deconvolution.n_explore,
+                                    n_rf,
+                                    CONFIG.deconvolution.upsample_factor,
+                                    CONFIG.deconvolution.threshold_a,
+                                    CONFIG.deconvolution.threshold_dd)
 
     logger.debug('spike_train_deconv.shape: {}'
                  .format(spike_train_deconv.shape))
@@ -88,5 +108,9 @@ def run(spike_train_clear, templates, spike_index_collision,
                  .format(spike_train.shape))
 
     spike_train = spike_train[idx_keep]
+
+    currentTime = datetime.datetime.now()
+    logger.info("Deconvolution done in {0} seconds.".format(
+            (currentTime - start_time).seconds))
 
     return spike_train

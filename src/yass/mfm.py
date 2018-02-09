@@ -974,7 +974,7 @@ def spikesort(score, mask, group, param):
 
     vbParam = split_merge(maskedData, param)
 
-    if param.clustering.clustering_method == '2+3':
+    if param.clustering.clustering_method == 'location':
         return vbParam, maskedData
     else:
         assignmentTemp = np.argmax(vbParam.rhat, axis=1)
