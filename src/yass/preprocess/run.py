@@ -213,7 +213,7 @@ def _threshold_detection(standarized_path, standarized_params, channel_index,
             cleanup_function=detect.fix_indexes,
             neighbors=CONFIG.neighChannels,
             spike_size=CONFIG.spikeSize,
-            std_factor=CONFIG.stdFactor)
+            threshold=CONFIG.stdFactor)
         clear = np.vstack(spikes)
 
         logger.info('Removing clear indexes outside the allowed range to '
