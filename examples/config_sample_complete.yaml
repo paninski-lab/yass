@@ -47,10 +47,15 @@ spikes:
   temporal_features: 3
 
 deconvolution:
+  # refractory period violation in time bins
   n_rf: 1.5
+  # threshold on template scale
   threshold_a: 0.3
+  # threshold on decrease in L2 difference
   threshold_dd: 0
+  # size of windows to look consider around spike time for deconv. 
   n_explore: 2 
+  # upsampling factor of templates
   upsample_factor: 5
 
 
