@@ -272,7 +272,11 @@ class BatchProcessor(object):
         cleanup_function: callable, optional
             A function to be executed after `function` and before adding the
             partial result to the list of results (if `memory` mode) or to the
-            biinary file (if in `disk mode`)
+            biinary file (if in `disk mode`). `cleanup_function` will be called
+            with the following parameters (in that order): result from applying
+            `function` to the batch, slice object with the idx where the data
+            is located (exludes buffer), slice object with the absolute
+            location of the data and buffer size
         output_path: str, optional
             Where to save the output, required if 'disk' mode
         force_complete_channel_batch: bool, optional
