@@ -28,7 +28,6 @@ optional_sections:
     merge_threshold: [0.8, 0.7]
 
 
-
 fields_validator:
   recordings:
       dtype:
