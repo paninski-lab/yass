@@ -246,7 +246,7 @@ class BatchProcessor(object):
     def multi_channel_apply(self, function, mode, cleanup_function=None,
                             output_path=None, from_time=None, to_time=None,
                             channels='all', if_file_exists='overwrite',
-                            cast_dtype=None, **kwargs):
+                            cast_dtype=None, pass_batch_info=False, **kwargs):
         """
         Apply a function where each batch has observations from more than
         one channel
@@ -256,10 +256,11 @@ class BatchProcessor(object):
         function: callable
             Function to be applied, first parameter passed will be a 2D numpy
             array in 'long' shape (number of observations, number of
-            channels), second parameter is the slice object with the
-            limits of the data in [observations, channels] format (excluding
-            the buffer), third parameter is the absolute index of the data
-            again in [observations, channels] format
+            channels). If pass_batch_info is True, another two parameters will
+            be passed to function: second parameter is the slice object with
+            the limits of the data in [observations, channels] format
+            (excluding the buffer), third parameter is the absolute index of
+            the data again in [observations, channels] format
         mode: str
             'disk' or 'memory', if 'disk', a binary file is created at the
             beginning of the operation and each partial result is saved
@@ -293,6 +294,9 @@ class BatchProcessor(object):
             exists. Only valid when mode = 'disk'
         cast_dtype: str, optional
             Output dtype, defaults to None which means no cast is done
+        pass_batch_info: bool, optional
+            Whether to call the function with batch info or just call it with
+            the batch data (see description in the function) parameter
         **kwargs
             kwargs to pass to function
 
@@ -354,7 +358,7 @@ class BatchProcessor(object):
 
             start = time.time()
             res = fn(function, cleanup_function, output_path, from_time,
-                     to_time, channels, cast_dtype, **kwargs)
+                     to_time, channels, cast_dtype, pass_batch_info, **kwargs)
             elapsed = time.time() - start
             self.logger.info('{} took {}'
                              .format(function_path(function),
@@ -365,7 +369,7 @@ class BatchProcessor(object):
 
             start = time.time()
             res = fn(function, cleanup_function, from_time, to_time, channels,
-                     cast_dtype, **kwargs)
+                     cast_dtype, pass_batch_info, **kwargs)
             elapsed = time.time() - start
             self.logger.info('{} took {}'
                              .format(function_path(function),
@@ -418,7 +422,7 @@ class BatchProcessor(object):
 
     def _multi_channel_apply_disk(self, function, cleanup_function,
                                   output_path, from_time, to_time, channels,
-                                  cast_dtype, **kwargs):
+                                  cast_dtype, pass_batch_info, **kwargs):
         f = open(output_path, 'wb')
 
         self.reader.output_shape = 'long'
@@ -426,11 +430,13 @@ class BatchProcessor(object):
 
         for subset, idx_local, idx in data:
 
-            if cast_dtype is None:
+            if pass_batch_info:
                 res = function(subset, idx_local, idx, **kwargs)
             else:
-                res = (function(subset, idx_local, idx, **kwargs)
-                       .astype(cast_dtype))
+                res = function(subset, **kwargs)
+
+            if pass_batch_info:
+                res = res.astype(cast_dtype)
 
             if cleanup_function:
                 res = cleanup_function(res, idx_local, idx, self.buffer_size)
@@ -484,18 +490,20 @@ class BatchProcessor(object):
 
     def _multi_channel_apply_memory(self, function, cleanup_function,
                                     from_time, to_time, channels, cast_dtype,
-                                    **kwargs):
+                                    pass_batch_info, **kwargs):
 
         data = self.multi_channel(from_time, to_time, channels)
         results = []
 
         for subset, idx_local, idx in data:
 
-            if cast_dtype is None:
+            if pass_batch_info:
                 res = function(subset, idx_local, idx, **kwargs)
             else:
-                res = (function(subset, idx_local, idx,
-                       **kwargs).astype(cast_dtype))
+                res = function(subset, **kwargs)
+
+            if cast_dtype is not None:
+                res = res.astype(cast_dtype)
 
             if cleanup_function:
                 res = cleanup_function(res, idx_local, idx, self.buffer_size)
