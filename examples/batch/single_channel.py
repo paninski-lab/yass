@@ -28,8 +28,9 @@ bp = BatchProcessor(path_to_neuropixel_data,
 # traverse the whole dataset, one channel at a time
 data = bp.single_channel()
 
-# the next for loop will raise an error since we cannot fit all observations for a single
-# channel in memory, so we either increase max_memory or set
+# the next for loop will raise an error since we cannot fit
+# all observations for a single channel in memory, so we
+# either increase max_memory or set
 # force_complete_channel_batch to False
 
 # for d in data:
@@ -40,7 +41,8 @@ data = bp.single_channel()
 # correspond to all observations in the channel, the channel can be splitted
 # in several batches (although every batch data is guaranteed to come from
 # a single channel), in this case, every channel is splitted in two parts
-data = bp.single_channel(force_complete_channel_batch=False, channels=[0, 1, 2])
+data = bp.single_channel(force_complete_channel_batch=False,
+                         channels=[0, 1, 2])
 
 for d, ch in data:
     print(d.shape, 'Data from channel {}'.format(ch))
