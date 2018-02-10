@@ -1,6 +1,6 @@
 """
 This module contains functions for preprocessing neural recordings:
-filter, standarization, whitening, PCA and spike detection
+filter, standarization, whitening and PCA
 """
 
 from yass.preprocess.run import run
