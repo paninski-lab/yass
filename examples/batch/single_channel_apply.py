@@ -1,5 +1,11 @@
+# coding: utf-8
+
+# See notebook:
+# https://github.com/paninski-lab/yass-examples/blob/master/batch/single_channel_apply.ipynb
+
 """
-Filter data using BatchProcessor.single_channel_apply
+Apply functions to large files using
+BatchProcessor.single_channel_apply
 """
 
 import logging
@@ -20,16 +26,22 @@ path_to_neuropixel_data = (os.path.expanduser('~/data/ucl-neuropixel'
 path_to_filtered_data = (os.path.expanduser('~/data/ucl-neuropixel'
                          '/tmp/filtered.bin'))
 
+
 # create batch processor for the data
 bp = BatchProcessor(path_to_neuropixel_data,
                     dtype='int16', n_channels=385, data_format='wide',
                     max_memory='500MB')
 
+
 # appply a single channel transformation, each batch will be all observations
-# from one channel
-bp.single_channel_apply(butterworth, path_to_filtered_data,
+# from one channel, results are saved to disk
+bp.single_channel_apply(butterworth,
+                        mode='disk',
+                        output_path=path_to_filtered_data,
                         low_freq=300, high_factor=0.1,
-                        order=3, sampling_freq=30000)
+                        order=3, sampling_freq=30000,
+                        channels=[0, 1, 2])
+
 
 # let's visualize the results
 raw = RecordingsReader(path_to_neuropixel_data, dtype='int16',

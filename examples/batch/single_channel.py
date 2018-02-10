@@ -1,5 +1,14 @@
-import os
+# coding: utf-8
 
+# See notebook:
+# https://github.com/paninski-lab/yass-examples/blob/master/batch/single_channel.ipynb
+
+"""
+Splitting large file into batches where every batch contains n
+observations from 1 channel
+"""
+
+import os
 from yass.batch import BatchProcessor
 
 
@@ -19,45 +28,26 @@ bp = BatchProcessor(path_to_neuropixel_data,
 # traverse the whole dataset, one channel at a time
 data = bp.single_channel()
 
-# this will raise an error since we cannot fit all observations for a single
+# the next for loop will raise an error since we cannot fit all observations for a single
 # channel in memory, so we either increase max_memory or set
 # force_complete_channel_batch to False
-for d in data:
-    print(d.shape)
+
+# for d in data:
+#     print(d.shape)
+
 
 # When force_complete_channel_batch is False, each batch does not necessarily
 # correspond to all observations in the channel, the channel can be splitted
 # in several batches (although every batch data is guaranteed to come from
 # a single channel), in this case, every channel is splitted in two parts
-data = bp.single_channel(force_complete_channel_batch=False)
+data = bp.single_channel(force_complete_channel_batch=False, channels=[0, 1, 2])
 
-for d, i in data:
-    print(d.shape, 'Data from channel {}'.format(i))
+for d, ch in data:
+    print(d.shape, 'Data from channel {}'.format(ch))
 
 
 # finally, we can traverse a single channel in a temporal subset
-data = bp.single_channel(from_time=100000, to_time=200000)
-
-for d in data:
-    print(d.shape)
-
-# we can select specific channels
 data = bp.single_channel(from_time=100000, to_time=200000, channels=[0, 1, 2])
-
-for d in data:
-    print(d.shape)
-
-
-# now, let's to some multi_channel operations, here we will traverse all
-# channels and all observations, each batch will contain a subset in the
-# temporal dimension, the window size is determined by max_memory
-data = bp.multi_channel()
-
-for d in data:
-    print(d.shape)
-
-# we can specify the temporal limits and subset channels
-data = bp.multi_channel(from_time=100000, to_time=200000, channels=[0, 1, 2])
 
 for d in data:
     print(d.shape)
