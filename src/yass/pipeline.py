@@ -25,8 +25,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     Parameters
     ----------
-    config: str
-        Path to YASS configuration file
+    config: str or mapping (such as dictionary)
+        Path to YASS configuration file or mapping object
     logger_level: str
         Logger level
     clean: bool, optional

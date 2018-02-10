@@ -22,9 +22,16 @@ def read_config():
     return CONFIG
 
 
-def set_config(path_to_config):
+def set_config(config):
     """Set configuration settings
 
+    Parameters
+    ----------
+    config: str or mapping (such as dictionary)
+        Path to a yaml file or mapping object
+
+    Notes
+    -----
     This function lets the user configure global settings used
     trhoughout the execution of the pipeline. The variables set here
     determine the behavior of some steps. For that reason once, the values
@@ -35,7 +42,11 @@ def set_config(path_to_config):
     # having to pass the configuration over and over, to prevent global state
     # issues, the config cannot be edited after loaded
     global CONFIG
-    CONFIG = Config.from_yaml(path_to_config)
+
+    if isinstance(config, str):
+        CONFIG = Config.from_yaml(config)
+    else:
+        CONFIG = Config(config)
 
 
 def reset_config():
