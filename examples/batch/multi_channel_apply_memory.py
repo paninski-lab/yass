@@ -48,10 +48,10 @@ bp = BatchProcessor(path_to_neuropixel_data,
 # from every batch are returned in a list
 res = bp.multi_channel_apply(max_in_channel,
                              mode='memory',
-                             channels='all')
+                             channels=[0, 1, 2])
 
 
-# we have 8 batches, so our list contains 8 elements
+# we have one element per batch
 len(res)
 
 

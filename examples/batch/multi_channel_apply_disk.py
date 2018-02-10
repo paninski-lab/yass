@@ -55,7 +55,7 @@ bp = BatchProcessor(path_to_neuropixel_data,
 bp.multi_channel_apply(sum_one,
                        mode='disk',
                        output_path=path_to_modified_data,
-                       channels='all')
+                       channels=[0, 1, 2])
 
 
 # let's visualize the results
