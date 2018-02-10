@@ -72,9 +72,9 @@ class RecordingsReader(object):
             with open(path_to_yaml) as f:
                 params = yaml.load(f)
 
-            dtype = params['dtype']
-            n_channels = params['n_channels']
-            data_format = params['data_format']
+            dtype = params['recordings']['dtype']
+            n_channels = params['recordings']['n_channels']
+            data_format = params['recordings']['format']
 
         loader = partial(np.memmap, mode='r') if mmap else np.fromfile
         self.output_shape = output_shape
