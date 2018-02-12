@@ -23,6 +23,7 @@ from yass.util import load_yaml
 from yass.neuralnetwork import train_neural_networks
 from yass.config import Config
 
+
 @click.group()
 def cli():
     pass
