@@ -11,10 +11,7 @@ from yass import read_config
 from yass.process.triage import triage
 from yass.process.coreset import coreset
 from yass.process.mask import getmask
-from yass.process.templates import get_and_merge_templates as gam_templates
-from yass.mfm import spikesort, suffStatistics, merge_move, cluster_triage
-from yass.geometry import order_channels_by_distance
-
+from yass.process.cluster import runSorter, runSorter_location
 
 def run(score, spike_index, channel_index,
         output_directory='tmp/', recordings_filename='standarized.bin'):
