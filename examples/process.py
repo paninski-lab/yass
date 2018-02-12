@@ -11,8 +11,7 @@ logging.basicConfig(level=logging.DEBUG)
 yass.set_config('config_sample.yaml')
 
 # run preprocessor
-score, clr_idx, spt = preprocess.run()
+score, spike_index_clear, spike_index_all = preprocess.run()
 
 # run processor
-(spike_train_clear, templates,
- spike_index_collision) = process.run(score, clr_idx, spt)
+spike_train_clear, templates = process.run(score, clear_spike_index)

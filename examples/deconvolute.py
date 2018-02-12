@@ -12,12 +12,10 @@ logging.basicConfig(level=logging.INFO)
 yass.set_config('tests/config_nnet.yaml')
 
 # run preprocessor
-score, clr_idx, spt = preprocess.run()
+score, spike_index_clear, spike_index_all = preprocess.run()
 
 # run processor
-spike_train_clear, templates, spike_index_collision = process.run(score,
-                                                                  clr_idx, spt)
+spike_train_clear, templates = process.run(score, clear_spike_index)
 
 # run deconvolution
-spike_train = deconvolute.run(spike_train_clear, templates,
-                              spike_index_collision)
+spike_train = deconvolute.run(spike_index_all, templates)

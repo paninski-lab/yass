@@ -65,17 +65,15 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # run preprocessor
     (score, spike_index_clear,
-     spike_index_collision) = preprocess.run(output_directory=output_dir)
+     spike_index_all) = preprocess.run(output_directory=output_dir)
 
     # run processor
-    (spike_train_clear, templates,
-     spike_index_collision) = process.run(score, spike_index_clear,
-                                          spike_index_collision,
-                                          output_directory=output_dir)
+    (spike_train_clear, 
+     templates) = process.run(score, spike_index_clear,
+                              output_directory=output_dir)
 
     # run deconvolution
-    spike_train = deconvolute.run(spike_train_clear, templates,
-                                  spike_index_collision,
+    spike_train = deconvolute.run(spike_index_all, templates,
                                   output_directory=output_dir)
 
     # save metadata in tmp
