@@ -1,9 +1,10 @@
 import numpy as np
+import logging
 
 from yass.mfm import spikesort, suffStatistics, merge_move, cluster_triage
 
 
-def runSorter(scores, masks, groups, spike_times,
+def run_cluster(scores, masks, groups, spike_times,
               channel_groups, channel_index,
               n_features, CONFIG):
     """
@@ -75,9 +76,10 @@ def runSorter(scores, masks, groups, spike_times,
             spike_time = spike_time[~idx_triage]
                         
             spike_train = np.vstack((spike_train, np.hstack(
-                (spike_time, cluster_id + max_cluster_id + 1)))
+                (spike_time[:, np.newaxis],
+                 cluster_id[:, np.newaxis] + max_cluster_id + 1))))
             
-            max_cluster_id += np.max(cluster_id) + 1
+            max_cluster_id += (np.max(cluster_id) + 1)
 
     # sort based on spike_time
     idx_sort = np.argsort(spike_train[:, 0])
@@ -86,8 +88,7 @@ def runSorter(scores, masks, groups, spike_times,
 
 
 
-def runSorter_loccation(scores, groups, spike_times,
-                        n_features, CONFIG):
+def run_cluster_loccation(scores, spike_times, CONFIG):
     """
     Parameters
     ----------
@@ -98,49 +99,47 @@ def runSorter_loccation(scores, groups, spike_times,
         ?
     """
     
+    logger = logging.getLogger(__name__)
+    
     n_channels = len(scores)
     
-    vbParam_global = None
-    maskedData_global = None
-    score_global = None
-    group_global = None
-    spike_time_global = None
+    global_vbParam = None
+    global_maskedData = None
+    global_score = None
+    global_spike_time = None
     for channel in range(n_channels):
         
-        logger.info('Processing channel {}'.format(i))
+        logger.info('Processing channel {}'.format(channel))
        
         score = scores[channel]
-        group = groups[channel]
         spike_time = spike_times[channel]
-        n_data = scores.shape[0]
+        n_data = score.shape[0]
         
         if n_data > 0:
             
             # make a fake mask of ones to run clustering algorithm
             mask = np.ones((n_data, 1))
+            group = np.arange(n_data)
             (vbParam, maskedData) = spikesort(score, mask,
                                               group, CONFIG)
             
             # gather clustering information into global variable
-            (vbParam_global, maskedData_global,
-             score_global, group_global, 
-             spike_time_global) = global_cluster_info(vbParam,
+            (global_vbParam, global_maskedData,
+             global_score, 
+             global_spike_time) = global_cluster_info(vbParam,
                                                       maskedData,
                                                       score,
-                                                      group,
                                                       spike_time,
-                                                      vbParam_global,
-                                                      maskedData_global,
-                                                      score_global,
-                                                      group_global,
-                                                      spike_time_global
-                                                     )
+                                                      global_vbParam,
+                                                      global_maskedData,
+                                                      global_score,
+                                                      global_spike_time)
 
     logger.info('merging all channels')
 
     # data info
     n_clusters = global_vbParam.muhat.shape[1]
-    n_data = score_global.shape[0]
+    n_data = global_score.shape[0]
 
     # update local param with all data
     global_vbParam.update_local(global_maskedData)
@@ -156,40 +155,33 @@ def runSorter_loccation(scores, groups, spike_times,
 
     # get final assignment
     # this is assignment per gorup
-    assignment_per_group = np.argmax(global_vbParam.rhat, axis=1)
-    # make it into assignmnet per data
-    assignment = np.zeros(n_data, 'int16')
-    for j in range(n_data):
-        assignment[j] = assignment_per_data[
-            group_global[j]]
+    assignment = np.argmax(global_vbParam.rhat, axis=1)
 
-        # model based triage
-        idx_triage = cluster_triage(global_vbParam, score_global, 3)
-        assignment = assignment[~idx_triage]
-        spike_time_global = spike_time_global[~idx_triage]
+    # model based triage
+    idx_triage = cluster_triage(global_vbParam, global_score, 3)
+    assignment = assignment[~idx_triage]
+    global_spike_time = global_spike_time[~idx_triage]
 
-        # make spike train
-        spike_train_clear = np.hstack(
-            (spike_time_global, assignment), axis=1)
+    # make spike train
+    spike_train = np.hstack(
+        (global_spike_time[:, np.newaxis], assignment[:, np.newaxis]))
 
-        # sort based on spike_time
-        idx_sort = np.argsort(spike_train[:, 0])
+    # sort based on spike_time
+    idx_sort = np.argsort(spike_train[:, 0])
 
-        return spike_train[idx_sort]
+    return spike_train[idx_sort]
 
 
-
-def global_cluster_info(vbParam, maskedData, score, group, spike_time,
-                        vbParam_global=None, maskedData_global=None,
-                        score_global=None, group_global=None,
-                        spike_time_global=None
+def global_cluster_info(vbParam, maskedData, score, spike_time,
+                        global_vbParam=None, global_maskedData=None,
+                        global_score=None, global_spike_time=None
                        ):
     
-    if vbParam_global is None:
-        vbParam_global = vbParam
-        maskedData_global = maskedData
-        score_global = score
-        group_global = group
+    if global_vbParam is None:
+        global_vbParam = vbParam
+        global_maskedData = maskedData
+        global_score = score
+        global_spike_time = spike_time
         
     else:
         
@@ -199,57 +191,53 @@ def global_cluster_info(vbParam, maskedData, score, group, spike_time,
         global_vbParam.Vhat = np.concatenate(
             [global_vbParam.Vhat, vbParam.Vhat], axis=2)
         global_vbParam.invVhat = np.concatenate(
-            [global_vbParam.invVhat, local_vbParam.invVhat],
+            [global_vbParam.invVhat, vbParam.invVhat],
             axis=2)
         global_vbParam.lambdahat = np.concatenate(
-            [global_vbParam.lambdahat, local_vbParam.lambdahat],
+            [global_vbParam.lambdahat, vbParam.lambdahat],
             axis=0)
         global_vbParam.nuhat = np.concatenate(
-            [global_vbParam.nuhat, local_vbParam.nuhat],
+            [global_vbParam.nuhat, vbParam.nuhat],
             axis=0)
         global_vbParam.ahat = np.concatenate(
-            [global_vbParam.ahat, local_vbParam.ahat],
+            [global_vbParam.ahat, vbParam.ahat],
             axis=0)
         
         # append maskedData
         global_maskedData.sumY = np.concatenate(
-            [global_maskedData.sumY, local_maskedData.sumY],
+            [global_maskedData.sumY, maskedData.sumY],
             axis=0)
         global_maskedData.sumYSq = np.concatenate(
-            [global_maskedData.sumYSq, local_maskedData.sumYSq],
+            [global_maskedData.sumYSq, maskedData.sumYSq],
             axis=0)
         global_maskedData.sumEta = np.concatenate(
-            [global_maskedData.sumEta, local_maskedData.sumEta],
+            [global_maskedData.sumEta, maskedData.sumEta],
             axis=0)
         global_maskedData.weight = np.concatenate(
-            [global_maskedData.weight, local_maskedData.weight],
+            [global_maskedData.weight, maskedData.weight],
             axis=0)
         global_maskedData.groupMask = np.concatenate(
-            [global_maskedData.groupMask, local_maskedData.groupMask],
+            [global_maskedData.groupMask, maskedData.groupMask],
             axis=0)
         global_maskedData.meanY = np.concatenate(
-            [global_maskedData.meanY, local_maskedData.meanY],
+            [global_maskedData.meanY, maskedData.meanY],
             axis=0)
         global_maskedData.meanYSq = np.concatenate(
-            [global_maskedData.meanYSq, local_maskedData.meanYSq],
+            [global_maskedData.meanYSq, maskedData.meanYSq],
             axis=0)
         global_maskedData.meanEta = np.concatenate(
-            [global_maskedData.meanEta, local_maskedData.meanEta],
+            [global_maskedData.meanEta, maskedData.meanEta],
             axis=0)
         
         # append score
-        score_global = np.concatenate([score_global, score], axis=0)
+        global_score = np.concatenate([global_score, score], axis=0)
 
-        # append group
-        global_max_id = np.max(group_global)
-        group_global = np.concatenate([group_global, group+global_max_id+1])
-        
         # append spike_time
-        spike_time_global = np.concatenate([spike_time_global,
+        global_spike_time = np.concatenate([global_spike_time,
                                            spike_time], axis=0)
 
-        return (global_vbParam, global_maskedData, score_global,
-                group_global, spike_time_global)
+    return (global_vbParam, global_maskedData, global_score,
+            global_spike_time)
 
 
     

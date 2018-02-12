@@ -13,6 +13,7 @@ def coreset(scores, coreset_k, coreset_th):
 
         scores_channel = scores[channel]
         
+        print(scores_channel.shape)
         n_data, n_features, n_neigh = scores_channel.shape
         
         valid_channel = np.sum(np.abs(scores_channel),
@@ -23,6 +24,7 @@ def coreset(scores, coreset_k, coreset_th):
             score_temp = np.reshape(scores_channel, [n_data, -1])
             th = 1.5*np.sqrt(chi2.ppf(coreset_th, 1) *
                              score_temp.shape[1])
+            print(th)
             
             group = coreset_alg(score_temp, 
                                 th, coreset_k).astype('int32') - 1
@@ -31,6 +33,7 @@ def coreset(scores, coreset_k, coreset_th):
         else:
             groups[channel] = np.zeros(0, 'int32')
 
+        print(np.unique(groups[channel]))
     return groups
 
 
