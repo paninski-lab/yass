@@ -399,7 +399,7 @@ class RecordingAugmentation(object):
 
 class SpikeSortingEvaluation(object):
 
-    def __init__(self, spt_base, spt, tmp_base, tmp):
+    def __init__(self, spt_base, spt, tmp_base, tmp, method='greedy'):
         """Sets up the evaluation object with two spike trains.
 
         Parameters
@@ -432,7 +432,7 @@ class SpikeSortingEvaluation(object):
         self.true_positive = np.zeros(self.n_units)
         self.false_positive = np.zeros(self.n_units)
         self.unit_cluster_map = np.zeros(self.n_units, dtype='int')
-        self.compute_accuracies()
+        self.compute_accuracies(method)
 
     def count_spikes(self, spt):
         """Counts spike events per cluster/units.
@@ -491,7 +491,7 @@ class SpikeSortingEvaluation(object):
                 j += 1
         return count
 
-    def compute_accuracies(self, method='greedy'):
+    def compute_accuracies(self, method):
         """Computes the TP/FP accuracies for the given spike trains.
 
         Parameters:
@@ -507,7 +507,7 @@ class SpikeSortingEvaluation(object):
         energy_dist = cdist(energy_base.T, energy.T)
         # Maps ground truth unit to matched cluster unit.
         # -1 indicates no matching if n_units > n_clusters.
-        unmatched_clusters = range(self.n_clusters)
+        unmatched_clusters = list(range(self.n_clusters))
         self.unit_cluster_map = np.zeros(self.n_units, dtype='int') - 1
 
         if method == 'hungarian':
