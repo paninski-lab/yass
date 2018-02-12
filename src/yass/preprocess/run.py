@@ -183,14 +183,13 @@ def _threshold_detection(standarized_path, standarized_params, channel_index,
     # Spike detection #
     ###################
 
-    # FIXME: buffer_size
     bp = BatchProcessor(
         standarized_path,
         standarized_params['dtype'],
         standarized_params['n_channels'],
         standarized_params['data_format'],
         CONFIG.resources.max_memory,
-        buffer_size=0)
+        buffer_size=CONFIG.spikeSize)
 
     path_to_spike_index_clear = os.path.join(TMP_FOLDER,
                                              'spike_index_clear.npy')
@@ -343,13 +342,12 @@ def _neural_network_detection(standarized_path, standarized_params,
 
         # Run neural net preprocessor
         # Batch processor
-        # FIXME: buffer_size
         bp = BatchProcessor(standarized_path,
                             standarized_params['dtype'],
                             standarized_params['n_channels'],
                             standarized_params['data_format'],
                             CONFIG.resources.max_memory,
-                            buffer_size=0)
+                            buffer_size=CONFIG.spikeSize)
 
         # make tensorflow tensors and neural net classes
         detection_th = CONFIG.neural_network_detector.threshold_spike
