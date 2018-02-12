@@ -231,6 +231,6 @@ def make_waveform_tf_tensor(x_tf, spike_index_tf,
 
     # temproal length of recording
     T = tf.shape(x_tf)[0]
-    x_tf_zero_added = tf.concat((x_tf, tf.zeros(T, 1)), axis=1)
+    x_tf_zero_added = tf.concat([x_tf, tf.zeros((T, 1))], axis=1)
 
     return tf.gather_nd(x_tf_zero_added, wf_idx)
