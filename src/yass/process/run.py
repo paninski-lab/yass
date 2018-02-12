@@ -11,12 +11,11 @@ from yass import read_config
 from yass.process.triage import triage
 from yass.process.coreset import coreset
 from yass.process.mask import getmask
+from yass.process.list import make_list
 from yass.process.templates import get_and_merge_templates as gam_templates
 from yass.mfm import spikesort, suffStatistics, merge_move, cluster_triage
-from yass.geometry import order_channels_by_distance
 
-
-def run(score, spike_index, channel_index,
+def run(scores, spike_index,
         output_directory='tmp/', recordings_filename='standarized.bin'):
     """Process spikes
 
@@ -66,17 +65,18 @@ def run(score, spike_index, channel_index,
 
     logger = logging.getLogger(__name__)
 
+    # transform data structure of scores and spike_index
+    scores, spike_index = make_list(scores, spike_index,
+                                    CONFIG.recordings.n_channels)
     
-    
-
     ##########
     # Triage #
     ##########
     _b = datetime.datetime.now()
     logger.info("Triaging...")
     score, spike_index = triage(scores, spike_index,
-                                CONFIG.triageK,
-                                CONFIG.triagePercent)
+                                CONFIG.triage.nearest_neighbors,
+                                CONFIG.triage.percent)
     Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
 
@@ -84,7 +84,8 @@ def run(score, spike_index, channel_index,
     # Coreset #
     ###########
     _b = datetime.datetime.now()
-    groups = coreset(scores, channel_index,
+    logger.info("Coresetting...")
+    groups = coreset(scores,
                      CONFIG.coreset.clusters,
                      CONFIG.coreset.threshold)
     Time['c'] += (datetime.datetime.now() - _b).total_seconds()
@@ -94,6 +95,7 @@ def run(score, spike_index, channel_index,
     # Masking #
     ###########
     _b = datetime.datetime.now()
+    logger.info("Masking...")
     masks = getmask(scores, groups, 
                     CONFIG.clustering.masking_threshold)
     Time['m'] += (datetime.datetime.now() - _b).total_seconds()

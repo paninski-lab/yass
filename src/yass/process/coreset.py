@@ -3,7 +3,7 @@ from scipy.stats import chi2
 from sklearn.cluster import KMeans
 
 
-def coreset(scores, channel_index, coreset_k, coreset_th):
+def coreset(scores, coreset_k, coreset_th):
     """
     """
     n_channels = len(scores)
@@ -11,18 +11,21 @@ def coreset(scores, channel_index, coreset_k, coreset_th):
 
     for channel in range(n_channels):
 
-        neigh_channels = channel_index[channel]
-        scores_channel = scores[
-            channel][:, :,neigh_channels < n_channels]
+        scores_channel = scores[channel]
+        
+        n_data, n_features, n_neigh = scores_channel.shape
+        
+        valid_channel = np.sum(np.abs(scores_channel),
+                               axis=(0, 1)) > 0
+        scores_channel = scores_channel[:, :, valid_channel]
 
-        if scores_channel.shape[0] > 0:
-            score_temp = np.reshape(scores_channel,
-                                    [scores_channel.shape[0], -1])
+        if n_data > 0:
+            score_temp = np.reshape(scores_channel, [n_data, -1])
             th = 1.5*np.sqrt(chi2.ppf(coreset_th, 1) *
                              score_temp.shape[1])
             
             group = coreset_alg(score_temp, 
-                                th, coreset_k).astype('int32')-1
+                                th, coreset_k).astype('int32') - 1
             groups[channel] = group
 
         else:

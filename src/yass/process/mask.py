@@ -37,7 +37,7 @@ def getmask(scores, groups, mask_th):
             for j in range(n_data):
                 mask_channel[j] = mask_group[group_channel[j]]
                 
-            masks[channel] = mask_channels
+            masks[channel] = mask_channel
 
         else:
             masks[channel] = np.zeros(0)
