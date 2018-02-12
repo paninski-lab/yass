@@ -63,12 +63,14 @@ class BatchProcessor(object):
     def single_channel(self, force_complete_channel_batch=True, from_time=None,
                        to_time=None, channels='all'):
         """
-        Generate indexes where each index has observations from a single
+        Generate batches where each index has observations from a single
         channel
 
         Returns
         -------
-        A generator that yields indexes
+        A generator that yields batches, if force_complete_channel_batch is
+        False, each generated value is a tuple with the batch and the
+        channel for the index for the corresponding channel
 
         Examples
         --------
@@ -244,7 +246,7 @@ class BatchProcessor(object):
     def multi_channel_apply(self, function, mode, cleanup_function=None,
                             output_path=None, from_time=None, to_time=None,
                             channels='all', if_file_exists='overwrite',
-                            cast_dtype=None, **kwargs):
+                            cast_dtype=None, pass_batch_info=False, **kwargs):
         """
         Apply a function where each batch has observations from more than
         one channel
@@ -252,9 +254,13 @@ class BatchProcessor(object):
         Parameters
         ----------
         function: callable
-            Function to be applied, must accept a 2D numpy array in 'long'
-            format as its first parameter (number of observations, number of
-            channels)
+            Function to be applied, first parameter passed will be a 2D numpy
+            array in 'long' shape (number of observations, number of
+            channels). If pass_batch_info is True, another two parameters will
+            be passed to function: second parameter is the slice object with
+            the limits of the data in [observations, channels] format
+            (excluding the buffer), third parameter is the absolute index of
+            the data again in [observations, channels] format
         mode: str
             'disk' or 'memory', if 'disk', a binary file is created at the
             beginning of the operation and each partial result is saved
@@ -266,7 +272,11 @@ class BatchProcessor(object):
         cleanup_function: callable, optional
             A function to be executed after `function` and before adding the
             partial result to the list of results (if `memory` mode) or to the
-            biinary file (if in `disk mode`)
+            biinary file (if in `disk mode`). `cleanup_function` will be called
+            with the following parameters (in that order): result from applying
+            `function` to the batch, slice object with the idx where the data
+            is located (exludes buffer), slice object with the absolute
+            location of the data and buffer size
         output_path: str, optional
             Where to save the output, required if 'disk' mode
         force_complete_channel_batch: bool, optional
@@ -288,20 +298,27 @@ class BatchProcessor(object):
             exists. Only valid when mode = 'disk'
         cast_dtype: str, optional
             Output dtype, defaults to None which means no cast is done
+        pass_batch_info: bool, optional
+            Whether to call the function with batch info or just call it with
+            the batch data (see description in the function) parameter
         **kwargs
             kwargs to pass to function
 
         Returns
         -------
-        output_path
-            Path to output binary file
-        params
-            Binary file params
+        output_path, params (when mode is 'disk')
+            Path to output binary file, Binary file params
+
+        list (when mode is 'memory')
+            List where every element is the result of applying the function
+            to one batch
 
         Examples
         --------
 
-        .. literalinclude:: ../../examples/batch/multi_channel_apply.py
+        .. literalinclude:: ../../examples/batch/multi_channel_apply_disk.py
+
+        .. literalinclude:: ../../examples/batch/multi_channel_apply_memory.py
 
         Notes
         -----
@@ -349,7 +366,7 @@ class BatchProcessor(object):
 
             start = time.time()
             res = fn(function, cleanup_function, output_path, from_time,
-                     to_time, channels, cast_dtype, **kwargs)
+                     to_time, channels, cast_dtype, pass_batch_info, **kwargs)
             elapsed = time.time() - start
             self.logger.info('{} took {}'
                              .format(function_path(function),
@@ -360,7 +377,7 @@ class BatchProcessor(object):
 
             start = time.time()
             res = fn(function, cleanup_function, from_time, to_time, channels,
-                     cast_dtype, **kwargs)
+                     cast_dtype, pass_batch_info, **kwargs)
             elapsed = time.time() - start
             self.logger.info('{} took {}'
                              .format(function_path(function),
@@ -413,7 +430,7 @@ class BatchProcessor(object):
 
     def _multi_channel_apply_disk(self, function, cleanup_function,
                                   output_path, from_time, to_time, channels,
-                                  cast_dtype, **kwargs):
+                                  cast_dtype, pass_batch_info, **kwargs):
         f = open(output_path, 'wb')
 
         self.reader.output_shape = 'long'
@@ -421,10 +438,13 @@ class BatchProcessor(object):
 
         for subset, idx_local, idx in data:
 
-            if cast_dtype is None:
-                res = function(subset, **kwargs)
+            if pass_batch_info:
+                res = function(subset, idx_local, idx, **kwargs)
             else:
-                res = function(subset, **kwargs).astype(cast_dtype)
+                res = function(subset, **kwargs)
+
+            if pass_batch_info:
+                res = res.astype(cast_dtype)
 
             if cleanup_function:
                 res = cleanup_function(res, idx_local, idx, self.buffer_size)
@@ -478,17 +498,20 @@ class BatchProcessor(object):
 
     def _multi_channel_apply_memory(self, function, cleanup_function,
                                     from_time, to_time, channels, cast_dtype,
-                                    **kwargs):
+                                    pass_batch_info, **kwargs):
 
         data = self.multi_channel(from_time, to_time, channels)
         results = []
 
         for subset, idx_local, idx in data:
 
-            if cast_dtype is None:
-                res = function(subset, **kwargs)
+            if pass_batch_info:
+                res = function(subset, idx_local, idx, **kwargs)
             else:
-                res = function(subset, **kwargs).astype(cast_dtype)
+                res = function(subset, **kwargs)
+
+            if cast_dtype is not None:
+                res = res.astype(cast_dtype)
 
             if cleanup_function:
                 res = cleanup_function(res, idx_local, idx, self.buffer_size)
