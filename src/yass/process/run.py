@@ -206,7 +206,7 @@ def run(scores, spike_index,
                     [global_maskedData.weight,
                      local_maskedData.weight],
                     axis=0)
-                global_maskedData.groupMask = np.concatenate(
+                    global_maskedData.groupMask = np.concatenate(
                     [global_maskedData.groupMask,
                      local_maskedData.groupMask],
                     axis=0)
