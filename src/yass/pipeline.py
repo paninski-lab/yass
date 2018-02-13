@@ -153,3 +153,4 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         np.save(path_to_templates_score, templates_score)
         logger.info('Saved all templates scores in {}...'
                     .format(path_to_waveforms))
+        return spike_train
