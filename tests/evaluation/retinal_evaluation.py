@@ -4,12 +4,12 @@ import os
 import scipy.io
 import yaml
 
-from numpy import genfromtxt
 from yass.evaluate.stability import (MeanWaveCalculator,
                                      RecordingAugmentation,
                                      RecordingBatchIterator,
                                      SpikeSortingEvaluation)
 from yass.pipeline import run
+
 
 def main_channels(template):
     """Computes the main channel of a list of templates.
