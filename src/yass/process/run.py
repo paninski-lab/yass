@@ -7,6 +7,7 @@ import logging
 import datetime
 
 from yass import read_config
+from yass.geometry import make_channel_index
 from yass.process.list import make_list
 from yass.process.subsample import random_subsample
 from yass.process.triage import triage
@@ -118,8 +119,13 @@ def run(scores, spike_index,
         ##############
         _b = datetime.datetime.now()
         logger.info("Clustering...")
+        channel_index = make_channel_index(CONFIG.neighChannels,
+                                       CONFIG.geom)
         spike_train = run_cluster(scores, masks, groups,
-                                  spike_index, CONFIG)
+                                  spike_index, CONFIG.channelGroups,
+                                  channel_index,
+                                  CONFIG.spikes.temporal_features,
+                                  CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
     #################

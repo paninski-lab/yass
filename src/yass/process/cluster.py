@@ -76,7 +76,7 @@ def run_cluster(scores, masks, groups, spike_times,
         score = np.zeros((0, n_features, n_neigh_channels))
         mask = np.zeros((0, n_neigh_channels))
         group = np.zeros(0, 'int32')
-        spike_time = np.zeros((0, 2), 'int32')
+        spike_time = np.zeros((0), 'int32')
 
         # gather information
         max_group_id = -1
@@ -92,14 +92,19 @@ def run_cluster(scores, masks, groups, spike_times,
                 # expand the number of channels and
                 # re-organize data to match it
                 score_temp = np.zeros((n_data_channel, n_features,
-                                       neigh_cores))
+                                       n_neigh_channels))
+                mask_temp = np.zeros((n_data_channel,
+                                      n_neigh_channels))
                 for j in range(neigh_channels.shape[0]):
-                    score_temp[:, :, neigh_cores == neigh_channels[j]
-                               ] = scores[channel][:, :, j]
+                    c_idx = neigh_cores == neigh_channels[j]
+                    score_temp[:, :, c_idx
+                              ] = scores[channel][:, :, [j]]
+                    
+                    mask_temp[:, c_idx] = masks[channel][:, [j]]
 
                 # collect all data in this group
                 score = np.concatenate((score, score_temp), axis=0)
-                mask = np.concatenate((mask, masks[channel]), axis=0)
+                mask = np.concatenate((mask, mask_temp), axis=0)
                 spike_time = np.concatenate((spike_time, spike_times[channel]),
                                             axis=0)
                 group = np.concatenate((group,
