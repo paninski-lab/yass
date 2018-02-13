@@ -80,7 +80,7 @@ def run(scores, spike_index,
 
     logger.info("Randomly subsampling...")
     scores, spike_index = random_subsample(scores, spike_index,
-                                           CONFIG.max_n_spikes)
+                                           CONFIG.clustering.max_n_spikes)
     Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
     if CONFIG.clustering.clustering_method == 'location':

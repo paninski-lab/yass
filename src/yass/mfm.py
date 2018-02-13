@@ -1052,7 +1052,7 @@ def merge_move_quick(maskedData, vbParam, cluster_id, param):
                 k_untested[kb] = 0
             kdist[min(ka, kb), max(ka, kb)] = np.inf
 
-            vbParam, cluster_id_list, merged = check_merge(
+            vbParam, cluster_id_list, merged = check_merge_quick(
                 maskedData, vbParam, cluster_id_list, ka, kb, param)
             if merged:
                 n_merged += 1
