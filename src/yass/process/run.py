@@ -1,8 +1,7 @@
 """
-Process pipeline: triage (optional) coreset (optional), masking, clustering,
+Process pipeline: triage, coreset, masking, clustering,
 getting templates and cleaning
 """
-import numpy as np
 import os
 import logging
 import datetime
@@ -13,8 +12,9 @@ from yass.process.subsample import random_subsample
 from yass.process.triage import triage
 from yass.process.coreset import coreset
 from yass.process.mask import getmask
-from yass.process.cluster import run_cluster, run_cluster_loccation 
+from yass.process.cluster import run_cluster, run_cluster_loccation
 from yass.process.templates import get_and_merge_templates as gam_templates
+
 
 def run(scores, spike_index,
         output_directory='tmp/', recordings_filename='standarized.bin'):
@@ -31,7 +31,7 @@ def run(scores, spike_index,
         2D array with indexes for spikes, first column contains the
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
-        
+
     output_directory: str, optional
         Output directory (relative to CONFIG.data.root_folder) used to load
         the recordings to generate templates, defaults to tmp/
@@ -58,7 +58,6 @@ def run(scores, spike_index,
 
     """
     CONFIG = read_config()
-    MAIN_CHANNEL = 1
 
     startTime = datetime.datetime.now()
 
@@ -69,7 +68,7 @@ def run(scores, spike_index,
     # transform data structure of scores and spike_index
     scores, spike_index = make_list(scores, spike_index,
                                     CONFIG.recordings.n_channels)
-    
+
     ##########
     # Triage #
     ##########
@@ -78,14 +77,13 @@ def run(scores, spike_index,
     score, spike_index = triage(scores, spike_index,
                                 CONFIG.triage.nearest_neighbors,
                                 CONFIG.triage.percent)
+
+    logger.info("Randomly subsampling...")
+    scores, spike_index = random_subsample(scores, spike_index,
+                                           CONFIG.max_n_spikes)
     Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
     if CONFIG.clustering.clustering_method == 'location':
-        
-        logger.info("random subsampling...")
-        scores, spike_index = random_subsample(scores, spike_index,
-                                               1000)
-        
         ##############
         # Clustering #
         ##############
@@ -94,13 +92,8 @@ def run(scores, spike_index,
         spike_train = run_cluster_loccation(scores,
                                             spike_index, CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
-        
+
     else:
-        
-        logger.info("random subsampling...")
-        scores, spike_index = random_subsample(scores, spike_index,
-                                               10000)
-        
         ###########
         # Coreset #
         ###########
@@ -116,7 +109,7 @@ def run(scores, spike_index,
         ###########
         _b = datetime.datetime.now()
         logger.info("Masking...")
-        masks = getmask(scores, groups, 
+        masks = getmask(scores, groups,
                         CONFIG.clustering.masking_threshold)
         Time['m'] += (datetime.datetime.now() - _b).total_seconds()
 
@@ -125,12 +118,10 @@ def run(scores, spike_index,
         ##############
         _b = datetime.datetime.now()
         logger.info("Clustering...")
-        spike_train = run_cluster(scores, masks, groups, 
+        spike_train = run_cluster(scores, masks, groups,
                                   spike_index, CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
-    
- 
-    
+
     #################
     # Get templates #
     #################
@@ -142,22 +133,16 @@ def run(scores, spike_index,
     spike_train, templates = gam_templates(
         spike_train, path_to_recordings, CONFIG.spikeSize,
         CONFIG.templatesMaxShift, merge_threshold, CONFIG.neighChannels)
-
     Time['e'] += (datetime.datetime.now() - _b).total_seconds()
 
+    # report timing
     currentTime = datetime.datetime.now()
-
-    if CONFIG.clustering.clustering_method == 'location':
-        logger.info("Mainprocess done in {0} seconds.".format(
-            (currentTime - startTime).seconds))
-        logger.info("\ttriage:\t{0} seconds".format(Time['t']))
-        logger.info("\tclustering:\t{0} seconds".format(Time['s']))
-        logger.info("\ttemplates:\t{0} seconds".format(Time['e']))
-    else:
-        logger.info("\ttriage:\t{0} seconds".format(Time['t']))
-        logger.info("\tcoreset:\t{0} seconds".format(Time['c']))
-        logger.info("\tmasking:\t{0} seconds".format(Time['m']))
-        logger.info("\tclustering:\t{0} seconds".format(Time['s']))
-        logger.info("\ttemplates:\t{0} seconds".format(Time['e']))
+    logger.info("Mainprocess done in {0} seconds.".format(
+        (currentTime - startTime).seconds))
+    logger.info("\ttriage:\t{0} seconds".format(Time['t']))
+    logger.info("\tcoreset:\t{0} seconds".format(Time['c']))
+    logger.info("\tmasking:\t{0} seconds".format(Time['m']))
+    logger.info("\tclustering:\t{0} seconds".format(Time['s']))
+    logger.info("\ttemplates:\t{0} seconds".format(Time['e']))
 
     return spike_train, templates

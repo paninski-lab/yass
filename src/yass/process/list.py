@@ -8,7 +8,7 @@ def make_list(scores, spike_index, n_channels):
     ----------
     scores: np.ndarray(n_spikes, n_features, n_neigh)
        A 3D array storing scores of each spike
-       
+
     spike_index: numpy.ndarray (n_spikes, 2)
        A 2D array containing spikes information with two columns,
        where the first column is spike time and the second is channel.
@@ -27,6 +27,7 @@ def make_list(scores, spike_index, n_channels):
         whose channel is c
     """
 
+    # initialize list
     scores_list = [None]*n_channels
     spike_index_list = [None]*n_channels
 
