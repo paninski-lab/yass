@@ -16,7 +16,7 @@ from yass import read_config
 
 from yass.util import load_yaml, save_metadata, load_logging_config_file
 from yass.explore import RecordingExplorer
-from yass.preprocess import dimensionality_reduction as dim_red
+from yass.threshold import dimensionality_reduction as dim_red
 
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
