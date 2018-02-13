@@ -5,12 +5,11 @@ import scipy.io
 import yaml
 
 from numpy import genfromtxt
-from yass.command_line import _run_pipeline
 from yass.evaluate.stability import (MeanWaveCalculator,
                                      RecordingAugmentation,
                                      RecordingBatchIterator,
                                      SpikeSortingEvaluation)
-
+from yass.pipeline import run
 
 def main_channels(template):
     """Computes the main channel of a list of templates.
@@ -195,12 +194,7 @@ def main(n_batches=6):
         config['data']['geometry'] = geom_file
         with open('config_ej49.yaml', 'w') as yaml_file:
             yaml.dump(config, yaml_file, default_flow_style=False)
-        # TODO(hooshmand): Replace with the finalized pipeline function.
-        yass_spike_train_file = 'yass_spike_train_{}.csv'.format(data_number)
-        _run_pipeline(
-          config='config_ej49.yaml', output_file=yass_spike_train_file)
-        spike_train = genfromtxt(
-            yass_spike_train_file, delimiter=',').astype('int32')
+        spike_train = run(config=config)
         # Data augmentation setup.
         os.path.getsize(bin_file)
         file_size_bytes = os.path.getsize(bin_file)
@@ -224,13 +218,7 @@ def main(n_batches=6):
         # Setting up config file for yass to run on augmented data.
         config['data']['recordings'] = aug_bin_file
         config['data']['geometry'] = geom_file
-        with open('config_ej49.yaml', 'w') as yaml_file:
-            yaml.dump(config, yaml_file, default_flow_style=False)
-        # TODO(hooshmand): Replace with the finalized pipeline function.
-        yass_aug_spike_train_file = 'yass_aug_spike_train_{}.csv'.format(
-                data_number)
-        _run_pipeline(
-          config='config_ej49.yaml', output_file=yass_aug_spike_train_file)
+        yass_aug_spike_train = run(config=config)
 
         # Evaluate accuracy of yass.
         gold_std_spike_train_file = 'groundtruth_ej49_data{}.mat'.format(
@@ -251,8 +239,6 @@ def main(n_batches=6):
         batch_reader.close_iterator()
 
         # Evaluate stability of yass.
-        yass_aug_spike_train = genfromtxt(
-            yass_aug_spike_train_file, delimiter=',').astype('int32')
         batch_reader = RecordingBatchIterator(
             aug_bin_file, geom_file, sample_rate=sampling_rate,
             batch_time_samples=n_batch_samples, n_batches=n_batches,
