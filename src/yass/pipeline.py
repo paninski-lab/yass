@@ -68,7 +68,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
      spike_index_all) = preprocess.run(output_directory=output_dir)
 
     # run processor
-    (spike_train_clear, 
+    (spike_train_clear,
      templates) = process.run(score, spike_index_clear,
                               output_directory=output_dir)
 

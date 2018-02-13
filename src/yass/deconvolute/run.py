@@ -18,9 +18,9 @@ def run(spike_index, templates,
     ----------
 
     spike_index: numpy.ndarray (n_data, 2)
-        A 2D array for all potential spikes whose first column indicates the 
+        A 2D array for all potential spikes whose first column indicates the
         spike time and the second column the principal channels
-        
+
     templates: numpy.ndarray (n_channels, waveform_size, n_templates)
         A 3D array with the templates
 

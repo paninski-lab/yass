@@ -2,6 +2,7 @@ import time
 import numbers
 import logging
 import os.path
+import numpy as np
 
 import yaml
 
@@ -397,7 +398,9 @@ class BatchProcessor(object):
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
             subset = self.reader[idx]
-
+            print(subset)
+            subset = np.copy(subset)
+            print(subset)
             if cast_dtype is None:
                 res = function(subset, **kwargs)
             else:

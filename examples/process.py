@@ -14,4 +14,4 @@ yass.set_config('config_sample.yaml')
 score, spike_index_clear, spike_index_all = preprocess.run()
 
 # run processor
-spike_train_clear, templates = process.run(score, clear_spike_index)
+spike_train_clear, templates = process.run(score, spike_index_clear)
