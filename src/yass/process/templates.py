@@ -17,8 +17,8 @@ def get_templates(spike_train, path_to_recordings, spike_size):
     re = RecordingExplorer(path_to_recordings,
                            spike_size=spike_size)
 
-    idx_keep = np.logical_and(spike_train[:,0] > spike_size,
-                              spike_train[:,0] < \
+    idx_keep = np.logical_and(spike_train[:, 0] > spike_size,
+                              spike_train[:, 0] <
                               re.data._n_observations - spike_size - 1)
     spike_train = spike_train[idx_keep]
 
@@ -33,7 +33,7 @@ def get_and_merge_templates(spike_train_clear, path_to_recordings,
                             neighbors):
     templates, weights = get_templates(spike_train_clear, path_to_recordings,
                                        2*(spike_size + template_max_shift))
-    
+
     templates = align_templates(templates, template_max_shift)
 
     spike_train_clear, templates = mergeTemplates(templates, weights,
@@ -46,34 +46,39 @@ def get_and_merge_templates(spike_train_clear, path_to_recordings,
 
     return spike_train_clear, templates
 
+
 def align_templates(templates, max_shift):
     C, R, K = templates.shape
     spike_size = int((R-1)/2 - max_shift)
-    
+
     # get main channel for each template
-    mainc = np.argmax(np.max(templates[:,max_shift:(max_shift+2*spike_size+1)], axis=1), axis=0)
-    
+    mainc = np.argmax(
+        np.max(templates[:, max_shift:(
+            max_shift+2*spike_size+1)], axis=1), axis=0)
+
     # get templates on their main channel only
-    templates_mainc = np.zeros((R,K))
+    templates_mainc = np.zeros((R, K))
     for k in range(K):
-        templates_mainc[:,k] = templates[mainc[k], :, k]
-    
+        templates_mainc[:, k] = templates[mainc[k], :, k]
+
     # reference template
     biggest_template_k = np.argmax(np.max(templates_mainc, axis=0))
-    biggest_template = templates_mainc[max_shift:(max_shift+2*spike_size+1), biggest_template_k]
-    
+    biggest_template = templates_mainc[
+        max_shift:(max_shift + 2*spike_size+1), biggest_template_k]
+
     # find best shift
-    fit_per_shift = np.zeros((2*max_shift+1,K))
+    fit_per_shift = np.zeros((2*max_shift+1, K))
     for s in range(2*max_shift+1):
         fit_per_shift[s] = np.matmul(
-            biggest_template[np.newaxis,:],templates_mainc[s:(s+2*spike_size+1)])
+            biggest_template[
+                np.newaxis, :], templates_mainc[s:(s+2*spike_size+1)])
     best_shift = np.argmax(fit_per_shift, axis=0)
-    
-    templates_final = np.zeros((C,2*spike_size+1,K))
+
+    templates_final = np.zeros((C, 2*spike_size+1, K))
     for k in range(K):
         s = best_shift[k]
-        templates_final[:,:,k] = templates[:, s:(s+2*spike_size+1), k]
-        
+        templates_final[:, :, k] = templates[:, s:(s+2*spike_size+1), k]
+
     return templates_final
 
 

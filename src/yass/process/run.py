@@ -120,7 +120,7 @@ def run(scores, spike_index,
         _b = datetime.datetime.now()
         logger.info("Clustering...")
         channel_index = make_channel_index(CONFIG.neighChannels,
-                                       CONFIG.geom)
+                                           CONFIG.geom)
         spike_train = run_cluster(scores, masks, groups,
                                   spike_index, CONFIG.channelGroups,
                                   channel_index,

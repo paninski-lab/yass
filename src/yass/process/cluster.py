@@ -98,8 +98,8 @@ def run_cluster(scores, masks, groups, spike_times,
                 for j in range(neigh_channels.shape[0]):
                     c_idx = neigh_cores == neigh_channels[j]
                     score_temp[:, :, c_idx
-                              ] = scores[channel][:, :, [j]]
-                    
+                               ] = scores[channel][:, :, [j]]
+
                     mask_temp[:, c_idx] = masks[channel][:, [j]]
 
                 # collect all data in this group
