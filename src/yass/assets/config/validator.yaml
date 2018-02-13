@@ -14,7 +14,7 @@ optional_sections:
 
   triage:
     nearest_neighbors: 20
-    percent: 0.01
+    percent: 0.1
 
   coreset:
     clusters: 10
