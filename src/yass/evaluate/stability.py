@@ -510,6 +510,21 @@ class SpikeSortingEvaluation(object):
         unmatched_clusters = range(self.n_clusters)
         self.unit_cluster_map = np.zeros(self.n_units, dtype='int') - 1
 
+        # First match the largest energy ground truth templates.
+        for unit in reversed(np.argsort(np.linalg.norm(energy_base, axis=0))):
+
+            if len(unmatched_clusters) < 1:
+                break
+            # TODO(hooshmand): Find a fix for template comparison.
+            # If the closest template is not very similar skip it.
+            # if (np.min(energy_dist[unit, unmatched_clusters]) >
+            # 1/4 * np.linalg.norm(energy_base[:, unit])):
+            # continue
+
+            matched_cluster_id = unmatched_clusters[np.argmin(
+                energy_dist[unit, unmatched_clusters])]
+            unmatched_clusters.remove(matched_cluster_id)
+            self.unit_cluster_map[unit] = matched_cluster_id
         if method == 'hungarian':
             # Compute the accuracy confusion matrix.
             percent_matrix = self.confusion_matrix / np.reshape(
