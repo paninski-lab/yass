@@ -2,7 +2,6 @@ import numpy as np
 from scipy.spatial import cKDTree
 
 
-# FIXME: dotriage should not be here
 def triage(scores, spike_index, triage_k, triage_percent):
     """
     Triage based on KNN distance.
