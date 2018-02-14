@@ -192,8 +192,6 @@ def main(n_batches=6):
         geom_file = 'ej49_geometry{}.txt'.format(data_number)
         config['data']['recordings'] = bin_file
         config['data']['geometry'] = geom_file
-        with open('config_ej49.yaml', 'w') as yaml_file:
-            yaml.dump(config, yaml_file, default_flow_style=False)
         spike_train = run(config=config)
         # Data augmentation setup.
         os.path.getsize(bin_file)
