@@ -1,6 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: test integration-test
 
+
 install: install-dev install-yass ## Install Yass + Dev Requirements
 	@echo "--> Installing Yass and Dev Requirements"
 	
@@ -20,7 +21,7 @@ test: ## Run Tests
 	py.test . --flake8 --cov=yass
 
 
-integration-test:
+integration-test: ## Run Integration Tests
 	bash integration-test/integration-test.sh
 
 
