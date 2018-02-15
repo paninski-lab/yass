@@ -18,10 +18,8 @@ recordings:
   format: long
 
 clustering:
-  clustering_method: neigh_chan
-  
-location:
-  isolation_threshold: 200
+  clustering_method: location
+  max_n_spikes: 10000
 
 preprocess:
   filter: True
