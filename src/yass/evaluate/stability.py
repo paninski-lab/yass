@@ -458,10 +458,10 @@ class SpikeSortingEvaluation(object):
             [self.n_units, self.n_clusters])
         for unit in tqdm(range(self.n_units)):
             idx = self.spt_base[:, 1] == unit
-            spike_times_base = self.spt_base[idx, 0]
+            spike_times_base = np.sort(self.spt_base[idx, 0])
             for cluster in range(self.n_clusters):
                 idx = self.spt[:, 1] == cluster
-                spike_times_cluster = self.spt[idx, 0]
+                spike_times_cluster = np.sort(self.spt[idx, 0])
                 confusion_matrix[unit, cluster] = self.count_matches(
                     spike_times_base, spike_times_cluster)
         self.confusion_matrix = confusion_matrix
