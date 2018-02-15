@@ -1,45 +1,54 @@
-"""
-Triage spikes in clean or collision
-"""
-
 import numpy as np
 from scipy.spatial import cKDTree
 
 
-# FIXME: why is there a do_triage parameter on this function?
-# TODO: documentation
-# TODO: comment code, it's not clear what it does
-def triage(score, channel_index, triage_k, triage_percent, do_triage):
-    """[?]
+def triage(scores, spike_index, triage_k, triage_percent):
+    """
+    Triage based on KNN distance.
+    It removes triage_percent*100% of data
 
     Parameters
     ----------
-    ?
+    scores: list (n_channels)
+        A list such that scores[c] contains all scores whose main
+        channel is c
 
-    Note
-    ----
-    This object mutates score and clr_idx
+    spike_index: list (n_channels)
+        A list such that spike_index[c] cointains all spike times
+        whose channel is c
+
+    triage_k: int
+       number of neighbors to consider
+
+    triage_percent: float
+       percentage of data to be triaged.
+       It is a number between 0 and 1.
+
+    Returns
+    -------
+    scores: list (n_channels)
+        scores after triage
+
+    spike_index: list (n_channels)
+        spike_index after traige
     """
-
-    K = triage_k + 1
+    # relevant info
+    n_channels = len(scores)
     th = (1 - triage_percent)*100
-    nmax = 10000
 
-    n_data, n_features, n_channels = score.shape
-    index_keep_bool = np.zeros(n_data, 'bool')
-    if n_data > nmax:
-        index_keep = np.random.permutation(n_data)[:nmax]
-        score = score[index_keep]
-    else:
-        index_keep = np.arange(n_data)
+    for channel in range(n_channels):
+        scores_channel = scores[channel][:, :, 0]
+        nc = scores_channel.shape[0]
 
-    if do_triage and (n_data > K):
-        score_temp = score[:, :, channel_index]
-        tree = cKDTree(score_temp)
-        dist, ind = tree.query(score_temp, k=K)
-        dist = np.sum(dist, 1)
-        index_keep = index_keep[dist < np.percentile(dist, th)]
+        if nc > triage_k + 1:
+            # get distance to nearest neighbors
+            tree = cKDTree(scores_channel)
+            dist, ind = tree.query(scores_channel, k=triage_k + 1)
+            dist = np.sum(dist, 1)
 
-    index_keep_bool[index_keep] = 1
+            # triage far ones
+            idx_keep = dist < np.percentile(dist, th)
+            scores[channel] = scores[channel][idx_keep]
+            spike_index[channel] = spike_index[channel][idx_keep]
 
-    return index_keep_bool
+    return scores, spike_index

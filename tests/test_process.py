@@ -30,11 +30,10 @@ def path_to_config():
 def test_process(path_to_config):
     yass.set_config(path_to_config)
 
-    clear_scores, spike_index_clear, spike_index_collision = preprocess.run()
+    clear_scores, spike_index_clear, spike_index_all = preprocess.run()
 
-    (spike_train_clear, templates,
-     spike_index_collision) = process.run(clear_scores, spike_index_clear,
-                                          spike_index_collision)
+    (spike_train_clear,
+     templates) = process.run(clear_scores, spike_index_clear)
 
 
 def test_new_process_shows_error_if_empty_config():

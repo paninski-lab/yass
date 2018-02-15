@@ -36,6 +36,7 @@ clustering:
   clustering_method: 'location'
   masking_threshold: [0.9, 0.5]
   n_split: 5
+  max_n_spikes: 10000
 
 location:
   isolation_threshold: 0
