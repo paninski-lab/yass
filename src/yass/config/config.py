@@ -109,8 +109,8 @@ class Config(FrozenJSON):
         self._set_param('geom', geom.parse(path_to_geom,
                         self.recordings.n_channels))
 
-        neighChannels = geom.find_channel_neighbors(self.geom,
-                                                    self.recordings.spatial_radius)
+        neighChannels = geom.find_channel_neighbors(
+            self.geom, self.recordings.spatial_radius)
         self._set_param('neighChannels', neighChannels)
 
         channelGroups = geom.make_channel_groups(self.recordings.n_channels,
@@ -124,8 +124,11 @@ class Config(FrozenJSON):
                                    self.channelGroups))
 
         self._set_param('spikeSize',
-                        int(np.round(self.recordings.spike_size_ms*self.recordings.sampling_rate/(2*1000))))
-        self._set_param('templatesMaxShift', int(self.recordings.sampling_rate/1000))
+                        int(np.round(self.recordings.spike_size_ms *
+                                     self.recordings.sampling_rate /
+                                     (2*1000))))
+        self._set_param('templatesMaxShift',
+                        int(self.recordings.sampling_rate/1000))
         self._set_param('stdFactor', 4)
 
     def __setattr__(self, name, value):

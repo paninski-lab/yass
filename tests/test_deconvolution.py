@@ -20,10 +20,8 @@ def path_to_config():
 
 def test_decovnolution(path_to_config):
     yass.set_config('tests/config_nnet.yaml')
-    clear_scores, spike_index_clear, spike_index_collision = preprocess.run()
+    clear_scores, spike_index_clear, spike_index_all = preprocess.run()
     (spike_train_clear,
-     templates,
-     spike_index_collision) = process.run(clear_scores, spike_index_clear,
-                                          spike_index_collision)
-    deconvolute.run(spike_train_clear, templates, spike_index_collision)
+     templates) = process.run(clear_scores, spike_index_clear)
+    deconvolute.run(spike_index_all, templates)
     clean_tmp()
