@@ -30,7 +30,7 @@ class RecordingBatchIterator(object):
 
     def __init__(self, rec_file, geom_file, sample_rate,
                  n_batches, batch_time_samples, n_chan,
-                 radius, scale=1e3, filter_std=True, whiten=True):
+                 radius, scale=1e2, filter_std=True, whiten=True):
         """Sets up the object for reading from a binary file.
 
         Parameters
@@ -303,7 +303,7 @@ class RecordingAugmentation(object):
             cid += [u] * new_spike_count
         return np.array([times, cid]).T
 
-    def save_augment_recording(self, out_file_name, length, scale=1e3):
+    def save_augment_recording(self, out_file_name, length, scale=1e2):
         """Augments recording and saves it to file.
 
         Parameters
@@ -399,7 +399,7 @@ class RecordingAugmentation(object):
 
 class SpikeSortingEvaluation(object):
 
-    def __init__(self, spt_base, spt, tmp_base, tmp):
+    def __init__(self, spt_base, spt, tmp_base, tmp, method='hungarian'):
         """Sets up the evaluation object with two spike trains.
 
         Parameters
@@ -432,7 +432,7 @@ class SpikeSortingEvaluation(object):
         self.true_positive = np.zeros(self.n_units)
         self.false_positive = np.zeros(self.n_units)
         self.unit_cluster_map = np.zeros(self.n_units, dtype='int')
-        self.compute_accuracies()
+        self.compute_accuracies(method)
 
     def count_spikes(self, spt):
         """Counts spike events per cluster/units.
@@ -458,10 +458,10 @@ class SpikeSortingEvaluation(object):
             [self.n_units, self.n_clusters])
         for unit in tqdm(range(self.n_units)):
             idx = self.spt_base[:, 1] == unit
-            spike_times_base = self.spt_base[idx, 0]
+            spike_times_base = np.sort(self.spt_base[idx, 0])
             for cluster in range(self.n_clusters):
                 idx = self.spt[:, 1] == cluster
-                spike_times_cluster = self.spt[idx, 0]
+                spike_times_cluster = np.sort(self.spt[idx, 0])
                 confusion_matrix[unit, cluster] = self.count_matches(
                     spike_times_base, spike_times_cluster)
         self.confusion_matrix = confusion_matrix
@@ -491,7 +491,7 @@ class SpikeSortingEvaluation(object):
                 j += 1
         return count
 
-    def compute_accuracies(self, method='greedy'):
+    def compute_accuracies(self, method):
         """Computes the TP/FP accuracies for the given spike trains.
 
         Parameters:
@@ -507,7 +507,7 @@ class SpikeSortingEvaluation(object):
         energy_dist = cdist(energy_base.T, energy.T)
         # Maps ground truth unit to matched cluster unit.
         # -1 indicates no matching if n_units > n_clusters.
-        unmatched_clusters = range(self.n_clusters)
+        unmatched_clusters = list(range(self.n_clusters))
         self.unit_cluster_map = np.zeros(self.n_units, dtype='int') - 1
 
         # First match the largest energy ground truth templates.
