@@ -41,8 +41,8 @@ class BatchProcessor(object):
         number of channels
     """
 
-    def __init__(self, path_to_recordings, dtype, n_channels,
-                 data_format, max_memory, buffer_size=0):
+    def __init__(self, path_to_recordings, dtype=None, n_channels=None,
+                 data_format=None, max_memory=100000000, buffer_size=0):
         self.data_format = data_format
         self.buffer_size = buffer_size
         self.reader = RecordingsReader(path_to_recordings, dtype, n_channels,
@@ -50,7 +50,7 @@ class BatchProcessor(object):
                                        output_shape='long')
         self.indexer = IndexGenerator(self.reader.observations,
                                       self.reader.channels,
-                                      dtype,
+                                      self.reader._dtype,
                                       max_memory)
 
         # data format is long since reader will return data in that format
