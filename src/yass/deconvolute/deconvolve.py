@@ -7,7 +7,7 @@ from yass.deconvolute.match import make_tf_tensors, template_match
 
 
 def deconvolve(recording, templates, spike_index,
-               n_explore, n_rf, upsample_factor,
+               spike_size, n_explore, n_rf, upsample_factor,
                threshold_a, threshold_dd):
     """
     run greedy deconvolution algorithm
@@ -73,7 +73,7 @@ def deconvolve(recording, templates, spike_index,
     # make tensorflow tensors in advance so that we don't
     # have to create multiple times in a loop
     (rec_local_tf, template_local_tf,
-        spt_tf, result) = make_tf_tensors(T, n_timebins,
+        spt_tf, result) = make_tf_tensors(T, 2*spike_size+1,
                                           upsample_factor,
                                           threshold_a,
                                           threshold_dd)
@@ -101,8 +101,9 @@ def deconvolve(recording, templates, spike_index,
         # upsample and localize template
         upsampled_template = upsample_templates(templates[:, :, k],
                                                 upsample_factor)
-        upsampled_template_local = upsampled_template[:, channels_big, :]
 
+        upsampled_template_local = upsampled_template[
+            :, channels_big, (R-spike_size):(R+spike_size+1)]
         # localize recording
         rec_local = rec[:, channels_big]
 
@@ -116,7 +117,7 @@ def deconvolve(recording, templates, spike_index,
         spt_interest = get_longer_spt_list(spt_interest, n_explore)
 
         # run template match
-        spt_good, ahat_good, max_idx_good = template_match(
+        spt_good, max_idx_good, ahat_good = template_match(
             rec_local, spt_interest, upsampled_template_local,
             n_rf, rec_local_tf, template_local_tf, spt_tf, result)
 
