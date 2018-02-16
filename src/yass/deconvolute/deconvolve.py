@@ -117,7 +117,7 @@ def deconvolve(recording, templates, spike_index,
         spt_interest = get_longer_spt_list(spt_interest, n_explore)
 
         # run template match
-        spt_good, max_idx_good, ahat_good = template_match(
+        spt_good, ahat_good, max_idx_good = template_match(
             rec_local, spt_interest, upsampled_template_local,
             n_rf, rec_local_tf, template_local_tf, spt_tf, result)
 

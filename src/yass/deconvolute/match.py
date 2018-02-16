@@ -2,8 +2,8 @@ import tensorflow as tf
 import numpy as np
 
 
-def make_tf_tensors(T, waveform_size, n_shifts, threshold_a,
-                    threshold_d):
+def make_tf_tensors(T, waveform_size, n_shifts,
+                    threshold_a, threshold_d):
     """
     Make tensorflow tensors necessary for deconvolution given parameters
 
@@ -173,10 +173,10 @@ def template_match(rec_local, spt, upsampled_template_local,
                 idx_good[j] = 1
 
         spt_good = spt[idx_good]
-        max_idx_good = max_idx[idx_good]
         ahat_good = ahat[idx_good]
+        max_idx_good = max_idx[idx_good]
 
-        return spt_good, max_idx_good, ahat_good
+        return spt_good, ahat_good, max_idx_good
 
     else:
         return np.zeros(0, 'int32'), np.zeros(0, 'int32'), np.zeros(0, 'int32')
