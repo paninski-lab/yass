@@ -1,7 +1,7 @@
 import numpy as np
 import logging
 
-from yass.mfm import spikesort, merge_move_quick, cluster_triage
+from yass.mfm import spikesort, cluster_triage
 
 
 def run_cluster(scores, masks, groups, spike_times,
