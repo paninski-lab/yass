@@ -112,8 +112,14 @@ def run(output_directory='tmp/'):
             sampling_freq=CONFIG.recordings.sampling_rate)
 
         pipeline.add([filter_op])
+        (filtered_path,), (filtered_params,) = pipeline.run()
 
-    (filtered_path,), (filtered_params,) = pipeline.run()
+    # FIXME: temporary fix
+    else:
+        filtered_path = path
+        filtered_params = {'dtype': dtype,
+                           'n_channels': CONFIG.recordings.n_channels,
+                           'data_format': CONFIG.recordings.format}
 
     # standarize
     bp = BatchProcessor(
@@ -444,6 +450,7 @@ def get_locations_features(scores, rotation, main_channel,
 
     channel_geometry = np.vstack((channel_geometry, np.zeros((1, 2), 'int32')))
     channel_locations_all = channel_geometry[channel_index_per_data]
+
     xy = np.divide(np.sum(np.multiply(energy[:, :, np.newaxis],
                                       channel_locations_all), axis=1),
                    np.sum(energy, axis=1, keepdims=True))
@@ -454,8 +461,8 @@ def get_locations_features(scores, rotation, main_channel,
                          .format(n_data, scores.shape[0]))
 
     if scores.shape[1] != (n_features+channel_geometry.shape[1]):
-        raise ValueError('There are {} shape features and {} location features'
-                         'but {} features are created'.
+        raise ValueError('There are {} shape features and {} location '
+                         'features but {} features are created'.
                          format(n_features,
                                 channel_geometry.shape[1],
                                 scores.shape[1]))
@@ -487,8 +494,8 @@ def get_locations_features_threshold(scores, main_channel,
                          .format(n_data, scores.shape[0]))
 
     if scores.shape[1] != (n_features+channel_geometry.shape[1]):
-        raise ValueError('There are {} shape features and {} location features'
-                         'but {} features are created'
+        raise ValueError('There are {} shape features and {} location '
+                         'features but {} features are created'
                          .format(n_features,
                                  channel_geometry.shape[1],
                                  scores.shape[1]))
