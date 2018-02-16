@@ -26,14 +26,6 @@ class NeuralNetDetector(object):
         for the covolutional layers.
     b1, b11, b2: tf.Variable
         bias variable for the convolutional layers.
-    n_features: int
-        number of features to be extracted from the detected waveforms.
-    n_input: float
-        temporal size of a spike feeded into ae.
-    W_ae: tf.Variable
-        [n_input, n_features] weight matrix for the autoencoder.
-    saver_ae: tf.train.Saver
-        saver object for the autoencoder.
     saver: tf.train.Saver
         saver object for the neural network detector.
     """
@@ -46,9 +38,6 @@ class NeuralNetDetector(object):
         -----------
         path_to_detector_model: str
             location of trained neural net detectior
-
-        path_to_ae_model: str
-            location of trained neural net autoencoder
         """
 
         # add locations as attributes
