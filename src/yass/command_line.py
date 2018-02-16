@@ -20,7 +20,7 @@ from yass import pipeline
 from yass import geometry
 from yass.export import generate
 from yass.util import load_yaml
-from yass.neuralnetwork import train_neural_networks
+from yass.augment import train_neural_networks
 from yass.config import Config
 
 
