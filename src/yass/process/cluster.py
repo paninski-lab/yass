@@ -1,98 +1,338 @@
-import progressbar
 import numpy as np
+import logging
 
-from yass.mfm import spikesort
+from yass.mfm import spikesort, merge_move_quick, cluster_triage
 
 
-# TODO: documentation
-# TODO: comment code, it's not clear what it does
-def runSorter(score_all, mask_all, clr_idx_all, group_all,
-              channel_groups, neighbors, n_features, config):
-    """Run sorting algorithm for every channel group
+def run_cluster(scores, masks, groups, spike_times,
+                channel_groups, channel_index,
+                n_features, CONFIG):
+    """
+    run clustering algorithm using MFM
 
     Parameters
     ----------
+    scores: list (n_channels)
+        A list such that scores[c] contains all scores whose main
+        channel is c
+
+    masks: list (n_channels)
+        mask for each data in scores
+        masks[c] is the mask of spikes in scores[c]
+
+    groups: list (n_channels)
+        coreset represented as group id.
+        groups[c] is the group id of spikes in scores[c]
+
+    spike_index: list (n_channels)
+        A list such that spike_index[c] cointains all spike times
+        whose channel is c
+
+    channel_groups: list (n_channel_groups)
+        Using divide-and-conquer approach, data will be split
+        based on main channel. As an example, data in group g
+        will be data whose main channel is one of channel_groups[g]
+
+    channel_index: np.array (n_channels, n_neigh)
+        neighboring channel information
+        channel_index[c] contains the index of neighboring channels of
+        channel c
+
+    n_features: int
+       number of features in each data per channel
+
+    CONFIG: class
+       configuration class
 
     Returns
     -------
-    spike_train:
-        ?
+    spike_train: np.array (n_data, 2)
+        spike_train such that spike_train[j, 0] and spike_train[j, 1]
+        are the spike time and spike id of spike j
     """
+
     # FIXME: mutating parameter
     # this function is passing a config object and mutating it,
     # this is not a good idea as having a mutable object lying around the code
     # can break things and make it hard to debug
     # (09/27/17) Eduardo
 
-    nG = len(channel_groups)
-    nmax = 10000
+    n_channel_groups = len(channel_groups)
+    n_channels, n_neigh = channel_index.shape
 
-    K = 0
-    spike_train = 0
+    # biggest cluster id is -1 since there is no cluster yet
+    max_cluster_id = -1
+    spike_train = np.zeros((0, 2), 'int32')
+    for g in range(n_channel_groups):
 
-    bar = progressbar.ProgressBar(maxval=nG)
+        # channels in the group
+        core_channels = channel_groups[g]
+        # include all channels neighboring to core channels
+        neigh_cores = np.unique(channel_index[core_channels])
+        neigh_cores = neigh_cores[neigh_cores < n_channels]
+        n_neigh_channels = neigh_cores.shape[0]
 
-    # iterate over every channel group (this is computed in config.py)
-    for g in range(nG):
+        # initialize data for this channel group
+        score = np.zeros((0, n_features, n_neigh_channels))
+        mask = np.zeros((0, n_neigh_channels))
+        group = np.zeros(0, 'int32')
+        spike_time = np.zeros((0), 'int32')
 
-        # get the channels that conform this group
-        ch_idx = channel_groups[g]
+        # gather information
+        max_group_id = -1
+        for _, channel in enumerate(core_channels):
+            if scores[channel].shape[0] > 0:
 
-        neigh_chan = np.sum(neighbors[ch_idx], axis=0) > 0
+                # number of data
+                n_data_channel = scores[channel].shape[0]
+                # neighboring channels in this group
+                neigh_channels = channel_index[channel][
+                    channel_index[channel] < n_channels]
 
-        score = np.zeros(
-            (nmax*ch_idx.shape[0], n_features, np.sum(neigh_chan)))
-        index = np.zeros((nmax*ch_idx.shape[0], 2), 'int32')
-        mask = np.zeros((nmax*ch_idx.shape[0], np.sum(neigh_chan)))
-        group = np.zeros(nmax*ch_idx.shape[0], 'int16')
+                # expand the number of channels and
+                # re-organize data to match it
+                score_temp = np.zeros((n_data_channel, n_features,
+                                       n_neigh_channels))
+                mask_temp = np.zeros((n_data_channel,
+                                      n_neigh_channels))
+                for j in range(neigh_channels.shape[0]):
+                    c_idx = neigh_cores == neigh_channels[j]
+                    score_temp[:, :, c_idx
+                               ] = scores[channel][:, :, [j]]
 
-        count = 0
-        Ngroup = 0
+                    mask_temp[:, c_idx] = masks[channel][:, [j]]
 
-        for j in range(ch_idx.shape[0]):
-            c = ch_idx[j]
-            if score_all[c].shape[0] > 0:
-
-                ndataTemp = score_all[c].shape[0]
-
-                score[count:(count+ndataTemp), :, neighbors[c]
-                      [neigh_chan]] = score_all[c]
-
-                clr_idx_temp = clr_idx_all[c]
-                index[count:(count+ndataTemp)] = np.concatenate(
-                    (np.ones((ndataTemp, 1))*c,
-                        clr_idx_temp[:, np.newaxis]), axis=1)
-
-                mask[count:(count+ndataTemp), neighbors[c]
-                     [neigh_chan]] = mask_all[c]
-
-                group[count:(count+ndataTemp)] = group_all[c] + Ngroup + 1
-
-                Ngroup += np.amax(group_all[c]) + 1
-                count += ndataTemp
-
-        score = score[:count]
-        index = index[:count]
-        mask = mask[:count]
-        group = group[:count] - 1
+                # collect all data in this group
+                score = np.concatenate((score, score_temp), axis=0)
+                mask = np.concatenate((mask, mask_temp), axis=0)
+                spike_time = np.concatenate((spike_time, spike_times[channel]),
+                                            axis=0)
+                group = np.concatenate((group,
+                                        groups[channel] + max_group_id + 1),
+                                       axis=0)
+                max_group_id += np.max(groups[channel]) + 1
 
         if score.shape[0] > 0:
-            L = spikesort(score, mask, group, config)
-            idx_triage = L == -1
-            L = L[~idx_triage]
-            index = index[~idx_triage]
 
-            spikeTrain_temp = np.concatenate(
-                (L[:, np.newaxis]+K, index), axis=1)
-            K += np.amax(L)+1
-            if g == 0:
-                spike_train = spikeTrain_temp
-            else:
-                spike_train = np.concatenate(
-                    (spike_train, spikeTrain_temp))
+            # run clustering
+            cluster_id = spikesort(score, mask, group, CONFIG)
 
-        bar.update(g+1)
+            # model based triage
+            idx_triage = cluster_id == -1
+            cluster_id = cluster_id[~idx_triage]
+            spike_time = spike_time[~idx_triage]
 
-    bar.finish()
+            spike_train = np.vstack((spike_train, np.hstack(
+                (spike_time[:, np.newaxis],
+                 cluster_id[:, np.newaxis] + max_cluster_id + 1))))
 
-    return spike_train
+            max_cluster_id += (np.max(cluster_id) + 1)
+
+    # sort based on spike_time
+    idx_sort = np.argsort(spike_train[:, 0])
+
+    return spike_train[idx_sort]
+
+
+def run_cluster_loccation(scores, spike_times, CONFIG):
+    """
+    run clustering algorithm using MFM and location features
+
+    Parameters
+    ----------
+    scores: list (n_channels)
+        A list such that scores[c] contains all scores whose main
+        channel is c
+
+    spike_times: list (n_channels)
+        A list such that spike_index[c] cointains all spike times
+        whose channel is c
+
+    CONFIG: class
+        configuration class
+
+    Returns
+    -------
+    spike_train: np.array (n_data, 2)
+        spike_train such that spike_train[j, 0] and spike_train[j, 1]
+        are the spike time and spike id of spike j
+    """
+    logger = logging.getLogger(__name__)
+
+    n_channels = len(scores)
+
+    global_vbParam = None
+    global_maskedData = None
+    global_score = None
+    global_spike_time = None
+    global_cluster_id = None
+    # run clustering algorithm per main channel
+    for channel in range(n_channels):
+
+        logger.info('Processing channel {}'.format(channel))
+
+        score = scores[channel]
+        spike_time = spike_times[channel]
+        n_data = score.shape[0]
+
+        if n_data > 0:
+
+            # make a fake mask of ones to run clustering algorithm
+            mask = np.ones((n_data, 1))
+            group = np.arange(n_data)
+            (vbParam, maskedData) = spikesort(score, mask,
+                                              group, CONFIG)
+
+            # gather clustering information into global variable
+            (global_vbParam, global_maskedData,
+             global_score, global_spike_time,
+             global_cluster_id) = global_cluster_info(vbParam,
+                                                      maskedData,
+                                                      score,
+                                                      spike_time,
+                                                      global_vbParam,
+                                                      global_maskedData,
+                                                      global_score,
+                                                      global_spike_time,
+                                                      global_cluster_id)
+
+    logger.info('merging all channels')
+
+    # data info
+    n_data = global_score.shape[0]
+
+    # run merge move with all data
+    (global_vbParam, cluster_id_merged) = merge_move_quick(
+        global_maskedData, global_vbParam, global_cluster_id, CONFIG)
+
+    # model based triage
+    idx_triage = cluster_triage(global_vbParam, global_score, 3)
+    cluster_id_merged = cluster_id_merged[~idx_triage]
+    global_spike_time = global_spike_time[~idx_triage]
+
+    # make spike train
+    spike_train = np.hstack(
+        (global_spike_time[:, np.newaxis],
+         cluster_id_merged[:, np.newaxis]))
+
+    # sort based on spike_time
+    idx_sort = np.argsort(spike_train[:, 0])
+
+    return spike_train[idx_sort]
+
+
+def global_cluster_info(vbParam, maskedData, score, spike_time,
+                        global_vbParam, global_maskedData, global_score,
+                        global_spike_time, global_cluster_id):
+    """
+    Gather clustering information from each run
+
+    Parameters
+    ----------
+    vbParam, maskedData: class
+        cluster information output from MFM
+
+    score: np.array (n_data, n_features, 1)
+        score used for each clustering
+
+    spike_time: np.array (n_data, 1)
+        spike time that matches with each score
+
+    global_vbParam, global_maskedData: class
+        a class that contains cluster information from all
+        previous run,
+
+    global_score: np.array (n_data_all, n_features, 1)
+        all scores from previous runs
+
+    global_spike_times: np.array (n_data_all, 1)
+        spike times matched to global_score
+
+    global_cluster_id: np.array (n_data_all, 1)
+        cluster id matched to global_score
+
+    Returns
+    -------
+    global_vbParam, global_maskedData: class
+        a class that contains cluster information after
+        adding the current one
+
+    global_score: np.array (n_data_all, n_features, 1)
+        all scores after adding the current one
+
+    global_spike_times: np.array (n_data_all, 1)
+        spike times matched to global_score
+
+    global_cluster_id: np.array (n_data_all, 1)
+        cluster id matched to global_score
+    """
+    if global_vbParam is None:
+        global_vbParam = vbParam
+        global_maskedData = maskedData
+        global_score = score
+        global_spike_time = spike_time
+
+        global_cluster_id = np.argmax(global_vbParam.rhat,
+                                      axis=1)
+    else:
+
+        # append global_vbParam
+        global_vbParam.muhat = np.concatenate(
+            [global_vbParam.muhat, vbParam.muhat], axis=1)
+        global_vbParam.Vhat = np.concatenate(
+            [global_vbParam.Vhat, vbParam.Vhat], axis=2)
+        global_vbParam.invVhat = np.concatenate(
+            [global_vbParam.invVhat, vbParam.invVhat],
+            axis=2)
+        global_vbParam.lambdahat = np.concatenate(
+            [global_vbParam.lambdahat, vbParam.lambdahat],
+            axis=0)
+        global_vbParam.nuhat = np.concatenate(
+            [global_vbParam.nuhat, vbParam.nuhat],
+            axis=0)
+        global_vbParam.ahat = np.concatenate(
+            [global_vbParam.ahat, vbParam.ahat],
+            axis=0)
+
+        # append maskedData
+        global_maskedData.sumY = np.concatenate(
+            [global_maskedData.sumY, maskedData.sumY],
+            axis=0)
+        global_maskedData.sumYSq = np.concatenate(
+            [global_maskedData.sumYSq, maskedData.sumYSq],
+            axis=0)
+        global_maskedData.sumEta = np.concatenate(
+            [global_maskedData.sumEta, maskedData.sumEta],
+            axis=0)
+        global_maskedData.weight = np.concatenate(
+            [global_maskedData.weight, maskedData.weight],
+            axis=0)
+        global_maskedData.groupMask = np.concatenate(
+            [global_maskedData.groupMask, maskedData.groupMask],
+            axis=0)
+        global_maskedData.meanY = np.concatenate(
+            [global_maskedData.meanY, maskedData.meanY],
+            axis=0)
+        global_maskedData.meanYSq = np.concatenate(
+            [global_maskedData.meanYSq, maskedData.meanYSq],
+            axis=0)
+        global_maskedData.meanEta = np.concatenate(
+            [global_maskedData.meanEta, maskedData.meanEta],
+            axis=0)
+
+        # append score
+        global_score = np.concatenate([global_score, score], axis=0)
+
+        # append spike_time
+        global_spike_time = np.concatenate([global_spike_time,
+                                           spike_time], axis=0)
+
+        # append assignment
+        cluster_id_max = np.max(global_cluster_id)
+        cluster_id_local = np.argmax(vbParam.rhat, axis=1)
+        global_cluster_id = np.hstack([
+            global_cluster_id,
+            cluster_id_local + cluster_id_max + 1])
+
+    return (global_vbParam, global_maskedData, global_score,
+            global_spike_time, global_cluster_id)

@@ -4,8 +4,10 @@ Testing example in README.md
 import os
 
 import pytest
+import yaml
 
 from yass import command_line as cli
+from yass import pipeline
 
 from util import clean_tmp
 
@@ -24,6 +26,20 @@ def path_to_output():
     return path
 
 
-def test_example_works(path_to_config_sample, path_to_output):
+def test_example_works_with_cli(path_to_config_sample, path_to_output):
     cli._run_pipeline(path_to_config_sample, path_to_output)
+    clean_tmp()
+
+
+def test_example_works_default_pipeline(path_to_config_sample, path_to_output):
+    pipeline.run(path_to_config_sample)
+    clean_tmp()
+
+
+def test_example_works_pip_and_dict(path_to_config_sample, path_to_output):
+
+    with open(path_to_config_sample) as f:
+        cfg = yaml.load(f)
+
+    pipeline.run(cfg)
     clean_tmp()

@@ -5,13 +5,12 @@ import numpy as np
 
 from yass.geometry import n_steps_neigh_channels
 
-# TODO: documentation needs improvements: see (?) and Notes section
 # FIXME: seems like the detector is throwing slightly different results
 # when n batch > 1
 
 
-def threshold(rec, neighbors, spike_size, std_factor):
-    """Threshold-based spike detection
+def run(rec, neighbors, spike_size, threshold):
+    """Run Threshold-based spike detection
 
     Parameters
     ----------
@@ -23,12 +22,13 @@ def threshold(rec, neighbors, spike_size, std_factor):
         neighbor of j
     spike_size: int
         Spike size
-    std_factor: float?
-        ?
+    threshold: float?
+        threshold used on amplitude for detection
 
     Notes
     -----
-    [Add brief description of the method]
+    any values below -std_factor is considered as a spike
+    and its location is saved and returned
 
     Returns
     -------
@@ -38,7 +38,7 @@ def threshold(rec, neighbors, spike_size, std_factor):
     """
     T, C = rec.shape
     R = spike_size
-    th = std_factor
+    th = threshold
     neighChannels_big = n_steps_neigh_channels(neighbors, steps=2)
 
     # FIXME: is this a safe thing to do?
@@ -46,21 +46,34 @@ def threshold(rec, neighbors, spike_size, std_factor):
     count = 0
 
     for c in range(C):
+        # For each channel, mark down location where it crosses the threshold
         idx = np.logical_and(rec[:, c] < -th, np.r_[True, rec[1:, c]
                              < rec[:-1, c]] & np.r_[rec[:-1, c]
                              < rec[1:, c], True])
         nc = np.sum(idx)
 
         if nc > 0:
+            # location where it crosses the threshold
             spt_c = np.where(idx)[0]
+
+            # remove an index if it is too close to the edge of the recording
             spt_c = spt_c[np.logical_and(spt_c > 2*R, spt_c < T-2*R)]
             nc = spt_c.shape[0]
+
+            # get neighboring channels
             ch_idx = np.where(neighChannels_big[c])[0]
             c_main = np.where(ch_idx == c)[0]
-            idx_keep = np.zeros(nc, 'bool')
 
+            # look at temporal spatial window around the spike location
+            # if the spike being looked at has the biggest amplitude than
+            # it spatial and temporal window, keep it.
+            # Otherwise, disregard it
+            idx_keep = np.zeros(nc, 'bool')
             for j in range(nc):
+                # get waveforms
                 wf_temp = rec[spt_c[j]+np.arange(-2*R, 2*R+1)][:, ch_idx]
+
+                # location with the biggest amplitude: (t_min, c_min)
                 c_min = np.argmin(np.amin(wf_temp, axis=0))
                 t_min = np.argmin(wf_temp[:, c_min])
                 if t_min == 2*R and c_min == c_main:

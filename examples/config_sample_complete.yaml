@@ -84,11 +84,6 @@ neural_network_autoencoder:
   # yaml file is needed
   filename: ae_nn1.ckpt
 
-location:
-  # defines the neighborhood of the main channel around which to look for temporal neighbor spikes. For eg. a isolation threshold of 200     # looks at a radius of 200 around the main channel for secondary spikes which are temporal neighbors of the current spike which might 
-  # corrupt the neighboring channels for location calculation
-  isolation_threshold: 200
-
 ############
 # optional #
 ############
@@ -113,7 +108,7 @@ triage:
   # number of nearest neighbors to consider
   nearest_neighbors: 20
   # percentage of data to be triaged
-  percent: 0.01
+  percent: 0.1
 
 coreset:
   # Num. of clusters
@@ -135,6 +130,10 @@ clustering:
   # into n_feature dimensional feature space for only the main_channel and the 
   # neighboring channels (This key (clustering.clustering_method) is not optional)
   clustering_method: 'location'
+  # maximum number of spikes per clustering group
+  # if the total number of spikes per clustering group exceeds it,
+  # it randomly subsample
+  max_n_spikes: 10000
 
 templates:
   merge_threshold: [0.8, 0.7]

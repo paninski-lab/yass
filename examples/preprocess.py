@@ -10,4 +10,4 @@ logging.basicConfig(level=logging.DEBUG)
 yass.set_config('config_sample.yaml')
 
 # run preprocessor
-clear_scores, spike_index_clear, spike_index_collision = preprocess.run()
+scores, spike_index_clear, spike_index_all = preprocess.run()
