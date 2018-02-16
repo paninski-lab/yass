@@ -30,7 +30,7 @@ class RecordingBatchIterator(object):
 
     def __init__(self, rec_file, geom_file, sample_rate,
                  n_batches, batch_time_samples, n_chan,
-                 radius, scale=1e3, filter_std=True, whiten=True):
+                 radius, scale=1e2, filter_std=True, whiten=True):
         """Sets up the object for reading from a binary file.
 
         Parameters
@@ -303,7 +303,7 @@ class RecordingAugmentation(object):
             cid += [u] * new_spike_count
         return np.array([times, cid]).T
 
-    def save_augment_recording(self, out_file_name, length, scale=1e3):
+    def save_augment_recording(self, out_file_name, length, scale=1e2):
         """Augments recording and saves it to file.
 
         Parameters
@@ -399,7 +399,7 @@ class RecordingAugmentation(object):
 
 class SpikeSortingEvaluation(object):
 
-    def __init__(self, spt_base, spt, tmp_base, tmp, method='greedy'):
+    def __init__(self, spt_base, spt, tmp_base, tmp, method='hungarian'):
         """Sets up the evaluation object with two spike trains.
 
         Parameters
