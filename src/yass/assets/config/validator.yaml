@@ -37,11 +37,19 @@ fields_validator:
         type: int
       n_channels:
         type: int
+      format:
+        values: [wide, long]
+        type: str
 
   preprocess:
     dtype:
       type: str
-
+      
+  detection:
+    method:
+      values: ['threshold', 'nn']
+      type: str
+      
   neural_network_triage:
     filename:
       function: expand_asset_model
@@ -56,9 +64,3 @@ fields_validator:
     filename:
       function: expand_asset_model
       type: str
-
-  recordings:
-    format:
-      values: [wide, long]
-      type: str
-
