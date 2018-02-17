@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 
-def run_detect_triage_featurize(recordings, x_tf, output_tf, NND, NNT):
+def run_detect_triage_featurize(recordings, x_tf, output_tf, NND, NNAE, NNT):
     """Detect spikes using a neural network
 
     Parameters
@@ -38,7 +38,7 @@ def run_detect_triage_featurize(recordings, x_tf, output_tf, NND, NNT):
     # get values of above tensors
     with tf.Session() as sess:
         NND.saver.restore(sess, NND.path_to_detector_model)
-        NND.saver_ae.restore(sess, NND.path_to_ae_model)
+        NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
         NNT.saver.restore(sess, NNT.path_to_triage_model)
 
         score, spike_index_clear, spike_index_collision = sess.run(
