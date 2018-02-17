@@ -42,11 +42,6 @@ fields_validator:
     dtype:
       type: str
 
-  detection:
-    method:
-      values: ['threshold', 'nn']
-      type: str
-
   neural_network_triage:
     filename:
       function: expand_asset_model
