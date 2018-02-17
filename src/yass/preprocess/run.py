@@ -156,13 +156,13 @@ def run(output_directory='tmp/'):
                 .format(path_to_whitening_matrix))
 
     # run detection
-    if CONFIG.spikes.detection == 'threshold':
+    if CONFIG.detection.method == 'threshold':
         return _threshold_detection(standarized_path,
                                     standarized_params,
                                     channel_index,
                                     whiten_filter,
                                     output_directory)
-    elif CONFIG.spikes.detection == 'nn':
+    elif CONFIG.detection.method == 'nn':
         return _neural_network_detection(standarized_path,
                                          standarized_params,
                                          channel_index,
@@ -293,7 +293,7 @@ def _threshold_detection(standarized_path, standarized_params, channel_index,
     scores = whiten.score(scores, clear[:, 1], whiten_filter)
 
     # transform scores to location + shape feature space
-    if CONFIG.clustering.clustering_method == 'location':
+    if CONFIG.clustering.method == 'location':
         scores = get_locations_features_threshold(scores, clear[:, 1],
                                                   channel_index,
                                                   CONFIG.geom)
@@ -417,7 +417,7 @@ def _neural_network_detection(standarized_path, standarized_params,
             'Saved rotation matrix in {}...'.format(path_to_rotation))
 
         # transform scores to location + shape feature space
-        if CONFIG.clustering.clustering_method == 'location':
+        if CONFIG.clustering.method == 'location':
             scores = get_locations_features(scores, rotation, clear[:, 1],
                                             channel_index, CONFIG.geom)
         # saves score
