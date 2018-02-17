@@ -76,7 +76,7 @@ def fix_indexes(res, idx_local, idx, buffer_size):
                                        clear_times <= data_end)
     clear_not_in_buffer = clear[idx_not_in_buffer]
     score_not_in_buffer = score[idx_not_in_buffer]
-    
+
     # offset spikes depending on the absolute location
     clear_not_in_buffer[:, 0] = (clear_not_in_buffer[:, 0] + offset
                                  - buffer_size)
