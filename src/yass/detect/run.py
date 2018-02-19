@@ -154,9 +154,10 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                                                   channel_index,
                                                   CONFIG.geom)
     # saves score
-    path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
-    np.save(path_to_score, scores)
-    logger.info('Saved spike scores in {}...'.format(path_to_score))
+    if TMP_FOLDER:
+        path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
+        np.save(path_to_score, scores)
+        logger.info('Saved spike scores in {}...'.format(path_to_score))
 
     return scores, clear, collision
 
