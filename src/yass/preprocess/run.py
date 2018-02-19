@@ -197,6 +197,14 @@ def _threshold_detection(standarized_path, standarized_params, channel_index,
     # PCA - rotation matrix #
     #########################
 
+    bp = BatchProcessor(
+        standarized_path,
+        standarized_params['dtype'],
+        standarized_params['n_channels'],
+        standarized_params['data_format'],
+        CONFIG.resources.max_memory,
+        buffer_size=CONFIG.spikeSize)
+
     # compute per-batch sufficient statistics for PCA on standarized data
     logger.info('Computing PCA sufficient statistics...')
     stats = bp.multi_channel_apply(
