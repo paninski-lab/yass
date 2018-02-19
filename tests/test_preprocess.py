@@ -9,7 +9,8 @@ from yass.preprocess import whiten
 
 # FIXME: MOVE THIS TO A DIFFERENT TEST SUITE
 from yass.geometry import (parse, find_channel_neighbors,
-                           n_steps_neigh_channels)
+                           n_steps_neigh_channels,
+                           make_channel_index)
 
 from yass.threshold import detect
 from yass.preprocess.standarize import _standarize
