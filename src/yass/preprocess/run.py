@@ -20,57 +20,19 @@ from yass.threshold import dimensionality_reduction as dim_red
 from yass import neuralnetwork
 
 
-def run(output_directory='tmp/'):
-    """Execute preprocessing pipeline
+def _run(output_directory='tmp/'):
+    """Execute preprocess pipeline
+
+    Returns
+    -------
+    WIP
 
     Parameters
     ----------
     output_directory: str, optional
       Location to store partial results, relative to CONFIG.data.root_folder,
       defaults to tmp/
-
-    Returns
-    -------
-    scores: numpy.ndarray (n_spikes, n_features, n_channels)
-        3D array with the scores for the clear spikes, first simension is
-        the number of spikes, second is the nymber of features and third the
-        number of channels
-
-    clear: numpy.ndarray (n_clear_spikes, 2)
-        2D array with indexes for clear spikes, first column contains the
-        spike location in the recording and the second the main channel
-        (channel whose amplitude is maximum)
-
-    collision: numpy.ndarray (n_collided_spikes, 2)
-        2D array with indexes for collided spikes, first column contains the
-        spike location in the recording and the second the main channel
-        (channel whose amplitude is maximum)
-
-    Notes
-    -----
-    Running the preprocessor will generate the followiing files in
-    CONFIG.data.root_folder/output_directory/:
-
-    * ``config.yaml`` - Copy of the configuration file
-    * ``metadata.yaml`` - Experiment metadata
-    * ``filtered.bin`` - Filtered recordings
-    * ``filtered.yaml`` - Filtered recordings metadata
-    * ``standarized.bin`` - Standarized recordings
-    * ``standarized.yaml`` - Standarized recordings metadata
-    * ``whitened.bin`` - Whitened recordings
-    * ``whitened.yaml`` - Whitened recordings metadata
-    * ``rotation.npy`` - Rotation matrix for dimensionality reduction
-    * ``spike_index_clear.npy`` - Same as spike_index_clear returned
-    * ``spike_index_collision.npy`` - Same as spike_index_collision returned
-    * ``score_clear.npy`` - Scores for clear spikes
-    * ``waveforms_clear.npy`` - Waveforms for clear spikes
-
-    Examples
-    --------
-
-    .. literalinclude:: ../examples/preprocess.py
     """
-
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
@@ -160,6 +122,66 @@ def run(output_directory='tmp/'):
     np.save(path_to_whitening_matrix, whiten_filter)
     logger.info('Saved whitening matrix in {}'
                 .format(path_to_whitening_matrix))
+
+    return standarized_path, standarized_params, channel_index, whiten_filter
+
+
+def run(output_directory='tmp/'):
+    """Execute preprocessing pipeline
+
+    Parameters
+    ----------
+    output_directory: str, optional
+      Location to store partial results, relative to CONFIG.data.root_folder,
+      defaults to tmp/
+
+    Returns
+    -------
+    scores: numpy.ndarray (n_spikes, n_features, n_channels)
+        3D array with the scores for the clear spikes, first simension is
+        the number of spikes, second is the nymber of features and third the
+        number of channels
+
+    clear: numpy.ndarray (n_clear_spikes, 2)
+        2D array with indexes for clear spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
+
+    collision: numpy.ndarray (n_collided_spikes, 2)
+        2D array with indexes for collided spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
+
+    Notes
+    -----
+    Running the preprocessor will generate the followiing files in
+    CONFIG.data.root_folder/output_directory/:
+
+    * ``config.yaml`` - Copy of the configuration file
+    * ``metadata.yaml`` - Experiment metadata
+    * ``filtered.bin`` - Filtered recordings
+    * ``filtered.yaml`` - Filtered recordings metadata
+    * ``standarized.bin`` - Standarized recordings
+    * ``standarized.yaml`` - Standarized recordings metadata
+    * ``whitened.bin`` - Whitened recordings
+    * ``whitened.yaml`` - Whitened recordings metadata
+    * ``rotation.npy`` - Rotation matrix for dimensionality reduction
+    * ``spike_index_clear.npy`` - Same as spike_index_clear returned
+    * ``spike_index_collision.npy`` - Same as spike_index_collision returned
+    * ``score_clear.npy`` - Scores for clear spikes
+    * ``waveforms_clear.npy`` - Waveforms for clear spikes
+
+    Examples
+    --------
+
+    .. literalinclude:: ../examples/preprocess.py
+    """
+    CONFIG = read_config()
+
+    (standarized_path,
+     standarized_params,
+     channel_index,
+     whiten_filter) = _run(output_directory=output_directory)
 
     # run detection
     if CONFIG.spikes.detection == 'threshold':
@@ -361,14 +383,14 @@ def _neural_network_detection(standarized_path, standarized_params,
         detection_fname = CONFIG.neural_network_detector.filename
         ae_fname = CONFIG.neural_network_autoencoder.filename
         triage_fname = CONFIG.neural_network_triage.filename
-        (x_tf, output_tf,
-         NND, NNT) = neuralnetwork.prepare_nn(channel_index,
-                                              whiten_filter,
-                                              detection_th,
-                                              triage_th,
-                                              detection_fname,
-                                              ae_fname,
-                                              triage_fname)
+        (x_tf, output_tf, NND,
+         NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
+                                               whiten_filter,
+                                               detection_th,
+                                               triage_th,
+                                               detection_fname,
+                                               ae_fname,
+                                               triage_fname)
 
         # run nn preprocess batch-wsie
         mc = bp.multi_channel_apply
@@ -379,6 +401,7 @@ def _neural_network_detection(standarized_path, standarized_params,
             x_tf=x_tf,
             output_tf=output_tf,
             NND=NND,
+            NNAE=NNAE,
             NNT=NNT)
 
         # save clear spikes
@@ -411,12 +434,9 @@ def _neural_network_detection(standarized_path, standarized_params,
         scores = scores[idx]
 
         # save rotation
-        detector_filename = CONFIG.neural_network_detector.filename
-        autoencoder_filename = CONFIG.neural_network_autoencoder.filename
-
-        NND = neuralnetwork.NeuralNetDetector(
-            detector_filename, autoencoder_filename)
-        rotation = NND.load_rotation()
+        NNAE = neuralnetwork.AutoEncoder(
+            CONFIG.neural_network_autoencoder.filename)
+        rotation = NNAE.load_rotation()
         path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
         np.save(path_to_rotation, rotation)
         logger.info(
