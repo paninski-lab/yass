@@ -1,8 +1,23 @@
 """
 Utility functions
 """
-from yass import __version__
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
 
+try:
+    # py3
+    from inspect import signature
+    from inspect import _empty
+except ImportError:
+    # py2
+    from funcsigs import signature
+    from funcsigs import _empty
+
+from . import __version__
+
+import logging
 import datetime
 import os
 import functools
@@ -19,6 +34,7 @@ import yaml
 from pkg_resources import resource_filename
 
 string_types = (type(b''), type(u''))
+logger = logging.getLogger(__name__)
 
 
 def deprecated(reason):
@@ -151,6 +167,8 @@ def map_parameters_in_fn_call(args, kwargs, func):
 
     Any parameter found in args that does not match the function signature
     is still passed.
+
+    Missing parameters are filled with their default values
     """
     # Get missing parameters in kwargs to look for them in args
     args_spec = inspect.getargspec(func).args
@@ -182,6 +200,16 @@ def map_parameters_in_fn_call(args, kwargs, func):
 
     parsed = copy(kwargs)
     parsed.update(args_parsed)
+
+    # fill default values
+    default = {k: v.default for k, v
+               in signature(func).parameters.items()
+               if v.default != _empty}
+
+    to_add = set(default.keys()) - set(parsed.keys())
+
+    default_to_add = {k: v for k, v in default.items() if k in to_add}
+    parsed.update(default_to_add)
 
     return parsed
 
@@ -291,3 +319,142 @@ def requires(condition, message):
         return wrapper
 
     return _requires
+
+
+def save_numpy_object(obj, output_path, if_file_exists, name='file'):
+    """Utility to save a numpy object
+
+    Parameters
+    ----------
+    obj: numpy.ndarray
+        Object to save
+
+    output_path: str
+        Where to save the file
+
+    if_file_exists: str, optional
+        One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces the
+        file if it exists, if 'abort' if raise a ValueError exception if
+        the file exists, if 'skip' if skips the operation if the file
+        exists
+
+    name: str, optional
+        Name (just used for logging messages)
+    """
+    logger = logging.getLogger(__name__)
+    output_path = Path(output_path)
+
+    if output_path.exists() and if_file_exists == 'abort':
+        raise ValueError('{} already exists'.format(output_path))
+    elif output_path.exists() and if_file_exists == 'skip':
+        logger.info('{} already exists, skipping...'.format(output_path))
+    else:
+        np.save(str(output_path), obj)
+        logger.info('Saved {} in {}'.format(name, output_path))
+
+
+class LoadFile(object):
+
+    def __init__(self, param, new_extension=None):
+        self.param = param
+        self.new_extension = new_extension
+
+    def __call__(self, _kwargs):
+
+        if self.new_extension is not None:
+            filename = change_extension(_kwargs[self.param],
+                                        self.new_extension)
+        else:
+            filename = _kwargs[self.param]
+
+        path = Path(_kwargs['output_path'], filename)
+
+        if path.suffix == '.npy':
+            return np.load(str(path))
+        elif path.suffix == '.yaml':
+            return load_yaml(str(path))
+        else:
+            raise ValueError('Do not know how to load file with extension '
+                             '{}'.format(path.suffix))
+
+
+class ExpandPath(object):
+
+    def __init__(self, param):
+        self.param = param
+
+    def __call__(self, _kwargs):
+        return Path(_kwargs['output_path'], _kwargs[self.param])
+
+
+def check_for_files(parameters, if_skip):
+    """
+    Decorator used to change the behavior of functions that write to disk
+
+    Parameters
+    ----------
+    parameters: list
+        List of strings with the parameters containing the filenames to
+        check for, the function should also contain a parameter named
+        output_path. The path to the file is created relative to the
+        output_path
+
+    if_skip: list
+        List with values to return in case `skip` is selected, can optionally
+        use the `LoadFile` (relative to `output_path` decorator to load some
+        files instead of returning the values
+    """
+    def _check_for_files(func):
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            _kwargs = map_parameters_in_fn_call(args, kwargs, func)
+
+            # if not output_path exists, just run the function
+            if _kwargs.get('output_path') is None:
+                logger.debug('No output path was passed, running the '
+                             'function without checking for files...')
+                return func(*args, **kwargs)
+
+            if_file_exists = _kwargs['if_file_exists']
+
+            paths = [Path(_kwargs['output_path']) / _kwargs[p]
+                     for p in parameters]
+            exists = [p.exists() for p in paths]
+
+            if (if_file_exists == 'overwrite' or
+               if_file_exists == 'abort' and not any(exists)
+               or if_file_exists == 'skip' and not all(exists)):
+                logger.debug('Running the function...')
+                return func(*args, **kwargs)
+
+            elif if_file_exists == 'abort' and any(exists):
+                conflict = [p for p, e in zip(paths, exists) if e]
+                message = reduce(lambda x, y: str(x)+', '+str(y), conflict)
+
+                raise ValueError('if_file_exists was set to abort, the '
+                                 'program halted since the following files '
+                                 'already exist: {}'.format(message))
+            elif if_file_exists == 'skip' and all(exists):
+
+                def expand(element, _kwargs):
+                    if not isinstance(element, str):
+                        return element(_kwargs)
+                    else:
+                        return element
+
+                logger.info('Skipped {} execution. All necessary files exist'
+                            ', loading them...'.format(function_path(func)))
+
+                res = [expand(e, _kwargs) for e in if_skip]
+
+                return res[0] if len(res) == 1 else res
+
+            else:
+                raise ValueError('Invalid value for if_file_exists {}'
+                                 'must be one of overwrite, abort or skip'
+                                 .format(if_file_exists))
+
+        return wrapper
+
+    return _check_for_files

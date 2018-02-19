@@ -76,40 +76,38 @@ def make_tf_tensors(T, waveform_size, n_shifts,
         tf.reshape(template_local_tf, [-1, n_shifts]))
 
     # best fit shift
-    # FIXME: for speed up. no need to compute ahat_tf for
-    # all shifts
-    # max_idx_tf = tf.argmax(dot_products_tf, 1)
-    # dot_products_max_tf = tf.reduce_max(dot_products_tf, 1)
+    max_idx_tf = tf.argmax(dot_products_tf, 1)
+    dot_products_max_tf = tf.reduce_max(dot_products_tf, 1)
 
     # norm^2 of the template
     template_norm_tf = tf.reduce_sum(
         np.square(template_local_tf), [0, 1])
-    # estimate scale
-    ahat_all_tf = tf.divide(dot_products_tf,
-                            tf.expand_dims(template_norm_tf, [0]))
+
+    best_norm_tf = tf.gather(template_norm_tf,
+                             max_idx_tf)
+    ahat1_tf = tf.divide(dot_products_max_tf,
+                         best_norm_tf)
 
     # best fit is what maximizes the scale
-    ahat_max_tf = tf.reduce_max(ahat_all_tf, 1)
-    max_idx_tf = tf.argmax(ahat_all_tf, 1)
     min_bound = (1-threshold_a)
     max_bound = (1+threshold_a)
     ahat_tf = tf.minimum(
-        tf.maximum(ahat_max_tf, min_bound), max_bound)
+        tf.maximum(ahat1_tf, min_bound), max_bound)
 
-    # calculate decrease in L2 norm
-    dd_tf = tf.multiply(
-        2*tf.multiply(ahat_tf, ahat_max_tf) -
-        tf.square(ahat_tf),
-        tf.gather(template_norm_tf, max_idx_tf))
+    norm_fit = tf.multiply(tf.square(ahat_tf), best_norm_tf)
+    dd_tf = 2*tf.multiply(ahat_tf, dot_products_max_tf) - norm_fit
 
     # obtain good locations only
-    idx_good = dd_tf > threshold_d
-    dd_good_tf = tf.boolean_mask(dd_tf, idx_good)
-    spt_good_tf = tf.boolean_mask(spt_tf, idx_good)
-    max_idx_good_tf = tf.boolean_mask(max_idx_tf, idx_good)
-    ahat_good_tf = tf.boolean_mask(ahat_tf, idx_good)
-    result = (dd_good_tf, spt_good_tf, max_idx_good_tf,
-              ahat_good_tf)
+    idx_good = dd_tf > threshold_d*norm_fit
+    dd_good_tf = tf.boolean_mask(dd_tf,
+                                 idx_good)
+    spt_good_tf = tf.boolean_mask(spt_tf,
+                                  idx_good)
+    max_idx_good_tf = tf.boolean_mask(max_idx_tf,
+                                      idx_good)
+    ahat_good_tf = tf.boolean_mask(ahat_tf,
+                                   idx_good)
+    result = (dd_good_tf, spt_good_tf, max_idx_good_tf, ahat_good_tf)
 
     return rec_local_tf, template_local_tf, spt_tf, result
 
@@ -130,8 +128,8 @@ def template_match(rec_local, spt, upsampled_template_local,
     spt: numpy.ndarray (n_spikes)
         spike time
 
-    upsampled_template_local: numpy.ndarray (waveform_size,
-        n_local_channels, n_shifts)
+    upsampled_template_local: numpy.ndarray (n_shifts,
+        n_local_channels, waveform_size)
         shifted templates on a subset of channels
 
     n_rf: int
