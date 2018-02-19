@@ -87,7 +87,7 @@ def test_can_compute_n_steps_neighbors(path_to_geometry):
 def test_can_use_threshold_detector(data, path_to_geometry):
     geometry = parse(path_to_geometry, n_channels)
     neighbors = find_channel_neighbors(geometry, radius=70)
-    detect.run(data, neighbors, spike_size, 5)
+    detect._threshold(data, neighbors, spike_size, 5)
 
 
 def test_can_compute_whiten_matrix(data, path_to_geometry):
