@@ -12,7 +12,7 @@ from yass.batch import BatchProcessor, RecordingsReader
 from yass.geometry import make_channel_index
 
 from yass.preprocess.filter import butterworth
-from yass.preprocess.standarize import standarize, standard_deviation
+from yass.preprocess.standarize import standarize
 from yass.preprocess import whiten
 from yass.threshold import detect
 from yass.threshold import dimensionality_reduction as dim_red
@@ -68,20 +68,15 @@ def _run(output_directory='tmp/'):
                                    OUTPUT_DTYPE)
 
     # standarize
-    bp = BatchProcessor(
-        path, params['dtype'], params['n_channels'],
-        params['data_format'], CONFIG.resources.max_memory)
-    batches = bp.multi_channel()
-    first_batch, _, _ = next(batches)
-    sd = standard_deviation(first_batch, CONFIG.recordings.sampling_rate)
-
-    (standarized_path, standarized_params) = bp.multi_channel_apply(
-        standarize,
-        mode='disk',
-        output_path=os.path.join(TMP, 'standarized.bin'),
-        if_file_exists='skip',
-        cast_dtype=OUTPUT_DTYPE,
-        sd=sd)
+    (standarized_path,
+        standarized_params) = standarize(path,
+                                         params['dtype'],
+                                         params['n_channels'],
+                                         params['data_format'],
+                                         CONFIG.recordings.sampling_rate,
+                                         CONFIG.resources.max_memory,
+                                         os.path.join(TMP, 'standarized.bin'),
+                                         OUTPUT_DTYPE)
 
     # Whiten
     bp = BatchProcessor(
