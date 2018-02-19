@@ -361,16 +361,17 @@ class LoadFile(object):
     def __call__(self, _kwargs):
 
         if self.new_extension is not None:
-            filename = change_extension(_kwargs['param'], self.new_extension)
+            filename = change_extension(_kwargs[self.param],
+                                        self.new_extension)
         else:
-            filename = _kwargs['param']
+            filename = _kwargs[self.param]
 
         path = Path(_kwargs['output_path'], filename)
 
         if path.suffix == '.npy':
-            return np.load(path)
+            return np.load(str(path))
         elif path.suffix == '.yaml':
-            return load_yaml(path)
+            return load_yaml(str(path))
         else:
             raise ValueError('Do not know how to load file with extension '
                              '{}'.format(path.suffix))

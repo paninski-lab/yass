@@ -19,7 +19,7 @@ from yass.geometry import make_channel_index
                  if_skip=[LoadFile('output_filename')])
 def matrix(path_to_data, dtype, n_channels, data_shape,
            neighbors_matrix, geometry, spike_size, max_memory, output_path,
-           output_filename='whitening_filter.npy',
+           output_filename='whitening.npy',
            if_file_exists='skip'):
     """Compute whitening filter using the first batch of the data
 
@@ -87,7 +87,7 @@ def matrix(path_to_data, dtype, n_channels, data_shape,
     first_batch, _, _ = next(batches)
     whiten_filter = _matrix(first_batch, channel_index, spike_size)
 
-    path_to_whitening_matrix = Path(output_path, 'whitening.npy')
+    path_to_whitening_matrix = Path(output_path, output_filename)
     save_numpy_object(whiten_filter, path_to_whitening_matrix,
                       if_file_exists='overwrite',
                       name='whitening filter')

@@ -52,7 +52,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     * ``filtered.yaml`` - Filtered recordings metadata
     * ``standarized.bin`` - Standarized recordings
     * ``standarized.yaml`` - Standarized recordings metadata
-    * ``whitening_filter.npy`` - Whitening filter
+    * ``whitening.npy`` - Whitening filter
 
     Examples
     --------

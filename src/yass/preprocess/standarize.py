@@ -1,6 +1,8 @@
 """
 Recording standarization
 """
+import os.path
+
 from yass.batch import BatchProcessor
 from yass.util import check_for_files, ExpandPath, LoadFile
 
@@ -74,11 +76,13 @@ def standarize(path_to_data, dtype, n_channels, data_shape,
     # estimate standard deviation using the first batch
     sd = standard_deviation(first_batch, sampling_frequency)
 
+    _output_path = os.path.join(output_path, output_filename)
+
     # apply transformation
     (standarized_path,
      standarized_params) = bp.multi_channel_apply(_standarize,
                                                   mode='disk',
-                                                  output_path=output_path,
+                                                  output_path=_output_path,
                                                   cast_dtype=output_dtype,
                                                   sd=sd)
 
