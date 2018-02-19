@@ -10,4 +10,5 @@ logging.basicConfig(level=logging.DEBUG)
 yass.set_config('config_sample.yaml')
 
 # run preprocessor
-scores, spike_index_clear, spike_index_all = preprocess.run()
+(standarized_path, standarized_params, channel_index,
+ whiten_filter) = preprocess.run()
