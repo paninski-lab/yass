@@ -14,7 +14,7 @@ from yass.geometry import make_channel_index
 from yass.preprocess.filter import butterworth
 from yass.preprocess.standarize import standarize
 from yass.preprocess import whiten
-from yass.threshold import detect
+from yass.threshold.detect import threshold
 from yass.threshold import dimensionality_reduction as dim_red
 from yass import neuralnetwork
 
@@ -180,74 +180,18 @@ def _threshold_detection(standarized_path, standarized_params, channel_index,
     # Spike detection #
     ###################
 
-    bp = BatchProcessor(
-        standarized_path,
-        standarized_params['dtype'],
-        standarized_params['n_channels'],
-        standarized_params['data_format'],
-        CONFIG.resources.max_memory,
-        buffer_size=CONFIG.spikeSize)
-
-    path_to_spike_index_clear = os.path.join(TMP_FOLDER,
-                                             'spike_index_clear.npy')
-
-    # clear spikes
-    if os.path.exists(path_to_spike_index_clear):
-        # if it exists, load it...
-        logger.info('Found file in {}, loading it...'
-                    .format(path_to_spike_index_clear))
-        clear = np.load(path_to_spike_index_clear)
-    else:
-        # if it doesn't, detect spikes...
-        logger.info('Did not find file in {}, finding spikes using threshold'
-                    ' detector...'.format(path_to_spike_index_clear))
-
-        # apply threshold detector on standarized data
-        spikes = bp.multi_channel_apply(
-            detect.run,
-            mode='memory',
-            cleanup_function=detect.fix_indexes,
-            neighbors=CONFIG.neighChannels,
-            spike_size=CONFIG.spikeSize,
-            threshold=CONFIG.stdFactor)
-        clear = np.vstack(spikes)
-
-        logger.info('Removing clear indexes outside the allowed range to '
-                    'draw a complete waveform...')
-        clear, _ = (detect.remove_incomplete_waveforms(
-            clear, CONFIG.spikeSize + CONFIG.templatesMaxShift,
-            bp.reader._n_observations))
-
-        logger.info('Saving spikes in {}...'.format(path_to_spike_index_clear))
-        np.save(path_to_spike_index_clear, clear)
-
-    path_to_spike_index_collision = os.path.join(TMP_FOLDER,
-                                                 'spike_index_collision.npy')
-
-    # collided spikes
-    if os.path.exists(path_to_spike_index_collision):
-        # if it exists, load it...
-        logger.info('Found collided spikes in {}, loading them...'
-                    .format(path_to_spike_index_collision))
-        collision = np.load(path_to_spike_index_collision)
-
-        if collision.shape[0] != clear.shape[0]:
-            raise ValueError('Found collision spike index in {}, '
-                             'Since threshold detector is selected,'
-                             'all clear spikes are considered collision,'
-                             'but number are different. There are {}'
-                             'collision spikes and {} clear spikes'
-                             .format(path_to_spike_index_collision,
-                                     collision.shape[0],
-                                     clear.shape[0]))
-    else:
-        # triage is not implemented on threshold detector, return empty array
-        logger.info('Creating empty array for'
-                    ' collided spikes (collision detection is not implemented'
-                    ' with threshold detector. Saving them in {}'
-                    .format(path_to_spike_index_collision))
-        collision = clear
-        np.save(path_to_spike_index_collision, collision)
+    (clear,
+     collision) = threshold(standarized_path,
+                            standarized_params['dtype'],
+                            standarized_params['n_channels'],
+                            standarized_params['data_format'],
+                            CONFIG.resources.max_memory,
+                            CONFIG.neighChannels,
+                            CONFIG.spikeSize,
+                            (CONFIG.spikeSize +
+                             CONFIG.templatesMaxShift),
+                            CONFIG.stdFactor,
+                            TMP_FOLDER)
 
     #########################
     # PCA - rotation matrix #

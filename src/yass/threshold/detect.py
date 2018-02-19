@@ -5,7 +5,7 @@ import logging
 
 import numpy as np
 
-from yass.batch import BatchProcessor, RecordingsReader
+from yass.batch import BatchProcessor
 from yass.util import check_for_files, LoadFile
 from yass.geometry import n_steps_neigh_channels
 
