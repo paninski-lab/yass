@@ -9,9 +9,11 @@ except ImportError:
 try:
     # py3
     from inspect import signature
+    from inspect import _empty
 except ImportError:
     # py2
     from funcsigs import signature
+    from funcsigs import _empty
 
 from . import __version__
 
@@ -201,7 +203,7 @@ def map_parameters_in_fn_call(args, kwargs, func):
     # fill default values
     default = {k: v.default for k, v
                in signature(func).parameters.items()
-               if v.default != inspect._empty}
+               if v.default != _empty}
 
     to_add = set(default.keys()) - set(parsed.keys())
 
