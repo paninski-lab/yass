@@ -92,13 +92,9 @@ def threshold(path_to_data, dtype, n_channels, data_shape,
     spike_index_collision: numpy.ndarray (0, 2)
         Empty array, collision is not implemented in the threshold detector
     """
-    # determine number of observations
-    reader = RecordingsReader(path_to_data)
-    n_observations = reader.observations
-
     # instatiate batch processor
     bp = BatchProcessor(path_to_data, dtype, n_channels, data_shape,
-                        max_memory, buffer_size=0)
+                        max_memory, buffer_size=spike_size)
 
     # run threshold detector
     spikes = bp.multi_channel_apply(_threshold,
@@ -117,7 +113,7 @@ def threshold(path_to_data, dtype, n_channels, data_shape,
     spike_index_clear, _ = (remove_incomplete_waveforms(
                             spike_index_clear,
                             minimum_half_waveform_size,
-                            n_observations))
+                            bp.reader.observations))
 
     spike_index_collision = np.zeros((0, 2), 'int32')
 
