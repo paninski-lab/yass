@@ -46,20 +46,6 @@ def path_to_geometry():
     return path
 
 
-@pytest.fixture
-def path_to_config():
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'config_threshold.yaml')
-    return path
-
-
-@pytest.fixture
-def path_to_nn_config():
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'config_nnet.yaml')
-    return path
-
-
 def test_can_apply_butterworth_filter(data):
     _butterworth(data[:, 0], low_frequency=300, high_factor=0.1,
                  order=3, sampling_frequency=20000)
@@ -98,13 +84,8 @@ def test_can_compute_whiten_matrix(data, path_to_geometry):
     whiten._matrix(data, channel_index, spike_size)
 
 
-def test_can_preprocess(path_to_config):
-    yass.set_config(path_to_config)
-    clear_scores, spike_index_clear, spike_index_collision = preprocess.run()
-    clean_tmp()
-
-
-def test_can_preprocess_with_nnet(path_to_nn_config):
-    yass.set_config(path_to_nn_config)
-    clear_scores, spike_index_clear, spike_index_collision = preprocess.run()
+def test_can_preprocess(path_to_threshold_config):
+    yass.set_config(path_to_threshold_config)
+    (standarized_path, standarized_params, channel_index,
+     whiten_filter) = preprocess.run()
     clean_tmp()
