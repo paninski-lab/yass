@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 def pca(path_to_data, dtype, n_channels, data_shape, recordings, spike_index,
         spike_size, temporal_features, neighbors_matrix, channel_index,
         max_memory, output_path=None, save_rotation_matrix='rotation.npy',
-        save_scores='scores.npy', if_file_exists='skip'):
+        save_scores='score_clear.npy', if_file_exists='skip'):
     """Apply PCA in batches
 
     Parameters
