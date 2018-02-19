@@ -1,17 +1,22 @@
 """
 Detection pipeline
 """
+import logging
+import os.path
 
 import numpy as np
 
+from yass import read_config
 from yass.batch import BatchProcessor, RecordingsReader
 from yass.threshold.detect import threshold
 from yass.threshold import detect
 from yass.threshold import dimensionality_reduction as dim_red
 from yass import neuralnetwork
+from yass.preprocess import whiten
 
 
-def run(output_directory='tmp/'):
+def run(standarized_path, standarized_params,
+        channel_index, whiten_filter, output_directory='tmp/'):
     """Execute detect step
 
     Parameters
@@ -55,28 +60,23 @@ def run(output_directory='tmp/'):
     """
     CONFIG = read_config()
 
-    (standarized_path,
-     standarized_params,
-     channel_index,
-     whiten_filter) = _run(output_directory=output_directory)
-
     # run detection
     if CONFIG.spikes.detection == 'threshold':
-        return _threshold_detection(standarized_path,
-                                    standarized_params,
-                                    channel_index,
-                                    whiten_filter,
-                                    output_directory)
+        return run_threshold(standarized_path,
+                             standarized_params,
+                             channel_index,
+                             whiten_filter,
+                             output_directory)
     elif CONFIG.spikes.detection == 'nn':
-        return _neural_network_detection(standarized_path,
-                                         standarized_params,
-                                         channel_index,
-                                         whiten_filter,
-                                         output_directory)
+        return run_neural_network(standarized_path,
+                                  standarized_params,
+                                  channel_index,
+                                  whiten_filter,
+                                  output_directory)
 
 
-def _threshold_detection(standarized_path, standarized_params, channel_index,
-                         whiten_filter, output_directory):
+def run_threshold(standarized_path, standarized_params, channel_index,
+                  whiten_filter, output_directory):
     """Run threshold detector and dimensionality reduction using PCA
     """
     logger = logging.getLogger(__name__)
@@ -140,8 +140,8 @@ def _threshold_detection(standarized_path, standarized_params, channel_index,
     return scores, clear, collision
 
 
-def _neural_network_detection(standarized_path, standarized_params,
-                              channel_index, whiten_filter, output_directory):
+def run_neural_network(standarized_path, standarized_params,
+                       channel_index, whiten_filter, output_directory):
     """Run neural network detection and autoencoder dimensionality reduction
     """
     logger = logging.getLogger(__name__)
