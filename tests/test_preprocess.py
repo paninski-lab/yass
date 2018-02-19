@@ -4,18 +4,15 @@ import numpy as np
 import pytest
 
 
-from yass.preprocess.filter import butterworth
+from yass.preprocess.filter import _butterworth
 from yass.preprocess import whiten
 
 # FIXME: MOVE THIS TO A DIFFERENT TEST SUITE
 from yass.geometry import (parse, find_channel_neighbors,
-                           n_steps_neigh_channels,
-                           make_channel_index)
+                           n_steps_neigh_channels)
 
-from yass.threshold.detect import run as threshold
-
-# from yass.preprocess.waveform import get_waveforms
-from yass.preprocess.standarize import standarize
+from yass.preprocess.detect import _threshold
+from yass.preprocess.standarize import _standarize
 
 import yass
 from yass import preprocess
@@ -63,12 +60,12 @@ def path_to_nn_config():
 
 
 def test_can_apply_butterworth_filter(data):
-    butterworth(data[:, 0], low_freq=300, high_factor=0.1,
-                order=3, sampling_freq=20000)
+    _butterworth(data[:, 0], low_frequency=300, high_factor=0.1,
+                 order=3, sampling_frequency=20000)
 
 
 def test_can_standarize(data):
-    standarize(data, srate)
+    _standarize(data, srate)
 
 
 def test_can_parse(path_to_geometry):
@@ -89,15 +86,13 @@ def test_can_compute_n_steps_neighbors(path_to_geometry):
 def test_can_use_threshold_detector(data, path_to_geometry):
     geometry = parse(path_to_geometry, n_channels)
     neighbors = find_channel_neighbors(geometry, radius=70)
-    threshold(data, neighbors, spike_size, 5)
+    _threshold(data, neighbors, spike_size, 5)
 
 
 def test_can_compute_whiten_matrix(data, path_to_geometry):
     geometry = parse(path_to_geometry, n_channels)
     neighbors = find_channel_neighbors(geometry, radius=70)
-    channel_index = make_channel_index(neighbors, geometry)
-
-    whiten.matrix(data, channel_index, spike_size)
+    whiten.matrix(data, neighbors, spike_size)
 
 
 def test_can_preprocess(path_to_config):
