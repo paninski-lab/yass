@@ -11,18 +11,35 @@ from yass.preprocess.standarize import standarize
 from yass.preprocess import whiten
 
 
-def run(output_directory='tmp/'):
-    """Execute preprocess pipeline
+def run(output_directory='tmp/', if_file_exists='skip'):
+    """Preprocess pipeline: filtering, standarization and whitening filter
 
-    Returns
-    -------
-    WIP
+    This step (optionally) performs filtering on the data, standarizes it
+    and computes a whitening filter. Filtering and standarized data are
+    processed in chunks and written to disk.
 
     Parameters
     ----------
     output_directory: str, optional
       Location to store partial results, relative to CONFIG.data.root_folder,
       defaults to tmp/
+
+    if_file_exists: str, optional
+      One of 'overwrite', 'abort', 'skip'. Control de behavior for every
+      generated file (filtered, standarized and whitening filter). If
+      'overwrite' it replaces the files if any exist, if 'abort' it raises
+      a ValueError exception if any file exists, if 'skip' if skips the
+      operation if any file exists
+
+    Returns
+    -------
+    standarized_path: str
+
+    standarized_params: str
+
+    channel_index: numpy.ndarray
+
+    whiten_filter: numpy.ndarray
 
     Notes
     -----
@@ -46,13 +63,11 @@ def run(output_directory='tmp/'):
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
-
     OUTPUT_DTYPE = CONFIG.preprocess.dtype
+    TMP = os.path.join(CONFIG.data.root_folder, output_directory)
 
     logger.info('Output dtype for transformed data will be {}'
                 .format(OUTPUT_DTYPE))
-
-    TMP = os.path.join(CONFIG.data.root_folder, output_directory)
 
     if not os.path.exists(TMP):
         logger.info('Creating temporary folder: {}'.format(TMP))
@@ -66,16 +81,20 @@ def run(output_directory='tmp/'):
                   n_channels=CONFIG.recordings.n_channels,
                   data_format=CONFIG.recordings.format)
 
+    # optionally filter the data
     if CONFIG.preprocess.filter:
-        path, params = butterworth(path, params['dtype'], params['n_channels'],
+        path, params = butterworth(path,
+                                   params['dtype'],
+                                   params['n_channels'],
                                    params['data_format'],
                                    CONFIG.filter.low_pass_freq,
                                    CONFIG.filter.high_factor,
                                    CONFIG.filter.order,
                                    CONFIG.recordings.sampling_rate,
                                    CONFIG.resources.max_memory,
-                                   os.path.join(TMP, 'filtered.bin'),
-                                   OUTPUT_DTYPE)
+                                   TMP,
+                                   OUTPUT_DTYPE,
+                                   if_file_exists=if_file_exists)
 
     # standarize
     (standarized_path,
@@ -85,8 +104,9 @@ def run(output_directory='tmp/'):
                                          params['data_format'],
                                          CONFIG.recordings.sampling_rate,
                                          CONFIG.resources.max_memory,
-                                         os.path.join(TMP, 'standarized.bin'),
-                                         OUTPUT_DTYPE)
+                                         TMP,
+                                         OUTPUT_DTYPE,
+                                         if_file_exists=if_file_exists)
 
     # Whiten
     whiten_filter = whiten.matrix(standarized_path,
@@ -97,7 +117,8 @@ def run(output_directory='tmp/'):
                                   CONFIG.geom,
                                   CONFIG.spikeSize,
                                   CONFIG.resources.max_memory,
-                                  TMP)
+                                  TMP,
+                                  if_file_exists=if_file_exists)
 
     channel_index = make_channel_index(CONFIG.neighChannels,
                                        CONFIG.geom)

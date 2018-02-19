@@ -89,7 +89,7 @@ def matrix(path_to_data, dtype, n_channels, data_shape,
 
     path_to_whitening_matrix = Path(output_path, 'whitening.npy')
     save_numpy_object(whiten_filter, path_to_whitening_matrix,
-                      if_file_exists=if_file_exists,
+                      if_file_exists='overwrite',
                       name='whitening filter')
 
     return whiten_filter

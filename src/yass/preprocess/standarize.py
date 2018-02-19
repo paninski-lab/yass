@@ -79,7 +79,6 @@ def standarize(path_to_data, dtype, n_channels, data_shape,
      standarized_params) = bp.multi_channel_apply(_standarize,
                                                   mode='disk',
                                                   output_path=output_path,
-                                                  if_file_exists='overwrite',
                                                   cast_dtype=output_dtype,
                                                   sd=sd)
 

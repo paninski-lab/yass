@@ -1,14 +1,21 @@
 """
 Filtering functions
 """
-from yass.batch import BatchProcessor
+import os
 
 from scipy.signal import butter, lfilter
 
+from yass.batch import BatchProcessor
+from yass.util import check_for_files, ExpandPath, LoadFile
 
+
+@check_for_files(parameters=['output_filename'],
+                 if_skip=[ExpandPath('output_filename'),
+                          LoadFile('output_filename', 'yaml')])
 def butterworth(path_to_data, dtype, n_channels, data_shape,
                 low_frequency, high_factor, order, sampling_frequency,
-                max_memory, output_path, output_dtype, if_file_exists='skip'):
+                max_memory, output_path, output_dtype,
+                output_filename='filtered.bin', if_file_exists='skip'):
     """Filter (butterworth) recordings in batches
 
     Parameters
@@ -42,7 +49,10 @@ def butterworth(path_to_data, dtype, n_channels, data_shape,
         Max memory to use in each batch (e.g. 100MB, 1GB)
 
     output_path: str
-        Where to store the filtered recordings
+        Folder to store the filtered recordings
+
+    output_filename: str, optional
+        How to name the file, defaults to filtered.bin
 
     output_dtype: str
         dtype for filtered data
@@ -66,9 +76,11 @@ def butterworth(path_to_data, dtype, n_channels, data_shape,
     bp = BatchProcessor(path_to_data, dtype, n_channels, data_shape,
                         max_memory)
 
+    _output_path = os.path.join(output_path, 'filtered.bin')
+
     (path,
      params) = bp.single_channel_apply(_butterworth, mode='disk',
-                                       output_path=output_path,
+                                       output_path=_output_path,
                                        force_complete_channel_batch=True,
                                        if_file_exists=if_file_exists,
                                        cast_dtype=output_dtype,
