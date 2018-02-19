@@ -78,9 +78,9 @@ def run(spike_index, templates,
         upsample_factor=CONFIG.deconvolution.upsample_factor,
         threshold_a=CONFIG.deconvolution.threshold_a,
         threshold_dd=CONFIG.deconvolution.threshold_dd)
- 
+
     spike_train = np.concatenate([element for element in res], axis=0)
-    
+
     logger.debug('spike_train.shape: {}'
                  .format(spike_train.shape))
 

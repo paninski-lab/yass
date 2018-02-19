@@ -55,7 +55,7 @@ def deconvolve(recording, idx_local, idx, templates, spike_index,
     """
 
     logger = logging.getLogger(__name__)
-    
+
     # get limits for the data (exlude indexes that have buffer data)
     data_start = idx[0].start
     data_end = idx[0].stop
@@ -66,7 +66,7 @@ def deconvolve(recording, idx_local, idx, templates, spike_index,
     spike_index = spike_index[np.logical_and(spike_time >= data_start,
                                              spike_time <= data_end)]
     spike_index[:, 0] = spike_index[:, 0] - data_start + offset
-    
+
     # get useful parameters
     T = recording.shape[0]
     n_channels, n_timebins, n_templates = templates.shape
@@ -171,8 +171,7 @@ def fix_indexes(spike_train, idx_local, idx, buffer_size):
     train_not_in_buffer = spike_train[np.logical_and(spike_times >= data_start,
                                                      spike_times <= data_end)]
     # offset spikes depending on the absolute location
-    train_not_in_buffer[:, 0] = (train_not_in_buffer[:, 0] + offset 
+    train_not_in_buffer[:, 0] = (train_not_in_buffer[:, 0] + offset
                                  - buffer_size)
 
     return train_not_in_buffer
-
