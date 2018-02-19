@@ -1,3 +1,24 @@
+WIP: new blocks
+===============
+
+
+Preprocess
+----------
+
+Detect
+------
+
+Cluster
+-------
+
+Templates
+---------
+
+
+Deconvolve
+----------
+
+
 Using pre-built pipeline
 ========================
 
