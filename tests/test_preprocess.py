@@ -11,7 +11,7 @@ from yass.preprocess import whiten
 from yass.geometry import (parse, find_channel_neighbors,
                            n_steps_neigh_channels)
 
-from yass.preprocess.detect import _threshold
+from yass.threshold import detect
 from yass.preprocess.standarize import _standarize
 
 import yass
@@ -86,7 +86,7 @@ def test_can_compute_n_steps_neighbors(path_to_geometry):
 def test_can_use_threshold_detector(data, path_to_geometry):
     geometry = parse(path_to_geometry, n_channels)
     neighbors = find_channel_neighbors(geometry, radius=70)
-    _threshold(data, neighbors, spike_size, 5)
+    detect.run(data, neighbors, spike_size, 5)
 
 
 def test_can_compute_whiten_matrix(data, path_to_geometry):
