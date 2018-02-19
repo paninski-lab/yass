@@ -74,6 +74,7 @@ def run(spike_index, templates,
     n_rf = int(CONFIG.deconvolution.n_rf*CONFIG.recordings.sampling_rate/1000)
     spike_train = deconvolve(writable_recordings, templates,
                              spike_index,
+                             CONFIG.spikeSize,
                              CONFIG.deconvolution.n_explore,
                              n_rf,
                              CONFIG.deconvolution.upsample_factor,
