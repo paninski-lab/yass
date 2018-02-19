@@ -47,6 +47,7 @@ def run(standarized_path, standarized_params,
     Running the preprocessor will generate the followiing files in
     CONFIG.data.root_folder/output_directory/:
 
+    # TODO: needs update
     * ``spike_index_clear.npy`` - Same as spike_index_clear returned
     * ``spike_index_collision.npy`` - Same as spike_index_collision returned
     * ``score_clear.npy`` - Scores for clear spikes
