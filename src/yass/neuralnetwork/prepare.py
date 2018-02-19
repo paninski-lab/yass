@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage
+from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
 
 
 def prepare_nn(channel_index, whiten_filter,
@@ -63,7 +63,8 @@ def prepare_nn(channel_index, whiten_filter,
     x_tf = tf.placeholder("float", [None, None])
 
     # load Neural Net's
-    NND = NeuralNetDetector(detector_filename, autoencoder_filename)
+    NND = NeuralNetDetector(detector_filename)
+    NNAE = AutoEncoder(autoencoder_filename)
     NNT = NeuralNetTriage(triage_filename)
 
     # check if number of neighboring channel in nn matches with
@@ -91,7 +92,7 @@ def prepare_nn(channel_index, whiten_filter,
                                           NND.filters_dict['size'])
 
     # make score tensorflow tensor from waveform
-    score_tf = NND.make_score_tf_tensor(waveform_tf)
+    score_tf = NNAE.make_score_tf_tensor(waveform_tf)
 
     # remove uncentered spike index
     # if the energy in the main channel is less than
@@ -115,7 +116,7 @@ def prepare_nn(channel_index, whiten_filter,
     # gather all output tensors
     output_tf = (whiten_score_clear_tf, spike_index_clear_tf, spike_index_tf)
 
-    return x_tf, output_tf, NND, NNT
+    return x_tf, output_tf, NND, NNAE, NNT
 
 
 def make_whitened_score(score_tf, main_channel_tf, whiten_filter):
