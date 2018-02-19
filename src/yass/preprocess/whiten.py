@@ -1,8 +1,18 @@
 """
 Whitening functions
 """
+try:
+    from pathlib2 import Path
+except Exception:
+    from pathlib import Path
+
+import logging
 
 import numpy as np
+
+from yass.batch import BatchProcessor
+from yass.util import save_numpy_object, check_for_files, ExpandPath, LoadFile
+from yass.geometry import make_channel_index
 
 
 @check_for_files(parameters=['output_filename'],
@@ -95,18 +105,20 @@ def whiten(path_to_data, dtype, n_channels, data_shape,
                           if_file_exists='overwrite',
                           name='whitening matrix')
 
-    # apply whitening to every batch
-    _output_path = str(Path(output_path, output_filename))
+    # # apply whitening to every batch
+    # _output_path = str(Path(output_path, output_filename))
 
-    (whitened_path,
-     whitened_params) = bp.multi_channel_apply(np.matmul,
-                                               mode='disk',
-                                               output_path=_output_path,
-                                               if_file_exists='overwrite',
-                                               cast_dtype=output_dtype,
-                                               b=Q)
+    # (whitened_path,
+    #  whitened_params) = bp.multi_channel_apply(np.matmul,
+    #                                            mode='disk',
+    #                                            output_path=_output_path,
+    #                                            if_file_exists='overwrite',
+    #                                            cast_dtype=output_dtype,
+    #                                            b=Q)
 
-    return whitened_path, whitened_params
+    # return whitened_path, whitened_params
+
+    return whiten_filter
 
 
 def matrix(recording, channel_index, spike_size):
