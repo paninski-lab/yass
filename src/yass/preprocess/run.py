@@ -14,6 +14,7 @@ from yass.preprocess.filter import butterworth
 from yass.preprocess.standarize import standarize
 from yass.preprocess import whiten
 from yass.threshold.detect import threshold
+from yass.threshold import detect
 from yass.threshold import dimensionality_reduction as dim_red
 from yass import neuralnetwork
 
