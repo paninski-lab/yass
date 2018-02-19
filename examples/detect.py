@@ -1,0 +1,25 @@
+"""
+Detecting spikes
+"""
+
+import logging
+
+import yass
+from yass import preprocess
+from yass import detect
+
+# configure logging module to get useful information
+logging.basicConfig(level=logging.DEBUG)
+
+# set yass configuration parameters
+yass.set_config('config_sample.yaml')
+
+# run preprocessor
+(standarized_path, standarized_params, channel_index,
+ whiten_filter) = preprocess.run()
+
+# run detection
+scores, clear, collision = detect.run(standarized_path,
+                                      standarized_params,
+                                      channel_index,
+                                      whiten_filter)
