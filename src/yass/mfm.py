@@ -623,10 +623,10 @@ class ELBO_Class:
                     np.sum(vbParam.ahat))))
 
         # prior term
-
-        pterm = np.log(
-            prior.beta ** Khat * np.exp(-prior.beta) / math.factorial(Khat))
-
+        
+        pterm = Khat * np.log(prior.beta) - prior.beta - \
+            np.sum(np.log(np.arange(Khat)+1))
+        
         self.percluster = fit_term + bmterm + entropy_term2
         self.rest_term = np.sum(entropy_term1) + dc_term + pterm
         self.total = np.sum(self.percluster) + self.rest_term

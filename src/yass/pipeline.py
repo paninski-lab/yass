@@ -2,11 +2,19 @@
 Built-in pipeline
 """
 import logging
+import logging.config
 import shutil
 import os
 import os.path as path
 
+try:
+    # py3
+    from collections.abc import Mapping
+except ImportError:
+    from collections import Mapping
+
 import numpy as np
+import yaml
 
 from yass import set_config
 from yass import preprocess
@@ -36,6 +44,11 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         output data, defaults to tmp/
     complete: bool, optional
         Generates extra files (needed to generate phy files)
+
+    Returns
+    -------
+    numpy.ndarray
+        Spike train
     """
     # load yass configuration parameters
     set_config(config)
@@ -83,7 +96,13 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # save config.yaml copy in tmp/
     path_to_config_copy = path.join(TMP_FOLDER, 'config.yaml')
-    shutil.copy2(config, path_to_config_copy)
+
+    if isinstance(config, Mapping):
+        with open(path_to_config_copy, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False)
+    else:
+        shutil.copy2(config, path_to_config_copy)
+
     logging.info('Saving copy of config: {} in {}'.format(config,
                                                           path_to_config_copy))
 
@@ -151,4 +170,5 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         np.save(path_to_templates_score, templates_score)
         logger.info('Saved all templates scores in {}...'
                     .format(path_to_waveforms))
-        return spike_train
+
+    return spike_train
