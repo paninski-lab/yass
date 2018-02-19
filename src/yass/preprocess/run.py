@@ -46,8 +46,6 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     Running the preprocessor will generate the followiing files in
     CONFIG.data.root_folder/output_directory/:
 
-    * ``config.yaml`` - Copy of the configuration file
-    * ``metadata.yaml`` - Experiment metadata
     * ``filtered.bin`` - Filtered recordings
     * ``filtered.yaml`` - Filtered recordings metadata
     * ``standarized.bin`` - Standarized recordings
