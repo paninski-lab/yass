@@ -72,8 +72,11 @@ def fix_indexes(res, idx_local, idx, buffer_size):
     # fix clear spikes
     clear_times = clear[:, 0]
     # get only observations outside the buffer
-    clear_not_in_buffer = clear[np.logical_and(clear_times >= data_start,
-                                               clear_times <= data_end)]
+    idx_not_in_buffer = np.logical_and(clear_times >= data_start,
+                                       clear_times <= data_end)
+    clear_not_in_buffer = clear[idx_not_in_buffer]
+    score_not_in_buffer = score[idx_not_in_buffer]
+
     # offset spikes depending on the absolute location
     clear_not_in_buffer[:, 0] = (clear_not_in_buffer[:, 0] + offset
                                  - buffer_size)
@@ -86,4 +89,4 @@ def fix_indexes(res, idx_local, idx, buffer_size):
     # offset spikes depending on the absolute location
     col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset - buffer_size
 
-    return score, clear_not_in_buffer, col_not_in_buffer
+    return score_not_in_buffer, clear_not_in_buffer, col_not_in_buffer
