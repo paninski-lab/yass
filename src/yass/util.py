@@ -3,8 +3,15 @@ Utility functions
 """
 try:
     from pathlib2 import Path
-except Exception:
+except ImportError:
     from pathlib import Path
+
+try:
+    # py3
+    from inspect import signature
+except ImportError:
+    # py2
+    from funcsigs import signature
 
 from . import __version__
 
@@ -193,7 +200,7 @@ def map_parameters_in_fn_call(args, kwargs, func):
 
     # fill default values
     default = {k: v.default for k, v
-               in inspect.signature(func).parameters.items()
+               in signature(func).parameters.items()
                if v.default != inspect._empty}
 
     to_add = set(default.keys()) - set(parsed.keys())
