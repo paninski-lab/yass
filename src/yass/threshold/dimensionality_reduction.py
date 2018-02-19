@@ -1,16 +1,142 @@
 """
 Functions for dimensionality reduction
 """
+try:
+    from pathlib2 import Path
+except Exception:
+    from pathlib import Path
+
+from functools import reduce
 import logging
+
 import numpy as np
 
-# TODO: improve documentation
-# TODO: remove batching logic and update preprocessor to run this channel
-# by channel instead of using multi-channel operations
-# TODO: can this be a single-channel operation? that way we can parallelize
-# by channel
+from yass.batch import BatchProcessor
+from yass.util import save_numpy_object
 
 logger = logging.getLogger(__name__)
+
+
+def pca(path_to_data, dtype, n_channels, data_shape, waveforms, spike_index,
+        spike_size, temporal_features, neighbors_matrix, channel_index,
+        max_memory, output_path=None, save_rotation_matrix='rotation.npy',
+        save_scores='scores.npy', if_file_exists='skip'):
+    """Apply PCA in batches
+
+    Parameters
+    ----------
+    path_to_data: str
+        Path to recordings in binary format
+
+    dtype: str
+        Recordings dtype
+
+    n_channels: int
+        Number of channels in the recordings
+
+    data_shape: str
+        Data shape, can be either 'long' (observations, channels) or
+        'wide' (channels, observations)
+
+    waveforms: numpy.ndarray (n_spikes, temporal_window, n_channels)
+        A 3D array with the waveforms to score
+
+    spike_index: numpy.ndarray
+        A 2D numpy array, first column is spike time, second column is main
+        channel (the channel where spike has the biggest amplitude)
+
+    spike_size: int
+        Spike size
+
+    temporal_features: numpy.ndarray
+        Number of output features
+
+    neighbors_matrix: numpy.ndarray (n_channels, n_channels)
+        Boolean numpy 2-D array where a i, j entry is True if i is considered
+        neighbor of j
+
+    channel_index: np.array (n_channels, n_neigh)
+        Each row indexes its neighboring channels.
+        For example, channel_index[c] is the index of
+        neighboring channels (including itself)
+        If any value is equal to n_channels, it is nothing but
+        a space holder in a case that a channel has less than
+        n_neigh neighboring channels
+
+
+    max_memory:
+        Max memory to use in each batch (e.g. 100MB, 1GB)
+
+    output_path: str, optional
+        Directory to store the scores and rotation matrix
+
+    save_rotation_matrix: str, optional
+        File name for rotation matrix if False, does not save data
+
+    save_scores:
+        File name for scores if False, does not save data
+
+    if_file_exists:
+        What to do if there is already a file in the rotation matrix and/or
+        scores location. One of 'overwrite', 'abort', 'skip'. If 'overwrite'
+        it replaces the file if it exists, if 'abort' if raise a ValueError
+        exception if the file exists, if 'skip' if skips the operation if the
+        file exists
+
+    Returns
+    -------
+    scores: numpy.ndarray
+        Numpy 3D array  of size (n_waveforms, n_reduced_features,
+        n_neighboring_channels) Scores for every waveform, second dimension in
+        the array is reduced from n_temporal_features to n_reduced_features,
+        third dimension depends on the number of  neighboring channels
+
+    rotation_matrix: numpy.ndarray
+        3D array (window_size, n_features, n_channels)
+    """
+
+    ###########################
+    # compute rotation matrix #
+    ###########################
+
+    bp = BatchProcessor(path_to_data, dtype, n_channels, data_shape,
+                        max_memory, buffer_size=0)
+
+    # compute PCA sufficient statistics
+    logger.info('Computing PCA sufficient statistics...')
+    stats = bp.multi_channel_apply(suff_stat, mode='memory',
+                                   spike_index=spike_index,
+                                   spike_size=spike_size)
+    suff_stats = reduce(lambda x, y: np.add(x, y), [e[0] for e in stats])
+    spikes_per_channel = reduce(lambda x, y: np.add(x, y),
+                                [e[1] for e in stats])
+
+    # compute PCA projection matrix
+    logger.info('Computing PCA projection matrix...')
+    rotation = project(suff_stats, spikes_per_channel, temporal_features,
+                       neighbors_matrix)
+
+    if output_path and save_rotation_matrix:
+        path_to_rotation = Path(output_path) / save_rotation_matrix
+        save_numpy_object(rotation, path_to_rotation,
+                          if_file_exists=if_file_exists,
+                          name='rotation matrix')
+
+    #####################################
+    # waveform dimensionality reduction #
+    #####################################
+
+    logger.info('Reducing spikes dimensionality with PCA matrix...')
+    scores = score(waveforms, rotation, channel_index, spike_index[:, 1])
+
+    # save scores
+    if output_path and save_scores:
+        path_to_score = Path(output_path) / save_scores
+        save_numpy_object(scores, path_to_score,
+                          if_file_exists=if_file_exists,
+                          name='scores')
+
+    return scores, rotation
 
 
 def suff_stat(recordings, spike_index, spike_size):
