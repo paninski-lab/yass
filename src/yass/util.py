@@ -446,7 +446,10 @@ def check_for_files(parameters, if_skip):
                 logger.info('Skipped {} execution. All necessary files exist'
                             ', loading them...'.format(function_path(func)))
 
-                return [expand(e, _kwargs) for e in if_skip]
+                res = [expand(e, _kwargs) for e in if_skip]
+
+                return res[0] if len(res) == 1 else res
+
             else:
                 raise ValueError('Invalid value for if_file_exists {}'
                                  'must be one of overwrite, abort or skip'

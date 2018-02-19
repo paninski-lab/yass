@@ -121,4 +121,5 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     channel_index = make_channel_index(CONFIG.neighChannels,
                                        CONFIG.geom)
 
-    return standarized_path, standarized_params, channel_index, whiten_filter
+    return (str(standarized_path), standarized_params, channel_index,
+            whiten_filter)
