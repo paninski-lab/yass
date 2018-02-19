@@ -26,10 +26,10 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     if_file_exists: str, optional
       One of 'overwrite', 'abort', 'skip'. Control de behavior for every
-      generated file (filtered, standarized and whitening filter). If
-      'overwrite' it replaces the files if any exist, if 'abort' it raises
-      a ValueError exception if any file exists, if 'skip' if skips the
-      operation if any file exists
+      generated file. If 'overwrite' it replaces the files if any exist,
+      if 'abort' it raises a ValueError exception if any file exists,
+      if 'skip' if skips the operation if any file exists
+
 
     Returns
     -------

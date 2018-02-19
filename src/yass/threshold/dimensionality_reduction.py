@@ -12,15 +12,18 @@ import logging
 import numpy as np
 
 from yass.batch import BatchProcessor
-from yass.util import save_numpy_object
+from yass.util import check_for_files, LoadFile, save_numpy_object
 
 logger = logging.getLogger(__name__)
 
 
+@check_for_files(parameters=['save_scores', 'save_rotation_matrix'],
+                 if_skip=[LoadFile('save_scores'),
+                          LoadFile('save_rotation_matrix')])
 def pca(path_to_data, dtype, n_channels, data_shape, recordings, spike_index,
         spike_size, temporal_features, neighbors_matrix, channel_index,
-        max_memory, output_path=None, save_rotation_matrix='rotation.npy',
-        save_scores='score_clear.npy', if_file_exists='skip'):
+        max_memory, output_path=None, save_scores='score_clear.npy',
+        save_rotation_matrix='rotation.npy', if_file_exists='skip'):
     """Apply PCA in batches
 
     Parameters
@@ -68,7 +71,9 @@ def pca(path_to_data, dtype, n_channels, data_shape, recordings, spike_index,
         Max memory to use in each batch (e.g. 100MB, 1GB)
 
     output_path: str, optional
-        Directory to store the scores and rotation matrix
+        Directory to store the scores and rotation matrix, if None, previous
+        results on disk are ignored, operations are computed and results
+        aren't saved to disk
 
     save_rotation_matrix: str, optional
         File name for rotation matrix if False, does not save data

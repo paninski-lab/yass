@@ -15,8 +15,10 @@ from yass import neuralnetwork
 from yass.preprocess import whiten
 
 
+# TODO: missing parameters docs
 def run(standarized_path, standarized_params,
-        channel_index, whiten_filter, output_directory='tmp/'):
+        channel_index, whiten_filter, output_directory='tmp/',
+        if_file_exists='skip', save_partial_results=False):
     """Execute detect step
 
     Parameters
@@ -24,6 +26,15 @@ def run(standarized_path, standarized_params,
     output_directory: str, optional
       Location to store partial results, relative to CONFIG.data.root_folder,
       defaults to tmp/
+
+    if_file_exists: str, optional
+      One of 'overwrite', 'abort', 'skip'. Control de behavior for every
+      generated file. If 'overwrite' it replaces the files if any exist,
+      if 'abort' it raises a ValueError exception if any file exists,
+      if 'skip' if skips the operation if any file exists
+
+    save_partial_results: bool, optional
+        Whether to save partial results to disk, defaults to false
 
     Returns
     -------
@@ -45,14 +56,13 @@ def run(standarized_path, standarized_params,
     Notes
     -----
     Running the preprocessor will generate the followiing files in
-    CONFIG.data.root_folder/output_directory/:
+    CONFIG.data.root_folder/output_directory/ (if save_partial_results is
+    True):
 
-    # TODO: needs update
     * ``spike_index_clear.npy`` - Same as spike_index_clear returned
     * ``spike_index_collision.npy`` - Same as spike_index_collision returned
-    * ``score_clear.npy`` - Scores for clear spikes
-    * ``waveforms_clear.npy`` - Waveforms for clear spikes
     * ``rotation.npy`` - Rotation matrix for dimensionality reduction
+    * ``score_clear.npy`` - Scores for clear spikes
 
     Examples
     --------
@@ -67,23 +77,29 @@ def run(standarized_path, standarized_params,
                              standarized_params,
                              channel_index,
                              whiten_filter,
-                             output_directory)
+                             output_directory,
+                             if_file_exists,
+                             save_partial_results)
     elif CONFIG.spikes.detection == 'nn':
         return run_neural_network(standarized_path,
                                   standarized_params,
                                   channel_index,
                                   whiten_filter,
-                                  output_directory)
+                                  output_directory,
+                                  if_file_exists,
+                                  save_partial_results)
 
 
 def run_threshold(standarized_path, standarized_params, channel_index,
-                  whiten_filter, output_directory):
+                  whiten_filter, output_directory, if_file_exists,
+                  save_partial_results):
     """Run threshold detector and dimensionality reduction using PCA
     """
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
-    TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
+    TMP_FOLDER = (os.path.join(CONFIG.data.root_folder, output_directory)
+                  if save_partial_results else None)
 
     ###################
     # Spike detection #
@@ -97,10 +113,12 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                             CONFIG.resources.max_memory,
                             CONFIG.neighChannels,
                             CONFIG.spikeSize,
-                            (CONFIG.spikeSize +
-                             CONFIG.templatesMaxShift),
+                            CONFIG.spikeSize + CONFIG.templatesMaxShift,
                             CONFIG.stdFactor,
-                            TMP_FOLDER)
+                            TMP_FOLDER,
+                            'spike_index_clear.npy',
+                            'spike_index_collision.npy',
+                            if_file_exists=if_file_exists)
 
     #######
     # PCA #
@@ -121,13 +139,15 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                             output_path=TMP_FOLDER,
                             save_rotation_matrix='rotation.npy',
                             save_scores='score_clear.npy',
-                            if_file_exists='skip')
+                            if_file_exists=if_file_exists)
 
     #################
     # Whiten scores #
     #################
+
     scores = whiten.score(scores, clear[:, 1], whiten_filter)
 
+    # TODO: this shouldn't be here
     # transform scores to location + shape feature space
     if CONFIG.clustering.clustering_method == 'location':
         scores = get_locations_features_threshold(scores, clear[:, 1],
@@ -142,7 +162,8 @@ def run_threshold(standarized_path, standarized_params, channel_index,
 
 
 def run_neural_network(standarized_path, standarized_params,
-                       channel_index, whiten_filter, output_directory):
+                       channel_index, whiten_filter, output_directory,
+                       if_file_exists, save_partial_results):
     """Run neural network detection and autoencoder dimensionality reduction
     """
     logger = logging.getLogger(__name__)
