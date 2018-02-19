@@ -34,6 +34,7 @@ import yaml
 from pkg_resources import resource_filename
 
 string_types = (type(b''), type(u''))
+logger = logging.getLogger(__name__)
 
 
 def deprecated(reason):
@@ -411,6 +412,8 @@ def check_for_files(parameters, if_skip):
 
             # if not output_path exists, just run the function
             if _kwargs.get('output_path') is None:
+                logger.debug('No output path was passed, running the '
+                             'function without checking for files...')
                 return func(*args, **kwargs)
 
             if_file_exists = _kwargs['if_file_exists']
@@ -422,6 +425,7 @@ def check_for_files(parameters, if_skip):
             if (if_file_exists == 'overwrite' or
                if_file_exists == 'abort' and not any(exists)
                or if_file_exists == 'skip' and not all(exists)):
+                logger.debug('Running the function...')
                 return func(*args, **kwargs)
 
             elif if_file_exists == 'abort' and any(exists):
@@ -438,6 +442,9 @@ def check_for_files(parameters, if_skip):
                         return element(_kwargs)
                     else:
                         return element
+
+                logger.info('Skipped {} execution. All necessary files exist'
+                            ', loading them...'.format(function_path(func)))
 
                 return [expand(e, _kwargs) for e in if_skip]
             else:
