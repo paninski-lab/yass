@@ -11,16 +11,15 @@ import logging
 import numpy as np
 
 from yass.batch import BatchProcessor
-from yass.util import save_numpy_object, check_for_files, ExpandPath, LoadFile
+from yass.util import save_numpy_object, check_for_files, LoadFile
 from yass.geometry import make_channel_index
 
 
 @check_for_files(parameters=['output_filename'],
-                 if_skip=[ExpandPath('output_filename'),
-                          LoadFile('output_filename', 'yaml')])
-def whiten(path_to_data, dtype, n_channels, data_shape,
+                 if_skip=[LoadFile('output_filename')])
+def matrix(path_to_data, dtype, n_channels, data_shape,
            neighbors_matrix, geometry, spike_size, max_memory, output_path,
-           output_dtype, output_filename='whitened.bin',
+           output_filename='whitening_filter.npy',
            if_file_exists='skip', save_whitening_matrix=True):
     """Whiten Recordings in batches
 
@@ -56,23 +55,16 @@ def whiten(path_to_data, dtype, n_channels, data_shape,
         Max memory to use in each batch (e.g. 100MB, 1GB)
 
     output_path: str
-        Where to store the standarized recordings
-
-    output_dtype: str
-        dtype  for standarized data
+        Where to store the whitenint gilter
 
     output_filename: str, optional
-        Filename for the output data, defaults to whitened.bin
+        Filename for the output data, defaults to whitening_filter.npy
 
     if_file_exists: str, optional
         One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces the
-        whitened data if it exists, if 'abort' if raise a ValueError
+        whitening filter if it exists, if 'abort' if raise a ValueError
         exception if the file exists, if 'skip' if skips the operation if the
         file exists
-
-    save_whitening_matrix: bool, optional
-        Whether to save whitening matrix, if True, a 'whitening.npy' file will
-        be created in the same folder as the output_path
 
     Returns
     -------
@@ -96,32 +88,18 @@ def whiten(path_to_data, dtype, n_channels, data_shape,
 
     batches = bp.multi_channel()
     first_batch, _, _ = next(batches)
-    whiten_filter = whiten.matrix(first_batch, channel_index,
-                                  spike_size)
+    whiten_filter = _matrix(first_batch, channel_index,
+                            spike_size)
 
-    if save_whitening_matrix:
-        path_to_whitening_matrix = Path(output_path, 'whitening.npy')
-        save_numpy_object(whiten_filter, path_to_whitening_matrix,
-                          if_file_exists='overwrite',
-                          name='whitening matrix')
-
-    # # apply whitening to every batch
-    # _output_path = str(Path(output_path, output_filename))
-
-    # (whitened_path,
-    #  whitened_params) = bp.multi_channel_apply(np.matmul,
-    #                                            mode='disk',
-    #                                            output_path=_output_path,
-    #                                            if_file_exists='overwrite',
-    #                                            cast_dtype=output_dtype,
-    #                                            b=Q)
-
-    # return whitened_path, whitened_params
+    path_to_whitening_matrix = Path(output_path, 'whitening.npy')
+    save_numpy_object(whiten_filter, path_to_whitening_matrix,
+                      if_file_exists=if_file_exists,
+                      name='whitening filter')
 
     return whiten_filter
 
 
-def matrix(recording, channel_index, spike_size):
+def _matrix(recording, channel_index, spike_size):
     """
     Spatial whitening filter for time series
     For every channel, spatial whitening filter is calculated along
