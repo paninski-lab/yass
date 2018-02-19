@@ -50,7 +50,7 @@ class BatchProcessor(object):
                                        output_shape='long')
         self.indexer = IndexGenerator(self.reader.observations,
                                       self.reader.channels,
-                                      self.reader._dtype,
+                                      self.reader.dtype,
                                       max_memory)
 
         # data format is long since reader will return data in that format
