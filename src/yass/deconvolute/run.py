@@ -62,6 +62,7 @@ def run(spike_index, templates,
 
     # run deconvolution algorithm
     n_rf = int(CONFIG.deconvolution.n_rf*CONFIG.recordings.sampling_rate/1000)
+
     # run nn preprocess batch-wsie
     mc = bp.multi_channel_apply
     res = mc(
