@@ -17,7 +17,7 @@ from yass.util import save_numpy_object
 logger = logging.getLogger(__name__)
 
 
-def pca(path_to_data, dtype, n_channels, data_shape, waveforms, spike_index,
+def pca(path_to_data, dtype, n_channels, data_shape, recordings, spike_index,
         spike_size, temporal_features, neighbors_matrix, channel_index,
         max_memory, output_path=None, save_rotation_matrix='rotation.npy',
         save_scores='scores.npy', if_file_exists='skip'):
@@ -38,8 +38,8 @@ def pca(path_to_data, dtype, n_channels, data_shape, waveforms, spike_index,
         Data shape, can be either 'long' (observations, channels) or
         'wide' (channels, observations)
 
-    waveforms: numpy.ndarray (n_spikes, temporal_window, n_channels)
-        A 3D array with the waveforms to score
+    recordings: np.ndarray (n_observations, n_channels)
+        Multi-channel recordings
 
     spike_index: numpy.ndarray
         A 2D numpy array, first column is spike time, second column is main
@@ -127,7 +127,7 @@ def pca(path_to_data, dtype, n_channels, data_shape, waveforms, spike_index,
     #####################################
 
     logger.info('Reducing spikes dimensionality with PCA matrix...')
-    scores = score(waveforms, rotation, channel_index, spike_index[:, 1])
+    scores = score(recordings, rotation, channel_index, spike_index)
 
     # save scores
     if output_path and save_scores:

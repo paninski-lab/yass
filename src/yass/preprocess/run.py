@@ -3,7 +3,6 @@ Preprocess pipeline
 """
 import logging
 import os.path
-from functools import reduce
 
 import numpy as np
 
@@ -193,48 +192,26 @@ def _threshold_detection(standarized_path, standarized_params, channel_index,
                             CONFIG.stdFactor,
                             TMP_FOLDER)
 
-    #########################
-    # PCA - rotation matrix #
-    #########################
+    #######
+    # PCA #
+    #######
 
-    bp = BatchProcessor(
-        standarized_path,
-        standarized_params['dtype'],
-        standarized_params['n_channels'],
-        standarized_params['data_format'],
-        CONFIG.resources.max_memory,
-        buffer_size=CONFIG.spikeSize)
-
-    # compute per-batch sufficient statistics for PCA on standarized data
-    logger.info('Computing PCA sufficient statistics...')
-    stats = bp.multi_channel_apply(
-        dim_red.suff_stat,
-        mode='memory',
-        spike_index=clear,
-        spike_size=CONFIG.spikeSize)
-
-    suff_stats = reduce(lambda x, y: np.add(x, y), [e[0] for e in stats])
-
-    spikes_per_channel = reduce(lambda x, y: np.add(x, y),
-                                [e[1] for e in stats])
-
-    # compute rotation matrix
-    logger.info('Computing PCA projection matrix...')
-    rotation = dim_red.project(suff_stats, spikes_per_channel,
-                               CONFIG.spikes.temporal_features,
-                               CONFIG.neighChannels)
-    path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
-    np.save(path_to_rotation, rotation)
-    logger.info('Saved rotation matrix in {}...'.format(path_to_rotation))
-
-    ###########################################
-    # PCA - waveform dimensionality reduction #
-    ###########################################
-    logger.info('Reducing spikes dimensionality with PCA matrix...')
     recordings = RecordingsReader(standarized_path)
-    scores = dim_red.score(recordings, rotation,
-                           channel_index,
-                           clear)
+
+    scores, _ = dim_red.pca(standarized_path, standarized_params['dtype'],
+                            standarized_params['n_channels'],
+                            standarized_params['data_format'],
+                            recordings,
+                            clear,
+                            CONFIG.spikeSize,
+                            CONFIG.spikes.temporal_features,
+                            CONFIG.neighChannels,
+                            channel_index,
+                            CONFIG.resources.max_memory,
+                            output_path=TMP_FOLDER,
+                            save_rotation_matrix='rotation.npy',
+                            save_scores='score_clear.npy',
+                            if_file_exists='skip')
 
     #################
     # Whiten scores #
