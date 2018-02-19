@@ -79,28 +79,18 @@ def _run(output_directory='tmp/'):
                                          OUTPUT_DTYPE)
 
     # Whiten
-    bp = BatchProcessor(
-        standarized_path,
-        standarized_params['dtype'],
-        standarized_params['n_channels'],
-        standarized_params['data_format'],
-        CONFIG.resources.max_memory)
+    whiten_filter = whiten.matrix(standarized_path,
+                                  standarized_params['dtype'],
+                                  standarized_params['n_channels'],
+                                  standarized_params['data_format'],
+                                  CONFIG.neighChannels,
+                                  CONFIG.geom,
+                                  CONFIG.spikeSize,
+                                  CONFIG.resources.max_memory,
+                                  TMP)
 
-    # determine neighboring channel info
     channel_index = make_channel_index(CONFIG.neighChannels,
                                        CONFIG.geom)
-
-    # compute whiten_filter (Q) for whitening
-    logger.info('Computing whitening matrix...')
-    batches = bp.multi_channel()
-    first_batch, _, _ = next(batches)
-    whiten_filter = whiten.matrix(first_batch, channel_index,
-                                  CONFIG.spikeSize)
-
-    path_to_whitening_matrix = os.path.join(TMP, 'whitening.npy')
-    np.save(path_to_whitening_matrix, whiten_filter)
-    logger.info('Saved whitening matrix in {}'
-                .format(path_to_whitening_matrix))
 
     return standarized_path, standarized_params, channel_index, whiten_filter
 

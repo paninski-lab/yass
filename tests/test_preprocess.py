@@ -95,7 +95,7 @@ def test_can_compute_whiten_matrix(data, path_to_geometry):
     neighbors = find_channel_neighbors(geometry, radius=70)
     channel_index = make_channel_index(neighbors, geometry)
 
-    whiten.matrix(data, channel_index, spike_size)
+    whiten._matrix(data, channel_index, spike_size)
 
 
 def test_can_preprocess(path_to_config):
