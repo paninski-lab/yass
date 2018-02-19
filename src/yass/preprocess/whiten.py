@@ -5,6 +5,110 @@ Whitening functions
 import numpy as np
 
 
+@check_for_files(parameters=['output_filename'],
+                 if_skip=[ExpandPath('output_filename'),
+                          LoadFile('output_filename', 'yaml')])
+def whiten(path_to_data, dtype, n_channels, data_shape,
+           neighbors_matrix, geometry, spike_size, max_memory, output_path,
+           output_dtype, output_filename='whitened.bin',
+           if_file_exists='skip', save_whitening_matrix=True):
+    """Whiten Recordings in batches
+
+    Apply whitening to recordings in batches and write results to disk.
+    Whitening matrix is estimated using the first batch
+
+    Parameters
+    ----------
+    path_to_data: str
+        Path to recordings in binary format
+
+    dtype: str
+        Recordings dtype
+
+    n_channels: int
+        Number of channels in the recordings
+
+    data_shape: str
+        Data shape, can be either 'long' (observations, channels) or
+        'wide' (channels, observations)
+
+    neighbors_matrix: numpy.ndarray (n_channels, n_channels)
+        Boolean numpy 2-D array where a i, j entry is True if i is considered
+        neighbor of j
+
+    geometry: numpy.ndarray (n_channels, 2)
+        Location for each channel
+
+    spike_size: int
+        Spike size
+
+    max_memory: str
+        Max memory to use in each batch (e.g. 100MB, 1GB)
+
+    output_path: str
+        Where to store the standarized recordings
+
+    output_dtype: str
+        dtype  for standarized data
+
+    output_filename: str, optional
+        Filename for the output data, defaults to whitened.bin
+
+    if_file_exists: str, optional
+        One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces the
+        whitened data if it exists, if 'abort' if raise a ValueError
+        exception if the file exists, if 'skip' if skips the operation if the
+        file exists
+
+    save_whitening_matrix: bool, optional
+        Whether to save whitening matrix, if True, a 'whitening.npy' file will
+        be created in the same folder as the output_path
+
+    Returns
+    -------
+    standarized_path: str
+        Path to standarized recordings
+
+    standarized_params: dict
+        A dictionary with the parameters for the standarized recordings
+        (dtype, n_channels, data_format)
+    """
+    logger = logging.getLogger(__name__)
+
+    # compute Q (using the first batchfor whitening
+    logger.info('Computing whitening matrix...')
+
+    bp = BatchProcessor(path_to_data, dtype, n_channels, data_shape,
+                        max_memory)
+
+    channel_index = make_channel_index(neighbors_matrix,
+                                       geometry)
+
+    batches = bp.multi_channel()
+    first_batch, _, _ = next(batches)
+    whiten_filter = whiten.matrix(first_batch, channel_index,
+                                  spike_size)
+
+    if save_whitening_matrix:
+        path_to_whitening_matrix = Path(output_path, 'whitening.npy')
+        save_numpy_object(whiten_filter, path_to_whitening_matrix,
+                          if_file_exists='overwrite',
+                          name='whitening matrix')
+
+    # apply whitening to every batch
+    _output_path = str(Path(output_path, output_filename))
+
+    (whitened_path,
+     whitened_params) = bp.multi_channel_apply(np.matmul,
+                                               mode='disk',
+                                               output_path=_output_path,
+                                               if_file_exists='overwrite',
+                                               cast_dtype=output_dtype,
+                                               b=Q)
+
+    return whitened_path, whitened_params
+
+
 def matrix(recording, channel_index, spike_size):
     """
     Spatial whitening filter for time series
