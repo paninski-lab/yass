@@ -12,7 +12,7 @@ from yass.batch import BatchPipeline, BatchProcessor, RecordingsReader
 from yass.batch import PipedTransformation as Transform
 from yass.geometry import make_channel_index
 
-from yass.preprocess.filter import butterworth
+from yass.preprocess.filter import _butterworth as butterworth
 from yass.preprocess.standarize import standarize, standard_deviation
 from yass.preprocess import whiten
 from yass.threshold import detect
