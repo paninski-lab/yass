@@ -55,7 +55,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     Examples
     --------
 
-    .. literalinclude:: ../examples/preprocess.py
+    .. literalinclude:: ../examples/pipeline/preprocess.py
     """
 
     logger = logging.getLogger(__name__)
