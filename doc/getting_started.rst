@@ -47,9 +47,3 @@ Running YASS in a Python script
 *******************************
 
 .. literalinclude:: ../examples/pipeline/deconvolute.py
-
-
-Building your own pipeline
---------------------------
-
-Soon.
