@@ -265,8 +265,6 @@ def run_neural_network(standarized_path, standarized_params,
         scores = scores[idx]
 
         # save rotation
-        NNAE = neuralnetwork.AutoEncoder(
-            CONFIG.neural_network_autoencoder.filename)
         rotation = NNAE.load_rotation()
         path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
         np.save(path_to_rotation, rotation)
