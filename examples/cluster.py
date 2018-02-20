@@ -11,16 +11,14 @@ logging.basicConfig(level=logging.DEBUG)
 # set yass configuration parameters
 yass.set_config('config_sample.yaml')
 
-# run preprocessor
 (standarized_path, standarized_params, channel_index,
  whiten_filter) = preprocess.run()
 
-# run detection
-scores, clear, collision = detect.run(standarized_path,
-                                      standarized_params,
-                                      channel_index,
-                                      whiten_filter)
+(score, spike_index_clear,
+ spike_index_all) = detect.run(standarized_path,
+                               standarized_params,
+                               channel_index,
+                               whiten_filter)
 
 
-# run clustering
-spike_train = cluster.run(scores, clear)
+spike_train_clear = cluster.run(score, spike_index_clear)
