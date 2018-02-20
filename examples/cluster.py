@@ -1,0 +1,26 @@
+import logging
+
+import yass
+from yass import preprocess
+from yass import detect
+from yass import cluster
+
+# configure logging module to get useful information
+logging.basicConfig(level=logging.DEBUG)
+
+# set yass configuration parameters
+yass.set_config('config_sample.yaml')
+
+# run preprocessor
+(standarized_path, standarized_params, channel_index,
+ whiten_filter) = preprocess.run()
+
+# run detection
+scores, clear, collision = detect.run(standarized_path,
+                                      standarized_params,
+                                      channel_index,
+                                      whiten_filter)
+
+
+# run clustering
+spike_train = cluster.run(scores, clear)
