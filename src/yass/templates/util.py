@@ -50,11 +50,15 @@ def compute_weighted_templates(recording, idx_local, idx,
     data_end = idx[0].stop
     # get offset that will be applied
     offset = idx_local[0].start
-
+    
+    print(offset)
+    print(data_start)
+    print(data_end)
+    print(recording.shape)
     # shift location of spikes according to the batch info
     spike_time = spike_train[:, 0]
     spike_train = spike_train[np.logical_and(spike_time >= data_start,
-                                             spike_time <= data_end)]
+                                             spike_time < data_end)]
     spike_train[:, 0] = spike_train[:, 0] - data_start + offset
 
     # calculate weight templates

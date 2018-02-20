@@ -298,7 +298,7 @@ def score(recording, idx_local, idx, rot, channel_index, spike_index):
 
     spike_time = spike_index[:, 0]
     spike_index = spike_index[np.logical_and(spike_time >= data_start,
-                                             spike_time <= data_end)]
+                                             spike_time < data_end)]
     spike_index[:, 0] = spike_index[:, 0] - data_start + offset
 
     # obtain shape information
