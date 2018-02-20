@@ -8,7 +8,7 @@ from yass.cluster.subsample import random_subsample
 from yass.cluster.triage import triage
 from yass.cluster.coreset import coreset
 from yass.cluster.mask import getmask
-from yass.cluster.util import run_cluster, run_cluster_loccation
+from yass.cluster.util import run_cluster, run_cluster_location
 
 
 def run(scores, spike_index):
@@ -69,8 +69,8 @@ def run(scores, spike_index):
         ##############
         _b = datetime.datetime.now()
         logger.info("Clustering...")
-        spike_train = run_cluster_loccation(scores,
-                                            spike_index, CONFIG)
+        spike_train = run_cluster_location(scores,
+                                           spike_index, CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
     else:

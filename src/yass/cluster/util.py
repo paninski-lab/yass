@@ -134,7 +134,7 @@ def run_cluster(scores, masks, groups, spike_times,
     return spike_train[idx_sort]
 
 
-def run_cluster_loccation(scores, spike_times, CONFIG):
+def run_cluster_location(scores, spike_times, CONFIG):
     """
     run clustering algorithm using MFM and location features
 
