@@ -3,12 +3,12 @@ import datetime
 
 from yass import read_config
 from yass.geometry import make_channel_index
-from yass.process.list import make_list
-from yass.process.subsample import random_subsample
-from yass.process.triage import triage
-from yass.process.coreset import coreset
-from yass.process.mask import getmask
-from yass.process.cluster import run_cluster, run_cluster_loccation
+from yass.cluster.list import make_list
+from yass.cluster.subsample import random_subsample
+from yass.cluster.triage import triage
+from yass.cluster.coreset import coreset
+from yass.cluster.mask import getmask
+from yass.cluster.util import run_cluster, run_cluster_loccation
 
 
 def run(scores, spike_index):
