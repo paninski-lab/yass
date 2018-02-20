@@ -17,10 +17,6 @@ recordings:
   spike_size_ms: 1
   format: long
 
-clustering:
-  clustering_method: location
-  max_n_spikes: 10000
-
 preprocess:
   filter: True
   dtype: float32
@@ -36,13 +32,22 @@ deconvolution:
   n_explore: 2 
   upsample_factor: 5
 
+clustering:
+  clustering_method: 'location'
+  masking_threshold: [0.9, 0.5]
+  n_split: 5
+  max_n_spikes: 10000
+
+location:
+  isolation_threshold: 0
+
 neural_network_detector:
   filename: detect_nn1.ckpt
   threshold_spike: 0.5
 
 neural_network_triage:
   filename: triage_nn1.ckpt
-  threshold_collision: 0.5
+  threshold_collision: 0.9
 
 neural_network_autoencoder:
   filename: ae_nn1.ckpt
