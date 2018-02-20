@@ -6,7 +6,7 @@ import logging
 from yass.augment.choose import choose_templates
 from yass.augment.crop import crop_templates
 from yass.augment.noise import noise_cov
-from yass.process.templates import get_templates
+from yass.templates.util import get_templates
 from yass.util import load_yaml
 
 

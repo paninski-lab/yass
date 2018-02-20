@@ -3,7 +3,7 @@ import logging
 import datetime
 
 from yass import read_config
-from yass.process.templates import get_and_merge_templates as gam_templates
+from yass.templates.util import get_and_merge_templates as gam_templates
 
 
 def run(spike_train, output_directory='tmp/',
