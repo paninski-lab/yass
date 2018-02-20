@@ -15,10 +15,9 @@ echo "Running config_sample_complete.yaml example"
 yass sort config_sample_complete.yaml
 
 
-# run examples in examples/
-echo "examples in examples/"
-python preprocess.py
-python detect.py
-python cluster.py
-python templates.py
-python deconvolute.py
+# run examples in examples/pipeline
+python pipeline/preprocess.py
+python pipeline/detect.py
+python pipeline/cluster.py
+python pipeline/templates.py
+python pipeline/deconvolute.py

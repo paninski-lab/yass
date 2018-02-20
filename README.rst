@@ -60,7 +60,7 @@ Steinmetz`_:
     # clone repo to get the sample data
     git clone https://github.com/paninski-lab/yass
 
-    # move to the examples folder and run yass in the sample data
+    # move to the examples/ folder and run yass in the sample data
     cd yass/examples
     yass sort config_sample.yaml
 

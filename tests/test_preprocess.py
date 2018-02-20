@@ -14,6 +14,7 @@ from yass.geometry import (parse, find_channel_neighbors,
 
 from yass.threshold import detect
 from yass.preprocess.standarize import _standarize
+from yass.util import load_yaml
 
 import yass
 from yass import preprocess
@@ -86,6 +87,17 @@ def test_can_compute_whiten_matrix(data, path_to_geometry):
 
 def test_can_preprocess(path_to_threshold_config):
     yass.set_config(path_to_threshold_config)
+    (standarized_path, standarized_params, channel_index,
+     whiten_filter) = preprocess.run()
+    clean_tmp()
+
+
+def test_can_preprocess_without_filtering(path_to_threshold_config):
+    CONFIG = load_yaml(path_to_threshold_config)
+    CONFIG['preprocess']['filter'] = False
+
+    yass.set_config(CONFIG)
+
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
     clean_tmp()
