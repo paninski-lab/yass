@@ -1,20 +1,12 @@
 Preprocess
 ==========
 
-This module contains functions for preprocessing neural recordings:
-filter, standarization, whitening, PCA and spike detection.
-
-
-Threshold detection
--------------------
-
-.. automodule:: yass.preprocess.detect
-    :members:
+This module contains functions for preprocessing neural recordings
 
 Signal filtering
 -------------------
 
-.. automodule:: yass.preprocess.filter
+.. automodule:: yass.preprocess.filter.butterworth
     :members:
 
 

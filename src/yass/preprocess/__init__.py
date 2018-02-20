@@ -1,6 +1,5 @@
 """
-This module contains functions for preprocessing neural recordings:
-filter, standarization, whitening and PCA
+This module contains functions for preprocessing neural recordings
 """
 
 from yass.preprocess.run import run
