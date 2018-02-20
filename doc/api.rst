@@ -8,6 +8,6 @@ API Reference
     api/detect
     api/cluster
     api/templates
-    api/deconvolve
+    api/deconvolute
     api/geometry
     api/batch

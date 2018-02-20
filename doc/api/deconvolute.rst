@@ -1,5 +1,5 @@
-Deconvolve
-==========
+Deconvolute
+===========
 
 .. automodule:: yass.deconvolute
     :members:
