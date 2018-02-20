@@ -963,19 +963,16 @@ def spikesort(score, mask, group, param):
 
     vbParam = split_merge(maskedData, param)
 
-    if param.clustering.clustering_method == 'location':
-        return vbParam, maskedData
-    else:
-        assignmentTemp = np.argmax(vbParam.rhat, axis=1)
+    assignmentTemp = np.argmax(vbParam.rhat, axis=1)
 
-        assignment = np.zeros(score.shape[0], 'int16')
-        for j in range(score.shape[0]):
-            assignment[j] = assignmentTemp[group[j]]
+    assignment = np.zeros(score.shape[0], 'int16')
+    for j in range(score.shape[0]):
+        assignment[j] = assignmentTemp[group[j]]
 
-        idx_triage = cluster_triage(vbParam, score, 3)
-        assignment[idx_triage] = -1
+    idx_triage = cluster_triage(vbParam, score, 3)
+    assignment[idx_triage] = -1
 
-        return assignment
+    return assignment
 
 
 def split_merge(maskedData, param):

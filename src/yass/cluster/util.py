@@ -160,13 +160,12 @@ def run_cluster_loccation(scores, spike_times, CONFIG):
     logger = logging.getLogger(__name__)
 
     n_channels = len(scores)
-
-    global_vbParam = None
-    global_maskedData = None
-    global_score = None
-    global_spike_time = None
-    global_cluster_id = None
+    global_spike_time = np.zeros(0).astype('uint16')
+    global_cluster_id = np.zeros(0).astype('uint16')
+    
+    
     # run clustering algorithm per main channel
+    
     for channel in range(n_channels):
 
         logger.info('Processing channel {}'.format(channel))
@@ -180,26 +179,21 @@ def run_cluster_loccation(scores, spike_times, CONFIG):
             # make a fake mask of ones to run clustering algorithm
             mask = np.ones((n_data, 1))
             group = np.arange(n_data)
-            (vbParam, maskedData) = spikesort(score, mask,
-                                              group, CONFIG)
+            cluster_id = spikesort(score, mask,
+                                         group, CONFIG)
 
+            idx_triage = (cluster_id == -1)
+
+            cluster_id = cluster_id[~idx_triage]
+            spike_time = spike_time[~idx_triage]
+          
+            
             # gather clustering information into global variable
-            (global_vbParam, global_maskedData,
-             global_score, global_spike_time,
-             global_cluster_id) = global_cluster_info(vbParam,
-                                                      maskedData,
-                                                      score,
-                                                      spike_time,
-                                                      global_vbParam,
-                                                      global_maskedData,
-                                                      global_score,
+            (global_spike_time,
+             global_cluster_id) = global_cluster_info(spike_time,
+                                                      cluster_id,
                                                       global_spike_time,
                                                       global_cluster_id)
-
-    # model based triage
-    idx_triage = cluster_triage(global_vbParam, global_score, 3)
-    global_cluster_id = global_cluster_id[~idx_triage]
-    global_spike_time = global_spike_time[~idx_triage]
 
     # make spike train
     spike_train = np.hstack(
@@ -212,8 +206,7 @@ def run_cluster_loccation(scores, spike_times, CONFIG):
     return spike_train[idx_sort]
 
 
-def global_cluster_info(vbParam, maskedData, score, spike_time,
-                        global_vbParam, global_maskedData, global_score,
+def global_cluster_info(spike_time, cluster_id,
                         global_spike_time, global_cluster_id):
     """
     Gather clustering information from each run
@@ -257,73 +250,14 @@ def global_cluster_info(vbParam, maskedData, score, spike_time,
     global_cluster_id: np.array (n_data_all, 1)
         cluster id matched to global_score
     """
-    if global_vbParam is None:
-        global_vbParam = vbParam
-        global_maskedData = maskedData
-        global_score = score
-        global_spike_time = spike_time
+    # append spike_time
+    global_spike_time = np.concatenate([global_spike_time,
+                                       spike_time], axis=0)
 
-        global_cluster_id = np.argmax(global_vbParam.rhat,
-                                      axis=1)
-    else:
+    # append assignment
+    cluster_id_max = np.max(global_cluster_id)
+    global_cluster_id = np.hstack([
+        global_cluster_id,
+        cluster_id + cluster_id_max + 1])
 
-        # append global_vbParam
-        global_vbParam.muhat = np.concatenate(
-            [global_vbParam.muhat, vbParam.muhat], axis=1)
-        global_vbParam.Vhat = np.concatenate(
-            [global_vbParam.Vhat, vbParam.Vhat], axis=2)
-        global_vbParam.invVhat = np.concatenate(
-            [global_vbParam.invVhat, vbParam.invVhat],
-            axis=2)
-        global_vbParam.lambdahat = np.concatenate(
-            [global_vbParam.lambdahat, vbParam.lambdahat],
-            axis=0)
-        global_vbParam.nuhat = np.concatenate(
-            [global_vbParam.nuhat, vbParam.nuhat],
-            axis=0)
-        global_vbParam.ahat = np.concatenate(
-            [global_vbParam.ahat, vbParam.ahat],
-            axis=0)
-
-        # append maskedData
-        global_maskedData.sumY = np.concatenate(
-            [global_maskedData.sumY, maskedData.sumY],
-            axis=0)
-        global_maskedData.sumYSq = np.concatenate(
-            [global_maskedData.sumYSq, maskedData.sumYSq],
-            axis=0)
-        global_maskedData.sumEta = np.concatenate(
-            [global_maskedData.sumEta, maskedData.sumEta],
-            axis=0)
-        global_maskedData.weight = np.concatenate(
-            [global_maskedData.weight, maskedData.weight],
-            axis=0)
-        global_maskedData.groupMask = np.concatenate(
-            [global_maskedData.groupMask, maskedData.groupMask],
-            axis=0)
-        global_maskedData.meanY = np.concatenate(
-            [global_maskedData.meanY, maskedData.meanY],
-            axis=0)
-        global_maskedData.meanYSq = np.concatenate(
-            [global_maskedData.meanYSq, maskedData.meanYSq],
-            axis=0)
-        global_maskedData.meanEta = np.concatenate(
-            [global_maskedData.meanEta, maskedData.meanEta],
-            axis=0)
-
-        # append score
-        global_score = np.concatenate([global_score, score], axis=0)
-
-        # append spike_time
-        global_spike_time = np.concatenate([global_spike_time,
-                                           spike_time], axis=0)
-
-        # append assignment
-        cluster_id_max = np.max(global_cluster_id)
-        cluster_id_local = np.argmax(vbParam.rhat, axis=1)
-        global_cluster_id = np.hstack([
-            global_cluster_id,
-            cluster_id_local + cluster_id_max + 1])
-
-    return (global_vbParam, global_maskedData, global_score,
-            global_spike_time, global_cluster_id)
+    return (global_spike_time, global_cluster_id)
