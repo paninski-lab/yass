@@ -32,7 +32,7 @@ def run(spike_train, output_directory='tmp/',
     Examples
     --------
 
-    .. literalinclude:: ../examples/pipeline/templates.py
+    .. literalinclude:: ../../examples/pipeline/templates.py
     """
     CONFIG = read_config()
 
