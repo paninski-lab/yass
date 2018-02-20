@@ -93,10 +93,6 @@ Processing
 
     }
 
-.. automodule:: yass.process.run
-    :members:
-
-
 Deconvolution
 -------------
 
@@ -114,6 +110,3 @@ Deconvolution
        deconvolution [label="Deconvolution", description="Deconvolute unclear spikes using the templates"]
        merge [label="Merge", description="Merge all spikes to produce the final ouput"]
     }
-
-.. automodule:: yass.deconvolute.run
-    :members:
