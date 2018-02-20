@@ -6,8 +6,8 @@ from yass.deconvolute.util import upsample_templates, \
 from yass.deconvolute.match import make_tf_tensors, template_match
 
 
-def deconvolve(recording, templates, spike_index,
-               n_explore, n_rf, upsample_factor,
+def deconvolve(recording, idx_local, idx, templates, spike_index,
+               spike_size, n_explore, n_rf, upsample_factor,
                threshold_a, threshold_dd):
     """
     run greedy deconvolution algorithm
@@ -56,6 +56,17 @@ def deconvolve(recording, templates, spike_index,
 
     logger = logging.getLogger(__name__)
 
+    # get limits for the data (exlude indexes that have buffer data)
+    data_start = idx[0].start
+    data_end = idx[0].stop
+    # get offset that will be applied
+    offset = idx_local[0].start
+
+    spike_time = spike_index[:, 0]
+    spike_index = spike_index[np.logical_and(spike_time >= data_start,
+                                             spike_time <= data_end)]
+    spike_index[:, 0] = spike_index[:, 0] - data_start + offset
+
     # get useful parameters
     T = recording.shape[0]
     n_channels, n_timebins, n_templates = templates.shape
@@ -73,7 +84,7 @@ def deconvolve(recording, templates, spike_index,
     # make tensorflow tensors in advance so that we don't
     # have to create multiple times in a loop
     (rec_local_tf, template_local_tf,
-        spt_tf, result) = make_tf_tensors(T, n_timebins,
+        spt_tf, result) = make_tf_tensors(T, 2*spike_size+1,
                                           upsample_factor,
                                           threshold_a,
                                           threshold_dd)
@@ -101,8 +112,9 @@ def deconvolve(recording, templates, spike_index,
         # upsample and localize template
         upsampled_template = upsample_templates(templates[:, :, k],
                                                 upsample_factor)
-        upsampled_template_local = upsampled_template[:, channels_big, :]
 
+        upsampled_template_local = upsampled_template[
+            :, channels_big, (R-spike_size):(R+spike_size+1)]
         # localize recording
         rec_local = rec[:, channels_big]
 
@@ -130,3 +142,36 @@ def deconvolve(recording, templates, spike_index,
                 spt_good, np.ones(spt_good.shape[0], 'int32')*k)).T))
 
     return spike_train
+
+
+def fix_indexes(spike_train, idx_local, idx, buffer_size):
+    """Fixes indexes from detected spikes in batches
+
+    Parameters
+    ----------
+    res: tuple
+        A tuple with the results from the nnet detector
+    idx_local: slice
+        A slice object indicating the indices for the data (excluding buffer)
+    idx: slice
+        A slice object indicating the absolute location of the data
+    buffer_size: int
+        Buffer size
+    """
+
+    # get limits for the data (exlude indexes that have buffer data)
+    data_start = idx_local[0].start
+    data_end = idx_local[0].stop
+    # get offset that will be applied
+    offset = idx[0].start
+
+    # fix clear spikes
+    spike_times = spike_train[:, 0]
+    # get only observations outside the buffer
+    train_not_in_buffer = spike_train[np.logical_and(spike_times >= data_start,
+                                                     spike_times <= data_end)]
+    # offset spikes depending on the absolute location
+    train_not_in_buffer[:, 0] = (train_not_in_buffer[:, 0] + offset
+                                 - buffer_size)
+
+    return train_not_in_buffer

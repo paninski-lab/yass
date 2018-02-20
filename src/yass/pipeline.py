@@ -17,9 +17,8 @@ import numpy as np
 import yaml
 
 from yass import set_config
-from yass import preprocess
-from yass import process
-from yass import deconvolute
+from yass import preprocess, detect, cluster, deconvolute
+from yass import templates as get_templates
 from yass import read_config
 
 from yass.util import load_yaml, save_metadata, load_logging_config_file
@@ -35,15 +34,33 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     ----------
     config: str or mapping (such as dictionary)
         Path to YASS configuration file or mapping object
+
     logger_level: str
         Logger level
+
     clean: bool, optional
         Delete CONFIG.data.root_folder/output_dir/ before running
+
     output_dir: str, optional
         Output directory (relative to CONFIG.data.root_folder to store the
         output data, defaults to tmp/
+
     complete: bool, optional
         Generates extra files (needed to generate phy files)
+
+    Notes
+    -----
+    Running the preprocessor will generate the followiing files in
+    CONFIG.data.root_folder/output_directory/:
+
+    * ``config.yaml`` - Copy of the configuration file
+    * ``metadata.yaml`` - Experiment metadata
+    * ``filtered.bin`` - Filtered recordings (from preprocess)
+    * ``filtered.yaml`` - Filtered recordings metadata (from preprocess)
+    * ``standarized.bin`` - Standarized recordings (from preprocess)
+    * ``standarized.yaml`` - Standarized recordings metadata (from preprocess)
+    * ``whitening.npy`` - Whitening filter (from preprocess)
+
 
     Returns
     -------
@@ -76,14 +93,25 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # instantiate logger
     logger = logging.getLogger(__name__)
 
-    # run preprocessor
-    (score, spike_index_clear,
-     spike_index_all) = preprocess.run(output_directory=output_dir)
+    # preprocess
+    (standarized_path,
+     standarized_params,
+     channel_index,
+     whiten_filter) = preprocess.run(output_directory=output_dir)
 
-    # run processor
-    (spike_train_clear,
-     templates) = process.run(score, spike_index_clear,
-                              output_directory=output_dir)
+    # detect
+    (score, spike_index_clear,
+     spike_index_all) = detect.run(standarized_path,
+                                   standarized_params,
+                                   channel_index,
+                                   whiten_filter,
+                                   output_directory=output_dir)
+
+    # cluster
+    spike_train_clear = cluster.run(score, spike_index_clear)
+
+    # get templates
+    templates = get_templates.run(spike_train_clear)
 
     # run deconvolution
     spike_train = deconvolute.run(spike_index_all, templates,

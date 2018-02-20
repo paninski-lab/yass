@@ -1,7 +1,7 @@
 import numpy as np
 import logging
 
-from yass.mfm import spikesort, merge_move_quick, cluster_triage
+from yass.mfm import spikesort, cluster_triage
 
 
 def run_cluster(scores, masks, groups, spike_times,
@@ -196,24 +196,15 @@ def run_cluster_loccation(scores, spike_times, CONFIG):
                                                       global_spike_time,
                                                       global_cluster_id)
 
-    logger.info('merging all channels')
-
-    # data info
-    n_data = global_score.shape[0]
-
-    # run merge move with all data
-    (global_vbParam, cluster_id_merged) = merge_move_quick(
-        global_maskedData, global_vbParam, global_cluster_id, CONFIG)
-
     # model based triage
     idx_triage = cluster_triage(global_vbParam, global_score, 3)
-    cluster_id_merged = cluster_id_merged[~idx_triage]
+    global_cluster_id = global_cluster_id[~idx_triage]
     global_spike_time = global_spike_time[~idx_triage]
 
     # make spike train
     spike_train = np.hstack(
         (global_spike_time[:, np.newaxis],
-         cluster_id_merged[:, np.newaxis]))
+         global_cluster_id[:, np.newaxis]))
 
     # sort based on spike_time
     idx_sort = np.argsort(spike_train[:, 0])
