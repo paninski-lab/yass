@@ -213,15 +213,16 @@ def run_neural_network(standarized_path, standarized_params,
         detection_fname = CONFIG.neural_network_detector.filename
         ae_fname = CONFIG.neural_network_autoencoder.filename
         triage_fname = CONFIG.neural_network_triage.filename
-        (x_tf, output_tf,
-         NND, NNT) = neuralnetwork.prepare_nn(channel_index,
-                                              whiten_filter,
-                                              detection_th,
-                                              triage_th,
-                                              detection_fname,
-                                              ae_fname,
-                                              triage_fname)
+        (x_tf, output_tf, NND,
+         NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
+                                               whiten_filter,
+                                               detection_th,
+                                               triage_th,
+                                               detection_fname,
+                                               ae_fname,
+                                               triage_fname)
 
+        # run nn preprocess batch-wsie
         # run nn preprocess batch-wsie
         mc = bp.multi_channel_apply
         res = mc(
@@ -231,6 +232,7 @@ def run_neural_network(standarized_path, standarized_params,
             x_tf=x_tf,
             output_tf=output_tf,
             NND=NND,
+            NNAE=NNAE,
             NNT=NNT)
 
         # save clear spikes
@@ -263,12 +265,9 @@ def run_neural_network(standarized_path, standarized_params,
         scores = scores[idx]
 
         # save rotation
-        detector_filename = CONFIG.neural_network_detector.filename
-        autoencoder_filename = CONFIG.neural_network_autoencoder.filename
-
-        NND = neuralnetwork.NeuralNetDetector(
-            detector_filename, autoencoder_filename)
-        rotation = NND.load_rotation()
+        NNAE = neuralnetwork.AutoEncoder(
+            CONFIG.neural_network_autoencoder.filename)
+        rotation = NNAE.load_rotation()
         path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
         np.save(path_to_rotation, rotation)
         logger.info(
