@@ -67,7 +67,7 @@ def run(standarized_path, standarized_params,
     Examples
     --------
 
-    .. literalinclude:: ../examples/detect.py
+    .. literalinclude:: ../examples/pipeline/detect.py
     """
     CONFIG = read_config()
 

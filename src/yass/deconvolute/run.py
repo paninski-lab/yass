@@ -41,7 +41,7 @@ def run(spike_index, templates,
     Examples
     --------
 
-    .. literalinclude:: ../examples/deconvolute.py
+    .. literalinclude:: ../examples/pipeline/deconvolute.py
     """
 
     logger = logging.getLogger(__name__)

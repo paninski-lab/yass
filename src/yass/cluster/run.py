@@ -33,7 +33,7 @@ def run(scores, spike_index):
     Examples
     --------
 
-    .. literalinclude:: ../examples/cluster.py
+    .. literalinclude:: ../examples/pipeline/cluster.py
 
     """
     CONFIG = read_config()
