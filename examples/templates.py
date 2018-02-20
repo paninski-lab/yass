@@ -5,7 +5,6 @@ from yass import preprocess
 from yass import detect
 from yass import cluster
 from yass import templates
-from yass import deconvolute
 
 # configure logging module to get useful information
 logging.basicConfig(level=logging.DEBUG)
@@ -26,5 +25,3 @@ yass.set_config('config_sample.yaml')
 spike_train_clear = cluster.run(score, spike_index_clear)
 
 templates = templates.run(spike_train_clear)
-
-spike_train = deconvolute.run(spike_index_all, templates)

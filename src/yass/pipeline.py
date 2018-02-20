@@ -17,10 +17,8 @@ import numpy as np
 import yaml
 
 from yass import set_config
-from yass import preprocess
-from yass import detect
-from yass import process
-from yass import deconvolute
+from yass import preprocess, detect, cluster, deconvolute
+from yass import templates as get_templates
 from yass import read_config
 
 from yass.util import load_yaml, save_metadata, load_logging_config_file
@@ -109,10 +107,11 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                                    whiten_filter,
                                    output_directory=output_dir)
 
-    # run processor
-    (spike_train_clear,
-     templates) = process.run(score, spike_index_clear,
-                              output_directory=output_dir)
+    # cluster
+    spike_train_clear = cluster.run(score, spike_index_clear)
+
+    # get templates
+    templates = get_templates.run(spike_train_clear)
 
     # run deconvolution
     spike_train = deconvolute.run(spike_index_all, templates,
