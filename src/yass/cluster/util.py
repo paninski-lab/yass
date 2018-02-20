@@ -253,7 +253,7 @@ def global_cluster_info(spike_time, cluster_id,
 
     # append assignment
     if global_cluster_id.size == 0:
-        cluster_id_max = 0
+        cluster_id_max = -1
     else:
         cluster_id_max = np.max(global_cluster_id)
     global_cluster_id = np.hstack([
