@@ -1,8 +1,5 @@
 Detect
 ======
 
-Threshold detection
--------------------
-
-.. automodule:: yass.preprocess.detect
+.. automodule:: yass.detect
     :members:
