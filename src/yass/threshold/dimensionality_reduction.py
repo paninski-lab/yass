@@ -105,7 +105,7 @@ def pca(path_to_data, dtype, n_channels, data_shape, recordings, spike_index,
     ###########################
 
     bp = BatchProcessor(path_to_data, dtype, n_channels, data_shape,
-                        max_memory, buffer_size=0)
+                        max_memory, buffer_size=spike_size)
 
     # compute PCA sufficient statistics
     logger.info('Computing PCA sufficient statistics...')
@@ -132,7 +132,15 @@ def pca(path_to_data, dtype, n_channels, data_shape, recordings, spike_index,
     #####################################
 
     logger.info('Reducing spikes dimensionality with PCA matrix...')
-    scores = score(recordings, rotation, channel_index, spike_index)
+    res = bp.multi_channel_apply(score,
+                                 mode='memory',
+                                 pass_batch_info=True,
+                                 rot=rotation,
+                                 channel_index=channel_index,
+                                 spike_index=spike_index)
+
+    scores = np.concatenate([element[0] for element in res], axis=0)
+    spike_index = np.concatenate([element[1] for element in res], axis=0)
 
     # save scores
     if output_path and save_scores:
@@ -141,7 +149,7 @@ def pca(path_to_data, dtype, n_channels, data_shape, recordings, spike_index,
                           if_file_exists=if_file_exists,
                           name='scores')
 
-    return scores, rotation
+    return scores, spike_index, rotation
 
 
 def suff_stat(recordings, spike_index, spike_size):
@@ -248,7 +256,7 @@ def project(ss, spikes_per_channel, n_features, neighbors):
     return rot
 
 
-def score(recording, rot, channel_index, spike_index):
+def score(recording, idx_local, idx, rot, channel_index, spike_index):
     """
     Reduce waveform dimensionality using a rotation matrix. Optionally
     return scores only for neighboring channels instead of all channels
@@ -282,6 +290,16 @@ def score(recording, rot, channel_index, spike_index):
         from n_temporal_features to n_features, third dimension
         is number of neighboring channels.
     """
+
+    data_start = idx[0].start
+    data_end = idx[0].stop
+    # get offset that will be applied
+    offset = idx_local[0].start
+
+    spike_time = spike_index[:, 0]
+    spike_index = spike_index[np.logical_and(spike_time >= data_start,
+                                             spike_time <= data_end)]
+    spike_index[:, 0] = spike_index[:, 0] - data_start + offset
 
     # obtain shape information
     n_observations, n_channels = recording.shape
@@ -342,4 +360,6 @@ def score(recording, rot, channel_index, spike_index):
                       np.expand_dims(waveforms, -1))[:, :, :, 0],
             [0, 2, 1])
 
-    return scores
+    spike_index[:, 0] = spike_index[:, 0] + data_start - offset
+
+    return scores, spike_index

@@ -115,9 +115,7 @@ def threshold(path_to_data, dtype, n_channels, data_shape,
                             minimum_half_waveform_size,
                             bp.reader.observations))
 
-    spike_index_collision = np.zeros((0, 2), 'int32')
-
-    return spike_index_clear, spike_index_collision
+    return spike_index_clear
 
 
 def _threshold(rec, neighbors, spike_size, threshold):

@@ -105,20 +105,19 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     # Spike detection #
     ###################
 
-    (clear,
-     collision) = threshold(standarized_path,
-                            standarized_params['dtype'],
-                            standarized_params['n_channels'],
-                            standarized_params['data_format'],
-                            CONFIG.resources.max_memory,
-                            CONFIG.neighChannels,
-                            CONFIG.spikeSize,
-                            CONFIG.spikeSize + CONFIG.templatesMaxShift,
-                            CONFIG.stdFactor,
-                            TMP_FOLDER,
-                            'spike_index_clear.npy',
-                            'spike_index_collision.npy',
-                            if_file_exists=if_file_exists)
+    clear = threshold(standarized_path,
+                      standarized_params['dtype'],
+                      standarized_params['n_channels'],
+                      standarized_params['data_format'],
+                      CONFIG.resources.max_memory,
+                      CONFIG.neighChannels,
+                      CONFIG.spikeSize,
+                      CONFIG.spikeSize + CONFIG.templatesMaxShift,
+                      CONFIG.stdFactor,
+                      TMP_FOLDER,
+                      'spike_index_clear.npy',
+                      'spike_index_collision.npy',
+                      if_file_exists=if_file_exists)
 
     #######
     # PCA #
@@ -126,20 +125,21 @@ def run_threshold(standarized_path, standarized_params, channel_index,
 
     recordings = RecordingsReader(standarized_path)
 
-    scores, _ = dim_red.pca(standarized_path, standarized_params['dtype'],
-                            standarized_params['n_channels'],
-                            standarized_params['data_format'],
-                            recordings,
-                            clear,
-                            CONFIG.spikeSize,
-                            CONFIG.spikes.temporal_features,
-                            CONFIG.neighChannels,
-                            channel_index,
-                            CONFIG.resources.max_memory,
-                            output_path=TMP_FOLDER,
-                            save_rotation_matrix='rotation.npy',
-                            save_scores='score_clear.npy',
-                            if_file_exists=if_file_exists)
+    scores, clear, _ = dim_red.pca(standarized_path,
+                                   standarized_params['dtype'],
+                                   standarized_params['n_channels'],
+                                   standarized_params['data_format'],
+                                   recordings,
+                                   clear,
+                                   CONFIG.spikeSize,
+                                   CONFIG.spikes.temporal_features,
+                                   CONFIG.neighChannels,
+                                   channel_index,
+                                   CONFIG.resources.max_memory,
+                                   output_path=TMP_FOLDER,
+                                   save_rotation_matrix='rotation.npy',
+                                   save_scores='score_clear.npy',
+                                   if_file_exists=if_file_exists)
 
     #################
     # Whiten scores #
@@ -159,7 +159,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
         np.save(path_to_score, scores)
         logger.info('Saved spike scores in {}...'.format(path_to_score))
 
-    return scores, clear, collision
+    return scores, clear, np.copy(clear)
 
 
 def run_neural_network(standarized_path, standarized_params,
