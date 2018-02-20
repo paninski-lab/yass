@@ -1,7 +1,7 @@
 import numpy as np
 import logging
 
-from yass.mfm import spikesort, cluster_triage
+from yass.mfm import spikesort
 
 
 def run_cluster(scores, masks, groups, spike_times,
@@ -162,10 +162,8 @@ def run_cluster_loccation(scores, spike_times, CONFIG):
     n_channels = len(scores)
     global_spike_time = np.zeros(0).astype('uint16')
     global_cluster_id = np.zeros(0).astype('uint16')
-    
-    
+
     # run clustering algorithm per main channel
-    
     for channel in range(n_channels):
 
         logger.info('Processing channel {}'.format(channel))
@@ -180,14 +178,13 @@ def run_cluster_loccation(scores, spike_times, CONFIG):
             mask = np.ones((n_data, 1))
             group = np.arange(n_data)
             cluster_id = spikesort(score, mask,
-                                         group, CONFIG)
+                                   group, CONFIG)
 
             idx_triage = (cluster_id == -1)
 
             cluster_id = cluster_id[~idx_triage]
             spike_time = spike_time[~idx_triage]
-          
-            
+
             # gather clustering information into global variable
             (global_spike_time,
              global_cluster_id) = global_cluster_info(spike_time,
@@ -255,7 +252,10 @@ def global_cluster_info(spike_time, cluster_id,
                                        spike_time], axis=0)
 
     # append assignment
-    cluster_id_max = np.max(global_cluster_id)
+    if global_cluster_id.size == 0:
+        cluster_id_max = 0
+    else:
+        cluster_id_max = np.max(global_cluster_id)
     global_cluster_id = np.hstack([
         global_cluster_id,
         cluster_id + cluster_id_max + 1])
