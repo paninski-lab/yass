@@ -13,21 +13,23 @@ recordings:
   dtype: int16
   sampling_rate: 30000
   n_channels: 10
-  spatial_radius: 70
-  spike_size_ms: 1
   format: long
-
-clustering:
-  clustering_method: location
-  max_n_spikes: 10000
 
 preprocess:
   filter: True
   dtype: float32
 
 spikes:
-  detection: threshold
+  spike_size_ms: 1
   temporal_features: 3
+  spatial_radius: 70
+
+detection: 
+  method: threshold
+
+clustering:
+  method: location
+  max_n_spikes: 10000
 
 deconvolution:
   n_rf: 1.5

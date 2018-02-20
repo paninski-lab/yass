@@ -20,13 +20,14 @@ optional_sections:
     clusters: 10
     threshold: 0.95
 
-  clustering:
-    masking_threshold: [0.9, 0.5]
+  mask:
+    threshold: [0.9, 0.5]
+  
+  split_merge:
     n_split: 5
 
   templates:
     merge_threshold: [0.8, 0.7]
-
 
 fields_validator:
   recordings:
@@ -36,16 +37,19 @@ fields_validator:
         type: int
       n_channels:
         type: int
+      format:
+        values: [wide, long]
+        type: str
 
   preprocess:
     dtype:
       type: str
-
-  spikes:
-    detection:
+      
+  detection:
+    method:
       values: ['threshold', 'nn']
       type: str
-
+      
   neural_network_triage:
     filename:
       function: expand_asset_model
@@ -60,9 +64,3 @@ fields_validator:
     filename:
       function: expand_asset_model
       type: str
-
-  recordings:
-    format:
-      values: [wide, long]
-      type: str
-

@@ -13,8 +13,6 @@ recordings:
   dtype: int16
   sampling_rate: 30000
   n_channels: 10
-  spatial_radius: 70
-  spike_size_ms: 1
   format: long
 
 preprocess:
@@ -22,8 +20,16 @@ preprocess:
   dtype: float32
 
 spikes:
-  detection: threshold
+  spike_size_ms: 1
   temporal_features: 3
+  spatial_radius: 70
+
+detection: 
+  method: threshold
+
+clustering:
+  method: 'location'
+  max_n_spikes: 10000
 
 deconvolution:
   n_rf: 1.5
@@ -31,15 +37,6 @@ deconvolution:
   threshold_dd: 0
   n_explore: 2 
   upsample_factor: 5
-
-clustering:
-  clustering_method: 'location'
-  masking_threshold: [0.9, 0.5]
-  n_split: 5
-  max_n_spikes: 10000
-
-location:
-  isolation_threshold: 0
 
 neural_network_detector:
   filename: detect_nn1.ckpt
