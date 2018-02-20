@@ -28,7 +28,7 @@ def path_to_config():
     return path
 
 
-def test_process(path_to_config):
+def test_cluster(path_to_config):
     yass.set_config(path_to_config)
 
     (standarized_path, standarized_params, channel_index,
