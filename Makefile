@@ -24,6 +24,8 @@ test: ## Run Tests
 integration-test: ## Run Integration Tests
 	bash integration-test/integration-test.sh
 
+docs: ## Build docs
+	make -C doc html
 
 # self-documenting makefile as described in http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 help: ## Show this documentation
