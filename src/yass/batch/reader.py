@@ -76,12 +76,13 @@ class RecordingsReader(object):
             n_channels = params['n_channels']
             data_format = params['data_format']
 
-        loader = partial(np.memmap, mode='r') if mmap else np.fromfile
         self.output_shape = output_shape
-        self._data = loader(path_to_recordings, dtype=dtype)
         self._data_format = data_format
         self._n_channels = n_channels
         self._dtype = dtype
+
+        loader = partial(np.memmap, mode='r') if mmap else np.fromfile
+        self._data = loader(path_to_recordings, dtype=dtype)
 
         if len(self._data) % n_channels:
             raise ValueError('Wrong dimensions, length of the data does not '
@@ -261,3 +262,10 @@ class BinaryReader(object):
 
     def __del__(self):
         self.f.close()
+
+    @property
+    def shape(self):
+        return self.n_row, self.n_col
+
+    def __len__(self):
+        return self.n_row
