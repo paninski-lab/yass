@@ -151,11 +151,10 @@ class RecordingsReader(object):
         return self._data
 
 
-# TODO: where to close the file?
 # TODO: add performance considerations when reading long data
 class BinaryReader(object):
 
-    def __init__(self, path_to_file, dtype, shape, order):
+    def __init__(self, path_to_file, dtype, shape, order='C'):
         """
         Reading batches from large array binary files on disk, similar to
         numpy.memmap. It is essentially just a wrapper around Python
