@@ -149,3 +149,19 @@ class RecordingsReader(object):
         """Underlying numpy data
         """
         return self._data
+
+
+class BinaryReader(object):
+
+    def __init__(self, path_to_file, dtype, n_channels):
+        """
+        Reading batches from large array binary files on disk, similar to
+        numpy.memmap. It is essentially just a wrapper around Python
+        files API to read through large array binary file using the
+        array[:,:] syntax.
+
+        """
+        pass
+
+    def __getitem__(self, key):
+        pass
