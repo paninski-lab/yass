@@ -26,9 +26,9 @@ class RecordingsReader(object):
         Data format, it can be either 'long' (observations, channels) or
         'wide' (channels, observations)
 
-    mmap: bool
-        Whether to read the data using numpy.mmap, otherwise it reads
-        the data using numpy.fromfile
+    loader: str ('mmap', 'array' or 'python')
+        mmap  loads the datas using numpy.mmap, 'array' using numpy.fromfile
+        and 'python' loads it using a wrapper around Python file API
 
     output_shape: str, optional
         Output shape, if 'wide', all subsets will be returned in 'wide' format
@@ -56,7 +56,7 @@ class RecordingsReader(object):
     """
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
-                 data_format=None, mmap=True, output_shape='long'):
+                 data_format=None, loader='python', output_shape='long'):
 
         path_to_yaml = path_to_recordings.replace('.bin', '.yaml')
 
@@ -79,23 +79,38 @@ class RecordingsReader(object):
         self.output_shape = output_shape
         self._data_format = data_format
         self._n_channels = n_channels
-        self._dtype = dtype
+        self._dtype = dtype if not isinstance(dtype, str) else np.dtype(dtype)
 
-        loader = partial(np.memmap, mode='r') if mmap else np.fromfile
-        self._data = loader(path_to_recordings, dtype=dtype)
+        filesize = os.path.getsize(path_to_recordings)
 
-        if len(self._data) % n_channels:
-            raise ValueError('Wrong dimensions, length of the data does not '
+        if not (filesize / self._dtype.itemsize).is_integer():
+            raise ValueError('Wrong filesize and/or dtype, filesize {:, }'
+                             'bytes is not divisible by the item size {}'
+                             ' bytes'.format(filesize, self._dtype.itemsize))
+
+        if int(filesize / self._dtype.itemsize) % n_channels:
+            raise ValueError('Wrong n_channels, length of the data does not '
                              'match number of n_channels (observations % '
                              'n_channels != 0, verify that the number of '
                              'n_channels and/or the dtype are correct')
 
-        self._n_observations = int(len(self._data)/n_channels)
+        self._n_observations = int(filesize / self._dtype.itemsize /
+                                   n_channels)
 
-        dim = ((n_channels, self._n_observations) if data_format == 'wide' else
-               (self._n_observations, n_channels))
+        if loader not in ['mmap', 'array', 'python']:
+            raise ValueError("loader must be one of 'mmap', 'array' or "
+                             "'python'")
 
-        self._data = self._data.reshape(dim)
+        shape = ((n_channels, self._n_observations) if data_format == 'wide'
+                 else (self._n_observations, n_channels))
+
+        if loader in ['mmap', 'array']:
+            fn = (partial(np.memmap, mode='r') if loader == 'mmap'
+                  else np.fromfile)
+            self._data = fn(path_to_recordings, dtype=self._dtype)
+            self._data = self._data.reshape(shape)
+        else:
+            self._data = BinaryReader(path_to_recordings, dtype, shape)
 
     def __getitem__(self, key):
 
