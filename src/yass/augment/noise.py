@@ -35,7 +35,7 @@ def noise_cov(path_to_data, dtype, n_channels, data_format, neighbors, geom,
     ch_idx, temp = order_channels_by_distance(c_ref, ch_idx, geom)
 
     rec = RecordingsReader(path_to_data, dtype=dtype, n_channels=n_channels,
-                           data_format=data_format, mmap=False)
+                           data_format=data_format, loader='array')
     rec = rec[:, ch_idx]
 
     T, C = rec.shape

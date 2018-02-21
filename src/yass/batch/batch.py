@@ -29,10 +29,13 @@ class BatchProcessor(object):
     max_memory: int or str
         Max memory to use in each batch, interpreted as bytes if int,
         if string, it can be any of {N}KB, {N}MB or {N}GB
-
     buffer_size: int, optional
         Buffer size, defaults to 0. Only relevant when performing multi-channel
         operations
+    loader: str ('mmap', 'array' or 'python'), optional
+        How to load the data. mmap loads the datas using numpy.mmap, 'array'
+        using numpy.fromfile and 'python' loads it using a wrapper
+        around Python file API. Defaults to 'python'
 
     Raises
     ------
@@ -42,11 +45,14 @@ class BatchProcessor(object):
     """
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
-                 data_format=None, max_memory=100000000, buffer_size=0):
+                 data_format=None, max_memory=100000000, buffer_size=0,
+                 loader='python'):
         self.data_format = data_format
         self.buffer_size = buffer_size
-        self.reader = RecordingsReader(path_to_recordings, dtype, n_channels,
+        self.reader = RecordingsReader(path_to_recordings,
+                                       dtype, n_channels,
                                        data_format,
+                                       loader=loader,
                                        output_shape='long')
         self.indexer = IndexGenerator(self.reader.observations,
                                       self.reader.channels,

@@ -27,8 +27,9 @@ class RecordingsReader(object):
         'wide' (channels, observations)
 
     loader: str ('mmap', 'array' or 'python')
-        mmap  loads the datas using numpy.mmap, 'array' using numpy.fromfile
-        and 'python' loads it using a wrapper around Python file API
+        How to load the data. mmap loads the datas using numpy.mmap, 'array'
+        using numpy.fromfile and 'python' loads it using a wrapper
+        around Python file API
 
     output_shape: str, optional
         Output shape, if 'wide', all subsets will be returned in 'wide' format
@@ -256,9 +257,22 @@ class BinaryReader(object):
         return batch.T
 
     def __getitem__(self, key):
-
         if not isinstance(key, tuple) or len(key) > 2:
             raise ValueError('Must pass two slice objects i.e. obj[:,:]')
+
+        for k in key:
+            if not isinstance(k, (int, slice)):
+                raise ValueError('Unsupported type for subscripts '
+                                 'must be int or slice, got {}'
+                                 .format(type(k)))
+
+        int_key = any((isinstance(k, int) for k in key))
+
+        def _convert_to_slice(k):
+            # when passing ints instead of slices array[0, 0]
+            return k if not isinstance(k, int) else slice(k, k+1, None)
+
+        key = [_convert_to_slice(k) for k in key]
 
         if any(s.step for s in key):
             raise ValueError('Step size not supported')
@@ -269,11 +283,14 @@ class BinaryReader(object):
         col = slice(_col.start or 0, _col.stop or self.n_col, None)
 
         if self.order == 'C':
-            return self._read_row_major_order(row.start, row.stop,
-                                              col.start, col.stop)
+            res = self._read_row_major_order(row.start, row.stop,
+                                             col.start, col.stop)
         else:
-            return self._read_column_major_order(row.start, row.stop,
-                                                 col.start, col.stop)
+            res = self._read_column_major_order(row.start, row.stop,
+                                                col.start, col.stop)
+
+        # convert to 1D array if either of keys was int
+        return res if not int_key else res.reshape(-1)
 
     def __del__(self):
         self.f.close()
