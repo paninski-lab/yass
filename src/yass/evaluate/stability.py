@@ -397,13 +397,13 @@ class RecordingAugmentation(object):
                       np.zeros([orig_count, 1], dtype='int'),
                       axis=1),
             np.append(aug_spt, np.ones([aug_count, 1], dtype='int'), axis=1),
-            axis=0), status
+            axis=0)
         # Gets rid of any spike times beyond the length of the augmented
         # Data set.
         aug_rec_len = length * self.batch_num_samples
         valid_idx = new_aug_spike_train[:, 0] < aug_rec_len
         new_aug_spike_train = new_aug_spike_train[valid_idx, :]
-        return new_aug_spike_train
+        return new_aug_spike_train, status
 
 
 class SpikeSortingEvaluation(object):
