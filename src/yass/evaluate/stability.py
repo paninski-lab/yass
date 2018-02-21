@@ -174,7 +174,7 @@ class RecordingAugmentation(object):
         self.template_calculator = mean_wave_calculator
         # Number of samples per batches.
         n_samp = self.template_calculator.batch_reader.batch_time_samples
-        self.batch_num_samples = n_samp 
+        self.batch_num_samples = n_samp
         self.construct_channel_map()
         self.compute_stat_summary()
         self.move_rate = move_rate
