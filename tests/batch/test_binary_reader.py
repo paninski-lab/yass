@@ -6,7 +6,7 @@ from yass.batch import BinaryReader
 
 
 @pytest.fixture
-def long_data(request):
+def data_C(request):
     temp = tempfile.NamedTemporaryFile(delete=False)
     path = temp.name
 
@@ -15,16 +15,15 @@ def long_data(request):
 
     request.addfinalizer(delete_file)
 
-    # this generates data whose contiguous bytes contain the nth observation
-    # of all channels
-    data_long = np.array(np.arange(10000)).reshape(10, 1000).T
-    data_long.tofile(path)
+    # row-major order
+    data = np.array(np.arange(1000)).reshape(10, 100)
+    data.tofile(path)
 
-    return data_long, path
+    return data, path
 
 
 @pytest.fixture
-def wide_data(request):
+def data_F(request):
     temp = tempfile.NamedTemporaryFile(delete=False)
     path = temp.name
 
@@ -33,23 +32,20 @@ def wide_data(request):
 
     request.addfinalizer(delete_file)
 
-    # this generates data whose contiguous bytes contain observations from the
-    # same channel
-    data_wide = np.array(np.arange(10000)).reshape(10, 1000)
-    data_wide.tofile(path)
+    # column-major order
+    data = np.array(np.arange(1000)).reshape(10, 100).T
+    data.tofile(path)
 
-    return data_wide, path
-
-
-def test_can_read_data_in_wide_format(wide_data):
-    data, path = wide_data
-    wide = BinaryReader(path, 'int64', 10, 'wide')
-    print(wide[1:10, 2:3], data[1:10, 2:3])
-    np.testing.assert_equal(wide[1:10, 2:3], data[1:10, 2:3])
+    return data, path
 
 
-def test_can_read_data_in_long_format(long_data):
-    data, path = long_data
-    long = BinaryReader(path, 'int64', 10, 'long')
-    print(long[1:10, 2:3], data[1:10, 2:3])
-    np.testing.assert_equal(long[1:10, 2:3], data[1:10, 2:3])
+def test_can_read_data_in_C_order(data_C):
+    data, path = data_C
+    c = BinaryReader(path, data.dtype, data.shape, 'C')
+    np.testing.assert_equal(c[1:10, 2:3], data[1:10, 2:3])
+
+
+def test_can_read_data_in_F_order(data_F):
+    data, path = data_F
+    f = BinaryReader(path, data.dtype, data.shape, 'F')
+    np.testing.assert_equal(f[1:10, 2:3], data[1:10, 2:3])

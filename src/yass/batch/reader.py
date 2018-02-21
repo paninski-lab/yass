@@ -196,11 +196,11 @@ class BinaryReader(object):
         # number of consecutive bytes to read
         to_read_bytes = n_cols_to_read * self.itemsize
 
-        # compute bytes where reading starts in column:
-        # where column starts + offset due to row_start
-        start_bytes = [c_start * self.row_size_byte +
-                       row_start * self.itemsize
-                       for c_start in range(row_start, row_end)]
+        # compute bytes where reading starts in every row:
+        # where row starts + offset due to row_start
+        start_bytes = [r_start * self.row_size_byte +
+                       col_start * self.itemsize
+                       for r_start in range(row_start, row_end)]
 
         batch = [np.frombuffer(self._read_n_bytes_from(self.f, to_read_bytes,
                                                        start),
@@ -242,13 +242,16 @@ class BinaryReader(object):
 
     def __getitem__(self, key):
 
-        if not isinstance(key, tuple):
-            raise ValueError('Must pass two slide objects i.e. obj[:,:]')
+        if not isinstance(key, tuple) or len(key) > 2:
+            raise ValueError('Must pass two slice objects i.e. obj[:,:]')
 
-        row, col = key
-
-        if row.step is not None or col.step is not None:
+        if any(s.step for s in key):
             raise ValueError('Step size not supported')
+
+        _row, _col = key
+
+        row = slice(_row.start or 0, _row.stop or self.n_row, None)
+        col = slice(_col.start or 0, _col.stop or self.n_col, None)
 
         if self.order == 'C':
             return self._read_row_major_order(row.start, row.stop,
