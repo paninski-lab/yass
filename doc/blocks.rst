@@ -2,10 +2,35 @@ Using pre-built pipeline
 ========================
 
 YASS provides with a pre-built pipeline for spike sorting, which consists of
-three parts: preprocessing, processing and decovolution.
+five parts: preprocess, detect, cluster, make templates and deconvolute.
 
-Preprocessing
--------------
+
+Preprocess
+----------
+
+.. blockdiag::
+    :desctable:
+
+    blockdiag {
+       default_fontsize = 15;
+       node_width = 120;
+       node_height = 60;
+
+
+       filter -> standarize -> whiten;
+
+       filter [label="Butterworth filter", description="Apply filtering to the n_observations x n_channels data matrix (optional)"]
+       standarize [label="Standarize", description="Standarize data matrix"]
+       whiten [label="Whitening", description="Compute whitening filter"]
+    }
+
+
+
+See :doc:`api/preprocess` documentation.
+
+
+Detect
+------
 
 .. blockdiag::
     :desctable:
@@ -27,9 +52,16 @@ Preprocessing
 
     }
 
+Cluster
+-------
 
-.. automodule:: yass.preprocess.run
-    :members:
+Templates
+---------
+
+
+Deconvolve
+----------
+
 
 
 Processing
@@ -61,10 +93,6 @@ Processing
 
     }
 
-.. automodule:: yass.process.run
-    :members:
-
-
 Deconvolution
 -------------
 
@@ -82,6 +110,3 @@ Deconvolution
        deconvolution [label="Deconvolution", description="Deconvolute unclear spikes using the templates"]
        merge [label="Merge", description="Merge all spikes to produce the final ouput"]
     }
-
-.. automodule:: yass.deconvolute.run
-    :members:

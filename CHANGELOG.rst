@@ -3,8 +3,17 @@ Changelog
 
 0.7dev
 ------
+
 * New CLI tool for training neural networks `yass train`
 * New CLI tool for exporting results to phy `yass export`
+* Separated logic in five steps: preprocess, detect, cluster templates and deconvolute
+* Improved Neural Network detector speed
+* Improved package organization
+* Updated examples
+* Added integration tests
+* Increased testing coverage
+* Some examples include links to Jupyter notebooks
+* Errors in documentation building are now tested in Travis
 
 
 0.6 (2018-02-05)

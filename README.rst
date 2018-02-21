@@ -60,7 +60,7 @@ Steinmetz`_:
     # clone repo to get the sample data
     git clone https://github.com/paninski-lab/yass
 
-    # move to the examples folder and run yass in the sample data
+    # move to the examples/ folder and run yass in the sample data
     cd yass/examples
     yass sort config_sample.yaml
 
@@ -88,7 +88,7 @@ To run tests and flake8 checks (from the root folder):
 
     pip install -r requirements.txt
 
-    pytest --flake8
+    make test
 
 
 Building documentation
@@ -109,8 +109,7 @@ To build the docs (from the root folder):
 
     pip install -r requirements.txt
 
-    cd doc
-    make html
+    make docs
 
 
 Contributors

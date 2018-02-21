@@ -31,18 +31,18 @@ def test_can_use_neural_network_detector(path_to_tests):
     detection_fname = CONFIG.neural_network_detector.filename
     ae_fname = CONFIG.neural_network_autoencoder.filename
     triage_fname = CONFIG.neural_network_triage.filename
-    (x_tf, output_tf,
-     NND, NNT) = neuralnetwork.prepare_nn(channel_index,
-                                          whiten_filter,
-                                          detection_th,
-                                          triage_th,
-                                          detection_fname,
-                                          ae_fname,
-                                          triage_fname
-                                          )
+    (x_tf, output_tf, NND,
+     NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
+                                           whiten_filter,
+                                           detection_th,
+                                           triage_th,
+                                           detection_fname,
+                                           ae_fname,
+                                           triage_fname
+                                           )
 
     neuralnetwork.run_detect_triage_featurize(data, x_tf, output_tf,
-                                              NND, NNT)
+                                              NND, NNAE, NNT)
 
 
 def test_splitting_in_batches_does_not_affect_result(path_to_tests):
@@ -67,15 +67,15 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
     detection_fname = CONFIG.neural_network_detector.filename
     ae_fname = CONFIG.neural_network_autoencoder.filename
     triage_fname = CONFIG.neural_network_triage.filename
-    (x_tf, output_tf,
-     NND, NNT) = neuralnetwork.prepare_nn(channel_index,
-                                          whiten_filter,
-                                          detection_th,
-                                          triage_th,
-                                          detection_fname,
-                                          ae_fname,
-                                          triage_fname
-                                          )
+    (x_tf, output_tf, NND,
+     NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
+                                           whiten_filter,
+                                           detection_th,
+                                           triage_th,
+                                           detection_fname,
+                                           ae_fname,
+                                           triage_fname
+                                           )
 
     # buffer size makes sure we can detect spikes if they appear at the end of
     # any batch
@@ -90,6 +90,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
         x_tf=x_tf,
         output_tf=output_tf,
         NND=NND,
+        NNAE=NNAE,
         NNT=NNT)
 
     scores_batch = np.concatenate([element[0] for element in res], axis=0)
@@ -99,7 +100,8 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
     (scores, clear,
      collision) = neuralnetwork.run_detect_triage_featurize(data, x_tf,
                                                             output_tf,
-                                                            NND, NNT)
+                                                            NND, NNAE,
+                                                            NNT)
 
     np.testing.assert_array_equal(clear_batch, clear)
     np.testing.assert_array_equal(collision_batch, collision)
