@@ -260,7 +260,5 @@ class BinaryReader(object):
             return self._read_column_major_order(row.start, row.stop,
                                                  col.start, col.stop)
 
-    def close(self):
-        """Close file
-        """
+    def __del__(self):
         self.f.close()
