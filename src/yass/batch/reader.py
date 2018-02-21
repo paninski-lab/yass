@@ -155,75 +155,82 @@ class RecordingsReader(object):
 # TODO: add performance considerations when reading long data
 class BinaryReader(object):
 
-    def __init__(self, path_to_file, dtype, n_channels, data_shape):
+    def __init__(self, path_to_file, dtype, shape, order):
         """
         Reading batches from large array binary files on disk, similar to
         numpy.memmap. It is essentially just a wrapper around Python
         files API to read through large array binary file using the
         array[:,:] syntax.
 
+        Parameters
+        ----------
+        order: str
+            Array order 'C' for 'Row-major order' or 'F' for
+            'Column-major order'
+
+
+        Notes
+        -----
+        https://en.wikipedia.org/wiki/Row-_and_column-major_order
         """
-        filesize = os.path.getsize(path_to_file)
+        if order not in ('C', 'F'):
+            raise ValueError('order must be either "C" or "F"')
 
-        if data_shape not in ('long', 'wide'):
-            raise ValueError('data_shape must be either "long" or "wide"')
-
-        if not (filesize / n_channels).is_integer():
-            raise ValueError('Wrong file size: not divisible by number of '
-                             'channels')
-
-        self.data_shape = data_shape
+        self.order = order
         self.dtype = dtype if not isinstance(dtype, str) else np.dtype(dtype)
         self.itemsize = self.dtype.itemsize
-        self.n_observations = filesize / n_channels / self.dtype.itemsize
-        self.n_channels = n_channels
+        self.n_row, self.n_col = shape
         self.f = open(path_to_file, 'rb')
-        self.channel_size_byte = self.itemsize * self.n_observations
+        self.row_size_byte = self.itemsize * self.n_col
+        self.col_size_byte = self.itemsize * self.n_row
 
     def _read_n_bytes_from(self, f, n, start):
         f.seek(int(start))
         return f.read(n)
 
-    def _read_wide_data(self, obs_start, obs_end, ch_start, ch_end):
-        obs_to_read = obs_end - obs_start
+    def _read_row_major_order(self, row_start, row_end, col_start, col_end):
+        """Data where contiguous bytes are from the same row
+        """
+        # number of consecutive observations to read
+        n_cols_to_read = col_end - col_start
+        # number of consecutive bytes to read
+        to_read_bytes = n_cols_to_read * self.itemsize
 
-        # compute bytes where reading starts in every channel:
-        # where channel starts + offset due to obs_start
-        start_bytes = [start * self.channel_size_byte +
-                       obs_start * self.itemsize
-                       for start in range(ch_start, ch_end)]
-
-        # bytes to read in every channel
-        to_read_bytes = obs_to_read * self.itemsize
+        # compute bytes where reading starts in column:
+        # where column starts + offset due to row_start
+        start_bytes = [c_start * self.row_size_byte +
+                       row_start * self.itemsize
+                       for c_start in range(row_start, row_end)]
 
         batch = [np.frombuffer(self._read_n_bytes_from(self.f, to_read_bytes,
                                                        start),
                                dtype=self.dtype)
                  for start in start_bytes]
 
-        return np.array(batch).T
+        return np.array(batch)
 
-    def _read_long_data(self, obs_start, obs_end, ch_start, ch_end):
+    def _read_column_major_order(self, row_start, row_end, col_start, col_end):
+        """Data where contiguous bytes are from the same column
+        """
+        n_cols_to_read = col_end - col_start
 
-        obs_start_byte = obs_start * self.itemsize
-        obs_to_read = obs_end - obs_start
+        # compute the byte size of going from the nth row from column
+        # i - 1 to the nth observation of column i
+        jump_size_byte = self.col_size_byte
 
-        # compute the byte size of going from the n -1 observation from channel
-        # k to the n observation of channel k
-        jump_size_byte = self.itemsize * self.n_channels
-
-        # compute start poisition (first observation on first desired channel)
-        # = observation 0 in first selected channel + offset to move to
-        # first desired observation in first selected channel
-        start_byte = obs_start_byte * ch_start + jump_size_byte * obs_start
+        # compute start poisition (first row on first desired col)
+        # = observation 0 in first selected column + offset to move to
+        # first desired row in first selected column
+        start_byte = (self.col_size_byte * col_start +
+                      row_start * self.itemsize)
 
         # how many consecutive bytes
-        ch_to_read = ch_end - ch_start
-        to_read_bytes = self.itemsize * ch_to_read
+        rows_to_read = row_end - row_start
+        to_read_bytes = self.itemsize * rows_to_read
 
-        # compute seek poisitions (first observation on desired channels)
+        # compute seek poisitions (first observation on desired columns)
         start_bytes = [start_byte + jump_size_byte * offset for offset in
-                       range(obs_to_read)]
+                       range(n_cols_to_read)]
 
         batch = [np.frombuffer(self._read_n_bytes_from(self.f, to_read_bytes,
                                                        start),
@@ -231,22 +238,24 @@ class BinaryReader(object):
                  for start in start_bytes]
         batch = np.array(batch)
 
-        return batch
+        return batch.T
 
     def __getitem__(self, key):
 
         if not isinstance(key, tuple):
             raise ValueError('Must pass two slide objects i.e. obj[:,:]')
 
-        obs, ch = key
+        row, col = key
 
-        if obs.step is not None or ch.step is not None:
+        if row.step is not None or col.step is not None:
             raise ValueError('Step size not supported')
 
-        if self.data_shape == 'long':
-            return self._read_long_data(obs.start, obs.stop, ch.start, ch.stop)
+        if self.order == 'C':
+            return self._read_row_major_order(row.start, row.stop,
+                                              col.start, col.stop)
         else:
-            return self._read_wide_data(obs.start, obs.stop, ch.start, ch.stop)
+            return self._read_column_major_order(row.start, row.stop,
+                                                 col.start, col.stop)
 
     def close(self):
         """Close file

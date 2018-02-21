@@ -1,55 +1,55 @@
 import os
+import tempfile
+import pytest
 import numpy as np
+from yass.batch import BinaryReader
 
 
-# generate some sample data
-# this generates data whose contiguous bytes contain observations from the
-# same channel
-data_wide = np.array(np.arange(10000)).reshape(10, 1000)
-data_wide.tofile('data_wide.bin')
+@pytest.fixture
+def long_data(request):
+    temp = tempfile.NamedTemporaryFile(delete=False)
+    path = temp.name
 
-# this generates data whose contiguous bytes contain the nth observation
-# of all channels
-data_long = data_wide.T
-data_long.tofile('data_long.bin')
+    def delete_file():
+        os.unlink(path)
 
+    request.addfinalizer(delete_file)
 
-data_wide.T[1:10, 2:3]
-data_long[1:10, 2:3]
+    # this generates data whose contiguous bytes contain the nth observation
+    # of all channels
+    data_long = np.array(np.arange(10000)).reshape(10, 1000).T
+    data_long.tofile(path)
 
-wide = BinaryReader('data_wide.bin', 'int64', 10, 'wide')
-wide[1:10, 2:3]
-
-long = BinaryReader('data_long.bin', 'int64', 10, 'long')
-long[1:10, 2:3]
-
-map_wide = np.memmap('data_wide.bin', 'int64', shape=(10, 1000)).T
-map_wide[1:10, 2:3]
-
-map_long = np.memmap('data_long.bin', 'int64', shape=(1000, 10))
-map_long[1:10, 2:3]
+    return data_long, path
 
 
-big_data_wide = np.array(np.arange(10000000)).reshape(100, 100000).astype('int32')
-big_data_wide.tofile('big_data_wide.bin')
-big_data_long = big_data_wide.T
-big_data_long.tofile('big_data_long.bin')
+@pytest.fixture
+def wide_data(request):
+    temp = tempfile.NamedTemporaryFile(delete=False)
+    path = temp.name
 
-wide = BinaryReader('big_data_wide.bin', 'int64', 10, 'wide')
-map_wide = np.memmap('big_data_wide.bin', 'int64', shape=(10, 1000)).T
+    def delete_file():
+        os.unlink(path)
 
-%%timeit
-wide[1000:2000, 5:8]
+    request.addfinalizer(delete_file)
 
-%%timeit
-map_wide[1000:2000, 5:8]
+    # this generates data whose contiguous bytes contain observations from the
+    # same channel
+    data_wide = np.array(np.arange(10000)).reshape(10, 1000)
+    data_wide.tofile(path)
+
+    return data_wide, path
 
 
-long = BinaryReader('data_long.bin', 'int64', 10, 'long')
-map_long = np.memmap('data_long.bin', 'int64', shape=(1000, 10))
+def test_can_read_data_in_wide_format(wide_data):
+    data, path = wide_data
+    wide = BinaryReader(path, 'int64', 10, 'wide')
+    print(wide[1:10, 2:3], data[1:10, 2:3])
+    np.testing.assert_equal(wide[1:10, 2:3], data[1:10, 2:3])
 
-%%timeit
-long[1000:2000, 5:8]
 
-%%timeit
-map_long[1000:2000, 5:8]
+def test_can_read_data_in_long_format(long_data):
+    data, path = long_data
+    long = BinaryReader(path, 'int64', 10, 'long')
+    print(long[1:10, 2:3], data[1:10, 2:3])
+    np.testing.assert_equal(long[1:10, 2:3], data[1:10, 2:3])
