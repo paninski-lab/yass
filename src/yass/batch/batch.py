@@ -314,7 +314,8 @@ class BatchProcessor(object):
     def multi_channel_apply(self, function, mode, cleanup_function=None,
                             output_path=None, from_time=None, to_time=None,
                             channels='all', if_file_exists='overwrite',
-                            cast_dtype=None, pass_batch_info=False, **kwargs):
+                            cast_dtype=None, pass_batch_info=False,
+                            pass_batch_results=False, **kwargs):
         """
         Apply a function where each batch has observations from more than
         one channel
@@ -329,6 +330,7 @@ class BatchProcessor(object):
             the limits of the data in [observations, channels] format
             (excluding the buffer), third parameter is the absolute index of
             the data again in [observations, channels] format
+
         mode: str
             'disk' or 'memory', if 'disk', a binary file is created at the
             beginning of the operation and each partial result is saved
@@ -337,6 +339,7 @@ class BatchProcessor(object):
             file with some file parameters (useful if you want to later use
             RecordingsReader to read the file). If 'memory', partial results
             are kept in memory and returned as a list
+
         cleanup_function: callable, optional
             A function to be executed after `function` and before adding the
             partial result to the list of results (if `memory` mode) or to the
@@ -345,30 +348,43 @@ class BatchProcessor(object):
             `function` to the batch, slice object with the idx where the data
             is located (exludes buffer), slice object with the absolute
             location of the data and buffer size
+
         output_path: str, optional
             Where to save the output, required if 'disk' mode
+
         force_complete_channel_batch: bool, optional
             If True, every index generated will correspond to all the
             observations in a single channel, hence
             n_batches = n_selected_channels, defaults to True. If True
             from_time and to_time must be None
+
         from_time: int, optional
             Starting time, defaults to None
+
         to_time: int, optional
             Ending time, defaults to None
+
         channels: int, tuple or str, optional
             A tuple with the channel indexes or 'all' to traverse all channels,
             defaults to 'all'
+
         if_file_exists: str, optional
             One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces the
             file if it exists, if 'abort' if raise a ValueError exception if
             the file exists, if 'skip' if skips the operation if the file
             exists. Only valid when mode = 'disk'
+
         cast_dtype: str, optional
             Output dtype, defaults to None which means no cast is done
+
         pass_batch_info: bool, optional
             Whether to call the function with batch info or just call it with
             the batch data (see description in the function) parameter
+
+        pass_batch_results: bool, optional
+            Whether to pass results from the previous batch to the next one,
+            defaults to False
+
         **kwargs
             kwargs to pass to function
 
@@ -434,7 +450,8 @@ class BatchProcessor(object):
 
             start = time.time()
             res = fn(function, cleanup_function, output_path, from_time,
-                     to_time, channels, cast_dtype, pass_batch_info, **kwargs)
+                     to_time, channels, cast_dtype, pass_batch_info,
+                     pass_batch_results, **kwargs)
             elapsed = time.time() - start
             self.logger.info('{} took {}'
                              .format(function_path(function),
@@ -445,17 +462,18 @@ class BatchProcessor(object):
 
             start = time.time()
             res = fn(function, cleanup_function, from_time, to_time, channels,
-                     cast_dtype, pass_batch_info, **kwargs)
+                     cast_dtype, pass_batch_info, pass_batch_results,
+                     **kwargs)
             elapsed = time.time() - start
             self.logger.info('{} took {}'
                              .format(function_path(function),
                                      human_readable_time(elapsed)))
             return res
 
-
     def _multi_channel_apply_disk(self, function, cleanup_function,
                                   output_path, from_time, to_time, channels,
-                                  cast_dtype, pass_batch_info, **kwargs):
+                                  cast_dtype, pass_batch_info,
+                                  pass_batch_results, **kwargs):
         f = open(output_path, 'wb')
 
         self.reader.output_shape = 'long'
@@ -499,7 +517,8 @@ class BatchProcessor(object):
 
     def _multi_channel_apply_memory(self, function, cleanup_function,
                                     from_time, to_time, channels, cast_dtype,
-                                    pass_batch_info, **kwargs):
+                                    pass_batch_info, pass_batch_results,
+                                    **kwargs):
 
         data = self.multi_channel(from_time, to_time, channels)
         results = []
