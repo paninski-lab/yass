@@ -243,6 +243,74 @@ class BatchProcessor(object):
                                      human_readable_time(elapsed)))
             return res
 
+    def _single_channel_apply_disk(self, function, output_path,
+                                   force_complete_channel_batch, from_time,
+                                   to_time, channels, cast_dtype, **kwargs):
+        f = open(output_path, 'wb')
+
+        self.reader.output_shape = 'wide'
+        indexes = self.indexer.single_channel(force_complete_channel_batch,
+                                              from_time, to_time,
+                                              channels)
+        for i, idx in enumerate(indexes):
+            self.logger.debug('Processing channel {}...'.format(i))
+            self.logger.debug('Reading batch...')
+            subset = self.reader[idx]
+
+            if cast_dtype is None:
+                res = function(subset, **kwargs)
+            else:
+                res = function(subset, **kwargs).astype(cast_dtype)
+
+            self.logger.debug('Writing to disk...')
+            res.tofile(f)
+
+        dtype = str(res.dtype)
+
+        if channels == 'all':
+            n_channels = self.reader.channels
+        elif isinstance(channels, numbers.Integral):
+            n_channels = 1
+        else:
+            n_channels = len(channels)
+
+        f.close()
+
+        # save yaml file with params
+        path_to_yaml = output_path.replace('.bin', '.yaml')
+
+        params = dict(dtype=dtype, n_channels=n_channels, data_format='wide')
+
+        with open(path_to_yaml, 'w') as f:
+            self.logger.debug('Saving params...')
+            yaml.dump(params, f)
+
+        return output_path, params
+
+    def _single_channel_apply_memory(self, function,
+                                     force_complete_channel_batch, from_time,
+                                     to_time, channels, cast_dtype, **kwargs):
+
+        indexes = self.indexer.single_channel(force_complete_channel_batch,
+                                              from_time, to_time,
+                                              channels)
+        results = []
+
+        for i, idx in enumerate(indexes):
+            self.logger.debug('Processing channel {}...'.format(i))
+            self.logger.debug('Reading batch...')
+            subset = self.reader[idx]
+
+            if cast_dtype is None:
+                res = function(subset, **kwargs)
+            else:
+                res = function(subset, **kwargs).astype(cast_dtype)
+
+            self.logger.debug('Appending partial result...')
+            results.append(res)
+
+        return results
+
     def multi_channel_apply(self, function, mode, cleanup_function=None,
                             output_path=None, from_time=None, to_time=None,
                             channels='all', if_file_exists='overwrite',
@@ -384,73 +452,6 @@ class BatchProcessor(object):
                                      human_readable_time(elapsed)))
             return res
 
-    def _single_channel_apply_disk(self, function, output_path,
-                                   force_complete_channel_batch, from_time,
-                                   to_time, channels, cast_dtype, **kwargs):
-        f = open(output_path, 'wb')
-
-        self.reader.output_shape = 'wide'
-        indexes = self.indexer.single_channel(force_complete_channel_batch,
-                                              from_time, to_time,
-                                              channels)
-        for i, idx in enumerate(indexes):
-            self.logger.debug('Processing channel {}...'.format(i))
-            self.logger.debug('Reading batch...')
-            subset = self.reader[idx]
-
-            if cast_dtype is None:
-                res = function(subset, **kwargs)
-            else:
-                res = function(subset, **kwargs).astype(cast_dtype)
-
-            self.logger.debug('Writing to disk...')
-            res.tofile(f)
-
-        dtype = str(res.dtype)
-
-        if channels == 'all':
-            n_channels = self.reader.channels
-        elif isinstance(channels, numbers.Integral):
-            n_channels = 1
-        else:
-            n_channels = len(channels)
-
-        f.close()
-
-        # save yaml file with params
-        path_to_yaml = output_path.replace('.bin', '.yaml')
-
-        params = dict(dtype=dtype, n_channels=n_channels, data_format='wide')
-
-        with open(path_to_yaml, 'w') as f:
-            self.logger.debug('Saving params...')
-            yaml.dump(params, f)
-
-        return output_path, params
-
-    def _single_channel_apply_memory(self, function,
-                                     force_complete_channel_batch, from_time,
-                                     to_time, channels, cast_dtype, **kwargs):
-
-        indexes = self.indexer.single_channel(force_complete_channel_batch,
-                                              from_time, to_time,
-                                              channels)
-        results = []
-
-        for i, idx in enumerate(indexes):
-            self.logger.debug('Processing channel {}...'.format(i))
-            self.logger.debug('Reading batch...')
-            subset = self.reader[idx]
-
-            if cast_dtype is None:
-                res = function(subset, **kwargs)
-            else:
-                res = function(subset, **kwargs).astype(cast_dtype)
-
-            self.logger.debug('Appending partial result...')
-            results.append(res)
-
-        return results
 
     def _multi_channel_apply_disk(self, function, cleanup_function,
                                   output_path, from_time, to_time, channels,
