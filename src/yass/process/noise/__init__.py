@@ -1,3 +1,0 @@
-"""
-Processing noise from recordings
-"""

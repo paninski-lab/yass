@@ -5,6 +5,9 @@ API Reference
     :maxdepth: 2
 
     api/preprocess
-    api/process
+    api/detect
+    api/cluster
+    api/templates
+    api/deconvolute
     api/geometry
     api/batch

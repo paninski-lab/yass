@@ -9,7 +9,9 @@ import pytest
 
 import yass
 from yass import preprocess
-from yass import process
+from yass import detect
+from yass import cluster
+from yass import templates
 from yass import reset_config
 
 from util import clean_tmp
@@ -27,16 +29,25 @@ def path_to_config():
     return path
 
 
-def test_process(path_to_config):
+def test_templates(path_to_config):
     yass.set_config(path_to_config)
 
-    clear_scores, spike_index_clear, spike_index_collision = preprocess.run()
+    (standarized_path, standarized_params, channel_index,
+     whiten_filter) = preprocess.run()
 
-    (spike_train_clear, templates,
-     spike_index_collision) = process.run(clear_scores, spike_index_clear,
-                                          spike_index_collision)
+    (score, spike_index_clear,
+     spike_index_all) = detect.run(standarized_path,
+                                   standarized_params,
+                                   channel_index,
+                                   whiten_filter)
+
+    spike_train_clear = cluster.run(score, spike_index_clear)
+
+    templates.run(spike_train_clear)
+
+    clean_tmp()
 
 
 def test_new_process_shows_error_if_empty_config():
     with pytest.raises(ValueError):
-        process.run(None, None, None)
+        cluster.run(None, None)

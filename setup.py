@@ -23,6 +23,9 @@ EMAIL = 'fkq8@blancas.io'
 AUTHOR = 'Peter Lee, Eduardo Blancas'
 LICENSE = 'Apache'
 
+# to be compatible with python 2...
+INSTALL_REQUIRES_DOCS = ['pathlib2', 'funcsigs']
+
 INSTALL_REQUIRES = [
     'numpy', 'scipy', 'scikit-learn', 'tensorflow', 'pyyaml',
     'python-dateutil', 'click',
@@ -30,11 +33,12 @@ INSTALL_REQUIRES = [
     'progressbar2',
     # FIXME: stability metric depends on this, remove...
     'tqdm'
-]
+] + INSTALL_REQUIRES_DOCS
 
 # pass an empty INSTALL_REQUIRES if building the docs, to avoid breaking the
 # build, modules are mocked in conf.py
-INSTALL_REQUIRES = [] if os.environ.get('READTHEDOCS') else INSTALL_REQUIRES
+INSTALL_REQUIRES = (INSTALL_REQUIRES_DOCS if os.environ.get('READTHEDOCS')
+                    else INSTALL_REQUIRES)
 
 here = os.path.abspath(os.path.dirname(__file__))
 
