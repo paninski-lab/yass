@@ -428,6 +428,30 @@ class BatchProcessor(object):
 
         return output_path, params
 
+    def _single_channel_apply_memory(self, function,
+                                     force_complete_channel_batch, from_time,
+                                     to_time, channels, cast_dtype, **kwargs):
+
+        indexes = self.indexer.single_channel(force_complete_channel_batch,
+                                              from_time, to_time,
+                                              channels)
+        results = []
+
+        for i, idx in enumerate(indexes):
+            self.logger.debug('Processing channel {}...'.format(i))
+            self.logger.debug('Reading batch...')
+            subset = self.reader[idx]
+
+            if cast_dtype is None:
+                res = function(subset, **kwargs)
+            else:
+                res = function(subset, **kwargs).astype(cast_dtype)
+
+            self.logger.debug('Appending partial result...')
+            results.append(res)
+
+        return results
+
     def _multi_channel_apply_disk(self, function, cleanup_function,
                                   output_path, from_time, to_time, channels,
                                   cast_dtype, pass_batch_info, **kwargs):
@@ -471,30 +495,6 @@ class BatchProcessor(object):
             yaml.dump(params, f)
 
         return output_path, params
-
-    def _single_channel_apply_memory(self, function,
-                                     force_complete_channel_batch, from_time,
-                                     to_time, channels, cast_dtype, **kwargs):
-
-        indexes = self.indexer.single_channel(force_complete_channel_batch,
-                                              from_time, to_time,
-                                              channels)
-        results = []
-
-        for i, idx in enumerate(indexes):
-            self.logger.debug('Processing channel {}...'.format(i))
-            self.logger.debug('Reading batch...')
-            subset = self.reader[idx]
-
-            if cast_dtype is None:
-                res = function(subset, **kwargs)
-            else:
-                res = function(subset, **kwargs).astype(cast_dtype)
-
-            self.logger.debug('Appending partial result...')
-            results.append(res)
-
-        return results
 
     def _multi_channel_apply_memory(self, function, cleanup_function,
                                     from_time, to_time, channels, cast_dtype,
