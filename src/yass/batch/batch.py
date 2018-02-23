@@ -550,7 +550,9 @@ class BatchProcessor(object):
             if pass_batch_results:
                 kwargs_other['previous_batch'] = previous_batch
 
-            res = function(subset, **kwargs_other, **kwargs)
+            kwargs.update(kwargs_other)
+
+            res = function(subset, **kwargs)
 
             if cast_dtype is not None:
                 res = res.astype(cast_dtype)
