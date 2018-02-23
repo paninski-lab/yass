@@ -383,7 +383,7 @@ class BatchProcessor(object):
 
         pass_batch_results: bool, optional
             Whether to pass results from the previous batch to the next one,
-            defaults to False
+            defaults to False. Only relevant when mode='memory'
 
         **kwargs
             kwargs to pass to function
@@ -393,9 +393,10 @@ class BatchProcessor(object):
         output_path, params (when mode is 'disk')
             Path to output binary file, Binary file params
 
-        list (when mode is 'memory')
+        list (when mode is 'memory' and pass_batch_results is False)
             List where every element is the result of applying the function
-            to one batch
+            to one batch. When pass_batch_results is True, it returns the
+            output of the function for the last batch
 
         Examples
         --------
@@ -474,19 +475,27 @@ class BatchProcessor(object):
                                   output_path, from_time, to_time, channels,
                                   cast_dtype, pass_batch_info,
                                   pass_batch_results, **kwargs):
+
+        if pass_batch_results:
+            raise NotImplementedError("pass_batch_results is not "
+                                      "implemented on 'disk' mode")
+
         f = open(output_path, 'wb')
 
         self.reader.output_shape = 'long'
         data = self.multi_channel(from_time, to_time, channels)
 
-        for subset, idx_local, idx in data:
+        for i, (subset, idx_local, idx) in enumerate(data):
+
+            kwargs_other = dict()
 
             if pass_batch_info:
-                res = function(subset, idx_local, idx, **kwargs)
-            else:
-                res = function(subset, **kwargs)
+                kwargs_other['idx_local'] = idx_local
+                kwargs_other['idx'] = idx
 
-            if pass_batch_info:
+            res = function(subset, **kwargs_other, **kwargs)
+
+            if cast_dtype is not None:
                 res = res.astype(cast_dtype)
 
             if cleanup_function:
@@ -521,14 +530,22 @@ class BatchProcessor(object):
                                     **kwargs):
 
         data = self.multi_channel(from_time, to_time, channels)
-        results = []
 
-        for subset, idx_local, idx in data:
+        results = []
+        previous_batch = None
+
+        for i, (subset, idx_local, idx) in enumerate(data):
+
+            kwargs_other = dict()
 
             if pass_batch_info:
-                res = function(subset, idx_local, idx, **kwargs)
-            else:
-                res = function(subset, **kwargs)
+                kwargs_other['idx_local'] = idx_local
+                kwargs_other['idx'] = idx
+
+            if pass_batch_results:
+                kwargs_other['previous_batch'] = previous_batch
+
+            res = function(subset, **kwargs_other, **kwargs)
 
             if cast_dtype is not None:
                 res = res.astype(cast_dtype)
@@ -536,6 +553,9 @@ class BatchProcessor(object):
             if cleanup_function:
                 res = cleanup_function(res, idx_local, idx, self.buffer_size)
 
-            results.append(res)
+            if pass_batch_results:
+                previous_batch = res
+            else:
+                results.append(res)
 
-        return results
+        return previous_batch if pass_batch_results else results
