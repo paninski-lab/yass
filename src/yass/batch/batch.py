@@ -496,7 +496,9 @@ class BatchProcessor(object):
                 kwargs_other['idx_local'] = idx_local
                 kwargs_other['idx'] = idx
 
-            res = function(subset, **kwargs_other, **kwargs)
+            kwargs.update(kwargs_other)
+
+            res = function(subset, **kwargs)
 
             if cast_dtype is not None:
                 res = res.astype(cast_dtype)
