@@ -325,10 +325,10 @@ class BatchProcessor(object):
         function: callable
             Function to be applied, first parameter passed will be a 2D numpy
             array in 'long' shape (number of observations, number of
-            channels). If pass_batch_info is True, another two parameters will
-            be passed to function: second parameter is the slice object with
-            the limits of the data in [observations, channels] format
-            (excluding the buffer), third parameter is the absolute index of
+            channels). If pass_batch_info is True, another two keyword
+            parameters will be passed to function: 'idx_local' is the slice
+            object with the limits of the data in [observations, channels]
+            format (excluding the buffer), 'idx' is the absolute index of
             the data again in [observations, channels] format
 
         mode: str
@@ -383,7 +383,10 @@ class BatchProcessor(object):
 
         pass_batch_results: bool, optional
             Whether to pass results from the previous batch to the next one,
-            defaults to False. Only relevant when mode='memory'
+            defaults to False. Only relevant when mode='memory'. If True,
+            function will be called with the keyword parameter
+            'previous_batch' which contains the computation for the last
+            batch, it is set to None in the first batch
 
         **kwargs
             kwargs to pass to function
