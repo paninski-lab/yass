@@ -62,7 +62,10 @@ class RecordingBatchIterator(object):
         self.n_batches = n_batches
         self.n_chan = n_chan
         self.radius = radius
-        self.geometry = np.genfromtxt(geom_file, delimiter=' ')
+        if geom_file.endswith('.txt'):
+            self.geometry = np.genfromtxt(geom_file, delimiter=' ')
+        elif geom_file.endswith('.npy'):
+            self.geometry = np.load('geom_file')
         self.neighbs = find_channel_neighbors(
             self.geometry, self.radius)
         self.filter_std = filter_std

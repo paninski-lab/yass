@@ -27,7 +27,7 @@ class Analyzer(object):
         self.config = config
         self.gold_std_spike_train = gold_std_spike_train
 
-    def run(self):
+    def run(self, n_batches=6):
         """Runs the analyses on the dataset indicated in config."""
 
         config_file = open(self.config, 'r')
@@ -44,13 +44,15 @@ class Analyzer(object):
         # Set up the pyplot figures
         # TODO(hooshmand): Set a name based on config file or user input.
         plot_name = "Data"
-        stb_plot = ChristmasPlot(plot_name, k_tot_data, eval_type='Stability')
-        acc_plot = ChristmasPlot(plot_name, k_tot_data)
+        stb_plot = ChristmasPlot(plot_name, 1, eval_type='Stability')
+        acc_plot = ChristmasPlot(plot_name, 1)
 
         # Passing the config to pipeline to be run.
-        bin_file = config['data']['recordings']
-        geom_file = config['data']['geometry']
+        root_dir = config['data']['root_folder']
+        bin_file = os.path.join(root_dir, config['data']['recordings'])
+        geom_file = os.path.join(root_dir, config['data']['geometry'])
         spike_train = run(config=config)
+        print spike_train.shape
         # Data augmentation setup.
         os.path.getsize(bin_file)
         file_size_bytes = os.path.getsize(bin_file)
