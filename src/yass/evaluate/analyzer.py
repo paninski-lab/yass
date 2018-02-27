@@ -51,8 +51,7 @@ class Analyzer(object):
         root_dir = config['data']['root_folder']
         bin_file = os.path.join(root_dir, config['data']['recordings'])
         geom_file = os.path.join(root_dir, config['data']['geometry'])
-        spike_train = run(config=config)
-        print spike_train.shape
+        spike_train = run(config=config) 
         # Data augmentation setup.
         os.path.getsize(bin_file)
         file_size_bytes = os.path.getsize(bin_file)
