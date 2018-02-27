@@ -12,7 +12,7 @@ from yass.pipeline import run
 
 
 class Analyzer(object):
-"""Class that analyzes the performance of yass on a certain dataset"""
+    """Class that analyzes the performance of yass on a certain dataset"""
 
     def __init__(self, config, gold_std_spike_train):
         """Sets up the analyzer object with configurations.
