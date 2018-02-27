@@ -7,7 +7,7 @@ from yass.evaluate.stability import (MeanWaveCalculator,
                                      RecordingAugmentation,
                                      RecordingBatchIterator,
                                      SpikeSortingEvaluation)
-from yass.evaluate.visualization import ChristmassPlot
+from yass.evaluate.visualization import ChristmasPlot
 from yass.pipeline import run
 
 
