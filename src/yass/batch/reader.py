@@ -225,28 +225,19 @@ class BinaryReader(object):
 
         return np.array(batch)
 
-    def _read_column_major_order(self, row_start, row_end, col_start, col_end):
+    def _read_column_major_order(self, row_start, row_end, cols):
         """Data where contiguous bytes are from the same column
         """
-        n_cols_to_read = col_end - col_start
+        # compute "row_start" position:
+        start_byte = row_start * self.itemsize
 
-        # compute the byte size of going from the nth row from column
-        # i - 1 to the nth observation of column i
-        jump_size_byte = self.col_size_byte
-
-        # compute start poisition (first row on first desired col)
-        # = observation 0 in first selected column + offset to move to
-        # first desired row in first selected column
-        start_byte = (self.col_size_byte * col_start +
-                      row_start * self.itemsize)
-
-        # how many consecutive bytes
+        # how many consecutive bytes in each read
         rows_to_read = row_end - row_start
         to_read_bytes = self.itemsize * rows_to_read
 
-        # compute seek poisitions (first observation on desired columns)
-        start_bytes = [start_byte + jump_size_byte * offset for offset in
-                       range(n_cols_to_read)]
+        # compute seek poisitions (first "row_start "observation on
+        # desired columns)
+        start_bytes = [col * self.col_size_byte + start_byte for col in cols]
 
         batch = [np.frombuffer(self._read_n_bytes_from(self.f, to_read_bytes,
                                                        start),
@@ -279,15 +270,17 @@ class BinaryReader(object):
 
         _row, _col = key
 
+        # fill slices in case they are [:X] or [X:]
         row = slice(_row.start or 0, _row.stop or self.n_row, None)
         col = slice(_col.start or 0, _col.stop or self.n_col, None)
+
+        cols = range(col.start, col.stop)
 
         if self.order == 'C':
             res = self._read_row_major_order(row.start, row.stop,
                                              col.start, col.stop)
         else:
-            res = self._read_column_major_order(row.start, row.stop,
-                                                col.start, col.stop)
+            res = self._read_column_major_order(row.start, row.stop, cols)
 
         # convert to 1D array if either of keys was int
         return res if not int_key else res.reshape(-1)
