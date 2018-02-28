@@ -107,7 +107,7 @@ class RecordingsReader(object):
                 return np.fromfile(path, dtype=dtype).reshape(shape[::-1]).T
 
         if loader in ['mmap', 'array']:
-            fn = (partial(np.memmap, mode='r', shape=shape,
+            fn = (partial(MemoryMap, mode='r', shape=shape,
                           order=order[data_format])
                   if loader == 'mmap' else partial(fromfile,
                                                    data_format=data_format,
@@ -170,7 +170,6 @@ class RecordingsReader(object):
         return self._data
 
 
-# TODO: add performance considerations when reading long data
 class BinaryReader(object):
 
     def __init__(self, path_to_file, dtype, shape, order='F'):
@@ -232,11 +231,6 @@ class BinaryReader(object):
                  for start in start_bytes]
 
         return np.array(batch)
-
-    def _read_row_major_order_columns_iterable(self, rows, cols):
-        row_starts = [row * self.row_size_byte for row in rows]
-
-        # generate cell starts using row_starts and cols
 
     def _read_column_major_order(self, row_start, row_end, cols):
         """Data where contiguous bytes are from the same column
@@ -319,3 +313,11 @@ class BinaryReader(object):
 
     def __len__(self):
         return self.n_row
+
+
+class MemoryMap(np.memmap):
+    """Subclass of numpy.memmap that returns np.ndarray when indexing
+    """
+    def __getitem__(self, index):
+        res = super(MemoryMap, self).__getitem__(index)
+        return np.array(res)
