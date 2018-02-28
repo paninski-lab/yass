@@ -1,7 +1,7 @@
 import os
 import yaml
 import numpy as np
-from functools import partial
+from functools import partial, reduce
 from collections import Iterable
 
 
@@ -206,6 +206,10 @@ class BinaryReader(object):
         f.seek(int(start))
         return f.read(n)
 
+    def _read_from_starts(self, f, starts):
+        b = [self._read_n_bytes_from(f, n=1, start=s) for s in starts]
+        return reduce(lambda x, y: x+y, b)
+
     def _read_row_major_order(self, rows, col_start, col_end):
         """Data where contiguous bytes are from the same row (C, row-major)
         """
@@ -228,6 +232,11 @@ class BinaryReader(object):
                  for start in start_bytes]
 
         return np.array(batch)
+
+    def _read_row_major_order_columns_iterable(self, rows, cols):
+        row_starts = [row * self.row_size_byte for row in rows]
+
+        # generate cell starts using row_starts and cols
 
     def _read_column_major_order(self, row_start, row_end, cols):
         """Data where contiguous bytes are from the same column
