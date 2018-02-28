@@ -35,4 +35,3 @@ def temp_snr(templates):
     for unit, c in enumerate(main_channels(templates)[:, -1]):
         res[unit] = np.linalg.norm(templates[:, c, unit], np.inf)
     return res
-

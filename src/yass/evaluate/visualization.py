@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 class ChristmasPlot(object):
     """Standard figure for evaluation comparison vs. template properties."""
 
-    def __init__(self, data_set_title, n_dataset, methods=['Method'],
+    def __init__(self, data_set_title, n_dataset=1, methods=['Method'],
                  logit_y=True, eval_type='Accuracy'):
         """Setup pyplot figures.
 
@@ -73,7 +73,7 @@ class ChristmasPlot(object):
             self.ax[i].set_yticks(self.logit(labs))
             self.ax[i].set_yticklabels(labs)
 
-    def add_metric(self, snr_list, percent_list, dataset_number,
+    def add_metric(self, snr_list, percent_list, dataset_number=0,
                    method_name='Method'):
         """Adds accuracy percentages for clusters/units of a method.
 
@@ -126,4 +126,3 @@ class ChristmasPlot(object):
                         method, i + 1))
         self.fig.set_size_inches(12, 4 * self.n_dataset)
         plt.savefig('{}_{}.pdf'.format(self.data_set_title, self.eval_type))
-
