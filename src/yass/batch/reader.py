@@ -32,12 +32,6 @@ class RecordingsReader(object):
         using numpy.fromfile and 'python' loads it using a wrapper
         around Python file API
 
-    output_shape: str, optional
-        Output shape, if 'wide', all subsets will be returned in 'wide' format
-        (even if the data is in 'long' format), if 'long', all subsets are
-        returned in 'long' format (even if the data is in 'wide') format.
-        Defaults to 'long'
-
     Raises
     ------
     ValueError
@@ -58,7 +52,7 @@ class RecordingsReader(object):
     """
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
-                 data_format=None, loader='python', output_shape='long'):
+                 data_format=None, loader='python'):
 
         path_to_yaml = path_to_recordings.replace('.bin', '.yaml')
 
@@ -78,7 +72,6 @@ class RecordingsReader(object):
             n_channels = params['n_channels']
             data_format = params['data_format']
 
-        self.output_shape = output_shape
         self._data_format = data_format
         self._n_channels = n_channels
         self._dtype = dtype if not isinstance(dtype, str) else np.dtype(dtype)
@@ -103,16 +96,27 @@ class RecordingsReader(object):
             raise ValueError("loader must be one of 'mmap', 'array' or "
                              "'python'")
 
-        shape = ((n_channels, self._n_observations) if data_format == 'wide'
-                 else (self._n_observations, n_channels))
+        order = dict(wide='F', long='C')
+
+        shape = self._n_observations, n_channels
+
+        def fromfile(path, dtype, data_format, shape):
+            if data_format == 'long':
+                return np.fromfile(path, dtype=dtype).reshape(shape)
+            else:
+                return np.fromfile(path, dtype=dtype).reshape(shape[::-1]).T
 
         if loader in ['mmap', 'array']:
-            fn = (partial(np.memmap, mode='r') if loader == 'mmap'
-                  else np.fromfile)
+            fn = (partial(np.memmap, mode='r', shape=shape,
+                          order=order[data_format])
+                  if loader == 'mmap' else partial(fromfile,
+                                                   data_format=data_format,
+                                                   shape=shape))
             self._data = fn(path_to_recordings, dtype=self._dtype)
             self._data = self._data.reshape(shape)
         else:
-            self._data = BinaryReader(path_to_recordings, dtype, shape)
+            self._data = BinaryReader(path_to_recordings, dtype, shape,
+                                      order=order[data_format])
 
     def __getitem__(self, key):
 
@@ -121,9 +125,7 @@ class RecordingsReader(object):
         if not isinstance(key, tuple):
             key = (key, slice(None))
 
-        key = key if self._data_format == 'long' else key[::-1]
-        subset = self._data[key]
-        return subset if self.data_format == self.output_shape else subset.T
+        return self._data[key]
 
     def __repr__(self):
         return ('Reader for recordings with {:,} observations and {:,} '
@@ -135,8 +137,7 @@ class RecordingsReader(object):
     def shape(self):
         """Data shape in (observations, channels) format
         """
-        return (self._data.shape if self._data_format == 'long' else
-                self._data.shape[::-1])
+        return self._data.shape
 
     @property
     def observations(self):
@@ -172,7 +173,7 @@ class RecordingsReader(object):
 # TODO: add performance considerations when reading long data
 class BinaryReader(object):
 
-    def __init__(self, path_to_file, dtype, shape, order='C'):
+    def __init__(self, path_to_file, dtype, shape, order='F'):
         """
         Reading batches from large array binary files on disk, similar to
         numpy.memmap. It is essentially just a wrapper around Python
@@ -206,7 +207,7 @@ class BinaryReader(object):
         return f.read(n)
 
     def _read_row_major_order(self, rows, col_start, col_end):
-        """Data where contiguous bytes are from the same row
+        """Data where contiguous bytes are from the same row (C, row-major)
         """
         # compute offset to read from "col_start"
         start_byte = col_start * self.itemsize
@@ -230,6 +231,7 @@ class BinaryReader(object):
 
     def _read_column_major_order(self, row_start, row_end, cols):
         """Data where contiguous bytes are from the same column
+        (F, column-major)
         """
         # compute start byte position for every row
         start_byte = row_start * self.itemsize
