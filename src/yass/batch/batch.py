@@ -46,7 +46,7 @@ class BatchProcessor(object):
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
                  data_format=None, max_memory=100000000, buffer_size=0,
-                 loader='python'):
+                 loader='mmap'):
         self.data_format = data_format
         self.buffer_size = buffer_size
         self.reader = RecordingsReader(path_to_recordings,

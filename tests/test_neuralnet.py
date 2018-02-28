@@ -51,7 +51,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
 
     PATH_TO_DATA = path.join(path_to_tests, 'data/standarized.bin')
 
-    data = RecordingsReader(PATH_TO_DATA, loader='array').data.T
+    data = RecordingsReader(PATH_TO_DATA, loader='array').data
 
     with open(path.join(path_to_tests, 'data/standarized.yaml')) as f:
         PARAMS = yaml.load(f)
