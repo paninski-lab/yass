@@ -469,7 +469,7 @@ class RecordingExplorer(object):
                  neighbor_radius=None, dtype=None, n_channels=None,
                  data_format=None, loader='mmap', waveform_dtype='float32'):
         self.data = RecordingsReader(path_to_recordings, dtype, n_channels,
-                                     data_format, loader, output_shape='long')
+                                     data_format, loader)
 
         if path_to_geom is not None:
             self.geom = geom.parse(path_to_geom, n_channels)

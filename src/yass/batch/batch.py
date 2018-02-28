@@ -52,8 +52,7 @@ class BatchProcessor(object):
         self.reader = RecordingsReader(path_to_recordings,
                                        dtype, n_channels,
                                        data_format,
-                                       loader=loader,
-                                       output_shape='long')
+                                       loader=loader)
         self.indexer = IndexGenerator(self.reader.observations,
                                       self.reader.channels,
                                       self.reader.dtype,
@@ -395,7 +394,6 @@ class BatchProcessor(object):
                                    to_time, channels, cast_dtype, **kwargs):
         f = open(output_path, 'wb')
 
-        self.reader.output_shape = 'wide'
         indexes = self.indexer.single_channel(force_complete_channel_batch,
                                               from_time, to_time,
                                               channels)
@@ -439,7 +437,6 @@ class BatchProcessor(object):
                                   cast_dtype, pass_batch_info, **kwargs):
         f = open(output_path, 'wb')
 
-        self.reader.output_shape = 'long'
         data = self.multi_channel(from_time, to_time, channels)
 
         for subset, idx_local, idx in data:
