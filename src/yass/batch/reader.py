@@ -2,6 +2,7 @@ import os
 import yaml
 import numpy as np
 from functools import partial
+from collections import Iterable
 
 
 class RecordingsReader(object):
@@ -204,19 +205,21 @@ class BinaryReader(object):
         f.seek(int(start))
         return f.read(n)
 
-    def _read_row_major_order(self, row_start, row_end, col_start, col_end):
+    def _read_row_major_order(self, rows, col_start, col_end):
         """Data where contiguous bytes are from the same row
         """
+        # compute offset to read from "col_start"
+        start_byte = col_start * self.itemsize
+
         # number of consecutive observations to read
         n_cols_to_read = col_end - col_start
+
         # number of consecutive bytes to read
         to_read_bytes = n_cols_to_read * self.itemsize
 
         # compute bytes where reading starts in every row:
         # where row starts + offset due to row_start
-        start_bytes = [r_start * self.row_size_byte +
-                       col_start * self.itemsize
-                       for r_start in range(row_start, row_end)]
+        start_bytes = [row * self.row_size_byte + start_byte for row in rows]
 
         batch = [np.frombuffer(self._read_n_bytes_from(self.f, to_read_bytes,
                                                        start),
@@ -228,7 +231,7 @@ class BinaryReader(object):
     def _read_column_major_order(self, row_start, row_end, cols):
         """Data where contiguous bytes are from the same column
         """
-        # compute "row_start" position:
+        # compute start byte position for every row
         start_byte = row_start * self.itemsize
 
         # how many consecutive bytes in each read
@@ -251,36 +254,47 @@ class BinaryReader(object):
         if not isinstance(key, tuple) or len(key) > 2:
             raise ValueError('Must pass two slice objects i.e. obj[:,:]')
 
-        for k in key:
-            if not isinstance(k, (int, slice)):
-                raise ValueError('Unsupported type for subscripts '
-                                 'must be int or slice, got {}'
-                                 .format(type(k)))
-
         int_key = any((isinstance(k, int) for k in key))
 
-        def _convert_to_slice(k):
+        def _int2slice(k):
             # when passing ints instead of slices array[0, 0]
             return k if not isinstance(k, int) else slice(k, k+1, None)
 
-        key = [_convert_to_slice(k) for k in key]
+        key = [_int2slice(k) for k in key]
 
-        if any(s.step for s in key):
-            raise ValueError('Step size not supported')
+        for k in key:
+            if isinstance(k, slice) and k.step:
+                raise ValueError('Step size not supported')
 
-        _row, _col = key
+        rows, cols = key
 
         # fill slices in case they are [:X] or [X:]
-        row = slice(_row.start or 0, _row.stop or self.n_row, None)
-        col = slice(_col.start or 0, _col.stop or self.n_col, None)
+        if isinstance(rows, slice):
+            rows = slice(rows.start or 0, rows.stop or self.n_row, None)
 
-        cols = range(col.start, col.stop)
+        if isinstance(cols, slice):
+            cols = slice(cols.start or 0, cols.stop or self.n_col, None)
 
         if self.order == 'C':
-            res = self._read_row_major_order(row.start, row.stop,
-                                             col.start, col.stop)
+
+            if isinstance(cols, Iterable):
+                raise NotImplementedError('Column indexing with iterables '
+                                          'is not implemented in C order')
+
+            if isinstance(rows, slice):
+                rows = range(rows.start, rows.stop)
+
+            res = self._read_row_major_order(rows, cols.start, cols.stop)
         else:
-            res = self._read_column_major_order(row.start, row.stop, cols)
+
+            if isinstance(rows, Iterable):
+                raise NotImplementedError('Row indexing with iterables '
+                                          'is not implemented in F order')
+
+            if isinstance(cols, slice):
+                cols = range(cols.start, cols.stop)
+
+            res = self._read_column_major_order(rows.start, rows.stop, cols)
 
         # convert to 1D array if either of keys was int
         return res if not int_key else res.reshape(-1)

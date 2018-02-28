@@ -75,6 +75,18 @@ def test_can_read_data_in_F_order_empty_end(data_F):
     np.testing.assert_equal(f[3:, 8:], data[3:, 8:])
 
 
+def test_can_read_rows_in_C_with_iterable(data_C):
+    data, path = data_C
+    c = BinaryReader(path, data.dtype, data.shape, 'C')
+    np.testing.assert_equal(c[[0, 1, 2], :3], data[[0, 1, 2], :3])
+
+
+def test_can_read_columns_in_F_with_iterable(data_F):
+    data, path = data_F
+    f = BinaryReader(path, data.dtype, data.shape, 'F')
+    np.testing.assert_equal(f[3:, [6, 7, 8]], data[3:, [6, 7, 8]])
+
+
 def test_error_raised_when_trying_to_slice_with_one_slice(data_C):
     data, path = data_C
     c = BinaryReader(path, data.dtype, data.shape, 'C')
@@ -83,19 +95,19 @@ def test_error_raised_when_trying_to_slice_with_one_slice(data_C):
         c[:]
 
 
-def test_error_raised_when_trying_to_slice_with_iterators_in_rows(data_C):
-    data, path = data_C
-    c = BinaryReader(path, data.dtype, data.shape, 'C')
+def test_error_raised_when_trying_to_slice_with_iterators_in_rows_F(data_F):
+    data, path = data_F
+    c = BinaryReader(path, data.dtype, data.shape, 'F')
 
-    with pytest.raises(ValueError):
+    with pytest.raises(NotImplementedError):
         c[[0, 1, 2], :]
 
 
-def test_error_raised_when_trying_to_slice_with_iterators_in_cols(data_C):
+def test_error_raised_when_trying_to_slice_with_iterators_in_cols_C(data_C):
     data, path = data_C
     c = BinaryReader(path, data.dtype, data.shape, 'C')
 
-    with pytest.raises(ValueError):
+    with pytest.raises(NotImplementedError):
         c[:, [0, 1, 2]]
 
 
