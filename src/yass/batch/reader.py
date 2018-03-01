@@ -113,7 +113,9 @@ class RecordingsReader(object):
                                                    data_format=data_format,
                                                    shape=shape))
             self._data = fn(path_to_recordings, dtype=self._dtype)
-            self._data = self._data.reshape(shape)
+
+            if loader == 'array':
+                self._data = self._data.reshape(shape)
         else:
             self._data = BinaryReader(path_to_recordings, dtype, shape,
                                       order=order[data_format])
@@ -315,9 +317,25 @@ class BinaryReader(object):
         return self.n_row
 
 
-class MemoryMap(np.memmap):
-    """Subclass of numpy.memmap that returns np.ndarray when indexing
+# FIXME: this is a temporary solution, we need to investigate why memmap
+# is blowing up memory
+class MemoryMap:
     """
+    Wrapper for numpy.memmap that creates a new memmap on each __getitem__
+    call to save memory
+    """
+    def __init__(self, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+        self._init_mmap()
+
+    def _init_mmap(self):
+        self._mmap = np.memmap(*self.args, **self.kwargs)
+
     def __getitem__(self, index):
-        res = super(MemoryMap, self).__getitem__(index)
-        return np.array(res)
+        res = self._mmap[index]
+        self._init_mmap()
+        return res
+
+    def __getattr__(self, key):
+        return getattr(self._mmap, key)
