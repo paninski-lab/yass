@@ -172,7 +172,9 @@ class RecordingAugmentation(object):
         self.geometry = mean_wave_calculator.batch_reader.geometry
         self.n_chan = self.geometry.shape[0]
         self.template_calculator = mean_wave_calculator
-        self.x_unit = 20.0
+        # Number of samples per batches.
+        n_samp = self.template_calculator.batch_reader.batch_time_samples
+        self.batch_num_samples = n_samp
         self.construct_channel_map()
         self.compute_stat_summary()
         self.move_rate = move_rate
@@ -389,12 +391,19 @@ class RecordingAugmentation(object):
         f.close()
         orig_count = self.template_comp.spike_train.shape[0]
         aug_count = aug_spt.shape[0]
-        return np.append(
+        # Appends the new synthetic spike train to the base spike train.
+        new_aug_spike_train = np.append(
             np.append(self.template_comp.spike_train,
                       np.zeros([orig_count, 1], dtype='int'),
                       axis=1),
             np.append(aug_spt, np.ones([aug_count, 1], dtype='int'), axis=1),
-            axis=0), status
+            axis=0)
+        # Gets rid of any spike times beyond the length of the augmented
+        # Data set.
+        aug_rec_len = length * self.batch_num_samples
+        valid_idx = new_aug_spike_train[:, 0] < aug_rec_len
+        new_aug_spike_train = new_aug_spike_train[valid_idx, :]
+        return new_aug_spike_train, status
 
 
 class SpikeSortingEvaluation(object):
