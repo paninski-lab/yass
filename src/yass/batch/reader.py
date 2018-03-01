@@ -29,10 +29,13 @@ class RecordingsReader(object):
         'wide' (channels, observations)
 
     loader: str ('memmap', 'array' or 'python'), optional
-        How to load the data. memmap loads the data using np.memmap, 'array'
+        How to load the data. memmap loads the data using a wrapper around
+        np.memmap (see :class:`~yass.batch.MemoryMap` for details), 'array'
         using numpy.fromfile and 'python' loads it using a wrapper
         around Python file API. Defaults to 'python'. Beware that the Python
-        loader has limited indexing capabilities
+        loader has limited indexing capabilities, see
+        :class:`~yass.batch.BinaryReader` for details
+
 
     Raises
     ------
@@ -175,25 +178,25 @@ class RecordingsReader(object):
 
 
 class BinaryReader(object):
+    """
+    Reading batches from large array binary files on disk, similar to
+    numpy.memmap. It is essentially just a wrapper around Python
+    files API to read through large array binary file using the
+    array[:,:] syntax.
+
+    Parameters
+    ----------
+    order: str
+        Array order 'C' for 'Row-major order' or 'F' for
+        'Column-major order'
+
+
+    Notes
+    -----
+    https://en.wikipedia.org/wiki/Row-_and_column-major_order
+    """
 
     def __init__(self, path_to_file, dtype, shape, order='F'):
-        """
-        Reading batches from large array binary files on disk, similar to
-        numpy.memmap. It is essentially just a wrapper around Python
-        files API to read through large array binary file using the
-        array[:,:] syntax.
-
-        Parameters
-        ----------
-        order: str
-            Array order 'C' for 'Row-major order' or 'F' for
-            'Column-major order'
-
-
-        Notes
-        -----
-        https://en.wikipedia.org/wiki/Row-_and_column-major_order
-        """
         if order not in ('C', 'F'):
             raise ValueError('order must be either "C" or "F"')
 

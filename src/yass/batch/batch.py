@@ -39,10 +39,12 @@ class BatchProcessor(object):
         operations
 
     loader: str ('memmap', 'array' or 'python'), optional
-        How to load the data. memmap loads the data using np.memmap, 'array'
+        How to load the data. memmap loads the data using a wrapper around
+        np.memmap (see :class:`~yass.batch.MemoryMap` for details), 'array'
         using numpy.fromfile and 'python' loads it using a wrapper
         around Python file API. Defaults to 'python'. Beware that the Python
-        loader has limited indexing capabilities
+        loader has limited indexing capabilities, see
+        :class:`~yass.batch.BinaryReader` for details
 
     Raises
     ------
@@ -52,7 +54,7 @@ class BatchProcessor(object):
     """
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
-                 data_format=None, max_memory=100000000, buffer_size=0,
+                 data_format=None, max_memory='1GB', buffer_size=0,
                  loader='python'):
         self.data_format = data_format
         self.buffer_size = buffer_size

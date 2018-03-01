@@ -23,3 +23,14 @@ Recordings Reader
 
 .. autoclass:: yass.batch.RecordingsReader
     :members:
+
+
+Binary Readers
+--------------
+
+.. autoclass:: yass.batch.BinaryReader
+    :members:
+
+
+.. autoclass:: yass.batch.MemoryMap
+    :members:

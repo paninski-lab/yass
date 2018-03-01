@@ -457,10 +457,12 @@ class RecordingExplorer(object):
         Data format, it can be either 'long' (observations, channels) or
         'wide' (channels, observations)
     loader: str ('memmap', 'array' or 'python'), optional
-        How to load the data. memmap loads the data using np.memmap, 'array'
+        How to load the data. memmap loads the data using a wrapper around
+        np.memmap (see :class:`~yass.batch.MemoryMap` for details), 'array'
         using numpy.fromfile and 'python' loads it using a wrapper
         around Python file API. Defaults to 'python'. Beware that the Python
-        loader has limited indexing capabilities
+        loader has limited indexing capabilities, see
+        :class:`~yass.batch.BinaryReader` for details
     waveform_dtype: str, optional
         Waveform output type, defaults to 'default' which matches
         recordings dtype
