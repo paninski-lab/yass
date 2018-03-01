@@ -402,6 +402,7 @@ class BatchProcessor(object):
             self.logger.debug('Reading batch...')
             subset = self.reader[idx]
 
+            self.logger.debug('Executing function...')
             if cast_dtype is None:
                 res = function(subset, **kwargs)
             else:
