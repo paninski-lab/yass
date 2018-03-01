@@ -19,13 +19,17 @@ class BatchProcessor(object):
     ----------
     path_to_recordings: str
         Path to recordings file
+
     dtype: str
         Numpy dtype
+
     n_channels: int
         Number of channels
+
     data_format: str
         Data format, it can be either 'long' (observations, channels) or
         'wide' (channels, observations)
+
     max_memory: int or str
         Max memory to use in each batch, interpreted as bytes if int,
         if string, it can be any of {N}KB, {N}MB or {N}GB
@@ -33,6 +37,14 @@ class BatchProcessor(object):
     buffer_size: int, optional
         Buffer size, defaults to 0. Only relevant when performing multi-channel
         operations
+
+    loader: str ('memmap', 'array' or 'python'), optional
+        How to load the data. memmap loads the data using a wrapper around
+        np.memmap (see :class:`~yass.batch.MemoryMap` for details), 'array'
+        using numpy.fromfile and 'python' loads it using a wrapper
+        around Python file API. Defaults to 'python'. Beware that the Python
+        loader has limited indexing capabilities, see
+        :class:`~yass.batch.BinaryReader` for details
 
     Raises
     ------
@@ -42,12 +54,14 @@ class BatchProcessor(object):
     """
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
-                 data_format=None, max_memory=100000000, buffer_size=0):
+                 data_format=None, max_memory='1GB', buffer_size=0,
+                 loader='python'):
         self.data_format = data_format
         self.buffer_size = buffer_size
-        self.reader = RecordingsReader(path_to_recordings, dtype, n_channels,
+        self.reader = RecordingsReader(path_to_recordings,
+                                       dtype, n_channels,
                                        data_format,
-                                       output_shape='long')
+                                       loader=loader)
         self.indexer = IndexGenerator(self.reader.observations,
                                       self.reader.channels,
                                       self.reader.dtype,
@@ -248,7 +262,6 @@ class BatchProcessor(object):
                                    to_time, channels, cast_dtype, **kwargs):
         f = open(output_path, 'wb')
 
-        self.reader.output_shape = 'wide'
         indexes = self.indexer.single_channel(force_complete_channel_batch,
                                               from_time, to_time,
                                               channels)
@@ -256,6 +269,8 @@ class BatchProcessor(object):
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
             subset = self.reader[idx]
+
+            self.logger.debug('Executing function...')
 
             if cast_dtype is None:
                 res = function(subset, **kwargs)
@@ -485,7 +500,6 @@ class BatchProcessor(object):
 
         f = open(output_path, 'wb')
 
-        self.reader.output_shape = 'long'
         data = self.multi_channel(from_time, to_time, channels)
 
         for i, (subset, idx_local, idx) in enumerate(data):

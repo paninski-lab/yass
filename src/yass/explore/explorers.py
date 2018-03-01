@@ -456,9 +456,13 @@ class RecordingExplorer(object):
     data_format: str
         Data format, it can be either 'long' (observations, channels) or
         'wide' (channels, observations)
-    mmap: bool
-        Whether to read the data using numpy.mmap, otherwise it reads
-        the data using numpy.fromfile
+    loader: str ('memmap', 'array' or 'python'), optional
+        How to load the data. memmap loads the data using a wrapper around
+        np.memmap (see :class:`~yass.batch.MemoryMap` for details), 'array'
+        using numpy.fromfile and 'python' loads it using a wrapper
+        around Python file API. Defaults to 'python'. Beware that the Python
+        loader has limited indexing capabilities, see
+        :class:`~yass.batch.BinaryReader` for details
     waveform_dtype: str, optional
         Waveform output type, defaults to 'default' which matches
         recordings dtype
@@ -466,9 +470,9 @@ class RecordingExplorer(object):
 
     def __init__(self, path_to_recordings, path_to_geom=None, spike_size=None,
                  neighbor_radius=None, dtype=None, n_channels=None,
-                 data_format=None, mmap=True, waveform_dtype='float32'):
+                 data_format=None, loader='memmap', waveform_dtype='float32'):
         self.data = RecordingsReader(path_to_recordings, dtype, n_channels,
-                                     data_format, mmap, output_shape='long')
+                                     data_format, loader)
 
         if path_to_geom is not None:
             self.geom = geom.parse(path_to_geom, n_channels)
