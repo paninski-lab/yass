@@ -27,19 +27,20 @@ def get_templates(spike_train, path_to_recordings, spike_size):
         compute_weighted_templates,
         mode='memory',
         pass_batch_info=True,
+        pass_batch_results=True,
         spike_train=spike_train,
         spike_size=spike_size,
         n_templates=n_templates)
 
-    templates = np.sum([element[0] for element in res], 0)
-    weights = np.sum([element[1] for element in res], 0)
+    templates = res[0]
+    weights = res[1]
     weights[weights == 0] = 1
     templates = templates/weights[np.newaxis, np.newaxis, :]
 
     return templates, weights
 
 
-def compute_weighted_templates(recording, idx_local, idx,
+def compute_weighted_templates(recording, idx_local, idx, previous_batch,
                                spike_train, spike_size, n_templates):
 
     # number of channels
@@ -68,6 +69,10 @@ def compute_weighted_templates(recording, idx_local, idx,
         weighted_templates[:, :, id_] += recording[
             time_-spike_size:time_+spike_size+1].T
         weights[id_] += 1
+
+    if previous_batch is not None:
+        weighted_templates += previous_batch[0]
+        weights += previous_batch[1]
 
     return weighted_templates, weights
 
