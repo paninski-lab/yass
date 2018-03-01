@@ -28,10 +28,11 @@ class RecordingsReader(object):
         Data format, it can be either 'long' (observations, channels) or
         'wide' (channels, observations)
 
-    loader: str ('mmap', 'array' or 'python')
-        How to load the data. mmap loads the datas using numpy.mmap, 'array'
+    loader: str ('memmap', 'array' or 'python'), optional
+        How to load the data. memmap loads the data using np.memmap, 'array'
         using numpy.fromfile and 'python' loads it using a wrapper
-        around Python file API
+        around Python file API. Defaults to 'python'. Beware that the Python
+        loader has limited indexing capabilities
 
     Raises
     ------
@@ -53,7 +54,7 @@ class RecordingsReader(object):
     """
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
-                 data_format=None, loader='mmap'):
+                 data_format=None, loader='memmap'):
 
         path_to_yaml = path_to_recordings.replace('.bin', '.yaml')
 
@@ -93,8 +94,8 @@ class RecordingsReader(object):
         self._n_observations = int(filesize / self._dtype.itemsize /
                                    n_channels)
 
-        if loader not in ['mmap', 'array', 'python']:
-            raise ValueError("loader must be one of 'mmap', 'array' or "
+        if loader not in ['memmap', 'array', 'python']:
+            raise ValueError("loader must be one of 'memmap', 'array' or "
                              "'python'")
 
         order = dict(wide='F', long='C')
@@ -107,12 +108,12 @@ class RecordingsReader(object):
             else:
                 return np.fromfile(path, dtype=dtype).reshape(shape[::-1]).T
 
-        if loader in ['mmap', 'array']:
+        if loader in ['memmap', 'array']:
             fn = (partial(MemoryMap, mode='r', shape=shape,
                           order=order[data_format])
-                  if loader == 'mmap' else partial(fromfile,
-                                                   data_format=data_format,
-                                                   shape=shape))
+                  if loader == 'memmap' else partial(fromfile,
+                                                     data_format=data_format,
+                                                     shape=shape))
             self._data = fn(path_to_recordings, dtype=self._dtype)
 
             if loader == 'array':

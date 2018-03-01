@@ -456,10 +456,11 @@ class RecordingExplorer(object):
     data_format: str
         Data format, it can be either 'long' (observations, channels) or
         'wide' (channels, observations)
-    loader: str ('mmap', 'array' or 'python')
-        How to load the data. mmap loads the datas using numpy.mmap, 'array'
+    loader: str ('memmap', 'array' or 'python'), optional
+        How to load the data. memmap loads the data using np.memmap, 'array'
         using numpy.fromfile and 'python' loads it using a wrapper
-        around Python file API
+        around Python file API. Defaults to 'python'. Beware that the Python
+        loader has limited indexing capabilities
     waveform_dtype: str, optional
         Waveform output type, defaults to 'default' which matches
         recordings dtype
@@ -467,7 +468,7 @@ class RecordingExplorer(object):
 
     def __init__(self, path_to_recordings, path_to_geom=None, spike_size=None,
                  neighbor_radius=None, dtype=None, n_channels=None,
-                 data_format=None, loader='mmap', waveform_dtype='float32'):
+                 data_format=None, loader='memmap', waveform_dtype='float32'):
         self.data = RecordingsReader(path_to_recordings, dtype, n_channels,
                                      data_format, loader)
 

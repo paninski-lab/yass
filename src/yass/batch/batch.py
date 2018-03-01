@@ -19,23 +19,30 @@ class BatchProcessor(object):
     ----------
     path_to_recordings: str
         Path to recordings file
+
     dtype: str
         Numpy dtype
+
     n_channels: int
         Number of channels
+
     data_format: str
         Data format, it can be either 'long' (observations, channels) or
         'wide' (channels, observations)
+
     max_memory: int or str
         Max memory to use in each batch, interpreted as bytes if int,
         if string, it can be any of {N}KB, {N}MB or {N}GB
+
     buffer_size: int, optional
         Buffer size, defaults to 0. Only relevant when performing multi-channel
         operations
-    loader: str ('mmap', 'array' or 'python'), optional
-        How to load the data. mmap loads the datas using numpy.mmap, 'array'
+
+    loader: str ('memmap', 'array' or 'python'), optional
+        How to load the data. memmap loads the data using np.memmap, 'array'
         using numpy.fromfile and 'python' loads it using a wrapper
-        around Python file API. Defaults to 'python'
+        around Python file API. Defaults to 'python'. Beware that the Python
+        loader has limited indexing capabilities
 
     Raises
     ------
@@ -46,7 +53,7 @@ class BatchProcessor(object):
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
                  data_format=None, max_memory=100000000, buffer_size=0,
-                 loader='mmap'):
+                 loader='python'):
         self.data_format = data_format
         self.buffer_size = buffer_size
         self.reader = RecordingsReader(path_to_recordings,
