@@ -42,8 +42,7 @@ def get_templates(spike_train, path_to_recordings, spike_size):
 
 def compute_weighted_templates(recording, idx_local, idx, previous_batch,
                                spike_train, spike_size, n_templates):
-
-    # number of channels
+    
     n_channels = recording.shape[1]
 
     # batch info
@@ -59,21 +58,20 @@ def compute_weighted_templates(recording, idx_local, idx, previous_batch,
     spike_train[:, 0] = spike_train[:, 0] - data_start + offset
 
     # calculate weight templates
-    weighted_templates = np.zeros((n_channels, 2*spike_size+1, n_templates))
+    weighted_templates = np.zeros((n_templates, n_channels, 2*spike_size+1), dtype=np.float32)
     weights = np.zeros(n_templates)
+    
+    for k in range(n_templates):
+        spt = spike_train[spike_train[:,1]==k,0]
+        weighted_templates[k] = np.sum(recording[spt[:,np.newaxis] + np.arange(-spike_size,spike_size+1)],0).T
+        weights[k] = spt.shape[0]
 
-    for j in range(spike_train.shape[0]):
-
-        # add waveform to appropriate template
-        time_, id_ = spike_train[j]
-        weighted_templates[:, :, id_] += recording[
-            time_-spike_size:time_+spike_size+1].T
-        weights[id_] += 1
+    weighted_templates = np.transpose(weighted_templates,(1,2,0))
 
     if previous_batch is not None:
         weighted_templates += previous_batch[0]
         weights += previous_batch[1]
-
+    
     return weighted_templates, weights
 
 
