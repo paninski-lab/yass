@@ -2,6 +2,7 @@
 Filtering functions
 """
 import os
+import numpy as np
 
 from scipy.signal import butter, lfilter
 
@@ -74,20 +75,19 @@ def butterworth(path_to_data, dtype, n_channels, data_shape,
     """
     # init batch processor
     bp = BatchProcessor(path_to_data, dtype, n_channels, data_shape,
-                        max_memory)
+                        max_memory, 200)
 
-    _output_path = os.path.join(output_path, 'filtered.bin')
+    _output_path = os.path.join(output_path, output_filename)
 
     (path,
-     params) = bp.single_channel_apply(_butterworth, mode='disk',
-                                       output_path=_output_path,
-                                       force_complete_channel_batch=True,
-                                       if_file_exists=if_file_exists,
-                                       cast_dtype=output_dtype,
-                                       low_frequency=low_frequency,
-                                       high_factor=high_factor,
-                                       order=order,
-                                       sampling_frequency=sampling_frequency)
+     params) = bp.multi_channel_apply(_butterworth, mode='disk',
+                                      output_path=_output_path,
+                                      if_file_exists=if_file_exists,
+                                      cast_dtype=output_dtype,
+                                      low_frequency=low_frequency,
+                                      high_factor=high_factor,
+                                      order=order,
+                                      sampling_frequency=sampling_frequency)
 
     return path, params
 
@@ -118,13 +118,26 @@ def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
     NotImplementedError
         If a multidmensional array is passed
     """
-    if ts.ndim > 1:
-        raise NotImplementedError('This function can only be applied to a one'
-                                  ' dimensional array, to apply it to '
-                                  'multiple channels use the BatchProcessor')
+    print('start')
+    if ts.ndim == 1:
 
-    (T,) = ts.shape
-    low = float(low_frequency)/sampling_frequency * 2
-    high = float(high_factor) * 2
-    b, a = butter(order, [low, high], btype='band')
-    return lfilter(b, a, ts)
+        (T,) = ts.shape
+        low = float(low_frequency)/sampling_frequency * 2
+        high = float(high_factor) * 2
+        b, a = butter(order, [low, high], btype='band')
+
+        return lfilter(b, a, ts)
+
+    else:
+
+        T, C = ts.shape
+        low = float(low_frequency)/sampling_frequency * 2
+        high = float(high_factor) * 2
+        b, a = butter(order, [low, high], btype='band')
+
+        output = np.zeros((T, C), 'float32')
+        for c in range(C):
+            output[:, c] = lfilter(b, a, ts[:, c])
+
+        print('end')
+        return output
