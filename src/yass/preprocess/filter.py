@@ -118,7 +118,7 @@ def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
     NotImplementedError
         If a multidmensional array is passed
     """
-    print('start')
+
     if ts.ndim == 1:
 
         (T,) = ts.shape
@@ -139,5 +139,4 @@ def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
         for c in range(C):
             output[:, c] = lfilter(b, a, ts[:, c])
 
-        print('end')
         return output
