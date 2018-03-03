@@ -6,6 +6,8 @@ from yass.evaluate.stability import (MeanWaveCalculator,
                                      RecordingAugmentation,
                                      RecordingBatchIterator,
                                      SpikeSortingEvaluation)
+from yass.evaluate.visualization import ChristmasPlot
+from yass.evaluate.util import temp_snr
 from yass.pipeline import run
 
 
@@ -16,111 +18,207 @@ class Analyzer(object):
         """Sets up the analyzer object with configurations.
 
         Parameters:
-            config: str
+            config: str or map
             Absolute path to the yass config file for the dataset.
-            gold_std_spike_train: numpy.ndarray of shape (N, 2)
+            Alternatively, map of configuration options.
+            gold_std_spike_train: numpy.ndarray of shape (N, 2) or None
             Gold standard spike train where first column corresponds to
             spike times and second column corresponds to cluster identities.
             If None, then no accuracy evaluation will be done.
         """
+        self.config_file = None
         self.config = config
+        if isinstance(self.config, str):
+            self.config_file = config
+            self.load_config()
+        elif not isinstance(self.config, map):
+            raise ValueError("config should either of type map or str.")
         self.gold_std_spike_train = gold_std_spike_train
+        # Directories that contain necessary metrics, intermediate files.
+        self.root_dir = self.config['data']['root_folder']
+        self.tmp_dir = os.path.join(self.root_dir, 'tmp', 'eval')
+        if not os.path.isdir(self.tmp_dir):
+            os.mkdir(self.tmp_dir)
+        # Files that will contain necessary metrics, intermediate computations.
+        self.gold_templates_file = os.path.join(
+                self.tmp_dir, 'gold_templates.npy')
+        self.yass_templates_file = os.path.join(
+                self.tmp_dir, 'yass_templates.npy')
+        self.gold_aug_templates_file = os.path.join(
+                self.tmp_dir, 'aug_templates.npy')
+        self.yass_aug_templates_file = os.path.join(
+                self.tmp_dir, 'yass_aug_templates.npy')
+        # Spike train files.
+        self.aug_spike_train_file = os.path.join(
+                self.tmp_dir, 'augmented_spike_train.npy')
+        self.yass_spike_train_file = os.path.join(
+                self.root_dir, 'tmp', 'spike_train.npy')
+        self.yass_aug_spike_train_file = os.path.join(
+                self.tmp_dir, 'tmp', 'spike_train.npy')
+        # Metric files.
+        self.accuracy_file = os.path.join(self.tmp_dir, 'accuracy.npy')
+        self.stability_file = os.path.join(self.tmp_dir, 'stability.npy')
 
-    def run(self, n_batches=6):
-        """Runs the analyses on the dataset indicated in config.
+    def load_config(self):
+        """Loads config .yaml file indicated in constructor."""
+        conf_file = open(self.config_file, 'r')
+        self.config = yaml.load(conf_file)
+        conf_file.close()
+
+    def run_stability(self, n_batches=6):
+        """Runs stability metric computation for the given config file.
 
         Parameters:
             n_batchs: int
             Break down the processing of the dataset in these many batches.
         """
-        config_file = open(self.config, 'r')
-        config = yaml.load(config_file)
-        config_file.close()
+        # Check whether this analysis is not done already.
+        if os.path.isfile(self.stability_file):
+            return
+        sampling_rate = self.config['recordings']['sampling_rate']
+        n_chan = self.config['recordings']['n_channels']
+        dtype = self.config['recordings']['dtype']
+        spike_length = self.config['recordings']['spike_size_ms']
         # Extracting window around spikes.
-        sampling_rate = config['recordings']['sampling_rate']
-        n_chan = config['recordings']['n_channels']
-        dtype = config['recordings']['dtype']
-        spike_length = config['recordings']['spike_size_ms']
         window_radius = int(spike_length * sampling_rate / 1e3)
         window = range(-window_radius, window_radius)
 
-        # Passing the config to pipeline to be run.
-        root_dir = config['data']['root_folder']
-        # Temp directory where all intermediate files are stored.
-        tmp_dir = os.path.join(root_dir, 'tmp', 'eval')
-        if not os.path.isdir(tmp_dir):
-            os.mkdir(tmp_dir)
-        bin_file = os.path.join(root_dir, config['data']['recordings'])
-        geom_file = os.path.join(root_dir, config['data']['geometry'])
-        spike_train = run(config=config)
+        bin_file = os.path.join(
+                self.root_dir, self.config['data']['recordings'])
+        geom_file = os.path.join(
+                self.root_dir, self.config['data']['geometry'])
+        # Check whether spike sorting has already been completed.
+        if not os.path.isfile(self.yass_spike_train_file):
+            spike_train = run(config=self.config)
+        else:
+            spike_train = np.load(self.yass_spike_train_file)
         # Data augmentation setup.
         os.path.getsize(bin_file)
         file_size_bytes = os.path.getsize(bin_file)
         tot_samples = file_size_bytes / (np.dtype(dtype).itemsize * n_chan)
         radius = 70
         n_batch_samples = int(tot_samples / n_batches)
-        batch_reader = RecordingBatchIterator(
-            bin_file, geom_file, sample_rate=sampling_rate,
-            batch_time_samples=n_batch_samples, n_batches=n_batches,
-            n_chan=n_chan, radius=radius, whiten=False)
-        mean_wave = MeanWaveCalculator(
-                batch_reader, spike_train, window=window)
-        mean_wave.compute_templates(n_batches=n_batches)
-        # Augment with new spikes.
-        stab = RecordingAugmentation(
-                mean_wave, augment_rate=0.25, move_rate=0.2)
-        # Extension of the binary file.
+
         bin_extension = os.path.splitext(bin_file)[1]
         aug_file_name = 'augmented_recording{}'.format(bin_extension)
-        aug_bin_file = os.path.join(tmp_dir, aug_file_name)
-        aug_spt_file = os.path.join(tmp_dir, 'augmented_spike_train.npy')
-        if not os.path.isfile(aug_bin_file):
+        aug_bin_file = os.path.join(self.tmp_dir, aug_file_name)
+
+        # Check whether data augmentation has been done before or not.
+        is_file_aug_bin = os.path.isfile(aug_bin_file)
+        is_file_aug_spt = os.path.isfile(self.aug_spike_train_file)
+        is_file_yass_temp = os.path.isfile(self.yass_templates_file)
+        if is_file_aug_bin and is_file_aug_spt and is_file_yass_temp:
+            aug_gold_spt = np.load(self.aug_spike_train_file)
+        else:
+            batch_reader = RecordingBatchIterator(
+                bin_file, geom_file, sample_rate=sampling_rate,
+                batch_time_samples=n_batch_samples, n_batches=n_batches,
+                n_chan=n_chan, radius=radius, whiten=False)
+            mean_wave = MeanWaveCalculator(
+                    batch_reader, spike_train, window=window)
+            mean_wave.compute_templates(n_batches=n_batches)
+            np.save(self.yass_templates_file, mean_wave.templates)
+            # Compute gold standard mean waveforms too.
+            gold_standard_mean_wave = MeanWaveCalculator(
+                    batch_reader, self.gold_std_spike_train, window=window)
+            gold_standard_mean_wave.compute_templates(n_batches=n_batches)
+            np.save(self.gold_templates_file,
+                    gold_standard_mean_wave.templates)
+            # Augment with new spikes.
+            stab = RecordingAugmentation(
+                    mean_wave, augment_rate=0.25, move_rate=0.2)
             aug_gold_spt, status = stab.save_augment_recording(
                     aug_bin_file, n_batches)
-            np.save(aug_spt_file, aug_gold_spt)
+            np.save(self.aug_spike_train_file, aug_gold_spt)
+            np.save(os.path.join(self.tmp_dir, 'geom.npy'),
+                    batch_reader.geometry)
+
         # Setting up config file for yass to run on augmented data.
-        np.save(os.path.join(tmp_dir, 'geom.npy'), batch_reader.geometry)
-        config['data']['root_folder'] = tmp_dir
-        config['data']['recordings'] = aug_file_name
-        config['data']['geometry'] = 'geom.npy'
-        yass_aug_spike_train = run(config=config)
-
-        # Evaluate accuracy of yass.
-        gold_standard_mean_wave = MeanWaveCalculator(
-            batch_reader, self.gold_std_spike_train, window=window)
-        gold_standard_mean_wave.compute_templates(n_batches=n_batches)
-        accuracy_eval = SpikeSortingEvaluation(
-            self.gold_std_spike_train, spike_train,
-            gold_standard_mean_wave.templates, mean_wave.templates)
-        # Saving results of evaluation for accuracy.
-        self.gold_templates_file = os.path.join(tmp_dir, 'gold_templates.npy')
-        self.accuracy_file = os.path.join(tmp_dir, 'accuracy.npy')
-        np.save(self.gold_templates_file, gold_standard_mean_wave.templates)
-        np.save(self.accuracy_file, accuracy_eval.true_positive)
-        batch_reader.close_iterator()
-
+        self.config['data']['root_folder'] = self.tmp_dir
+        self.config['data']['recordings'] = aug_file_name
+        self.config['data']['geometry'] = 'geom.npy'
+        # Check whether spike sorting has already been completed.
+        if not os.path.isfile(self.yass_aug_spike_train_file):
+            yass_aug_spike_train = run(config=self.config)
+        else:
+            yass_aug_spike_train = np.load(self.yass_aug_spike_train_file)
         # Evaluate stability of yass.
-        batch_reader = RecordingBatchIterator(
-            aug_bin_file, geom_file, sample_rate=sampling_rate,
-            batch_time_samples=n_batch_samples, n_batches=n_batches,
-            n_chan=n_chan, radius=radius, whiten=False)
-        aug_gold_standard_mean_wave = MeanWaveCalculator(
-            batch_reader, aug_gold_spt, window=window)
-        aug_gold_standard_mean_wave.compute_templates(n_batches=n_batches)
-        aug_yass_mean_wave = MeanWaveCalculator(
-            batch_reader, yass_aug_spike_train, window=window)
-        aug_yass_mean_wave.compute_templates(n_batches=n_batches)
+        # Check whether the mean wave of the yass spike train on the augmented
+        # data has been computed before or not.
+        is_file_temp_yass = os.path.isfile(self.yass_aug_templates_file)
+        is_file_temp_gold = os.path.isfile(self.gold_aug_templates_file)
+        if is_file_temp_gold and is_file_temp_yass:
+            gold_aug_templates = np.load(self.gold_aug_templates_file)
+            yass_aug_templates = np.load(self.yass_aug_templates_file)
+        else:
+            batch_reader = RecordingBatchIterator(
+                aug_bin_file, geom_file, sample_rate=sampling_rate,
+                batch_time_samples=n_batch_samples, n_batches=n_batches,
+                n_chan=n_chan, radius=radius, filter_std=False, whiten=False)
+            aug_gold_standard_mean_wave = MeanWaveCalculator(
+                batch_reader, aug_gold_spt, window=window)
+            aug_gold_standard_mean_wave.compute_templates(n_batches=n_batches)
+            gold_aug_templates = aug_gold_standard_mean_wave.templates
+            aug_yass_mean_wave = MeanWaveCalculator(
+                batch_reader, yass_aug_spike_train, window=window)
+            aug_yass_mean_wave.compute_templates(n_batches=n_batches)
+            yass_aug_templates = aug_yass_mean_wave.templates
+            batch_reader.close_iterator()
+            np.save(self.gold_aug_templates_file, gold_aug_templates)
+            np.save(self.yass_aug_templates_file, yass_aug_templates)
+        # Finally, instantiate a spike train evaluation object for comparisons.
         stability_eval = SpikeSortingEvaluation(
-            aug_gold_spt, yass_aug_spike_train,
-            aug_gold_standard_mean_wave.templates,
-            aug_yass_mean_wave.templates)
+            aug_gold_spt, yass_aug_spike_train, gold_aug_templates,
+            yass_aug_templates)
         # Saving results of evaluation for stability.
-        self.stability_file = os.path.join(tmp_dir, 'accuracy.npy')
         np.save(self.stability_file, stability_eval.true_positive)
-        batch_reader.close_iterator()
 
-    def visualize(self):
-        """Renders results of the evaluation in plots."""
-        # Set up the pyplot figures
-        # TODO(hooshmand): This is not functioning now.
-        pass
+    def run_accuracy(self):
+        """Runs accuracy evaluation for the config file.
+
+        Note: This can be performed only if there is a gold standard
+        spike train and run_stability has been called before.
+        """
+        # Check whether this analysis is not done already.
+        if self.gold_std_spike_train is None:
+            print("Can not run accuracy if there is no gold standard.")
+        if os.path.isfile(self.accuracy_file):
+            return
+        # Evaluate accuracy of yass.
+        spike_train = np.load(self.yass_spike_train_file)
+        gold_templates = np.load(self.gold_templates_file)
+        templates = np.load(self.yass_templates_file)
+        accuracy_eval = SpikeSortingEvaluation(
+            self.gold_std_spike_train, spike_train, gold_templates, templates)
+        # Saving results of evaluation for accuracy.
+        np.save(self.accuracy_file, accuracy_eval.true_positive)
+
+    def run_analyses(self, n_batches=6):
+        """Runs the analyses on the dataset indicated in config.
+
+        Note: This step has to be called only when the stability has been
+        evaluated.
+
+        Parameters:
+            n_batchs: int
+            Break down the processing of the dataset in these many batches.
+        """
+        self.run_stability(n_batches=n_batches)
+        self.run_accuracy()
+
+    def visualize(self, metric):
+        """Visualizes the metric of interest.
+
+        Parameters:
+        -----------
+        metric: str
+            The type of metric that should be visualized.
+        """
+        if metric == 'stability':
+            data_title = self.config['data']['recordings']
+            plot = ChristmasPlot(data_title, eval_type=metric)
+            templates = np.load(self.gold_aug_templates_file)
+            stability = np.load(self.stability_file)
+            plot.add_metric(temp_snr(templates), stability)
+            plot.generate_snr_metric_plot()
+            plot.generate_curve_plots()
