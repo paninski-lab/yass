@@ -201,7 +201,8 @@ class ChristmasPlot(object):
 class WaveFormTrace(object):
     """Class for plotting spatial traces of waveforms."""
 
-    def __init__(self, geometry, templates):
+    def __init__(self, geometry, templates, unit_labels=None,
+                 templates_sec=None, unit_map=None):
         """Sets up the plotting descriptions for spatial trace.
 
         Parameters:
@@ -211,12 +212,47 @@ class WaveFormTrace(object):
         templates: numpy.ndarray shape (T, C, K)
             Where T, C and K respectively indicate time samples, number of
             channels, and number of units.
+        unit_labels: None or list of length K
+            Labels corresponding to each unit. These labels are displayed
+            in legends.
+        templates_sec: numpy.ndarray shape (T', C, K')
+            Where T', C and K' respectively indicate time samples, number of
+            channels, and number of units. Number of chennels should be the
+            same as first templates.
+        unit_map: list or map
+            maps the units of the first templates to units of the second
+            templates.
         """
+        if not isinstance(geometry, np.ndarray):
+            raise ValueError("geometry should be of type numpy.ndarray")
+        if not isinstance(templates, np.ndarray):
+            raise ValueError("templates should be of type numpy.ndarray")
+        if not len(templates.shape) == 3:
+            raise ValueError(
+                    "template must have shape (n_samples, n_channel, n_unit).")
+        if not len(geometry.shape) == 2 or not geometry.shape[1] == 2:
+            raise ValueError("geometry should be of shape (n_electrodes, 2).")
+        if not geometry.shape[0] == templates.shape[1]:
+            message = "channels are not consistent for geometry and templates."
+            raise ValueError(message)
+        if unit_labels is None:
+            n_units = templates.shape[2]
+            unit_labels = ["Unit {}".format(unit) for unit in range(n_units)]
+        if not len(unit_labels) == templates.shape[2]:
+            message = "# units not consistent for unit_labels and templates."
+            raise ValueError(message)
+        self.unit_labels = unit_labels
         self.geometry = geometry
         self.templates = templates
         self.samples = templates.shape[0]
         self.n_channels = templates.shape[1]
         self.n_units = templates.shape[2]
+        # Second set of templates.
+        self.templates_sec = templates_sec
+        self.unit_map = unit_map
+        if self.templates_sec is not None:
+            self.samples_sec = templates_sec.shape[0]
+            self.n_units_sec = templates_sec.shape[2]
 
     def plot_wave(self, units, trace_size=6, scale=5):
         """Plot spatial trace of the units
@@ -246,7 +282,19 @@ class WaveFormTrace(object):
                 x_ += self.geometry[c, 0] - self.samples / 2
                 y_ = (self.templates[:, c, unit]) * scale + self.geometry[c, 1]
                 ax.plot(x_, y_, color=col, label='_nolegend_')
-        ax.legend(["Unit {}".format(unit) for unit in units])
+                # Plot the second set of templates
+                if self.templates_sec is None:
+                    continue
+                elif self.unit_map[unit] < 0:
+                    # There is no match for this particular unit.
+                    continue
+                x_ = np.arange(0, self.samples_sec, 1.0) + 1
+                x_ += self.geometry[c, 0] - self.samples_sec / 2
+                y_ = (self.templates_sec[:, c, self.unit_map[unit]]) * scale
+                y_ += self.geometry[c, 1]
+                ax.plot(x_, y_, color=col, label='_nolegend_', linestyle='--')
+
+        ax.legend(["{}".format(self.unit_labels[unit]) for unit in units])
         ax.set_xlabel('Probe x coordinate')
         ax.set_ylabel('Probe y coordinate')
         fig.set_size_inches(15, 15)
