@@ -185,7 +185,7 @@ class ChristmasPlot(object):
                         x_, y_, color=self.new_colors[method_idx],
                         marker=self.method_markers[method_idx], markersize=4)
                 except Exception as exception:
-                    print exception
+                    print(exception)
                     print("No metric found for {} for dataset {}".format(
                         method, i + 1))
         self.fig.set_size_inches(9, 6 * self.n_dataset)
