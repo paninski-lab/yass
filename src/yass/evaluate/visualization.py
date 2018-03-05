@@ -3,6 +3,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from yass.evaluate.util import main_channels
+
 
 class ChristmasPlot(object):
     """Standard figure for evaluation comparison vs. template properties."""
@@ -139,7 +141,7 @@ class ChristmasPlot(object):
                         color=self.new_colors[method_idx],
                         marker=self.method_markers[method_idx])
                 except Exception as exception:
-                    print exception
+                    print(exception)
                     print("No metric found for {} for dataset {}".format(
                         method, i + 1))
         self.fig.set_size_inches(16, 6 * self.n_dataset)
@@ -194,3 +196,58 @@ class ChristmasPlot(object):
             plt.savefig(save_to)
         else:
             plt.show()
+
+
+class WaveFormTrace(object):
+    """Class for plotting spatial traces of waveforms."""
+
+    def __init__(self, geometry, templates):
+        """Sets up the plotting descriptions for spatial trace.
+
+        Parameters:
+        -----------
+        geometry: numpy.ndarray shape (C, 2)
+            Incidates coordinates of the probes.
+        templates: numpy.ndarray shape (T, C, K)
+            Where T, C and K respectively indicate time samples, number of
+            channels, and number of units.
+        """
+        self.geometry = geometry
+        self.templates = templates
+        self.samples = templates.shape[0]
+        self.n_channels = templates.shape[1]
+        self.n_units = templates.shape[2]
+
+    def plot_wave(self, units, trace_size=6, scale=5):
+        """Plot spatial trace of the units
+
+        Parameters:
+        -----------
+        units: list of int
+            The units for which the spatial trace will be dispalyed.
+        trace_size: int
+            Number of channels for which each waveform should be displayed.
+        scale: float
+            Scale the spikes for display purposes.
+        """
+        fig, ax = plt.subplots()
+        if self.n_channels < trace_size:
+            trace_size = self.n_channels
+        for unit in units:
+            # Only plot the strongest channels based on the given size.
+            channels = main_channels(self.templates[:, :, unit])[-trace_size:]
+            p = ax.scatter(
+                    self.geometry[channels, 0], self.geometry[channels, 1])
+            # Get the color of the recent scatter to plot the trace with the
+            # same color..
+            col = p.get_facecolor()[-1, :3]
+            for c in channels:
+                x_ = np.arange(0, self.samples, 1.0)
+                x_ += self.geometry[c, 0] - self.samples / 2
+                y_ = (self.templates[:, c, unit]) * scale + self.geometry[c, 1]
+                ax.plot(x_, y_, color=col, label='_nolegend_')
+        ax.legend(["Unit {}".format(unit) for unit in units])
+        ax.set_xlabel('Probe x coordinate')
+        ax.set_ylabel('Probe y coordinate')
+        fig.set_size_inches(15, 15)
+        plt.show()

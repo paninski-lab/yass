@@ -213,7 +213,7 @@ class Analyzer(object):
 
         Parameters:
         -----------
-        metric: str
+        metric: str, 'stability', 'accuracy'
             The type of metric that should be visualized.
         """
         if metric == 'stability':
@@ -223,5 +223,15 @@ class Analyzer(object):
             stability = np.load(self.stability_file)
             # Add the log PNR of templates and stability.
             plot.add_metric(np.log(temp_snr(templates)), stability)
+            plot.generate_snr_metric_plot(show_id=True)
+            plot.generate_curve_plots()
+
+        if metric == 'accuracy':
+            data_title = self.config['data']['recordings']
+            plot = ChristmasPlot(data_title, eval_type=metric)
+            templates = np.load(self.gold_templates_file)
+            accuracy = np.load(self.accuracy_file)
+            # Add the log PNR of templates and stability.
+            plot.add_metric(np.log(temp_snr(templates)), accuracy)
             plot.generate_snr_metric_plot(show_id=True)
             plot.generate_curve_plots()
