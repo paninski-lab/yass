@@ -102,7 +102,7 @@ class ChristmasPlot(object):
         eval_tup = (snr_list, percent_list)
         self.metric_matrix[method_name][dataset_number] = eval_tup
 
-    def generate_snr_metric_plot(self, save_to=None):
+    def generate_snr_metric_plot(self, save_to=None, show_id=False):
         """Generate pdf plots of evaluations for the datasets and methods.
 
         Parameters:
@@ -110,6 +110,8 @@ class ChristmasPlot(object):
         save_to: str or None
             Absolute path to file where the figure is written to. If None,
             the resulting figure is displayed.
+        show_id: bool
+            Plot the cluster id of each unit right next to its metric.
         """
         self.fig, self.ax = plt.subplots(self.n_dataset, 1)
         if self.n_dataset == 1:
@@ -128,15 +130,19 @@ class ChristmasPlot(object):
                     metrics = metric_tuple[1]
                     if self.logit_y:
                         metrics = self.logit(metrics)
+                    if show_id:
+                        for j in range(len(metrics)):
+                            self.ax[i].text(
+                                metric_tuple[0][j], metrics[j], str(j))
                     self.ax[i].scatter(
                         metric_tuple[0], metrics,
                         color=self.new_colors[method_idx],
                         marker=self.method_markers[method_idx])
                 except Exception as exception:
-                    print(exception)
+                    print exception
                     print("No metric found for {} for dataset {}".format(
                         method, i + 1))
-        self.fig.set_size_inches(12, 4 * self.n_dataset)
+        self.fig.set_size_inches(16, 6 * self.n_dataset)
         for i in range(self.n_dataset):
             self.ax[i].legend(self.methods)
         if save_to is not None:
@@ -175,12 +181,12 @@ class ChristmasPlot(object):
                         y_[j] = np.sum(metrics > eval_rate)
                     self.ax[i].plot(
                         x_, y_, color=self.new_colors[method_idx],
-                        marker=self.method_markers[method_idx])
+                        marker=self.method_markers[method_idx], markersize=4)
                 except Exception as exception:
-                    print(exception)
+                    print exception
                     print("No metric found for {} for dataset {}".format(
                         method, i + 1))
-        self.fig.set_size_inches(6, 4 * self.n_dataset)
+        self.fig.set_size_inches(9, 6 * self.n_dataset)
         for i in range(self.n_dataset):
             self.ax[i].set_xlim(1, min_eval)
             self.ax[i].legend(self.methods)

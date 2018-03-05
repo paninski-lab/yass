@@ -37,6 +37,8 @@ class Analyzer(object):
         # Directories that contain necessary metrics, intermediate files.
         self.root_dir = self.config['data']['root_folder']
         self.tmp_dir = os.path.join(self.root_dir, 'tmp', 'eval')
+        if not os.path.isdir(os.path.join(self.root_dir, 'tmp')):
+            os.mkdir(os.path.join(self.root_dir, 'tmp'))
         if not os.path.isdir(self.tmp_dir):
             os.mkdir(self.tmp_dir)
         # Files that will contain necessary metrics, intermediate computations.
@@ -219,6 +221,7 @@ class Analyzer(object):
             plot = ChristmasPlot(data_title, eval_type=metric)
             templates = np.load(self.gold_aug_templates_file)
             stability = np.load(self.stability_file)
-            plot.add_metric(temp_snr(templates), stability)
-            plot.generate_snr_metric_plot()
+            # Add the log PNR of templates and stability.
+            plot.add_metric(np.log(temp_snr(templates)), stability)
+            plot.generate_snr_metric_plot(show_id=True)
             plot.generate_curve_plots()
