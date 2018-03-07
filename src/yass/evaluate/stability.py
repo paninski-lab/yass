@@ -11,7 +11,7 @@ from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import pdist, squareform, cdist
 from tqdm import tqdm
 
-from yass.geometry import find_channel_neighbors
+from yass.geometry import find_channel_neighbors, parse
 from yass.evaluate.stability_filters import butterworth, whitening
 
 
@@ -62,7 +62,7 @@ class RecordingBatchIterator(object):
         self.n_batches = n_batches
         self.n_chan = n_chan
         self.radius = radius
-        self.geometry = np.genfromtxt(geom_file, delimiter=' ')
+        self.geometry = parse(geom_file, n_chan)
         self.neighbs = find_channel_neighbors(
             self.geometry, self.radius)
         self.filter_std = filter_std
