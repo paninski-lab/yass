@@ -18,7 +18,7 @@ def test_can_use_neural_network_detector(path_to_tests):
 
     data = RecordingsReader(path.join(path_to_tests,
                                       'data/standarized.bin'),
-                            mmap=False).data.T
+                            loader='array').data.T
 
     channel_index = make_channel_index(CONFIG.neighChannels,
                                        CONFIG.geom)
@@ -51,7 +51,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
 
     PATH_TO_DATA = path.join(path_to_tests, 'data/standarized.bin')
 
-    data = RecordingsReader(PATH_TO_DATA, mmap=False).data.T
+    data = RecordingsReader(PATH_TO_DATA, loader='array').data
 
     with open(path.join(path_to_tests, 'data/standarized.yaml')) as f:
         PARAMS = yaml.load(f)
