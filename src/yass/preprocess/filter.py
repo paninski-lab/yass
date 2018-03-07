@@ -75,12 +75,13 @@ def butterworth(path_to_data, dtype, n_channels, data_shape,
     """
     # init batch processor
     bp = BatchProcessor(path_to_data, dtype, n_channels, data_shape,
-                        max_memory, 200)
+                        max_memory, buffer_size=200)
 
     _output_path = os.path.join(output_path, output_filename)
 
     (path,
      params) = bp.multi_channel_apply(_butterworth, mode='disk',
+                                      cleanup_function=fix_indexes,
                                       output_path=_output_path,
                                       if_file_exists=if_file_exists,
                                       cast_dtype=output_dtype,
@@ -140,3 +141,25 @@ def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
             output[:, c] = lfilter(b, a, ts[:, c])
 
         return output
+
+
+def fix_indexes(res, idx_local, idx, buffer_size):
+    """Fixes indexes from detected spikes in batches
+
+    Parameters
+    ----------
+    res: tuple
+        A result from the butterworth
+    idx_local: slice
+        A slice object indicating the indices for the data (excluding buffer)
+    idx: slice
+        A slice object indicating the absolute location of the data
+    buffer_size: int
+        Buffer size
+    """
+
+    # get limits for the data (exlude indexes that have buffer data)
+    data_start = idx_local[0].start
+    data_end = idx_local[0].stop
+
+    return res[data_start:data_end]
