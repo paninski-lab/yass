@@ -17,11 +17,12 @@ class Analyzer(object):
     def __init__(self, config, gold_std_spike_train=None):
         """Sets up the analyzer object with configurations.
 
-        Parameters:
-            config: str or map
+        Parameters
+        ----------
+        config: str or map
             Absolute path to the yass config file for the dataset.
             Alternatively, map of configuration options.
-            gold_std_spike_train: numpy.ndarray of shape (N, 2) or None
+        gold_std_spike_train: numpy.ndarray of shape (N, 2) or None
             Gold standard spike train where first column corresponds to
             spike times and second column corresponds to cluster identities.
             If None, then no accuracy evaluation will be done.
@@ -70,8 +71,9 @@ class Analyzer(object):
     def run_stability(self, n_batches=6):
         """Runs stability metric computation for the given config file.
 
-        Parameters:
-            n_batchs: int
+        Parameters
+        ----------
+        n_batchs: int
             Break down the processing of the dataset in these many batches.
         """
         # Check whether this analysis is not done already.
@@ -181,7 +183,7 @@ class Analyzer(object):
     def run_accuracy(self):
         """Runs accuracy evaluation for the config file.
 
-        Note: This can be performed only if there is a gold standard
+        This can be performed only if there is a gold standard
         spike train and run_stability has been called before.
         """
         # Check whether this analysis is not done already.
@@ -207,8 +209,9 @@ class Analyzer(object):
         Note: This step has to be called only when the stability has been
         evaluated.
 
-        Parameters:
-            n_batchs: int
+        Parameters
+        ----------
+        n_batchs: int
             Break down the processing of the dataset in these many batches.
         """
         self.run_stability(n_batches=n_batches)
@@ -217,8 +220,8 @@ class Analyzer(object):
     def visualize(self, metric, units=None):
         """Visualizes the metric of interest.
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         metric: str, 'stability', 'accuracy'
             The type of metric that should be visualized.
         units: list of int
