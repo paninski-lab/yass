@@ -155,8 +155,8 @@ class MeanWaveCalculator(object):
 
 class RecordingAugmentation(object):
 
-    def __init__(self, mean_wave_calculator,
-                 move_rate, augment_rate, dist_factor=0.5):
+    def __init__(self, mean_wave_calculator, move_rate,
+                 augment_rate, dist_factor=0.5, refractory_period=2.0):
         """Sets up the object for stability metric computations.
 
         Parameters
@@ -167,6 +167,9 @@ class RecordingAugmentation(object):
             will be moved spatially around.
             dist_factor: float [0, 1]. How far the should the template
             move spatially. 0 represents no movement and 1 furtherst.
+            refractory_period: float
+            The minimum time between spikes of the same unit/cluster in
+            milli-seconds.
         """
         self.template_comp = mean_wave_calculator
         self.geometry = mean_wave_calculator.batch_reader.geometry
@@ -180,6 +183,9 @@ class RecordingAugmentation(object):
         self.move_rate = move_rate
         self.augment_rate = augment_rate
         self.dist_factor = dist_factor
+        # Convert refractory period to time samples.
+        sampling_rate = mean_wave_calculator.batch_reader.s_rate
+        self.refrac_period = refractory_period * 1e-3 * sampling_rate
 
     def construct_channel_map(self):
         """Constucts a map of coordinate to channel index."""
@@ -188,6 +194,86 @@ class RecordingAugmentation(object):
             self.geom_map[(self.geometry[i, 0], self.geometry[i, 1])] = i
         pair_dist = squareform(pdist(self.geometry))
         self.closest_channels = np.argsort(pair_dist, axis=1)
+
+    def correct_spike_time(self, spike_times, aug_spike_times):
+        """Corrects any violation of refractory period for spike times.
+
+        Parameters
+        ----------
+        spike_times: numpy.array
+            Sorted numpy.array of base spike times.
+        aug_spike_times: numpy.array
+            Sorted numpy.array of spike times to be added to the base. These
+            should not violate refractory period among themselves.
+
+        Returns
+        -------
+        numpy.array
+            New augmented spike times where there is no violation of refractory
+            period time with respect to the combined spike train.
+        """
+        if len(spike_times) == 0 or len(aug_spike_times) == 0:
+            return aug_spike_times
+        # Number of spikes that violate refractory period.
+        num_violation = 0
+        # Silent periods that more spikes can be added.
+        silent_period = []
+        # Last spike time that was added, combined between the two.
+        last_spike_time = 0
+        # The spike that was added the current iteration, combined between
+        # the two spike trains.
+        current_spike_time = 0
+        valid_spike_times = []
+
+        remove_idx = []
+        for i in range(1, len(aug_spike_times)):
+            diff = aug_spike_times[i] - aug_spike_times[i - 1]
+            if diff < self.refrac_period:
+                remove_idx.append(i - 1)
+                num_violation += 1
+        aug_spike_times = np.delete(aug_spike_times, remove_idx)
+        # Cursor on the base spike times.
+        i = 0
+        # Cursor on the augmented spike_times.
+        j = 0
+        while i < len(spike_times) or j < len(aug_spike_times):
+            diff = 0
+            if i >= len(spike_times):
+                # We saw all base spike times.
+                diff = self.refrac_period + 1
+            elif j >= len(aug_spike_times):
+                # We saw all augmented spikes.
+                diff = - self.refrac_period - 1
+            else:
+                diff = spike_times[i] - aug_spike_times[j]
+
+            if diff > self.refrac_period:
+                current_spike_time = aug_spike_times[j]
+                valid_spike_times.append(current_spike_time)
+                j += 1
+
+            elif diff > - self.refrac_period and diff < self.refrac_period:
+                # Violating refrac period with respect to base spike_times
+                j += 1
+                current_spike_time = last_spike_time
+                num_violation += 1
+            else:
+                current_spike_time = spike_times[i]
+                i += 1
+            # Check whether there is a silent period.
+            silence = current_spike_time - last_spike_time
+            if silence > 2 * self.refrac_period:
+                silent_period.append((last_spike_time, current_spike_time))
+            last_spike_time = current_spike_time.astype('int')
+
+        # Add as many unvalid augmented spike times as possible back.
+        i = 0
+        while num_violation > 0 and i < len(silent_period):
+            valid_spike_times.append(
+                    silent_period[i][0] + self.refrac_period)
+            i += 1
+            num_violation -= 1
+        return np.sort(np.array(valid_spike_times)).astype('int')
 
     def move_spatial_trace(self, template, spatial_size=10, mode='amp'):
         """Moves the waveform spatially around the probe.
@@ -277,7 +363,6 @@ class RecordingAugmentation(object):
             Between 0 and 1. Augmented spikes per unit (percentage of total
             spikes per unit).
         """
-        refractory_period = 60
         spt = self.template_comp.spike_train
         # We sample a new set of spike times per cluster.
         times = []
@@ -299,9 +384,11 @@ class RecordingAugmentation(object):
             # sampled differential times.
             offsets = np.sort(
                 np.random.choice(spt_u, new_spike_count, replace=False))
-
-            diffs[diffs < refractory_period] += refractory_period
-            times += list(offsets + diffs)
+            # Enforce refractory period.
+            diffs[diffs < self.refrac_period] = self.refrac_period
+            new_spikes = offsets + diffs
+            new_spikes = self.correct_spike_time(spt_u, new_spikes)
+            times += list(new_spikes)
             cid += [u] * new_spike_count
         return np.array([times, cid]).T
 
