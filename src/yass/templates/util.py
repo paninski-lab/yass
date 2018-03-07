@@ -5,7 +5,7 @@ import numpy as np
 from scipy import sparse
 import logging
 
-from yass.explore import RecordingExplorer, SpikeTrainExplorer
+from yass.batch import BatchProcessor
 
 logger = logging.getLogger(__name__)
 
@@ -14,17 +14,67 @@ logger = logging.getLogger(__name__)
 def get_templates(spike_train, path_to_recordings, spike_size):
     logger.info('Computing templates...')
 
-    re = RecordingExplorer(path_to_recordings,
-                           spike_size=spike_size)
+    # number of templates
+    n_templates = np.max(spike_train[:, 1]) + 1
 
-    idx_keep = np.logical_and(spike_train[:, 0] > spike_size,
-                              spike_train[:, 0] <
-                              re.data._n_observations - spike_size - 1)
-    spike_train = spike_train[idx_keep]
+    # read recording
+    bp = BatchProcessor(path_to_recordings,
+                        buffer_size=spike_size)
 
-    spe = SpikeTrainExplorer(spike_train, re)
+    # run nn preprocess batch-wsie
+    mc = bp.multi_channel_apply
+    res = mc(
+        compute_weighted_templates,
+        mode='memory',
+        pass_batch_info=True,
+        pass_batch_results=True,
+        spike_train=spike_train,
+        spike_size=spike_size,
+        n_templates=n_templates)
 
-    return spe.templates, spe.weights
+    templates = res[0]
+    weights = res[1]
+    weights[weights == 0] = 1
+    templates = templates/weights[np.newaxis, np.newaxis, :]
+
+    return templates, weights
+
+
+def compute_weighted_templates(recording, idx_local, idx, previous_batch,
+                               spike_train, spike_size, n_templates):
+
+    n_channels = recording.shape[1]
+
+    # batch info
+    data_start = idx[0].start
+    data_end = idx[0].stop
+    # get offset that will be applied
+    offset = idx_local[0].start
+
+    # shift location of spikes according to the batch info
+    spike_time = spike_train[:, 0]
+    spike_train = spike_train[np.logical_and(spike_time >= data_start,
+                                             spike_time < data_end)]
+    spike_train[:, 0] = spike_train[:, 0] - data_start + offset
+
+    # calculate weight templates
+    weighted_templates = np.zeros((n_templates, n_channels, 2*spike_size+1),
+                                  dtype=np.float32)
+    weights = np.zeros(n_templates)
+
+    for k in range(n_templates):
+        spt = spike_train[spike_train[:, 1] == k, 0]
+        weighted_templates[k] = np.sum(recording[
+            spt[:, np.newaxis] + np.arange(-spike_size, spike_size+1)], 0).T
+        weights[k] = spt.shape[0]
+
+    weighted_templates = np.transpose(weighted_templates, (1, 2, 0))
+
+    if previous_batch is not None:
+        weighted_templates += previous_batch[0]
+        weights += previous_batch[1]
+
+    return weighted_templates, weights
 
 
 # TODO: docs

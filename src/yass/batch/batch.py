@@ -504,6 +504,8 @@ class BatchProcessor(object):
 
         for i, (subset, idx_local, idx) in enumerate(data):
 
+            self.logger.debug('Processing batch {}...'.format(i))
+
             kwargs_other = dict()
 
             if pass_batch_info:
@@ -554,6 +556,8 @@ class BatchProcessor(object):
         previous_batch = None
 
         for i, (subset, idx_local, idx) in enumerate(data):
+
+            self.logger.debug('Processing batch {}...'.format(i))
 
             kwargs_other = dict()
 
