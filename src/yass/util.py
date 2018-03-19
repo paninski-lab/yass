@@ -280,6 +280,9 @@ def human_readable_time(seconds):
     -----
     Based on: https://stackoverflow.com/a/26165034
     """
+    if seconds < 60:
+        return '{:.4f} seconds'.format(seconds)
+
     intervals = ['days', 'hours', 'minutes', 'seconds']
     delta = relativedelta(seconds=seconds)
     return (' '.join('{} {}'.format(getattr(delta, k), k) for k in intervals
