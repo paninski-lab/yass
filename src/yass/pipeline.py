@@ -17,6 +17,8 @@ except ImportError:
 import numpy as np
 import yaml
 
+
+import yass
 from yass import set_config
 from yass import preprocess, detect, cluster, deconvolute
 from yass import templates as get_templates
@@ -94,6 +96,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # instantiate logger
     logger = logging.getLogger(__name__)
+
+    # print yass version
+    logger.info('YASS version: %s', yass.__version__)
 
     # preprocess
     start = time.time()
