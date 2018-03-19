@@ -4,10 +4,11 @@ from logging import NullHandler
 try:
     import tensorflow as tf
 except ImportError:
-    print('YASS requires tensorflow to work. It is not installed automatically'
-          'to avoid overwriting existing installations. See this for '
-          'installation instructions: https://www.tensorflow.org/install/')
-    raise ImportError
+    message = ('YASS requires tensorflow to work. It is not installed '
+               'automatically to avoid overwriting existing installations.'
+               ' See this for instructions: '
+               'https://www.tensorflow.org/install/')
+    raise ImportError(message)
 
 from yass.config import Config
 
