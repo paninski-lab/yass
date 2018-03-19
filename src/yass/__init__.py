@@ -1,7 +1,13 @@
 import logging
 from logging import NullHandler
 
-import tensorflow as tf
+try:
+    import tensorflow as tf
+except ImportError:
+    print('YASS requires tensorflow to work. It is not installed automatically'
+          'to avoid overwriting existing installations. See this for '
+          'installation instructions: https://www.tensorflow.org/install/')
+    raise ImportError
 
 from yass.config import Config
 
@@ -16,6 +22,9 @@ tf.logging.set_verbosity(tf.logging.WARN)
 
 
 def read_config():
+    """
+    Read YASS config
+    """
     if CONFIG is None:
         raise ValueError('Configuration has not been set')
 

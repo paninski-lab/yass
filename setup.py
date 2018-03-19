@@ -27,8 +27,7 @@ LICENSE = 'Apache'
 INSTALL_REQUIRES_DOCS = ['pathlib2', 'funcsigs']
 
 INSTALL_REQUIRES = [
-    'numpy', 'scipy', 'scikit-learn', 'tensorflow', 'pyyaml',
-    'python-dateutil', 'click',
+    'numpy', 'scipy', 'scikit-learn', 'pyyaml', 'python-dateutil', 'click',
     # FIXME: we should remove this
     'progressbar2',
     # FIXME: stability metric depends on this, remove...
@@ -39,6 +38,8 @@ INSTALL_REQUIRES = [
 # build, modules are mocked in conf.py
 INSTALL_REQUIRES = (INSTALL_REQUIRES_DOCS if os.environ.get('READTHEDOCS')
                     else INSTALL_REQUIRES)
+
+EXTRAS_REQUIRE = {'tensorflow': ['tensorflow']}
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -112,6 +113,7 @@ setup(
         'Programming Language :: Python :: Implementation :: CPython',
     ],
     install_requires=INSTALL_REQUIRES,
+    extras_require=EXTRAS_REQUIRE,
     entry_points={
         'console_scripts': ['yass=yass.command_line:cli'],
     },
