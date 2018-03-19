@@ -12,6 +12,7 @@ install:
   - make install
 
 script:
+  - pip install tensorflow
   - make test
   - make integration-test
   - make docs
