@@ -25,7 +25,10 @@ from yass.config import Config
 
 
 @click.group()
+@click.version_option()
 def cli():
+    """Command line group
+    """
     pass
 
 
