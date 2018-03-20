@@ -135,7 +135,6 @@ class Config(FrozenJSON):
                                      (2*1000))))
         self._set_param('templates_max_shift',
                         int(self.recordings.sampling_rate/1000))
-        self._set_param('std_factor', 4)
 
     def __setattr__(self, name, value):
         if not name.startswith('_'):
