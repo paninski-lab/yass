@@ -112,18 +112,18 @@ class Config(FrozenJSON):
         self._set_param('geom', geom.parse(path_to_geom,
                         self.recordings.n_channels))
 
-        neighChannels = geom.find_channel_neighbors(
+        neigh_channels = geom.find_channel_neighbors(
             self.geom, self.recordings.spatial_radius)
-        self._set_param('neighChannels', neighChannels)
+        self._set_param('neigh_channels', neigh_channels)
 
         channel_groups = geom.make_channel_groups(self.recordings.n_channels,
-                                                  self.neighChannels,
+                                                  self.neigh_channels,
                                                   self.geom)
         self._set_param('channel_groups', channel_groups)
 
-        self._logger.debug('Geometry parameters. Geom: {}, neighChannels: '
+        self._logger.debug('Geometry parameters. Geom: {}, neigh_channels: '
                            '{}, channel_groups {}'
-                           .format(self.geom, self.neighChannels,
+                           .format(self.geom, self.neigh_channels,
                                    self.channel_groups))
 
         self._set_param('spikeSize',

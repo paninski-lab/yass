@@ -20,7 +20,7 @@ def test_can_use_neural_network_detector(path_to_tests):
                                       'data/standarized.bin'),
                             loader='array').data.T
 
-    channel_index = make_channel_index(CONFIG.neighChannels,
+    channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom)
 
     whiten_filter = np.tile(np.eye(channel_index.shape[1], dtype='float32')[
@@ -56,7 +56,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
     with open(path.join(path_to_tests, 'data/standarized.yaml')) as f:
         PARAMS = yaml.load(f)
 
-    channel_index = make_channel_index(CONFIG.neighChannels,
+    channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom)
 
     whiten_filter = np.tile(np.eye(channel_index.shape[1], dtype='float32')[

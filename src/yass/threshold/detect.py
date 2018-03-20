@@ -151,7 +151,7 @@ def _threshold(rec, neighbors, spike_size, threshold):
     T, C = rec.shape
     R = spike_size
     th = threshold
-    neighChannels_big = n_steps_neigh_channels(neighbors, steps=2)
+    neigh_channels_big = n_steps_neigh_channels(neighbors, steps=2)
 
     # FIXME: is this a safe thing to do?
     index = np.zeros((1000000, 2), 'int32')
@@ -173,7 +173,7 @@ def _threshold(rec, neighbors, spike_size, threshold):
             nc = spt_c.shape[0]
 
             # get neighboring channels
-            ch_idx = np.where(neighChannels_big[c])[0]
+            ch_idx = np.where(neigh_channels_big[c])[0]
             c_main = np.where(ch_idx == c)[0]
 
             # look at temporal spatial window around the spike location

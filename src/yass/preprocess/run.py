@@ -111,14 +111,14 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                   standarized_params['dtype'],
                                   standarized_params['n_channels'],
                                   standarized_params['data_format'],
-                                  CONFIG.neighChannels,
+                                  CONFIG.neigh_channels,
                                   CONFIG.geom,
                                   CONFIG.spikeSize,
                                   CONFIG.resources.max_memory,
                                   TMP,
                                   if_file_exists=if_file_exists)
 
-    channel_index = make_channel_index(CONFIG.neighChannels,
+    channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom)
 
     return (str(standarized_path), standarized_params, channel_index,
