@@ -188,6 +188,12 @@ neural_network_autoencoder:
 
 cluster_prior:
   type: dict
+  default:
+    beta: 1
+    a: 1
+    lambda0: 0.01
+    nu: 5
+    V: 2
   schema:
     beta:
       type: integer
@@ -210,6 +216,10 @@ cluster_prior:
 
 filter:
   type: dict
+  default:
+    order: 3
+    low_pass_freq: 300
+    high_factor: 0.1
   schema:
     # Order of Butterworth filter
     order:
@@ -226,6 +236,9 @@ filter:
 
 triage:
   type: dict
+  default:
+    nearest_neighbors: 20
+    percent: 0.1
   schema:
     # number of nearest neighbors to consider
     nearest_neighbors:
@@ -238,6 +251,9 @@ triage:
 
 coreset:
   type: dict
+  default:
+    clusters: 10
+    threshold: 0.95
   schema:
     # Num. of clusters
     clusters:
@@ -251,7 +267,5 @@ coreset:
 
 templates:
   type: dict
-  schema:
-    merge_threshold:
-      type: list
-      default: [0.8, 0.7]
+  default:
+    merge_threshold: [0.8, 0.7]

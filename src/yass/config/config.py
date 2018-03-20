@@ -63,7 +63,8 @@ class FrozenJSON(object):
                 return FrozenJSON(self._data[name])
             except KeyError:
                 raise KeyError('Trying to access a key that does not exist, '
-                               'keys are: {}'.format(self._data.keys()))
+                               '({}) keys are: {}'
+                               .format(name, self._data.keys()))
 
     def __dir__(self):
         return self._data.keys()
@@ -158,13 +159,13 @@ class Config(FrozenJSON):
             schema = yaml.load(f)
 
         validator = Validator(schema)
-        valid = validator.validate(mapping)
+        is_valid = validator.validate(mapping)
 
-        if not valid:
+        if not is_valid:
             raise ValueError('Errors occurred while validating the '
                              'configuration file: {}'
                              .format(validator.errors))
-
+        print(validator.document)
         return validator.document
 
     def _pretty_iterator(self, it):
