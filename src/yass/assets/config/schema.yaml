@@ -97,6 +97,12 @@ cluster:
     n_split: 5
     method: location
     max_n_spikes: 10000
+    prior:
+      beta: 1
+      a: 1
+      lambda0: 0.01
+      nu: 5
+      V: 2
   schema:
     # Masking threshold
     masking_threshold:
@@ -122,6 +128,31 @@ cluster:
     max_n_spikes:
         type: integer
         default: 10000
+    prior:
+      type: dict
+      default:
+        beta: 1
+        a: 1
+        lambda0: 0.01
+        nu: 5
+        V: 2
+      schema:
+        beta:
+          type: integer
+          default: 1
+        a:
+          type: integer
+          default: 1
+        lambda0:
+          type: float
+          default: 0.01
+        nu:
+          type: integer
+          default: 5
+        V:
+          type: integer
+          default: 2
+
 
 deconvolution:
   type: dict
@@ -196,33 +227,6 @@ neural_network_autoencoder:
       # yaml file is needed
       type: string
       default: ae_nn1.ckpt
-
-
-
-cluster_prior:
-  type: dict
-  default:
-    beta: 1
-    a: 1
-    lambda0: 0.01
-    nu: 5
-    V: 2
-  schema:
-    beta:
-      type: integer
-      default: 1
-    a:
-      type: integer
-      default: 1
-    lambda0:
-      type: float
-      default: 0.01
-    nu:
-      type: integer
-      default: 5
-    V:
-      type: integer
-      default: 2
 
 filter:
   type: dict

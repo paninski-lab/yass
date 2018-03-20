@@ -230,7 +230,7 @@ class vbPar:
 
             param: Config object (See config.py for details)
         """
-        prior = param.cluster_prior
+        prior = param.cluster.prior
         nfeature, Khat, nchannel = suffStat.sumY.shape
         self.ahat = prior.a + suffStat.Nhat
         self.lambdahat = prior.lambda0 + suffStat.Nhat
@@ -268,7 +268,7 @@ class vbPar:
 
             param: Config object (See config.py for details)
         """
-        prior = param.cluster_prior
+        prior = param.cluster.prior
         nfeature, Khat, nchannel = suffStat.sumY.shape
         self.ahat = prior.a + suffStat.Nhat
         self.lambdahat = prior.lambda0 + suffStat.Nhat
@@ -513,7 +513,7 @@ class ELBO_Class:
             nfeature, Khat, nchannel = vbParam.muhat.shape
             P = nfeature * nchannel
 
-        prior = param.cluster_prior
+        prior = param.cluster.prior
         fit_term = np.zeros(Khat)
         bmterm = np.zeros(Khat)
         # entropy_term = np.zeros(Khat)
@@ -615,10 +615,10 @@ class ELBO_Class:
         dc_term = - specsci.gammaln(np.sum(vbParam.ahat)) + np.sum(
             specsci.gammaln(vbParam.ahat)) \
             + specsci.gammaln(
-            Khat * param.cluster_prior.a) - Khat * specsci.gammaln(
-            param.cluster_prior.a) \
+            Khat * param.cluster.prior.a) - Khat * specsci.gammaln(
+            param.cluster.prior.a) \
             + np.sum(
-            (param.cluster_prior.a - vbParam.ahat) * (
+            (param.cluster.prior.a - vbParam.ahat) * (
                 specsci.digamma(vbParam.ahat) - specsci.digamma(
                     np.sum(vbParam.ahat))))
 
@@ -909,15 +909,15 @@ def check_merge(maskedData, vbParam, suffStat, ka, kb, param, L, ELBO):
          np.sum(suffStat.sumYSq2[:, :, (ka, kb), :], axis=2, keepdims=True)),
         axis=2)
 
-    vbParamTemp.ahat = param.cluster_prior.a + suffStatTemp.Nhat
-    vbParamTemp.lambdahat = param.cluster_prior.lambda0 + suffStatTemp.Nhat
-    vbParamTemp.nuhat = param.cluster_prior.nu + suffStatTemp.Nhat
+    vbParamTemp.ahat = param.cluster.prior.a + suffStatTemp.Nhat
+    vbParamTemp.lambdahat = param.cluster.prior.lambda0 + suffStatTemp.Nhat
+    vbParamTemp.nuhat = param.cluster.prior.nu + suffStatTemp.Nhat
     vbParamTemp.muhat = np.concatenate(
         (vbParam.muhat[:, no_kab, :],
          suffStatTemp.sumY[:, [K - 2], :] / vbParamTemp.lambdahat[K - 2]),
         axis=1)
     nfeature, Khat, nchannel = suffStat.sumY.shape
-    invV = np.eye(nfeature) / param.cluster_prior.V
+    invV = np.eye(nfeature) / param.cluster.prior.V
     invVhatTemp = np.zeros((nfeature, nfeature, 1, nchannel))
     VhatTemp = np.zeros((nfeature, nfeature, 1, nchannel))
     for n in range(nchannel):

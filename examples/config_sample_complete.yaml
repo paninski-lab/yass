@@ -66,6 +66,12 @@ cluster:
   # if the total number of spikes per clustering group exceeds it,
   # it randomly subsample
   max_n_spikes: 10000
+  prior:
+    beta: 1
+    a: 1
+    lambda0: 0.01
+    nu: 5
+    V: 2
 
 deconvolution:
   # refractory period violation in time bins
@@ -108,13 +114,6 @@ neural_network_autoencoder:
 ############
 # optional #
 ############
-
-cluster_prior:
-  beta: 1
-  a: 1
-  lambda0: 0.01
-  nu: 5
-  V: 2
 
 filter:
   # Order of Butterworth filter
