@@ -55,8 +55,8 @@ def run(scores, spike_index):
     _b = datetime.datetime.now()
     logger.info("Triaging...")
     score, spike_index = triage(scores, spike_index,
-                                CONFIG.triage.nearest_neighbors,
-                                CONFIG.triage.percent)
+                                CONFIG.cluster.triage.nearest_neighbors,
+                                CONFIG.cluster.triage.percent)
 
     logger.info("Randomly subsampling...")
     scores, spike_index = random_subsample(scores, spike_index,

@@ -98,6 +98,14 @@ cluster:
     lambda0: 0.01
     nu: 5
     V: 2
+  # FIXME: docs, seems like this section only applies when cluster.method
+  # != location
+  triage:
+    # number of nearest neighbors to consider
+    nearest_neighbors: 20
+    # percentage of data to be triaged
+    percent: 0.1
+
   coreset:
     # number of clusters
     clusters: 10
@@ -118,10 +126,3 @@ deconvolution:
   n_explore: 2 
   # upsampling factor of templates
   upsample_factor: 5
-
-
-triage:
-  # number of nearest neighbors to consider
-  nearest_neighbors: 20
-  # percentage of data to be triaged
-  percent: 0.1

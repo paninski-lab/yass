@@ -152,6 +152,9 @@ cluster:
     coreset:
       clusters: 10
       threshold: 0.95
+    triage:
+      nearest_neighbors: 20
+      percent: 0.1
   schema:
     # Masking threshold
     masking_threshold:
@@ -177,6 +180,7 @@ cluster:
     max_n_spikes:
         type: integer
         default: 10000
+
     prior:
       type: dict
       default:
@@ -201,6 +205,22 @@ cluster:
         V:
           type: integer
           default: 2
+
+    triage:
+      type: dict
+      default:
+        nearest_neighbors: 20
+        percent: 0.1
+      schema:
+        # number of nearest neighbors to consider
+        nearest_neighbors:
+          type: integer
+          default: 20
+        # percentage of data to be triaged
+        percent:
+          type: float
+          default: 0.1
+
     coreset:
       type: dict
       default:
@@ -244,18 +264,3 @@ deconvolution:
     upsample_factor:
       type: integer
       default: 5
-
-triage:
-  type: dict
-  default:
-    nearest_neighbors: 20
-    percent: 0.1
-  schema:
-    # number of nearest neighbors to consider
-    nearest_neighbors:
-      type: integer
-      default: 20
-    # percentage of data to be triaged
-    percent:
-      type: float
-      default: 0.1
