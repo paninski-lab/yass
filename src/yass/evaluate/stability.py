@@ -495,7 +495,8 @@ class RecordingAugmentation(object):
 
 class SpikeSortingEvaluation(object):
 
-    def __init__(self, spt_base, spt, tmp_base, tmp, method='hungarian'):
+    def __init__(self, spt_base, spt, tmp_base=None, tmp=None,
+                 method='hungarian'):
         """Sets up the evaluation object with two spike trains.
 
         Parameters
@@ -505,11 +506,17 @@ class SpikeSortingEvaluation(object):
             and second the cluster identities.
         spt: numpy.ndarray
             Shape [M, 2].
-        tmp_base: numpy.ndarray
-            Shape [T1, C, N]. Ground truth unit mean waveforms.
-        tmp_base: numpy.ndarray
-            Shape [T2, C, M]. Clustering units mean waveforms.
+        tmp_base: numpy.ndarray or None
+            Shape [T1, C, N]. Ground truth unit mean waveforms. If None,
+            hungarian algorithm is used for matching.
+        tmp_base: numpy.ndarray or None
+            Shape [T2, C, M]. Clustering units mean waveforms. If None,
+            the hungarian algorithm is used for matching.
+        method: str, 'greedy' or 'hungarian'
+            Method for matching clusters/units.
         """
+        if tmp_base is None or tmp is None:
+            method = 'hungarian'
         # clean the spike train before calling this function.
         self.tmp_base = tmp_base
         self.tmp = tmp
@@ -595,32 +602,11 @@ class SpikeSortingEvaluation(object):
         method: str. 'hungarian', 'greedy'
             Method of matching base units to clusters.
         """
-        # Calculate and match energy of templates.
-        # energy_base = np.linalg.norm(self.tmp_base, axis=0)
-        # energy = np.linalg.norm(self.tmp, axis=0)
-        energy_base = np.max(self.tmp_base, axis=0)
-        energy = np.max(self.tmp, axis=0)
-        energy_dist = cdist(energy_base.T, energy.T)
         # Maps ground truth unit to matched cluster unit.
         # -1 indicates no matching if n_units > n_clusters.
         unmatched_clusters = list(range(self.n_clusters))
         self.unit_cluster_map = np.zeros(self.n_units, dtype='int') - 1
 
-        # First match the largest energy ground truth templates.
-        for unit in reversed(np.argsort(np.linalg.norm(energy_base, axis=0))):
-
-            if len(unmatched_clusters) < 1:
-                break
-            # TODO(hooshmand): Find a fix for template comparison.
-            # If the closest template is not very similar skip it.
-            # if (np.min(energy_dist[unit, unmatched_clusters]) >
-            # 1/4 * np.linalg.norm(energy_base[:, unit])):
-            # continue
-
-            matched_cluster_id = unmatched_clusters[np.argmin(
-                energy_dist[unit, unmatched_clusters])]
-            unmatched_clusters.remove(matched_cluster_id)
-            self.unit_cluster_map[unit] = matched_cluster_id
         if method == 'hungarian':
             # Compute the accuracy confusion matrix.
             percent_matrix = self.confusion_matrix / np.reshape(
@@ -630,11 +616,15 @@ class SpikeSortingEvaluation(object):
             self.unit_cluster_map[units] = clusters
 
         elif method == 'greedy':
-            # First match the largest energy ground truth templates.
+            # Calculate and match energy of templates.
+            # The energy is based on amplitude (l-inf norm).
+            energy_base = np.max(self.tmp_base, axis=0)
+            energy = np.max(self.tmp, axis=0)
+            energy_dist = cdist(energy_base.T, energy.T)
             ordered_units = reversed(
                 np.argsort(np.linalg.norm(energy_base, axis=0)))
+            # First match the largest energy ground truth templates.
             for unit in ordered_units:
-
                 if len(unmatched_clusters) < 1:
                     break
                 # TODO(hooshmand): Find a fix for template comparison.
@@ -642,9 +632,12 @@ class SpikeSortingEvaluation(object):
                 # if (np.min(energy_dist[unit, unmatched_clusters]) >
                 # 1/4 * np.linalg.norm(energy_base[:, unit])):
                 # continue
-
+                # Also, something like selecting the template with
+                # the closest shape, e.g. the following zombie code line.
                 matched_cluster_id = unmatched_clusters[np.argmin(
                     energy_dist[unit, unmatched_clusters])]
+                matched_cluster_id = unmatched_clusters[np.argmax(
+                    self.confusion_matrix[unit, unmatched_clusters])]
                 unmatched_clusters.remove(matched_cluster_id)
                 self.unit_cluster_map[unit] = matched_cluster_id
         # Units which have a match in the clusters.
