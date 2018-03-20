@@ -80,8 +80,8 @@ def run(scores, spike_index):
         _b = datetime.datetime.now()
         logger.info("Coresetting...")
         groups = coreset(scores,
-                         CONFIG.coreset.clusters,
-                         CONFIG.coreset.threshold)
+                         CONFIG.cluster.coreset.clusters,
+                         CONFIG.cluster.coreset.threshold)
         Time['c'] += (datetime.datetime.now() - _b).total_seconds()
 
         ###########

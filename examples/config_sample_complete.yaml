@@ -72,6 +72,11 @@ cluster:
     lambda0: 0.01
     nu: 5
     V: 2
+  coseset:
+    # number of clusters
+    clusters: 10
+    # distance threshold
+    threshold: 0.95
 
 deconvolution:
   # refractory period violation in time bins
@@ -128,12 +133,6 @@ triage:
   nearest_neighbors: 20
   # percentage of data to be triaged
   percent: 0.1
-
-coreset:
-  # Num. of clusters
-  clusters: 10
-  # distance threshold
-  threshold: 0.95
 
 templates:
   merge_threshold: [0.8, 0.7]

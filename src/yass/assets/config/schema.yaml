@@ -103,6 +103,9 @@ cluster:
       lambda0: 0.01
       nu: 5
       V: 2
+    coreset:
+      clusters: 10
+      threshold: 0.95
   schema:
     # Masking threshold
     masking_threshold:
@@ -152,6 +155,21 @@ cluster:
         V:
           type: integer
           default: 2
+    coreset:
+      type: dict
+      default:
+        clusters: 10
+        threshold: 0.95
+      schema:
+        # Num. of clusters
+        clusters:
+          type: integer
+          default: 10
+        # distance threshold
+        threshold:
+          type: float
+          default: 0.95
+
 
 
 deconvolution:
@@ -262,22 +280,6 @@ triage:
     percent:
       type: float
       default: 0.1
-
-coreset:
-  type: dict
-  default:
-    clusters: 10
-    threshold: 0.95
-  schema:
-    # Num. of clusters
-    clusters:
-      type: integer
-      default: 10
-    # distance threshold
-    threshold:
-      type: float
-      default: 0.95
-
 
 templates:
   type: dict
