@@ -38,9 +38,6 @@ clustering:
   n_split: 5
   max_n_spikes: 10000
 
-location:
-  isolation_threshold: 0
-
 neural_network_detector:
   filename: detect_nn1.ckpt
   threshold_spike: 0.5

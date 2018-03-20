@@ -1,13 +1,6 @@
-# Sample configuration file, for a complete reference see
-# examples/config_sample_complete.yaml
-
 data:
   root_folder: tests/data
   recordings: neuropixel.bin
-  geometry: neuropixel_channels.npy
-
-resources:
-  max_memory: 1000000000
 
 recordings:
   dtype: int16
@@ -19,17 +12,15 @@ recordings:
 
 preprocess:
   filter: True
-  dtype: float32
 
 spikes:
-  detection: threshold
   temporal_features: 3
 
 deconvolution:
   n_rf: 1.5
   threshold_a: 0.3
   threshold_dd: 0
-  n_explore: 2 
+  n_explore: 2
   upsample_factor: 5
 
 clustering:
@@ -37,14 +28,3 @@ clustering:
   masking_threshold: [0.9, 0.5]
   n_split: 5
   max_n_spikes: 10000
-
-neural_network_detector:
-  filename: detect_nn1.ckpt
-  threshold_spike: 0.5
-
-neural_network_triage:
-  filename: triage_nn1.ckpt
-  threshold_collision: 0.9
-
-neural_network_autoencoder:
-  filename: ae_nn1.ckpt

@@ -13,13 +13,6 @@ from util import clean_tmp
 
 
 @pytest.fixture
-def path_to_config_sample():
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'config_sample.yaml')
-    return path
-
-
-@pytest.fixture
 def path_to_output():
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                         'data/tmp/output.csv')

@@ -23,8 +23,8 @@ EMAIL = 'fkq8@blancas.io'
 AUTHOR = 'Peter Lee, Eduardo Blancas'
 LICENSE = 'Apache'
 
-# to be compatible with python 2...
-INSTALL_REQUIRES_DOCS = ['pathlib2', 'funcsigs']
+# pathlib2 and funcsigs are required to be compatible with python 2
+INSTALL_REQUIRES_DOCS = ['pathlib2', 'funcsigs', 'cerberus']
 
 INSTALL_REQUIRES = [
     'numpy', 'scipy', 'scikit-learn', 'pyyaml', 'python-dateutil', 'click',

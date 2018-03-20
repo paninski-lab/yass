@@ -1,4 +1,3 @@
-from functools import reduce
 from os import path
 from collections import Mapping, MutableSequence
 import keyword
@@ -6,10 +5,9 @@ import logging
 
 import yaml
 import numpy as np
-from pkg_resources import resource_filename
 
 from yass import geometry as geom
-from yass.config.validator import Validator
+from yass.config.validate import validate
 
 
 class FrozenJSON(object):
@@ -19,8 +17,8 @@ class FrozenJSON(object):
     @classmethod
     def from_yaml(cls, path_to_file):
         # load config file
-        with open(path_to_file) as f:
-            mapping = yaml.load(f)
+        with open(path_to_file) as file:
+            mapping = yaml.load(file)
 
         obj = cls(mapping)
 
@@ -28,7 +26,7 @@ class FrozenJSON(object):
         obj._path_to_file = path_to_file
 
         logger = logging.getLogger(__name__)
-        logger.debug('Loaded from file: {}'.format(obj._path_to_file))
+        logger.debug('Loaded from file: %s', obj._path_to_file)
 
         return obj
 
@@ -43,7 +41,7 @@ class FrozenJSON(object):
 
     def __init__(self, mapping):
         self._logger = logging.getLogger(__name__)
-        self._logger.debug('Loaded with params: {}'.format(mapping))
+        self._logger.debug('Loaded with params: %s ', mapping)
         self._path_to_file = None
 
         self._data = {}
@@ -59,7 +57,12 @@ class FrozenJSON(object):
         if hasattr(self._data, name):
             return getattr(self._data, name)
         else:
-            return FrozenJSON(self._data[name])
+            try:
+                return FrozenJSON(self._data[name])
+            except KeyError:
+                raise KeyError('Trying to access a key that does not exist, '
+                               '({}) keys are: {}'
+                               .format(name, self._data.keys()))
 
     def __dir__(self):
         return self._data.keys()
@@ -94,7 +97,7 @@ class Config(FrozenJSON):
     After initialization, attributes cannot be changed
     """
     def __init__(self, mapping):
-        mapping = self._validate(mapping)
+        mapping = validate(mapping)
 
         super(Config, self).__init__(mapping)
 
@@ -144,19 +147,3 @@ class Config(FrozenJSON):
         parameters that need to be computed *right after* initialization
         """
         self._data[name] = value
-
-    def _validate(self, mapping):
-        """Validate values in the input dictionary
-        """
-        path_to_validator = resource_filename('yass',
-                                              'assets/config/validator.yaml')
-        with open(path_to_validator) as f:
-            validator_content = yaml.load(f)
-
-        validator = Validator(mapping, **validator_content)
-        mapping = validator.validate()
-
-        return mapping
-
-    def _pretty_iterator(self, it):
-        return reduce(lambda x, y: x+', '+y, it)
