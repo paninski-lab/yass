@@ -10,6 +10,7 @@ from cerberus import Validator
 from pkg_resources import resource_filename
 
 from yass import geometry as geom
+from yass.config.custom_rules import expand_asset_model
 
 
 class FrozenJSON(object):
@@ -165,8 +166,16 @@ class Config(FrozenJSON):
             raise ValueError('Errors occurred while validating the '
                              'configuration file: {}'
                              .format(validator.errors))
-        print(validator.document)
-        return validator.document
+
+        document = validator.document
+
+        # expand paths to filenames
+        # TODO: must document how this works...
+        expand_asset_model(document, 'neural_network_detector', 'filename')
+        expand_asset_model(document, 'neural_network_triage', 'filename')
+        expand_asset_model(document, 'neural_network_autoencoder', 'filename')
+
+        return document
 
     def _pretty_iterator(self, it):
         return reduce(lambda x, y: x+', '+y, it)
