@@ -214,9 +214,6 @@ cluster_prior:
     lambda0:
       type: float
       default: 0.01
-    # mu:
-    #   type: list
-    #   default: [[0], [0], [0]]
     nu:
       type: integer
       default: 5
