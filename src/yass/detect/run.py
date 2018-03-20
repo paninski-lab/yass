@@ -208,11 +208,11 @@ def run_neural_network(standarized_path, standarized_params,
                             buffer_size=CONFIG.spikeSize)
 
         # make tensorflow tensors and neural net classes
-        detection_th = CONFIG.neural_network_detector.threshold_spike
-        triage_th = CONFIG.neural_network_triage.threshold_collision
-        detection_fname = CONFIG.neural_network_detector.filename
-        ae_fname = CONFIG.neural_network_autoencoder.filename
-        triage_fname = CONFIG.neural_network_triage.filename
+        detection_th = CONFIG.detect.neural_network_detector.threshold_spike
+        triage_th = CONFIG.detect.neural_network_triage.threshold_collision
+        detection_fname = CONFIG.detect.neural_network_detector.filename
+        ae_fname = CONFIG.detect.neural_network_autoencoder.filename
+        triage_fname = CONFIG.detect.neural_network_triage.filename
         (x_tf, output_tf, NND,
          NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
                                                whiten_filter,

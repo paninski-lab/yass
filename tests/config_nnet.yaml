@@ -10,7 +10,7 @@ data:
   geometry: geometry_fake.txt
 
 resources:
-  max_memory: 1000000000
+  max_memory: 200MB
 
 recordings:
   dtype: int16
@@ -27,17 +27,6 @@ preprocess:
 detect:
   method: nn
   temporal_features: 3
-
-neural_network_triage:
-  filename: triage_nn1.ckpt
-  threshold_collision: 0.75
-
-neural_network_autoencoder:
-  filename: ae_nn1.ckpt
-
-neural_network_detector:
-  filename: detect_nn1.ckpt
-  threshold_spike: 0.5
 
 deconvolution:
   n_rf: 1.5

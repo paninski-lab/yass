@@ -109,6 +109,32 @@ detect:
     temporal_features:
       type: integer
       default: 3
+    neural_network_detector:
+      type: dict
+      default:
+        # model name, can be any of the models included in yass (detectnet1.ckpt),
+        # a relative folder to data.root_fodler (e.g.
+        # $ROOT_FOLDER/models/mymodel.ckpt) or an absolute path to a model
+        # (e.g. /path/to/my/model.ckpt). In the same folder as your model, there
+        # must be a yaml file with the number and size of the filters, the file
+        # should be named exactly as your model but with yaml extension
+        # see yass/src/assets/models/ for an example
+        filename: detect_nn1.ckpt
+        # Threshold for spike event detection
+        threshold_spike: 0.5
+    neural_network_triage:
+      type: dict
+      default:
+        # same rules apply as in neural_network_detector.filename but the
+        # yaml file should only contain size (not number)
+        filename: triage_nn1.ckpt
+        threshold_collision: 0.5
+    neural_network_autoencoder:
+      type: dict
+      default:
+        # same rules apply as in neural_network_detector.filename but no
+        # yaml file is needed
+        filename: ae_nn1.ckpt
 
 cluster:
   type: dict
@@ -218,56 +244,6 @@ deconvolution:
     upsample_factor:
       type: integer
       default: 5
-
-neural_network_detector:
-  type: dict
-  default:
-    filename: detect_nn1.ckpt
-    threshold_spike: 0.5
-  schema:
-    # model name, can be any of the models included in yass (detectnet1.ckpt),
-    # a relative folder to data.root_fodler (e.g.
-    # $ROOT_FOLDER/models/mymodel.ckpt) or an absolute path to a model
-    # (e.g. /path/to/my/model.ckpt). In the same folder as your model, there
-    # must be a yaml file with the number and size of the filters, the file
-    # should be named exactly as your model but with yaml extension
-    # see yass/src/assets/models/ for an example
-    filename:
-      type: string
-      default: detect_nn1.ckpt
-    # Threshold for spike event detection
-    threshold_spike:
-      type: float
-      default: 0.5
-
-
-neural_network_triage:
-  type: dict
-  default:
-    filename: triage_nn1.ckpt
-    threshold_collision: 0.5
-  schema:
-    # same rules apply as in neural_network_detector.filename but the
-    # yaml file should only contain size (not number)
-    filename:
-      type: string
-      default: triage_nn1.ckpt
-    # Threshold for spike event detection
-    threshold_collision:
-      type: float
-      default: 0.5
-
-
-neural_network_autoencoder:
-  type: dict
-  default:
-    filename: ae_nn1.ckpt
-  schema:
-    filename:
-      # same rules apply as in neural_network_detector.filename but no
-      # yaml file is needed
-      type: string
-      default: ae_nn1.ckpt
 
 triage:
   type: dict

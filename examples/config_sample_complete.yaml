@@ -16,7 +16,7 @@ data:
 
 resources:
   # maximum memory allowed
-  max_memory: 1000000000
+  max_memory: 200MB
 
 recordings:
   # precision of the recording – must be a valid numpy dtype
@@ -53,6 +53,27 @@ detect:
   # number of features in the temporal dimension to use when applying
   # dimensionality reduction
   temporal_features: 3
+  neural_network_detector:
+    # model name, can be any of the models included in yass (detectnet1.ckpt),
+    # a relative folder to data.root_fodler (e.g.
+    # $ROOT_FOLDER/models/mymodel.ckpt) or an absolute path to a model
+    # (e.g. /path/to/my/model.ckpt). In the same folder as your model, there
+    # must be a yaml file with the number and size of the filters, the file
+    # should be named exactly as your model but with yaml extension
+    # see yass/src/assets/models/ for an example
+    filename: detect_nn1.ckpt
+    # Threshold for spike event detection
+    threshold_spike: 0.5
+  neural_network_triage:
+    # same rules apply as in neural_network_detector.filename but the
+    # yaml file should only contain size (not number)
+    filename: triage_nn1.ckpt
+    # Threshold for clear/collision detection
+    threshold_collision: 0.5
+  neural_network_autoencoder:
+    # same rules apply as in neural_network_detector.filename but no
+    # yaml file is needed
+    filename: ae_nn1.ckpt
 
 
 # All values are optional
@@ -101,31 +122,6 @@ deconvolution:
   # upsampling factor of templates
   upsample_factor: 5
 
-
-neural_network_detector:
-  # model name, can be any of the models included in yass (detectnet1.ckpt),
-  # a relative folder to data.root_fodler (e.g.
-  # $ROOT_FOLDER/models/mymodel.ckpt) or an absolute path to a model
-  # (e.g. /path/to/my/model.ckpt). In the same folder as your model, there
-  # must be a yaml file with the number and size of the filters, the file
-  # should be named exactly as your model but with yaml extension
-  # see yass/src/assets/models/ for an example
-  filename: detect_nn1.ckpt
-  # Threshold for spike event detection
-  threshold_spike: 0.5
-
-
-neural_network_triage:
-  # same rules apply as in neural_network_detector.filename but the
-  # yaml file should only contain size (not number)
-  filename: triage_nn1.ckpt
-  # Threshold for clear/collision detection
-  threshold_collision: 0.5
-
-neural_network_autoencoder:
-  # same rules apply as in neural_network_detector.filename but no
-  # yaml file is needed
-  filename: ae_nn1.ckpt
 
 triage:
   # number of nearest neighbors to consider
