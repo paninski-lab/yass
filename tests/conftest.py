@@ -12,10 +12,7 @@ def path_to_tests():
 def path_to_examples():
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                         '../examples')
-    old = os.getcwd()
-    os.chdir(path)
-    yield path
-    os.chdir(old)
+    return path
 
 
 @pytest.fixture(scope='session')

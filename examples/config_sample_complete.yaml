@@ -101,7 +101,7 @@ cluster:
     lambda0: 0.01
     nu: 5
     V: 2
-  coseset:
+  coreset:
     # number of clusters
     clusters: 10
     # distance threshold
