@@ -169,7 +169,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         # load waveforms for all spikes in the spike train
         logger.info('Loading waveforms from all spikes in the spike train...')
         explorer = RecordingExplorer(STANDARIZED_PATH,
-                                     spike_size=CONFIG.spikeSize,
+                                     spike_size=CONFIG.spike_size,
                                      dtype=PARAMS['dtype'],
                                      n_channels=PARAMS['n_channels'],
                                      data_format=PARAMS['data_format'])

@@ -21,9 +21,9 @@ from yass import preprocess
 
 from util import clean_tmp
 
-spikeSizeMS = 1
+spike_sizeMS = 1
 srate = 30000
-spike_size = int(np.round(spikeSizeMS*srate/2000))
+spike_size = int(np.round(spike_sizeMS*srate/2000))
 BUFF = spike_size * 2
 scale_to_save = 100
 n_features = 3

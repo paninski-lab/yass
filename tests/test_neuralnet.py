@@ -81,7 +81,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
     # any batch
     bp = BatchProcessor(PATH_TO_DATA, PARAMS['dtype'], PARAMS['n_channels'],
                         PARAMS['data_format'], '100KB',
-                        buffer_size=CONFIG.spikeSize)
+                        buffer_size=CONFIG.spike_size)
     mc = bp.multi_channel_apply
     res = mc(
         neuralnetwork.run_detect_triage_featurize,

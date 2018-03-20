@@ -113,7 +113,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                   standarized_params['data_format'],
                                   CONFIG.neigh_channels,
                                   CONFIG.geom,
-                                  CONFIG.spikeSize,
+                                  CONFIG.spike_size,
                                   CONFIG.resources.max_memory,
                                   TMP,
                                   if_file_exists=if_file_exists)

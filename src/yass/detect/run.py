@@ -111,9 +111,9 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                       standarized_params['data_format'],
                       CONFIG.resources.max_memory,
                       CONFIG.neigh_channels,
-                      CONFIG.spikeSize,
-                      CONFIG.spikeSize + CONFIG.templatesMaxShift,
-                      CONFIG.stdFactor,
+                      CONFIG.spike_size,
+                      CONFIG.spike_size + CONFIG.templates_max_shift,
+                      CONFIG.std_factor,
                       TMP_FOLDER,
                       'spike_index_clear.npy',
                       'spike_index_collision.npy',
@@ -131,7 +131,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                                    standarized_params['data_format'],
                                    recordings,
                                    clear,
-                                   CONFIG.spikeSize,
+                                   CONFIG.spike_size,
                                    CONFIG.detect.temporal_features,
                                    CONFIG.neigh_channels,
                                    channel_index,
@@ -205,7 +205,7 @@ def run_neural_network(standarized_path, standarized_params,
                             standarized_params['n_channels'],
                             standarized_params['data_format'],
                             CONFIG.resources.max_memory,
-                            buffer_size=CONFIG.spikeSize)
+                            buffer_size=CONFIG.spike_size)
 
         # make tensorflow tensors and neural net classes
         detection_th = CONFIG.detect.neural_network_detector.threshold_spike
@@ -240,7 +240,7 @@ def run_neural_network(standarized_path, standarized_params,
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
         clear, idx = detect.remove_incomplete_waveforms(
-            clear, CONFIG.spikeSize + CONFIG.templatesMaxShift,
+            clear, CONFIG.spike_size + CONFIG.templates_max_shift,
             bp.reader._n_observations)
         np.save(path_to_spike_index_clear, clear)
         logger.info('Saved spike index clear in {}...'
@@ -251,7 +251,7 @@ def run_neural_network(standarized_path, standarized_params,
         logger.info('Removing collision indexes outside the allowed range to '
                     'draw a complete waveform...')
         collision, _ = detect.remove_incomplete_waveforms(
-            collision, CONFIG.spikeSize + CONFIG.templatesMaxShift,
+            collision, CONFIG.spike_size + CONFIG.templates_max_shift,
             bp.reader._n_observations)
         np.save(path_to_spike_index_collision, collision)
         logger.info('Saved spike index collision in {}...'

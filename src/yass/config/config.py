@@ -110,7 +110,7 @@ class Config(FrozenJSON):
         # GEOMETRY PARAMETERS
         path_to_geom = path.join(self.data.root_folder, self.data.geometry)
         self._set_param('geom', geom.parse(path_to_geom,
-                        self.recordings.n_channels))
+                                           self.recordings.n_channels))
 
         neigh_channels = geom.find_channel_neighbors(
             self.geom, self.recordings.spatial_radius)
@@ -121,18 +121,17 @@ class Config(FrozenJSON):
                                                   self.geom)
         self._set_param('channel_groups', channel_groups)
 
-        self._logger.debug('Geometry parameters. Geom: {}, neigh_channels: '
-                           '{}, channel_groups {}'
-                           .format(self.geom, self.neigh_channels,
-                                   self.channel_groups))
+        self._logger.debug('Geometry parameters. Geom: %s, neigh_channels: '
+                           '%s, channel_groups %s', self.geom,
+                           self.neigh_channels, self.channel_groups)
 
-        self._set_param('spikeSize',
+        self._set_param('spike_size',
                         int(np.round(self.recordings.spike_size_ms *
                                      self.recordings.sampling_rate /
                                      (2*1000))))
-        self._set_param('templatesMaxShift',
+        self._set_param('templates_max_shift',
                         int(self.recordings.sampling_rate/1000))
-        self._set_param('stdFactor', 4)
+        self._set_param('std_factor', 4)
 
     def __setattr__(self, name, value):
         if not name.startswith('_'):

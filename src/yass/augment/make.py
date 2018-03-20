@@ -40,7 +40,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     logger.info('Getting templates...')
 
     # get templates
-    templates, _ = get_templates(spike_train, path_to_data, CONFIG.spikeSize)
+    templates, _ = get_templates(spike_train, path_to_data, CONFIG.spike_size)
 
     templates = np.transpose(templates, (2, 1, 0))
 
@@ -55,7 +55,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     logger.info('Good looking templates of shape: {}'.format(templates.shape))
 
     # align and crop templates
-    templates = crop_templates(templates, CONFIG.spikeSize,
+    templates = crop_templates(templates, CONFIG.spike_size,
                                CONFIG.neigh_channels, CONFIG.geom)
 
     # determine noise covariance structure
@@ -69,7 +69,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     # make training data set
     K = templates.shape[0]
-    R = CONFIG.spikeSize
+    R = CONFIG.spike_size
     amps = np.max(np.abs(templates), axis=1)
 
     # make clean augmented spikes
