@@ -27,9 +27,6 @@ clustering:
   masking_threshold: [0.9, 0.5]
   n_split: 5
   max_n_spikes: 10000
-  
-# location:
-#   isolation_threshold: 0
 
 neural_network_triage:
   filename: triage_nn1.ckpt
