@@ -18,8 +18,8 @@ preprocess:
   filter: True
   dtype: float32
 
-spikes:
-  detection: threshold
+detect:
+  method: threshold
   temporal_features: 3
 
 deconvolution:

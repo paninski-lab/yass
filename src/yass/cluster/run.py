@@ -103,7 +103,7 @@ def run(scores, spike_index):
         spike_train = run_cluster(scores, masks, groups,
                                   spike_index, CONFIG.channelGroups,
                                   channel_index,
-                                  CONFIG.spikes.temporal_features,
+                                  CONFIG.detect.temporal_features,
                                   CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
 

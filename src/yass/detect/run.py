@@ -72,7 +72,7 @@ def run(standarized_path, standarized_params,
     CONFIG = read_config()
 
     # run detection
-    if CONFIG.spikes.detection == 'threshold':
+    if CONFIG.detect.method == 'threshold':
         return run_threshold(standarized_path,
                              standarized_params,
                              channel_index,
@@ -80,7 +80,7 @@ def run(standarized_path, standarized_params,
                              output_directory,
                              if_file_exists,
                              save_partial_results)
-    elif CONFIG.spikes.detection == 'nn':
+    elif CONFIG.detect.method == 'nn':
         return run_neural_network(standarized_path,
                                   standarized_params,
                                   channel_index,
@@ -132,7 +132,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                                    recordings,
                                    clear,
                                    CONFIG.spikeSize,
-                                   CONFIG.spikes.temporal_features,
+                                   CONFIG.detect.temporal_features,
                                    CONFIG.neighChannels,
                                    channel_index,
                                    CONFIG.resources.max_memory,

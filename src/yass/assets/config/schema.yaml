@@ -76,11 +76,11 @@ preprocess:
       type: string
       default: float64
 
-spikes:
+detect:
   type: dict
   schema:
     # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
-    detection:
+    method:
       type: string
       required: True
       allowed: [threshold, nn]

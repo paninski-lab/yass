@@ -39,9 +39,9 @@ preprocess:
   # output dtype for transformed data
   dtype: float32
 
-spikes:
+detect:
   # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
-  detection: threshold
+  method: threshold
   # number of features in the temporal dimension to use when applying
   # dimensionality reduction
   temporal_features: 3

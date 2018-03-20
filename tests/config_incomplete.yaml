@@ -13,7 +13,7 @@ recordings:
 preprocess:
   filter: True
 
-spikes:
+detect:
   temporal_features: 3
 
 deconvolution:
