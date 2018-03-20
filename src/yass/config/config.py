@@ -1,4 +1,3 @@
-from functools import reduce
 from os import path
 from collections import Mapping, MutableSequence
 import keyword
@@ -6,11 +5,9 @@ import logging
 
 import yaml
 import numpy as np
-from cerberus import Validator
-from pkg_resources import resource_filename
 
 from yass import geometry as geom
-from yass.config.custom_rules import expand_asset_model
+from yass.config.validate import validate
 
 
 class FrozenJSON(object):
@@ -20,8 +17,8 @@ class FrozenJSON(object):
     @classmethod
     def from_yaml(cls, path_to_file):
         # load config file
-        with open(path_to_file) as f:
-            mapping = yaml.load(f)
+        with open(path_to_file) as file:
+            mapping = yaml.load(file)
 
         obj = cls(mapping)
 
@@ -29,7 +26,7 @@ class FrozenJSON(object):
         obj._path_to_file = path_to_file
 
         logger = logging.getLogger(__name__)
-        logger.debug('Loaded from file: {}'.format(obj._path_to_file))
+        logger.debug('Loaded from file: %s', obj._path_to_file)
 
         return obj
 
@@ -44,7 +41,7 @@ class FrozenJSON(object):
 
     def __init__(self, mapping):
         self._logger = logging.getLogger(__name__)
-        self._logger.debug('Loaded with params: {}'.format(mapping))
+        self._logger.debug('Loaded with params: %s ', mapping)
         self._path_to_file = None
 
         self._data = {}
@@ -100,7 +97,7 @@ class Config(FrozenJSON):
     After initialization, attributes cannot be changed
     """
     def __init__(self, mapping):
-        mapping = self._validate(mapping)
+        mapping = validate(mapping)
 
         super(Config, self).__init__(mapping)
 
@@ -150,32 +147,3 @@ class Config(FrozenJSON):
         parameters that need to be computed *right after* initialization
         """
         self._data[name] = value
-
-    def _validate(self, mapping):
-        """Validate values in the input dictionary
-        """
-        path_to_validator = resource_filename('yass',
-                                              'assets/config/schema.yaml')
-        with open(path_to_validator) as f:
-            schema = yaml.load(f)
-
-        validator = Validator(schema)
-        is_valid = validator.validate(mapping)
-
-        if not is_valid:
-            raise ValueError('Errors occurred while validating the '
-                             'configuration file: {}'
-                             .format(validator.errors))
-
-        document = validator.document
-
-        # expand paths to filenames
-        # TODO: must document how this works...
-        expand_asset_model(document, 'neural_network_detector', 'filename')
-        expand_asset_model(document, 'neural_network_triage', 'filename')
-        expand_asset_model(document, 'neural_network_autoencoder', 'filename')
-
-        return document
-
-    def _pretty_iterator(self, it):
-        return reduce(lambda x, y: x+', '+y, it)
