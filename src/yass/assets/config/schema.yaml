@@ -68,13 +68,33 @@ preprocess:
   type: dict
   schema:
     # apply butterworth filter in the preprocessing step?
-    filter:
+    apply_filter:
       type: boolean
       default: True
     # output dtype for transformed data
     dtype:
       type: string
       default: float64
+    filter:
+      type: dict
+      default:
+        order: 3
+        low_pass_freq: 300
+        high_factor: 0.1
+      schema:
+        # Order of Butterworth filter
+        order:
+          type: integer
+          default: 3
+        # Low pass frequency (Hz)
+        low_pass_freq:
+          type: integer
+          default: 300
+        # High pass factor (proportion of sampling rate)
+        high_factor:
+          type: float
+          default: 0.1
+
 
 detect:
   type: dict
@@ -170,7 +190,10 @@ cluster:
           type: float
           default: 0.95
 
-
+templates:
+  type: dict
+  default:
+    merge_threshold: [0.8, 0.7]
 
 deconvolution:
   type: dict
@@ -246,26 +269,6 @@ neural_network_autoencoder:
       type: string
       default: ae_nn1.ckpt
 
-filter:
-  type: dict
-  default:
-    order: 3
-    low_pass_freq: 300
-    high_factor: 0.1
-  schema:
-    # Order of Butterworth filter
-    order:
-      type: integer
-      default: 3
-    # Low pass frequency (Hz)
-    low_pass_freq:
-      type: integer
-      default: 300
-    # High pass factor (proportion of sampling rate)
-    high_factor:
-      type: float
-      default: 0.1
-
 triage:
   type: dict
   default:
@@ -280,8 +283,3 @@ triage:
     percent:
       type: float
       default: 0.1
-
-templates:
-  type: dict
-  default:
-    merge_threshold: [0.8, 0.7]

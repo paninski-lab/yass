@@ -15,7 +15,7 @@ recordings:
   format: long
 
 preprocess:
-  filter: True
+  apply_filter: True
   dtype: float32
 
 detect:

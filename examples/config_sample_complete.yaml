@@ -35,9 +35,17 @@ recordings:
 
 preprocess:
   # apply butterworth filter in the preprocessing step
-  filter: True
+  apply_filter: True
   # output dtype for transformed data
   dtype: float32
+  # filter configuration
+  filter:
+    # Order of Butterworth filter
+    order: 3
+    # Low pass frequency (Hz)
+    low_pass_freq: 300
+    # High pass factor (proportion of sampling rate)
+    high_factor: 0.1
 
 detect:
   # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
@@ -78,6 +86,9 @@ cluster:
     # distance threshold
     threshold: 0.95
 
+templates:
+  merge_threshold: [0.8, 0.7]
+
 deconvolution:
   # refractory period violation in time bins
   n_rf: 1.5
@@ -116,23 +127,8 @@ neural_network_autoencoder:
   # yaml file is needed
   filename: ae_nn1.ckpt
 
-############
-# optional #
-############
-
-filter:
-  # Order of Butterworth filter
-  order: 3
-  # Low pass frequency (Hz)
-  low_pass_freq: 300
-  # High pass factor (proportion of sampling rate)
-  high_factor: 0.1
-
 triage:
   # number of nearest neighbors to consider
   nearest_neighbors: 20
   # percentage of data to be triaged
   percent: 0.1
-
-templates:
-  merge_threshold: [0.8, 0.7]

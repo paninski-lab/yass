@@ -11,7 +11,7 @@ recordings:
   format: long
 
 preprocess:
-  filter: True
+  apply_filter: True
 
 detect:
   temporal_features: 3

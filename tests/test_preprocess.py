@@ -94,7 +94,7 @@ def test_can_preprocess(path_to_threshold_config):
 
 def test_can_preprocess_without_filtering(path_to_threshold_config):
     CONFIG = load_yaml(path_to_threshold_config)
-    CONFIG['preprocess']['filter'] = False
+    CONFIG['preprocess']['apply_filter'] = False
 
     yass.set_config(CONFIG)
 

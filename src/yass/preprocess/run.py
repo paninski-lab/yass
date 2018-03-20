@@ -80,14 +80,14 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                   data_format=CONFIG.recordings.format)
 
     # optionally filter the data
-    if CONFIG.preprocess.filter:
+    if CONFIG.preprocess.apply_filter:
         path, params = butterworth(path,
                                    params['dtype'],
                                    params['n_channels'],
                                    params['data_format'],
-                                   CONFIG.filter.low_pass_freq,
-                                   CONFIG.filter.high_factor,
-                                   CONFIG.filter.order,
+                                   CONFIG.preprocess.filter.low_pass_freq,
+                                   CONFIG.preprocess.filter.high_factor,
+                                   CONFIG.preprocess.filter.order,
                                    CONFIG.recordings.sampling_rate,
                                    CONFIG.resources.max_memory,
                                    TMP,
