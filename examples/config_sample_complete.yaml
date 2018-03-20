@@ -1,9 +1,6 @@
-# This is a complete configuration sample, with all required and optional
-# sections, along with a brief description of each setting
-
-############
-# Required #
-############
+################################
+# YASS configuration reference #
+################################
 
 data:
   # project's root folder, data will be loaded and saved here

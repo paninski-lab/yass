@@ -1,5 +1,7 @@
-# Sample configuration file, for a complete reference see
-# examples/config_sample_complete.yaml
+#####################################################################
+# YASS configuration example (only required values)                 #
+# for a complete reference see examples/config_sample_complete.yaml #
+#####################################################################
 
 data:
   root_folder: data/
