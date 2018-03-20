@@ -149,7 +149,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
 
     # TODO: this shouldn't be here
     # transform scores to location + shape feature space
-    if CONFIG.clustering.clustering_method == 'location':
+    if CONFIG.cluster.method == 'location':
         scores = get_locations_features_threshold(scores, clear[:, 1],
                                                   channel_index,
                                                   CONFIG.geom)
@@ -272,7 +272,7 @@ def run_neural_network(standarized_path, standarized_params,
             'Saved rotation matrix in {}...'.format(path_to_rotation))
 
         # transform scores to location + shape feature space
-        if CONFIG.clustering.clustering_method == 'location':
+        if CONFIG.cluster.method == 'location':
             scores = get_locations_features(scores, rotation, clear[:, 1],
                                             channel_index, CONFIG.geom)
         # saves score

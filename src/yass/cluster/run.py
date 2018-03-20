@@ -60,10 +60,10 @@ def run(scores, spike_index):
 
     logger.info("Randomly subsampling...")
     scores, spike_index = random_subsample(scores, spike_index,
-                                           CONFIG.clustering.max_n_spikes)
+                                           CONFIG.cluster.max_n_spikes)
     Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
-    if CONFIG.clustering.clustering_method == 'location':
+    if CONFIG.cluster.method == 'location':
         ##############
         # Clustering #
         ##############
@@ -90,7 +90,7 @@ def run(scores, spike_index):
         _b = datetime.datetime.now()
         logger.info("Masking...")
         masks = getmask(scores, groups,
-                        CONFIG.clustering.masking_threshold)
+                        CONFIG.cluster.masking_threshold)
         Time['m'] += (datetime.datetime.now() - _b).total_seconds()
 
         ##############
