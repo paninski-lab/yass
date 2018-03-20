@@ -1,6 +1,6 @@
-################################
-# YASS configuration reference #
-################################
+########################################################
+# YASS configuration example (all sections and values) #
+########################################################
 
 data:
   # project's root folder, data will be loaded and saved here
