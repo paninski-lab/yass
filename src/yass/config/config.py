@@ -1,3 +1,7 @@
+"""
+YASS configuration
+"""
+
 from os import path
 from collections import Mapping, MutableSequence
 import keyword
@@ -82,8 +86,8 @@ class FrozenJSON(object):
         if self._path_to_file:
             return ('YASS config file loaded from: {}'
                     .format(self._path_to_file))
-        else:
-            return 'YASS config file loaded with: {}'.format(self._data)
+
+        return 'YASS config file loaded with: {}'.format(self._data)
 
 
 class Config(FrozenJSON):
