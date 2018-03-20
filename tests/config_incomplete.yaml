@@ -15,10 +15,3 @@ preprocess:
 
 detect:
   temporal_features: 3
-
-deconvolution:
-  n_rf: 1.5
-  threshold_a: 0.3
-  threshold_dd: 0
-  n_explore: 2
-  upsample_factor: 5
