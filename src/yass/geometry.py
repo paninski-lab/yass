@@ -131,7 +131,7 @@ def make_channel_groups(n_channels, neighbors, geom):
     list
         List of channel groups based on [?]
     """
-    channelGroups = list()
+    channel_groups = list()
     c_left = np.array(range(n_channels))
     neighChan_temp = np.array(neighbors)
 
@@ -147,9 +147,9 @@ def make_channel_groups(n_channels, neighbors, geom):
         for c in c_group:
             c_left = np.delete(c_left, int(np.where(c_left == c)[0]))
 
-        channelGroups.append(c_group)
+        channel_groups.append(c_group)
 
-    return channelGroups
+    return channel_groups
 
 
 def order_channels_by_distance(reference, channels, geom):

@@ -1,3 +1,7 @@
+"""
+YASS configuration
+"""
+
 from os import path
 from collections import Mapping, MutableSequence
 import keyword
@@ -82,8 +86,8 @@ class FrozenJSON(object):
         if self._path_to_file:
             return ('YASS config file loaded from: {}'
                     .format(self._path_to_file))
-        else:
-            return 'YASS config file loaded with: {}'.format(self._data)
+
+        return 'YASS config file loaded with: {}'.format(self._data)
 
 
 class Config(FrozenJSON):
@@ -110,29 +114,28 @@ class Config(FrozenJSON):
         # GEOMETRY PARAMETERS
         path_to_geom = path.join(self.data.root_folder, self.data.geometry)
         self._set_param('geom', geom.parse(path_to_geom,
-                        self.recordings.n_channels))
+                                           self.recordings.n_channels))
 
-        neighChannels = geom.find_channel_neighbors(
+        neigh_channels = geom.find_channel_neighbors(
             self.geom, self.recordings.spatial_radius)
-        self._set_param('neighChannels', neighChannels)
+        self._set_param('neigh_channels', neigh_channels)
 
-        channelGroups = geom.make_channel_groups(self.recordings.n_channels,
-                                                 self.neighChannels,
-                                                 self.geom)
-        self._set_param('channelGroups', channelGroups)
+        channel_groups = geom.make_channel_groups(self.recordings.n_channels,
+                                                  self.neigh_channels,
+                                                  self.geom)
+        self._set_param('channel_groups', channel_groups)
 
-        self._logger.debug('Geometry parameters. Geom: {}, neighChannels: '
-                           '{}, channelGroups {}'
-                           .format(self.geom, self.neighChannels,
-                                   self.channelGroups))
+        self._logger.debug('Geometry parameters. Geom: %s, neigh_channels: '
+                           '%s, channel_groups %s', self.geom,
+                           self.neigh_channels, self.channel_groups)
 
-        self._set_param('spikeSize',
+        self._set_param('spike_size',
                         int(np.round(self.recordings.spike_size_ms *
                                      self.recordings.sampling_rate /
                                      (2*1000))))
-        self._set_param('templatesMaxShift',
+        self._set_param('templates_max_shift',
                         int(self.recordings.sampling_rate/1000))
-        self._set_param('stdFactor', 4)
+        self._set_param('std_factor', 4)
 
     def __setattr__(self, name, value):
         if not name.startswith('_'):

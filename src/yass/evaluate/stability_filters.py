@@ -56,7 +56,7 @@ def whitening(ts, neighbors, spike_size):
     [T, C] = ts.shape
     R = spike_size*2 + 1
     th = 4
-    neighChannels = n_steps_neigh_channels(neighbors, steps=2)
+    neigh_channels = n_steps_neigh_channels(neighbors, steps=2)
 
     chanRange = np.arange(0, C)
     # timeRange = np.arange(0, T)
@@ -85,7 +85,7 @@ def whitening(ts, neighbors, spike_size):
     Q = np.zeros((C, C))
 
     for c in range(0, C):
-        ch_idx = chanRange[neighChannels[c, :]]
+        ch_idx = chanRange[neigh_channels[c, :]]
         V, D, _ = np.linalg.svd(M[ch_idx, :][:, ch_idx])
         Epsilon = np.diag(1/np.power((D), 0.5))
         Q_small = np.matmul(np.matmul(V, Epsilon), V.transpose())

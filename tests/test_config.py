@@ -38,4 +38,4 @@ def test_cannot_modify_once_initialized(path_to_threshold_config):
 
 def test_extra_parameters_are_computed(path_to_threshold_config):
     cfg = yass.Config.from_yaml(path_to_threshold_config)
-    assert cfg.spikeSize == 15
+    assert cfg.spike_size == 15

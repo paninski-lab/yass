@@ -55,15 +55,15 @@ def run(scores, spike_index):
     _b = datetime.datetime.now()
     logger.info("Triaging...")
     score, spike_index = triage(scores, spike_index,
-                                CONFIG.triage.nearest_neighbors,
-                                CONFIG.triage.percent)
+                                CONFIG.cluster.triage.nearest_neighbors,
+                                CONFIG.cluster.triage.percent)
 
     logger.info("Randomly subsampling...")
     scores, spike_index = random_subsample(scores, spike_index,
-                                           CONFIG.clustering.max_n_spikes)
+                                           CONFIG.cluster.max_n_spikes)
     Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
-    if CONFIG.clustering.clustering_method == 'location':
+    if CONFIG.cluster.method == 'location':
         ##############
         # Clustering #
         ##############
@@ -80,8 +80,8 @@ def run(scores, spike_index):
         _b = datetime.datetime.now()
         logger.info("Coresetting...")
         groups = coreset(scores,
-                         CONFIG.coreset.clusters,
-                         CONFIG.coreset.threshold)
+                         CONFIG.cluster.coreset.clusters,
+                         CONFIG.cluster.coreset.threshold)
         Time['c'] += (datetime.datetime.now() - _b).total_seconds()
 
         ###########
@@ -90,7 +90,7 @@ def run(scores, spike_index):
         _b = datetime.datetime.now()
         logger.info("Masking...")
         masks = getmask(scores, groups,
-                        CONFIG.clustering.masking_threshold)
+                        CONFIG.cluster.masking_threshold)
         Time['m'] += (datetime.datetime.now() - _b).total_seconds()
 
         ##############
@@ -98,12 +98,12 @@ def run(scores, spike_index):
         ##############
         _b = datetime.datetime.now()
         logger.info("Clustering...")
-        channel_index = make_channel_index(CONFIG.neighChannels,
+        channel_index = make_channel_index(CONFIG.neigh_channels,
                                            CONFIG.geom)
         spike_train = run_cluster(scores, masks, groups,
-                                  spike_index, CONFIG.channelGroups,
+                                  spike_index, CONFIG.channel_groups,
                                   channel_index,
-                                  CONFIG.spikes.temporal_features,
+                                  CONFIG.detect.temporal_features,
                                   CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
 

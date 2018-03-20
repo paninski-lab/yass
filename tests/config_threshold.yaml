@@ -4,7 +4,7 @@ data:
   geometry: neuropixel_channels.npy
 
 resources:
-  max_memory: 1000000000
+  max_memory: 200MB
 
 recordings:
   dtype: int16
@@ -15,29 +15,12 @@ recordings:
   format: long
 
 preprocess:
-  filter: True
+  apply_filter: True
   dtype: float32
 
-spikes:
-  detection: threshold
+detect:
+  method: threshold
   temporal_features: 3
-
-clustering:
-  clustering_method: 'location'
-  masking_threshold: [0.9, 0.5]
-  n_split: 5
-  max_n_spikes: 10000
-
-neural_network_triage:
-  filename: triage_nn1.ckpt
-  threshold_collision: 0.75
-
-neural_network_autoencoder:
-  filename: ae_nn1.ckpt
-
-neural_network_detector:
-  filename: detect_nn1.ckpt
-  threshold_spike: 0.5
 
 deconvolution:
   n_rf: 1.5

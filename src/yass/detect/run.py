@@ -72,7 +72,7 @@ def run(standarized_path, standarized_params,
     CONFIG = read_config()
 
     # run detection
-    if CONFIG.spikes.detection == 'threshold':
+    if CONFIG.detect.method == 'threshold':
         return run_threshold(standarized_path,
                              standarized_params,
                              channel_index,
@@ -80,7 +80,7 @@ def run(standarized_path, standarized_params,
                              output_directory,
                              if_file_exists,
                              save_partial_results)
-    elif CONFIG.spikes.detection == 'nn':
+    elif CONFIG.detect.method == 'nn':
         return run_neural_network(standarized_path,
                                   standarized_params,
                                   channel_index,
@@ -110,10 +110,10 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                       standarized_params['n_channels'],
                       standarized_params['data_format'],
                       CONFIG.resources.max_memory,
-                      CONFIG.neighChannels,
-                      CONFIG.spikeSize,
-                      CONFIG.spikeSize + CONFIG.templatesMaxShift,
-                      CONFIG.stdFactor,
+                      CONFIG.neigh_channels,
+                      CONFIG.spike_size,
+                      CONFIG.spike_size + CONFIG.templates_max_shift,
+                      CONFIG.std_factor,
                       TMP_FOLDER,
                       'spike_index_clear.npy',
                       'spike_index_collision.npy',
@@ -131,9 +131,9 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                                    standarized_params['data_format'],
                                    recordings,
                                    clear,
-                                   CONFIG.spikeSize,
-                                   CONFIG.spikes.temporal_features,
-                                   CONFIG.neighChannels,
+                                   CONFIG.spike_size,
+                                   CONFIG.detect.temporal_features,
+                                   CONFIG.neigh_channels,
                                    channel_index,
                                    CONFIG.resources.max_memory,
                                    output_path=TMP_FOLDER,
@@ -149,7 +149,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
 
     # TODO: this shouldn't be here
     # transform scores to location + shape feature space
-    if CONFIG.clustering.clustering_method == 'location':
+    if CONFIG.cluster.method == 'location':
         scores = get_locations_features_threshold(scores, clear[:, 1],
                                                   channel_index,
                                                   CONFIG.geom)
@@ -205,14 +205,14 @@ def run_neural_network(standarized_path, standarized_params,
                             standarized_params['n_channels'],
                             standarized_params['data_format'],
                             CONFIG.resources.max_memory,
-                            buffer_size=CONFIG.spikeSize)
+                            buffer_size=CONFIG.spike_size)
 
         # make tensorflow tensors and neural net classes
-        detection_th = CONFIG.neural_network_detector.threshold_spike
-        triage_th = CONFIG.neural_network_triage.threshold_collision
-        detection_fname = CONFIG.neural_network_detector.filename
-        ae_fname = CONFIG.neural_network_autoencoder.filename
-        triage_fname = CONFIG.neural_network_triage.filename
+        detection_th = CONFIG.detect.neural_network_detector.threshold_spike
+        triage_th = CONFIG.detect.neural_network_triage.threshold_collision
+        detection_fname = CONFIG.detect.neural_network_detector.filename
+        ae_fname = CONFIG.detect.neural_network_autoencoder.filename
+        triage_fname = CONFIG.detect.neural_network_triage.filename
         (x_tf, output_tf, NND,
          NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
                                                whiten_filter,
@@ -240,7 +240,7 @@ def run_neural_network(standarized_path, standarized_params,
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
         clear, idx = detect.remove_incomplete_waveforms(
-            clear, CONFIG.spikeSize + CONFIG.templatesMaxShift,
+            clear, CONFIG.spike_size + CONFIG.templates_max_shift,
             bp.reader._n_observations)
         np.save(path_to_spike_index_clear, clear)
         logger.info('Saved spike index clear in {}...'
@@ -251,7 +251,7 @@ def run_neural_network(standarized_path, standarized_params,
         logger.info('Removing collision indexes outside the allowed range to '
                     'draw a complete waveform...')
         collision, _ = detect.remove_incomplete_waveforms(
-            collision, CONFIG.spikeSize + CONFIG.templatesMaxShift,
+            collision, CONFIG.spike_size + CONFIG.templates_max_shift,
             bp.reader._n_observations)
         np.save(path_to_spike_index_collision, collision)
         logger.info('Saved spike index collision in {}...'
@@ -272,7 +272,7 @@ def run_neural_network(standarized_path, standarized_params,
             'Saved rotation matrix in {}...'.format(path_to_rotation))
 
         # transform scores to location + shape feature space
-        if CONFIG.clustering.clustering_method == 'location':
+        if CONFIG.cluster.method == 'location':
             scores = get_locations_features(scores, rotation, clear[:, 1],
                                             channel_index, CONFIG.geom)
         # saves score

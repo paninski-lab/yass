@@ -15,6 +15,8 @@ Changelog
 * Some examples include links to Jupyter notebooks
 * Errors in documentation building are now tested in Travis
 * Improved batch processor
+* Simplified configuration file
+* Preprocessing speedups
 
 
 0.6 (2018-02-05)

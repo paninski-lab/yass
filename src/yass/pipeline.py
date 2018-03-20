@@ -169,7 +169,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         # load waveforms for all spikes in the spike train
         logger.info('Loading waveforms from all spikes in the spike train...')
         explorer = RecordingExplorer(STANDARIZED_PATH,
-                                     spike_size=CONFIG.spikeSize,
+                                     spike_size=CONFIG.spike_size,
                                      dtype=PARAMS['dtype'],
                                      n_channels=PARAMS['n_channels'],
                                      data_format=PARAMS['data_format'])
@@ -193,7 +193,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                     .format(path_to_waveforms))
 
         waveforms_score = dim_red.score(waveforms, rotation, main_channels,
-                                        CONFIG.neighChannels, CONFIG.geom)
+                                        CONFIG.neigh_channels, CONFIG.geom)
         path_to_waveforms_score = path.join(TMP_FOLDER, 'waveforms_score.npy')
         np.save(path_to_waveforms_score, waveforms_score)
         logger.info('Saved all scores in {}...'.format(path_to_waveforms))
@@ -210,7 +210,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
         templates_score = dim_red.score(templates_, rotation,
                                         main_channels_tmpls,
-                                        CONFIG.neighChannels, CONFIG.geom)
+                                        CONFIG.neigh_channels, CONFIG.geom)
         path_to_templates_score = path.join(TMP_FOLDER, 'templates_score.npy')
         np.save(path_to_templates_score, templates_score)
         logger.info('Saved all templates scores in {}...'

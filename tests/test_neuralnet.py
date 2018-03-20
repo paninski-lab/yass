@@ -20,17 +20,17 @@ def test_can_use_neural_network_detector(path_to_tests):
                                       'data/standarized.bin'),
                             loader='array').data.T
 
-    channel_index = make_channel_index(CONFIG.neighChannels,
+    channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom)
 
     whiten_filter = np.tile(np.eye(channel_index.shape[1], dtype='float32')[
         np.newaxis, :, :], [channel_index.shape[0], 1, 1])
 
-    detection_th = CONFIG.neural_network_detector.threshold_spike
-    triage_th = CONFIG.neural_network_triage.threshold_collision
-    detection_fname = CONFIG.neural_network_detector.filename
-    ae_fname = CONFIG.neural_network_autoencoder.filename
-    triage_fname = CONFIG.neural_network_triage.filename
+    detection_th = CONFIG.detect.neural_network_detector.threshold_spike
+    triage_th = CONFIG.detect.neural_network_triage.threshold_collision
+    detection_fname = CONFIG.detect.neural_network_detector.filename
+    ae_fname = CONFIG.detect.neural_network_autoencoder.filename
+    triage_fname = CONFIG.detect.neural_network_triage.filename
     (x_tf, output_tf, NND,
      NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
                                            whiten_filter,
@@ -56,17 +56,17 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
     with open(path.join(path_to_tests, 'data/standarized.yaml')) as f:
         PARAMS = yaml.load(f)
 
-    channel_index = make_channel_index(CONFIG.neighChannels,
+    channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom)
 
     whiten_filter = np.tile(np.eye(channel_index.shape[1], dtype='float32')[
         np.newaxis, :, :], [channel_index.shape[0], 1, 1])
 
-    detection_th = CONFIG.neural_network_detector.threshold_spike
-    triage_th = CONFIG.neural_network_triage.threshold_collision
-    detection_fname = CONFIG.neural_network_detector.filename
-    ae_fname = CONFIG.neural_network_autoencoder.filename
-    triage_fname = CONFIG.neural_network_triage.filename
+    detection_th = CONFIG.detect.neural_network_detector.threshold_spike
+    triage_th = CONFIG.detect.neural_network_triage.threshold_collision
+    detection_fname = CONFIG.detect.neural_network_detector.filename
+    ae_fname = CONFIG.detect.neural_network_autoencoder.filename
+    triage_fname = CONFIG.detect.neural_network_triage.filename
     (x_tf, output_tf, NND,
      NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
                                            whiten_filter,
@@ -81,7 +81,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
     # any batch
     bp = BatchProcessor(PATH_TO_DATA, PARAMS['dtype'], PARAMS['n_channels'],
                         PARAMS['data_format'], '100KB',
-                        buffer_size=CONFIG.spikeSize)
+                        buffer_size=CONFIG.spike_size)
     mc = bp.multi_channel_apply
     res = mc(
         neuralnetwork.run_detect_triage_featurize,

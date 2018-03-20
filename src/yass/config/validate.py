@@ -7,10 +7,10 @@ from cerberus import Validator
 from pkg_resources import resource_filename
 
 
-def expand_asset_model(mapping, section, subsection):
+def expand_asset_model(mapping, section, subsection, field):
     """Expand filenames
     """
-    value = mapping[section][subsection]
+    value = mapping[section][subsection][field]
 
     # if root_folder, expand and return
     if '$ROOT_FOLDER' in value:
@@ -26,7 +26,7 @@ def expand_asset_model(mapping, section, subsection):
         path = 'assets/models/{}'.format(value)
         new_value = pkg_resources.resource_filename('yass', path)
 
-    mapping[section][subsection] = new_value
+    mapping[section][subsection][field] = new_value
 
 
 def validate(mapping):
@@ -48,8 +48,11 @@ def validate(mapping):
     document = validator.document
 
     # expand paths to filenames
-    expand_asset_model(document, 'neural_network_detector', 'filename')
-    expand_asset_model(document, 'neural_network_triage', 'filename')
-    expand_asset_model(document, 'neural_network_autoencoder', 'filename')
+    expand_asset_model(document, 'detect', 'neural_network_detector',
+                       'filename')
+    expand_asset_model(document, 'detect', 'neural_network_triage',
+                       'filename')
+    expand_asset_model(document, 'detect', 'neural_network_autoencoder',
+                       'filename')
 
     return document
