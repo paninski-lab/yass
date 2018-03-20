@@ -50,6 +50,7 @@ detect:
   # number of features in the temporal dimension to use when applying
   # dimensionality reduction
   temporal_features: 3
+  # Configuration parameters when when detect.method = 'nn'
   neural_network_detector:
     # model name, can be any of the models included in yass (detectnet1.ckpt),
     # a relative folder to data.root_fodler (e.g.
@@ -71,6 +72,9 @@ detect:
     # same rules apply as in neural_network_detector.filename but no
     # yaml file is needed
     filename: ae_nn1.ckpt
+  # Configuration parameters when when detect.method = 'threshold'
+  threshold_detector:
+    std_factor: 4
 
 
 # All values are optional
