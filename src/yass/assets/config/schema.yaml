@@ -6,6 +6,7 @@
 
 data:
   type: dict
+  required: True
   schema:
     # project's root folder, data will be loaded and saved here
     # can be an absolute or relative path
@@ -23,6 +24,7 @@ data:
 
 resources:
   type: dict
+  required: True
   schema:
     # maximum memory allowed in batch processing, can be a number (bytes)
     # or a string such as 1000MB, 2GB
@@ -33,6 +35,7 @@ resources:
 
 recordings:
   type: dict
+  required: True
   schema:
     # precision of the recording – must be a valid numpy dtype
     dtype:
@@ -67,7 +70,6 @@ preprocess:
     # apply butterworth filter in the preprocessing step?
     filter:
       type: boolean
-      required: False
       default: True
     # output dtype for transformed data
     dtype:
@@ -144,6 +146,9 @@ clustering:
 
 neural_network_detector:
   type: dict
+  default:
+    filename: detect_nn1.ckpt
+    threshold_spike: 0.5
   schema:
     # model name, can be any of the models included in yass (detectnet1.ckpt),
     # a relative folder to data.root_fodler (e.g.
@@ -163,6 +168,9 @@ neural_network_detector:
 
 neural_network_triage:
   type: dict
+  default:
+    filename: triage_nn1.ckpt
+    threshold_collision: 0.5
   schema:
     # same rules apply as in neural_network_detector.filename but the
     # yaml file should only contain size (not number)
@@ -177,6 +185,8 @@ neural_network_triage:
 
 neural_network_autoencoder:
   type: dict
+  default:
+    filename: ae_nn1.ckpt
   schema:
     filename:
       # same rules apply as in neural_network_detector.filename but no
