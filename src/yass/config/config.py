@@ -6,10 +6,10 @@ import logging
 
 import yaml
 import numpy as np
+from cerberus import Validator
 from pkg_resources import resource_filename
 
 from yass import geometry as geom
-from yass.config.validator import Validator
 
 
 class FrozenJSON(object):
@@ -59,7 +59,11 @@ class FrozenJSON(object):
         if hasattr(self._data, name):
             return getattr(self._data, name)
         else:
-            return FrozenJSON(self._data[name])
+            try:
+                return FrozenJSON(self._data[name])
+            except KeyError:
+                raise KeyError('Trying to access a key that does not exist, '
+                               'keys are: {}'.format(self._data.keys()))
 
     def __dir__(self):
         return self._data.keys()
@@ -149,14 +153,19 @@ class Config(FrozenJSON):
         """Validate values in the input dictionary
         """
         path_to_validator = resource_filename('yass',
-                                              'assets/config/validator.yaml')
+                                              'assets/config/schema.yaml')
         with open(path_to_validator) as f:
-            validator_content = yaml.load(f)
+            schema = yaml.load(f)
 
-        validator = Validator(mapping, **validator_content)
-        mapping = validator.validate()
+        validator = Validator(schema)
+        valid = validator.validate(mapping)
 
-        return mapping
+        if not valid:
+            raise ValueError('Errors occurred while validating the '
+                             'configuration file: {}'
+                             .format(validator.errors))
+
+        return validator.document
 
     def _pretty_iterator(self, it):
         return reduce(lambda x, y: x+', '+y, it)
