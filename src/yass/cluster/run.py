@@ -70,7 +70,7 @@ def run(scores, spike_index):
         _b = datetime.datetime.now()
         logger.info("Clustering...")
         spike_train, scores = run_cluster_location(scores,
-                                           spike_index, CONFIG)
+                                                   spike_index, CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
     else:
@@ -82,8 +82,8 @@ def run(scores, spike_index):
         _b = datetime.datetime.now()
         logger.info("Triaging...")
         scores, spike_index = triage(scores, spike_index,
-                                    CONFIG.triage.nearest_neighbors,
-                                    CONFIG.triage.percent)
+                                     CONFIG.triage.nearest_neighbors,
+                                     CONFIG.triage.percent)
 
         logger.info("Randomly subsampling...")
         scores, spike_index = random_subsample(scores, spike_index,

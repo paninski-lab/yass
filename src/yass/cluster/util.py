@@ -3,7 +3,6 @@ import logging
 
 from yass.mfm import spikesort
 from yass import mfm
-from yass.cluster.merge import merge_units
 
 
 def run_cluster(scores, masks, groups, spike_times,
@@ -166,7 +165,7 @@ def run_cluster_location(scores, spike_times, CONFIG):
     global_vbParam = None
     global_spike_time = None
     global_cluster_id = None
-    
+
     # run clustering algorithm per main channel
     for channel in range(n_channels):
 
@@ -189,10 +188,7 @@ def run_cluster_location(scores, spike_times, CONFIG):
             cluster_id = cluster_id[~idx_triage]
             spike_time = spike_time[~idx_triage]
             score = score[~idx_triage]
-            
-            print(np.max(cluster_id)+1)
 
-            #spike_time, cluster_id, score = clean_empty_cluster(spike_time, cluster_id, score)
             # gather clustering information into global variable
             (global_vbParam,
              global_score, global_spike_time,
@@ -207,106 +203,126 @@ def run_cluster_location(scores, spike_times, CONFIG):
 
     # global merge
     maha = calculate_mahalanobis(global_vbParam)
-    check = np.logical_or(maha<15, maha.T<15)
+    check = np.logical_or(maha < 15, maha.T < 15)
     while np.any(check):
-        cluster = np.where(np.any(check, axis = 1))[0][0]
+        cluster = np.where(np.any(check, axis=1))[0][0]
         neigh_clust = list(np.where(check[cluster])[0])
-        global_cluster_id, maha, merged = merge_move_patches(cluster, neigh_clust, global_score,
-                                                     global_cluster_id, global_vbParam, maha, CONFIG)
-        check = np.logical_and(maha<15, maha.T<15)
-    
-    #
+        global_cluster_id, maha, merged = merge_move_patches(
+            cluster, neigh_clust, global_score, global_cluster_id,
+            global_vbParam, maha, CONFIG)
+        check = np.logical_and(maha < 15, maha.T < 15)
+
+    # clean empty spaces
     global_spike_time, global_cluster_id, global_score = clean_empty_cluster(
-        global_spike_time, global_cluster_id, global_score[:,:,0])
-    
+        global_spike_time, global_cluster_id, global_score[:, :, 0])
+
     # make spike train
     spike_train = np.hstack(
         (global_spike_time[:, np.newaxis],
          global_cluster_id[:, np.newaxis]))
-
-    #spike_train = merge_units(global_scores, spike_train, 2*global_scores.shape[1])
 
     # sort based on spike_time
     idx_sort = np.argsort(spike_train[:, 0])
 
     return spike_train[idx_sort], global_score[idx_sort]
 
+
 def calculate_mahalanobis(vbParam):
-    diff = np.transpose(vbParam.muhat, [1,2,0]) - vbParam.muhat[...,0].T
-    clustered_prec = np.transpose(vbParam.Vhat[:,:,:,0] * vbParam.nuhat,[2,0,1])
-    maha = np.squeeze(np.matmul(diff[:,:,np.newaxis],np.matmul(clustered_prec[:,np.newaxis], diff[..., np.newaxis]) ), axis = [2,3])
+    diff = np.transpose(vbParam.muhat, [1, 2, 0]) - vbParam.muhat[..., 0].T
+    clustered_prec = np.transpose(
+        vbParam.Vhat[:, :, :, 0] * vbParam.nuhat, [2, 0, 1])
+    maha = np.squeeze(np.matmul(diff[:, :, np.newaxis],
+                                np.matmul(clustered_prec[:, np.newaxis],
+                                          diff[..., np.newaxis])), axis=[2, 3])
     maha[np.diag_indices(maha.shape[0])] = np.inf
-    
+
     return maha
 
-def merge_move_patches(cluster, neigh_clusters, scores, clusterid, vbParam, maha, cfg):
+
+def merge_move_patches(cluster, neigh_clusters, scores,
+                       clusterid, vbParam, maha, cfg):
 
     while len(neigh_clusters) > 0:
         i = neigh_clusters[0]
         indices = np.logical_or(clusterid == cluster, clusterid == i)
-        ka,kb = min(cluster, i ), max(cluster,i)
+        ka, kb = min(cluster, i), max(cluster, i)
         local_scores = scores[indices]
         local_vbParam = mfm.vbPar(None)
-        local_vbParam.muhat = vbParam.muhat[:,[cluster, i]]
-        local_vbParam.Vhat = vbParam.Vhat[:,:,[cluster, i]]
-        local_vbParam.invVhat = vbParam.invVhat[:,:,[cluster, i]]
+        local_vbParam.muhat = vbParam.muhat[:, [cluster, i]]
+        local_vbParam.Vhat = vbParam.Vhat[:, :, [cluster, i]]
+        local_vbParam.invVhat = vbParam.invVhat[:, :, [cluster, i]]
         local_vbParam.nuhat = vbParam.nuhat[[cluster, i]]
         local_vbParam.lambdahat = vbParam.lambdahat[[cluster, i]]
         local_vbParam.ahat = vbParam.ahat[[cluster, i]]
-        mask = np.ones([local_scores.shape[0],1])
-        local_maskedData = mfm.maskData(local_scores, mask, np.arange(local_scores.shape[0]))
+        mask = np.ones([local_scores.shape[0], 1])
+        local_maskedData = mfm.maskData(local_scores, mask,
+                                        np.arange(local_scores.shape[0]))
         local_vbParam.update_local(local_maskedData)
-        local_suffStat = mfm.suffStatistics(local_maskedData,local_vbParam)
-        
-        ELBO = mfm.ELBO_Class(local_maskedData, local_suffStat, local_vbParam, cfg)
+        local_suffStat = mfm.suffStatistics(local_maskedData, local_vbParam)
+
+        ELBO = mfm.ELBO_Class(local_maskedData, local_suffStat,
+                              local_vbParam, cfg)
         L = np.ones(2)
-        local_vbParam,local_suffStat,merged,_,_ = mfm.check_merge(local_maskedData, local_vbParam, local_suffStat, 0, 1, cfg, L , ELBO)
+        (local_vbParam,
+         local_suffStat,
+         merged, _, _) = mfm.check_merge(local_maskedData,
+                                         local_vbParam,
+                                         local_suffStat, 0, 1,
+                                         cfg, L, ELBO)
+
         if merged:
-            print("merging {}, {}".format(cluster,i))
-            
             vbParam.muhat = np.delete(vbParam.muhat, kb, 1)
-            vbParam.muhat[:,ka] = local_vbParam.muhat[:,0]
-            
+            vbParam.muhat[:, ka] = local_vbParam.muhat[:, 0]
+
             vbParam.Vhat = np.delete(vbParam.Vhat, kb, 2)
-            vbParam.Vhat[:,:,ka] = local_vbParam.Vhat[:,:,0]
-            
+            vbParam.Vhat[:, :, ka] = local_vbParam.Vhat[:, :, 0]
+
             vbParam.invVhat = np.delete(vbParam.invVhat, kb, 2)
-            vbParam.invVhat[:,:,ka] = local_vbParam.invVhat[:,:,0]
-            
+            vbParam.invVhat[:, :, ka] = local_vbParam.invVhat[:, :, 0]
+
             vbParam.nuhat = np.delete(vbParam.nuhat, kb, 0)
             vbParam.nuhat[ka] = local_vbParam.nuhat[0]
-            
+
             vbParam.lambdahat = np.delete(vbParam.lambdahat, kb, 0)
             vbParam.lambdahat[ka] = local_vbParam.lambdahat[0]
-            
+
             vbParam.ahat = np.delete(vbParam.ahat, kb, 0)
             vbParam.ahat[ka] = local_vbParam.ahat[0]
-            
+
             clusterid[indices] = ka
             clusterid[clusterid > kb] = clusterid[clusterid > kb] - 1
             neigh_clusters.pop()
-            
+
             maha = np.delete(maha, kb, 1)
             maha = np.delete(maha, kb, 0)
-            
-            diff =  vbParam.muhat[:,:,0] - local_vbParam.muhat[:,:,0]
-            
-            prec = local_vbParam.Vhat[...,0] * local_vbParam.nuhat[0]
-            maha[ka] = np.squeeze(np.matmul(diff.T[:,np.newaxis,:],np.matmul(prec[:,:,0], diff.T[..., np.newaxis]) ))
-            
-            prec = np.transpose(vbParam.Vhat[...,0] * vbParam.nuhat, [2,0,1])
-            maha[:,ka] = np.squeeze(np.matmul(diff.T[:,np.newaxis,:],np.matmul(prec, diff.T[..., np.newaxis]) ))
 
-            maha[ka,ka] = np.inf
-            neigh_clusters = list(np.where(np.logical_and(maha[ka]<5, maha.T[ka]<5))[0])
+            diff = vbParam.muhat[:, :, 0] - local_vbParam.muhat[:, :, 0]
+
+            prec = local_vbParam.Vhat[..., 0] * local_vbParam.nuhat[0]
+            maha[ka] = np.squeeze(
+                np.matmul(
+                    diff.T[:, np.newaxis, :],
+                    np.matmul(prec[:, :, 0],
+                              diff.T[..., np.newaxis])))
+
+            prec = np.transpose(vbParam.Vhat[..., 0] *
+                                vbParam.nuhat, [2, 0, 1])
+            maha[:, ka] = np.squeeze(
+                np.matmul(
+                    diff.T[:, np.newaxis, :],
+                    np.matmul(prec, diff.T[..., np.newaxis])))
+
+            maha[ka, ka] = np.inf
+            neigh_clusters = list(
+                np.where(np.logical_and(maha[ka] < 5, maha.T[ka] < 5))[0])
             cluster = ka
-        
+
         if not merged:
-            maha[ka,kb] = maha[kb,ka] = np.inf
+            maha[ka, kb] = maha[kb, ka] = np.inf
             neigh_clusters.pop()
-    
+
     return clusterid, maha, merged
-    
+
 
 def global_cluster_info(vbParam, score, spike_time, cluster_id,
                         global_vbParam, global_score,
@@ -372,8 +388,8 @@ def global_cluster_info(vbParam, score, spike_time, cluster_id,
 
         # append spike_time
         global_spike_time = np.hstack((global_spike_time,
-                                           spike_time))
-        
+                                       spike_time))
+
         # append assignment
         cluster_id_max = np.max(global_cluster_id)
         global_cluster_id = np.hstack([
@@ -383,10 +399,11 @@ def global_cluster_info(vbParam, score, spike_time, cluster_id,
     return (global_vbParam, global_score,
             global_spike_time, global_cluster_id)
 
+
 def clean_empty_cluster(spike_time, cluster_id, score, max_spikes=20):
 
     n_units = np.max(cluster_id) + 1
-    units_keep  = np.zeros(n_units, 'bool')
+    units_keep = np.zeros(n_units, 'bool')
     for k in range(n_units):
         if np.sum(cluster_id == k) >= max_spikes:
             units_keep[k] = 1
@@ -398,7 +415,7 @@ def clean_empty_cluster(spike_time, cluster_id, score, max_spikes=20):
     for j, k in enumerate(Ks):
 
         spt_temp = spike_time[cluster_id == k]
-        score_temp = score[cluster_id ==k]
+        score_temp = score[cluster_id == k]
 
         spike_time_clean = np.hstack((spike_time_clean,
                                       spt_temp))
@@ -409,4 +426,6 @@ def clean_empty_cluster(spike_time, cluster_id, score, max_spikes=20):
 
     idx_sort = np.argsort(spike_time_clean)
 
-    return spike_time_clean[idx_sort], cluster_id_clean[idx_sort], score_clean[idx_sort]
+    return (spike_time_clean[idx_sort],
+            cluster_id_clean[idx_sort],
+            score_clean[idx_sort])

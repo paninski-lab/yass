@@ -1,7 +1,7 @@
 import numpy as np
-from scipy.stats import chi2
 from sklearn.cluster import KMeans
 from scipy.spatial import cKDTree
+
 
 def coreset(scores, coreset_k, coreset_th):
     """
