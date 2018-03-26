@@ -955,11 +955,10 @@ def check_merge(maskedData, vbParam, suffStat, ka, kb, param, L, ELBO):
 
 def spikesort(score, mask, group, param):
 
+    maskedData = maskData(score, mask, group)
     if score.shape[0] > 1:
-        maskedData = maskData(score, mask, group)
 
         vbParam = split_merge(maskedData, param)
-
         assignmentTemp = np.argmax(vbParam.rhat, axis=1)
 
         assignment = np.zeros(score.shape[0], 'int16')
@@ -969,8 +968,10 @@ def spikesort(score, mask, group, param):
         idx_triage = cluster_triage(vbParam, score, 20)
         assignment[idx_triage] = -1
     else:
-        assignment = np.zeros(1, 'int16')
 
+        vbParam, suffStat = init_param(maskedData, 1, param)
+        assignment = np.zeros(1, 'int16')
+        
     return assignment, vbParam
 
 
