@@ -120,7 +120,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # cluster
     start = time.time()
-    spike_train_clear = cluster.run(score, spike_index_clear)
+    spike_train_clear, scores_clear = cluster.run(score, spike_index_clear)
     time_cluster = time.time() - start
 
     # get templates
