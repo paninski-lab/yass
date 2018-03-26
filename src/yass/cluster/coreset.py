@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import chi2
 from sklearn.cluster import KMeans
-
+from scipy.spatial import cKDTree
 
 def coreset(scores, coreset_k, coreset_th):
     """
@@ -33,21 +33,24 @@ def coreset(scores, coreset_k, coreset_th):
     groups = [None]*n_channels
 
     for channel in range(n_channels):
-
         scores_channel = scores[channel]
 
         # get data relevant to this channel
         n_data, n_features, n_neigh = scores_channel.shape
-        # exclude empty channels
-        valid_channel = np.sum(np.abs(scores_channel),
-                               axis=(0, 1)) > 0
-        scores_channel = scores_channel[:, :, valid_channel]
 
         if n_data > 0:
+
+            # exclude empty channels
+            valid_channel = np.sum(np.abs(scores_channel),
+                                   axis=(0, 1)) > 0
+            scores_channel = scores_channel[:, :, valid_channel]
             score_temp = np.reshape(scores_channel, [n_data, -1])
+
             # calculate threshold
-            th = 1.5*np.sqrt(chi2.ppf(coreset_th, 1) *
-                             score_temp.shape[1])
+            tree = cKDTree(score_temp)
+            dist, ind = tree.query(score_temp, k=2)
+            dist = np.sum(dist, 1)
+            th = np.percentile(dist, coreset_th*100)
 
             # run hierarchical K-means
             group = coreset_alg(score_temp,

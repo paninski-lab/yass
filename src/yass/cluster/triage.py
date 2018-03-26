@@ -41,6 +41,10 @@ def triage(scores, spike_index, triage_k, triage_percent):
         nc = scores_channel.shape[0]
 
         if nc > triage_k + 1:
+            scores_channel = np.divide((scores_channel - np.mean(scores_channel, axis=0,
+                                                                 keepdims=True)),
+                                       np.std(scores_channel, axis=0, keepdims=True))
+
             # get distance to nearest neighbors
             tree = cKDTree(scores_channel)
             dist, ind = tree.query(scores_channel, k=triage_k + 1)
