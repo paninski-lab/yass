@@ -26,7 +26,7 @@ def path_to_data(request):
 
 def test_can_pass_information_between_batches(path_to_data):
     bp = BatchProcessor(path_to_data, dtype='int64', n_channels=2,
-                        data_format='long', max_memory='160B')
+                        data_order='samples', max_memory='160B')
 
     def col_sums(data, previous_batch):
         current = np.sum(data, axis=0)

@@ -80,7 +80,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
     # buffer size makes sure we can detect spikes if they appear at the end of
     # any batch
     bp = BatchProcessor(PATH_TO_DATA, PARAMS['dtype'], PARAMS['n_channels'],
-                        PARAMS['data_format'], '100KB',
+                        PARAMS['data_order'], '100KB',
                         buffer_size=CONFIG.spike_size)
     mc = bp.multi_channel_apply
     res = mc(

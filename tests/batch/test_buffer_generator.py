@@ -4,7 +4,7 @@ from yass.batch.buffer import BufferGenerator
 
 
 def test_updates_slice_when_enough_obs_start_end():
-    bg = BufferGenerator(n_observations=100, data_format='long',
+    bg = BufferGenerator(n_observations=100, data_shape='long',
                          buffer_size=10)
 
     obs_slice = slice(10, 20, None)
@@ -20,7 +20,7 @@ def test_updates_slice_when_enough_obs_start_end():
 
 
 def test_updates_slice_when_not_enough_obs_start():
-    bg = BufferGenerator(n_observations=100, data_format='long',
+    bg = BufferGenerator(n_observations=100, data_shape='long',
                          buffer_size=10)
 
     obs_slice = slice(5, 20, None)
@@ -36,7 +36,7 @@ def test_updates_slice_when_not_enough_obs_start():
 
 
 def test_updates_slice_when_not_enough_obs_end():
-    bg = BufferGenerator(n_observations=100, data_format='long',
+    bg = BufferGenerator(n_observations=100, data_shape='long',
                          buffer_size=10)
 
     obs_slice = slice(89, 99, None)
@@ -52,7 +52,7 @@ def test_updates_slice_when_not_enough_obs_end():
 
 
 def test_updates_slice_when_not_enough_obs_start_end():
-    bg = BufferGenerator(n_observations=100, data_format='long',
+    bg = BufferGenerator(n_observations=100, data_shape='long',
                          buffer_size=10)
 
     obs_slice = slice(5, 98, None)
@@ -68,7 +68,7 @@ def test_updates_slice_when_not_enough_obs_start_end():
 
 
 def test_does_not_add_buffer_when_enough_obs_long_data():
-    bg = BufferGenerator(n_observations=100, data_format='long',
+    bg = BufferGenerator(n_observations=100, data_shape='long',
                          buffer_size=10)
 
     d = np.ones((100, 10))
@@ -84,7 +84,7 @@ def test_does_not_add_buffer_when_enough_obs_long_data():
 
 
 def test_adds_start_buffer_long():
-    bg = BufferGenerator(n_observations=100, data_format='long',
+    bg = BufferGenerator(n_observations=100, data_shape='long',
                          buffer_size=10)
 
     d = np.ones((100, 10))
@@ -102,7 +102,7 @@ def test_adds_start_buffer_long():
 
 
 def test_adds_end_buffer_long():
-    bg = BufferGenerator(n_observations=100, data_format='long',
+    bg = BufferGenerator(n_observations=100, data_shape='long',
                          buffer_size=10)
 
     d = np.ones((100, 10))
@@ -120,7 +120,7 @@ def test_adds_end_buffer_long():
 
 
 def test_does_not_add_buffer_when_enough_obs_wide_data():
-    bg = BufferGenerator(n_observations=100, data_format='wide',
+    bg = BufferGenerator(n_observations=100, data_shape='wide',
                          buffer_size=10)
 
     d = np.ones((10, 100))
@@ -140,7 +140,7 @@ def test_does_not_add_buffer_when_enough_obs_wide_data():
 
 
 def test_adds_start_buffer_wide():
-    bg = BufferGenerator(n_observations=100, data_format='wide',
+    bg = BufferGenerator(n_observations=100, data_shape='wide',
                          buffer_size=10)
 
     d = np.ones((10, 100))
@@ -161,7 +161,7 @@ def test_adds_start_buffer_wide():
 
 
 def test_adds_end_buffer_wide():
-    bg = BufferGenerator(n_observations=100, data_format='wide',
+    bg = BufferGenerator(n_observations=100, data_shape='wide',
                          buffer_size=10)
 
     d = np.ones((10, 100))
