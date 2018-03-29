@@ -172,7 +172,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                                      spike_size=CONFIG.spike_size,
                                      dtype=PARAMS['dtype'],
                                      n_channels=PARAMS['n_channels'],
-                                     data_format=PARAMS['data_format'])
+                                     data_order=PARAMS['data_order'])
         waveforms = explorer.read_waveforms(spike_train[:, 0])
 
         path_to_waveforms = path.join(TMP_FOLDER, 'spike_train_waveforms.npy')

@@ -17,7 +17,7 @@ from yass.geometry import make_channel_index
 
 @check_for_files(parameters=['output_filename'],
                  if_skip=[LoadFile('output_filename')])
-def matrix(path_to_data, dtype, n_channels, data_shape,
+def matrix(path_to_data, dtype, n_channels, data_order,
            neighbors_matrix, geometry, spike_size, max_memory, output_path,
            output_filename='whitening.npy',
            if_file_exists='skip'):
@@ -34,9 +34,12 @@ def matrix(path_to_data, dtype, n_channels, data_shape,
     n_channels: int
         Number of channels in the recordings
 
-    data_shape: str
-        Data shape, can be either 'long' (observations, channels) or
-        'wide' (channels, observations)
+    data_order: str
+        Recordings order, one of ('channels', 'samples'). In a dataset with k
+        observations and j channels: 'channels' means first k contiguous
+        observations come from channel 0, then channel 1, and so on. 'sample'
+        means first j contiguous data are the first observations from
+        all channels, then the second observations from all channels and so on
 
     neighbors_matrix: numpy.ndarray (n_channels, n_channels)
         Boolean numpy 2-D array where a i, j entry is True if i is considered
@@ -70,14 +73,14 @@ def matrix(path_to_data, dtype, n_channels, data_shape,
 
     standarized_params: dict
         A dictionary with the parameters for the standarized recordings
-        (dtype, n_channels, data_format)
+        (dtype, n_channels, data_order)
     """
     logger = logging.getLogger(__name__)
 
     # compute Q (using the first batchfor whitening
     logger.info('Computing whitening matrix...')
 
-    bp = BatchProcessor(path_to_data, dtype, n_channels, data_shape,
+    bp = BatchProcessor(path_to_data, dtype, n_channels, data_order,
                         max_memory)
 
     channel_index = make_channel_index(neighbors_matrix,

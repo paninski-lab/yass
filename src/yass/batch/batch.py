@@ -203,7 +203,8 @@ class BatchProcessor(object):
         will have a size of 4MB in float64. Take that into account when
         setting max_memory.
 
-        For performance reasons in 'disk' mode, output data is in 'wide' format
+        For performance reasons in 'disk' mode, output data is in 'channels'
+        order
         """
         if mode not in ['disk', 'memory']:
             raise ValueError('Mode should be disk or memory, received: {}'
@@ -435,7 +436,7 @@ class BatchProcessor(object):
         float64), which means that a chunk of 1MB in int16 will have a size
         of 4MB in float64. Take that into account when setting max_memory
 
-        For performance reasons, outputs data in 'channels' order.
+        For performance reasons, outputs data in 'samples' order.
         """
         if mode not in ['disk', 'memory']:
             raise ValueError('Mode should be disk or memory, received: {}'

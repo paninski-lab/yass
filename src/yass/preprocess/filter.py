@@ -13,7 +13,7 @@ from yass.util import check_for_files, ExpandPath, LoadFile
 @check_for_files(parameters=['output_filename'],
                  if_skip=[ExpandPath('output_filename'),
                           LoadFile('output_filename', 'yaml')])
-def butterworth(path_to_data, dtype, n_channels, data_shape,
+def butterworth(path_to_data, dtype, n_channels, data_order,
                 low_frequency, high_factor, order, sampling_frequency,
                 max_memory, output_path, output_dtype,
                 output_filename='filtered.bin', if_file_exists='skip'):
@@ -30,9 +30,12 @@ def butterworth(path_to_data, dtype, n_channels, data_shape,
     n_channels: int
         Number of channels in the recordings
 
-    data_shape: str
-        Data shape, can be either 'long' (observations, channels) or
-        'wide' (channels, observations)
+    data_order: str
+        Recordings order, one of ('channels', 'samples'). In a dataset with k
+        observations and j channels: 'channels' means first k contiguous
+        observations come from channel 0, then channel 1, and so on. 'sample'
+        means first j contiguous data are the first observations from
+        all channels, then the second observations from all channels and so on
 
     low_frequency: int
         Low pass frequency (Hz)
@@ -71,10 +74,10 @@ def butterworth(path_to_data, dtype, n_channels, data_shape,
 
     standarized_params: dict
         A dictionary with the parameters for the filtered recordings
-        (dtype, n_channels, data_format)
+        (dtype, n_channels, data_order)
     """
     # init batch processor
-    bp = BatchProcessor(path_to_data, dtype, n_channels, data_shape,
+    bp = BatchProcessor(path_to_data, dtype, n_channels, data_order,
                         max_memory, buffer_size=200)
 
     _output_path = os.path.join(output_path, output_filename)

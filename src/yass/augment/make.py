@@ -62,7 +62,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     spatial_SIG, temporal_SIG = noise_cov(path_to_data,
                                           PARAMS['dtype'],
                                           CONFIG.recordings.n_channels,
-                                          PARAMS['data_format'],
+                                          PARAMS['data_order'],
                                           CONFIG.neigh_channels,
                                           CONFIG.geom,
                                           templates.shape[1])
