@@ -63,9 +63,12 @@ class BatchPipeline(object):
         Numpy dtype
     n_channels: int
         Number of channels
-    data_format: str
-        Data format, it can be either 'long' (observations, channels) or
-        'wide' (channels, observations)
+    data_order: str
+        Recordings order, one of ('channels', 'samples'). In a dataset with k
+        observations and j channels: 'channels' means first k contiguous
+        observations come from channel 0, then channel 1, and so on. 'sample'
+        means first j contiguous data are the first observations from
+        all channels, then the second observations from all channels and so on
     max_memory: int or str
         Max memory to use in each batch, interpreted as bytes if int,
         if string, it can be any of {N}KB, {N}MB or {N}GB
@@ -86,13 +89,13 @@ class BatchPipeline(object):
 
     """
 
-    def __init__(self, path_to_input, dtype, n_channels, data_format,
+    def __init__(self, path_to_input, dtype, n_channels, data_order,
                  max_memory, output_path, from_time=None, to_time=None,
                  channels='all'):
         self.path_to_input = path_to_input
         self.dtype = dtype
         self.n_channels = n_channels
-        self.data_format = data_format
+        self.data_order = data_order
         self.max_memory = max_memory
 
         self.from_time = from_time
@@ -122,7 +125,7 @@ class BatchPipeline(object):
 
         bp = BatchProcessor(path_to_input, self.dtype,
                             self.n_channels,
-                            self.data_format, self.max_memory)
+                            self.data_order, self.max_memory)
 
         output_paths = []
         params = []
@@ -157,7 +160,7 @@ class BatchPipeline(object):
 
             # update bp
             bp = BatchProcessor(output_path, p['dtype'],
-                                p['n_channels'], p['data_format'],
+                                p['n_channels'], p['data_order'],
                                 self.max_memory)
 
             # delete the result if needed
