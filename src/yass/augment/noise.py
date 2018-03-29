@@ -6,7 +6,7 @@ from yass.batch import RecordingsReader
 
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
-def noise_cov(path_to_data, dtype, n_channels, data_format, neighbors, geom,
+def noise_cov(path_to_data, dtype, n_channels, data_order, neighbors, geom,
               temporal_size):
     """[Description]
 
@@ -18,8 +18,12 @@ def noise_cov(path_to_data, dtype, n_channels, data_format, neighbors, geom,
         dtype for recordings
     n_channels: int
         Number of channels in the recordings
-    data_format: str
-        Recordings shape ('wide', 'long')
+    data_order: str
+        Recordings order ('channels', 'sample'). In a dataset with k
+        observations and j channels: 'channels' means first k contiguous
+        observations come from channel 0, then channel 1, and so on. 'sample'
+        means first j contiguous data are the first observations from
+        all channels, then the second observations from all channels and so on
     neighbors: numpy.ndarray
         Neighbors matrix
     geom: numpy.ndarray
@@ -35,7 +39,7 @@ def noise_cov(path_to_data, dtype, n_channels, data_format, neighbors, geom,
     ch_idx, temp = order_channels_by_distance(c_ref, ch_idx, geom)
 
     rec = RecordingsReader(path_to_data, dtype=dtype, n_channels=n_channels,
-                           data_format=data_format, loader='array')
+                           data_order=data_order, loader='array')
     rec = rec[:, ch_idx]
 
     T, C = rec.shape
