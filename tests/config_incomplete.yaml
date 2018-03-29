@@ -8,7 +8,7 @@ recordings:
   n_channels: 10
   spatial_radius: 70
   spike_size_ms: 1
-  format: samples
+  order: samples
 
 preprocess:
   apply_filter: True
