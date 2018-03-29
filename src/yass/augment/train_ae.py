@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-import progressbar
+from tqdm import tqdm
 
 
 def train_ae(x_train, y_train, n_feature, n_iter, n_batch, train_step_size,
@@ -48,7 +48,7 @@ def train_ae(x_train, y_train, n_feature, n_iter, n_batch, train_step_size,
     # training #
     ############
 
-    bar = progressbar.ProgressBar(maxval=n_iter)
+    bar = tqdm(total=n_iter)
     with tf.Session() as sess:
         init_op = tf.global_variables_initializer()
         sess.run(init_op)
@@ -59,4 +59,4 @@ def train_ae(x_train, y_train, n_feature, n_iter, n_batch, train_step_size,
                      idx_batch], y_: y_train[idx_batch]})
             bar.update(i+1)
         saver_ae.save(sess, nn_name)
-    bar.finish()
+    bar.close()

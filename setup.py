@@ -28,9 +28,6 @@ INSTALL_REQUIRES_DOCS = ['pathlib2', 'funcsigs', 'cerberus']
 
 INSTALL_REQUIRES = [
     'numpy', 'scipy', 'scikit-learn', 'pyyaml', 'python-dateutil', 'click',
-    # FIXME: we should remove this
-    'progressbar2',
-    # FIXME: stability metric depends on this, remove...
     'tqdm'
 ] + INSTALL_REQUIRES_DOCS
 
