@@ -26,7 +26,7 @@ Preprocess
 
 
 
-See :doc:`api/preprocess` documentation.
+See :doc:`api/preprocess` for details.
 
 
 Detect
@@ -52,17 +52,24 @@ Detect
 
     }
 
+
+See :doc:`api/detect` for details.
+
 Cluster
 -------
 
+See :doc:`api/cluster` for details.
+
 Templates
 ---------
+
+See :doc:`api/templates` for details.
 
 
 Deconvolve
 ----------
 
-
+See :doc:`api/deconvolute` for details.
 
 Processing
 ----------
