@@ -19,7 +19,7 @@ def noise_cov(path_to_data, dtype, n_channels, data_order, neighbors, geom,
     n_channels: int
         Number of channels in the recordings
     data_order: str
-        Recordings order ('channels', 'sample'). In a dataset with k
+        Recordings order ('channels', 'samples'). In a dataset with k
         observations and j channels: 'channels' means first k contiguous
         observations come from channel 0, then channel 1, and so on. 'sample'
         means first j contiguous data are the first observations from

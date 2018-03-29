@@ -26,9 +26,12 @@ class BatchProcessor(object):
     n_channels: int
         Number of channels
 
-    data_format: str
-        Data format, it can be either 'long' (observations, channels) or
-        'wide' (channels, observations)
+    data_order: str
+        Recordings order, one of ('channels', 'samples'). In a dataset with k
+        observations and j channels: 'channels' means first k contiguous
+        observations come from channel 0, then channel 1, and so on. 'sample'
+        means first j contiguous data are the first observations from
+        all channels, then the second observations from all channels and so on
 
     max_memory: int or str
         Max memory to use in each batch, interpreted as bytes if int,
@@ -54,13 +57,13 @@ class BatchProcessor(object):
     """
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
-                 data_format=None, max_memory='1GB', buffer_size=0,
+                 data_order=None, max_memory='1GB', buffer_size=0,
                  loader='python'):
-        self.data_format = data_format
+        self.data_order = data_order
         self.buffer_size = buffer_size
         self.reader = RecordingsReader(path_to_recordings,
                                        dtype, n_channels,
-                                       data_format,
+                                       data_order,
                                        loader=loader)
         self.indexer = IndexGenerator(self.reader.observations,
                                       self.reader.channels,
@@ -69,7 +72,7 @@ class BatchProcessor(object):
 
         # data format is long since reader will return data in that format
         self.buffer_generator = BufferGenerator(self.reader.observations,
-                                                data_format='long',
+                                                data_shape='long',
                                                 buffer_size=buffer_size)
 
         self.logger = logging.getLogger(__name__)
@@ -294,7 +297,8 @@ class BatchProcessor(object):
         # save yaml file with params
         path_to_yaml = output_path.replace('.bin', '.yaml')
 
-        params = dict(dtype=dtype, n_channels=n_channels, data_format='wide')
+        params = dict(dtype=dtype, n_channels=n_channels,
+                      data_order='channels')
 
         with open(path_to_yaml, 'w') as f:
             self.logger.debug('Saving params...')
@@ -538,7 +542,7 @@ class BatchProcessor(object):
         # save yaml file with params
         path_to_yaml = output_path.replace('.bin', '.yaml')
 
-        params = dict(dtype=dtype, n_channels=n_channels, data_format='long')
+        params = dict(dtype=dtype, n_channels=n_channels, data_order='samples')
 
         with open(path_to_yaml, 'w') as f:
             yaml.dump(params, f)
