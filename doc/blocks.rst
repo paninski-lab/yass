@@ -26,7 +26,7 @@ Preprocess
 
 
 
-See :doc:`api/preprocess` documentation.
+See :doc:`api/preprocess` for details.
 
 
 Detect
@@ -40,61 +40,35 @@ Detect
        node_width = 120;
        node_height = 60;
 
+       threshold_detector -> pca -> whiten_scores;
 
-       filter -> standarize -> spike_detection -> waveforms;
-       standarize ->  whiten -> waveforms;
+       neural_network_detector -> autoencoder;
 
-       filter [label="Butterworth filter", description="Apply filtering to the n_observations x n_channels data matrix"]
-       standarize [label="Standarize", description="Standarize data matrix"]
-       spike_detection [label="Spike detection", description="Detect spikes using threshold or neural network"]
-       whiten [label="Whitening", description="Apply whitening to the data matrix"]
-       waveforms [label="Waveforms", description="Extract waveforms around detected spikes"]
+
+       threshold_detector [label="Threshold detector", description="Detect spikes using a threshold"]
+       pca [label="PCA", description="Dimensionality reduction using PCA"]
+       whiten_scores [label="Whiten scores", description="Apply whitening to PCA scores"]
+       neural_network_detector [label="Neural Network detector", description="Detect spikes using a Neural Network"]
+       autoencoder [label="Autoencoder", description="Dimensionality reduction using an autoencoder"]
 
     }
+
+
+See :doc:`api/detect` for details.
 
 Cluster
 -------
 
+See :doc:`api/cluster` for details.
+
 Templates
 ---------
+
+See :doc:`api/templates` for details.
 
 
 Deconvolve
 ----------
-
-
-
-Processing
-----------
-
-.. blockdiag::
-    :desctable:
-
-    blockdiag {
-       default_fontsize = 15;
-       node_width = 120;
-       node_height = 60;
-
-
-       triage -> dim_reduction -> triage_2 -> coreset -> mask ->
-       cluster -> clean -> templates;
-
-       triage_2 -> coreset [folded];
-       cluster -> clean [folded];
-
-       triage [label="Triage waveforms", description="Triage waveforms in clear/unclear"]
-       dim_reduction [label="Dimensionality reduction", description="Reduce waveforms dimensionality"]
-       triage_2 [label="Outlifer triage", description="Remove some outliers from clear waveforms"]
-       coreset [label="Coreset", description="Find coresets"]
-       mask [label="Mask", description="Mask data"]
-       cluster [label="Cluster", description="Cluster clear waveforms"]
-       clean [label="Clean", description=""]
-       templates [label="Templates", description="Find waveform templates"]
-
-    }
-
-Deconvolution
--------------
 
 .. blockdiag::
     :desctable:
@@ -110,3 +84,6 @@ Deconvolution
        deconvolution [label="Deconvolution", description="Deconvolute unclear spikes using the templates"]
        merge [label="Merge", description="Merge all spikes to produce the final ouput"]
     }
+
+
+See :doc:`api/deconvolute` for details.

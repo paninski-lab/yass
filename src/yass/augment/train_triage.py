@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-import progressbar
+from tqdm import tqdm
 
 from yass.neuralnetwork.utils import \
     weight_variable, bias_variable, conv2d, conv2d_VALID
@@ -73,7 +73,7 @@ def train_triage(x_train, y_train, n_filters, n_iter, n_batch, l2_reg_scale,
     # training #
     ############
 
-    bar = progressbar.ProgressBar(maxval=n_iter)
+    bar = tqdm(total=n_iter)
     with tf.Session() as sess:
         init_op = tf.global_variables_initializer()
         sess.run(init_op)
@@ -97,4 +97,4 @@ def train_triage(x_train, y_train, n_filters, n_iter, n_batch, l2_reg_scale,
 
         print('Approximate training true positive rate: ' + str(tp) +
               ', false positive rate: ' + str(fp))
-    bar.finish()
+    bar.close()
