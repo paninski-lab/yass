@@ -1,12 +1,13 @@
 """
 Functions for threshold detection
 """
+import os
 import logging
 
 import numpy as np
 
 from yass.batch import BatchProcessor
-from yass.util import check_for_files, LoadFile
+from yass.util import check_for_files, LoadFile, save_numpy_object
 from yass.geometry import n_steps_neigh_channels
 
 # FIXME: seems like the detector is throwing slightly different results
@@ -110,6 +111,12 @@ def threshold(path_to_data, dtype, n_channels, data_order,
                             spike_index_clear,
                             minimum_half_waveform_size,
                             bp.reader.observations))
+
+    if output_path and spike_index_clear_filename:
+        path = os.path.join(output_path, spike_index_clear_filename)
+        save_numpy_object(spike_index_clear, path,
+                          if_file_exists=if_file_exists,
+                          name='Spike index clear')
 
     return spike_index_clear
 

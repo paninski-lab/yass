@@ -3,6 +3,7 @@ Detection pipeline
 """
 import logging
 import os.path
+from functools import reduce
 
 import numpy as np
 
@@ -10,7 +11,7 @@ from yass import read_config
 from yass.batch import BatchProcessor, RecordingsReader
 from yass.threshold.detect import threshold
 from yass.threshold import detect
-from yass.threshold import dimensionality_reduction as dim_red
+from yass.threshold.dimensionality_reduction import pca
 from yass import neuralnetwork
 from yass.preprocess import whiten
 from yass.util import file_loader, save_numpy_object
@@ -126,13 +127,17 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     logger.debug('Running threshold detector...')
 
     CONFIG = read_config()
+
+    # Set TMP_FOLDER to None if not save_partial_results, this will disable
+    # saving results in every function below
     TMP_FOLDER = (os.path.join(CONFIG.data.root_folder, output_directory)
                   if save_partial_results else None)
 
     # files that will be saved if enable by the if_file_exists option
-    filename_scores = 'scores_clear.npy'
+    filename_scores_clear = 'scores_clear.npy'
     filename_index_clear = 'spike_index_clear.npy'
     filename_spike_index_all = 'spike_index_all.npy'
+    filename_rotation = 'rotation.npy'
 
     ###################
     # Spike detection #
@@ -159,32 +164,33 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     recordings = RecordingsReader(standarized_path)
 
     # run PCA, save rotation matrix and pca scores under TMP_FOLDER
-    pca_scores, clear, _ = dim_red.pca(standarized_path,
-                                       standarized_params['dtype'],
-                                       standarized_params['n_channels'],
-                                       standarized_params['data_order'],
-                                       recordings,
-                                       clear,
-                                       CONFIG.spike_size,
-                                       CONFIG.detect.temporal_features,
-                                       CONFIG.neigh_channels,
-                                       channel_index,
-                                       CONFIG.resources.max_memory,
-                                       output_path=TMP_FOLDER,
-                                       rotatio_matrix_filename='rotation.npy',
-                                       scores_filename='scores_pca.npy',
-                                       if_file_exists=if_file_exists)
+    pca_scores, clear, _ = pca(standarized_path,
+                               standarized_params['dtype'],
+                               standarized_params['n_channels'],
+                               standarized_params['data_order'],
+                               recordings,
+                               clear,
+                               CONFIG.spike_size,
+                               CONFIG.detect.temporal_features,
+                               CONFIG.neigh_channels,
+                               channel_index,
+                               CONFIG.resources.max_memory,
+                               output_path=TMP_FOLDER,
+                               scores_filename='scores_pca.npy',
+                               rotation_matrix_filename=filename_rotation,
+                               if_file_exists=if_file_exists)
 
     #################
     # Whiten scores #
     #################
 
-    scores = whiten.score(pca_scores, clear[:, 1], whiten_filter)
+    # apply whitening to scores
+    scores_clear = whiten.score(pca_scores, clear[:, 1], whiten_filter)
 
-    if TMP_FOLDER:
+    if TMP_FOLDER is not None:
         # saves whiten scores
-        path_to_scores = os.path.join(TMP_FOLDER, filename_scores)
-        save_numpy_object(scores, path_to_scores, if_file_exists,
+        path_to_scores = os.path.join(TMP_FOLDER, filename_scores_clear)
+        save_numpy_object(scores_clear, path_to_scores, if_file_exists,
                           name='scores')
 
         # save spike_index_all (same as spike_index_clear for threshold
@@ -197,7 +203,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     # TODO: this shouldn't be here
     # transform scores to location + shape feature space
     if CONFIG.cluster.method == 'location':
-        scores = get_locations_features_threshold(scores, clear[:, 1],
+        scores = get_locations_features_threshold(scores_clear, clear[:, 1],
                                                   channel_index,
                                                   CONFIG.geom)
 
@@ -226,32 +232,19 @@ def run_neural_network(standarized_path, standarized_params,
     TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
 
     # check if all scores, clear and collision spikes exist..
-    path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
+    path_to_score = os.path.join(TMP_FOLDER, 'scores_clear.npy')
     path_to_spike_index_clear = os.path.join(TMP_FOLDER,
                                              'spike_index_clear.npy')
-    path_to_spike_index_collision = os.path.join(TMP_FOLDER,
-                                                 'spike_index_collision.npy')
+    path_to_spike_index_all = os.path.join(TMP_FOLDER, 'spike_index_all.npy')
+    path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
 
-    if all([
-        os.path.exists(path_to_score),
-        os.path.exists(path_to_spike_index_clear),
-        os.path.exists(path_to_spike_index_collision)
-    ]):
-        logger.info('Loading "{}", "{}" and "{}"'.format(
-            path_to_score, path_to_spike_index_clear,
-            path_to_spike_index_collision))
+    paths = [path_to_score, path_to_spike_index_clear, path_to_spike_index_all]
+    exists = [os.path.exists(p) for p in paths]
 
-        scores = np.load(path_to_score)
-        clear = np.load(path_to_spike_index_clear)
-        collision = np.load(path_to_spike_index_collision)
-
-    else:
-        logger.info('One or more of "{}", "{}" or "{}" files were missing, '
-                    'computing...'.format(path_to_score,
-                                          path_to_spike_index_clear,
-                                          path_to_spike_index_collision))
-
-        # Run neural net preprocessor
+    if (if_file_exists == 'overwrite' or
+        if_file_exists == 'abort' and not any(exists)
+       or if_file_exists == 'skip' and not all(exists)):
+                # Run neural net preprocessor
         # Batch processor
         bp = BatchProcessor(standarized_path,
                             standarized_params['dtype'],
@@ -276,7 +269,6 @@ def run_neural_network(standarized_path, standarized_params,
                                                triage_fname)
 
         # run nn preprocess batch-wsie
-        # run nn preprocess batch-wsie
         mc = bp.multi_channel_apply
         res = mc(
             neuralnetwork.run_detect_triage_featurize,
@@ -288,27 +280,21 @@ def run_neural_network(standarized_path, standarized_params,
             NNAE=NNAE,
             NNT=NNT)
 
-        # save clear spikes
+        # get clear spikes
         clear = np.concatenate([element[1] for element in res], axis=0)
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
         clear, idx = detect.remove_incomplete_waveforms(
             clear, CONFIG.spike_size + CONFIG.templates_max_shift,
             bp.reader._n_observations)
-        np.save(path_to_spike_index_clear, clear)
-        logger.info('Saved spike index clear in {}...'
-                    .format(path_to_spike_index_clear))
 
-        # save collided spikes
-        collision = np.concatenate([element[2] for element in res], axis=0)
-        logger.info('Removing collision indexes outside the allowed range to '
+        # get all spikes
+        spikes_all = np.concatenate([element[2] for element in res], axis=0)
+        logger.info('Removing indexes outside the allowed range to '
                     'draw a complete waveform...')
-        collision, _ = detect.remove_incomplete_waveforms(
-            collision, CONFIG.spike_size + CONFIG.templates_max_shift,
+        spikes_all, _ = detect.remove_incomplete_waveforms(
+            spikes_all, CONFIG.spike_size + CONFIG.templates_max_shift,
             bp.reader._n_observations)
-        np.save(path_to_spike_index_collision, collision)
-        logger.info('Saved spike index collision in {}...'
-                    .format(path_to_spike_index_collision))
 
         # get scores
         scores = np.concatenate([element[0] for element in res], axis=0)
@@ -317,22 +303,53 @@ def run_neural_network(standarized_path, standarized_params,
             'draw a complete waveform...')
         scores = scores[idx]
 
-        # save rotation
-        rotation = NNAE.load_rotation()
-        path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
-        np.save(path_to_rotation, rotation)
-        logger.info(
-            'Saved rotation matrix in {}...'.format(path_to_rotation))
-
         # transform scores to location + shape feature space
+        # TODO: move this to another place
+        rotation = NNAE.load_rotation()
         if CONFIG.cluster.method == 'location':
             scores = get_locations_features(scores, rotation, clear[:, 1],
                                             channel_index, CONFIG.geom)
-        # saves score
-        np.save(path_to_score, scores)
-        logger.info('Saved spike scores in {}...'.format(path_to_score))
 
-    return scores, clear, collision
+        # save partial results if required
+        if save_partial_results:
+            # save clear spikes
+            np.save(path_to_spike_index_clear, clear)
+            logger.info('Saved spike index clear in {}...'
+                        .format(path_to_spike_index_clear))
+
+            # save all ppikes
+            np.save(path_to_spike_index_all, spikes_all)
+            logger.info('Saved spike index all in {}...'
+                        .format(path_to_spike_index_all))
+
+            # save rotation
+            np.save(path_to_rotation, rotation)
+            logger.info('Saved rotation matrix in {}...'
+                        .format(path_to_rotation))
+
+            # saves scores
+            np.save(path_to_score, scores)
+            logger.info('Saved spike scores in {}...'.format(path_to_score))
+
+    elif if_file_exists == 'abort' and any(exists):
+        conflict = [p for p, e in zip(paths, exists) if e]
+        message = reduce(lambda x, y: str(x)+', '+str(y), conflict)
+        raise ValueError('if_file_exists was set to abort, the '
+                         'program halted since the following files '
+                         'already exist: {}'.format(message))
+    elif if_file_exists == 'skip' and all(exists):
+        logger.info('Skipped execution. All necessary files exist'
+                    ', loading them...')
+        scores = np.load(path_to_score)
+        clear = np.load(path_to_spike_index_clear)
+        spikes_all = np.load(path_to_spike_index_all)
+
+        return scores, clear, spikes_all
+
+    else:
+        raise ValueError('Invalid value for if_file_exists {}'
+                         'must be one of overwrite, abort or skip'
+                         .format(if_file_exists))
 
 
 def get_locations_features(scores, rotation, main_channel,
