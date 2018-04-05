@@ -14,20 +14,27 @@ def noise_cov(path_to_data, dtype, n_channels, data_order, neighbors, geom,
     ----------
     path_to_data: str
         Path to recordings data
+
     dtype: str
         dtype for recordings
+
     n_channels: int
         Number of channels in the recordings
+
     data_order: str
-        Recordings order ('channels', 'samples'). In a dataset with k
-        observations per channel and j channels: 'channels' means first k contiguous
-        observations come from channel 0, then channel 1, and so on. 'sample'
-        means first j contiguous data are the first observations from
-        all channels, then the second observations from all channels and so on
+        Recordings order, one of ('channels', 'samples'). In a dataset with k
+        observations per channel and j channels: 'channels' means first k
+        contiguous observations come from channel 0, then channel 1, and so
+        on. 'sample' means first j contiguous data are the first observations
+        from all channels, then the second observations from all channels and
+        so on
+
     neighbors: numpy.ndarray
         Neighbors matrix
+
     geom: numpy.ndarray
         Cartesian coordinates for the channels
+
     temporal_size:
         Waveform size
 

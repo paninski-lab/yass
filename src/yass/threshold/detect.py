@@ -36,10 +36,11 @@ def threshold(path_to_data, dtype, n_channels, data_order,
 
     data_order: str
         Recordings order, one of ('channels', 'samples'). In a dataset with k
-        observations per channel and j channels: 'channels' means first k contiguous
-        observations come from channel 0, then channel 1, and so on. 'sample'
-        means first j contiguous data are the first observations from
-        all channels, then the second observations from all channels and so on
+        observations per channel and j channels: 'channels' means first k
+        contiguous observations come from channel 0, then channel 1, and so
+        on. 'sample' means first j contiguous data are the first observations
+        from all channels, then the second observations from all channels and
+        so on
 
     max_memory:
         Max memory to use in each batch (e.g. 100MB, 1GB)

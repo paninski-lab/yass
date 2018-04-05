@@ -123,6 +123,8 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     """
     logger = logging.getLogger(__name__)
 
+    logger.debug('Running threshold detector...')
+
     CONFIG = read_config()
     TMP_FOLDER = (os.path.join(CONFIG.data.root_folder, output_directory)
                   if save_partial_results else None)
@@ -180,7 +182,8 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     if TMP_FOLDER:
         # saves whiten scores
         path_to_scores = os.path.join(TMP_FOLDER, filename_scores)
-        save_numpy_object(scores, path_to_scores, if_file_exists, name='scores')
+        save_numpy_object(scores, path_to_scores, if_file_exists,
+                          name='scores')
 
         # save spike_index_all (same as spike_index_clear for threshold
         # detector)
