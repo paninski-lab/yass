@@ -13,7 +13,7 @@ from yass.threshold import detect
 from yass.threshold import dimensionality_reduction as dim_red
 from yass import neuralnetwork
 from yass.preprocess import whiten
-from yass.util import file_loader
+from yass.util import file_loader, save_numpy_object
 
 
 # TODO: missing parameters docs
@@ -108,12 +108,29 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                   whiten_filter, output_directory, if_file_exists,
                   save_partial_results):
     """Run threshold detector and dimensionality reduction using PCA
+
+
+    Returns
+    -------
+    scores
+      Scores for all spikes
+
+    spike_index_clear
+      Spike indexes for clear spikes
+
+    spike_index_all
+      Spike indexes for all spikes
     """
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
     TMP_FOLDER = (os.path.join(CONFIG.data.root_folder, output_directory)
                   if save_partial_results else None)
+
+    # files that will be saved if enable by the if_file_exists option
+    filename_scores = 'scores.npy'
+    filename_index_clear = 'spike_index_clear.npy'
+    filename_spike_index_all = 'spike_index_all.npy'
 
     ###################
     # Spike detection #
@@ -129,8 +146,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                       CONFIG.spike_size + CONFIG.templates_max_shift,
                       CONFIG.detect.threshold_detector.std_factor,
                       TMP_FOLDER,
-                      'spike_index_clear.npy',
-                      'spike_index_collision.npy',
+                      filename_index_clear,
                       if_file_exists=if_file_exists)
 
     #######
@@ -152,7 +168,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                                    CONFIG.resources.max_memory,
                                    output_path=TMP_FOLDER,
                                    save_rotation_matrix='rotation.npy',
-                                   save_scores='score_clear.npy',
+                                   save_scores='scores_pca.npy',
                                    if_file_exists=if_file_exists)
 
     #################
@@ -161,17 +177,24 @@ def run_threshold(standarized_path, standarized_params, channel_index,
 
     scores = whiten.score(scores, clear[:, 1], whiten_filter)
 
+    if TMP_FOLDER:
+        # saves whiten scores
+        path_to_scores = os.path.join(TMP_FOLDER, filename_scores)
+        save_numpy_object(scores, path_to_scores, if_file_exists, name='scores')
+
+        # save spike_index_all (same as spike_index_clear for threshold
+        # detector)
+        path_to_spike_index_all = os.path.join(TMP_FOLDER,
+                                               filename_spike_index_all)
+        save_numpy_object(clear, path_to_spike_index_all, if_file_exists,
+                          name='Spike index all')
+
     # TODO: this shouldn't be here
     # transform scores to location + shape feature space
     if CONFIG.cluster.method == 'location':
         scores = get_locations_features_threshold(scores, clear[:, 1],
                                                   channel_index,
                                                   CONFIG.geom)
-    # saves score
-    if TMP_FOLDER:
-        path_to_score = os.path.join(TMP_FOLDER, 'score_clear.npy')
-        np.save(path_to_score, scores)
-        logger.info('Saved spike scores in {}...'.format(path_to_score))
 
     return scores, clear, np.copy(clear)
 
@@ -180,6 +203,17 @@ def run_neural_network(standarized_path, standarized_params,
                        channel_index, whiten_filter, output_directory,
                        if_file_exists, save_partial_results):
     """Run neural network detection and autoencoder dimensionality reduction
+
+    Returns
+    -------
+    scores
+      Scores for all spikes
+
+    spike_index_clear
+      Spike indexes for clear spikes
+
+    spike_index_all
+      Spike indexes for all spikes
     """
     logger = logging.getLogger(__name__)
 

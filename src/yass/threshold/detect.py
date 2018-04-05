@@ -14,15 +14,12 @@ from yass.geometry import n_steps_neigh_channels
 logger = logging.getLogger(__name__)
 
 
-@check_for_files(parameters=['save_spike_index_clear',
-                             'save_spike_index_collision'],
-                 if_skip=[LoadFile('save_spike_index_clear'),
-                          LoadFile('save_spike_index_collision')])
+@check_for_files(parameters=['save_spike_index_clear'],
+                 if_skip=[LoadFile('save_spike_index_clear')])
 def threshold(path_to_data, dtype, n_channels, data_order,
               max_memory, neighbors, spike_size,
               minimum_half_waveform_size, threshold, output_path=None,
               save_spike_index_clear='spike_index_clear.npy',
-              save_spike_index_collision='spike_index_collision.npy',
               if_file_exists='skip'):
     """Threshold spike detection in batches
 
@@ -71,19 +68,14 @@ def threshold(path_to_data, dtype, n_channels, data_order,
         file (relative to output_path), if None, results won't be saved, only
         returned
 
-    save_spike_index_collision: str, optional
-        Whether to save spike_index_collision, it is used as the filename for
-        the file (relative to output_path), if None, results won't be saved,
-        only returned
-
     if_file_exists:
         What to do if there is already a file in save_spike_index_clear
-        or save_spike_index_collision lcoation. One of 'overwrite', 'abort',
-        'skip'. If 'overwrite' it replaces the file if it exists, if 'abort'
-        if raise a ValueErrorexception if the file exists, if 'skip' it skips
-        the operation if save_spike_index_clear and save_spike_index_collision
-        the file exist and loads them from disk, if any of the files is
-        missing they are computed
+        path. One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces
+        he file if it exists, if 'abort' if raise a ValueError exception if
+        the file exists, if 'skip' it skips the operation if
+        save_spike_index_clear and save_spike_index_collision the file exist
+        and loads them from disk, if any of the files is missing they are
+        computed
 
     Returns
     -------

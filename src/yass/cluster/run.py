@@ -11,6 +11,7 @@ from yass.cluster.mask import getmask
 from yass.cluster.util import run_cluster, run_cluster_location
 
 
+# TODO: add options for saving partial results
 def run(scores, spike_index):
     """Spike clustering
 
