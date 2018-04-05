@@ -58,7 +58,7 @@ def matrix(path_to_data, dtype, n_channels, data_order,
         Where to store the whitenint gilter
 
     output_filename: str, optional
-        Filename for the output data, defaults to whitening_filter.npy
+        Filename for the output data, defaults to whitening.npy
 
     if_file_exists: str, optional
         One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces the

@@ -356,6 +356,31 @@ def save_numpy_object(obj, output_path, if_file_exists, name='file'):
         logger.info('Saved {} in {}'.format(name, output_path))
 
 
+def file_loader(path):
+    """Load a file. Supported extensions: yaml. npy
+
+    Parameters
+    ----------
+    path: str
+        Path to file
+    """
+    if not isinstance(path, str) and not isinstance(path, Path):
+        logger.debug('Parameter path is not a string or a Path object, '
+                     'function will just return the parameter (%s)',
+                     path)
+        return path
+
+    path = Path(path)
+
+    if path.suffix == '.npy':
+        return np.load(str(path))
+    elif path.suffix == '.yaml':
+        return load_yaml(str(path))
+    else:
+        raise ValueError('Do not know how to load file with extension '
+                         '{}'.format(path.suffix))
+
+
 class LoadFile(object):
 
     def __init__(self, param, new_extension=None):
@@ -372,14 +397,7 @@ class LoadFile(object):
 
         path = Path(_kwargs['output_path'], filename)
 
-        if path.suffix == '.npy':
-            return np.load(str(path))
-        elif path.suffix == '.yaml':
-            return load_yaml(str(path))
-        else:
-            raise ValueError('Do not know how to load file with extension '
-                             '{}'.format(path.suffix))
-
+        return file_loader(path)
 
 class ExpandPath(object):
 

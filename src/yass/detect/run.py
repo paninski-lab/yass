@@ -13,6 +13,7 @@ from yass.threshold import detect
 from yass.threshold import dimensionality_reduction as dim_red
 from yass import neuralnetwork
 from yass.preprocess import whiten
+from yass.util import file_loader
 
 
 # TODO: missing parameters docs
@@ -23,6 +24,14 @@ def run(standarized_path, standarized_params,
 
     Parameters
     ----------
+    standarized_path
+
+    standarized_params: dict, str or Path
+
+    channel_index: numpy.ndarray, str or Path
+
+    whiten_filter: numpy.ndarray, str or Path
+
     output_directory: str, optional
       Location to store partial results, relative to CONFIG.data.root_folder,
       defaults to tmp/
@@ -70,6 +79,11 @@ def run(standarized_path, standarized_params,
     .. literalinclude:: ../../examples/pipeline/detect.py
     """
     CONFIG = read_config()
+
+    # load files in case they are strings or Path objects
+    standarized_params = file_loader(standarized_params)
+    channel_index = file_loader(standarized_params)
+    whiten_filter = file_loader(standarized_params)
 
     # run detection
     if CONFIG.detect.method == 'threshold':

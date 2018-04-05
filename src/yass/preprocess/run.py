@@ -9,6 +9,7 @@ from yass.geometry import make_channel_index
 from yass.preprocess.filter import butterworth
 from yass.preprocess.standarize import standarize
 from yass.preprocess import whiten
+from yass.util import save_numpy_object
 
 
 def run(output_directory='tmp/', if_file_exists='skip'):
@@ -96,15 +97,15 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     # standarize
     (standarized_path,
-        standarized_params) = standarize(path,
-                                         params['dtype'],
-                                         params['n_channels'],
-                                         params['data_order'],
-                                         CONFIG.recordings.sampling_rate,
-                                         CONFIG.resources.max_memory,
-                                         TMP,
-                                         OUTPUT_DTYPE,
-                                         if_file_exists=if_file_exists)
+     standarized_params) = standarize(path,
+                                      params['dtype'],
+                                      params['n_channels'],
+                                      params['data_order'],
+                                      CONFIG.recordings.sampling_rate,
+                                      CONFIG.resources.max_memory,
+                                      TMP,
+                                      OUTPUT_DTYPE,
+                                      if_file_exists=if_file_exists)
 
     # Whiten
     whiten_filter = whiten.matrix(standarized_path,
@@ -120,6 +121,13 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom)
+
+    # TODO: this shoulnd't be returned/saved, it would be better to compute
+    # this when initializing the config object and then access it from there
+    path_to_channel_index = os.path.join(TMP, 'channel_index.npy')
+    save_numpy_object(channel_index, path_to_channel_index,
+                      if_file_exists=if_file_exists,
+                      name='Channel index')
 
     return (str(standarized_path), standarized_params, channel_index,
             whiten_filter)
