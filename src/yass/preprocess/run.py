@@ -93,6 +93,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                    CONFIG.resources.max_memory,
                                    TMP,
                                    OUTPUT_DTYPE,
+                                   output_filename='filtered.bin',
                                    if_file_exists=if_file_exists)
 
     # standarize - generates standarized.bin
@@ -105,6 +106,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                       CONFIG.resources.max_memory,
                                       TMP,
                                       OUTPUT_DTYPE,
+                                      output_filename='standarized.bin',
                                       if_file_exists=if_file_exists)
 
     # Whiten
@@ -117,6 +119,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                   CONFIG.spike_size,
                                   CONFIG.resources.max_memory,
                                   TMP,
+                                  output_filename='whitening.npy',
                                   if_file_exists=if_file_exists)
 
     # TODO: this shoulnd't be done here, it would be better to compute
