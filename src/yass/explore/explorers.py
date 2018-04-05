@@ -453,9 +453,12 @@ class RecordingExplorer(object):
         Recordings dtype
     n_channels: int
         Number of channels in the recordings
-    data_format: str
-        Data format, it can be either 'long' (observations, channels) or
-        'wide' (channels, observations)
+    data_order: str
+        Recordings order, one of ('channels', 'samples'). In a dataset with k
+        observations per channel and j channels: 'channels' means first k contiguous
+        observations come from channel 0, then channel 1, and so on. 'sample'
+        means first j contiguous data are the first observations from
+        all channels, then the second observations from all channels and so on
     loader: str ('memmap', 'array' or 'python'), optional
         How to load the data. memmap loads the data using a wrapper around
         np.memmap (see :class:`~yass.batch.MemoryMap` for details), 'array'
@@ -470,9 +473,9 @@ class RecordingExplorer(object):
 
     def __init__(self, path_to_recordings, path_to_geom=None, spike_size=None,
                  neighbor_radius=None, dtype=None, n_channels=None,
-                 data_format=None, loader='memmap', waveform_dtype='float32'):
+                 data_order=None, loader='memmap', waveform_dtype='float32'):
         self.data = RecordingsReader(path_to_recordings, dtype, n_channels,
-                                     data_format, loader)
+                                     data_order, loader)
 
         if path_to_geom is not None:
             self.geom = geom.parse(path_to_geom, n_channels)

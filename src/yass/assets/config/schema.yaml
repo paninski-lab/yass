@@ -57,12 +57,15 @@ recordings:
     spike_size_ms:
       type: float
       required: True
-    # recordings format: wide (number of channel x number of observations)
-    # or long (number of oservations x number of channels)
-    format:
+    # Recordings order, one of ('channels', 'samples'). In a dataset with k
+    # observations per channel and j channels: 'channels' means first k contiguous
+    # observations come from channel 0, then channel 1, and so on. 'sample'
+    # means first j contiguous data are the first observations from
+    # all channels, then the second observations from all channels and so on
+    order:
       type: string
       required: True
-      allowed: [wide, long]
+      allowed: [channels, samples]
 
 preprocess:
   type: dict

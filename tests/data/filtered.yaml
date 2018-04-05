@@ -1,1 +1,1 @@
-{data_format: wide, dtype: float32, n_channels: 10}
+{data_order: channels, dtype: float32, n_channels: 10}

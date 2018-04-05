@@ -9,17 +9,18 @@ class BufferGenerator(object):
     n_observations: int
         Number of observations in the full dataset
 
-    data_format: str
-        Data format, either 'wide' or 'long'
+    data_shape: str
+        Data format, either 'wide' (n_channels, n_observations) or
+        'long' (n_observations, n_channels).
 
     buffer_size: int
         Buffer size (in number of observations) to be added at the beginning
         and at the end
     """
 
-    def __init__(self, n_observations, data_format, buffer_size):
+    def __init__(self, n_observations, data_shape, buffer_size):
         self.n_observations = n_observations
-        self.data_format = data_format
+        self.data_shape = data_shape
         self.buffer_size = buffer_size
 
     def _add_zero_buffer(self, data, size, option):
@@ -42,11 +43,11 @@ class BufferGenerator(object):
             An array with zero buffer
         """
         rows, cols = data.shape
-        buff_shape = ((size, cols) if self.data_format == 'long'
+        buff_shape = ((size, cols) if self.data_shape == 'long'
                       else (rows, size))
         buff = np.zeros(buff_shape)
 
-        append = np.vstack if self.data_format == 'long' else np.hstack
+        append = np.vstack if self.data_shape == 'long' else np.hstack
 
         if option == 'start':
             return append([buff, data])

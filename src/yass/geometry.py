@@ -24,7 +24,10 @@ def _parse_txt(path, n_channels):
 
 
 def parse(path, n_channels):
-    """Parse a geometry txt or npy file
+    """
+    Parse a geometry txt (one x, y pair per line, separated
+    by spaces) or a npy file with shape (n_channels, 2), where every row
+    contains a x, y pair
 
     path: str
         Path to geometry file

@@ -12,7 +12,7 @@ import numpy as np
 @check_for_files(parameters=['output_filename'],
                  if_skip=[ExpandPath('output_filename'),
                           LoadFile('output_filename', 'yaml')])
-def standarize(path_to_data, dtype, n_channels, data_shape,
+def standarize(path_to_data, dtype, n_channels, data_order,
                sampling_frequency, max_memory, output_path,
                output_dtype, output_filename='standarized.bin',
                if_file_exists='skip'):
@@ -31,9 +31,12 @@ def standarize(path_to_data, dtype, n_channels, data_shape,
     n_channels: int
         Number of channels in the recordings
 
-    data_shape: str
-        Data shape, can be either 'long' (observations, channels) or
-        'wide' (channels, observations)
+    data_order: str
+        Recordings order, one of ('channels', 'samples'). In a dataset with k
+        observations per channel and j channels: 'channels' means first k contiguous
+        observations come from channel 0, then channel 1, and so on. 'sample'
+        means first j contiguous data are the first observations from
+        all channels, then the second observations from all channels and so on
 
     sampling_frequency: int
         Recordings sampling frequency in Hz
@@ -63,10 +66,10 @@ def standarize(path_to_data, dtype, n_channels, data_shape,
 
     standarized_params: dict
         A dictionary with the parameters for the standarized recordings
-        (dtype, n_channels, data_format)
+        (dtype, n_channels, data_order)
     """
     # init batch processor
-    bp = BatchProcessor(path_to_data, dtype, n_channels, data_shape,
+    bp = BatchProcessor(path_to_data, dtype, n_channels, data_order,
                         max_memory)
 
     # read a batch from all channels

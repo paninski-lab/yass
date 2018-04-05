@@ -77,14 +77,14 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
     params = dict(dtype=CONFIG.recordings.dtype,
                   n_channels=CONFIG.recordings.n_channels,
-                  data_format=CONFIG.recordings.format)
+                  data_order=CONFIG.recordings.order)
 
     # optionally filter the data
     if CONFIG.preprocess.apply_filter:
         path, params = butterworth(path,
                                    params['dtype'],
                                    params['n_channels'],
-                                   params['data_format'],
+                                   params['data_order'],
                                    CONFIG.preprocess.filter.low_pass_freq,
                                    CONFIG.preprocess.filter.high_factor,
                                    CONFIG.preprocess.filter.order,
@@ -99,7 +99,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
         standarized_params) = standarize(path,
                                          params['dtype'],
                                          params['n_channels'],
-                                         params['data_format'],
+                                         params['data_order'],
                                          CONFIG.recordings.sampling_rate,
                                          CONFIG.resources.max_memory,
                                          TMP,
@@ -110,7 +110,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     whiten_filter = whiten.matrix(standarized_path,
                                   standarized_params['dtype'],
                                   standarized_params['n_channels'],
-                                  standarized_params['data_format'],
+                                  standarized_params['data_order'],
                                   CONFIG.neigh_channels,
                                   CONFIG.geom,
                                   CONFIG.spike_size,

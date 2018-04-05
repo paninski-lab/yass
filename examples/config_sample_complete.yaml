@@ -6,9 +6,12 @@ data:
   # project's root folder, data will be loaded and saved here
   # can be an absolute or relative path
   root_folder: data/
-  # recordings filename
+  # recordings filename (must be a binary file), details about the recordings
+  # are specified in the recordings section
   recordings: neuropixel.bin
-  # channel geometry filename
+  # channel geometry filename , supports txt (one x, y pair per line,
+  # separated by spaces) or a npy file with shape (n_channels, 2),
+  # where every row contains a x, y pair. see yass.geometry.parse for details
   geometry: neuropixel_channels.npy
 
 resources:
@@ -22,13 +25,17 @@ recordings:
   sampling_rate: 30000
   # number of channels
   n_channels: 10
-  # channels spatial radius
+  # channels spatial radius to consider them neighbors, see
+  # yass.geometry.find_channel_neighbors for details
   spatial_radius: 70
-  # temporal length of wavforms in ms
+  # temporal length of waveforms in ms
   spike_size_ms: 1
-  # recordings format: wide (number of channel x number of observations)
-  # or long (number of oservations x number of channels)
-  format: long
+  # recordings order, one of ('channels', 'samples'). In a dataset with k
+  # observations per channel and j channels: 'channels' means first k
+  # contiguous observations come from channel 0, then channel 1, and so on.
+  # 'sample' means first j contiguous data are the first observations from
+  # all channels, then the second observations from all channels and so on
+  order: samples
 
 preprocess:
   # apply butterworth filter in the preprocessing step

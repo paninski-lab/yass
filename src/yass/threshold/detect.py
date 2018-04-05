@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
                              'save_spike_index_collision'],
                  if_skip=[LoadFile('save_spike_index_clear'),
                           LoadFile('save_spike_index_collision')])
-def threshold(path_to_data, dtype, n_channels, data_shape,
+def threshold(path_to_data, dtype, n_channels, data_order,
               max_memory, neighbors, spike_size,
               minimum_half_waveform_size, threshold, output_path=None,
               save_spike_index_clear='spike_index_clear.npy',
@@ -37,9 +37,12 @@ def threshold(path_to_data, dtype, n_channels, data_shape,
     n_channels: int
         Number of channels in the recordings
 
-    data_shape: str
-        Data shape, can be either 'long' (observations, channels) or
-        'wide' (channels, observations)
+    data_order: str
+        Recordings order, one of ('channels', 'samples'). In a dataset with k
+        observations per channel and j channels: 'channels' means first k contiguous
+        observations come from channel 0, then channel 1, and so on. 'sample'
+        means first j contiguous data are the first observations from
+        all channels, then the second observations from all channels and so on
 
     max_memory:
         Max memory to use in each batch (e.g. 100MB, 1GB)
@@ -93,7 +96,7 @@ def threshold(path_to_data, dtype, n_channels, data_shape,
         Empty array, collision is not implemented in the threshold detector
     """
     # instatiate batch processor
-    bp = BatchProcessor(path_to_data, dtype, n_channels, data_shape,
+    bp = BatchProcessor(path_to_data, dtype, n_channels, data_order,
                         max_memory, buffer_size=spike_size)
 
     # run threshold detector

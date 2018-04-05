@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @check_for_files(parameters=['save_scores', 'save_rotation_matrix'],
                  if_skip=[LoadFile('save_scores'),
                           LoadFile('save_rotation_matrix')])
-def pca(path_to_data, dtype, n_channels, data_shape, recordings, spike_index,
+def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
         spike_size, temporal_features, neighbors_matrix, channel_index,
         max_memory, output_path=None, save_scores='score_clear.npy',
         save_rotation_matrix='rotation.npy', if_file_exists='skip'):
@@ -37,9 +37,12 @@ def pca(path_to_data, dtype, n_channels, data_shape, recordings, spike_index,
     n_channels: int
         Number of channels in the recordings
 
-    data_shape: str
-        Data shape, can be either 'long' (observations, channels) or
-        'wide' (channels, observations)
+    data_order: str
+        Recordings order, one of ('channels', 'samples'). In a dataset with k
+        observations per channel and j channels: 'channels' means first k contiguous
+        observations come from channel 0, then channel 1, and so on. 'sample'
+        means first j contiguous data are the first observations from
+        all channels, then the second observations from all channels and so on
 
     recordings: np.ndarray (n_observations, n_channels)
         Multi-channel recordings
@@ -104,7 +107,7 @@ def pca(path_to_data, dtype, n_channels, data_shape, recordings, spike_index,
     # compute rotation matrix #
     ###########################
 
-    bp = BatchProcessor(path_to_data, dtype, n_channels, data_shape,
+    bp = BatchProcessor(path_to_data, dtype, n_channels, data_order,
                         max_memory, buffer_size=spike_size)
 
     # compute PCA sufficient statistics

@@ -8,10 +8,9 @@ from collections import Iterable
 
 class RecordingsReader(object):
     """
-    Neural recordings reader, supports wide and long data. If a file with the
-    same name but yaml extension exists in the directory it looks for dtype,
-    channels and data_format, otherwise you need to pass the parameters in the
-    constructor
+    Neural recordings reader. If a file with the same name but yaml extension
+    exists in the directory it looks for dtype, channels and data_order,
+    otherwise you need to pass the parameters in the constructor
 
     Parameters
     ----------
@@ -24,9 +23,12 @@ class RecordingsReader(object):
     n_channels: int
         Number of channels
 
-    data_format: str
-        Data format, it can be either 'long' (observations, channels) or
-        'wide' (channels, observations)
+    data_order: str
+        Recordings order, one of ('channels', 'samples'). In a dataset with k
+        observations per channel and j channels: 'channels' means first k contiguous
+        observations come from channel 0, then channel 1, and so on. 'sample'
+        means first j contiguous data are the first observations from
+        all channels, then the second observations from all channels and so on
 
     loader: str ('memmap', 'array' or 'python'), optional
         How to load the data. memmap loads the data using a wrapper around
@@ -46,9 +48,10 @@ class RecordingsReader(object):
     Notes
     -----
     This is just an utility class to index binary files in a consistent way,
-    it does not matter the shape of the file ('wide' or 'long'), indexing is
-    performed in [observations, channels] format. This class is mainly used
-    by other internal YASS classes to maintain a consistent indexing order.
+    it does not matter the order of the file ('channels' or 'samples'),
+    indexing is performed in [observations, channels] format. This class is
+    mainly used by other internal YASS classes to maintain a consistent
+    indexing order.
 
     Examples
     --------
@@ -57,27 +60,27 @@ class RecordingsReader(object):
     """
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
-                 data_format=None, loader='memmap'):
+                 data_order=None, loader='memmap'):
 
         path_to_yaml = path_to_recordings.replace('.bin', '.yaml')
 
         if (not os.path.isfile(path_to_yaml) and (dtype is None or
-           n_channels is None or data_format is None)):
-            raise ValueError('At least one of: dtype, channels or data_format '
+           n_channels is None or data_order is None)):
+            raise ValueError('At least one of: dtype, channels or data_order '
                              'are None, this is only allowed when a yaml '
                              'file is present in the same location as '
                              'the bin file, but no {} file exists'
                              .format(path_to_yaml))
         elif (os.path.isfile(path_to_yaml) and dtype is None and
-              n_channels is None and data_format is None):
+              n_channels is None and data_order is None):
             with open(path_to_yaml) as f:
                 params = yaml.load(f)
 
             dtype = params['dtype']
             n_channels = params['n_channels']
-            data_format = params['data_format']
+            data_order = params['data_order']
 
-        self._data_format = data_format
+        self._data_order = data_order
         self._n_channels = n_channels
         self._dtype = dtype if not isinstance(dtype, str) else np.dtype(dtype)
 
@@ -101,21 +104,24 @@ class RecordingsReader(object):
             raise ValueError("loader must be one of 'memmap', 'array' or "
                              "'python'")
 
-        order = dict(wide='F', long='C')
+        # if data is in channels order, we will read as "columns first",
+        # if data is ith sample order, we will read as as "rows first",
+        # this ensures we have a consistent index array[observations, channels]
+        order = dict(channels='F', samples='C')
 
         shape = self._n_observations, n_channels
 
-        def fromfile(path, dtype, data_format, shape):
-            if data_format == 'long':
+        def fromfile(path, dtype, data_order, shape):
+            if data_order == 'samples':
                 return np.fromfile(path, dtype=dtype).reshape(shape)
             else:
                 return np.fromfile(path, dtype=dtype).reshape(shape[::-1]).T
 
         if loader in ['memmap', 'array']:
             fn = (partial(MemoryMap, mode='r', shape=shape,
-                          order=order[data_format])
+                          order=order[data_order])
                   if loader == 'memmap' else partial(fromfile,
-                                                     data_format=data_format,
+                                                     data_order=data_order,
                                                      shape=shape))
             self._data = fn(path_to_recordings, dtype=self._dtype)
 
@@ -123,7 +129,7 @@ class RecordingsReader(object):
                 self._data = self._data.reshape(shape)
         else:
             self._data = BinaryReader(path_to_recordings, dtype, shape,
-                                      order=order[data_format])
+                                      order=order[data_order])
 
     def __getitem__(self, key):
 
@@ -138,7 +144,7 @@ class RecordingsReader(object):
         return ('Reader for recordings with {:,} observations and {:,} '
                 'channels in "{}" format'
                 .format(self.observations, self.channels,
-                        self._data_format))
+                        self._data_order))
 
     @property
     def shape(self):
@@ -159,10 +165,10 @@ class RecordingsReader(object):
         return self._n_channels
 
     @property
-    def data_format(self):
-        """Data format
+    def data_order(self):
+        """Data order
         """
-        return self._data_format
+        return self._data_order
 
     @property
     def dtype(self):
