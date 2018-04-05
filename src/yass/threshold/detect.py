@@ -14,12 +14,12 @@ from yass.geometry import n_steps_neigh_channels
 logger = logging.getLogger(__name__)
 
 
-@check_for_files(parameters=['save_spike_index_clear'],
-                 if_skip=[LoadFile('save_spike_index_clear')])
+@check_for_files(parameters=['spike_index_clear_filename'],
+                 if_skip=[LoadFile('spike_index_clear_filename')])
 def threshold(path_to_data, dtype, n_channels, data_order,
               max_memory, neighbors, spike_size,
               minimum_half_waveform_size, threshold, output_path=None,
-              save_spike_index_clear='spike_index_clear.npy',
+              spike_index_clear_filename='spike_index_clear.npy',
               if_file_exists='skip'):
     """Threshold spike detection in batches
 
@@ -64,8 +64,8 @@ def threshold(path_to_data, dtype, n_channels, data_order,
         Directory to save spike indexes, if None, results won't be stored, but
         only returned by the function
 
-    save_spike_index_clear: str, optional
-        Whether to save spike_index_clear, it is used as the filename for the
+    spike_index_clear_filename: str, optional
+        Filename for spike_index_clear, it is used as the filename for the
         file (relative to output_path), if None, results won't be saved, only
         returned
 

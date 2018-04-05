@@ -17,13 +17,13 @@ from yass.util import check_for_files, LoadFile, save_numpy_object
 logger = logging.getLogger(__name__)
 
 
-@check_for_files(parameters=['save_scores', 'save_rotation_matrix'],
-                 if_skip=[LoadFile('save_scores'),
-                          LoadFile('save_rotation_matrix')])
+@check_for_files(parameters=['scores_filename', 'rotation_matrix_filename'],
+                 if_skip=[LoadFile('scores_filename'),
+                          LoadFile('rotation_matrix_filename')])
 def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
         spike_size, temporal_features, neighbors_matrix, channel_index,
-        max_memory, output_path=None, save_scores='scores.npy',
-        save_rotation_matrix='rotation.npy', if_file_exists='skip'):
+        max_memory, output_path=None, scores_filename='scores.npy',
+        rotation_matrix_filename='rotation.npy', if_file_exists='skip'):
     """Apply PCA in batches
 
     Parameters

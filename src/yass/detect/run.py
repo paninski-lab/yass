@@ -57,8 +57,8 @@ def run(standarized_path, standarized_params,
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
 
-    spike_index_collision: numpy.ndarray (n_collided_spikes, 2)
-        2D array with indexes for collided spikes, first column contains the
+    spike_index_call: numpy.ndarray (n_collided_spikes, 2)
+        2D array with indexes for all spikes, first column contains the
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
 
@@ -69,7 +69,7 @@ def run(standarized_path, standarized_params,
     True):
 
     * ``spike_index_clear.npy`` - Same as spike_index_clear returned
-    * ``spike_index_collision.npy`` - Same as spike_index_collision returned
+    * ``spike_index_all.npy`` - Same as spike_index_collision returned
     * ``rotation.npy`` - Rotation matrix for dimensionality reduction
     * ``scores_clear.npy`` - Scores for clear spikes
 
@@ -149,7 +149,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                       CONFIG.spike_size + CONFIG.templates_max_shift,
                       CONFIG.detect.threshold_detector.std_factor,
                       TMP_FOLDER,
-                      filename_index_clear,
+                      spike_index_clear_filename=filename_index_clear,
                       if_file_exists=if_file_exists)
 
     #######
@@ -159,27 +159,27 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     recordings = RecordingsReader(standarized_path)
 
     # run PCA, save rotation matrix and pca scores under TMP_FOLDER
-    scores, clear, _ = dim_red.pca(standarized_path,
-                                   standarized_params['dtype'],
-                                   standarized_params['n_channels'],
-                                   standarized_params['data_order'],
-                                   recordings,
-                                   clear,
-                                   CONFIG.spike_size,
-                                   CONFIG.detect.temporal_features,
-                                   CONFIG.neigh_channels,
-                                   channel_index,
-                                   CONFIG.resources.max_memory,
-                                   output_path=TMP_FOLDER,
-                                   save_rotation_matrix='rotation.npy',
-                                   save_scores='scores_pca.npy',
-                                   if_file_exists=if_file_exists)
+    pca_scores, clear, _ = dim_red.pca(standarized_path,
+                                       standarized_params['dtype'],
+                                       standarized_params['n_channels'],
+                                       standarized_params['data_order'],
+                                       recordings,
+                                       clear,
+                                       CONFIG.spike_size,
+                                       CONFIG.detect.temporal_features,
+                                       CONFIG.neigh_channels,
+                                       channel_index,
+                                       CONFIG.resources.max_memory,
+                                       output_path=TMP_FOLDER,
+                                       rotatio_matrix_filename='rotation.npy',
+                                       scores_filename='scores_pca.npy',
+                                       if_file_exists=if_file_exists)
 
     #################
     # Whiten scores #
     #################
 
-    scores = whiten.score(scores, clear[:, 1], whiten_filter)
+    scores = whiten.score(pca_scores, clear[:, 1], whiten_filter)
 
     if TMP_FOLDER:
         # saves whiten scores
