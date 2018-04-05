@@ -71,7 +71,7 @@ def run(standarized_path, standarized_params,
     * ``spike_index_clear.npy`` - Same as spike_index_clear returned
     * ``spike_index_collision.npy`` - Same as spike_index_collision returned
     * ``rotation.npy`` - Rotation matrix for dimensionality reduction
-    * ``score_clear.npy`` - Scores for clear spikes
+    * ``scores_clear.npy`` - Scores for clear spikes
 
     Examples
     --------
@@ -130,7 +130,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                   if save_partial_results else None)
 
     # files that will be saved if enable by the if_file_exists option
-    filename_scores = 'scores.npy'
+    filename_scores = 'scores_clear.npy'
     filename_index_clear = 'spike_index_clear.npy'
     filename_spike_index_all = 'spike_index_all.npy'
 
@@ -138,6 +138,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     # Spike detection #
     ###################
 
+    # run threshold detection, save clear indexes in TMP/filename_index_clear
     clear = threshold(standarized_path,
                       standarized_params['dtype'],
                       standarized_params['n_channels'],
@@ -157,6 +158,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
 
     recordings = RecordingsReader(standarized_path)
 
+    # run PCA, save rotation matrix and pca scores under TMP_FOLDER
     scores, clear, _ = dim_red.pca(standarized_path,
                                    standarized_params['dtype'],
                                    standarized_params['n_channels'],

@@ -80,7 +80,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                   n_channels=CONFIG.recordings.n_channels,
                   data_order=CONFIG.recordings.order)
 
-    # optionally filter the data
+    # optionally filter the data - generates filtered.bin
     if CONFIG.preprocess.apply_filter:
         path, params = butterworth(path,
                                    params['dtype'],
@@ -95,7 +95,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                    OUTPUT_DTYPE,
                                    if_file_exists=if_file_exists)
 
-    # standarize
+    # standarize - generates standarized.bin
     (standarized_path,
      standarized_params) = standarize(path,
                                       params['dtype'],
@@ -119,11 +119,11 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                   TMP,
                                   if_file_exists=if_file_exists)
 
+    # TODO: this shoulnd't be done here, it would be better to compute
+    # this when initializing the config object and then access it from there
     channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom)
 
-    # TODO: this shoulnd't be returned/saved, it would be better to compute
-    # this when initializing the config object and then access it from there
     path_to_channel_index = os.path.join(TMP, 'channel_index.npy')
     save_numpy_object(channel_index, path_to_channel_index,
                       if_file_exists=if_file_exists,
