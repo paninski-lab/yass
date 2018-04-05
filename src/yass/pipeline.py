@@ -17,7 +17,6 @@ except ImportError:
 import numpy as np
 import yaml
 
-
 import yass
 from yass import set_config
 from yass import preprocess, detect, cluster, deconvolute
@@ -30,7 +29,10 @@ from yass.explore import RecordingExplorer
 from yass.threshold import dimensionality_reduction as dim_red
 
 
-def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
+def run(config,
+        logger_level='INFO',
+        clean=False,
+        output_dir='tmp/',
         complete=False):
     """Run YASS built-in pipeline
 
@@ -87,8 +89,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # load logging config file
     logging_config = load_logging_config_file()
-    logging_config['handlers']['file']['filename'] = path.join(TMP_FOLDER,
-                                                               'yass.log')
+    logging_config['handlers']['file']['filename'] = path.join(
+        TMP_FOLDER, 'yass.log')
     logging_config['root']['level'] = logger_level
 
     # configure logging
@@ -102,20 +104,18 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # preprocess
     start = time.time()
-    (standarized_path,
-     standarized_params,
-     channel_index,
+    (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run(output_directory=output_dir)
     time_preprocess = time.time() - start
 
     # detect
     start = time.time()
-    (score, spike_index_clear,
-     spike_index_all) = detect.run(standarized_path,
-                                   standarized_params,
-                                   channel_index,
-                                   whiten_filter,
-                                   output_directory=output_dir)
+    (score, spike_index_clear, spike_index_all) = detect.run(
+        standarized_path,
+        standarized_params,
+        channel_index,
+        whiten_filter,
+        output_directory=output_dir)
     time_detect = time.time() - start
 
     # cluster
@@ -130,8 +130,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # run deconvolution
     start = time.time()
-    spike_train = deconvolute.run(spike_index_all, templates,
-                                  output_directory=output_dir)
+    spike_train = deconvolute.run(
+        spike_index_all, templates, output_directory=output_dir)
     time_deconvolution = time.time() - start
 
     # save metadata in tmp
@@ -148,8 +148,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     else:
         shutil.copy2(config, path_to_config_copy)
 
-    logging.info('Saving copy of config: {} in {}'.format(config,
-                                                          path_to_config_copy))
+    logging.info('Saving copy of config: {} in {}'.format(
+        config, path_to_config_copy))
 
     # save templates
     path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
@@ -168,11 +168,12 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
         # load waveforms for all spikes in the spike train
         logger.info('Loading waveforms from all spikes in the spike train...')
-        explorer = RecordingExplorer(STANDARIZED_PATH,
-                                     spike_size=CONFIG.spike_size,
-                                     dtype=PARAMS['dtype'],
-                                     n_channels=PARAMS['n_channels'],
-                                     data_order=PARAMS['data_order'])
+        explorer = RecordingExplorer(
+            STANDARIZED_PATH,
+            spike_size=CONFIG.spike_size,
+            dtype=PARAMS['dtype'],
+            n_channels=PARAMS['n_channels'],
+            data_order=PARAMS['data_order'])
         waveforms = explorer.read_waveforms(spike_train[:, 0])
 
         path_to_waveforms = path.join(TMP_FOLDER, 'spike_train_waveforms.npy')
@@ -217,22 +218,20 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                     .format(path_to_waveforms))
 
     logger.info('Finished YASS execution. Timing summary:')
-    total = (time_preprocess + time_detect + time_cluster + time_templates
-             + time_deconvolution)
+    total = (time_preprocess + time_detect + time_cluster + time_templates +
+             time_deconvolution)
     logger.info('\t Preprocess: %s (%.2f %%)',
                 human_readable_time(time_preprocess),
-                time_preprocess/total*100)
-    logger.info('\t Detection: %s (%.2f %%)',
-                human_readable_time(time_detect),
-                time_detect/total*100)
+                time_preprocess / total * 100)
+    logger.info('\t Detection: %s (%.2f %%)', human_readable_time(time_detect),
+                time_detect / total * 100)
     logger.info('\t Clustering: %s (%.2f %%)',
-                human_readable_time(time_cluster),
-                time_cluster/total*100)
+                human_readable_time(time_cluster), time_cluster / total * 100)
     logger.info('\t Templates: %s (%.2f %%)',
                 human_readable_time(time_templates),
-                time_templates/total*100)
+                time_templates / total * 100)
     logger.info('\t Deconvolution: %s (%.2f %%)',
                 human_readable_time(time_deconvolution),
-                time_deconvolution/total*100)
+                time_deconvolution / total * 100)
 
     return spike_train

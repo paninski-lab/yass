@@ -56,29 +56,35 @@ class BatchProcessor(object):
         number of channels
     """
 
-    def __init__(self, path_to_recordings, dtype=None, n_channels=None,
-                 data_order=None, max_memory='1GB', buffer_size=0,
+    def __init__(self,
+                 path_to_recordings,
+                 dtype=None,
+                 n_channels=None,
+                 data_order=None,
+                 max_memory='1GB',
+                 buffer_size=0,
                  loader='python'):
         self.data_order = data_order
         self.buffer_size = buffer_size
-        self.reader = RecordingsReader(path_to_recordings,
-                                       dtype, n_channels,
-                                       data_order,
-                                       loader=loader)
+        self.reader = RecordingsReader(
+            path_to_recordings, dtype, n_channels, data_order, loader=loader)
         self.indexer = IndexGenerator(self.reader.observations,
-                                      self.reader.channels,
-                                      self.reader.dtype,
+                                      self.reader.channels, self.reader.dtype,
                                       max_memory)
 
         # data format is long since reader will return data in that format
-        self.buffer_generator = BufferGenerator(self.reader.observations,
-                                                data_shape='long',
-                                                buffer_size=buffer_size)
+        self.buffer_generator = BufferGenerator(
+            self.reader.observations,
+            data_shape='long',
+            buffer_size=buffer_size)
 
         self.logger = logging.getLogger(__name__)
 
-    def single_channel(self, force_complete_channel_batch=True, from_time=None,
-                       to_time=None, channels='all'):
+    def single_channel(self,
+                       force_complete_channel_batch=True,
+                       from_time=None,
+                       to_time=None,
+                       channels='all'):
         """
         Generate batches where each index has observations from a single
         channel
@@ -95,8 +101,7 @@ class BatchProcessor(object):
         .. literalinclude:: ../../examples/batch/single_channel.py
         """
         indexes = self.indexer.single_channel(force_complete_channel_batch,
-                                              from_time, to_time,
-                                              channels)
+                                              from_time, to_time, channels)
         if force_complete_channel_batch:
             for idx in indexes:
                 yield self.reader[idx]
@@ -132,21 +137,25 @@ class BatchProcessor(object):
                               obs_idx.step), slice(None, None, None))
 
             if self.buffer_size:
-                (idx_new,
-                 (buff_start, buff_end)) = (self.buffer_generator
-                                            .update_key_with_buffer(idx))
+                (idx_new, (buff_start, buff_end)) = (
+                    self.buffer_generator.update_key_with_buffer(idx))
                 subset = self.reader[idx_new]
-                subset_buff = self.buffer_generator.add_buffer(subset,
-                                                               buff_start,
-                                                               buff_end)
+                subset_buff = self.buffer_generator.add_buffer(
+                    subset, buff_start, buff_end)
                 yield subset_buff, data_idx, idx
             else:
                 yield self.reader[idx], data_idx, idx
 
-    def single_channel_apply(self, function, mode, output_path=None,
+    def single_channel_apply(self,
+                             function,
+                             mode,
+                             output_path=None,
                              force_complete_channel_batch=True,
-                             from_time=None, to_time=None, channels='all',
-                             if_file_exists='overwrite', cast_dtype=None,
+                             from_time=None,
+                             to_time=None,
+                             channels='all',
+                             if_file_exists='overwrite',
+                             cast_dtype=None,
                              **kwargs):
         """
         Apply a transformation where each batch has observations from a
@@ -213,12 +222,12 @@ class BatchProcessor(object):
         if mode == 'disk' and output_path is None:
             raise ValueError('output_path is required in "disk" mode')
 
-        if (mode == 'disk' and if_file_exists == 'abort' and
-           os.path.exists(output_path)):
+        if (mode == 'disk' and if_file_exists == 'abort'
+                and os.path.exists(output_path)):
             raise ValueError('{} already exists'.format(output_path))
 
-        if (mode == 'disk' and if_file_exists == 'skip' and
-           os.path.exists(output_path)):
+        if (mode == 'disk' and if_file_exists == 'skip'
+                and os.path.exists(output_path)):
             # load params...
             path_to_yaml = output_path.replace('.bin', '.yaml')
 
@@ -234,20 +243,18 @@ class BatchProcessor(object):
 
             return output_path, params
 
-        self.logger.info('Applying function {}...'
-                         .format(function_path(function)))
+        self.logger.info('Applying function {}...'.format(
+            function_path(function)))
 
         if mode == 'disk':
             fn = self._single_channel_apply_disk
 
             start = time.time()
-            res = fn(function, output_path,
-                     force_complete_channel_batch, from_time,
-                     to_time, channels, cast_dtype, **kwargs)
+            res = fn(function, output_path, force_complete_channel_batch,
+                     from_time, to_time, channels, cast_dtype, **kwargs)
             elapsed = time.time() - start
-            self.logger.info('{} took {}'
-                             .format(function_path(function),
-                                     human_readable_time(elapsed)))
+            self.logger.info('{} took {}'.format(
+                function_path(function), human_readable_time(elapsed)))
             return res
         else:
             fn = self._single_channel_apply_memory
@@ -256,9 +263,8 @@ class BatchProcessor(object):
             res = fn(function, force_complete_channel_batch, from_time,
                      to_time, channels, cast_dtype, **kwargs)
             elapsed = time.time() - start
-            self.logger.info('{} took {}'
-                             .format(function_path(function),
-                                     human_readable_time(elapsed)))
+            self.logger.info('{} took {}'.format(
+                function_path(function), human_readable_time(elapsed)))
             return res
 
     def _single_channel_apply_disk(self, function, output_path,
@@ -267,8 +273,7 @@ class BatchProcessor(object):
         f = open(output_path, 'wb')
 
         indexes = self.indexer.single_channel(force_complete_channel_batch,
-                                              from_time, to_time,
-                                              channels)
+                                              from_time, to_time, channels)
         for i, idx in enumerate(indexes):
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
@@ -298,8 +303,8 @@ class BatchProcessor(object):
         # save yaml file with params
         path_to_yaml = output_path.replace('.bin', '.yaml')
 
-        params = dict(dtype=dtype, n_channels=n_channels,
-                      data_order='channels')
+        params = dict(
+            dtype=dtype, n_channels=n_channels, data_order='channels')
 
         with open(path_to_yaml, 'w') as f:
             self.logger.debug('Saving params...')
@@ -312,8 +317,7 @@ class BatchProcessor(object):
                                      to_time, channels, cast_dtype, **kwargs):
 
         indexes = self.indexer.single_channel(force_complete_channel_batch,
-                                              from_time, to_time,
-                                              channels)
+                                              from_time, to_time, channels)
         results = []
 
         for i, idx in enumerate(indexes):
@@ -331,11 +335,19 @@ class BatchProcessor(object):
 
         return results
 
-    def multi_channel_apply(self, function, mode, cleanup_function=None,
-                            output_path=None, from_time=None, to_time=None,
-                            channels='all', if_file_exists='overwrite',
-                            cast_dtype=None, pass_batch_info=False,
-                            pass_batch_results=False, **kwargs):
+    def multi_channel_apply(self,
+                            function,
+                            mode,
+                            cleanup_function=None,
+                            output_path=None,
+                            from_time=None,
+                            to_time=None,
+                            channels='all',
+                            if_file_exists='overwrite',
+                            cast_dtype=None,
+                            pass_batch_info=False,
+                            pass_batch_results=False,
+                            **kwargs):
         """
         Apply a function where each batch has observations from more than
         one channel
@@ -445,15 +457,15 @@ class BatchProcessor(object):
         if mode == 'disk' and output_path is None:
             raise ValueError('output_path is required in "disk" mode')
 
-        if (mode == 'disk' and if_file_exists == 'abort' and
-           os.path.exists(output_path)):
+        if (mode == 'disk' and if_file_exists == 'abort'
+                and os.path.exists(output_path)):
             raise ValueError('{} already exists'.format(output_path))
 
-        self.logger.info('Applying function {}...'
-                         .format(function_path(function)))
+        self.logger.info('Applying function {}...'.format(
+            function_path(function)))
 
-        if (mode == 'disk' and if_file_exists == 'skip' and
-           os.path.exists(output_path)):
+        if (mode == 'disk' and if_file_exists == 'skip'
+                and os.path.exists(output_path)):
             # load params...
             path_to_yaml = output_path.replace('.bin', '.yaml')
 
@@ -477,21 +489,18 @@ class BatchProcessor(object):
                      to_time, channels, cast_dtype, pass_batch_info,
                      pass_batch_results, **kwargs)
             elapsed = time.time() - start
-            self.logger.info('{} took {}'
-                             .format(function_path(function),
-                                     human_readable_time(elapsed)))
+            self.logger.info('{} took {}'.format(
+                function_path(function), human_readable_time(elapsed)))
             return res
         else:
             fn = self._multi_channel_apply_memory
 
             start = time.time()
             res = fn(function, cleanup_function, from_time, to_time, channels,
-                     cast_dtype, pass_batch_info, pass_batch_results,
-                     **kwargs)
+                     cast_dtype, pass_batch_info, pass_batch_results, **kwargs)
             elapsed = time.time() - start
-            self.logger.info('{} took {}'
-                             .format(function_path(function),
-                                     human_readable_time(elapsed)))
+            self.logger.info('{} took {}'.format(
+                function_path(function), human_readable_time(elapsed)))
             return res
 
     def _multi_channel_apply_disk(self, function, cleanup_function,
@@ -550,10 +559,9 @@ class BatchProcessor(object):
 
         return output_path, params
 
-    def _multi_channel_apply_memory(self, function, cleanup_function,
-                                    from_time, to_time, channels, cast_dtype,
-                                    pass_batch_info, pass_batch_results,
-                                    **kwargs):
+    def _multi_channel_apply_memory(
+            self, function, cleanup_function, from_time, to_time, channels,
+            cast_dtype, pass_batch_info, pass_batch_results, **kwargs):
 
         data = self.multi_channel(from_time, to_time, channels)
 

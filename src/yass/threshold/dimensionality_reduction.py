@@ -17,13 +17,25 @@ from yass.util import check_for_files, LoadFile, save_numpy_object
 logger = logging.getLogger(__name__)
 
 
-@check_for_files(parameters=['save_scores', 'save_rotation_matrix'],
-                 if_skip=[LoadFile('save_scores'),
-                          LoadFile('save_rotation_matrix')])
-def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
-        spike_size, temporal_features, neighbors_matrix, channel_index,
-        max_memory, output_path=None, save_scores='score_clear.npy',
-        save_rotation_matrix='rotation.npy', if_file_exists='skip'):
+@check_for_files(
+    parameters=['save_scores', 'save_rotation_matrix'],
+    if_skip=[LoadFile('save_scores'),
+             LoadFile('save_rotation_matrix')])
+def pca(path_to_data,
+        dtype,
+        n_channels,
+        data_order,
+        recordings,
+        spike_index,
+        spike_size,
+        temporal_features,
+        neighbors_matrix,
+        channel_index,
+        max_memory,
+        output_path=None,
+        save_scores='score_clear.npy',
+        save_rotation_matrix='rotation.npy',
+        if_file_exists='skip'):
     """Apply PCA in batches
 
     Parameters
@@ -107,14 +119,21 @@ def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
     # compute rotation matrix #
     ###########################
 
-    bp = BatchProcessor(path_to_data, dtype, n_channels, data_order,
-                        max_memory, buffer_size=spike_size)
+    bp = BatchProcessor(
+        path_to_data,
+        dtype,
+        n_channels,
+        data_order,
+        max_memory,
+        buffer_size=spike_size)
 
     # compute PCA sufficient statistics
     logger.info('Computing PCA sufficient statistics...')
-    stats = bp.multi_channel_apply(suff_stat, mode='memory',
-                                   spike_index=spike_index,
-                                   spike_size=spike_size)
+    stats = bp.multi_channel_apply(
+        suff_stat,
+        mode='memory',
+        spike_index=spike_index,
+        spike_size=spike_size)
     suff_stats = reduce(lambda x, y: np.add(x, y), [e[0] for e in stats])
     spikes_per_channel = reduce(lambda x, y: np.add(x, y),
                                 [e[1] for e in stats])
@@ -126,21 +145,24 @@ def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
 
     if output_path and save_rotation_matrix:
         path_to_rotation = Path(output_path) / save_rotation_matrix
-        save_numpy_object(rotation, path_to_rotation,
-                          if_file_exists=if_file_exists,
-                          name='rotation matrix')
+        save_numpy_object(
+            rotation,
+            path_to_rotation,
+            if_file_exists=if_file_exists,
+            name='rotation matrix')
 
     #####################################
     # waveform dimensionality reduction #
     #####################################
 
     logger.info('Reducing spikes dimensionality with PCA matrix...')
-    res = bp.multi_channel_apply(score,
-                                 mode='memory',
-                                 pass_batch_info=True,
-                                 rot=rotation,
-                                 channel_index=channel_index,
-                                 spike_index=spike_index)
+    res = bp.multi_channel_apply(
+        score,
+        mode='memory',
+        pass_batch_info=True,
+        rot=rotation,
+        channel_index=channel_index,
+        spike_index=spike_index)
 
     scores = np.concatenate([element[0] for element in res], axis=0)
     spike_index = np.concatenate([element[1] for element in res], axis=0)
@@ -148,9 +170,11 @@ def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
     # save scores
     if output_path and save_scores:
         path_to_score = Path(output_path) / save_scores
-        save_numpy_object(scores, path_to_score,
-                          if_file_exists=if_file_exists,
-                          name='scores')
+        save_numpy_object(
+            scores,
+            path_to_score,
+            if_file_exists=if_file_exists,
+            name='scores')
 
     return scores, spike_index, rotation
 
@@ -325,8 +349,7 @@ def score(recording, idx_local, idx, rot, channel_index, spike_index):
         if n_channels != n_channels_:
             raise ValueError('n_channels does not match between '
                              'recording ({}) and the rotation matrix ({})'
-                             .format(n_channels,
-                                     n_channels_))
+                             .format(n_channels, n_channels_))
     else:
         raise ValueError('rot must have 2 or 3 dimensions (has {})'.format(
             rot.ndim))
@@ -334,18 +357,16 @@ def score(recording, idx_local, idx, rot, channel_index, spike_index):
     # n_temporal_features has to be an odd number
     if n_temporal_features % 2 != 1:
         raise ValueError('waveform length needs to be'
-                         'an odd number (has {})'.format(
-                             n_temporal_features))
+                         'an odd number (has {})'.format(n_temporal_features))
 
-    R = int((n_temporal_features-1)/2)
+    R = int((n_temporal_features - 1) / 2)
 
     rot = np.transpose(rot, [2, 1, 0])
     scores = np.zeros((n_data, n_features, n_neigh))
     for channel in range(n_channels):
 
         # get neighboring channel information
-        ch_idx = channel_index[channel][
-            channel_index[channel] < n_channels]
+        ch_idx = channel_index[channel][channel_index[channel] < n_channels]
 
         # get spikes whose main channel is equal to channel
         idx_c = spike_index[:, 1] == channel
@@ -355,13 +376,13 @@ def score(recording, idx_local, idx, rot, channel_index, spike_index):
         waveforms = np.zeros((spt_c.shape[0], ch_idx.shape[0],
                               n_temporal_features))
         for j in range(spt_c.shape[0]):
-            waveforms[j] = recording[spt_c[j]-R:spt_c[j]+R+1, ch_idx].T
+            waveforms[j] = recording[spt_c[j] - R:spt_c[j] + R + 1, ch_idx].T
 
         # apply rot on wavefomrs
         scores[idx_c, :, :ch_idx.shape[0]] = np.transpose(
-            np.matmul(np.expand_dims(rot[ch_idx], 0),
-                      np.expand_dims(waveforms, -1))[:, :, :, 0],
-            [0, 2, 1])
+            np.matmul(
+                np.expand_dims(rot[ch_idx], 0),
+                np.expand_dims(waveforms, -1))[:, :, :, 0], [0, 2, 1])
 
     spike_index[:, 0] = spike_index[:, 0] + data_start - offset
 
