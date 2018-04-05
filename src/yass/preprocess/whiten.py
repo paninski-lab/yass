@@ -15,8 +15,8 @@ from yass.util import save_numpy_object, check_for_files, LoadFile
 from yass.geometry import make_channel_index
 
 
-@check_for_files(parameters=['output_filename'],
-                 if_skip=[LoadFile('output_filename')])
+@check_for_files(extract_parameters=['output_filename'],
+                 if_skip_extract_parameters=[LoadFile('output_filename')])
 def matrix(path_to_data, dtype, n_channels, data_order,
            neighbors_matrix, geometry, spike_size, max_memory, output_path,
            output_filename='whitening.npy',

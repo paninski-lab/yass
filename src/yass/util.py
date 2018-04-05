@@ -409,39 +409,69 @@ class ExpandPath(object):
         return Path(_kwargs['output_path'], _kwargs[self.param])
 
 
-def check_for_files(parameters, if_skip):
+def check_for_files(extract_parameters=None, if_skip_extract_parameters=None,
+                    values=None, if_skip=None,
+                    relative_to='output_path'):
     """
     Decorator used to change the behavior of functions that write to disk
 
     Parameters
     ----------
-    parameters: list
+    extract_parameters: list, optional
         List of strings with the parameters containing the filenames to
-        check for, the function should also contain a parameter named
-        output_path. The path to the file is created relative to the
-        output_path
+        check for
+
+    if_skip_extract_parameters: list, optional
+        List with values to return in case `skip` is selected, can optionally
+        use the `LoadFile` load some files instead of returning the values,
+        files are loaded relative to the path in relative_to parameter
+
+    values: list
+        Similar to `extract_parameters` but uses the values directly
 
     if_skip: list
-        List with values to return in case `skip` is selected, can optionally
-        use the `LoadFile` (relative to `output_path` decorator to load some
-        files instead of returning the values
+        Similar to `if_skip_extract_parameters` but uses the values directly
+
+    relative_to: str
+        If files are loaded paths in if_skip are relative to this value
+
     """
+    extract = extract_parameters and if_skip_extract_parameters
+    values = values and if_skip
+
+    if extract and values:
+        raise ValueError('Only pass extract_parameters and '
+                         'if_skip_extract_parameters or values and if_skip '
+                         'but not both')
+    elif extract:
+        mode = 'extract'
+    elif values:
+        mode = 'values'
+    else:
+        raise ValueError('Pass extract_parameters and '
+                         'if_skip_extract_parameters or values and if_skip ')
+
     def _check_for_files(func):
 
         @wraps(func)
         def wrapper(*args, **kwargs):
             _kwargs = map_parameters_in_fn_call(args, kwargs, func)
 
-            # if not output_path exists, just run the function
-            if _kwargs.get('output_path') is None:
+            # if not relative_path exists, just run the function
+            if _kwargs.get(relative_to) is None:
                 logger.debug('No output path was passed, running the '
                              'function without checking for files...')
                 return func(*args, **kwargs)
 
             if_file_exists = _kwargs['if_file_exists']
 
-            paths = [Path(_kwargs['output_path']) / _kwargs[p]
-                     for p in parameters]
+            if mode == 'extract':
+                paths = [Path(_kwargs[relative_to]) / _kwargs[p]
+                         for p in extract_parameters]
+            else:
+                paths = [Path(_kwargs[relative_to]) / p
+                         for p in extract_parameters]
+
             exists = [p.exists() for p in paths]
 
             if (if_file_exists == 'overwrite' or

@@ -10,9 +10,10 @@ from yass.batch import BatchProcessor
 from yass.util import check_for_files, ExpandPath, LoadFile
 
 
-@check_for_files(parameters=['output_filename'],
-                 if_skip=[ExpandPath('output_filename'),
-                          LoadFile('output_filename', 'yaml')])
+@check_for_files(extract_parameters=['output_filename'],
+                 if_skip_extract_parameters=[ExpandPath('output_filename'),
+                                             LoadFile('output_filename',
+                                                      'yaml')])
 def butterworth(path_to_data, dtype, n_channels, data_order,
                 low_frequency, high_factor, order, sampling_frequency,
                 max_memory, output_path, output_dtype,
