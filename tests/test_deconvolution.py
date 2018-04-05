@@ -29,7 +29,8 @@ def test_decovnolution(path_to_config):
                                    channel_index,
                                    whiten_filter)
 
-    spike_train_clear = cluster.run(score, spike_index_clear)
+    spike_train_clear, score_clear = cluster.run(
+        score, spike_index_clear)
 
     templates_ = templates.run(spike_train_clear)
 
