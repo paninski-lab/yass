@@ -82,8 +82,8 @@ def run(standarized_path, standarized_params,
 
     # load files in case they are strings or Path objects
     standarized_params = file_loader(standarized_params)
-    channel_index = file_loader(standarized_params)
-    whiten_filter = file_loader(standarized_params)
+    channel_index = file_loader(channel_index)
+    whiten_filter = file_loader(whiten_filter)
 
     # run detection
     if CONFIG.detect.method == 'threshold':
