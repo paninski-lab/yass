@@ -17,13 +17,17 @@ from yass.util import check_for_files, LoadFile, save_numpy_object
 logger = logging.getLogger(__name__)
 
 
-@check_for_files(parameters=['scores_filename', 'rotation_matrix_filename'],
+@check_for_files(parameters=['scores_filename', 'spike_index_clear_filename',
+                             'rotation_matrix_filename'],
                  if_skip=[LoadFile('scores_filename'),
+                          LoadFile('spike_index_clear_filename'),
                           LoadFile('rotation_matrix_filename')])
 def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
         spike_size, temporal_features, neighbors_matrix, channel_index,
         max_memory, output_path=None, scores_filename='scores.npy',
-        rotation_matrix_filename='rotation.npy', if_file_exists='skip'):
+        rotation_matrix_filename='rotation.npy',
+        spike_index_clear_filename='spike_index_clear_pca.npy',
+        if_file_exists='skip'):
     """Apply PCA in batches
 
     Parameters
@@ -79,11 +83,14 @@ def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
         results on disk are ignored, operations are computed and results
         aren't saved to disk
 
-    save_rotation_matrix: str, optional
+    scores_filename: str, optional
         File name for rotation matrix if False, does not save data
 
-    save_scores:
+    rotation_matrix_filename: str, optional
         File name for scores if False, does not save data
+
+    spike_index_clear_filename: str, optional
+        File name for spike index clear
 
     if_file_exists:
         What to do if there is already a file in the rotation matrix and/or
@@ -125,12 +132,6 @@ def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
     rotation = project(suff_stats, spikes_per_channel, temporal_features,
                        neighbors_matrix)
 
-    if output_path and rotation_matrix_filename:
-        path_to_rotation = Path(output_path) / rotation_matrix_filename
-        save_numpy_object(rotation, path_to_rotation,
-                          if_file_exists=if_file_exists,
-                          name='rotation matrix')
-
     #####################################
     # waveform dimensionality reduction #
     #####################################
@@ -152,6 +153,18 @@ def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
         save_numpy_object(scores, path_to_score,
                           if_file_exists=if_file_exists,
                           name='scores')
+
+    if output_path and spike_index_clear_filename:
+        path_to_spike_index = Path(output_path) / spike_index_clear_filename
+        save_numpy_object(spike_index, path_to_spike_index,
+                          if_file_exists=if_file_exists,
+                          name='Spike index PCA')
+
+    if output_path and rotation_matrix_filename:
+        path_to_rotation = Path(output_path) / rotation_matrix_filename
+        save_numpy_object(rotation, path_to_rotation,
+                          if_file_exists=if_file_exists,
+                          name='rotation matrix')
 
     return scores, spike_index, rotation
 

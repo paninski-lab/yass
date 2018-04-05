@@ -134,8 +134,9 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                   if save_partial_results else None)
 
     # files that will be saved if enable by the if_file_exists option
-    filename_scores_clear = 'scores_clear.npy'
     filename_index_clear = 'spike_index_clear.npy'
+    filename_index_clear_pca = 'spike_index_clear_pca.npy'
+    filename_scores_clear = 'scores_clear.npy'
     filename_spike_index_all = 'spike_index_all.npy'
     filename_rotation = 'rotation.npy'
 
@@ -164,6 +165,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     recordings = RecordingsReader(standarized_path)
 
     # run PCA, save rotation matrix and pca scores under TMP_FOLDER
+    # TODO: remove clear as input for PCA and create an independent function
     pca_scores, clear, _ = pca(standarized_path,
                                standarized_params['dtype'],
                                standarized_params['n_channels'],
@@ -175,10 +177,11 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                                CONFIG.neigh_channels,
                                channel_index,
                                CONFIG.resources.max_memory,
-                               output_path=TMP_FOLDER,
-                               scores_filename='scores_pca.npy',
-                               rotation_matrix_filename=filename_rotation,
-                               if_file_exists=if_file_exists)
+                               TMP_FOLDER,
+                               'scores_pca.npy',
+                               filename_rotation,
+                               filename_index_clear_pca,
+                               if_file_exists)
 
     #################
     # Whiten scores #
