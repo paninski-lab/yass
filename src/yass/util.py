@@ -447,7 +447,8 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
     computed, looks for the value send in the `if_file_exists` parameter
     of the original function and decides to run the function, load
     results from disk or raise an exception. If `auto_save` is True, the
-    function also needs to have a `save_results` parameter
+    function also needs to have a `save_results` parameter. The function
+    must return either a single value of a tuple
 
     Parameters
     ----------
@@ -514,8 +515,14 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
                 res = func(*args, **kwargs)
 
                 if auto_save and _kwargs['save_results']:
-                    for obj, path in zip(res, paths):
-                        file_saver(obj, path)
+
+                    # make sure we return a single value or a tuple
+                    # depending on what the original function returns
+                    if isinstance(res, tuple):
+                        for obj, path in zip(res, paths):
+                            file_saver(obj, path)
+                    else:
+                        file_saver(res, paths[0])
 
                 return res
 

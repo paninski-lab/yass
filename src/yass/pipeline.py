@@ -152,6 +152,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                                                           path_to_config_copy))
 
     # save templates
+    # TODO: templates.run has now an option to save them, remove this...
     path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
     logging.info('Saving templates in {}'.format(path_to_templates))
     np.save(path_to_templates, templates)
