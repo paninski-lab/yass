@@ -9,8 +9,7 @@ from yass.batch import BatchProcessor
 from yass.util import file_loader
 
 
-def run(spike_index, templates,
-        output_directory='tmp/',
+def run(spike_index, templates, output_directory='tmp/',
         recordings_filename='standarized.bin'):
     """Deconvolute spikes
 
@@ -19,11 +18,12 @@ def run(spike_index, templates,
 
     spike_index: numpy.ndarray (n_data, 2), str or pathlib.Path
         A 2D array for all potential spikes whose first column indicates the
-        spike time and the second column the principal channels
+        spike time and the second column the principal channels. Or path to
+        npy file
 
     templates: numpy.ndarray (n_channels, waveform_size, n_templates), str
     or pathlib.Path
-        A 3D array with the templates
+        A 3D array with the templates. Or path to npy file
 
     output_directory: str, optional
         Output directory (relative to CONFIG.data.root_folder) used to load

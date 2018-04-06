@@ -13,12 +13,13 @@ from yass.util import check_for_files, LoadFile, file_loader
 def run(spike_train, output_directory='tmp/',
         recordings_filename='standarized.bin',
         if_file_exists='skip', save_results=False):
-    """(TODO add missing documentation)
+    """Compute templates
 
 
     Parameters
     ----------
     spike_train: numpy.ndarray, str or pathlib.Path
+        Spike train from cluster step or path to npy file
 
     output_directory: str, optional
         Output directory (relative to CONFIG.data.root_folder) used to load
@@ -27,12 +28,25 @@ def run(spike_train, output_directory='tmp/',
     recordings_filename: str, optional
         Recordings filename (relative to CONFIG.data.root_folder/
         output_directory) used to generate the templates, defaults to
-        whitened.bin
+        standarized.bin
+
+    if_file_exists: str, optional
+      One of 'overwrite', 'abort', 'skip'. Control de behavior for the
+      templates.npy. file If 'overwrite' it replaces the files if exists,
+      if 'abort' it raises a ValueError exception if exists,
+      if 'skip' it skips the operation if the file exists (and returns the
+      stored file)
+
+    save_results: bool, optional
+        Whether to templates to disk
+        (in CONFIG.data.root_folder/relative_to/templates.npy),
+        defaults to False
 
 
     Returns
     -------
-    templates ?
+    templates: npy.ndarray
+        Ttemplates
 
     Examples
     --------
