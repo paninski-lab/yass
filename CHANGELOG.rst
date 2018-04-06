@@ -4,6 +4,9 @@ Changelog
 0.8dev
 ------
 
+* New CLI tool for exporting results to phy `yass export`
+* It is now possible to save results for every step to resume execution
+
 
 0.7 (2018-04-06)
 -----------------
