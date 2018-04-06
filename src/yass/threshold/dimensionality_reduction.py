@@ -17,13 +17,16 @@ from yass.util import check_for_files, LoadFile, save_numpy_object
 logger = logging.getLogger(__name__)
 
 
-@check_for_files(parameters=['save_scores', 'save_rotation_matrix'],
-                 if_skip=[LoadFile('save_scores'),
-                          LoadFile('save_rotation_matrix')])
+@check_for_files(filenames=[LoadFile('scores_filename'),
+                            LoadFile('spike_index_clear_filename'),
+                            LoadFile('rotation_matrix_filename')],
+                 mode='extract', relative_to='output_path')
 def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
         spike_size, temporal_features, neighbors_matrix, channel_index,
-        max_memory, output_path=None, save_scores='score_clear.npy',
-        save_rotation_matrix='rotation.npy', if_file_exists='skip'):
+        max_memory, output_path=None, scores_filename='scores.npy',
+        rotation_matrix_filename='rotation.npy',
+        spike_index_clear_filename='spike_index_clear_pca.npy',
+        if_file_exists='skip'):
     """Apply PCA in batches
 
     Parameters
@@ -39,10 +42,11 @@ def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
 
     data_order: str
         Recordings order, one of ('channels', 'samples'). In a dataset with k
-        observations per channel and j channels: 'channels' means first k contiguous
-        observations come from channel 0, then channel 1, and so on. 'sample'
-        means first j contiguous data are the first observations from
-        all channels, then the second observations from all channels and so on
+        observations per channel and j channels: 'channels' means first k
+        contiguous observations come from channel 0, then channel 1, and so
+        on. 'sample' means first j contiguous data are the first observations
+        from all channels, then the second observations from all channels and
+        so on
 
     recordings: np.ndarray (n_observations, n_channels)
         Multi-channel recordings
@@ -78,11 +82,14 @@ def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
         results on disk are ignored, operations are computed and results
         aren't saved to disk
 
-    save_rotation_matrix: str, optional
+    scores_filename: str, optional
         File name for rotation matrix if False, does not save data
 
-    save_scores:
+    rotation_matrix_filename: str, optional
         File name for scores if False, does not save data
+
+    spike_index_clear_filename: str, optional
+        File name for spike index clear
 
     if_file_exists:
         What to do if there is already a file in the rotation matrix and/or
@@ -124,12 +131,6 @@ def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
     rotation = project(suff_stats, spikes_per_channel, temporal_features,
                        neighbors_matrix)
 
-    if output_path and save_rotation_matrix:
-        path_to_rotation = Path(output_path) / save_rotation_matrix
-        save_numpy_object(rotation, path_to_rotation,
-                          if_file_exists=if_file_exists,
-                          name='rotation matrix')
-
     #####################################
     # waveform dimensionality reduction #
     #####################################
@@ -146,11 +147,23 @@ def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
     spike_index = np.concatenate([element[1] for element in res], axis=0)
 
     # save scores
-    if output_path and save_scores:
-        path_to_score = Path(output_path) / save_scores
+    if output_path and scores_filename:
+        path_to_score = Path(output_path) / scores_filename
         save_numpy_object(scores, path_to_score,
                           if_file_exists=if_file_exists,
                           name='scores')
+
+    if output_path and spike_index_clear_filename:
+        path_to_spike_index = Path(output_path) / spike_index_clear_filename
+        save_numpy_object(spike_index, path_to_spike_index,
+                          if_file_exists=if_file_exists,
+                          name='Spike index PCA')
+
+    if output_path and rotation_matrix_filename:
+        path_to_rotation = Path(output_path) / rotation_matrix_filename
+        save_numpy_object(rotation, path_to_rotation,
+                          if_file_exists=if_file_exists,
+                          name='rotation matrix')
 
     return scores, spike_index, rotation
 

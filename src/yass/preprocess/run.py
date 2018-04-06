@@ -9,6 +9,7 @@ from yass.geometry import make_channel_index
 from yass.preprocess.filter import butterworth
 from yass.preprocess.standarize import standarize
 from yass.preprocess import whiten
+from yass.util import save_numpy_object
 
 
 def run(output_directory='tmp/', if_file_exists='skip'):
@@ -79,7 +80,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                   n_channels=CONFIG.recordings.n_channels,
                   data_order=CONFIG.recordings.order)
 
-    # optionally filter the data
+    # optionally filter the data - generates filtered.bin
     if CONFIG.preprocess.apply_filter:
         path, params = butterworth(path,
                                    params['dtype'],
@@ -92,19 +93,21 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                    CONFIG.resources.max_memory,
                                    TMP,
                                    OUTPUT_DTYPE,
+                                   output_filename='filtered.bin',
                                    if_file_exists=if_file_exists)
 
-    # standarize
+    # standarize - generates standarized.bin
     (standarized_path,
-        standarized_params) = standarize(path,
-                                         params['dtype'],
-                                         params['n_channels'],
-                                         params['data_order'],
-                                         CONFIG.recordings.sampling_rate,
-                                         CONFIG.resources.max_memory,
-                                         TMP,
-                                         OUTPUT_DTYPE,
-                                         if_file_exists=if_file_exists)
+     standarized_params) = standarize(path,
+                                      params['dtype'],
+                                      params['n_channels'],
+                                      params['data_order'],
+                                      CONFIG.recordings.sampling_rate,
+                                      CONFIG.resources.max_memory,
+                                      TMP,
+                                      OUTPUT_DTYPE,
+                                      output_filename='standarized.bin',
+                                      if_file_exists=if_file_exists)
 
     # Whiten
     whiten_filter = whiten.matrix(standarized_path,
@@ -116,10 +119,18 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                   CONFIG.spike_size,
                                   CONFIG.resources.max_memory,
                                   TMP,
+                                  output_filename='whitening.npy',
                                   if_file_exists=if_file_exists)
 
+    # TODO: this shoulnd't be done here, it would be better to compute
+    # this when initializing the config object and then access it from there
     channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom)
+
+    path_to_channel_index = os.path.join(TMP, 'channel_index.npy')
+    save_numpy_object(channel_index, path_to_channel_index,
+                      if_file_exists=if_file_exists,
+                      name='Channel index')
 
     return (str(standarized_path), standarized_params, channel_index,
             whiten_filter)

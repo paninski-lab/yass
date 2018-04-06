@@ -9,9 +9,9 @@ from yass.util import check_for_files, ExpandPath, LoadFile
 import numpy as np
 
 
-@check_for_files(parameters=['output_filename'],
-                 if_skip=[ExpandPath('output_filename'),
-                          LoadFile('output_filename', 'yaml')])
+@check_for_files(filenames=[ExpandPath('output_filename'),
+                            LoadFile('output_filename', 'yaml')],
+                 mode='extract', relative_to='output_path')
 def standarize(path_to_data, dtype, n_channels, data_order,
                sampling_frequency, max_memory, output_path,
                output_dtype, output_filename='standarized.bin',
@@ -33,10 +33,11 @@ def standarize(path_to_data, dtype, n_channels, data_order,
 
     data_order: str
         Recordings order, one of ('channels', 'samples'). In a dataset with k
-        observations per channel and j channels: 'channels' means first k contiguous
-        observations come from channel 0, then channel 1, and so on. 'sample'
-        means first j contiguous data are the first observations from
-        all channels, then the second observations from all channels and so on
+        observations per channel and j channels: 'channels' means first k
+        contiguous observations come from channel 0, then channel 1, and so
+        on. 'sample' means first j contiguous data are the first observations
+        from all channels, then the second observations from all channels and
+        so on
 
     sampling_frequency: int
         Recordings sampling frequency in Hz

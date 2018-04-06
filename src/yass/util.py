@@ -17,6 +17,7 @@ except ImportError:
 
 from . import __version__
 
+import yass
 import logging
 import datetime
 import os
@@ -356,80 +357,174 @@ def save_numpy_object(obj, output_path, if_file_exists, name='file'):
         logger.info('Saved {} in {}'.format(name, output_path))
 
 
-class LoadFile(object):
-
-    def __init__(self, param, new_extension=None):
-        self.param = param
-        self.new_extension = new_extension
-
-    def __call__(self, _kwargs):
-
-        if self.new_extension is not None:
-            filename = change_extension(_kwargs[self.param],
-                                        self.new_extension)
-        else:
-            filename = _kwargs[self.param]
-
-        path = Path(_kwargs['output_path'], filename)
-
-        if path.suffix == '.npy':
-            return np.load(str(path))
-        elif path.suffix == '.yaml':
-            return load_yaml(str(path))
-        else:
-            raise ValueError('Do not know how to load file with extension '
-                             '{}'.format(path.suffix))
-
-
-class ExpandPath(object):
-
-    def __init__(self, param):
-        self.param = param
-
-    def __call__(self, _kwargs):
-        return Path(_kwargs['output_path'], _kwargs[self.param])
-
-
-def check_for_files(parameters, if_skip):
-    """
-    Decorator used to change the behavior of functions that write to disk
+def file_loader(path):
+    """Load a file. Supported extensions: yaml. npy
 
     Parameters
     ----------
-    parameters: list
-        List of strings with the parameters containing the filenames to
-        check for, the function should also contain a parameter named
-        output_path. The path to the file is created relative to the
-        output_path
-
-    if_skip: list
-        List with values to return in case `skip` is selected, can optionally
-        use the `LoadFile` (relative to `output_path` decorator to load some
-        files instead of returning the values
+    path: str
+        Path to file
     """
+    if not isinstance(path, str) and not isinstance(path, Path):
+        logger.debug('Parameter path is not a string or a Path object, '
+                     'function will just return the parameter (%s)',
+                     path)
+        return path
+
+    path = Path(path)
+
+    if path.suffix == '.npy':
+        return np.load(str(path))
+    elif path.suffix == '.yaml':
+        return load_yaml(str(path))
+    else:
+        raise ValueError('Do not know how to load file with extension '
+                         '{}'.format(path.suffix))
+
+
+def file_saver(obj, path):
+    path = Path(path)
+
+    if path.suffix == '.npy':
+        np.save(str(path), obj)
+
+    elif path.suffix == '.yaml':
+
+        with open(str(path), 'w') as f:
+            yaml.dump(obj, f)
+
+    else:
+        raise ValueError('Do not know how to save file with extension '
+                         '{}'.format(path.suffix))
+
+
+class LoadFile:
+
+    def __init__(self, value, new_extension=None):
+        self.value = value
+        self.new_extension = new_extension
+
+    def expand(self, root_path):
+        if self.new_extension is not None:
+            filename = change_extension(self.value, self.new_extension)
+        else:
+            filename = self.value
+
+        path = Path(root_path, filename)
+
+        return file_loader(path)
+
+    def copy_with_value(self, value):
+        obj = copy(self)
+        obj.value = value
+        return obj
+
+    def __repr__(self):
+        return '{}("{}")'.format(LoadFile.__name__, self.value)
+
+
+class ExpandPath:
+
+    def __init__(self, value):
+        self.value = value
+
+    def expand(self, root_path):
+        return Path(root_path, self.value)
+
+    def copy_with_value(self, value):
+        obj = copy(self)
+        obj.value = value
+        return obj
+
+    def __repr__(self):
+        return '{}("{}")'.format(ExpandPath.__name__, self.value)
+
+
+def check_for_files(filenames, mode, relative_to, auto_save=False,
+                    prepend_root_folder=False):
+    """
+    Decorator to avoid running functions when all the results were already
+    computed, looks for the value send in the `if_file_exists` parameter
+    of the original function and decides to run the function, load
+    results from disk or raise an exception. If `auto_save` is True, the
+    function also needs to have a `save_results` parameter. The function
+    must return either a single value of a tuple
+
+    Parameters
+    ----------
+    filenames: list
+        The filenames to check, pass either a LoadFile (file will be loaded
+        and returned) or an ExpandPath (path will be expanded using
+        `relative_to`)
+
+    mode: str
+        One of 'extract' or 'values'. If 'extract', pass parameter names,
+        when the function is called the decorator will inspect those parameters
+        and use the values. If 'values', the values passed are used directly
+
+    relative_to: str
+        If files are loaded paths in if_skip are relative to the value
+        on this parameter
+
+    auto_save: bool
+        If the function is run and this is True, paths will be expanded
+        and results will be stored. It is assumed that the elements
+        in filenames and the ones returned by the function match in order
+
+    prepend_root_folder: bool
+        Prepend CONFIG.data.root_folder to the paths
+
+    """
+    if mode not in ['extract', 'values']:
+        raise ValueError('mode must be either extract or values')
+
     def _check_for_files(func):
 
         @wraps(func)
         def wrapper(*args, **kwargs):
             _kwargs = map_parameters_in_fn_call(args, kwargs, func)
 
-            # if not output_path exists, just run the function
-            if _kwargs.get('output_path') is None:
+            # if not relative_path exists, just run the function
+            if _kwargs.get(relative_to) is None:
                 logger.debug('No output path was passed, running the '
                              'function without checking for files...')
                 return func(*args, **kwargs)
 
             if_file_exists = _kwargs['if_file_exists']
 
-            paths = [Path(_kwargs['output_path']) / _kwargs[p]
-                     for p in parameters]
+            if mode == 'extract':
+                names = [f.copy_with_value(_kwargs[f.value])
+                         for f in filenames]
+            else:
+                names = filenames
+
+            if prepend_root_folder:
+                CONFIG = yass.read_config()
+                root_path = Path(CONFIG.data.root_folder, _kwargs[relative_to])
+            else:
+                root_path = Path(_kwargs[relative_to])
+
+            paths = [root_path / f.value for f in names]
             exists = [p.exists() for p in paths]
 
             if (if_file_exists == 'overwrite' or
                if_file_exists == 'abort' and not any(exists)
                or if_file_exists == 'skip' and not all(exists)):
                 logger.debug('Running the function...')
-                return func(*args, **kwargs)
+
+                res = func(*args, **kwargs)
+
+                if auto_save and _kwargs['save_results']:
+
+                    # make sure we return a single value or a tuple
+                    # depending on what the original function returns
+                    if isinstance(res, tuple):
+                        for obj, path in zip(res, paths):
+                            file_saver(obj, path)
+                    else:
+                        file_saver(res, paths[0])
+
+                return res
 
             elif if_file_exists == 'abort' and any(exists):
                 conflict = [p for p, e in zip(paths, exists) if e]
@@ -440,16 +535,10 @@ def check_for_files(parameters, if_skip):
                                  'already exist: {}'.format(message))
             elif if_file_exists == 'skip' and all(exists):
 
-                def expand(element, _kwargs):
-                    if not isinstance(element, str):
-                        return element(_kwargs)
-                    else:
-                        return element
-
                 logger.info('Skipped {} execution. All necessary files exist'
                             ', loading them...'.format(function_path(func)))
 
-                res = [expand(e, _kwargs) for e in if_skip]
+                res = [f.expand(root_path) for f in names]
 
                 return res[0] if len(res) == 1 else res
 

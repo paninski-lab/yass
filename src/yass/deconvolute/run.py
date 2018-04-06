@@ -6,6 +6,7 @@ import numpy as np
 from yass.deconvolute.deconvolve import deconvolve, fix_indexes
 from yass import read_config
 from yass.batch import BatchProcessor
+from yass.util import file_loader
 
 
 def run(spike_index, templates,
@@ -16,11 +17,12 @@ def run(spike_index, templates,
     Parameters
     ----------
 
-    spike_index: numpy.ndarray (n_data, 2)
+    spike_index: numpy.ndarray (n_data, 2), str or pathlib.Path
         A 2D array for all potential spikes whose first column indicates the
         spike time and the second column the principal channels
 
-    templates: numpy.ndarray (n_channels, waveform_size, n_templates)
+    templates: numpy.ndarray (n_channels, waveform_size, n_templates), str
+    or pathlib.Path
         A 3D array with the templates
 
     output_directory: str, optional
@@ -43,6 +45,9 @@ def run(spike_index, templates,
 
     .. literalinclude:: ../../examples/pipeline/deconvolute.py
     """
+
+    spike_index = file_loader(spike_index)
+    templates = file_loader(templates)
 
     logger = logging.getLogger(__name__)
 

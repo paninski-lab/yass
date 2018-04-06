@@ -10,9 +10,9 @@ from yass.batch import BatchProcessor
 from yass.util import check_for_files, ExpandPath, LoadFile
 
 
-@check_for_files(parameters=['output_filename'],
-                 if_skip=[ExpandPath('output_filename'),
-                          LoadFile('output_filename', 'yaml')])
+@check_for_files(filenames=[ExpandPath('output_filename'),
+                            LoadFile('output_filename', 'yaml')],
+                 mode='extract', relative_to='output_path')
 def butterworth(path_to_data, dtype, n_channels, data_order,
                 low_frequency, high_factor, order, sampling_frequency,
                 max_memory, output_path, output_dtype,
@@ -32,10 +32,11 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
 
     data_order: str
         Recordings order, one of ('channels', 'samples'). In a dataset with k
-        observations per channel and j channels: 'channels' means first k contiguous
-        observations come from channel 0, then channel 1, and so on. 'sample'
-        means first j contiguous data are the first observations from
-        all channels, then the second observations from all channels and so on
+        observations per channel and j channels: 'channels' means first k
+        contiguous observations come from channel 0, then channel 1, and so
+        on. 'sample' means first j contiguous data are the first observations
+        from all channels, then the second observations from all channels and
+        so on
 
     low_frequency: int
         Low pass frequency (Hz)

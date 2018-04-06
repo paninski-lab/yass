@@ -4,16 +4,21 @@ import datetime
 
 from yass import read_config
 from yass.templates.util import get_and_merge_templates as gam_templates
+from yass.util import check_for_files, LoadFile, file_loader
 
 
+@check_for_files(filenames=[LoadFile('templates.npy')],
+                 mode='values', relative_to='output_directory',
+                 auto_save=True, prepend_root_folder=True)
 def run(spike_train, output_directory='tmp/',
-        recordings_filename='standarized.bin'):
+        recordings_filename='standarized.bin',
+        if_file_exists='skip', save_results=False):
     """(TODO add missing documentation)
 
 
     Parameters
     ----------
-    spike_train: ?
+    spike_train: numpy.ndarray, str or pathlib.Path
 
     output_directory: str, optional
         Output directory (relative to CONFIG.data.root_folder) used to load
@@ -34,6 +39,8 @@ def run(spike_train, output_directory='tmp/',
 
     .. literalinclude:: ../../examples/pipeline/templates.py
     """
+    spike_train = file_loader(spike_train)
+
     CONFIG = read_config()
 
     startTime = datetime.datetime.now()

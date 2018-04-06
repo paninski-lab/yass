@@ -455,10 +455,11 @@ class RecordingExplorer(object):
         Number of channels in the recordings
     data_order: str
         Recordings order, one of ('channels', 'samples'). In a dataset with k
-        observations per channel and j channels: 'channels' means first k contiguous
-        observations come from channel 0, then channel 1, and so on. 'sample'
-        means first j contiguous data are the first observations from
-        all channels, then the second observations from all channels and so on
+        observations per channel and j channels: 'channels' means first k
+        contiguous observations come from channel 0, then channel 1, and so
+        on. 'sample' means first j contiguous data are the first observations
+        from all channels, then the second observations from all channels and
+        so on
     loader: str ('memmap', 'array' or 'python'), optional
         How to load the data. memmap loads the data using a wrapper around
         np.memmap (see :class:`~yass.batch.MemoryMap` for details), 'array'

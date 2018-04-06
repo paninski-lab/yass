@@ -15,8 +15,8 @@ from yass.util import save_numpy_object, check_for_files, LoadFile
 from yass.geometry import make_channel_index
 
 
-@check_for_files(parameters=['output_filename'],
-                 if_skip=[LoadFile('output_filename')])
+@check_for_files(filenames=[LoadFile('output_filename')],
+                 mode='extract', relative_to='output_path')
 def matrix(path_to_data, dtype, n_channels, data_order,
            neighbors_matrix, geometry, spike_size, max_memory, output_path,
            output_filename='whitening.npy',
@@ -36,10 +36,11 @@ def matrix(path_to_data, dtype, n_channels, data_order,
 
     data_order: str
         Recordings order, one of ('channels', 'samples'). In a dataset with k
-        observations per channel and j channels: 'channels' means first k contiguous
-        observations come from channel 0, then channel 1, and so on. 'sample'
-        means first j contiguous data are the first observations from
-        all channels, then the second observations from all channels and so on
+        observations per channel and j channels: 'channels' means first k
+        contiguous observations come from channel 0, then channel 1, and so
+        on. 'sample' means first j contiguous data are the first observations
+        from all channels, then the second observations from all channels and
+        so on
 
     neighbors_matrix: numpy.ndarray (n_channels, n_channels)
         Boolean numpy 2-D array where a i, j entry is True if i is considered
@@ -58,7 +59,7 @@ def matrix(path_to_data, dtype, n_channels, data_order,
         Where to store the whitenint gilter
 
     output_filename: str, optional
-        Filename for the output data, defaults to whitening_filter.npy
+        Filename for the output data, defaults to whitening.npy
 
     if_file_exists: str, optional
         One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces the

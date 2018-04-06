@@ -3,6 +3,7 @@ import datetime
 
 from yass import read_config
 from yass.geometry import make_channel_index
+from yass.util import file_loader, check_for_files, LoadFile
 from yass.cluster.list import make_list
 from yass.cluster.subsample import random_subsample
 from yass.cluster.triage import triage
@@ -11,20 +12,24 @@ from yass.cluster.mask import getmask
 from yass.cluster.util import run_cluster, run_cluster_location
 
 
-def run(scores, spike_index):
+@check_for_files(filenames=[LoadFile('spike_train_cluster.npy')],
+                 mode='values', relative_to='output_directory',
+                 auto_save=True, prepend_root_folder=True)
+def run(scores, spike_index, output_directory='tmp/',
+        if_file_exists='skip', save_results=False):
     """Spike clustering
 
     Parameters
     ----------
-    score: numpy.ndarray (n_spikes, n_features, n_channels)
+    score: numpy.ndarray (n_spikes, n_features, n_channels), str or Path
         3D array with the scores for the clear spikes, first simension is
         the number of spikes, second is the nymber of features and third the
-        number of channels
+        number of channels. Or path to a npy file
 
-    spike_index: numpy.ndarray (n_clear_spikes, 2)
+    spike_index: numpy.ndarray (n_clear_spikes, 2), str or Path
         2D array with indexes for spikes, first column contains the
         spike location in the recording and the second the main channel
-        (channel whose amplitude is maximum)
+        (channel whose amplitude is maximum). Or path to an npy file
 
     Returns
     -------
@@ -36,6 +41,10 @@ def run(scores, spike_index):
     .. literalinclude:: ../../examples/pipeline/cluster.py
 
     """
+    # load files in case they are strings or Path objects
+    scores = file_loader(scores)
+    spike_index = file_loader(spike_index)
+
     CONFIG = read_config()
 
     startTime = datetime.datetime.now()
