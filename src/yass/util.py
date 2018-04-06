@@ -17,6 +17,7 @@ except ImportError:
 
 from . import __version__
 
+import yass
 import logging
 import datetime
 import os
@@ -385,7 +386,7 @@ def file_saver(obj, path):
     path = Path(path)
 
     if path.suffix == '.npy':
-        np.save(path, obj)
+        np.save(str(path), obj)
 
     elif path.suffix == '.yaml':
 
@@ -413,6 +414,11 @@ class LoadFile:
 
         return file_loader(path)
 
+    def copy_with_value(self, value):
+        obj = copy(self)
+        obj.value = value
+        return obj
+
     def __repr__(self):
         return '{}("{}")'.format(LoadFile.__name__, self.value)
 
@@ -425,16 +431,23 @@ class ExpandPath:
     def expand(self, root_path):
         return Path(root_path, self.value)
 
+    def copy_with_value(self, value):
+        obj = copy(self)
+        obj.value = value
+        return obj
+
     def __repr__(self):
         return '{}("{}")'.format(ExpandPath.__name__, self.value)
 
 
-def check_for_files(filenames, mode, relative_to, auto_save=False):
+def check_for_files(filenames, mode, relative_to, auto_save=False,
+                    prepend_root_folder=False):
     """
     Decorator to avoid running functions when all the results were already
     computed, looks for the value send in the `if_file_exists` parameter
     of the original function and decides to run the function, load
-    results from disk or raise an exception
+    results from disk or raise an exception. If `auto_save` is True, the
+    function also needs to have a `save_results` parameter
 
     Parameters
     ----------
@@ -457,6 +470,9 @@ def check_for_files(filenames, mode, relative_to, auto_save=False):
         and results will be stored. It is assumed that the elements
         in filenames and the ones returned by the function match in order
 
+    prepend_root_folder: bool
+        Prepend CONFIG.data.root_folder to the paths
+
     """
     if mode not in ['extract', 'values']:
         raise ValueError('mode must be either extract or values')
@@ -476,9 +492,18 @@ def check_for_files(filenames, mode, relative_to, auto_save=False):
             if_file_exists = _kwargs['if_file_exists']
 
             if mode == 'extract':
-                filenames = [f.__class__(_kwargs[f.value]) for f in filenames]
+                names = [f.copy_with_value(_kwargs[f.value])
+                         for f in filenames]
+            else:
+                names = filenames
 
-            paths = [Path(_kwargs[relative_to]) / f.value for f in filenames]
+            if prepend_root_folder:
+                CONFIG = yass.read_config()
+                root_path = Path(CONFIG.data.root_folder, _kwargs[relative_to])
+            else:
+                root_path = Path(_kwargs[relative_to])
+
+            paths = [root_path / f.value for f in names]
             exists = [p.exists() for p in paths]
 
             if (if_file_exists == 'overwrite' or
@@ -488,7 +513,7 @@ def check_for_files(filenames, mode, relative_to, auto_save=False):
 
                 res = func(*args, **kwargs)
 
-                if auto_save:
+                if auto_save and _kwargs['save_results']:
                     for obj, path in zip(res, paths):
                         file_saver(obj, path)
 
@@ -506,7 +531,7 @@ def check_for_files(filenames, mode, relative_to, auto_save=False):
                 logger.info('Skipped {} execution. All necessary files exist'
                             ', loading them...'.format(function_path(func)))
 
-                res = [f.expand(_kwargs[relative_to]) for f in filenames]
+                res = [f.expand(root_path) for f in names]
 
                 return res[0] if len(res) == 1 else res
 

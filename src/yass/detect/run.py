@@ -20,7 +20,7 @@ from yass.util import file_loader, save_numpy_object
 # TODO: missing parameters docs
 def run(standarized_path, standarized_params,
         channel_index, whiten_filter, output_directory='tmp/',
-        if_file_exists='skip', save_partial_results=False):
+        if_file_exists='skip', save_results=False):
     """Execute detect step
 
     Parameters
@@ -43,7 +43,7 @@ def run(standarized_path, standarized_params,
       if 'abort' it raises a ValueError exception if any file exists,
       if 'skip' if skips the operation if any file exists
 
-    save_partial_results: bool, optional
+    save_results: bool, optional
         Whether to save partial results to disk, defaults to false
 
     Returns
@@ -66,7 +66,7 @@ def run(standarized_path, standarized_params,
     Notes
     -----
     Running the preprocessor will generate the followiing files in
-    CONFIG.data.root_folder/output_directory/ (if save_partial_results is
+    CONFIG.data.root_folder/output_directory/ (if save_results is
     True):
 
     * ``spike_index_clear.npy`` - Same as spike_index_clear returned
@@ -94,7 +94,7 @@ def run(standarized_path, standarized_params,
                              whiten_filter,
                              output_directory,
                              if_file_exists,
-                             save_partial_results)
+                             save_results)
     elif CONFIG.detect.method == 'nn':
         return run_neural_network(standarized_path,
                                   standarized_params,
@@ -102,12 +102,12 @@ def run(standarized_path, standarized_params,
                                   whiten_filter,
                                   output_directory,
                                   if_file_exists,
-                                  save_partial_results)
+                                  save_results)
 
 
 def run_threshold(standarized_path, standarized_params, channel_index,
                   whiten_filter, output_directory, if_file_exists,
-                  save_partial_results):
+                  save_results):
     """Run threshold detector and dimensionality reduction using PCA
 
 
@@ -128,10 +128,10 @@ def run_threshold(standarized_path, standarized_params, channel_index,
 
     CONFIG = read_config()
 
-    # Set TMP_FOLDER to None if not save_partial_results, this will disable
+    # Set TMP_FOLDER to None if not save_results, this will disable
     # saving results in every function below
     TMP_FOLDER = (os.path.join(CONFIG.data.root_folder, output_directory)
-                  if save_partial_results else None)
+                  if save_results else None)
 
     # files that will be saved if enable by the if_file_exists option
     filename_index_clear = 'spike_index_clear.npy'
@@ -215,7 +215,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
 
 def run_neural_network(standarized_path, standarized_params,
                        channel_index, whiten_filter, output_directory,
-                       if_file_exists, save_partial_results):
+                       if_file_exists, save_results):
     """Run neural network detection and autoencoder dimensionality reduction
 
     Returns
@@ -314,7 +314,7 @@ def run_neural_network(standarized_path, standarized_params,
                                             channel_index, CONFIG.geom)
 
         # save partial results if required
-        if save_partial_results:
+        if save_results:
             # save clear spikes
             np.save(path_to_spike_index_clear, clear)
             logger.info('Saved spike index clear in {}...'
