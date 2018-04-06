@@ -1,8 +1,8 @@
 Changelog
 =========
 
-0.7dev
-------
+0.7 (2018-04-06)
+-----------------
 
 * New CLI tool for training neural networks `yass train`
 * New CLI tool for exporting results to phy `yass export`
