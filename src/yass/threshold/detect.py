@@ -14,11 +14,9 @@ from yass.geometry import n_steps_neigh_channels
 # when n batch > 1
 logger = logging.getLogger(__name__)
 
-if_skip_params = [LoadFile('spike_index_clear_filename')]
 
-
-@check_for_files(extract_parameters=['spike_index_clear_filename'],
-                 if_skip_extract_parameters=if_skip_params)
+@check_for_files(filenames=[LoadFile('spike_index_clear_filename')],
+                 mode='extract', relative_to='output_path')
 def threshold(path_to_data, dtype, n_channels, data_order,
               max_memory, neighbors, spike_size,
               minimum_half_waveform_size, threshold, output_path=None,

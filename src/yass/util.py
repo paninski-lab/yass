@@ -381,75 +381,74 @@ def file_loader(path):
                          '{}'.format(path.suffix))
 
 
-class LoadFile(object):
+class LoadFile:
 
-    def __init__(self, param, new_extension=None):
-        self.param = param
+    def __init__(self, value, new_extension=None):
+        print('INIT WITH VALYE', value)
+        self.value = value
         self.new_extension = new_extension
 
-    def __call__(self, _kwargs):
+    def replace_value_in_kwargs(self, kwargs):
+        pass
+        # self.value = kwargs[self.value]
 
+    def expand(self, root_path):
         if self.new_extension is not None:
-            filename = change_extension(_kwargs[self.param],
-                                        self.new_extension)
+            filename = change_extension(self.value, self.new_extension)
         else:
-            filename = _kwargs[self.param]
+            filename = self.value
 
-        path = Path(_kwargs['output_path'], filename)
+        path = Path(root_path, filename)
 
         return file_loader(path)
 
-
-class ExpandPath(object):
-
-    def __init__(self, param):
-        self.param = param
-
-    def __call__(self, _kwargs):
-        return Path(_kwargs['output_path'], _kwargs[self.param])
+    def __repr__(self):
+        return '{}("{}")'.format(LoadFile.__name__, self.value)
 
 
-def check_for_files(extract_parameters=None, if_skip_extract_parameters=None,
-                    values=None, if_skip=None,
-                    relative_to='output_path'):
+class ExpandPath:
+
+    def __init__(self, value):
+        print('INIT WITH VALYE', value)
+        self.value = value
+
+    def replace_value_in_kwargs(self, kwargs):
+        pass
+        # self.value = kwargs[self.value]
+
+    def expand(self, root_path):
+        return Path(root_path, self.value)
+
+    def __repr__(self):
+        return '{}("{}")'.format(ExpandPath.__name__, self.value)
+
+
+def check_for_files(filenames, mode, relative_to):
     """
-    Decorator used to change the behavior of functions that write to disk
+    Decorator to avoid running functions when all the results were already
+    computed, looks for the value send in the `if_file_exists` parameter
+    of the original function and decides to run the function, load
+    results from disk or raise an exception
 
     Parameters
     ----------
-    extract_parameters: list, optional
-        List of strings with the parameters containing the filenames to
-        check for
+    filenames: list
+        The filenames to check, pass either a LoadFile (file will be loaded
+        and returned) or an ExpandPath (path will be expanded using
+        `relative_to`)
 
-    if_skip_extract_parameters: list, optional
-        List with values to return in case `skip` is selected, can optionally
-        use the `LoadFile` load some files instead of returning the values,
-        files are loaded relative to the path in relative_to parameter
-
-    values: list
-        Similar to `extract_parameters` but uses the values directly
-
-    if_skip: list
-        Similar to `if_skip_extract_parameters` but uses the values directly
+    mode: str
+        One of 'extract' or 'values'. If 'extract', pass parameter names,
+        when the function is called the decorator will inspect those parameters
+        and use the values. If 'values', the values passed are used directly
 
     relative_to: str
-        If files are loaded paths in if_skip are relative to this value
+        If files are loaded paths in if_skip are relative to the value
+        on this parameter
 
     """
-    extract = extract_parameters and if_skip_extract_parameters
-    values = values and if_skip
-
-    if extract and values:
-        raise ValueError('Only pass extract_parameters and '
-                         'if_skip_extract_parameters or values and if_skip '
-                         'but not both')
-    elif extract:
-        mode = 'extract'
-    elif values:
-        mode = 'values'
-    else:
-        raise ValueError('Pass extract_parameters and '
-                         'if_skip_extract_parameters or values and if_skip ')
+    if mode not in ['extract', 'values']:
+        raise ValueError('mode must be either extract or values')
 
     def _check_for_files(func):
 
@@ -466,12 +465,10 @@ def check_for_files(extract_parameters=None, if_skip_extract_parameters=None,
             if_file_exists = _kwargs['if_file_exists']
 
             if mode == 'extract':
-                paths = [Path(_kwargs[relative_to]) / _kwargs[p]
-                         for p in extract_parameters]
-            else:
-                paths = [Path(_kwargs[relative_to]) / p
-                         for p in extract_parameters]
+                for f in filenames:
+                    f.replace_value_in_kwargs(_kwargs)
 
+            paths = [Path(_kwargs[relative_to]) / f.value for f in filenames]
             exists = [p.exists() for p in paths]
 
             if (if_file_exists == 'overwrite' or
@@ -489,16 +486,10 @@ def check_for_files(extract_parameters=None, if_skip_extract_parameters=None,
                                  'already exist: {}'.format(message))
             elif if_file_exists == 'skip' and all(exists):
 
-                def expand(element, _kwargs):
-                    if not isinstance(element, str):
-                        return element(_kwargs)
-                    else:
-                        return element
-
                 logger.info('Skipped {} execution. All necessary files exist'
                             ', loading them...'.format(function_path(func)))
 
-                res = [expand(e, _kwargs) for e in if_skip]
+                res = [f.expand(_kwargs[relative_to]) for f in filenames]
 
                 return res[0] if len(res) == 1 else res
 

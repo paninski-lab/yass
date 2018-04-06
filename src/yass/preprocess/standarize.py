@@ -9,10 +9,9 @@ from yass.util import check_for_files, ExpandPath, LoadFile
 import numpy as np
 
 
-@check_for_files(extract_parameters=['output_filename'],
-                 if_skip_extract_parameters=[ExpandPath('output_filename'),
-                                             LoadFile('output_filename',
-                                                      'yaml')])
+@check_for_files(filenames=[ExpandPath('output_filename'),
+                            LoadFile('output_filename', 'yaml')],
+                 mode='extract', relative_to='output_path')
 def standarize(path_to_data, dtype, n_channels, data_order,
                sampling_frequency, max_memory, output_path,
                output_dtype, output_filename='standarized.bin',

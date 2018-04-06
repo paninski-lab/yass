@@ -15,15 +15,12 @@ from yass.batch import BatchProcessor
 from yass.util import check_for_files, LoadFile, save_numpy_object
 
 logger = logging.getLogger(__name__)
-if_skip_extract_parameters = [LoadFile('scores_filename'),
-                              LoadFile('spike_index_clear_filename'),
-                              LoadFile('rotation_matrix_filename')]
 
 
-@check_for_files(extract_parameters=['scores_filename',
-                                     'spike_index_clear_filename',
-                                     'rotation_matrix_filename'],
-                 if_skip_extract_parameters=if_skip_extract_parameters)
+@check_for_files(filenames=[LoadFile('scores_filename'),
+                            LoadFile('spike_index_clear_filename'),
+                            LoadFile('rotation_matrix_filename')],
+                 mode='extract', relative_to='output_path')
 def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
         spike_size, temporal_features, neighbors_matrix, channel_index,
         max_memory, output_path=None, scores_filename='scores.npy',

@@ -347,12 +347,12 @@ def run_neural_network(standarized_path, standarized_params,
         clear = np.load(path_to_spike_index_clear)
         spikes_all = np.load(path_to_spike_index_all)
 
-        return scores, clear, spikes_all
-
     else:
         raise ValueError('Invalid value for if_file_exists {}'
                          'must be one of overwrite, abort or skip'
                          .format(if_file_exists))
+
+    return scores, clear, spikes_all
 
 
 def get_locations_features(scores, rotation, main_channel,
