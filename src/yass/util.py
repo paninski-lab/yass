@@ -381,16 +381,27 @@ def file_loader(path):
                          '{}'.format(path.suffix))
 
 
+def file_saver(obj, path):
+    path = Path(path)
+
+    if path.suffix == '.npy':
+        np.save(path, obj)
+
+    elif path.suffix == '.yaml':
+
+        with open(str(path), 'w') as f:
+            yaml.dump(obj, f)
+
+    else:
+        raise ValueError('Do not know how to save file with extension '
+                         '{}'.format(path.suffix))
+
+
 class LoadFile:
 
     def __init__(self, value, new_extension=None):
-        print('INIT WITH VALYE', value)
         self.value = value
         self.new_extension = new_extension
-
-    def replace_value_in_kwargs(self, kwargs):
-        pass
-        # self.value = kwargs[self.value]
 
     def expand(self, root_path):
         if self.new_extension is not None:
@@ -409,12 +420,7 @@ class LoadFile:
 class ExpandPath:
 
     def __init__(self, value):
-        print('INIT WITH VALYE', value)
         self.value = value
-
-    def replace_value_in_kwargs(self, kwargs):
-        pass
-        # self.value = kwargs[self.value]
 
     def expand(self, root_path):
         return Path(root_path, self.value)
@@ -423,7 +429,7 @@ class ExpandPath:
         return '{}("{}")'.format(ExpandPath.__name__, self.value)
 
 
-def check_for_files(filenames, mode, relative_to):
+def check_for_files(filenames, mode, relative_to, auto_save=False):
     """
     Decorator to avoid running functions when all the results were already
     computed, looks for the value send in the `if_file_exists` parameter
@@ -446,6 +452,11 @@ def check_for_files(filenames, mode, relative_to):
         If files are loaded paths in if_skip are relative to the value
         on this parameter
 
+    auto_save: bool
+        If the function is run and this is True, paths will be expanded
+        and results will be stored. It is assumed that the elements
+        in filenames and the ones returned by the function match in order
+
     """
     if mode not in ['extract', 'values']:
         raise ValueError('mode must be either extract or values')
@@ -465,8 +476,7 @@ def check_for_files(filenames, mode, relative_to):
             if_file_exists = _kwargs['if_file_exists']
 
             if mode == 'extract':
-                for f in filenames:
-                    f.replace_value_in_kwargs(_kwargs)
+                filenames = [f.__class__(_kwargs[f.value]) for f in filenames]
 
             paths = [Path(_kwargs[relative_to]) / f.value for f in filenames]
             exists = [p.exists() for p in paths]
@@ -475,7 +485,14 @@ def check_for_files(filenames, mode, relative_to):
                if_file_exists == 'abort' and not any(exists)
                or if_file_exists == 'skip' and not all(exists)):
                 logger.debug('Running the function...')
-                return func(*args, **kwargs)
+
+                res = func(*args, **kwargs)
+
+                if auto_save:
+                    for obj, path in zip(res, paths):
+                        file_saver(obj, path)
+
+                return res
 
             elif if_file_exists == 'abort' and any(exists):
                 conflict = [p for p, e in zip(paths, exists) if e]

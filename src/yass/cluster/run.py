@@ -3,7 +3,7 @@ import datetime
 
 from yass import read_config
 from yass.geometry import make_channel_index
-from yass.util import file_loader
+from yass.util import file_loader, check_for_files, LoadFile
 from yass.cluster.list import make_list
 from yass.cluster.subsample import random_subsample
 from yass.cluster.triage import triage
@@ -12,7 +12,9 @@ from yass.cluster.mask import getmask
 from yass.cluster.util import run_cluster, run_cluster_location
 
 
-# TODO: add options for saving partial results
+@check_for_files(filenames=[LoadFile('spike_train_cluster.npy')],
+                 mode='values', relative_to='output_directory',
+                 auto_save=True)
 def run(scores, spike_index, output_directory='tmp/',
         if_file_exists='skip', save_partial_results=False):
     """Spike clustering
