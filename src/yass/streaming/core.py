@@ -1,7 +1,7 @@
 import rx
 
 
-class StreamingPipeline(Object):
+class StreamingPipeline:
     """
     Pipeline for streaming data. Produce data from a data observer and push
     to data through chain of streaming transforms.
@@ -25,7 +25,7 @@ class StreamingPipeline(Object):
         self.data_obs.start()
 
 
-class DataObserver(Object):
+class DataObserver:
     """
     Observer for external data source, this should be overidden
     when plugging in different data sources.
@@ -42,16 +42,6 @@ class DataObserver(Object):
         pass
 
 
-class IteratedDataObserver(DataObserver):
-    """
-    Data observer from iterator
-    """
-
-    def __init__(iterator, maps):
-        self.iterator = iterator
-        self.obs = rx.Observable.from_iterator(self.iterator)
-
-
 class StreamingTransform(rx.Subject):
     """
     Transform for mid pipeline. Subscribes to other piped
@@ -61,12 +51,3 @@ class StreamingTransform(rx.Subject):
 
     def __init__(self):
         pass
-
-
-class FunctionalStreamingTransform(StreamingTransform):
-    """
-    Streaming Transform based on a function
-    """
-
-    def __init__(self, function):
-        self.function = function
