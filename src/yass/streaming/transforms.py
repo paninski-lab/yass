@@ -1,7 +1,7 @@
-from yass.streaming.core import StreamingTransform
+from yass.streaming.core import StreamingTransformation
 
 
-class FunctionalStreamingTransform(StreamingTransform):
+class FunctionalStreamingTransformation(StreamingTransformation):
     """
     Streaming Transform based on a function
     """
