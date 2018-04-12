@@ -123,9 +123,10 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                   standarized_params['n_channels'],
                                   standarized_params['data_order'],
                                   channel_index,
-                                  CONFIG.spikeSize,
+                                  CONFIG.spike_size,
                                   CONFIG.resources.max_memory,
                                   TMP,
+                                  output_filename='whitening.npy',
                                   if_file_exists=if_file_exists)
 
     path_to_channel_index = os.path.join(TMP, 'channel_index.npy')
