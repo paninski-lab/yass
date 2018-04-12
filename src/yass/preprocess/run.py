@@ -121,7 +121,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     whiten_filter = whiten.matrix(standarized_path,
                                   standarized_params['dtype'],
                                   standarized_params['n_channels'],
-                                  standarized_params['data_format'],
+                                  standarized_params['data_order'],
                                   channel_index,
                                   CONFIG.spikeSize,
                                   CONFIG.resources.max_memory,
