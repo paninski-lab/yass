@@ -12,13 +12,12 @@ import numpy as np
 
 from yass.batch import BatchProcessor
 from yass.util import save_numpy_object, check_for_files, LoadFile
-from yass.geometry import make_channel_index
 
 
 @check_for_files(filenames=[LoadFile('output_filename')],
                  mode='extract', relative_to='output_path')
 def matrix(path_to_data, dtype, n_channels, data_order,
-           neighbors_matrix, geometry, spike_size, max_memory, output_path,
+           channel_index, spike_size, max_memory, output_path,
            output_filename='whitening.npy',
            if_file_exists='skip'):
     """Compute whitening filter using the first batch of the data
@@ -42,12 +41,9 @@ def matrix(path_to_data, dtype, n_channels, data_order,
         from all channels, then the second observations from all channels and
         so on
 
-    neighbors_matrix: numpy.ndarray (n_channels, n_channels)
-        Boolean numpy 2-D array where a i, j entry is True if i is considered
-        neighbor of j
-
-    geometry: numpy.ndarray (n_channels, 2)
-        Location for each channel
+    channel_index: np.array
+        A matrix of size [n_channels, n_nieghbors], showing neighboring channel
+        information
 
     spike_size: int
         Spike size
@@ -83,9 +79,6 @@ def matrix(path_to_data, dtype, n_channels, data_order,
 
     bp = BatchProcessor(path_to_data, dtype, n_channels, data_order,
                         max_memory)
-
-    channel_index = make_channel_index(neighbors_matrix,
-                                       geometry)
 
     batches = bp.multi_channel()
     first_batch, _, _ = next(batches)
