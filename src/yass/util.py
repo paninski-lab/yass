@@ -15,8 +15,6 @@ except ImportError:
     from funcsigs import signature
     from funcsigs import _empty
 
-from . import __version__
-
 import yass
 import logging
 import datetime
@@ -29,6 +27,7 @@ from copy import copy
 from functools import wraps, reduce
 
 import numpy as np
+from tensorflow.python.client import device_lib
 from dateutil.relativedelta import relativedelta
 
 import yaml
@@ -292,7 +291,7 @@ def human_readable_time(seconds):
 
 def save_metadata(path):
     timestamp = datetime.datetime.now().strftime('%c')
-    metadata = dict(version=__version__, timestamp=timestamp)
+    metadata = dict(version=yass.__version__, timestamp=timestamp)
 
     with open(path, 'w') as f:
         yaml.dump(metadata, f)
@@ -550,3 +549,15 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
         return wrapper
 
     return _check_for_files
+
+
+def running_on_gpu():
+    """Determines whether tensorflow is running on GPU or not
+    """
+    # list local devices
+    devices = device_lib.list_local_devices()
+
+    # get only gpus
+    gpus = [device for device in devices if 'GPU' in device.name]
+
+    return True if gpus else False
