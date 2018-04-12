@@ -8,8 +8,8 @@ from yass import read_config
 from yass.geometry import make_channel_index
 from yass.preprocess.filter import butterworth
 from yass.preprocess.standarize import standarize
-from yass.preprocess import whiten
 from yass.util import save_numpy_object
+from yass.preprocess import whiten
 
 
 def run(output_directory='tmp/', if_file_exists='skip'):
@@ -113,23 +113,22 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                       output_filename='standarized.bin',
                                       if_file_exists=if_file_exists)
 
-    # Whiten
+    # TODO: this shoulnd't be done here, it would be better to compute
+    # this when initializing the config object and then access it from there
+    channel_index = make_channel_index(CONFIG.neigh_channels,
+                                       CONFIG.geom, 2)
+
+    # TODO: remove whiten_filter out of output argument
     whiten_filter = whiten.matrix(standarized_path,
                                   standarized_params['dtype'],
                                   standarized_params['n_channels'],
                                   standarized_params['data_order'],
-                                  CONFIG.neigh_channels,
-                                  CONFIG.geom,
+                                  channel_index,
                                   CONFIG.spike_size,
                                   CONFIG.resources.max_memory,
                                   TMP,
                                   output_filename='whitening.npy',
                                   if_file_exists=if_file_exists)
-
-    # TODO: this shoulnd't be done here, it would be better to compute
-    # this when initializing the config object and then access it from there
-    channel_index = make_channel_index(CONFIG.neigh_channels,
-                                       CONFIG.geom)
 
     path_to_channel_index = os.path.join(TMP, 'channel_index.npy')
     save_numpy_object(channel_index, path_to_channel_index,

@@ -67,15 +67,6 @@ def prepare_nn(channel_index, whiten_filter,
     NNAE = AutoEncoder(autoencoder_filename)
     NNT = NeuralNetTriage(triage_filename)
 
-    # check if number of neighboring channel in nn matches with
-    # channel index
-    if channel_index.shape[1] != NND.filters_dict['n_neighbors']:
-        raise ValueError('Number of neighboring channels from neighbors is {}'
-                         'but the trained Neural Net expects {} neighbors,'
-                         'they must match'
-                         .format(channel_index.shape[1],
-                                 NND.filters_dict['n_neighbors']))
-
     # make spike_index tensorflow tensor
     spike_index_tf_all = NND.make_detection_tf_tensors(x_tf,
                                                        channel_index,
