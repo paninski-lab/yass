@@ -223,7 +223,7 @@ def make_channel_index(neighbors, channel_geometry, steps=1):
 
     # neighboring info
     neighbors = n_steps_neigh_channels(neighbors, steps)
-    
+
     # neighboring channel info
     nneigh = np.max(np.sum(neighbors, 0))
 

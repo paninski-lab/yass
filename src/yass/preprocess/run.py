@@ -8,7 +8,6 @@ from yass import read_config
 from yass.geometry import make_channel_index
 from yass.preprocess.filter import butterworth
 from yass.preprocess.standarize import standarize
-from yass.preprocess import whiten
 from yass.util import save_numpy_object
 
 
@@ -117,7 +116,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     # this when initializing the config object and then access it from there
     channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom, 2)
-    
+
     # TODO: remove whiten_filter out of output argument
     whiten_filter = 0
 

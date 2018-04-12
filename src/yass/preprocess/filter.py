@@ -2,7 +2,6 @@
 Filtering functions
 """
 import os
-import numpy as np
 
 from scipy.signal import butter, lfilter
 
