@@ -105,7 +105,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     (standarized_path,
      standarized_params,
      channel_index,
-     whiten_filter) = preprocess.run(output_directory=output_dir)
+     whiten_filter) = (preprocess
+                       .run(output_directory=output_dir,
+                            if_file_exists=CONFIG.preprocess.if_file_exists))
     time_preprocess = time.time() - start
 
     # detect
@@ -115,17 +117,25 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                                    standarized_params,
                                    channel_index,
                                    whiten_filter,
-                                   output_directory=output_dir)
+                                   output_directory=output_dir,
+                                   if_file_exists=CONFIG.detect.if_file_exists,
+                                   save_results=CONFIG.detect.save_results)
     time_detect = time.time() - start
 
     # cluster
     start = time.time()
-    spike_train_clear = cluster.run(score, spike_index_clear)
+    spike_train_clear = (cluster
+                         .run(score, spike_index_clear,
+                              if_file_exists=CONFIG.cluster.if_file_exists,
+                              save_results=CONFIG.cluster.save_results))
     time_cluster = time.time() - start
 
     # get templates
     start = time.time()
-    templates = get_templates.run(spike_train_clear)
+    templates = (get_templates
+                 .run(spike_train_clear,
+                      if_file_exists=CONFIG.templates.if_file_exists,
+                      save_results=CONFIG.templates.save_results))
     time_templates = time.time() - start
 
     # run deconvolution

@@ -21,7 +21,7 @@ def run(scores, spike_index, output_directory='tmp/',
 
     Parameters
     ----------
-    score: numpy.ndarray (n_spikes, n_features, n_channels), str or Path
+    scores: numpy.ndarray (n_spikes, n_features, n_channels), str or Path
         3D array with the scores for the clear spikes, first simension is
         the number of spikes, second is the nymber of features and third the
         number of channels. Or path to a npy file
@@ -30,6 +30,22 @@ def run(scores, spike_index, output_directory='tmp/',
         2D array with indexes for spikes, first column contains the
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum). Or path to an npy file
+
+    output_directory: str, optional
+        Location to store/look for the generate spike train, relative to
+        CONFIG.data.root_folder
+
+    if_file_exists: str, optional
+      One of 'overwrite', 'abort', 'skip'. Control de behavior for the
+      spike_train_cluster.npy. file If 'overwrite' it replaces the files if
+      exists, if 'abort' it raises a ValueError exception if exists,
+      if 'skip' it skips the operation if the file exists (and returns the
+      stored file)
+
+    save_results: bool, optional
+        Whether to save spike train to disk
+        (in CONFIG.data.root_folder/relative_to/spike_train_cluster.npy),
+        defaults to False
 
     Returns
     -------

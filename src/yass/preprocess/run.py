@@ -22,25 +22,29 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     Parameters
     ----------
     output_directory: str, optional
-      Location to store partial results, relative to CONFIG.data.root_folder,
-      defaults to tmp/
+        Location to store results, relative to CONFIG.data.root_folder,
+        defaults to tmp/. See list of files in Notes section below.
 
     if_file_exists: str, optional
-      One of 'overwrite', 'abort', 'skip'. Control de behavior for every
-      generated file. If 'overwrite' it replaces the files if any exist,
-      if 'abort' it raises a ValueError exception if any file exists,
-      if 'skip' if skips the operation if any file exists
-
+        One of 'overwrite', 'abort', 'skip'. Control de behavior for every
+        generated file. If 'overwrite' it replaces the files if any exist,
+        if 'abort' it raises a ValueError exception if any file exists,
+        if 'skip' it skips the operation (and loads the files) if any of them
+        exist
 
     Returns
     -------
     standarized_path: str
+        Path to standarized data binary file
 
     standarized_params: str
+        Path to standarized data parameters
 
     channel_index: numpy.ndarray
+        Channel indexes
 
     whiten_filter: numpy.ndarray
+        Whiten matrix
 
     Notes
     -----

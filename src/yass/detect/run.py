@@ -17,7 +17,6 @@ from yass.preprocess import whiten
 from yass.util import file_loader, save_numpy_object
 
 
-# TODO: missing parameters docs
 def run(standarized_path, standarized_params,
         channel_index, whiten_filter, output_directory='tmp/',
         if_file_exists='skip', save_results=False):
@@ -25,13 +24,17 @@ def run(standarized_path, standarized_params,
 
     Parameters
     ----------
-    standarized_path
+    standarized_path: str or pathlib.Path
+        Path to standarized data binary file
 
-    standarized_params: dict, str or Path
+    standarized_params: dict, str or pathlib.Path
+        Dictionary with standarized data parameters or path to a yaml file
 
-    channel_index: numpy.ndarray, str or Path
+    channel_index: numpy.ndarray, str or pathlib.Path
+        Channel index or path to a npy file
 
-    whiten_filter: numpy.ndarray, str or Path
+    whiten_filter: numpy.ndarray, str or pathlib.Path
+        Whiten matrix or path to a npy file
 
     output_directory: str, optional
       Location to store partial results, relative to CONFIG.data.root_folder,
@@ -44,7 +47,7 @@ def run(standarized_path, standarized_params,
       if 'skip' if skips the operation if any file exists
 
     save_results: bool, optional
-        Whether to save partial results to disk, defaults to false
+        Whether to save results to disk, defaults to False
 
     Returns
     -------
