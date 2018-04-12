@@ -557,11 +557,12 @@ def running_on_gpu():
     # list local devices
     devices = device_lib.list_local_devices()
 
-    # ths happends when building documentation (mocking tensorflow)
-    if devices is None:
-        return False
-
     # get only gpus
-    gpus = [device for device in devices if 'GPU' in device.name]
+    try:
+        gpus = [device for device in devices if 'GPU' in device.name]
+    except TypeError:
+        logger.info('Failed to get Tensorflow devices, this is ok when '
+                    'building documentation since we mock the package')
+        return False
 
     return True if gpus else False
