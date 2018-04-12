@@ -11,6 +11,7 @@ from yass.preprocess.standarize import standarize
 from yass.util import save_numpy_object
 from yass.preprocess import whiten
 
+
 def run(output_directory='tmp/', if_file_exists='skip'):
     """Preprocess pipeline: filtering, standarization and whitening filter
 
