@@ -38,6 +38,11 @@ recordings:
   order: samples
 
 preprocess:
+  # One of 'overwrite', 'abort', 'skip'. Control de behavior for every
+  # generated file. If 'overwrite' it replaces the files if any exist,
+  # if 'abort' it raises a ValueError exception if any file exists,
+  # if 'skip' it skips the operation (and loads the files) if they exist
+  if_file_exists: skip
   # apply butterworth filter in the preprocessing step
   apply_filter: True
   # output dtype for transformed data
@@ -52,6 +57,10 @@ preprocess:
     high_factor: 0.1
 
 detect:
+  # similar to preprocess.if_file_exists
+  if_file_exists: skip
+  # whether to save results from this step to disk
+  save_results: False
   # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
   method: threshold
   # number of features in the temporal dimension to use when applying
@@ -86,6 +95,10 @@ detect:
 
 # All values are optional
 cluster:
+  # similar to preprocess.if_file_exists
+  if_file_exists: skip
+  # similar to detect.save_results
+  save_results: False
   # Masking threshold
   masking_threshold: [0.9, 0.5]
   # Num. of new clusters in split

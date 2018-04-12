@@ -161,7 +161,7 @@ cluster:
   type: dict
   default:
     save_results: False
-    if_file_exists: overwrite
+    if_file_exists: skip
     masking_threshold: [0.9, 0.5]
     n_split: 5
     method: location
@@ -273,7 +273,7 @@ templates:
   type: dict
   default:
     save_results: False
-    if_file_exists: overwrite
+    if_file_exists: skip
     merge_threshold: [0.8, 0.7]
   schema:
     save_results:

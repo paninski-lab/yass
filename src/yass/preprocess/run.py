@@ -29,7 +29,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
         One of 'overwrite', 'abort', 'skip'. Control de behavior for every
         generated file. If 'overwrite' it replaces the files if any exist,
         if 'abort' it raises a ValueError exception if any file exists,
-        if 'skip' if skips the operation (and loads the files) if any of them
+        if 'skip' it skips the operation (and loads the files) if any of them
         exist
 
     Returns
