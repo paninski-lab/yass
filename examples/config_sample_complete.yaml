@@ -15,8 +15,12 @@ data:
   geometry: neuropixel_channels.npy
 
 resources:
-  # maximum memory allowed
+  # maximum memory per batch allowed (only relevant for preprocess
+  # and detection step, which perform batch processing)
   max_memory: 200MB
+  # maximum memory per batch allowed (only relevant for detection step
+  # which uses tensorflow GPU is available)
+  max_memory_gpu: 1GB
 
 recordings:
   # precision of the recording – must be a valid numpy dtype
