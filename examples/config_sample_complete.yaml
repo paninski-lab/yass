@@ -137,6 +137,10 @@ cluster:
     threshold: 0.95
 
 templates:
+  # similar to preprocess.if_file_exists
+  if_file_exists: skip
+  # similar to detect.save_results
+  save_results: False
   merge_threshold: [0.8, 0.7]
 
 deconvolution:
