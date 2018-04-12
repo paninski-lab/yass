@@ -7,7 +7,7 @@ from functools import reduce
 
 import numpy as np
 
-from yass import read_config
+from yass import read_config, GPU_ENABLED
 from yass.batch import BatchProcessor, RecordingsReader
 from yass.threshold.detect import threshold
 from yass.threshold import detect
@@ -253,13 +253,15 @@ def run_neural_network(standarized_path, standarized_params,
     if (if_file_exists == 'overwrite' or
         if_file_exists == 'abort' and not any(exists)
        or if_file_exists == 'skip' and not all(exists)):
-                # Run neural net preprocessor
+        max_memory = (CONFIG.resources.max_memory_gpu if GPU_ENABLED else
+                      CONFIG.resources.max_memory)
+
         # Batch processor
         bp = BatchProcessor(standarized_path,
                             standarized_params['dtype'],
                             standarized_params['n_channels'],
                             standarized_params['data_order'],
-                            CONFIG.resources.max_memory,
+                            max_memory,
                             buffer_size=CONFIG.spike_size)
 
         # make tensorflow tensors and neural net classes
