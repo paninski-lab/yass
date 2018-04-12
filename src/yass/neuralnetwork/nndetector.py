@@ -100,10 +100,10 @@ class NeuralNetDetector(object):
 
         # get parameters
         K1, K2 = self.filters_dict['filters']
-        nneigh = channel_index.shape[1]
+        nneigh = self.filters_dict['n_neighbors']
 
         # save neighbor channel index
-        self.channel_index = channel_index
+        self.channel_index = channel_index[:, :nneigh]
 
         # Temporal shape of input
         T = tf.shape(x_tf)[0]
@@ -123,7 +123,7 @@ class NeuralNetDetector(object):
             (tf.transpose(layer11, [2, 0, 1, 3]), tf.zeros((1, 1, T, K2))),
             axis=0)
         temp = tf.transpose(
-            tf.gather(zero_added_layer11, channel_index), [0, 2, 3, 1, 4])
+            tf.gather(zero_added_layer11, self.channel_index), [0, 2, 3, 1, 4])
         temp2 = conv2d_VALID(tf.reshape(temp, [-1, T, nneigh, K2]),
                              self.W2) + self.b2
 
@@ -140,3 +140,63 @@ class NeuralNetDetector(object):
                            np.log(threshold / (1 - threshold)))), 'int32')
 
         return spike_index_tf
+
+    def make_o_layer_tf_tensors(self, x_tf, channel_index):
+        """
+        Make a tensorflow tensor that outputs spike index
+
+        Parameters
+        -----------
+        x_tf: tf.tensors (n_observations, n_channels)
+            placeholder of recording for running tensorflow
+
+        channel_index: np.array (n_channels, n_neigh)
+            Each row indexes its neighboring channels.
+            For example, channel_index[c] is the index of
+            neighboring channels (including itself)
+            If any value is equal to n_channels, it is nothing but
+            a space holder in a case that a channel has less than
+            n_neigh neighboring channels
+
+        Returns
+        -------
+        output_tf: tf tensor (n_observations, n_channels)
+            tensorflow tensor that produces spike_index
+        """
+
+        # get parameters
+        K1, K2 = self.filters_dict['filters']
+        nneigh = self.filters_dict['n_neighbors']
+
+        # save neighbor channel index
+        self.channel_index = channel_index[:, :nneigh]
+
+        # Temporal shape of input
+        T = tf.shape(x_tf)[0]
+
+        # input tensor into CNN
+        x_cnn_tf = tf.expand_dims(tf.expand_dims(x_tf, -1), 0)
+
+        # NN structures
+        # first temporal layer
+        layer1 = tf.nn.relu(conv2d(x_cnn_tf, self.W1) + self.b1)
+
+        # second temporal layer
+        layer11 = tf.nn.relu(conv2d(layer1, self.W11) + self.b11)
+
+        # first spatial layer
+        zero_added_layer11 = tf.concat(
+            (tf.transpose(layer11, [2, 0, 1, 3]), tf.zeros((1, 1, T, K2))),
+            axis=0)
+        temp = tf.transpose(
+            tf.gather(zero_added_layer11, self.channel_index),
+            [0, 2, 3, 1, 4])
+        temp2 = conv2d_VALID(tf.reshape(temp, [-1, T, nneigh, K2]),
+                             self.W2) + self.b2
+
+        # output layer
+        # o_layer: [1, temporal, spatial, 1]
+        o_layer = tf.transpose(temp2, [2, 1, 0, 3])[0, :, :, 0]
+        output_tf = tf.sigmoid(o_layer)
+
+        return output_tf

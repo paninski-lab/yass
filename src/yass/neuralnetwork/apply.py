@@ -2,7 +2,8 @@ import tensorflow as tf
 import numpy as np
 
 
-def run_detect_triage_featurize(recordings, x_tf, output_tf, NND, NNAE, NNT):
+def run_detect_triage_featurize(recordings, x_tf, output_tf,
+                                NND, NNAE, NNT, neighbors):
     """Detect spikes using a neural network
 
     Parameters
@@ -16,6 +17,14 @@ def run_detect_triage_featurize(recordings, x_tf, output_tf, NND, NNAE, NNT):
     output_tf: tuple of tf.tensors
         a tuple of tensorflow tensors that produce score, spike_index_clear,
         and spike_index_collision
+
+    NND, NNAE, NNT: Neural Net classes
+        NND is neural net detector
+        NNAE is autoencoder for dimension reduction
+        NNT is neural net triage
+
+    neighbors: np.matrix (n_channels, n_neighbors)
+       neighboring information
 
     Returns
     -------
@@ -41,10 +50,57 @@ def run_detect_triage_featurize(recordings, x_tf, output_tf, NND, NNAE, NNT):
         NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
         NNT.saver.restore(sess, NNT.path_to_triage_model)
 
-        score, spike_index_clear, spike_index_collision = sess.run(
+        score, spike_index, idx_clean = sess.run(
             output_tf, feed_dict={x_tf: recordings})
 
-    return (score, spike_index_clear, spike_index_collision)
+        rot = NNAE.load_rotation()
+        energy = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
+
+        T, C = recordings.shape
+        killed = remove_axons(spike_index, energy, neighbors, T, C)
+
+        idx_keep = np.logical_and(~killed, idx_clean)
+        score_clear = score[idx_keep]
+        spike_index_clear = spike_index[idx_keep]
+
+    return (score_clear, spike_index_clear, spike_index)
+
+
+def remove_axons(spike_index, energy, neighbors, T, C):
+
+    n_data = spike_index.shape[0]
+
+    temp = np.ones((T, C), 'int32')*-1
+    temp[spike_index[:, 0], spike_index[:, 1]] = np.arange(n_data)
+
+    kill = np.zeros(n_data, 'bool')
+    energy_killed = np.zeros(n_data, 'float32')
+    search_order = np.argsort(energy)[::-1]
+
+    for j in range(n_data):
+        kill, energy_killed = kill_spikes(temp, neighbors, spike_index,
+                                          energy, kill,
+                                          energy_killed, search_order[j])
+
+    return kill
+
+
+def kill_spikes(temp, neighbors, spike_index, energy, kill,
+                energy_killed, current_idx):
+
+    tt, cc = spike_index[current_idx]
+    energy_threshold = max(energy_killed[current_idx], energy[current_idx])
+    ch_idx = np.where(neighbors[cc])[0]
+    w = 5
+    indices = temp[tt-w:tt+w+1, ch_idx].ravel()
+    indices = indices[indices > -1]
+
+    for j in indices:
+        if energy[j] < energy_threshold:
+            kill[j] = 1
+            energy_killed[j] = energy_threshold
+
+    return kill, energy_killed
 
 
 def fix_indexes(res, idx_local, idx, buffer_size):

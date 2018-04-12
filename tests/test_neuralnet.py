@@ -9,7 +9,7 @@ import yaml
 import yass
 from yass.batch import RecordingsReader, BatchProcessor
 from yass import neuralnetwork
-from yass.geometry import make_channel_index
+from yass.geometry import make_channel_index, n_steps_neigh_channels
 
 
 def test_can_use_neural_network_detector(path_to_tests):
@@ -31,6 +31,7 @@ def test_can_use_neural_network_detector(path_to_tests):
     detection_fname = CONFIG.detect.neural_network_detector.filename
     ae_fname = CONFIG.detect.neural_network_autoencoder.filename
     triage_fname = CONFIG.detect.neural_network_triage.filename
+
     (x_tf, output_tf, NND,
      NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
                                            whiten_filter,
@@ -41,8 +42,9 @@ def test_can_use_neural_network_detector(path_to_tests):
                                            triage_fname
                                            )
 
+    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
     neuralnetwork.run_detect_triage_featurize(data, x_tf, output_tf,
-                                              NND, NNAE, NNT)
+                                              NND, NNAE, NNT, neighbors)
 
 
 def test_splitting_in_batches_does_not_affect_result(path_to_tests):
@@ -74,7 +76,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
                                            triage_th,
                                            detection_fname,
                                            ae_fname,
-                                           triage_fname
+                                           triage_fname,
                                            )
 
     # buffer size makes sure we can detect spikes if they appear at the end of
@@ -83,6 +85,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
                         PARAMS['data_order'], '100KB',
                         buffer_size=CONFIG.spike_size)
     mc = bp.multi_channel_apply
+    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
     res = mc(
         neuralnetwork.run_detect_triage_featurize,
         mode='memory',
@@ -91,7 +94,8 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
         output_tf=output_tf,
         NND=NND,
         NNAE=NNAE,
-        NNT=NNT)
+        NNT=NNT,
+        neighbors=neighbors)
 
     scores_batch = np.concatenate([element[0] for element in res], axis=0)
     clear_batch = np.concatenate([element[1] for element in res], axis=0)
@@ -101,7 +105,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
      collision) = neuralnetwork.run_detect_triage_featurize(data, x_tf,
                                                             output_tf,
                                                             NND, NNAE,
-                                                            NNT)
+                                                            NNT, neighbors)
 
     np.testing.assert_array_equal(clear_batch, clear)
     np.testing.assert_array_equal(collision_batch, collision)
