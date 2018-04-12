@@ -14,6 +14,7 @@ from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
 from yass import neuralnetwork
 from yass.preprocess import whiten
+from yass.geometry import n_steps_neigh_channels
 from yass.util import file_loader, save_numpy_object
 
 
@@ -275,6 +276,7 @@ def run_neural_network(standarized_path, standarized_params,
                                                triage_fname)
 
         # run nn preprocess batch-wsie
+        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
         mc = bp.multi_channel_apply
         res = mc(
             neuralnetwork.run_detect_triage_featurize,
@@ -284,7 +286,8 @@ def run_neural_network(standarized_path, standarized_params,
             output_tf=output_tf,
             NND=NND,
             NNAE=NNAE,
-            NNT=NNT)
+            NNT=NNT,
+            neighbors=neighbors)
 
         # get clear spikes
         clear = np.concatenate([element[1] for element in res], axis=0)
@@ -313,8 +316,10 @@ def run_neural_network(standarized_path, standarized_params,
         # TODO: move this to another place
         rotation = NNAE.load_rotation()
         if CONFIG.cluster.method == 'location':
+            threshold = 2
             scores = get_locations_features(scores, rotation, clear[:, 1],
-                                            channel_index, CONFIG.geom)
+                                            channel_index, CONFIG.geom,
+                                            threshold)
 
         # save partial results if required
         if save_results:
@@ -359,25 +364,30 @@ def run_neural_network(standarized_path, standarized_params,
 
 
 def get_locations_features(scores, rotation, main_channel,
-                           channel_index, channel_geometry):
+                           channel_index, channel_geometry,
+                           threshold):
 
     n_data, n_features, n_neigh = scores.shape
 
-    rot_rot = np.matmul(np.transpose(rotation), rotation)
     reshaped_score = np.reshape(np.transpose(scores, [0, 2, 1]),
                                 [n_data*n_neigh, n_features])
-    energy = np.sqrt(np.sum(
-        np.reshape(np.multiply(np.matmul(reshaped_score, rot_rot),
-                               reshaped_score),
-                   [n_data, n_neigh, n_features]), 2))
+    energy = np.reshape(np.ptp(np.matmul(
+        reshaped_score, rotation.T), 1), (n_data, n_neigh))
+
+    energy = np.piecewise(energy, [energy < threshold,
+                                   energy >= threshold],
+                          [0, lambda x:x-threshold])
 
     channel_index_per_data = channel_index[main_channel, :]
-
     channel_geometry = np.vstack((channel_geometry, np.zeros((1, 2), 'int32')))
     channel_locations_all = channel_geometry[channel_index_per_data]
+
     xy = np.divide(np.sum(np.multiply(energy[:, :, np.newaxis],
                                       channel_locations_all), axis=1),
                    np.sum(energy, axis=1, keepdims=True))
+    noise = np.random.randn(xy.shape[0], xy.shape[1])*(0.00001)
+    xy += noise
+
     scores = np.concatenate((xy, scores[:, :, 0]), 1)
 
     if scores.shape[0] != n_data:
@@ -390,9 +400,6 @@ def get_locations_features(scores, rotation, main_channel,
                          format(n_features,
                                 channel_geometry.shape[1],
                                 scores.shape[1]))
-
-    scores = np.divide((scores - np.mean(scores, axis=0, keepdims=True)),
-                       np.std(scores, axis=0, keepdims=True))
 
     return scores[:, :, np.newaxis]
 
