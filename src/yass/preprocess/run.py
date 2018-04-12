@@ -57,6 +57,8 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     * ``standarized.yaml`` - Standarized recordings metadata
     * ``whitening.npy`` - Whitening filter
 
+    Everything is run on CPU.
+
     Examples
     --------
 

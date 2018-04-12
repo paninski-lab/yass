@@ -77,6 +77,9 @@ def run(standarized_path, standarized_params,
     * ``rotation.npy`` - Rotation matrix for dimensionality reduction
     * ``scores_clear.npy`` - Scores for clear spikes
 
+    Threshold detector runs on CPU, neural network detector runs CPU and GPU,
+    depending on how tensorflow is configured.
+
     Examples
     --------
 
