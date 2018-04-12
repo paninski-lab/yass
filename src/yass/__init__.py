@@ -1,5 +1,6 @@
 import logging
 from logging import NullHandler
+from yass.util import running_on_gpu
 
 try:
     import tensorflow as tf
@@ -14,9 +15,18 @@ from yass.config import Config
 
 logging.getLogger(__name__).addHandler(NullHandler())
 
+logger = logging.getLogger(__name__)
+
 __version__ = '0.8dev'
 
 CONFIG = None
+
+GPU_ENABLED = running_on_gpu()
+
+if GPU_ENABLED:
+    logger.debug('Tensorflow GPU configuration detected')
+else:
+    logger.debug('No Tensorflow GPU configuration detected')
 
 # reduce tensorflow logger verbosity, ignore DEBUG and INFO
 tf.logging.set_verbosity(tf.logging.WARN)

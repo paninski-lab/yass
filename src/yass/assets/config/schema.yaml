@@ -31,6 +31,10 @@ resources:
     max_memory:
       type: [integer, string]
       required: True
+    max_memory_gpu:
+      type: [integer, string]
+      required: False
+      default: 1GB
 
 
 recordings:
