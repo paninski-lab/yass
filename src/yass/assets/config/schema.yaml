@@ -102,6 +102,10 @@ preprocess:
 detect:
   type: dict
   schema:
+    save_results:
+      type: boolean
+      default: False
+      required: False
     # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
     method:
       type: string
@@ -146,6 +150,7 @@ detect:
 cluster:
   type: dict
   default:
+    save_results: False
     masking_threshold: [0.9, 0.5]
     n_split: 5
     method: location
@@ -162,7 +167,12 @@ cluster:
     triage:
       nearest_neighbors: 20
       percent: 0.1
+
   schema:
+    save_results:
+      type: boolean
+      default: False
+      required: False
     # Masking threshold
     masking_threshold:
       type: list
@@ -247,6 +257,16 @@ templates:
   type: dict
   default:
     merge_threshold: [0.8, 0.7]
+    save_results: False
+  schema:
+    merge_threshold:
+      type: list
+      required: False
+      default: [0.8, 0.7]
+    save_results:
+      type: boolean
+      default: False
+      required: False
 
 deconvolution:
   type: dict
