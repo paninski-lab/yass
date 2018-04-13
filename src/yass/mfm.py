@@ -1005,6 +1005,7 @@ def cluster_triage(vbParam, score, threshold):
     cluster_id[idx] = -1
     return cluster_id
 
+
 def get_core_data(vbParam, score, n_max, threshold):
 
     n_data = vbParam.rhat.shape[0]
@@ -1016,16 +1017,18 @@ def get_core_data(vbParam, score, n_max, threshold):
 
         score_k = score[vbParam.rhat[idx_data, 0].astype('int32')]
 
-        #prec = vbParam.Vhat[:, :, k]*vbParam.nuhat[k]
-        #mu = vbParam.muhat[:, k][np.newaxis]
-        #score_mu = score_k - mu
-        #maha = np.sqrt(np.sum(np.matmul(score_mu, prec)*score_mu, 1))
+        # prec = vbParam.Vhat[:, :, k]*vbParam.nuhat[k]
+        # mu = vbParam.muhat[:, k][np.newaxis]
+        # score_mu = score_k - mu
+        # maha = np.sqrt(np.sum(np.matmul(score_mu, prec)*score_mu, 1))
 
         prec = np.transpose(
-            vbParam.Vhat[:, :, [k]] * vbParam.nuhat[np.newaxis, np.newaxis, [k], np.newaxis],
+            vbParam.Vhat[:, :, [k]] * vbParam.nuhat[
+                np.newaxis, np.newaxis, [k], np.newaxis],
             axes=[2, 3, 0, 1])
         scoremhat = np.transpose(
-            score_k[:, :, np.newaxis, :] - vbParam.muhat[:, [k]], axes=[0, 2, 3, 1])
+            score_k[:, :, np.newaxis, :] -
+            vbParam.muhat[:, [k]], axes=[0, 2, 3, 1])
         maha = np.sqrt(
             np.sum(
                 np.matmul(
