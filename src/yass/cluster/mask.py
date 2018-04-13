@@ -9,7 +9,7 @@ def getmask(scores, spike_index, groups, mask_th):
     Parameters
     ----------
     scores: list np.array(n_data, n_features, n_channels)
-        
+
     spike_index: np.array(n_data, 2)
 
     groups: list (n_channels)
@@ -24,7 +24,7 @@ def getmask(scores, spike_index, groups, mask_th):
         mask for each data in scores
         masks[c] is the mask of spikes in scores[c]
     """
-            
+
     # initialize
     n_channels = np.max(spike_index[:, 1]) + 1
     masks = [None]*n_channels
@@ -32,9 +32,9 @@ def getmask(scores, spike_index, groups, mask_th):
     for channel in range(n_channels):
 
         idx_data = np.where(spike_index[:, 1] == channel)[0]
-        
+
         # get score and group for this channel
-        scores_channel = scores[idx_data, :, 0]
+        score_channel = scores[idx_data, :, 0]
         group_channel = groups[channel]
 
         if score_channel.shape[0] > 0:

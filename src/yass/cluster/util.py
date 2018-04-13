@@ -59,12 +59,12 @@ def run_cluster(scores, masks, groups, spike_index,
         group_channel = groups[channel]
         spike_index_channel = spike_index[idx_data]
         n_data = score_channel.shape[0]
-        
+
         if n_data > 1:
-             # run clustering
+            # run clustering
             vbParam = mfm.spikesort(np.copy(score_channel),
-                                    mask,
-                                    group, CONFIG)
+                                    mask_channel,
+                                    group_channel, CONFIG)
 
             # make rhat more sparse
             vbParam.rhat[vbParam.rhat < 0.1] = 0
@@ -143,7 +143,6 @@ def run_cluster_location(scores, spike_index, CONFIG):
 
             # clean clusters with nearly no spikes
             vbParam = clean_empty_cluster(vbParam)
-            
             if vbParam.rhat.shape[1] > 0:
                 # add changes to global parameters
                 (global_vbParam,

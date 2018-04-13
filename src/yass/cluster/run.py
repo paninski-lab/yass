@@ -2,7 +2,6 @@ import logging
 import datetime
 
 from yass import read_config
-from yass.geometry import make_channel_index
 from yass.util import file_loader, check_for_files, LoadFile
 from yass.cluster.subsample import random_subsample
 from yass.cluster.triage import triage
@@ -10,6 +9,7 @@ from yass.cluster.coreset import coreset
 from yass.cluster.mask import getmask
 from yass.cluster.util import run_cluster, run_cluster_location
 from yass.mfm import get_core_data
+
 
 @check_for_files(filenames=[LoadFile('spike_train_cluster.npy')],
                  mode='values', relative_to='output_directory',
@@ -122,12 +122,11 @@ def run(scores, spike_index, output_directory='tmp/',
             scores, masks, groups, spike_index, CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
-    
     idx_keep = get_core_data(vbParam, scores, 5000, 5)
-    spike_train = np.copy(vbParam.rhat[idx_keep])
+    spike_train = vbParam.rhat[idx_keep]
     spike_train[:, 0] = spike_index[spike_train[:, 0].astype('int32'), 0]
     spike_train = spike_train[:, :2].astype('int32')
-    
+
     # report timing
     currentTime = datetime.datetime.now()
     logger.info("Mainprocess done in {0} seconds.".format(

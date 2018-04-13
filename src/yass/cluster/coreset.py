@@ -10,7 +10,7 @@ def coreset(scores, spike_index, coreset_k, coreset_th):
     Parameters
     ----------
     scores: list np.array(n_data, n_features, n_channels)
-        
+
     spike_index: np.array(n_data, 2)
 
     coreset_k: int
@@ -36,7 +36,7 @@ def coreset(scores, spike_index, coreset_k, coreset_th):
 
         idx_data = np.where(spike_index[:, 1] == channel)[0]
         scores_channel = scores[idx_data, :, 0]
-        
+
         # get data relevant to this channel
         n_data, n_features, n_neigh = scores_channel.shape
         # exclude empty channels
