@@ -3,15 +3,15 @@ from scipy.stats import chi2
 from sklearn.cluster import KMeans
 
 
-def coreset(scores, coreset_k, coreset_th):
+def coreset(scores, spike_index, coreset_k, coreset_th):
     """
     Coreset based on hierarchical K-means
 
     Parameters
     ----------
-    scores: list (n_channels)
-        A list such that scores[c] contains all scores whose main
-        channel is c
+    scores: list np.array(n_data, n_features, n_channels)
+        
+    spike_index: np.array(n_data, 2)
 
     coreset_k: int
         number of clusters for running K-means is determined by
@@ -29,13 +29,14 @@ def coreset(scores, coreset_k, coreset_th):
     """
 
     # initialize list
-    n_channels = len(scores)
+    n_channels = np.max(spike_index[:, 1]) + 1
     groups = [None]*n_channels
 
     for channel in range(n_channels):
 
-        scores_channel = scores[channel]
-
+        idx_data = np.where(spike_index[:, 1] == channel)[0]
+        scores_channel = scores[idx_data, :, 0]
+        
         # get data relevant to this channel
         n_data, n_features, n_neigh = scores_channel.shape
         # exclude empty channels
