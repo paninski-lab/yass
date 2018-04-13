@@ -26,16 +26,22 @@ def random_subsample(scores, spike_index, n_sample):
     spike_index: list (n_channels)
         spike_index after traige
     """
-    n_channels = len(scores)
+    n_channels = np.max(spike_index[:, 1]) + 1
 
-    for c in range(n_channels):
-        n_data = scores[c].shape[0]
+    idx_keep = np.zeros(spike_index.shape[0], 'bool')
+    for channel in range(n_channels):
+        idx_data = np.where(spike_index[:, 1] == channel)[0]
+        n_data = idx_data.shape[0]
+
         if n_data > n_sample:
+            idx_sample = np.random.choice(n_data,
+                                          n_sample,
+                                          replace=False)
+            idx_keep[idx_data[idx_sample]] = 1
+        else:
+            idx_keep[idx_data] = 1
 
-            idx_keep = np.random.choice(n_data,
-                                        n_sample,
-                                        replace=False)
-            scores[c] = scores[c][idx_keep]
-            spike_index[c] = spike_index[c][idx_keep]
+    scores = scores[idx_keep]
+    spike_index = spike_index[idx_keep]
 
     return scores, spike_index

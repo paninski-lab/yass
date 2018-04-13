@@ -2,15 +2,15 @@ from scipy.stats import chi2
 import numpy as np
 
 
-def getmask(scores, groups, mask_th):
+def getmask(scores, spike_index, groups, mask_th):
     """
     Get mask of each data
 
     Parameters
     ----------
-    scores: list (n_channels)
-        A list such that scores[c] contains all scores whose main
-        channel is c
+    scores: list np.array(n_data, n_features, n_channels)
+
+    spike_index: np.array(n_data, 2)
 
     groups: list (n_channels)
         coreset information
@@ -26,13 +26,15 @@ def getmask(scores, groups, mask_th):
     """
 
     # initialize
-    n_channels = len(scores)
+    n_channels = np.max(spike_index[:, 1]) + 1
     masks = [None]*n_channels
 
     for channel in range(n_channels):
 
+        idx_data = np.where(spike_index[:, 1] == channel)[0]
+
         # get score and group for this channel
-        score_channel = scores[channel]
+        score_channel = scores[idx_data, :, 0]
         group_channel = groups[channel]
 
         if score_channel.shape[0] > 0:

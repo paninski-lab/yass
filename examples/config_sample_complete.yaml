@@ -120,6 +120,11 @@ cluster:
   # if the total number of spikes per clustering group exceeds it,
   # it randomly subsample
   max_n_spikes: 10000
+  # minimum number of spikes per cluster
+  # if the total number of spikes per cluster is less than this,
+  # the cluster is killed
+  min_spikes: 0
+  # cluster prior information
   prior:
     beta: 1
     a: 1
