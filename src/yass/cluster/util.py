@@ -6,7 +6,7 @@ from scipy.sparse import lil_matrix
 
 
 def run_cluster(scores, masks, groups, spike_index,
-                CONFIG):
+                min_spikes, CONFIG):
     """
     run clustering algorithm using MFM
 
@@ -72,7 +72,7 @@ def run_cluster(scores, masks, groups, spike_index,
                                                1, keepdims=True)
 
             # clean clusters with nearly no spikes
-            vbParam = clean_empty_cluster(vbParam)
+            vbParam = clean_empty_cluster(vbParam, min_spikes)
 
             # add changes to global parameters
             (global_vbParam,
@@ -86,7 +86,7 @@ def run_cluster(scores, masks, groups, spike_index,
     return global_vbParam, global_tmp_loc, global_score, global_spike_index
 
 
-def run_cluster_location(scores, spike_index, CONFIG):
+def run_cluster_location(scores, spike_index, min_spikes, CONFIG):
     """
     run clustering algorithm using MFM and location features
 
@@ -142,7 +142,7 @@ def run_cluster_location(scores, spike_index, CONFIG):
                                                1, keepdims=True)
 
             # clean clusters with nearly no spikes
-            vbParam = clean_empty_cluster(vbParam)
+            vbParam = clean_empty_cluster(vbParam, min_spikes)
             if vbParam.rhat.shape[1] > 0:
                 # add changes to global parameters
                 (global_vbParam,
@@ -500,10 +500,10 @@ def global_cluster_info(vbParam, main_channel,
             global_score, global_spike_index)
 
 
-def clean_empty_cluster(vbParam, max_spikes=20):
+def clean_empty_cluster(vbParam, min_spikes=20):
 
     n_hat = np.sum(vbParam.rhat, 0)
-    Ks = n_hat > max_spikes
+    Ks = n_hat > min_spikes
 
     vbParam.muhat = vbParam.muhat[:, Ks]
     vbParam.Vhat = vbParam.Vhat[:, :, Ks]

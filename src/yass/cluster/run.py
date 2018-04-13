@@ -90,7 +90,7 @@ def run(scores, spike_index, output_directory='tmp/',
         _b = datetime.datetime.now()
         logger.info("Clustering...")
         vbParam, tmp_loc, scores, spike_index = run_cluster_location(
-            scores, spike_index, CONFIG)
+            scores, spike_index, CONFIG.cluster.min_spikes, CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
     else:
@@ -119,7 +119,8 @@ def run(scores, spike_index, output_directory='tmp/',
         _b = datetime.datetime.now()
         logger.info("Clustering...")
         vbParam, tmp_loc, scores, spike_index = run_cluster(
-            scores, masks, groups, spike_index, CONFIG)
+            scores, masks, groups, spike_index,
+            CONFIG.cluster.min_spikes, CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
     idx_keep = get_core_data(vbParam, scores, 5000, 5)

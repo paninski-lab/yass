@@ -166,6 +166,7 @@ cluster:
     n_split: 5
     method: location
     max_n_spikes: 10000
+    min_spikes: 20
     prior:
       beta: 1
       a: 1
@@ -213,6 +214,12 @@ cluster:
     max_n_spikes:
         type: integer
         default: 10000
+    # minimum number of spikes per cluster
+    # if the total number of spikes per cluster is less than this,
+    # the cluster is killed
+    min_spikes:
+        type: integer
+        default: 20        
 
     prior:
       type: dict

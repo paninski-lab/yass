@@ -24,3 +24,6 @@ preprocess:
 detect:
   method: threshold
   temporal_features: 3
+  
+cluster:
+  min_spikes: 0
