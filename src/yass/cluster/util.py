@@ -143,15 +143,16 @@ def run_cluster_location(scores, spike_index, CONFIG):
 
             # clean clusters with nearly no spikes
             vbParam = clean_empty_cluster(vbParam)
-
-            # add changes to global parameters
-            (global_vbParam,
-             global_tmp_loc,
-             global_score,
-             global_spike_index) = global_cluster_info(
-                vbParam, channel, score_channel, spike_index_channel,
-                global_vbParam, global_tmp_loc,
-                global_score, global_spike_index)
+            
+            if vbParam.rhat.shape[1] > 0:
+                # add changes to global parameters
+                (global_vbParam,
+                 global_tmp_loc,
+                 global_score,
+                 global_spike_index) = global_cluster_info(
+                    vbParam, channel, score_channel, spike_index_channel,
+                    global_vbParam, global_tmp_loc,
+                    global_score, global_spike_index)
 
     return global_vbParam, global_tmp_loc, global_score, global_spike_index
 

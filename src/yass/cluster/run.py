@@ -4,13 +4,12 @@ import datetime
 from yass import read_config
 from yass.geometry import make_channel_index
 from yass.util import file_loader, check_for_files, LoadFile
-from yass.cluster.list import make_list
 from yass.cluster.subsample import random_subsample
 from yass.cluster.triage import triage
 from yass.cluster.coreset import coreset
 from yass.cluster.mask import getmask
 from yass.cluster.util import run_cluster, run_cluster_location
-
+from yass.mfm import get_core_data
 
 @check_for_files(filenames=[LoadFile('spike_train_cluster.npy')],
                  mode='values', relative_to='output_directory',
@@ -69,23 +68,19 @@ def run(scores, spike_index, output_directory='tmp/',
 
     logger = logging.getLogger(__name__)
 
-    # transform data structure of scores and spike_index
-    scores, spike_index = make_list(scores, spike_index,
-                                    CONFIG.recordings.n_channels)
-
     ##########
     # Triage #
     ##########
 
     _b = datetime.datetime.now()
-    logger.info("Triaging...")
-    score, spike_index = triage(scores, spike_index,
-                                CONFIG.cluster.triage.nearest_neighbors,
-                                CONFIG.cluster.triage.percent)
-
     logger.info("Randomly subsampling...")
     scores, spike_index = random_subsample(scores, spike_index,
                                            CONFIG.cluster.max_n_spikes)
+    logger.info("Triaging...")
+    score, spike_index = triage(scores, spike_index,
+                                CONFIG.cluster.triage.nearest_neighbors,
+                                CONFIG.cluster.triage.percent,
+                                CONFIG.cluster.method == 'location')
     Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
     if CONFIG.cluster.method == 'location':
@@ -94,8 +89,8 @@ def run(scores, spike_index, output_directory='tmp/',
         ##############
         _b = datetime.datetime.now()
         logger.info("Clustering...")
-        spike_train = run_cluster_location(scores,
-                                           spike_index, CONFIG)
+        vbParam, tmp_loc, scores, spike_index = run_cluster_location(
+            scores, spike_index, CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
     else:
@@ -123,15 +118,16 @@ def run(scores, spike_index, output_directory='tmp/',
         ##############
         _b = datetime.datetime.now()
         logger.info("Clustering...")
-        channel_index = make_channel_index(CONFIG.neigh_channels,
-                                           CONFIG.geom)
-        spike_train = run_cluster(scores, masks, groups,
-                                  spike_index, CONFIG.channel_groups,
-                                  channel_index,
-                                  CONFIG.detect.temporal_features,
-                                  CONFIG)
+        vbParam, tmp_loc, scores, spike_index = run_cluster(
+            scores, masks, groups, spike_index, CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
+    
+    idx_keep = get_core_data(vbParam, scores, 5000, 5)
+    spike_train = np.copy(vbParam.rhat[idx_keep])
+    spike_train[:, 0] = spike_index[spike_train[:, 0].astype('int32'), 0]
+    spike_train = spike_train[:, :2].astype('int32')
+    
     # report timing
     currentTime = datetime.datetime.now()
     logger.info("Mainprocess done in {0} seconds.".format(
