@@ -281,7 +281,7 @@ templates:
   default:
     save_results: False
     if_file_exists: skip
-    merge_threshold: [0.8, 0.7]
+    merge_threshold: [0.85, 0.8]
   schema:
     save_results:
       type: boolean
@@ -295,7 +295,7 @@ templates:
     merge_threshold:
       type: list
       required: False
-      default: [0.8, 0.7]
+      default: [0.85, 0.8]
 
 deconvolution:
   type: dict

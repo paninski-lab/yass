@@ -138,8 +138,7 @@ class Config(FrozenJSON):
             int(
                 np.round(self.recordings.spike_size_ms *
                          self.recordings.sampling_rate / (2 * 1000))))
-        self._set_param('templates_max_shift',
-                        int(self.recordings.sampling_rate / 1000))
+        self._set_param('templates_max_shift', 3)
 
     def __setattr__(self, name, value):
         if not name.startswith('_'):

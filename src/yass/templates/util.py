@@ -11,12 +11,14 @@ logger = logging.getLogger(__name__)
 
 
 # TODO: remove this function and use the explorer directly
-def get_templates(spike_train, path_to_recordings, max_memory, spike_size):
+def get_templates(spike_train, path_to_recordings,
+                  max_memory, spike_size, n_max=5000):
 
     logger.info('Computing templates...')
 
     # number of templates
     n_templates = int(np.max(spike_train[:, 1]) + 1)
+    spike_train_small = random_sample_spike_train(spike_train, n_max)
 
     # read recording
     bp = BatchProcessor(
@@ -25,11 +27,11 @@ def get_templates(spike_train, path_to_recordings, max_memory, spike_size):
     # run nn preprocess batch-wsie
     mc = bp.multi_channel_apply
     res = mc(
-        compute_weighted_templates2,
+        compute_weighted_templates,
         mode='memory',
         pass_batch_info=True,
         pass_batch_results=True,
-        spike_train=spike_train,
+        spike_train=spike_train_small,
         spike_size=spike_size,
         n_templates=n_templates)
 
@@ -84,7 +86,30 @@ def compute_weighted_templates(recording, idx_local, idx, previous_batch,
 
     return weighted_templates, weights
 
-def align_templates(templates, max_shift):
+def random_sample_spike_train(spike_train, n_max):
+    
+    n_templates = int(np.max(spike_train[:, 1]) + 1)
+    
+    
+    idx_keep = np.zeros(spike_train.shape[0], 'bool')
+    for k in range(n_templates):
+        idx_data = np.where(spike_train[:, 1] == k)[0]
+        n_data = idx_data.shape[0]
+
+        if n_data > n_max:
+            idx_sample = np.random.choice(n_data,
+                                          n_max,
+                                          replace=False)
+            idx_keep[idx_data[idx_sample]] = 1
+        else:
+            idx_keep[idx_data] = 1
+    
+    spike_train_small = spike_train[idx_keep]
+    
+    return spike_train_small
+
+
+def align_templates(templates, spike_train, max_shift):
     C, R, K = templates.shape
     spike_size = int((R-1)/2 - max_shift)
 
@@ -115,13 +140,14 @@ def align_templates(templates, max_shift):
     for k in range(K):
         s = best_shift[k]
         templates_final[:, :, k] = templates[:, s:(s+2*spike_size+1), k]
+        spike_train[spike_train[:, 1]==k, 0] += (s - max_shift)
 
-    return templates_final
+    return templates_final, spike_train
 
 
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
-def mergeTemplates(templates, weights, spike_train, neighbors,
+def merge_templates(templates, weights, spike_train, neighbors,
                    template_max_shift, t_merge_th):
     """[Description]
 
@@ -135,29 +161,22 @@ def mergeTemplates(templates, weights, spike_train, neighbors,
     th = t_merge_th
     W = template_max_shift
 
-    mainC = np.zeros(K)
-    visible_channels = sparse.lil_matrix((K, C), dtype='bool')
-    for k in range(K):
-        amps = np.max(np.abs(templates[:, :, k]), axis=1)
-        mainC[k] = np.argmax(amps)
-        visible_channels[k, amps > 0.5*np.amax(amps)] = 1
-        visible_channels[k, np.argmax(amps)] = 1
-
-    mainC = sparse.csc_matrix(
-        (np.ones(K), (np.arange(K), mainC)), shape=(K, C), dtype='bool')
-
+    energy = np.ptp(templates, 1)
+    visible_channels = energy > 0.5
+    main_channels = np.argmax(energy, 0)
+    
     sparseConnection = sparse.lil_matrix((K, K), dtype='bool')
     for k1 in range(K):
-        cc = sparse.find(mainC[k1])[1][0]
-        k2s = sparse.find(
-            mainC[(k1+1):, neighbors[cc]])[0] + k1 + 1
-        for k2 in k2s:
-            ch_idx = np.array(np.sum(visible_channels[[k1, k2]], 0) > 0)[0]
-            t1 = templates[ch_idx, :, k1]
-            t2 = templates[ch_idx, :, k2]
-            if TemplatesSimilarity(t1, t2, th, W):
-                sparseConnection[k1, k2] = 1
-                sparseConnection[k2, k1] = 1
+        for k2 in range(k1, K):
+            if neighbors[main_channels[k1], main_channels[k2]]:
+                ch_idx = np.logical_or(visible_channels[:, k1],
+                                        visible_channels[:, k2])
+                t1 = templates[ch_idx, :, k1]
+                t2 = templates[ch_idx, :, k2]
+                if TemplatesSimilarity(t1, t2, th, W):
+                    sparseConnection[k1, k2] = 1
+                    sparseConnection[k2, k1] = 1
+                               
     edges = {x: sparse.find(sparseConnection[x])[1] for x in range(K)}
 
     groups = list()
@@ -174,8 +193,7 @@ def mergeTemplates(templates, weights, spike_train, neighbors,
         templatesNew_temp = np.zeros((C, R, temp.shape[0]))
         weight_temp = np.zeros(temp.shape[0])
         if temp.shape[0] > 1:
-            ch_idx = np.where(
-                np.array(np.sum(visible_channels[temp], 0) > 0)[0])[0]
+            ch_idx = np.unique(main_channels[temp])
             shift_temp = determine_shift(
                 templates[[ch_idx]][:, :, temp], W)
             for j2 in range(temp.shape[0]):
@@ -209,7 +227,7 @@ def mergeTemplates(templates, weights, spike_train, neighbors,
     spike_train_clear_new = np.hstack((
         spt_new[:, np.newaxis], id_new[:, np.newaxis]))
 
-    return spike_train_clear_new, templatesNew
+    return templatesNew, spike_train_clear_new, groups
 
 
 # TODO: documentation
@@ -225,20 +243,20 @@ def determine_shift(tt, W):
     """
     C, RW, K = tt.shape
     R = RW - 2*W
-    t1 = np.reshape(tt[:, W:(W+R), 0], R*C)
+    t1 = tt[:, W:(W+R), 0]
+    norm1 = np.linalg.norm(t1)
+    
     shift = np.zeros(K, 'int16')
     for k in range(1, K):
-        t2 = np.zeros((2*W+1, R*C))
+        cos = np.zeros(2*W+1)
         for j in range(2*W+1):
-            t2[j] = np.reshape(tt[:, j:(j+R), k], R*C)
-
-        norm1 = np.sqrt(np.sum(np.square(t1), axis=0))
-        norm2 = np.sqrt(np.sum(np.square(t2), axis=1))
-        cos = np.matmul(t2, t1)/(norm1*norm2)
+            t2 = tt[:, j:(j+R), k]
+            norm2 = np.linalg.norm(t2)
+            cos[j] = np.sum(t1*t2)/norm1/norm2
         ii = np.argmax(cos)
-        shift[k] = ii - W - 1
+        shift[k] = ii - W
 
-    amps = np.amax(np.abs(tt), axis=(0, 1))
+    amps = np.max(np.abs(tt), axis=(0, 1))
     k_max = np.argmax(amps)
     shift = shift - shift[k_max]
 
@@ -323,18 +341,8 @@ def TemplatesSimilarity(t1, t2, th, W):
         t1 = np.reshape(t1, [C, R])
         t2 = np.reshape(t2_shifted[ii], [C, R])
 
-        cos_per_channel = np.zeros(C)
-        for c in range(C):
-            t1_temp = t1[c]
-            t2_temp = t2[c]
-            norm1 = np.sqrt(np.sum(np.square(t1_temp)))
-            norm2 = np.sqrt(np.sum(np.square(t2_temp)))
-            cos_per_channel[c] = np.dot(t1_temp, t2_temp)/(norm1*norm2)
-
-        if np.min(cos_per_channel) > th[0]:
-            diff = np.max(np.abs(t2), axis=1)/np.max(np.abs(t1), axis=1)
-            if (1/np.max(diff) > th[1] and np.min(diff) > th[1] and
-                    np.min(diff)/np.max(diff) > th[1]):
-                similar = 1
+        scale = np.sum(t1*t2)/np.sum(np.square(t1))
+        if scale > th[1] and scale < 2 - th[1]:
+            similar = 1
 
     return similar

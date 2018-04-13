@@ -23,8 +23,9 @@ yass.set_config('config_sample.yaml')
                                whiten_filter)
 
 
-spike_train_clear = cluster.run(score, spike_index_clear)
+spike_train_clear, tmp_loc, vbParam = cluster.run(
+    score, spike_index_clear)
 
-templates = templates.run(spike_train_clear)
+templates = templates.run(spike_train_clear, tmp_loc)
 
 spike_train = deconvolute.run(spike_index_all, templates)
