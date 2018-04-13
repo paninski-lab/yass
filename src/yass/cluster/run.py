@@ -137,4 +137,4 @@ def run(scores, spike_index, output_directory='tmp/',
     logger.info("\tmasking:\t{0} seconds".format(Time['m']))
     logger.info("\tclustering:\t{0} seconds".format(Time['s']))
 
-    return spike_train
+    return spike_train, vbParam, tmp_loc, scores, spike_index

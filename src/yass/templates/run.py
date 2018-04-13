@@ -3,14 +3,14 @@ import logging
 import datetime
 
 from yass import read_config
-from yass.templates.util import get_and_merge_templates as gam_templates
+from yass.templates.util import get_templates, align_templates, mergeTemplates
 from yass.util import check_for_files, LoadFile, file_loader
 
 
 @check_for_files(filenames=[LoadFile('templates.npy')],
                  mode='values', relative_to='output_directory',
                  auto_save=True, prepend_root_folder=True)
-def run(spike_train, output_directory='tmp/',
+def run(spike_train, tmp_loc, output_directory='tmp/',
         recordings_filename='standarized.bin',
         if_file_exists='skip', save_results=False):
     """Compute templates
@@ -67,15 +67,33 @@ def run(spike_train, output_directory='tmp/',
 
     logger.info("Getting Templates...")
 
-    path_to_recordings = os.path.join(CONFIG.data.root_folder,
-                                      output_directory,
+    path_to_recordings = os.path.join(CONFIG.data.root_folder, output_directory,
                                       recordings_filename)
     merge_threshold = CONFIG.templates.merge_threshold
+    spike_size = CONFIG.spike_size
+    template_max_shift = CONFIG.templates_max_shift
+    neighbors = CONFIG.neigh_channels
 
-    spike_train, templates = gam_templates(
-        spike_train, path_to_recordings, CONFIG.spike_size,
-        CONFIG.templates_max_shift, merge_threshold, CONFIG.neigh_channels)
+    # make templates
+    templates, weights = get_templates(spike_train, path_to_recordings,
+                                       2 * (spike_size + template_max_shift))
+    
+    # clean up bad templates
+    snr_threshold = 2
+    spread_threshold = 100
+    clean_up_templates(spike_train, templates, tmp_loc, geometry, neighbors,
+                       snr_threshold, spread_threshold)
 
+    # align templates
+    templates = align_templates(templates, template_max_shift)
+
+    # merge templates
+    spike_train_clear, templates = mergeTemplates(
+        templates, weights, spike_train, neighbors, template_max_shift, t_merge_th)
+
+    # remove the edge since it is bad
+    templates = templates[:, template_max_shift:(
+        template_max_shift + (4 * spike_size + 1))]
     Time['e'] += (datetime.datetime.now() - _b).total_seconds()
 
     # report timing

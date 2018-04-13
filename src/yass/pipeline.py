@@ -124,11 +124,13 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # cluster
     start = time.time()
-    spike_train_clear = (cluster
-                         .run(score, spike_index_clear,
-                              output_directory=output_dir,
-                              if_file_exists=CONFIG.cluster.if_file_exists,
-                              save_results=CONFIG.cluster.save_results))
+    (spike_train_template, vbParam, tmp_loc, scores_triaged,
+     spike_index_triaged) = cluster.run(
+         np.copy(score),
+         np.copy(spike_index_clear),
+         output_directory=output_dir,
+         if_file_exists=CONFIG.cluster.if_file_exists,
+         save_results=CONFIG.cluster.save_results)
     time_cluster = time.time() - start
 
     # get templates
