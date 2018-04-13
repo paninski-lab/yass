@@ -119,7 +119,7 @@ cluster:
   # minimum number of spikes per cluster
   # if the total number of spikes per cluster is less than this,
   # the cluster is killed
-  min_spikes: 20
+  min_spikes: 0
   # cluster prior information
   prior:
     beta: 1
