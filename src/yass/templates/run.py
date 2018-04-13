@@ -68,10 +68,11 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
 
     logger.info("Getting Templates...")
 
-    path_to_recordings = os.path.join(CONFIG.data.root_folder, output_directory,
+    path_to_recordings = os.path.join(CONFIG.data.root_folder,
+                                      output_directory,
                                       recordings_filename)
 
-    # relevant parameters 
+    # relevant parameters
     merge_threshold = CONFIG.templates.merge_threshold
     spike_size = CONFIG.spike_size
     template_max_shift = CONFIG.templates_max_shift
@@ -109,5 +110,5 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     currentTime = datetime.datetime.now()
     logger.info("Templates done in {0} seconds.".format(
         (currentTime - startTime).seconds))
-    
+
     return templates, spike_train, groups, idx_good_templates

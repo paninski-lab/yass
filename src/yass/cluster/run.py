@@ -8,7 +8,8 @@ from yass.cluster.subsample import random_subsample
 from yass.cluster.triage import triage
 from yass.cluster.coreset import coreset
 from yass.cluster.mask import getmask
-from yass.cluster.util import run_cluster, run_cluster_location, calculate_sparse_rhat
+from yass.cluster.util import (run_cluster, run_cluster_location,
+                               calculate_sparse_rhat)
 from yass.mfm import get_core_data
 
 
@@ -126,7 +127,7 @@ def run(scores, spike_index, output_directory='tmp/',
             scores, masks, groups, spike_index,
             CONFIG.cluster.min_spikes, CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
-        
+
     vbParam.rhat = calculate_sparse_rhat(vbParam, tmp_loc, scores_all,
                                          spike_index_all,
                                          CONFIG.neigh_channels)

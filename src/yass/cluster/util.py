@@ -170,13 +170,13 @@ def calculate_sparse_rhat(vbParam, tmp_loc, scores,
         idx_data = np.where(spike_index[:, 1] == channel)[0]
         score = scores[idx_data]
         n_data = score.shape[0]
-        
+
         ch_idx = np.where(neighbors[channel])[0]
         cluster_idx = np.zeros(n_templates, 'bool')
         for c in ch_idx:
             cluster_idx[tmp_loc == c] = 1
         cluster_idx = np.where(cluster_idx)[0]
-            
+
         if n_data > 0 and cluster_idx.shape[0] > 0:
 
             local_vbParam = mfm.vbPar(None)

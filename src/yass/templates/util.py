@@ -86,11 +86,11 @@ def compute_weighted_templates(recording, idx_local, idx, previous_batch,
 
     return weighted_templates, weights
 
+
 def random_sample_spike_train(spike_train, n_max):
-    
+
     n_templates = int(np.max(spike_train[:, 1]) + 1)
-    
-    
+
     idx_keep = np.zeros(spike_train.shape[0], 'bool')
     for k in range(n_templates):
         idx_data = np.where(spike_train[:, 1] == k)[0]
@@ -103,9 +103,9 @@ def random_sample_spike_train(spike_train, n_max):
             idx_keep[idx_data[idx_sample]] = 1
         else:
             idx_keep[idx_data] = 1
-    
+
     spike_train_small = spike_train[idx_keep]
-    
+
     return spike_train_small
 
 
@@ -140,7 +140,7 @@ def align_templates(templates, spike_train, max_shift):
     for k in range(K):
         s = best_shift[k]
         templates_final[:, :, k] = templates[:, s:(s+2*spike_size+1), k]
-        spike_train[spike_train[:, 1]==k, 0] += (s - max_shift)
+        spike_train[spike_train[:, 1] == k, 0] += (s - max_shift)
 
     return templates_final, spike_train
 
@@ -148,7 +148,7 @@ def align_templates(templates, spike_train, max_shift):
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
 def merge_templates(templates, weights, spike_train, neighbors,
-                   template_max_shift, t_merge_th):
+                    template_max_shift, t_merge_th):
     """[Description]
 
     Parameters
@@ -164,19 +164,19 @@ def merge_templates(templates, weights, spike_train, neighbors,
     energy = np.ptp(templates, 1)
     visible_channels = energy > 0.5
     main_channels = np.argmax(energy, 0)
-    
+
     sparseConnection = sparse.lil_matrix((K, K), dtype='bool')
     for k1 in range(K):
         for k2 in range(k1, K):
             if neighbors[main_channels[k1], main_channels[k2]]:
                 ch_idx = np.logical_or(visible_channels[:, k1],
-                                        visible_channels[:, k2])
+                                       visible_channels[:, k2])
                 t1 = templates[ch_idx, :, k1]
                 t2 = templates[ch_idx, :, k2]
                 if TemplatesSimilarity(t1, t2, th, W):
                     sparseConnection[k1, k2] = 1
                     sparseConnection[k2, k1] = 1
-                               
+
     edges = {x: sparse.find(sparseConnection[x])[1] for x in range(K)}
 
     groups = list()
@@ -245,7 +245,7 @@ def determine_shift(tt, W):
     R = RW - 2*W
     t1 = tt[:, W:(W+R), 0]
     norm1 = np.linalg.norm(t1)
-    
+
     shift = np.zeros(K, 'int16')
     for k in range(1, K):
         cos = np.zeros(2*W+1)
