@@ -150,6 +150,8 @@ templates:
   if_file_exists: skip
   # similar to detect.save_results
   save_results: False
+  # how much shift to allow for template alignment
+  max_shift: 3
   merge_threshold: [0.8, 0.7]
 
 deconvolution:

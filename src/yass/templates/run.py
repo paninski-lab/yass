@@ -87,7 +87,7 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     # relevant parameters
     merge_threshold = CONFIG.templates.merge_threshold
     spike_size = CONFIG.spike_size
-    template_max_shift = CONFIG.templates_max_shift
+    template_max_shift = CONFIG.templates.max_shift
     neighbors = CONFIG.neigh_channels
     geometry = CONFIG.geom
 

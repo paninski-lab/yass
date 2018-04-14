@@ -285,6 +285,7 @@ templates:
   default:
     save_results: False
     if_file_exists: skip
+    max_shift: 3
     merge_threshold: [0.85, 0.8]
   schema:
     save_results:
@@ -296,6 +297,10 @@ templates:
       allowed: [abort, overwrite, skip]
       required: False
       default: skip
+    max_shift:
+      type: integer
+      required: False
+      default: 3
     merge_threshold:
       type: list
       required: False
