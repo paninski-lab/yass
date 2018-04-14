@@ -778,56 +778,60 @@ def weightedKmeansplusplus(X, w, k):
 
 
 def birth_move(maskedData, vbParam, suffStat, param, L):
+
     Khat = suffStat.sumY.shape[1]
     collectionThreshold = 0.1
     extraK = param.cluster.n_split
-    weight = (suffStat.Nhat + 0.001) * L ** 2
-    weight = weight / np.sum(weight)
-    idx = np.zeros(1).astype(int)
-    while np.sum(idx) == 0:
-        kpicked = np.random.choice(np.arange(Khat).astype(int), p=weight)
-        idx = vbParam.rhat[:, kpicked] > collectionThreshold
 
-    idx = np.where(idx)[0]
-    if idx.size > 10000:
-        idx = idx[:10000]
-    L = L * 2
-    L[kpicked] = 1
+    if np.any(suffStat.Nhat >= extraK):
+        weight = (suffStat.Nhat + 0.001) * L ** 2
+        weight = weight / np.sum(weight)
+        idx = np.zeros(1).astype(int)
+        while np.sum(idx) < extraK:
+            kpicked = np.random.choice(np.arange(Khat).astype(int), p=weight)
+            idx = vbParam.rhat[:, kpicked] > collectionThreshold
 
-    # Creation
-    maskedDataPrime = maskData()
-    maskedDataPrime.sumY = maskedData.sumY[idx, :, :]
-    maskedDataPrime.sumYSq = maskedData.sumYSq[idx, :, :, :]
-    maskedDataPrime.sumEta = maskedData.sumEta[idx, :, :, :]
-    maskedDataPrime.groupMask = maskedData.groupMask[idx, :]
-    maskedDataPrime.weight = maskedData.weight[idx]
-    maskedDataPrime.meanY = maskedData.meanY[idx, :, :]
-    maskedDataPrime.meanEta = maskedData.meanEta[idx, :, :, :]
-    vbParamPrime, suffStatPrime = init_param(maskedDataPrime, extraK, param)
+        idx = np.where(idx)[0]
+        if idx.size > 10000:
+            idx = idx[:10000]
+        L = L * 2
+        L[kpicked] = 1
 
-    for iter_creation in range(10):
-        vbParamPrime.update_local(maskedDataPrime)
-        suffStatPrime = suffStatistics(maskedDataPrime, vbParamPrime)
-        vbParamPrime.update_global(suffStatPrime, param)
+        # Creation
+        maskedDataPrime = maskData()
+        maskedDataPrime.sumY = maskedData.sumY[idx, :, :]
+        maskedDataPrime.sumYSq = maskedData.sumYSq[idx, :, :, :]
+        maskedDataPrime.sumEta = maskedData.sumEta[idx, :, :, :]
+        maskedDataPrime.groupMask = maskedData.groupMask[idx, :]
+        maskedDataPrime.weight = maskedData.weight[idx]
+        maskedDataPrime.meanY = maskedData.meanY[idx, :, :]
+        maskedDataPrime.meanEta = maskedData.meanEta[idx, :, :, :]
+        vbParamPrime, suffStatPrime = init_param(maskedDataPrime,
+                                                 extraK, param)
 
-    vbParam.ahat = np.concatenate(
-        (vbParam.ahat, vbParamPrime.ahat), axis=0)
-    vbParam.lambdahat = np.concatenate(
-        (vbParam.lambdahat, vbParamPrime.lambdahat), axis=0)
-    vbParam.muhat = np.concatenate(
-        (vbParam.muhat, vbParamPrime.muhat), axis=1)
-    vbParam.Vhat = np.concatenate(
-        (vbParam.Vhat, vbParamPrime.Vhat), axis=2)
-    vbParam.invVhat = np.concatenate(
-        (vbParam.invVhat, vbParamPrime.invVhat), axis=2)
-    vbParam.nuhat = np.concatenate(
-        (vbParam.nuhat, vbParamPrime.nuhat), axis=0)
+        for iter_creation in range(10):
+            vbParamPrime.update_local(maskedDataPrime)
+            suffStatPrime = suffStatistics(maskedDataPrime, vbParamPrime)
+            vbParamPrime.update_global(suffStatPrime, param)
 
-    vbParam.update_local(maskedData)
-    suffStat = suffStatistics(maskedData, vbParam)
-    vbParam.update_global(suffStat, param)
-    nbrith = vbParamPrime.rhat.shape[1]
-    L = np.concatenate((L, np.ones(nbrith)), axis=0)
+        vbParam.ahat = np.concatenate(
+            (vbParam.ahat, vbParamPrime.ahat), axis=0)
+        vbParam.lambdahat = np.concatenate(
+            (vbParam.lambdahat, vbParamPrime.lambdahat), axis=0)
+        vbParam.muhat = np.concatenate(
+            (vbParam.muhat, vbParamPrime.muhat), axis=1)
+        vbParam.Vhat = np.concatenate(
+            (vbParam.Vhat, vbParamPrime.Vhat), axis=2)
+        vbParam.invVhat = np.concatenate(
+            (vbParam.invVhat, vbParamPrime.invVhat), axis=2)
+        vbParam.nuhat = np.concatenate(
+            (vbParam.nuhat, vbParamPrime.nuhat), axis=0)
+
+        vbParam.update_local(maskedData)
+        suffStat = suffStatistics(maskedData, vbParam)
+        vbParam.update_global(suffStat, param)
+        nbrith = vbParamPrime.rhat.shape[1]
+        L = np.concatenate((L, np.ones(nbrith)), axis=0)
 
     return vbParam, suffStat, L
 

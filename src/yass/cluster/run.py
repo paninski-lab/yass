@@ -82,10 +82,10 @@ def run(scores, spike_index, output_directory='tmp/',
     scores, spike_index = random_subsample(scores, spike_index,
                                            CONFIG.cluster.max_n_spikes)
     logger.info("Triaging...")
-    score, spike_index = triage(scores, spike_index,
-                                CONFIG.cluster.triage.nearest_neighbors,
-                                CONFIG.cluster.triage.percent,
-                                CONFIG.cluster.method == 'location')
+    scores, spike_index = triage(scores, spike_index,
+                                 CONFIG.cluster.triage.nearest_neighbors,
+                                 CONFIG.cluster.triage.percent,
+                                 CONFIG.cluster.method == 'location')
     Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
     if CONFIG.cluster.method == 'location':
