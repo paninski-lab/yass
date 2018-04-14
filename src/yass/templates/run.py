@@ -22,6 +22,9 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     spike_train: numpy.ndarray, str or pathlib.Path
         Spike train from cluster step or path to npy file
 
+    tmp_loc: np.array(n_templates)
+        At which channel the clustering is done.
+
     output_directory: str, optional
         Output directory (relative to CONFIG.data.root_folder) used to load
         the recordings to generate templates, defaults to tmp/
@@ -43,11 +46,20 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
         (in CONFIG.data.root_folder/relative_to/templates.npy),
         defaults to False
 
-
     Returns
     -------
     templates: npy.ndarray
-        Ttemplates
+        templates
+
+    spike_train: np.array(n_data, 3)
+        The 3 columns represent spike time, unit id,
+        weight (from soft assignment)
+
+    groups: list(n_units)
+        After template merge, it shows which ones are merged together
+
+    idx_good_templates: np.array
+        index of which templates are kept after clean up
 
     Examples
     --------

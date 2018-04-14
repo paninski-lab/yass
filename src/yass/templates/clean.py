@@ -4,7 +4,50 @@ import numpy as np
 def clean_up_templates(templates, weights, spike_train,
                        tmp_loc, geometry, neighbors,
                        snr_threshold, spread_threshold):
+    """Clean up bad templates
 
+    Parameters
+    ----------
+    templates: numpy.ndarray(n_channels, temporal_size, n_templates)
+        templates
+
+    weights: np.array(n_templates)
+        weights coming out of template computation
+
+    spike_train: np.array(n_data, 3)
+        The 3 columns represent spike time, unit id,
+        weight (from soft assignment)
+
+    tmp_loc: np.array(n_templates)
+        At which channel the clustering is done.
+
+    geometry: np.array(n_channels, 2)
+        geometry info
+
+    neighbors: np.array(n_channels, n_channels) boolean
+        neighboring channel info
+
+    snr_threshold: float
+        a threshold for removing small template
+
+    spread_threshold: float
+        a threshold for removing widely spread templates
+
+
+    Returns
+    -------
+    templates: npy.ndarray
+        Templates after clean up
+
+    weights: np.array(n_templates)
+        weights after clean up
+
+    spike_train2: np.array
+        spike_train after clean up
+
+    idx_good_templates: np.array
+        index of which templates are kept
+    """
     # get size
     n_channels, temporal_size, n_templates = templates.shape
 
