@@ -156,7 +156,9 @@ def run_cluster_location(scores, spike_index, min_spikes, CONFIG):
     return global_vbParam, global_tmp_loc, global_score, global_spike_index
 
 
-def calculate_sparse_rhat(vbParam, tmp_loc, scores, spike_index):
+def calculate_sparse_rhat(vbParam, tmp_loc, scores,
+                          spike_index, neighbors):
+
     # vbParam.rhat calculation
     n_channels = np.max(spike_index[:, 1]) + 1
     n_templates = tmp_loc.shape[0]
@@ -168,14 +170,14 @@ def calculate_sparse_rhat(vbParam, tmp_loc, scores, spike_index):
         idx_data = np.where(spike_index[:, 1] == channel)[0]
         score = scores[idx_data]
         n_data = score.shape[0]
-        cluster_idx = np.where(tmp_loc == channel)[0]
+
+        ch_idx = np.where(neighbors[channel])[0]
+        cluster_idx = np.zeros(n_templates, 'bool')
+        for c in ch_idx:
+            cluster_idx[tmp_loc == c] = 1
+        cluster_idx = np.where(cluster_idx)[0]
 
         if n_data > 0 and cluster_idx.shape[0] > 0:
-            # ch_idx = np.where(neighbors[channel])[0]
-            # cluster_idx = np.zeros(n_templates, 'bool')
-            # for _, c in enumerate(ch_idx):
-            #     cluster_idx[tmp_loc == c] = 1
-            # cluster_idx = np.where(cluster_idx)[0]
 
             local_vbParam = mfm.vbPar(None)
             local_vbParam.muhat = vbParam.muhat[:, cluster_idx]

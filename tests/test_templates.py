@@ -41,9 +41,10 @@ def test_templates(path_to_config):
                                    channel_index,
                                    whiten_filter)
 
-    spike_train_clear = cluster.run(score, spike_index_clear)
+    spike_train_clear, tmp_loc, vbParam = cluster.run(
+        score, spike_index_clear)
 
-    templates.run(spike_train_clear)
+    templates.run(spike_train_clear, tmp_loc)
 
     clean_tmp()
 

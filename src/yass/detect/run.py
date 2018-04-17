@@ -159,7 +159,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                       CONFIG.resources.max_memory,
                       CONFIG.neigh_channels,
                       CONFIG.spike_size,
-                      CONFIG.spike_size + CONFIG.templates_max_shift,
+                      CONFIG.spike_size + CONFIG.templates.max_shift,
                       CONFIG.detect.threshold_detector.std_factor,
                       TMP_FOLDER,
                       spike_index_clear_filename=filename_index_clear,
@@ -299,7 +299,7 @@ def run_neural_network(standarized_path, standarized_params,
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
         clear, idx = detect.remove_incomplete_waveforms(
-            clear, CONFIG.spike_size + CONFIG.templates_max_shift,
+            clear, CONFIG.spike_size + CONFIG.templates.max_shift,
             bp.reader._n_observations)
 
         # get all spikes
@@ -307,7 +307,7 @@ def run_neural_network(standarized_path, standarized_params,
         logger.info('Removing indexes outside the allowed range to '
                     'draw a complete waveform...')
         spikes_all, _ = detect.remove_incomplete_waveforms(
-            spikes_all, CONFIG.spike_size + CONFIG.templates_max_shift,
+            spikes_all, CONFIG.spike_size + CONFIG.templates.max_shift,
             bp.reader._n_observations)
 
         # get scores

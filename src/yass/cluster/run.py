@@ -1,19 +1,21 @@
 import logging
 import datetime
+import numpy as np
 
 from yass import read_config
-from yass.util import file_loader, check_for_files, LoadFile
+from yass.util import file_loader  # , check_for_files, LoadFile
 from yass.cluster.subsample import random_subsample
 from yass.cluster.triage import triage
 from yass.cluster.coreset import coreset
 from yass.cluster.mask import getmask
-from yass.cluster.util import run_cluster, run_cluster_location
+from yass.cluster.util import (run_cluster, run_cluster_location,
+                               calculate_sparse_rhat)
 from yass.mfm import get_core_data
 
 
-@check_for_files(filenames=[LoadFile('spike_train_cluster.npy')],
-                 mode='values', relative_to='output_directory',
-                 auto_save=True, prepend_root_folder=True)
+# @check_for_files(filenames=[LoadFile('spike_train_cluster.npy')],
+#                  mode='values', relative_to='output_directory',
+#                  auto_save=True, prepend_root_folder=True)
 def run(scores, spike_index, output_directory='tmp/',
         if_file_exists='skip', save_results=False):
     """Spike clustering
@@ -68,6 +70,9 @@ def run(scores, spike_index, output_directory='tmp/',
 
     logger = logging.getLogger(__name__)
 
+    scores_all = np.copy(scores)
+    spike_index_all = np.copy(spike_index)
+
     ##########
     # Triage #
     ##########
@@ -77,10 +82,10 @@ def run(scores, spike_index, output_directory='tmp/',
     scores, spike_index = random_subsample(scores, spike_index,
                                            CONFIG.cluster.max_n_spikes)
     logger.info("Triaging...")
-    score, spike_index = triage(scores, spike_index,
-                                CONFIG.cluster.triage.nearest_neighbors,
-                                CONFIG.cluster.triage.percent,
-                                CONFIG.cluster.method == 'location')
+    scores, spike_index = triage(scores, spike_index,
+                                 CONFIG.cluster.triage.nearest_neighbors,
+                                 CONFIG.cluster.triage.percent,
+                                 CONFIG.cluster.method == 'location')
     Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
     if CONFIG.cluster.method == 'location':
@@ -123,10 +128,12 @@ def run(scores, spike_index, output_directory='tmp/',
             CONFIG.cluster.min_spikes, CONFIG)
         Time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
-    idx_keep = get_core_data(vbParam, scores, 5000, 5)
+    vbParam.rhat = calculate_sparse_rhat(vbParam, tmp_loc, scores_all,
+                                         spike_index_all,
+                                         CONFIG.neigh_channels)
+    idx_keep = get_core_data(vbParam, scores_all, np.inf, 5)
     spike_train = vbParam.rhat[idx_keep]
-    spike_train[:, 0] = spike_index[spike_train[:, 0].astype('int32'), 0]
-    spike_train = spike_train[:, :2].astype('int32')
+    spike_train[:, 0] = spike_index_all[spike_train[:, 0].astype('int32'), 0]
 
     # report timing
     currentTime = datetime.datetime.now()
@@ -137,4 +144,4 @@ def run(scores, spike_index, output_directory='tmp/',
     logger.info("\tmasking:\t{0} seconds".format(Time['m']))
     logger.info("\tclustering:\t{0} seconds".format(Time['s']))
 
-    return spike_train
+    return spike_train, tmp_loc, vbParam
