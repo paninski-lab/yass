@@ -68,6 +68,8 @@ def set_config(config):
     else:
         CONFIG = Config(config)
 
+    logger.debug('CONFIG set to: %s', CONFIG._data)
+
 
 def reset_config():
     global CONFIG
