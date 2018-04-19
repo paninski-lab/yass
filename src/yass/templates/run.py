@@ -5,17 +5,19 @@ import datetime
 from yass import read_config
 from yass.templates.util import get_templates, align_templates, merge_templates
 from yass.templates.clean import clean_up_templates
-from yass.util import file_loader  # check_for_files, LoadFile, file_loader
+from yass.util import file_loader, check_for_files, LoadFile, file_loader
 
 
-# @check_for_files(filenames=[LoadFile('templates.npy')],
-#                  mode='values', relative_to='output_directory',
-#                  auto_save=True, prepend_root_folder=True)
+@check_for_files(filenames=[LoadFile('templates.npy'),
+                            LoadFile('spike_train.npy'),
+                            LoadFile('groups.pickle'),
+                            LoadFile('idx_good_templates.npy')],
+                 mode='values', relative_to='output_directory',
+                 auto_save=True, prepend_root_folder=True)
 def run(spike_train, tmp_loc, output_directory='tmp/',
         recordings_filename='standarized.bin',
         if_file_exists='skip', save_results=False):
     """Compute templates
-
 
     Parameters
     ----------
