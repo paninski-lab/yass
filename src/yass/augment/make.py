@@ -13,7 +13,7 @@ from yass.util import load_yaml
 # TODO: documentation
 # TODO: comment code, it's not clear what it does
 def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
-                       nspikes, data_folder):
+                       nspikes, data_folder,multi=True):
     """[Description]
 
     Parameters
@@ -40,7 +40,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     logger.info('Getting templates...')
 
     # get templates
-    templates, _ = get_templates(spike_train, path_to_data, CONFIG.spike_size)
+    templates, _ = get_templates(spike_train, path_to_data, 4*CONFIG.spike_size)
 
     templates = np.transpose(templates, (2, 1, 0))
 
@@ -91,34 +91,37 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     #############
     # collision #
     #############
-    x_collision = np.zeros(x_clean.shape)
-    max_shift = 2*R
+        x_collision = np.zeros(x_clean.shape)
+        max_shift = 2*R
 
-    temporal_shifts = np.random.randint(max_shift*2, size=nk*K) - max_shift
-    temporal_shifts[temporal_shifts < 0] = temporal_shifts[
-        temporal_shifts < 0]-5
-    temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
-        temporal_shifts >= 0]+6
+        temporal_shifts = np.random.randint(max_shift*2, size=nk*K) - max_shift
+        temporal_shifts[temporal_shifts < 0] = temporal_shifts[
+            temporal_shifts < 0]-5
+        temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
+            temporal_shifts >= 0]+6
 
-    amp_per_data = np.max(x_clean[:, :, 0], axis=1)
-    for j in range(nk*K):
-        shift = temporal_shifts[j]
+        amp_per_data = np.max(x_clean[:, :, 0], axis=1)
+        for j in range(nk*K):
+            shift = temporal_shifts[j]
 
-        x_collision[j] = np.copy(x_clean[j])
-        idx_candidate = np.where(amp_per_data > amp_per_data[j]*0.3)[0]
-        idx_match = idx_candidate[np.random.randint(
-            idx_candidate.shape[0], size=1)[0]]
-        x_clean2 = np.copy(x_clean[idx_match][:, np.random.choice(
-            nneigh, nneigh, replace=False)])
+            x_collision[j] = np.copy(x_clean[j])
+            idx_candidate = np.where(amp_per_data > amp_per_data[j]*0.3)[0]
+            idx_match = idx_candidate[np.random.randint(
+                idx_candidate.shape[0], size=1)[0]]
+            if multi: 
+                x_clean2 = np.copy(x_clean[idx_match][:, np.random.choice(
+                    nneigh, nneigh, replace=False)])
+            else:
+                x_clean2 = np.copy(x_clean[idx_match])
 
-        if shift > 0:
-            x_collision[j, :(x_collision.shape[1]-shift)] += x_clean2[shift:]
+            if shift > 0:
+                x_collision[j, :(x_collision.shape[1]-shift)] += x_clean2[shift:]
 
-        elif shift < 0:
-            x_collision[
-                j, (-shift):] += x_clean2[:(x_collision.shape[1]+shift)]
-        else:
-            x_collision[j] += x_clean2
+            elif shift < 0:
+                x_collision[
+                    j, (-shift):] += x_clean2[:(x_collision.shape[1]+shift)]
+            else:
+                x_collision[j] += x_clean2
 
     #####################
     # misaligned spikes #
@@ -166,15 +169,29 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     mid_point = int((x_clean.shape[1]-1)/2)
 
     # get training set for detection
-    x = np.concatenate((
-        x_clean + noise,
-        x_collision + noise[np.random.permutation(noise.shape[0])],
-        x_misaligned + noise[np.random.permutation(noise.shape[0])],
-        noise
-    ))
-
-    x_detect = x[:, (mid_point-R):(mid_point+R+1), :]
-    y_detect = np.concatenate((y_clean, y_col, y_misalinged, y_noise))
+    if multi: 
+        x = np.concatenate((
+            x_clean + noise,
+            x_collision + noise[np.random.permutation(noise.shape[0])],
+            x_misaligned + noise[np.random.permutation(noise.shape[0])],
+            noise
+        ))
+        y_detect = np.concatenate((y_clean, y_col, y_misalinged, y_noise))
+    else:
+        x = np.concatenate((
+            x_clean + noise,
+            #x_collision + noise[np.random.permutation(noise.shape[0])],
+            x_misaligned + noise[np.random.permutation(noise.shape[0])],
+            noise
+        ))
+        y_detect = np.concatenate((y_clean, y_misalinged, y_noise))
+        
+        
+    if multi: 
+        x_detect = x[:, (mid_point-R):(mid_point+R+1), :]
+    else:
+        x_detect = x[:, (mid_point-R):(mid_point+R+1), 0]
+    
 
     # get training set for triage
     x = np.concatenate((
