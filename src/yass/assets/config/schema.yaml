@@ -35,6 +35,18 @@ resources:
       type: [integer, string]
       required: False
       default: 1GB
+    multi_processing: 
+      type: [integer, string]
+      required: True
+      default: 0
+    n_processors: 
+      type: [integer, string]
+      required: True
+      default: 1
+    n_sec_chunk: 
+      type: [integer, string]
+      required: True
+      default: 1
 
 
 recordings:
@@ -335,3 +347,7 @@ deconvolution:
     upsample_factor:
       type: integer
       default: 5
+    # number of features for svd compression
+    n_features:
+      type: integer
+      default: 3
