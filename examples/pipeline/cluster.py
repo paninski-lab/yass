@@ -6,7 +6,7 @@ from yass import detect
 from yass import cluster
 
 # configure logging module to get useful information
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # set yass configuration parameters
 yass.set_config('config_sample.yaml')
