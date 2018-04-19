@@ -124,20 +124,24 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # cluster
     start = time.time()
-    spike_train_clear = (cluster
-                         .run(score, spike_index_clear,
-                              output_directory=output_dir,
-                              if_file_exists=CONFIG.cluster.if_file_exists,
-                              save_results=CONFIG.cluster.save_results))
+    spike_train_clear, tmp_loc, vbParam = cluster.run(
+        score,
+        spike_index_clear,
+        output_directory=output_dir,
+        if_file_exists=CONFIG.cluster.if_file_exists,
+        save_results=CONFIG.cluster.save_results)
     time_cluster = time.time() - start
 
     # get templates
     start = time.time()
-    templates = (get_templates
-                 .run(spike_train_clear,
-                      output_directory=output_dir,
-                      if_file_exists=CONFIG.templates.if_file_exists,
-                      save_results=CONFIG.templates.save_results))
+    (templates,
+     spike_train_clear_after_templates,
+     groups,
+     idx_good_templates) = get_templates.run(
+        spike_train_clear, tmp_loc,
+        output_directory=output_dir,
+        if_file_exists=CONFIG.templates.if_file_exists,
+        save_results=CONFIG.templates.save_results)
     time_templates = time.time() - start
 
     # run deconvolution

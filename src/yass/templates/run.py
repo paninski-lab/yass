@@ -3,14 +3,15 @@ import logging
 import datetime
 
 from yass import read_config
-from yass.templates.util import get_and_merge_templates as gam_templates
-from yass.util import check_for_files, LoadFile, file_loader
+from yass.templates.util import get_templates, align_templates, merge_templates
+from yass.templates.clean import clean_up_templates
+from yass.util import file_loader  # check_for_files, LoadFile, file_loader
 
 
-@check_for_files(filenames=[LoadFile('templates.npy')],
-                 mode='values', relative_to='output_directory',
-                 auto_save=True, prepend_root_folder=True)
-def run(spike_train, output_directory='tmp/',
+# @check_for_files(filenames=[LoadFile('templates.npy')],
+#                  mode='values', relative_to='output_directory',
+#                  auto_save=True, prepend_root_folder=True)
+def run(spike_train, tmp_loc, output_directory='tmp/',
         recordings_filename='standarized.bin',
         if_file_exists='skip', save_results=False):
     """Compute templates
@@ -20,6 +21,9 @@ def run(spike_train, output_directory='tmp/',
     ----------
     spike_train: numpy.ndarray, str or pathlib.Path
         Spike train from cluster step or path to npy file
+
+    tmp_loc: np.array(n_templates)
+        At which channel the clustering is done.
 
     output_directory: str, optional
         Output directory (relative to CONFIG.data.root_folder) used to load
@@ -42,11 +46,20 @@ def run(spike_train, output_directory='tmp/',
         (in CONFIG.data.root_folder/relative_to/templates.npy),
         defaults to False
 
-
     Returns
     -------
     templates: npy.ndarray
-        Ttemplates
+        templates
+
+    spike_train: np.array(n_data, 3)
+        The 3 columns represent spike time, unit id,
+        weight (from soft assignment)
+
+    groups: list(n_units)
+        After template merge, it shows which ones are merged together
+
+    idx_good_templates: np.array
+        index of which templates are kept after clean up
 
     Examples
     --------
@@ -70,11 +83,38 @@ def run(spike_train, output_directory='tmp/',
     path_to_recordings = os.path.join(CONFIG.data.root_folder,
                                       output_directory,
                                       recordings_filename)
-    merge_threshold = CONFIG.templates.merge_threshold
 
-    spike_train, templates = gam_templates(
-        spike_train, path_to_recordings, CONFIG.spike_size,
-        CONFIG.templates_max_shift, merge_threshold, CONFIG.neigh_channels)
+    # relevant parameters
+    merge_threshold = CONFIG.templates.merge_threshold
+    spike_size = CONFIG.spike_size
+    template_max_shift = CONFIG.templates.max_shift
+    neighbors = CONFIG.neigh_channels
+    geometry = CONFIG.geom
+
+    # make templates
+    templates, weights = get_templates(spike_train, path_to_recordings,
+                                       CONFIG.resources.max_memory,
+                                       2 * (spike_size + template_max_shift))
+
+    # clean up bad templates
+    snr_threshold = 2
+    spread_threshold = 100
+    templates, weights, spike_train, idx_good_templates = clean_up_templates(
+        templates, weights, spike_train, tmp_loc, geometry, neighbors,
+        snr_threshold, spread_threshold)
+
+    # align templates
+    templates, spike_train = align_templates(templates, spike_train,
+                                             template_max_shift)
+
+    # merge templates
+    templates, spike_train, groups = merge_templates(
+        templates, weights, spike_train, neighbors, template_max_shift,
+        merge_threshold)
+
+    # remove the edge since it is bad
+    templates = templates[:, template_max_shift:(
+        template_max_shift + (4 * spike_size + 1))]
 
     Time['e'] += (datetime.datetime.now() - _b).total_seconds()
 
@@ -83,4 +123,4 @@ def run(spike_train, output_directory='tmp/',
     logger.info("Templates done in {0} seconds.".format(
         (currentTime - startTime).seconds))
 
-    return templates
+    return templates, spike_train, groups, idx_good_templates

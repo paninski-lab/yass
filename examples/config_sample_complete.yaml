@@ -120,6 +120,11 @@ cluster:
   # if the total number of spikes per clustering group exceeds it,
   # it randomly subsample
   max_n_spikes: 10000
+  # minimum number of spikes per cluster
+  # if the total number of spikes per cluster is less than this,
+  # the cluster is killed
+  min_spikes: 0
+  # cluster prior information
   prior:
     beta: 1
     a: 1
@@ -145,6 +150,8 @@ templates:
   if_file_exists: skip
   # similar to detect.save_results
   save_results: False
+  # how much shift to allow for template alignment
+  max_shift: 3
   merge_threshold: [0.8, 0.7]
 
 deconvolution:

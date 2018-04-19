@@ -170,6 +170,7 @@ cluster:
     n_split: 5
     method: location
     max_n_spikes: 10000
+    min_spikes: 0
     prior:
       beta: 1
       a: 1
@@ -217,6 +218,12 @@ cluster:
     max_n_spikes:
         type: integer
         default: 10000
+    # minimum number of spikes per cluster
+    # if the total number of spikes per cluster is less than this,
+    # the cluster is killed
+    min_spikes:
+        type: integer
+        default: 0        
 
     prior:
       type: dict
@@ -278,7 +285,8 @@ templates:
   default:
     save_results: False
     if_file_exists: skip
-    merge_threshold: [0.8, 0.7]
+    max_shift: 3
+    merge_threshold: [0.85, 0.8]
   schema:
     save_results:
       type: boolean
@@ -289,10 +297,14 @@ templates:
       allowed: [abort, overwrite, skip]
       required: False
       default: skip
+    max_shift:
+      type: integer
+      required: False
+      default: 3
     merge_threshold:
       type: list
       required: False
-      default: [0.8, 0.7]
+      default: [0.85, 0.8]
 
 deconvolution:
   type: dict

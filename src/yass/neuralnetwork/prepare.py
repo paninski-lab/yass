@@ -85,27 +85,12 @@ def prepare_nn(channel_index, whiten_filter,
     # make score tensorflow tensor from waveform
     score_tf = NNAE.make_score_tf_tensor(waveform_tf)
 
-    # remove uncentered spike index
-    # if the energy in the main channel is less than
-    # neighoring channels, it is uncentered
-    (score_keep_tf, wf_keep_tf,
-     spike_index_keep_tf) = remove_uncetered(score_tf,
-                                             waveform_tf,
-                                             spike_index_tf)
-
     # run neural net triage
-    idx_clean = NNT.triage_wf(wf_keep_tf, threshold_triage)
-    score_clear_tf = tf.boolean_mask(score_keep_tf, idx_clean)
-    spike_index_clear_tf = tf.boolean_mask(spike_index_keep_tf,
-                                           idx_clean)
-
-    # whiten score
-    whiten_score_clear_tf = make_whitened_score(score_clear_tf,
-                                                spike_index_clear_tf[:, 1],
-                                                whiten_filter)
+    nneigh = NND.filters_dict['n_neighbors']
+    idx_clean = NNT.triage_wf(waveform_tf[:, :, :nneigh], threshold_triage)
 
     # gather all output tensors
-    output_tf = (whiten_score_clear_tf, spike_index_clear_tf, spike_index_tf)
+    output_tf = (score_tf, spike_index_tf, idx_clean)
 
     return x_tf, output_tf, NND, NNAE, NNT
 
@@ -167,10 +152,16 @@ def remove_uncetered(score_tf, waveform_tf, spike_index_tf):
         tf tensors after screening out uncentered ones
     """
 
-    # calculate energy for each spike for each data
-    energy_tf = tf.reduce_sum(tf.square(score_tf), 1)
+    wf_shapes = tf.shape(waveform_tf, out_type='int64')
+
+    abs_wf_tf = tf.abs(waveform_tf)
+    energy_tf = tf.reduce_max(abs_wf_tf, 1)
+    loc_max = tf.argmax(abs_wf_tf[:, :, 0], 1)
+
     # it is centered if the energy is highest at the first channel index
-    idx_centered = tf.equal(tf.argmax(energy_tf, 1), 0)
+    idx_centered = tf.logical_and(tf.equal(tf.argmax(energy_tf, 1), 0),
+                                  tf.logical_and(loc_max > 0,
+                                                 loc_max < wf_shapes[2]))
 
     # keep oinly good ones
     wf_keep_tf = tf.boolean_mask(waveform_tf, idx_centered)
