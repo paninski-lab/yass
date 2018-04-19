@@ -5,7 +5,7 @@ import datetime
 from yass import read_config
 from yass.templates.util import get_templates, align_templates, merge_templates
 from yass.templates.clean import clean_up_templates
-from yass.util import file_loader, check_for_files, LoadFile, file_loader
+from yass.util import check_for_files, LoadFile, file_loader
 
 
 @check_for_files(filenames=[LoadFile('templates.npy'),
