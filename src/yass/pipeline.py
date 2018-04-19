@@ -110,6 +110,17 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                             if_file_exists=CONFIG.preprocess.if_file_exists))
     time_preprocess = time.time() - start
 
+
+    #Save o_layer; #Optional step to save output from o_layer for offline analysis
+    if False:
+        path_to_olayer = path.join(TMP_FOLDER, 'o_layer.bin')
+        if os.path.exists(path_to_olayer):
+            pass
+        else:
+            o_path, o_params = get_o_layer(standarized_path, standarized_params)
+
+
+
     # detect
     start = time.time()
     (score, spike_index_clear,
