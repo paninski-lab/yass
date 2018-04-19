@@ -17,6 +17,7 @@ except ImportError:
 
 import yass
 import logging
+import pickle
 import datetime
 import os
 import functools
@@ -357,7 +358,7 @@ def save_numpy_object(obj, output_path, if_file_exists, name='file'):
 
 
 def file_loader(path):
-    """Load a file. Supported extensions: yaml. npy
+    """Load a file. Supported extensions: yaml, npy and pickle
 
     Parameters
     ----------
@@ -366,8 +367,8 @@ def file_loader(path):
     """
     if not isinstance(path, str) and not isinstance(path, Path):
         logger.debug('Parameter path is not a string or a Path object, '
-                     'function will just return the parameter (%s)',
-                     path)
+                     'function will just return the parameter, type: %s',
+                     type(path))
         return path
 
     path = Path(path)
@@ -376,6 +377,9 @@ def file_loader(path):
         return np.load(str(path))
     elif path.suffix == '.yaml':
         return load_yaml(str(path))
+    elif path.suffix == '.pickle':
+        with open(str(path), 'rb') as file:
+            return pickle.load(file)
     else:
         raise ValueError('Do not know how to load file with extension '
                          '{}'.format(path.suffix))
@@ -383,6 +387,8 @@ def file_loader(path):
 
 def file_saver(obj, path):
     path = Path(path)
+
+    logger.debug('Saving file of type %s in %s', type(obj), path)
 
     if path.suffix == '.npy':
         np.save(str(path), obj)
@@ -392,6 +398,9 @@ def file_saver(obj, path):
         with open(str(path), 'w') as f:
             yaml.dump(obj, f)
 
+    elif path.suffix == '.pickle':
+        with open(str(path), 'wb') as file:
+            pickle.dump(obj, file, protocol=pickle.HIGHEST_PROTOCOL)
     else:
         raise ValueError('Do not know how to save file with extension '
                          '{}'.format(path.suffix))
@@ -509,6 +518,9 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
             if (if_file_exists == 'overwrite' or
                if_file_exists == 'abort' and not any(exists)
                or if_file_exists == 'skip' and not all(exists)):
+
+                wrapper.executed = True
+
                 logger.debug('Running the function...')
 
                 res = func(*args, **kwargs)
@@ -533,6 +545,8 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
                                  'program halted since the following files '
                                  'already exist: {}'.format(message))
             elif if_file_exists == 'skip' and all(exists):
+
+                wrapper.executed = False
 
                 logger.info('Skipped {} execution. All necessary files exist'
                             ', loading them...'.format(function_path(func)))
