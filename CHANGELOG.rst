@@ -7,7 +7,7 @@ Changelog
 * It is now possible to save results for every step to resume execution, see `save_results` option
 * Fixed a bug that caused excessive logging when logger level was set to DEBUG
 * General improvements to the sorting algorithm
-* Fixes a bug that was causing and import error in the mfm module
+* Fixes a bug that was causing and import error in the mfm module (thanks @neil-gallagher for reporting this issue)
 
 
 0.7 (2018-04-06)
