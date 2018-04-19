@@ -1,8 +1,8 @@
 Changelog
 =========
 
-0.8dev
-------
+0.8 (2018-04-19)
+-----------------
 
 * It is now possible to save results for every step to resume execution, see `save_results` option
 * Fixed a bug that caused excessive logging when logger level was set to DEBUG
