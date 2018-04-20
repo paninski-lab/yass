@@ -325,6 +325,9 @@ def run_neural_network(standarized_path, standarized_params,
             scores = get_locations_features(scores, rotation, clear[:, 1],
                                             channel_index, CONFIG.geom,
                                             threshold)
+            idx_nan = np.where(np.isnan(np.sum(scores, axis=(1, 2))))[0]
+            scores = np.delete(scores, idx_nan, 0)
+            clear = np.delete(clear, idx_nan, 0)
 
         # save partial results if required
         if save_results:
