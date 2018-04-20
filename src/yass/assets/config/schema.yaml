@@ -342,6 +342,10 @@ deconvolution:
       type: boolean
       default: True
       required: True
+    verbose:
+      type: boolean
+      default: False
+      required: False
     # refractory period violation in time bins
     n_rf:
       type: float
@@ -358,6 +362,12 @@ deconvolution:
     n_explore:
       type: integer
       default: 2
+    
+    # number of minimum spikes required for tempalte to be included:
+    max_spikes:
+      type: integer
+      default: 20
+  
     # upsampling factor of templates
     upsample_factor:
       type: integer

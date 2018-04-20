@@ -1,6 +1,7 @@
 import os
 import logging
 import datetime
+import numpy as np
 
 from yass import read_config
 from yass.templates.util import get_templates, align_templates, merge_templates
@@ -124,5 +125,12 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     currentTime = datetime.datetime.now()
     logger.info("Templates done in {0} seconds.".format(
         (currentTime - startTime).seconds))
+
+    #Save spike_train_clear_after_templates to be loaded by deconv
+    spike_train_clear_after_templates = os.path.join(
+                                CONFIG.data.root_folder,
+                                output_directory,
+                                'spike_train_clear_after_templates.npy')
+    np.save(spike_train_clear_after_templates, spike_train)
 
     return templates, spike_train, groups, idx_good_templates

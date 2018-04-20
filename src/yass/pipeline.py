@@ -111,7 +111,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     time_preprocess = time.time() - start
 
 
-    #Save o_layer; #Optional step to save output from o_layer for offline analysis
+    #Save o_layer; #Optional output from o_layer for postprocessing analysis
     if False:
         path_to_olayer = path.join(TMP_FOLDER, 'o_layer.bin')
         if os.path.exists(path_to_olayer):
@@ -143,6 +143,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         save_results=CONFIG.cluster.save_results)
     time_cluster = time.time() - start
 
+
     # get templates
     start = time.time()
     (templates,
@@ -157,7 +158,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # run deconvolution
     start = time.time()
-    spike_train = deconvolute.run(spike_index_all, templates,
+    spike_train, templates = deconvolute.run(spike_index_all, templates,
                                   output_directory=output_dir)
     time_deconvolution = time.time() - start
 
