@@ -3,7 +3,7 @@ import datetime
 import numpy as np
 
 from yass import read_config
-from yass.util import file_loader  # , check_for_files, LoadFile
+from yass.util import file_loader, check_for_files, LoadFile
 from yass.cluster.subsample import random_subsample
 from yass.cluster.triage import triage
 from yass.cluster.coreset import coreset

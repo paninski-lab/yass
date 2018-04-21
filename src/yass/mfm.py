@@ -783,7 +783,7 @@ def birth_move(maskedData, vbParam, suffStat, param, L):
     collectionThreshold = 0.1
     extraK = param.cluster.n_split
 
-    if np.any(suffStat.Nhat >= extraK):
+    if np.any(np.sum(vbParam.rhat > collectionThreshold, 0) >= extraK):
         weight = (suffStat.Nhat + 0.001) * L ** 2
         weight = weight / np.sum(weight)
         idx = np.zeros(1).astype(int)
