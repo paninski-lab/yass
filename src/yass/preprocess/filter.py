@@ -2,13 +2,15 @@
 Filtering functions
 """
 import os
+import numpy as np
 
 from scipy.signal import butter, lfilter
 
 from yass.batch import BatchProcessor
 from yass.util import check_for_files, ExpandPath, LoadFile
+from yass.preprocess.standarize import standard_deviation
 
-
+#*** DEPRECATED ****
 @check_for_files(filenames=[ExpandPath('output_filename'),
                             LoadFile('output_filename', 'yaml')],
                  mode='extract', relative_to='output_path')
@@ -95,7 +97,7 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
 
     return path, params
 
-
+#**** DEPRECATED *****
 def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
     """Butterworth filter for a one dimensional time series
 
@@ -141,7 +143,7 @@ def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
 
         return lfilter(b, a, ts, 0)
 
-
+#**** DEPRECATED *****
 def fix_indexes(res, idx_local, idx, buffer_size):
     """Fixes indexes from detected spikes in batches
 
@@ -162,3 +164,133 @@ def fix_indexes(res, idx_local, idx, buffer_size):
     data_end = idx_local[0].stop
 
     return res[data_start:data_end]
+
+
+
+def filter_standardize(data_in, low_frequency, high_factor, order, sampling_frequency, buffer_size, filename_dat, n_channels):
+    """Butterworth filter for a one dimensional time series
+
+    Parameters
+    ----------
+    ts: np.array
+        T  numpy array, where T is the number of time samples
+    low_frequency: int
+        Low pass frequency (Hz)
+    high_factor: float
+        High pass factor (proportion of sampling rate)
+    order: int
+        Order of Butterworth filter
+    sampling_frequency: int
+        Sampling frequency (Hz)
+
+    Notes
+    -----
+    This function can only be applied to a one dimensional array, to apply
+    it to multiple channels use butterworth
+
+    Raises
+    ------
+    NotImplementedError
+        If a multidmensional array is passed
+    """
+
+    #Load data from disk; buffer as required: 
+    idx_list, chunk_idx = data_in[0], data_in[1]
+
+    #prPurple("Loading data files for chunk: "+str(chunk_idx))
+
+    #New indexes
+    idx_start = idx_list[0]
+    idx_stop = idx_list[1]
+    idx_local = idx_list[2]
+    idx_local_end = idx_list[3]
+   
+    data_start = idx_start  #idx[0].start
+    data_end = idx_stop    #idx[0].stop
+    # get offset that will be applied
+    offset = idx_local   #idx_local[0].start
+
+
+    #**********************************************************************************************
+    #************************************* LOAD RAW RECORDING *************************************
+    #**********************************************************************************************
+    #print ("   Chunk: ", chunk_idx, "  Loading : ", ((data_end-data_start)*4*n_channels)*1.E-6, "MB")
+    
+    with open(filename_dat, "rb") as fin:
+        if data_start==0:
+            # Seek position and read N bytes
+            recordings_1D = np.fromfile(fin, dtype='int16', count=(data_end+buffer_size)*n_channels)
+            recordings_1D = np.hstack((np.zeros(buffer_size*n_channels,dtype='int16'),recordings_1D))
+        else:
+            fin.seek((data_start-buffer_size)*2*n_channels, os.SEEK_SET)         #Advance to idx_start but go back 
+            recordings_1D =  np.fromfile(fin, dtype='int16', count=((data_end-data_start+buffer_size*2)*n_channels))	#Grab 2 x template_width x 2 buffers
+
+        #If at end of recording
+        if len(recordings_1D)!=((data_end-data_start+buffer_size*2)*n_channels):
+            recordings_1D = np.hstack((recordings_1D,np.zeros(buffer_size*n_channels,dtype='int16')))
+
+    fin.close()
+
+    #Convert to 2D array
+    recordings = recordings_1D.reshape(-1,n_channels)
+
+    ts = recordings
+
+    #**********************************************************************************************
+    #********************************** FILTER DATA ***********************************************
+    #**********************************************************************************************
+
+    if ts.ndim == 1:
+        print "SINGLE CHANNEL FILTER NOTE AVAILABLE.... !"
+        quit()
+        (T,) = ts.shape
+        low = float(low_frequency)/sampling_frequency * 2
+        high = float(high_factor) * 2
+        b, a = butter(order, [low, high], btype='band')
+
+        output = lfilter(b, a, ts)
+
+    else:
+        #print data_start, data_end
+        T, C = ts.shape
+        low = float(low_frequency)/sampling_frequency * 2
+        high = float(high_factor) * 2
+        b, a = butter(order, [low, high], btype='band')
+
+        output = np.zeros((T, C), 'float32')
+        #output = np.zeros((T-buffer_size*2, C), 'float32')
+        for c in range(C):
+            output[:, c] = lfilter(b, a, ts[:, c])
+    
+    #Fix indexes function
+    #print output.shape
+    res = output[buffer_size:data_end-data_start+buffer_size]
+
+    #Standardize data
+    sd = standard_deviation(res, sampling_frequency)
+    standardized = np.divide(res, sd)
+    
+    np.save(os.path.split(filename_dat)[0]+"/tmp/filtered_files/standardized_"+str(chunk_idx).zfill(6), standardized)
+    #print ("TODO ADD WHITENING STEP...")
+
+def merge_filtered_files(CONFIG, output_directory):
+    
+    path = CONFIG.data.root_folder + output_directory + 'filtered_files/'
+
+    filenames = os.listdir(path)
+    filenames_sorted = sorted(filenames)
+    #print filenames.sort()
+
+        
+    #Name of output file to save
+    f_out = CONFIG.data.root_folder + output_directory + "/standarized.bin"
+    print 'file_out: ', f_out
+
+    f = open(f_out, 'wb')
+    for fname in filenames_sorted:
+        #print "reading/writing : ", filenames_sorted[k]
+        res = np.load(path+fname)
+        res.tofile(f)
+        os.remove(path+fname)
+            
+        

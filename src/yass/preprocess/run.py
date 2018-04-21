@@ -3,10 +3,13 @@ Preprocess pipeline
 """
 import logging
 import os.path
+import os
+import numpy as np
+import parmap
 
 from yass import read_config
 from yass.geometry import make_channel_index
-from yass.preprocess.filter import butterworth
+from yass.preprocess.filter import butterworth, filter_standardize, merge_filtered_files
 from yass.preprocess.standarize import standarize
 from yass.util import save_numpy_object
 from yass.preprocess import whiten
@@ -86,40 +89,69 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                   n_channels=CONFIG.recordings.n_channels,
                   data_order=CONFIG.recordings.order)
 
-    # optionally filter the data - generates filtered.bin
-    if CONFIG.preprocess.apply_filter:
-        path, params = butterworth(path,
-                                   params['dtype'],
-                                   params['n_channels'],
-                                   params['data_order'],
-                                   CONFIG.preprocess.filter.low_pass_freq,
-                                   CONFIG.preprocess.filter.high_factor,
-                                   CONFIG.preprocess.filter.order,
-                                   CONFIG.recordings.sampling_rate,
-                                   CONFIG.resources.max_memory,
-                                   TMP,
-                                   OUTPUT_DTYPE,
-                                   output_filename='filtered.bin',
-                                   if_file_exists=if_file_exists)
 
-    # standarize - generates standarized.bin
-    (standarized_path,
-     standarized_params) = standarize(path,
-                                      params['dtype'],
-                                      params['n_channels'],
-                                      params['data_order'],
-                                      CONFIG.recordings.sampling_rate,
-                                      CONFIG.resources.max_memory,
-                                      TMP,
-                                      OUTPUT_DTYPE,
-                                      output_filename='standarized.bin',
-                                      if_file_exists=if_file_exists)
+    #Generate skipped info: 
+    standarized_path = TMP+"standardized.bin"
+    standarized_params= params
+    standarized_params['dtype']='float32'
+
+    #read config params
+    multi_processing = CONFIG.resources.multi_processing
+    n_processors = CONFIG.resources.n_processors
+    n_sec_chunk = CONFIG.resources.n_sec_chunk
+    n_channels = CONFIG.recordings.n_channels  
+    sampling_rate = CONFIG.recordings.sampling_rate
+
+    #Read filter params
+    low_frequency = CONFIG.preprocess.filter.low_pass_freq
+    high_factor = CONFIG.preprocess.filter.high_factor
+    order = CONFIG.preprocess.filter.order
+    buffer_size = 200
+
+    # compute len of recording 
+    filename_dat = CONFIG.data.root_folder+ CONFIG.data.recordings
+    fp = np.memmap(filename_dat, dtype='int16', mode='r')
+    fp_len = fp.shape[0]
+
+    # compute batch indexes
+    indexes = np.arange(0,fp_len/n_channels,sampling_rate*n_sec_chunk)
+    if indexes[-1] != fp_len/n_channels:
+        indexes = np.hstack((indexes, fp_len/n_channels))
+
+    idx_list = []
+    for k in range(len(indexes)-1):
+        idx_list.append([indexes[k],indexes[k+1],buffer_size, indexes[k+1]-indexes[k]+buffer_size])
+
+    idx_list = np.int64(np.vstack(idx_list))
+    proc_indexes = np.arange(len(idx_list))
+
+    print ("# of chunks: ", len(idx_list))
+
+    #Make directory to hold filtered batch files:
+    filtered_location = CONFIG.data.root_folder+output_directory+'/filtered_files'
+    if not os.path.exists(filtered_location):
+        os.makedirs(filtered_location)
+
+    #filter and standardize in one step        
+    multi_processing=1
+    if multi_processing:
+        parmap.map(filter_standardize, zip(idx_list,proc_indexes), low_frequency, high_factor, order, sampling_rate,buffer_size, filename_dat, n_channels, processes=n_processors, pm_pbar=True)
+    else: 
+        for k in range(len(idx_list)):
+            filter_standardize([idx_list[k],k], low_frequency, high_factor, order, sampling_rate, buffer_size, filename_dat, n_channels)
+
+    #Merge the chunk filtered files and delete the individual chunks
+    merge_filtered_files(CONFIG, output_directory)
+
 
     # TODO: this shoulnd't be done here, it would be better to compute
     # this when initializing the config object and then access it from there
     channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom, 2)
 
+    
+    
+    # OLD CODE: compute whiten filter using batch processor
     # TODO: remove whiten_filter out of output argument
     whiten_filter = whiten.matrix(standarized_path,
                                   standarized_params['dtype'],
@@ -139,3 +171,6 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     return (str(standarized_path), standarized_params, channel_index,
             whiten_filter)
+            
+
+

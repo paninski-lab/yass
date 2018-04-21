@@ -199,17 +199,26 @@ def run(spike_index_all, templates,
                       " verbose mode: ", CONFIG.deconvolution.verbose)
 
     #Deconv using parmap module
-    if CONFIG.resources.multi_processing==False: n_processors=1
-    spike_trains = parmap.map(deconvolve_new_allcores_updated, 
-         zip(idx_list,proc_indexes), output_directory, TMP_FOLDER, 
-         filename_bin, path_to_spt_list, path_to_temp_temp, 
-         path_to_shifted_templates, buffer_size, n_channels, 
-         temporal_features, spatial_features, n_explore, threshold_d, 
-         verbose=CONFIG.deconvolution.verbose, 
-         processes=n_processors, pm_pbar=True)
+    if CONFIG.resources.multi_processing: 
+        spike_train = parmap.map(deconvolve_new_allcores_updated, 
+             zip(idx_list,proc_indexes), output_directory, TMP_FOLDER, 
+             filename_bin, path_to_spt_list, path_to_temp_temp, 
+             path_to_shifted_templates, buffer_size, n_channels, 
+             temporal_features, spatial_features, n_explore, 
+             threshold_d, verbose=CONFIG.deconvolution.verbose, 
+             processes=n_processors, pm_pbar=True)
+    else: 
+        spike_train = []
+        for k in range(len(idx_list)):
+            spike_train.append(deconvolve_new_allcores_updated(
+                [idx_list[k],k],output_directory, TMP_FOLDER, 
+                filename_bin, path_to_spt_list, path_to_temp_temp, 
+                path_to_shifted_templates, buffer_size, n_channels, 
+                temporal_features, spatial_features, n_explore, 
+                threshold_d, verbose=CONFIG.deconvolution.verbose))
 
     #Gather spikes
-    spike_train = np.vstack(spike_trains)
+    spike_train = np.vstack(spike_train)
 
     # sort spikes by time and remove templates with spikes < max_spikes
     spike_train, templates = clean_up(spike_train, templates, max_spikes)

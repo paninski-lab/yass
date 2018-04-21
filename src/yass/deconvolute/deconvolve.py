@@ -69,7 +69,6 @@ def deconvolve_new_allcores_updated(data_in, output_directory, TMP_FOLDER,
     recordings = recordings_1D.reshape(-1,n_channels)
 
     #**** SETUP ARRAYS ****
-
     n_templates, n_shifts, waveform_size, n_channels = \
                                                 shifted_templates.shape
     R = int((waveform_size-1)/2)
