@@ -46,11 +46,6 @@ class FrozenJSON(object):
 
     def __init__(self, mapping):
         self._logger = logging.getLogger(__name__)
-        # HACK this is commented because it prints too many times
-        # and the integration test fails. This comment is
-        # Not a fix, but should allow the test to pass
-        # self._logger.debug('Loaded with params: %s ', mapping)
-
         self._path_to_file = None
 
         self._data = {}
@@ -128,10 +123,6 @@ class Config(FrozenJSON):
         channel_groups = geom.make_channel_groups(
             self.recordings.n_channels, self.neigh_channels, self.geom)
         self._set_param('channel_groups', channel_groups)
-
-        self._logger.debug('Geometry parameters. Geom: %s, neigh_channels: '
-                           '%s, channel_groups %s', self.geom,
-                           self.neigh_channels, self.channel_groups)
 
         self._set_param(
             'spike_size',

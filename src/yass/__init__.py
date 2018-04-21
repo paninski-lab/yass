@@ -17,7 +17,7 @@ logging.getLogger(__name__).addHandler(NullHandler())
 
 logger = logging.getLogger(__name__)
 
-__version__ = '0.8dev'
+__version__ = '0.9dev'
 
 CONFIG = None
 
@@ -67,6 +67,8 @@ def set_config(config):
         CONFIG = Config.from_yaml(config)
     else:
         CONFIG = Config(config)
+
+    logger.debug('CONFIG set to: %s', CONFIG._data)
 
 
 def reset_config():

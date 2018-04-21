@@ -116,7 +116,7 @@ Contributors
 ------------
 
 `Peter Lee`_, `Eduardo Blancas`_, `Nishchal Dethe`_, `Shenghao Wu`_,
-`Hooshmand Shokri`_, `Calvin Tong`_
+`Hooshmand Shokri`_, `Calvin Tong`_, `Catalin Mitelut`_
 
 .. _Peter Lee: https://github.com/pjl4303
 .. _Eduardo Blancas: https://blancas.io
@@ -124,3 +124,4 @@ Contributors
 .. _Shenghao Wu: https://github.com/ShenghaoWu
 .. _Hooshmand Shokri: https://github.com/hooshmandshr
 .. _Calvin Tong: https://github.com/calvinytong
+.. _Catalin Mitelut: https://github.com/catubc

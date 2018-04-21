@@ -1,11 +1,17 @@
 Changelog
 =========
 
-0.8dev
+0.9dev
 ------
 
-* New CLI tool for exporting results to phy `yass export`
-* It is now possible to save results for every step to resume execution
+
+0.8 (2018-04-19)
+-----------------
+
+* It is now possible to save results for every step to resume execution, see `save_results` option
+* Fixed a bug that caused excessive logging when logger level was set to DEBUG
+* General improvements to the sorting algorithm
+* Fixes a bug that was causing and import error in the mfm module (thanks @neil-gallagher for reporting this issue)
 
 
 0.7 (2018-04-06)

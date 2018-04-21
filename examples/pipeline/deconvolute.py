@@ -8,7 +8,7 @@ from yass import templates
 from yass import deconvolute
 
 # configure logging module to get useful information
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 # set yass configuration parameters
 yass.set_config('config_sample.yaml')
