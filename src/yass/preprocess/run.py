@@ -6,6 +6,7 @@ import os.path
 import os
 import numpy as np
 import parmap
+import yaml
 
 from yass import read_config
 from yass.geometry import make_channel_index
@@ -90,11 +91,37 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                   data_order=CONFIG.recordings.order)
 
 
-    #Generate skipped info: 
-    standarized_path = TMP+"standardized.bin"
+    #Generate params: 
+    standarized_path = TMP+"standarized.bin"
     standarized_params= params
     standarized_params['dtype']='float32'
 
+
+    #Check if data already saved to disk and skip:
+    if if_file_exists=='skip':
+        f_out = CONFIG.data.root_folder+output_directory+"standarized.bin"
+        if os.path.exists(f_out):
+        
+            channel_index = make_channel_index(CONFIG.neigh_channels,
+                                               CONFIG.geom, 2)
+
+            #Cat: this is redundant, should save to disk/not recompute
+            whiten_filter = whiten.matrix(standarized_path,
+                                       standarized_params['dtype'],
+                                       standarized_params['n_channels'],
+                                       standarized_params['data_order'],
+                                       channel_index,
+                                       CONFIG.spike_size,
+                                       CONFIG.resources.max_memory,
+                                       TMP,
+                                       output_filename='whitening.npy',
+                                       if_file_exists=if_file_exists)
+
+            path_to_channel_index = os.path.join(TMP, 'channel_index.npy')
+ 
+            return (str(standarized_path), standarized_params, 
+                    channel_index, whiten_filter)
+            
     #read config params
     multi_processing = CONFIG.resources.multi_processing
     n_processors = CONFIG.resources.n_processors
@@ -120,7 +147,8 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     idx_list = []
     for k in range(len(indexes)-1):
-        idx_list.append([indexes[k],indexes[k+1],buffer_size, indexes[k+1]-indexes[k]+buffer_size])
+        idx_list.append([indexes[k],indexes[k+1],buffer_size, 
+                                   indexes[k+1]-indexes[k]+buffer_size])
 
     idx_list = np.int64(np.vstack(idx_list))
     proc_indexes = np.arange(len(idx_list))
@@ -129,27 +157,40 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     #Make directory to hold filtered batch files:
     filtered_location = CONFIG.data.root_folder+output_directory+'/filtered_files'
-    if not os.path.exists(filtered_location):
+    if not os.path.exists(filtered_location): 
         os.makedirs(filtered_location)
 
     #filter and standardize in one step        
-    multi_processing=1
     if multi_processing:
-        parmap.map(filter_standardize, zip(idx_list,proc_indexes), low_frequency, high_factor, order, sampling_rate,buffer_size, filename_dat, n_channels, processes=n_processors, pm_pbar=True)
+        parmap.map(filter_standardize, zip(idx_list,proc_indexes), 
+         low_frequency, high_factor, order, sampling_rate,buffer_size, 
+         filename_dat, n_channels, processes=n_processors, pm_pbar=True)
     else: 
         for k in range(len(idx_list)):
-            filter_standardize([idx_list[k],k], low_frequency, high_factor, order, sampling_rate, buffer_size, filename_dat, n_channels)
+            filter_standardize([idx_list[k],k], low_frequency, 
+                 high_factor, order, sampling_rate, buffer_size, 
+                 filename_dat, n_channels)
 
     #Merge the chunk filtered files and delete the individual chunks
     merge_filtered_files(CONFIG, output_directory)
 
+    # save yaml file with params
+    path_to_yaml = standarized_path.replace('.bin', '.yaml')
+
+    params = dict(dtype=standarized_params['dtype'], 
+                  n_channels=standarized_params['n_channels'],
+                  data_order=standarized_params['data_order'])
+
+    with open(path_to_yaml, 'w') as f:
+        logger.info('Saving params...')
+        yaml.dump(params, f)
+  
 
     # TODO: this shoulnd't be done here, it would be better to compute
     # this when initializing the config object and then access it from there
     channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom, 2)
 
-    
     
     # OLD CODE: compute whiten filter using batch processor
     # TODO: remove whiten_filter out of output argument
@@ -168,6 +209,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     save_numpy_object(channel_index, path_to_channel_index,
                       if_file_exists=if_file_exists,
                       name='Channel index')
+
 
     return (str(standarized_path), standarized_params, channel_index,
             whiten_filter)

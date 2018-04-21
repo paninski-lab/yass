@@ -4,6 +4,8 @@
 import numpy as np
 from scipy import sparse
 import logging
+import parmap
+import os
 
 from yass.batch import BatchProcessor
 
@@ -40,6 +42,69 @@ def get_templates(spike_train, path_to_recordings,
     weights[weights == 0] = 1
     templates = templates / weights[np.newaxis, np.newaxis, :]
 
+    return templates, weights
+    
+    
+
+# TODO: remove this function and use the explorer directly
+def get_templates_parallel(spike_train, path_to_recordings,
+                  CONFIG, n_max=5000):
+
+    logger.info('Computing templates...')
+
+    spike_size =  2 * (CONFIG.spike_size + CONFIG.templates.max_shift) 
+    max_memory = CONFIG.resources.max_memory
+    n_processors = CONFIG.resources.n_processors
+    n_channels = CONFIG.recordings.n_channels  
+    sampling_rate = CONFIG.recordings.sampling_rate
+    n_sec_chunk = CONFIG.resources.n_sec_chunk
+
+    # number of templates
+    n_templates = int(np.max(spike_train[:, 1]) + 1)
+    spike_train_small = random_sample_spike_train(spike_train, n_max)
+
+
+    # determine length of processing chunk based on lenght of rec
+    standardized_filename = CONFIG.data.root_folder+ '/tmp/standarized.bin'
+    fp = np.memmap(standardized_filename, dtype='float32', mode='r')
+    fp_len = fp.shape[0]
+    
+    buffer_size = 200
+
+    indexes = np.arange(0,fp_len/n_channels,sampling_rate*n_sec_chunk)
+    if indexes[-1] != fp_len/n_channels:
+        indexes = np.hstack((indexes, fp_len/n_channels))
+
+    idx_list = []
+    for k in range(len(indexes)-1):
+        idx_list.append([indexes[k],indexes[k+1],buffer_size, indexes[k+1]-indexes[k]+buffer_size])
+
+    idx_list = np.int64(np.vstack(idx_list))
+    print ("# of chunks: ", len(idx_list))
+
+
+    proc_indexes = np.arange(len(idx_list))
+    
+    if CONFIG.resources.multi_processing:
+        res = parmap.map(compute_weighted_templates_parallel, zip(idx_list,proc_indexes), spike_train_small, spike_size, n_templates, n_channels, buffer_size, standardized_filename, processes=n_processors, pm_pbar=True)
+    else:
+        res=[]
+        for k in range(len(idx_list)):
+            print "chunk: ", k
+            res.append(compute_weighted_templates_parallel([idx_list[k],k], spike_train_small, spike_size, n_templates, n_channels, buffer_size, standardized_filename))
+    
+    #Reconstruct templates from parallel proecessing
+    res0=np.zeros(res[0][0].shape)
+    res1=np.zeros(res[0][1].shape)
+    for k in range(len(res)):
+        res0+=res[k][0]
+        res1+=res[k][1]
+        
+    templates = res0
+    weights = res1
+    weights[weights == 0] = 1
+    templates = templates/weights[np.newaxis, np.newaxis, :]
+    
     return templates, weights
 
 
@@ -85,6 +150,74 @@ def compute_weighted_templates(recording, idx_local, idx, previous_batch,
         weights += previous_batch[1]
 
     return weighted_templates, weights
+
+
+
+def compute_weighted_templates_parallel(data_in, spike_train, spike_size, 
+                         n_templates, n_channels, buffer_size, 
+                         standardized_filename):
+
+    idx_list, chunk_idx = data_in[0], data_in[1]
+
+    #prPurple("Loading data files for chunk: "+str(chunk_idx))
+
+    #New indexes
+    idx_start = idx_list[0]
+    idx_stop = idx_list[1]
+    idx_local = idx_list[2]
+    idx_local_end = idx_list[3]
+
+    data_start = idx_start  #idx[0].start
+    data_end = idx_stop    #idx[0].stop
+    offset = idx_local   #idx_local[0].start
+    
+
+    #***** LOAD RAW RECORDING *****
+    #print ("   Chunk: ", chunk_idx, "  Loading : ", ((data_end-data_start)*4*n_channels)*1.E-6, "MB")
+    with open(standardized_filename, "rb") as fin:
+        if data_start==0:
+            # Seek position and read N bytes
+            recordings_1D = np.fromfile(fin, dtype='float32', count=(data_end+buffer_size)*n_channels)
+            recordings_1D = np.hstack((np.zeros(buffer_size*n_channels,dtype='float32'),recordings_1D))
+        else:
+            fin.seek((data_start-buffer_size)*4*n_channels, os.SEEK_SET)         #Advance to idx_start but go back 
+            recordings_1D =  np.fromfile(fin, dtype='float32', count=((data_end-data_start+buffer_size*2)*n_channels))	#Grab 2 x template_widthx2 buffers
+
+        if len(recordings_1D)!=((data_end-data_start+buffer_size*2)*n_channels):
+            recordings_1D = np.hstack((recordings_1D,np.zeros(buffer_size*n_channels,dtype='float32')))
+
+    fin.close()
+
+    #Convert to 2D array
+    recording = recordings_1D.reshape(-1,n_channels)
+
+    #Compute search time
+    spike_time = spike_train[:, 0]
+    spike_train = spike_train[np.logical_and(spike_time >= data_start,
+                                             spike_time < data_end)]
+    spike_train[:, 0] = spike_train[:, 0] - data_start + offset
+
+    # calculate weight templates
+    weighted_templates = np.zeros(
+        (n_templates, 2 * spike_size + 1, n_channels), dtype=np.float32)
+    weights = np.zeros(n_templates)
+
+    for k in range(n_templates):
+        spt = spike_train[spike_train[:, 1] == k]
+        n_spikes = spt.shape[0]
+        if n_spikes > 0:
+            weighted_templates[k] = np.average(
+                recording[spt[:, [0]].astype('int32')
+                          + np.arange(-spike_size, spike_size + 1)],
+                axis=0,
+                weights=spt[:, 2])
+            weights[k] = np.sum(spt[:, 2])
+            weighted_templates[k] *= weights[k]
+
+    weighted_templates = np.transpose(weighted_templates, (2, 1, 0))
+
+    return weighted_templates, weights
+
 
 
 def random_sample_spike_train(spike_train, n_max):

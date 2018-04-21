@@ -263,7 +263,6 @@ def filter_standardize(data_in, low_frequency, high_factor, order, sampling_freq
             output[:, c] = lfilter(b, a, ts[:, c])
     
     #Fix indexes function
-    #print output.shape
     res = output[buffer_size:data_end-data_start+buffer_size]
 
     #Standardize data
@@ -271,7 +270,6 @@ def filter_standardize(data_in, low_frequency, high_factor, order, sampling_freq
     standardized = np.divide(res, sd)
     
     np.save(os.path.split(filename_dat)[0]+"/tmp/filtered_files/standardized_"+str(chunk_idx).zfill(6), standardized)
-    #print ("TODO ADD WHITENING STEP...")
 
 def merge_filtered_files(CONFIG, output_directory):
     
@@ -283,7 +281,7 @@ def merge_filtered_files(CONFIG, output_directory):
 
         
     #Name of output file to save
-    f_out = CONFIG.data.root_folder + output_directory + "/standarized.bin"
+    f_out = CONFIG.data.root_folder + output_directory + "standarized.bin"
     print 'file_out: ', f_out
 
     f = open(f_out, 'wb')

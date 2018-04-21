@@ -4,7 +4,7 @@ import datetime
 import numpy as np
 
 from yass import read_config
-from yass.templates.util import get_templates, align_templates, merge_templates
+from yass.templates.util import get_templates, align_templates, merge_templates, get_templates_parallel
 from yass.templates.clean import clean_up_templates
 from yass.util import check_for_files, LoadFile, file_loader
 
@@ -94,10 +94,15 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     neighbors = CONFIG.neigh_channels
     geometry = CONFIG.geom
 
-    # make templates
-    templates, weights = get_templates(spike_train, path_to_recordings,
-                                       CONFIG.resources.max_memory,
-                                       2 * (spike_size + template_max_shift))
+
+    # make templates using parallel code
+    templates, weights = get_templates_parallel(spike_train, 
+                                            path_to_recordings, CONFIG)
+
+    #Cat: this seems to be broken right now, gives error for align_templates
+    #templates, weights = get_templates(spike_train, path_to_recordings,
+    #                                   CONFIG.resources.max_memory,
+    #                                   2 * (spike_size + template_max_shift))
 
     # clean up bad templates
     snr_threshold = 2
