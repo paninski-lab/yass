@@ -138,6 +138,8 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
                                 CONFIG.data.root_folder,
                                 output_directory,
                                 'spike_train_clear_after_templates.npy')
-    np.save(spike_train_clear_after_templates, spike_train)
+    
+    #Cat: skip this step, can take several minutes, also sometimes misses spikes
+    #np.save(spike_train_clear_after_templates, spike_train)
 
     return templates, spike_train, groups, idx_good_templates

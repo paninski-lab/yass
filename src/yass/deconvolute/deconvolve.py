@@ -46,22 +46,22 @@ def deconvolve_new_allcores_updated(data_in, output_directory, TMP_FOLDER,
     spike_train_clear = np.load(spike_train_clear_fname)
     
     with open(filename_bin, "rb") as fin:
-	if data_start==0:
-	    # Seek position and read N bytes
-	    recordings_1D = np.fromfile(fin, dtype='float32', count=(
-                                       data_end+buffer_size)*n_channels)
-	    recordings_1D = np.hstack((np.zeros(buffer_size*n_channels,
-                                        dtype='float32'),recordings_1D))
-	else:
-	    fin.seek((data_start-buffer_size)*4*n_channels, os.SEEK_SET)         
-        #Grab 2 x template_width x 2 buffers
-        recordings_1D =  np.fromfile(fin, dtype='float32', count=(
-                       (data_end-data_start+buffer_size*2)*n_channels))	
+        if data_start==0:
+            # Seek position and read N bytes
+            recordings_1D = np.fromfile(fin, dtype='float32', count=(
+                                           data_end+buffer_size)*n_channels)
+            recordings_1D = np.hstack((np.zeros(buffer_size*n_channels,
+                                            dtype='float32'),recordings_1D))
+        else:
+            fin.seek((data_start-buffer_size)*4*n_channels, os.SEEK_SET)         
+            #Grab 2 x template_width x 2 buffers
+            recordings_1D =  np.fromfile(fin, dtype='float32', count=(
+                           (data_end-data_start+buffer_size*2)*n_channels))	
 
-	if len(recordings_1D)!=(
-                        (data_end-data_start+buffer_size*2)*n_channels):
-	    recordings_1D = np.hstack((recordings_1D,
-                      np.zeros(buffer_size*n_channels,dtype='float32')))
+        if len(recordings_1D)!=(
+                            (data_end-data_start+buffer_size*2)*n_channels):
+            recordings_1D = np.hstack((recordings_1D,
+                          np.zeros(buffer_size*n_channels,dtype='float32')))
 
     fin.close()
 
