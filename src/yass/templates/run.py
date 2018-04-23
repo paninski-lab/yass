@@ -94,7 +94,6 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     neighbors = CONFIG.neigh_channels
     geometry = CONFIG.geom
 
-
     # make templates using parallel code
     templates, weights = get_templates_parallel(spike_train, 
                                             path_to_recordings, CONFIG)
@@ -104,6 +103,7 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     #                                   CONFIG.resources.max_memory,
     #                                   2 * (spike_size + template_max_shift))
 
+    logger.info("Cleaning Templates...")
     # clean up bad templates
     snr_threshold = 2
     spread_threshold = 100
@@ -111,10 +111,12 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
         templates, weights, spike_train, tmp_loc, geometry, neighbors,
         snr_threshold, spread_threshold)
 
+    logger.info("Aligning Templates...")
     # align templates
     templates, spike_train = align_templates(templates, spike_train,
                                              template_max_shift)
 
+    logger.info("Merging Templates...")
     # merge templates
     templates, spike_train, groups = merge_templates(
         templates, weights, spike_train, neighbors, template_max_shift,

@@ -235,7 +235,6 @@ def make_spt_list(spike_index, n_channels):
     spike_index_list = [None]*n_channels
 
     for c in range(n_channels):
-	print ("making spt list channel: ",c)
         spike_index_list[c] = spike_index[spike_index[:, 1] == c, 0]
 
     return spike_index_list

@@ -49,20 +49,20 @@ def get_templates(spike_train, path_to_recordings,
 # TODO: remove this function and use the explorer directly
 def get_templates_parallel(spike_train, path_to_recordings,
                   CONFIG, n_max=5000):
-
-    logger.info('Computing templates...')
+                  #CONFIG, n_max=100):
 
     spike_size =  2 * (CONFIG.spike_size + CONFIG.templates.max_shift) 
     max_memory = CONFIG.resources.max_memory
     n_processors = CONFIG.resources.n_processors
     n_channels = CONFIG.recordings.n_channels  
     sampling_rate = CONFIG.recordings.sampling_rate
-    n_sec_chunk = CONFIG.resources.n_sec_chunk
+    #n_sec_chunk = CONFIG.resources.n_sec_chunk
+    n_sec_chunk = 100
 
     # number of templates
+    #print("...subsampling templates")
     n_templates = int(np.max(spike_train[:, 1]) + 1)
-    spike_train_small = random_sample_spike_train(spike_train, n_max)
-
+    spike_train_small = random_sample_spike_train(spike_train, n_max, CONFIG)
 
     # determine length of processing chunk based on lenght of rec
     standardized_filename = CONFIG.data.root_folder+ '/tmp/standarized.bin'
@@ -80,26 +80,29 @@ def get_templates_parallel(spike_train, path_to_recordings,
         idx_list.append([indexes[k],indexes[k+1],buffer_size, indexes[k+1]-indexes[k]+buffer_size])
 
     idx_list = np.int64(np.vstack(idx_list))
-    print ("# of chunks: ", len(idx_list))
-
 
     proc_indexes = np.arange(len(idx_list))
     
+    print("...computing templates (fixed chunk size - 100sec for efficiency and memory)")
     if CONFIG.resources.multi_processing:
         res = parmap.map(compute_weighted_templates_parallel, zip(idx_list,proc_indexes), spike_train_small, spike_size, n_templates, n_channels, buffer_size, standardized_filename, processes=n_processors, pm_pbar=True)
     else:
         res=[]
         for k in range(len(idx_list)):
-            print "chunk: ", k
-            res.append(compute_weighted_templates_parallel([idx_list[k],k], spike_train_small, spike_size, n_templates, n_channels, buffer_size, standardized_filename))
+            #print "chunk: ", k
+            temp = compute_weighted_templates_parallel([idx_list[k],k], spike_train_small, spike_size, n_templates, n_channels, buffer_size, standardized_filename)
+            print temp[0].shape,temp[1].shape, temp[1][0].shape
+            res.append(temp)
     
     #Reconstruct templates from parallel proecessing
+    print("... reconstructing templates")
     res0=np.zeros(res[0][0].shape)
     res1=np.zeros(res[0][1].shape)
     for k in range(len(res)):
         res0+=res[k][0]
         res1+=res[k][1]
-        
+    
+    print("... dividing templates by weights")
     templates = res0
     weights = res1
     weights[weights == 0] = 1
@@ -152,14 +155,15 @@ def compute_weighted_templates(recording, idx_local, idx, previous_batch,
     return weighted_templates, weights
 
 
+def prPurple(prt): print("\033[95m {}\033[00m" .format(prt))
 
 def compute_weighted_templates_parallel(data_in, spike_train, spike_size, 
                          n_templates, n_channels, buffer_size, 
                          standardized_filename):
 
     idx_list, chunk_idx = data_in[0], data_in[1]
-
-    #prPurple("Loading data files for chunk: "+str(chunk_idx))
+    
+    #prPurple("Processing chunk: "+str(chunk_idx))
 
     #New indexes
     idx_start = idx_list[0]
@@ -173,18 +177,22 @@ def compute_weighted_templates_parallel(data_in, spike_train, spike_size,
     
 
     #***** LOAD RAW RECORDING *****
-    #print ("   Chunk: ", chunk_idx, "  Loading : ", ((data_end-data_start)*4*n_channels)*1.E-6, "MB")
     with open(standardized_filename, "rb") as fin:
         if data_start==0:
             # Seek position and read N bytes
-            recordings_1D = np.fromfile(fin, dtype='float32', count=(data_end+buffer_size)*n_channels)
-            recordings_1D = np.hstack((np.zeros(buffer_size*n_channels,dtype='float32'),recordings_1D))
+            recordings_1D = np.fromfile(fin, dtype='float32', 
+                                count=(data_end+buffer_size)*n_channels)
+            recordings_1D = np.hstack((np.zeros(
+                 buffer_size*n_channels,dtype='float32'),recordings_1D))
         else:
-            fin.seek((data_start-buffer_size)*4*n_channels, os.SEEK_SET)         #Advance to idx_start but go back 
-            recordings_1D =  np.fromfile(fin, dtype='float32', count=((data_end-data_start+buffer_size*2)*n_channels))	#Grab 2 x template_widthx2 buffers
+            fin.seek((data_start-buffer_size)*4*n_channels, os.SEEK_SET)         
+            recordings_1D =  np.fromfile(fin, dtype='float32', 
+                 count=((data_end-data_start+buffer_size*2)*n_channels))	
 
-        if len(recordings_1D)!=((data_end-data_start+buffer_size*2)*n_channels):
-            recordings_1D = np.hstack((recordings_1D,np.zeros(buffer_size*n_channels,dtype='float32')))
+        if len(recordings_1D)!=(
+                        (data_end-data_start+buffer_size*2)*n_channels):
+            recordings_1D = np.hstack((recordings_1D,
+                      np.zeros(buffer_size*n_channels,dtype='float32')))
 
     fin.close()
 
@@ -216,28 +224,85 @@ def compute_weighted_templates_parallel(data_in, spike_train, spike_size,
 
     weighted_templates = np.transpose(weighted_templates, (2, 1, 0))
 
+    #print (weighted_templates.shape, weights.shape)
+
     return weighted_templates, weights
 
 
+def random_sample_spike_train_parallel(data_in, chunk_len, n_templates, 
+                                                      n_spikes_sampled):
 
-def random_sample_spike_train(spike_train, n_max):
-
-    n_templates = int(np.max(spike_train[:, 1]) + 1)
+    proc_idx = data_in[0]
+    spike_train  = data_in[1]
+    #print("Processing chunk: ", proc_idx)
 
     idx_keep = np.zeros(spike_train.shape[0], 'bool')
+
     for k in range(n_templates):
+        #if k%100==0: print(k,'/', n_templates)
         idx_data = np.where(spike_train[:, 1] == k)[0]
         n_data = idx_data.shape[0]
 
-        if n_data > n_max:
+        if n_data > n_spikes_sampled:
             idx_sample = np.random.choice(n_data,
-                                          n_max,
+                                          n_spikes_sampled,
                                           replace=False)
             idx_keep[idx_data[idx_sample]] = 1
         else:
             idx_keep[idx_data] = 1
 
     spike_train_small = spike_train[idx_keep]
+
+    return spike_train_small
+        
+def random_sample_spike_train(spike_train, n_max, CONFIG):
+
+    n_templates = int(np.max(spike_train[:, 1]) + 1)
+
+    multi_processing = CONFIG.resources.multi_processing
+    n_processors = CONFIG.resources.n_processors
+    
+    print("...subsampling templates...")
+    if multi_processing: 
+        
+        #Split spikearray into 100 chunks;
+        #Cat: TODO: split array based on mem and other config parameters 
+        n_chunks = 100
+        spike_train_chunks = np.array_split(spike_train,n_chunks)  
+
+        #Compute chunk len to offset incoming indexes
+        chunk_len = len(spike_train[0])
+
+        #Compute processor index
+        proc_idx = np.arange(len(spike_train_chunks))
+
+        # No. of spikes in each chunk of data
+        n_spikes_sampled = n_max/n_chunks
+        
+        res = parmap.map(random_sample_spike_train_parallel, 
+                         zip(proc_idx,spike_train_chunks), chunk_len, 
+                         n_templates, n_spikes_sampled, 
+                         processes=n_processors, pm_pbar=True)
+
+        spike_train_small = np.vstack(res)
+       
+    else: 
+        idx_keep = np.zeros(spike_train.shape[0], 'bool')
+
+        for k in range(n_templates):
+            if k%100==0: print(k,'/', n_templates)
+            idx_data = np.where(spike_train[:, 1] == k)[0]
+            n_data = idx_data.shape[0]
+
+            if n_data > n_max:
+                idx_sample = np.random.choice(n_data,
+                                              n_max,
+                                              replace=False)
+                idx_keep[idx_data[idx_sample]] = 1
+            else:
+                idx_keep[idx_data] = 1
+
+        spike_train_small = spike_train[idx_keep]
 
     return spike_train_small
 

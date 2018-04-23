@@ -192,6 +192,10 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                        CONFIG.geom, 2)
 
     
+    #print CONFIG.resources.max_memory
+    #quit()
+    # Cat: TODO: need to make this much smaller in size, don't need such 
+    # large batches 
     # OLD CODE: compute whiten filter using batch processor
     # TODO: remove whiten_filter out of output argument
     whiten_filter = whiten.matrix(standarized_path,
@@ -200,7 +204,8 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                   standarized_params['data_order'],
                                   channel_index,
                                   CONFIG.spike_size,
-                                  CONFIG.resources.max_memory,
+                                  #CONFIG.resources.max_memory,
+                                  '50MB',
                                   TMP,
                                   output_filename='whitening.npy',
                                   if_file_exists=if_file_exists)

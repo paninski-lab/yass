@@ -82,7 +82,8 @@ def run(spike_index_all, templates,
     else:
         spike_index_chunks = np.array_split(spike_index_all,n_processors)
         spt_list = parmap.map(make_spt_list_parallel, spike_index_chunks, 
-                                      n_channels, processes=n_processors)
+                              n_channels, processes=n_processors,
+                              pm_pbar=True)
 	
 	    #Recombine the spikes across channels from different procs
         spt_list_total = []
