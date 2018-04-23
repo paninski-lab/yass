@@ -241,7 +241,7 @@ def filter_standardize(data_in, low_frequency, high_factor, order, sampling_freq
     #**********************************************************************************************
 
     if ts.ndim == 1:
-        print "SINGLE CHANNEL FILTER NOTE AVAILABLE.... !"
+        print ("SINGLE CHANNEL FILTER NOTE AVAILABLE.... !")
         quit()
         (T,) = ts.shape
         low = float(low_frequency)/sampling_frequency * 2
@@ -282,7 +282,7 @@ def merge_filtered_files(CONFIG, output_directory):
         
     #Name of output file to save
     f_out = CONFIG.data.root_folder + output_directory + "standarized.bin"
-    print 'file_out: ', f_out
+    print ('standardized file saving: ', f_out)
 
     f = open(f_out, 'wb')
     for fname in filenames_sorted:

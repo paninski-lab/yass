@@ -91,7 +91,6 @@ def get_templates_parallel(spike_train, path_to_recordings,
         for k in range(len(idx_list)):
             #print "chunk: ", k
             temp = compute_weighted_templates_parallel([idx_list[k],k], spike_train_small, spike_size, n_templates, n_channels, buffer_size, standardized_filename)
-            print temp[0].shape,temp[1].shape, temp[1][0].shape
             res.append(temp)
     
     #Reconstruct templates from parallel proecessing
