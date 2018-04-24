@@ -146,8 +146,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # run deconvolution
     start = time.time()
-    spike_train = deconvolute.run(spike_index_all, templates,
-                                  output_directory=output_dir)
+    spike_train, templates = deconvolute.run(spike_index_all, templates,
+                                             output_directory=output_dir)
     time_deconvolution = time.time() - start
 
     # save metadata in tmp

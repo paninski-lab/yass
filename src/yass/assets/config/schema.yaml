@@ -35,6 +35,18 @@ resources:
       type: [integer, string]
       required: False
       default: 1GB
+    multi_processing: 
+      type: [integer, string]
+      required: True
+      default: 0
+    n_processors: 
+      type: [integer, string]
+      required: True
+      default: 1
+    n_sec_chunk: 
+      type: [integer, string]
+      required: True
+      default: 1
 
 
 recordings:
@@ -79,6 +91,10 @@ preprocess:
       allowed: [abort, overwrite, skip]
       required: False
       default: skip
+    save_results:
+      type: boolean
+      default: True
+      required: True
     # apply butterworth filter in the preprocessing step?
     apply_filter:
       type: boolean
@@ -111,15 +127,15 @@ preprocess:
 detect:
   type: dict
   schema:
-    save_results:
-      type: boolean
-      default: False
-      required: False
     if_file_exists:
       type: string
       allowed: [abort, overwrite, skip]
       required: False
       default: skip
+    save_results:
+      type: boolean
+      default: True
+      required: True
     # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
     method:
       type: string
@@ -164,7 +180,7 @@ detect:
 cluster:
   type: dict
   default:
-    save_results: False
+    save_results: True
     if_file_exists: skip
     masking_threshold: [0.9, 0.5]
     n_split: 5
@@ -192,8 +208,8 @@ cluster:
       default: skip
     save_results:
       type: boolean
-      default: False
-      required: False
+      default: True
+      required: True
     # Masking threshold
     masking_threshold:
       type: list
@@ -283,20 +299,20 @@ cluster:
 templates:
   type: dict
   default:
-    save_results: False
+    save_results: True
     if_file_exists: skip
     max_shift: 3
     merge_threshold: [0.85, 0.8]
   schema:
-    save_results:
-      type: boolean
-      default: False
-      required: False
     if_file_exists:
       type: string
       allowed: [abort, overwrite, skip]
       required: False
       default: skip
+    save_results:
+      type: boolean
+      default: True
+      required: True
     max_shift:
       type: integer
       required: False
@@ -309,12 +325,27 @@ templates:
 deconvolution:
   type: dict
   default:
+    if_file_exists: skip
+    save_results: True
     n_rf: 1.5
     threshold_a: 0.3
     threshold_dd: 0
     n_explore: 2 
     upsample_factor: 5
   schema:
+    if_file_exists:
+      type: string
+      allowed: [abort, overwrite, skip]
+      required: False
+      default: skip
+    save_results:
+      type: boolean
+      default: True
+      required: True
+    verbose:
+      type: boolean
+      default: False
+      required: False
     # refractory period violation in time bins
     n_rf:
       type: float
@@ -331,7 +362,17 @@ deconvolution:
     n_explore:
       type: integer
       default: 2
+    
+    # number of minimum spikes required for tempalte to be included:
+    max_spikes:
+      type: integer
+      default: 20
+  
     # upsampling factor of templates
     upsample_factor:
       type: integer
       default: 5
+    # number of features for svd compression
+    n_features:
+      type: integer
+      default: 3

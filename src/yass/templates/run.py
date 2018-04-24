@@ -1,9 +1,12 @@
 import os
 import logging
 import datetime
+import numpy as np
+import os.path
 
 from yass import read_config
-from yass.templates.util import get_templates, align_templates, merge_templates
+from yass.templates.util import (align_templates, merge_templates,
+                                 get_templates_parallel)
 from yass.templates.clean import clean_up_templates
 from yass.util import check_for_files, LoadFile, file_loader
 
@@ -93,11 +96,17 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     neighbors = CONFIG.neigh_channels
     geometry = CONFIG.geom
 
-    # make templates
-    templates, weights = get_templates(spike_train, path_to_recordings,
-                                       CONFIG.resources.max_memory,
-                                       2 * (spike_size + template_max_shift))
+    # make templates using parallel code
+    templates, weights = get_templates_parallel(spike_train,
+                                                path_to_recordings,
+                                                output_directory, CONFIG)
 
+    # Cat: this seems to be broken right now, gives error for align_templates
+    # templates, weights = get_templates(spike_train, path_to_recordings,
+    #                                   CONFIG.resources.max_memory,
+    #                                   2 * (spike_size + template_max_shift))
+
+    logger.info("Cleaning Templates...")
     # clean up bad templates
     snr_threshold = 2
     spread_threshold = 100
@@ -105,10 +114,12 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
         templates, weights, spike_train, tmp_loc, geometry, neighbors,
         snr_threshold, spread_threshold)
 
+    logger.info("Aligning Templates...")
     # align templates
     templates, spike_train = align_templates(templates, spike_train,
                                              template_max_shift)
 
+    logger.info("Merging Templates...")
     # merge templates
     templates, spike_train, groups = merge_templates(
         templates, weights, spike_train, neighbors, template_max_shift,
@@ -124,5 +135,13 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     currentTime = datetime.datetime.now()
     logger.info("Templates done in {0} seconds.".format(
         (currentTime - startTime).seconds))
+
+    # Save spike_train_clear_after_templates to be loaded by deconv
+    spike_train_clear_after_templates = os.path.join(
+                                CONFIG.data.root_folder,
+                                output_directory,
+                                'spike_train_clear_after_templates.npy')
+
+    np.save(spike_train_clear_after_templates, spike_train)
 
     return templates, spike_train, groups, idx_good_templates
