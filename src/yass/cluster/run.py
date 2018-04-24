@@ -13,13 +13,21 @@ from yass.cluster.util import (run_cluster, run_cluster_location,
 from yass.mfm import get_core_data
 
 
-@check_for_files(filenames=[LoadFile('spike_train_cluster.npy'),
-                            LoadFile('tmp_loc.npy'),
-                            LoadFile('vbPar.pickle')],
-                 mode='values', relative_to='output_directory',
-                 auto_save=True, prepend_root_folder=True)
-def run(scores, spike_index, output_directory='tmp/',
-        if_file_exists='skip', save_results=False):
+@check_for_files(
+    filenames=[
+        LoadFile('spike_train_cluster.npy'),
+        LoadFile('tmp_loc.npy'),
+        LoadFile('vbPar.pickle')
+    ],
+    mode='values',
+    relative_to='output_directory',
+    auto_save=True,
+    prepend_root_folder=True)
+def run(scores,
+        spike_index,
+        output_directory='tmp/',
+        if_file_exists='skip',
+        save_results=False):
     """Spike clustering
 
     Parameters
@@ -84,11 +92,10 @@ def run(scores, spike_index, output_directory='tmp/',
     scores, spike_index = random_subsample(scores, spike_index,
                                            CONFIG.cluster.max_n_spikes)
     logger.info("Triaging...")
-    scores, spike_index = triage(scores, spike_index,
-                                 CONFIG.cluster.triage.nearest_neighbors,
-                                 CONFIG.cluster.triage.percent,
-                                 CONFIG.cluster.method == 'location')
-    Time['t'] += (datetime.datetime.now()-_b).total_seconds()
+    scores, spike_index = triage(
+        scores, spike_index, CONFIG.cluster.triage.nearest_neighbors,
+        CONFIG.cluster.triage.percent, CONFIG.cluster.method == 'location')
+    Time['t'] += (datetime.datetime.now() - _b).total_seconds()
 
     if CONFIG.cluster.method == 'location':
         ##############
@@ -98,7 +105,7 @@ def run(scores, spike_index, output_directory='tmp/',
         logger.info("Clustering...")
         vbParam, tmp_loc, scores, spike_index = run_cluster_location(
             scores, spike_index, CONFIG.cluster.min_spikes, CONFIG)
-        Time['s'] += (datetime.datetime.now()-_b).total_seconds()
+        Time['s'] += (datetime.datetime.now() - _b).total_seconds()
 
     else:
         ###########
@@ -106,8 +113,7 @@ def run(scores, spike_index, output_directory='tmp/',
         ###########
         _b = datetime.datetime.now()
         logger.info("Coresetting...")
-        groups = coreset(scores,
-                         CONFIG.cluster.coreset.clusters,
+        groups = coreset(scores, CONFIG.cluster.coreset.clusters,
                          CONFIG.cluster.coreset.threshold)
         Time['c'] += (datetime.datetime.now() - _b).total_seconds()
 
@@ -116,8 +122,7 @@ def run(scores, spike_index, output_directory='tmp/',
         ###########
         _b = datetime.datetime.now()
         logger.info("Masking...")
-        masks = getmask(scores, groups,
-                        CONFIG.cluster.masking_threshold)
+        masks = getmask(scores, groups, CONFIG.cluster.masking_threshold)
         Time['m'] += (datetime.datetime.now() - _b).total_seconds()
 
         ##############
@@ -126,13 +131,12 @@ def run(scores, spike_index, output_directory='tmp/',
         _b = datetime.datetime.now()
         logger.info("Clustering...")
         vbParam, tmp_loc, scores, spike_index = run_cluster(
-            scores, masks, groups, spike_index,
-            CONFIG.cluster.min_spikes, CONFIG)
-        Time['s'] += (datetime.datetime.now()-_b).total_seconds()
+            scores, masks, groups, spike_index, CONFIG.cluster.min_spikes,
+            CONFIG)
+        Time['s'] += (datetime.datetime.now() - _b).total_seconds()
 
-    vbParam.rhat = calculate_sparse_rhat(vbParam, tmp_loc, scores_all,
-                                         spike_index_all,
-                                         CONFIG.neigh_channels)
+    vbParam.rhat = calculate_sparse_rhat(
+        vbParam, tmp_loc, scores_all, spike_index_all, CONFIG.neigh_channels)
     idx_keep = get_core_data(vbParam, scores_all, np.inf, 5)
     spike_train = vbParam.rhat[idx_keep]
     spike_train[:, 0] = spike_index_all[spike_train[:, 0].astype('int32'), 0]
@@ -146,4 +150,4 @@ def run(scores, spike_index, output_directory='tmp/',
     logger.info("\tmasking:\t{0} seconds".format(Time['m']))
     logger.info("\tclustering:\t{0} seconds".format(Time['s']))
 
-    return spike_train, tmp_loc, vbParam      
+    return spike_train, tmp_loc, vbParam

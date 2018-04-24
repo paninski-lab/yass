@@ -132,7 +132,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         save_results=CONFIG.cluster.save_results)
     time_cluster = time.time() - start
 
-
     # get templates
     start = time.time()
     (templates,
@@ -148,7 +147,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # run deconvolution
     start = time.time()
     spike_train, templates = deconvolute.run(spike_index_all, templates,
-                                  output_directory=output_dir)
+                                             output_directory=output_dir)
     time_deconvolution = time.time() - start
 
     # save metadata in tmp

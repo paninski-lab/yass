@@ -5,7 +5,8 @@ import numpy as np
 import os.path
 
 from yass import read_config
-from yass.templates.util import get_templates, align_templates, merge_templates, get_templates_parallel
+from yass.templates.util import (align_templates, merge_templates,
+                                 get_templates_parallel)
 from yass.templates.clean import clean_up_templates
 from yass.util import check_for_files, LoadFile, file_loader
 
@@ -96,12 +97,12 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     geometry = CONFIG.geom
 
     # make templates using parallel code
-    templates, weights = get_templates_parallel(spike_train, 
-                                            path_to_recordings, 
-                                            output_directory, CONFIG)
+    templates, weights = get_templates_parallel(spike_train,
+                                                path_to_recordings,
+                                                output_directory, CONFIG)
 
-    #Cat: this seems to be broken right now, gives error for align_templates
-    #templates, weights = get_templates(spike_train, path_to_recordings,
+    # Cat: this seems to be broken right now, gives error for align_templates
+    # templates, weights = get_templates(spike_train, path_to_recordings,
     #                                   CONFIG.resources.max_memory,
     #                                   2 * (spike_size + template_max_shift))
 
@@ -135,12 +136,12 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     logger.info("Templates done in {0} seconds.".format(
         (currentTime - startTime).seconds))
 
-    #Save spike_train_clear_after_templates to be loaded by deconv
+    # Save spike_train_clear_after_templates to be loaded by deconv
     spike_train_clear_after_templates = os.path.join(
                                 CONFIG.data.root_folder,
                                 output_directory,
                                 'spike_train_clear_after_templates.npy')
-    
+
     np.save(spike_train_clear_after_templates, spike_train)
 
     return templates, spike_train, groups, idx_good_templates
