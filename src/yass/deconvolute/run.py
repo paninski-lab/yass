@@ -1,9 +1,8 @@
-import os.path
+import os
 import logging
 import datetime
 import numpy as np
 import parmap
-import os.path as path
 import time
 
 from yass.deconvolute.util import svd_shifted_templates, small_shift_templates, make_spt_list, make_spt_list_parallel, clean_up, calculate_temp_temp_parallel
@@ -76,7 +75,7 @@ def run(spike_index_all, templates,
 
     # get spt_list
     print('making spt list')
-    path_to_spt_list = path.join(TMP_FOLDER, 'tmp/spt_list.npy')
+    path_to_spt_list= os.path.join(TMP_FOLDER, output_directory,'spt_list.npy')
     if os.path.exists(path_to_spt_list):
         spt_list = np.load(path_to_spt_list)
     else:
@@ -97,8 +96,8 @@ def run(spike_index_all, templates,
  
     # upsample template
     print('computing shifted templates')
-    path_to_shifted_templates = path.join(TMP_FOLDER, 
-                                         'tmp/shifted_templates.npy')
+    path_to_shifted_templates = os.path.join(TMP_FOLDER,output_directory,
+                                         'shifted_templates.npy')
     if os.path.exists(path_to_shifted_templates):
         shifted_templates= np.load(path_to_shifted_templates)
     else:
@@ -107,10 +106,10 @@ def run(spike_index_all, templates,
 
     # svd templates
     print('computing svd templates')
-    path_to_temporal_features = path.join(TMP_FOLDER, 
-                                         'tmp/temporal_features.npy')
-    path_to_spatial_features = path.join(TMP_FOLDER, 
-                                         'tmp/spatial_features.npy')
+    path_to_temporal_features = os.path.join(TMP_FOLDER,output_directory,
+                                         'temporal_features.npy')
+    path_to_spatial_features = os.path.join(TMP_FOLDER,output_directory,
+                                         'spatial_features.npy')
     if os.path.exists(path_to_temporal_features):
         #data = np.load(path_to_svd_templates)
         temporal_features=np.load(path_to_temporal_features)
@@ -124,7 +123,8 @@ def run(spike_index_all, templates,
 
     # calculate convolution of pairwise templates
     print ("computing temp_temp")
-    path_to_temp_temp = path.join(TMP_FOLDER, 'tmp/temp_temp.npy')
+    path_to_temp_temp = os.path.join(TMP_FOLDER,output_directory,
+                                                        'temp_temp.npy')
     if os.path.exists(path_to_temp_temp):
         temp_temp = np.load(path_to_temp_temp)
     else:
@@ -143,37 +143,7 @@ def run(spike_index_all, templates,
     #******************************************************************
     #****************** DECONVOLUTION START ***************************
     #******************************************************************
-    
-    ##**** OLD BATCH PROCESSOR DECONV ****
-    ## run nn preprocess batch-wsie
-    #recording_path = os.path.join(CONFIG.data.root_folder,
-                      #output_directory,
-                      #recordings_filename)
-
-    #bp = BatchProcessor(recording_path,
-                #max_memory=CONFIG.resources.max_memory,
-                #buffer_size=2*n_temporal_big)
-    
-    #mc = bp.multi_channel_apply
-    #res = mc(
-        #deconvolve,
-        #mode='memory',
-        #cleanup_function=fix_indexes,
-        #pass_batch_info=True,
         
-        #spt_list=spt_list,
-        #shifted_templates=shifted_templates,
-        #temporal_features=temporal_features,
-        #spatial_features=spatial_features,
-        #temp_temp=temp_temp,
-        #n_explore=n_explore,
-        #threshold_d=threshold_d
-    #)   
-    #spike_train = np.concatenate([element for element in res], axis=0)
-
-
-    #**** NEW DECONV ****
-    
     #compute padding length for deconvolution 
     buffer_size=2*n_temporal_big+n_explore
     
@@ -224,14 +194,12 @@ def run(spike_index_all, templates,
     # sort spikes by time and remove templates with spikes < max_spikes
     spike_train, templates = clean_up(spike_train, templates, max_spikes)
 
-    print ("spike_train shape: ", spike_train.shape)
-
     #Optional save spike_train as txt file for human readability    
-    filename_spike_train = os.path.join(CONFIG.data.root_folder, 
-                                output_directory, 'spike_train.txt')
-    np.savetxt(filename_spike_train ,spike_train, fmt='%d',)
+    #filename_spike_train = os.path.join(CONFIG.data.root_folder, 
+    #                            output_directory, 'spike_train.txt')
+    #np.savetxt(filename_spike_train ,spike_train, fmt='%d',)
 
-    logger.debug('spike_train.shape: {}'
+    logger.info('spike_train.shape: {}'
                  .format(spike_train.shape))
 
     return spike_train, np.transpose(templates)

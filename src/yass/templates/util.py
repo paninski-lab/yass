@@ -6,6 +6,7 @@ from scipy import sparse
 import logging
 import parmap
 import os
+import os.path
 
 from yass.batch import BatchProcessor
 
@@ -47,7 +48,7 @@ def get_templates(spike_train, path_to_recordings,
     
 
 # TODO: remove this function and use the explorer directly
-def get_templates_parallel(spike_train, path_to_recordings,
+def get_templates_parallel(spike_train, path_to_recordings,out_dir,
                   CONFIG, n_max=5000):
                   #CONFIG, n_max=100):
 
@@ -65,7 +66,8 @@ def get_templates_parallel(spike_train, path_to_recordings,
     spike_train_small = random_sample_spike_train(spike_train, n_max, CONFIG)
 
     # determine length of processing chunk based on lenght of rec
-    standardized_filename = CONFIG.data.root_folder+ '/tmp/standarized.bin'
+    standardized_filename = os.path.join(CONFIG.data.root_folder,out_dir,
+                                                'standarized.bin')
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
     
@@ -83,14 +85,19 @@ def get_templates_parallel(spike_train, path_to_recordings,
 
     proc_indexes = np.arange(len(idx_list))
     
-    print("...computing templates (fixed chunk size - 100sec for efficiency and memory)")
+    print("...computing templates (fixed chunk to 100sec for efficiency)")
     if CONFIG.resources.multi_processing:
-        res = parmap.map(compute_weighted_templates_parallel, zip(idx_list,proc_indexes), spike_train_small, spike_size, n_templates, n_channels, buffer_size, standardized_filename, processes=n_processors, pm_pbar=True)
+        res = parmap.map(compute_weighted_templates_parallel, 
+              zip(idx_list,proc_indexes), spike_train_small, spike_size, 
+              n_templates, n_channels, buffer_size, 
+              standardized_filename, processes=n_processors, pm_pbar=True)
     else:
         res=[]
         for k in range(len(idx_list)):
             #print "chunk: ", k
-            temp = compute_weighted_templates_parallel([idx_list[k],k], spike_train_small, spike_size, n_templates, n_channels, buffer_size, standardized_filename)
+            temp = compute_weighted_templates_parallel([idx_list[k],k], 
+            spike_train_small, spike_size, n_templates, n_channels, 
+            buffer_size, standardized_filename)
             res.append(temp)
     
     #Reconstruct templates from parallel proecessing

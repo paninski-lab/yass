@@ -3,6 +3,7 @@ Filtering functions
 """
 import os
 import numpy as np
+import os.path
 
 from scipy.signal import butter, lfilter
 
@@ -167,7 +168,9 @@ def fix_indexes(res, idx_local, idx, buffer_size):
 
 
 
-def filter_standardize(data_in, low_frequency, high_factor, order, sampling_frequency, buffer_size, filename_dat, n_channels):
+def filter_standardize(data_in, low_frequency, high_factor, order, 
+                       sampling_frequency, buffer_size, filename_dat, 
+                       n_channels, root_folder, output_directory):
     """Butterworth filter for a one dimensional time series
 
     Parameters
@@ -211,23 +214,27 @@ def filter_standardize(data_in, low_frequency, high_factor, order, sampling_freq
     offset = idx_local   #idx_local[0].start
 
 
-    #**********************************************************************************************
-    #************************************* LOAD RAW RECORDING *************************************
-    #**********************************************************************************************
-    #print ("   Chunk: ", chunk_idx, "  Loading : ", ((data_end-data_start)*4*n_channels)*1.E-6, "MB")
+    #******************************************************************
+    #*********** LOAD RAW RECORDING ***********************************
+    #*****************************************************************
     
     with open(filename_dat, "rb") as fin:
         if data_start==0:
             # Seek position and read N bytes
-            recordings_1D = np.fromfile(fin, dtype='int16', count=(data_end+buffer_size)*n_channels)
-            recordings_1D = np.hstack((np.zeros(buffer_size*n_channels,dtype='int16'),recordings_1D))
+            recordings_1D = np.fromfile(fin, dtype='int16', count=(
+                                        data_end+buffer_size)*n_channels)
+            recordings_1D = np.hstack((np.zeros(
+                   buffer_size*n_channels,dtype='int16'),recordings_1D))
         else:
-            fin.seek((data_start-buffer_size)*2*n_channels, os.SEEK_SET)         #Advance to idx_start but go back 
-            recordings_1D =  np.fromfile(fin, dtype='int16', count=((data_end-data_start+buffer_size*2)*n_channels))	#Grab 2 x template_width x 2 buffers
+            fin.seek((data_start-buffer_size)*2*n_channels, os.SEEK_SET)    
+            recordings_1D =  np.fromfile(fin, dtype='int16', count=(
+                        (data_end-data_start+buffer_size*2)*n_channels))	
 
         #If at end of recording
-        if len(recordings_1D)!=((data_end-data_start+buffer_size*2)*n_channels):
-            recordings_1D = np.hstack((recordings_1D,np.zeros(buffer_size*n_channels,dtype='int16')))
+        if len(recordings_1D)!=((
+                         data_end-data_start+buffer_size*2)*n_channels):
+            recordings_1D = np.hstack((recordings_1D,
+                        np.zeros(buffer_size*n_channels,dtype='int16')))
 
     fin.close()
 
@@ -236,9 +243,9 @@ def filter_standardize(data_in, low_frequency, high_factor, order, sampling_freq
 
     ts = recordings
 
-    #**********************************************************************************************
-    #********************************** FILTER DATA ***********************************************
-    #**********************************************************************************************
+    #******************************************************************
+    #*********** FILTER DATA ******************************************
+    #******************************************************************
 
     if ts.ndim == 1:
         print ("SINGLE CHANNEL FILTER NOTE AVAILABLE.... !")
@@ -269,25 +276,22 @@ def filter_standardize(data_in, low_frequency, high_factor, order, sampling_freq
     sd = standard_deviation(res, sampling_frequency)
     standardized = np.divide(res, sd)
     
-    np.save(os.path.split(filename_dat)[0]+"/tmp/filtered_files/standardized_"+str(chunk_idx).zfill(6), standardized)
+    np.save(os.path.join(root_folder,output_directory, 
+           "filtered_files/standardized_"+str(chunk_idx).zfill(6)), 
+           standardized)
 
-def merge_filtered_files(CONFIG, output_directory):
+def merge_filtered_files(root_folder, output_directory):
     
-    path = CONFIG.data.root_folder + output_directory + 'filtered_files/'
-
+    path = os.path.join(root_folder,output_directory,'filtered_files/')
     filenames = os.listdir(path)
     filenames_sorted = sorted(filenames)
-    #print filenames.sort()
-
         
-    #Name of output file to save
-    f_out = CONFIG.data.root_folder + output_directory + "standarized.bin"
-    print ('standardized file saving: ', f_out)
+    f_out = os.path.join(root_folder,output_directory,"standarized.bin")
+    print ('...saving standardized file: ', f_out)
 
     f = open(f_out, 'wb')
     for fname in filenames_sorted:
-        #print "reading/writing : ", filenames_sorted[k]
-        res = np.load(path+fname)
+        res = np.load(os.path.join(path,fname))
         res.tofile(f)
         os.remove(path+fname)
             

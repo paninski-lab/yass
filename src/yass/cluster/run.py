@@ -146,4 +146,4 @@ def run(scores, spike_index, output_directory='tmp/',
     logger.info("\tmasking:\t{0} seconds".format(Time['m']))
     logger.info("\tclustering:\t{0} seconds".format(Time['s']))
 
-    return spike_train, tmp_loc, vbParam        #Cat: spike_train is spike_train clear including recovered spikes excluded due to subsampling; recovery based on ~mahalanobis distance
+    return spike_train, tmp_loc, vbParam      

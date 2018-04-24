@@ -3,7 +3,7 @@ import logging
 from scipy.signal import argrelmax
 import os
 import time
-
+import os.path
 
 def deconvolve_new_allcores_updated(data_in, output_directory, TMP_FOLDER,
                     filename_bin, filename_spt_list, filename_temp_temp, 
@@ -11,6 +11,19 @@ def deconvolve_new_allcores_updated(data_in, output_directory, TMP_FOLDER,
                     temporal_features, spatial_features, n_explore, 
                     threshold_d, verbose):
     
+    '''  Parallelized deconvolution function.
+    
+         1. Loads raw data chunks (usually 1-10sec in duration)
+         
+         2. Removes clear spikes from raw data
+         
+         3. Generates objective function (d_matrix) from remaining raw
+         data and collission spikes
+         
+         4. Iteratively removes energy in d_matrix threshold is reached
+    
+    
+    '''
     #start time counter 
     start_time_chunk = time.time()
 
@@ -41,8 +54,8 @@ def deconvolve_new_allcores_updated(data_in, output_directory, TMP_FOLDER,
 
     #Load spike_train clear after templates; 
     #Cat: eventually change from hardcoded filename
-    spike_train_clear_fname = TMP_FOLDER + \
-              output_directory+ '/spike_train_clear_after_templates.npy'
+    spike_train_clear_fname = os.path.join(TMP_FOLDER, output_directory,
+                                'spike_train_clear_after_templates.npy')
     spike_train_clear = np.load(spike_train_clear_fname)
     
     with open(filename_bin, "rb") as fin:
@@ -338,14 +351,10 @@ def deconvolve_new_allcores_updated(data_in, output_directory, TMP_FOLDER,
         
         max_d_array.append(max_d.copy())
         
-        # do not erase: pretty print update during threshold loop
-        ##sys.stdout.write("...# events removed: %d,   max_val: %f,   
-        ## threshold counter: %d   \r" % (spike_time.shape[0], 
-        ## max_val, threshold_ctr) )
-        ##sys.stdout.flush()
 
     #Fix indexes explicitly carried out here
     spike_times = spike_train[:, 0]
+    
     # get only observations outside the buffer
     train_not_in_buffer = spike_train[np.logical_and(spike_times>=offset,
 						     spike_times <= idx_local_end)]

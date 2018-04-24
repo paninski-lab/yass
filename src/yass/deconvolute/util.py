@@ -1,7 +1,7 @@
 from scipy.interpolate import interp1d
 import numpy as np
 import datetime
-
+import os.path
 
 def clean_up(spike_train, templates, max_spikes):
     
@@ -32,6 +32,9 @@ def clean_up(spike_train, templates, max_spikes):
     
 def calculate_temp_temp(temporal_features, spatial_features):
 
+    ''' Function computes all pair-wise template convolutions and saves
+    ''' 
+
     import datetime
     n_templates, n_shifts, waveform_size, n_features = temporal_features.shape
 
@@ -56,6 +59,9 @@ def calculate_temp_temp(temporal_features, spatial_features):
     return temp_temp
 
 def calculate_temp_temp_parallel(templates_selected, temporal_features, spatial_features):
+
+    ''' Function computes all pair-wise template convolutions and saves
+    ''' 
 
     n_templates, n_shifts, waveform_size, n_features = temporal_features.shape
     
@@ -85,6 +91,11 @@ def calculate_temp_temp_parallel(templates_selected, temporal_features, spatial_
     
 
 def upsample_templates(templates, upsample_factor):
+
+    ''' Function upsamples temporal resolution (usually 3 x) to better
+        compute alignment 
+    '''
+
     # get shapes
     n_channels, waveform_size, n_templates = templates.shape
 
@@ -102,6 +113,9 @@ def upsample_templates(templates, upsample_factor):
     return upsampled_templates
 
 def make_spike_index_per_template(spike_index, templates, n_explore):
+
+    '''
+    '''
 
     n_channels, n_temporal_big, n_templates = templates.shape
     
@@ -136,6 +150,9 @@ def make_spike_index_per_template(spike_index, templates, n_explore):
 def get_smaller_shifted_templates(shifted_templates, channel_index,
                                   principal_channels,
                                   spike_size):
+    
+    ''' 
+    ''' 
     
     n_shifts, n_channels, waveform_size, n_templates = shifted_templates.shape
     n_neigh = channel_index.shape[1]
@@ -199,6 +216,12 @@ def small_shift_templates(templates, n_shifts=5):
 
 def svd_shifted_templates(shifted_templates, n_features):
     
+    ''' Compute SVD matrices for shifted_templates (usually upsampled x3)
+        and save right/left singular matrices to n_features resolution
+        
+        These are used in deconvolution
+    '''
+    
     #n_templates, n_shifts, waveform_size, n_channels = shifted_templates.shape
     #R = int((waveform_size-1)/4)
     #a,b,c = np.linalg.svd(shifted_templates[:, :, R:3*R+1],[0,3,1,2])
@@ -241,6 +264,9 @@ def make_spt_list(spike_index, n_channels):
 
 
 def make_spt_list_parallel(spike_index,n_channels):
+
+    ''' Convert 2 column spike_index to a channel based index
+    '''
 
     spike_index_list = [None]*n_channels
 

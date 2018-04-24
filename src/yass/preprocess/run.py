@@ -99,7 +99,8 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     #Check if data already saved to disk and skip:
     if if_file_exists=='skip':
-        f_out = CONFIG.data.root_folder+output_directory+"standarized.bin"
+        f_out = os.path.join(CONFIG.data.root_folder,output_directory,
+                                                    "standarized.bin")
         if os.path.exists(f_out):
         
             channel_index = make_channel_index(CONFIG.neigh_channels,
@@ -117,7 +118,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                        output_filename='whitening.npy',
                                        if_file_exists=if_file_exists)
 
-            path_to_channel_index = os.path.join(TMP, 'channel_index.npy')
+            path_to_channel_index = os.path.join(TMP, "channel_index.npy")
  
             return (str(standarized_path), standarized_params, 
                     channel_index, whiten_filter)
@@ -136,7 +137,8 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     buffer_size = 200
 
     # compute len of recording 
-    filename_dat = CONFIG.data.root_folder+ CONFIG.data.recordings
+    filename_dat = os.path.join(CONFIG.data.root_folder,
+                                                CONFIG.data.recordings)
     fp = np.memmap(filename_dat, dtype='int16', mode='r')
     fp_len = fp.shape[0]
 
@@ -156,7 +158,9 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     print ("# of chunks: ", len(idx_list))
 
     #Make directory to hold filtered batch files:
-    filtered_location = CONFIG.data.root_folder+output_directory+'/filtered_files'
+    filtered_location = os.path.join(CONFIG.data.root_folder,
+                                    output_directory,"filtered_files")
+    print (filtered_location)
     if not os.path.exists(filtered_location): 
         os.makedirs(filtered_location)
 
@@ -164,15 +168,17 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     if multi_processing:
         parmap.map(filter_standardize, zip(idx_list,proc_indexes), 
          low_frequency, high_factor, order, sampling_rate,buffer_size, 
-         filename_dat, n_channels, processes=n_processors, pm_pbar=True)
+         filename_dat, n_channels, CONFIG.data.root_folder, 
+         output_directory, processes=n_processors, pm_pbar=True)
     else: 
         for k in range(len(idx_list)):
             filter_standardize([idx_list[k],k], low_frequency, 
                  high_factor, order, sampling_rate, buffer_size, 
-                 filename_dat, n_channels)
+                 filename_dat, n_channels, CONFIG.data.root_folder, 
+                 output_directory)
 
     #Merge the chunk filtered files and delete the individual chunks
-    merge_filtered_files(CONFIG, output_directory)
+    merge_filtered_files(CONFIG.data.root_folder, output_directory)
 
     # save yaml file with params
     path_to_yaml = standarized_path.replace('.bin', '.yaml')
@@ -198,6 +204,8 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     # large batches 
     # OLD CODE: compute whiten filter using batch processor
     # TODO: remove whiten_filter out of output argument
+
+                                
     whiten_filter = whiten.matrix(standarized_path,
                                   standarized_params['dtype'],
                                   standarized_params['n_channels'],

@@ -2,6 +2,7 @@ import os
 import logging
 import datetime
 import numpy as np
+import os.path
 
 from yass import read_config
 from yass.templates.util import get_templates, align_templates, merge_templates, get_templates_parallel
@@ -96,7 +97,8 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
 
     # make templates using parallel code
     templates, weights = get_templates_parallel(spike_train, 
-                                            path_to_recordings, CONFIG)
+                                            path_to_recordings, 
+                                            output_directory, CONFIG)
 
     #Cat: this seems to be broken right now, gives error for align_templates
     #templates, weights = get_templates(spike_train, path_to_recordings,
@@ -139,7 +141,6 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
                                 output_directory,
                                 'spike_train_clear_after_templates.npy')
     
-    #Cat: skip this step, can take several minutes, also sometimes misses spikes
-    #np.save(spike_train_clear_after_templates, spike_train)
+    np.save(spike_train_clear_after_templates, spike_train)
 
     return templates, spike_train, groups, idx_good_templates
