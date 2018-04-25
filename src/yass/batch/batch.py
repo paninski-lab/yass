@@ -2,6 +2,10 @@ import time
 import numbers
 import logging
 import os.path
+from pathlib import Path
+from multiprocess import Pool, Manager
+from copy import copy
+import os
 
 import yaml
 
@@ -563,7 +567,8 @@ class BatchProcessor(object):
         return output_path, params
 
     def _multi_channel_apply_disk_parallel(self, function, cleanup_function,
-                                           output_path, from_time, to_time, channels,
+                                           output_path, from_time, to_time,
+                                           channels,
                                            cast_dtype, pass_batch_info,
                                            pass_batch_results,
                                            processes=1, **kwargs):
@@ -575,15 +580,7 @@ class BatchProcessor(object):
                                   return_data=False)
         idx = [t[1] for t in data]
 
-        from pathlib import Path
-
         output_path = Path(output_path)
-
-
-        from multiprocess import Pool, Manager
-        from copy import copy
-        import os
-        
 
         _path_to_recordings = copy(self.path_to_recordings)
         _dtype = copy(self.dtype)
@@ -593,55 +590,37 @@ class BatchProcessor(object):
 
         m = Manager()
         done = m.list()
-        # done = []
 
-        qs = [done]*len(idx)
-
-        # each worker receives: index to get the data, a function to retrieve
-        # the data based on the index, the function to apply
         def runner(t):
+            """Runner function sent to every process
+            """
             i, idx = t
-            # print('started running ...', i)
             reader = RecordingsReader(_path_to_recordings,
                                       _dtype, _n_channels,
                                       _data_order,
                                       loader=_loader)
-            # print('executing function...')
             res = function(reader[idx], **kwargs)
-            # print('done executing function, writinto disk...')
 
             name, ext = output_path.parts[-1].split('.')
             filename = name+str(i)+'.'+ext
             _output_path = Path(*output_path.parts[:-1], filename)
 
             with open(str(_output_path), 'wb') as f:
-                # print('saving...', _output_path)
                 res.tofile(f)
 
-            # done.put((i, res))
             done.append(i)
-            # print('finished running ...', i)
-            # return res
 
         p = Pool(processes)
-        # print('before map async')
-        # the_results = p.map_async(runner, enumerate(zip(idx, qs)))
         p.map_async(runner, enumerate(idx))
-        # print('after map asynx')
 
         next_to_write = 0
-
-        # import time
 
         if output_path.is_file():
             os.remove(str(output_path))
 
         f = open(str(output_path), 'ab')
 
-
         while True:
-            # time.sleep(1)
-            # print('waiting for', _output_path)
 
             if next_to_write in done:
                 name, ext = output_path.parts[-1].split('.')
@@ -649,7 +628,6 @@ class BatchProcessor(object):
                 _output_path = Path(*output_path.parts[:-1], filename)
 
                 with open(str(_output_path), "rb") as f2:
-                    # print(' writing part', _output_path)
                     f.write(f2.read())
 
                 os.remove(str(_output_path))
@@ -657,26 +635,9 @@ class BatchProcessor(object):
                 next_to_write += 1
 
                 if next_to_write == len(idx):
-                    # print('done writing')
                     break
 
-            # # res = [r[1] for r in done if r[0] == next_to_write]
-
-            # # if res:
-            # if next_to_write in done:
-            #     print('writing...', next_to_write)
-            #     # res[0].tofile(f)
-            #     print('the results', [r for r in the_results])
-            #     the_results[next_to_write].tofile(f)
-            #     next_to_write += 1
-
-            #     if next_to_write == len(idx):
-            #         print('done writing')
-            #         break
-
         f.close()
-
-
 
         return output_path
 
