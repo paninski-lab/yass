@@ -62,10 +62,15 @@ class BatchProcessor(object):
                  loader='python'):
         self.data_order = data_order
         self.buffer_size = buffer_size
-        self.reader = RecordingsReader(path_to_recordings,
-                                       dtype, n_channels,
-                                       data_order,
-                                       loader=loader)
+        self.path_to_recordings = path_to_recordings
+        self.dtype = dtype
+        self.n_channels = n_channels
+        self.data_order = data_order
+        self.loader = loader
+        self.reader = RecordingsReader(self.path_to_recordings,
+                                       self.dtype, self.n_channels,
+                                       self.data_order,
+                                       loader=self.loader)
         self.indexer = IndexGenerator(self.reader.observations,
                                       self.reader.channels,
                                       self.reader.dtype,
@@ -106,7 +111,8 @@ class BatchProcessor(object):
                 channel_idx = idx[1]
                 yield self.reader[idx], channel_idx
 
-    def multi_channel(self, from_time=None, to_time=None, channels='all'):
+    def multi_channel(self, from_time=None, to_time=None, channels='all',
+                      return_data=True):
         """
         Generate indexes where each index has observations from more than
         one channel
@@ -132,17 +138,22 @@ class BatchProcessor(object):
                               obs_idx.stop - obs_idx.start + self.buffer_size,
                               obs_idx.step), slice(None, None, None))
 
-            if self.buffer_size:
-                (idx_new,
-                 (buff_start, buff_end)) = (self.buffer_generator
-                                            .update_key_with_buffer(idx))
-                subset = self.reader[idx_new]
-                subset_buff = self.buffer_generator.add_buffer(subset,
-                                                               buff_start,
-                                                               buff_end)
-                yield subset_buff, data_idx, idx
+            if return_data:
+
+                if self.buffer_size:
+                    (idx_new,
+                     (buff_start, buff_end)) = (self.buffer_generator
+                                                .update_key_with_buffer(idx))
+                    subset = self.reader[idx_new]
+                    subset_buff = self.buffer_generator.add_buffer(subset,
+                                                                   buff_start,
+                                                                   buff_end)
+                    yield subset_buff, data_idx, idx
+                else:
+                    yield self.reader[idx], data_idx, idx
+
             else:
-                yield self.reader[idx], data_idx, idx
+                yield data_idx, idx
 
     def single_channel_apply(self, function, mode, output_path=None,
                              force_complete_channel_batch=True,
@@ -215,11 +226,11 @@ class BatchProcessor(object):
             raise ValueError('output_path is required in "disk" mode')
 
         if (mode == 'disk' and if_file_exists == 'abort' and
-           os.path.exists(output_path)):
+                os.path.exists(output_path)):
             raise ValueError('{} already exists'.format(output_path))
 
         if (mode == 'disk' and if_file_exists == 'skip' and
-           os.path.exists(output_path)):
+                os.path.exists(output_path)):
             # load params...
             path_to_yaml = output_path.replace('.bin', '.yaml')
 
@@ -447,14 +458,14 @@ class BatchProcessor(object):
             raise ValueError('output_path is required in "disk" mode')
 
         if (mode == 'disk' and if_file_exists == 'abort' and
-           os.path.exists(output_path)):
+                os.path.exists(output_path)):
             raise ValueError('{} already exists'.format(output_path))
 
         self.logger.info('Applying function {}...'
                          .format(function_path(function)))
 
         if (mode == 'disk' and if_file_exists == 'skip' and
-           os.path.exists(output_path)):
+                os.path.exists(output_path)):
             # load params...
             path_to_yaml = output_path.replace('.bin', '.yaml')
 
@@ -550,6 +561,87 @@ class BatchProcessor(object):
             yaml.dump(params, f)
 
         return output_path, params
+
+    def _multi_channel_apply_disk_parallel(self, function, cleanup_function,
+                                           output_path, from_time, to_time, channels,
+                                           cast_dtype, pass_batch_info,
+                                           pass_batch_results,
+                                           processes=1, **kwargs):
+        if pass_batch_results:
+            raise NotImplementedError("pass_batch_results is not "
+                                      "implemented on 'disk' mode")
+
+        data = self.multi_channel(from_time, to_time, channels,
+                                  return_data=False)
+        idx = [t[1] for t in data]
+
+
+        from multiprocess import Pool, Manager
+        from copy import copy
+
+        _path_to_recordings = copy(self.path_to_recordings)
+        _dtype = copy(self.dtype)
+        _n_channels = copy(self.n_channels)
+        _data_order = copy(self.data_order)
+        _loader = copy(self.loader)
+
+        m = Manager()
+        done = m.list()
+        # done = []
+
+        qs = [done]*len(idx)
+
+        # each worker receives: index to get the data, a function to retrieve
+        # the data based on the index, the function to apply
+        def runner(t):
+            i, (idx, done) = t
+            print('started running ...', i, done)
+            reader = RecordingsReader(_path_to_recordings,
+                                      _dtype, _n_channels,
+                                      _data_order,
+                                      loader=_loader)
+            print('executing function...')
+            res = function(reader[idx], **kwargs)
+            print('done executing function...')
+            # done.append((i, res))
+            done.append(i)
+            print('finished running ...', i, done)
+            return res
+
+        p = Pool(processes)
+        print('before map async')
+        the_results = p.map_async(runner, enumerate(zip(idx, qs)))
+        print('after map asynx')
+
+        next_to_write = 0
+
+        import time
+
+        f = open(output_path, 'wb')
+
+        while True:
+            time.sleep(1)
+            print('done...', done)
+
+            # res = [r[1] for r in done if r[0] == next_to_write]
+
+            # if res:
+            if next_to_write in done:
+                print('writing...', next_to_write)
+                # res[0].tofile(f)
+                print('the results', [r for r in the_results])
+                the_results[next_to_write].tofile(f)
+                next_to_write += 1
+
+                if next_to_write == len(idx):
+                    print('done writing')
+                    break
+
+        f.close()
+
+
+
+        return output_path
 
     def _multi_channel_apply_memory(self, function, cleanup_function,
                                     from_time, to_time, channels, cast_dtype,
