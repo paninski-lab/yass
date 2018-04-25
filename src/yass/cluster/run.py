@@ -133,7 +133,7 @@ def run(scores, spike_index, output_directory='tmp/',
     vbParam.rhat = calculate_sparse_rhat(vbParam, tmp_loc, scores_all,
                                          spike_index_all,
                                          CONFIG.neigh_channels)
-    idx_keep = get_core_data(vbParam, scores_all, np.inf, 5)
+    idx_keep = get_core_data(vbParam, scores_all, np.inf, 3)
     spike_train = vbParam.rhat[idx_keep]
     spike_train[:, 0] = spike_index_all[spike_train[:, 0].astype('int32'), 0]
 
