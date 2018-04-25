@@ -582,6 +582,7 @@ class BatchProcessor(object):
 
         from multiprocess import Pool, Manager
         from copy import copy
+        import os
         
 
         _path_to_recordings = copy(self.path_to_recordings)
@@ -600,37 +601,40 @@ class BatchProcessor(object):
         # the data based on the index, the function to apply
         def runner(t):
             i, idx = t
-            print('started running ...', i)
+            # print('started running ...', i)
             reader = RecordingsReader(_path_to_recordings,
                                       _dtype, _n_channels,
                                       _data_order,
                                       loader=_loader)
-            print('executing function...')
+            # print('executing function...')
             res = function(reader[idx], **kwargs)
-            print('done executing function, writinto disk...')
+            # print('done executing function, writinto disk...')
 
             name, ext = output_path.parts[-1].split('.')
             filename = name+str(i)+'.'+ext
             _output_path = Path(*output_path.parts[:-1], filename)
 
             with open(str(_output_path), 'wb') as f:
-                print('saving...', _output_path)
+                # print('saving...', _output_path)
                 res.tofile(f)
 
             # done.put((i, res))
             done.append(i)
-            print('finished running ...', i)
+            # print('finished running ...', i)
             # return res
 
         p = Pool(processes)
-        print('before map async')
+        # print('before map async')
         # the_results = p.map_async(runner, enumerate(zip(idx, qs)))
         p.map_async(runner, enumerate(idx))
-        print('after map asynx')
+        # print('after map asynx')
 
         next_to_write = 0
 
-        import time
+        # import time
+
+        if output_path.is_file():
+            os.remove(str(output_path))
 
         f = open(str(output_path), 'ab')
 
@@ -645,13 +649,15 @@ class BatchProcessor(object):
                 _output_path = Path(*output_path.parts[:-1], filename)
 
                 with open(str(_output_path), "rb") as f2:
-                    print(' writing part', _output_path)
+                    # print(' writing part', _output_path)
                     f.write(f2.read())
+
+                os.remove(str(_output_path))
 
                 next_to_write += 1
 
                 if next_to_write == len(idx):
-                    print('done writing')
+                    # print('done writing')
                     break
 
             # # res = [r[1] for r in done if r[0] == next_to_write]
