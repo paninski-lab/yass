@@ -576,9 +576,8 @@ class BatchProcessor(object):
             raise NotImplementedError("pass_batch_results is not "
                                       "implemented on 'disk' mode")
 
-        data = self.multi_channel(from_time, to_time, channels,
-                                  return_data=False)
-        idx = [t[1] for t in data]
+        data = list(self.multi_channel(from_time, to_time, channels,
+                    return_data=False))
 
         output_path = Path(output_path)
 
@@ -591,10 +590,10 @@ class BatchProcessor(object):
         m = Manager()
         done = m.list()
 
-        def runner(t):
+        def runner(data):
             """Runner function sent to every process
             """
-            i, idx = t
+            i, (local_idx, idx) = data
             reader = RecordingsReader(_path_to_recordings,
                                       _dtype, _n_channels,
                                       _data_order,
@@ -611,7 +610,7 @@ class BatchProcessor(object):
             done.append(i)
 
         p = Pool(processes)
-        p.map_async(runner, enumerate(idx))
+        p.map_async(runner, enumerate(data))
 
         next_to_write = 0
 
@@ -634,7 +633,7 @@ class BatchProcessor(object):
 
                 next_to_write += 1
 
-                if next_to_write == len(idx):
+                if next_to_write == len(data):
                     break
 
         f.close()
