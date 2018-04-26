@@ -2,8 +2,8 @@ import yaml
 import numbers
 
 
-def generate_metadata(channels, n_channels, dtype, output_path):
-    """Generate and save metadata for a binary file
+def make_metadata(channels, n_channels, dtype, output_path):
+    """Make and save metadata for a binary file
 
     Parameters
     ----------

@@ -1,5 +1,4 @@
 import time
-import numbers
 import logging
 import os.path
 from pathlib import Path
@@ -543,6 +542,9 @@ class BatchProcessor(object):
                                            cast_dtype, pass_batch_info,
                                            pass_batch_results,
                                            processes=1, **kwargs):
+
+        self.logger.debug('Starting parallel operation...')
+
         if pass_batch_results:
             raise NotImplementedError("pass_batch_results is not "
                                       "implemented on 'disk' mode")
@@ -567,15 +569,32 @@ class BatchProcessor(object):
         def runner(data):
             """Runner function sent to every process
             """
-            i, (local_idx, idx) = data
+            i, (idx_local, idx) = data
+
+            logger = logging.getLogger(__name__)
+            logger.debug('Processing batch {}...'.format(i))
 
             reader = RecordingsReader(_path_to_recordings,
                                       _dtype, _n_channels,
                                       _data_order,
                                       loader=_loader)
 
-            # read chunk
+            kwargs_other = dict()
+
+            if pass_batch_info:
+                kwargs_other['idx_local'] = idx_local
+                kwargs_other['idx'] = idx
+
+            kwargs.update(kwargs_other)
+
+            # read chunk and run function
             res = function(reader[idx], **kwargs)
+
+            if cast_dtype is not None:
+                res = res.astype(cast_dtype)
+
+            if cleanup_function:
+                res = cleanup_function(res, idx_local, idx, self.buffer_size)
 
             # save chunk to disk
             name, ext = output_path.parts[-1].split('.')
@@ -589,6 +608,7 @@ class BatchProcessor(object):
             done.append(i)
 
         # run jobs
+        self.logger.debug('Creating processes pool...')
         p = Pool(processes)
         p.map_async(runner, enumerate(data))
 
@@ -613,6 +633,7 @@ class BatchProcessor(object):
 
                 with open(str(_output_path), "rb") as f2:
                     f.write(f2.read())
+                    self.logger.debug('Appending chunk %i...', next_to_write)
 
                 # remove chunk
                 os.remove(str(_output_path))
@@ -621,6 +642,7 @@ class BatchProcessor(object):
 
                 # finish when you've written all parts
                 if next_to_write == len(data):
+                    self.logger.debug('Done running parallel operation...')
                     break
 
         f.close()
