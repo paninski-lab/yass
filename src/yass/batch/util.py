@@ -5,7 +5,8 @@ import numbers
 
 
 def batch_runner(data, function, reader, pass_batch_info, cast_dtype,
-                 kwargs, cleanup_function, buffer_size, output_path):
+                 kwargs, cleanup_function, buffer_size, output_path,
+                 save_chunks):
     i, (idx_local, idx) = data
 
     logger = logging.getLogger(__name__)
@@ -35,11 +36,12 @@ def batch_runner(data, function, reader, pass_batch_info, cast_dtype,
     if cleanup_function:
         res = cleanup_function(res, idx_local, idx, buffer_size)
 
-    # save chunk to disk
-    chunk_path = make_chunk_path(output_path, i)
+    if save_chunks:
+        # save chunk to disk
+        chunk_path = make_chunk_path(output_path, i)
 
-    with open(chunk_path, 'wb') as f:
-        res.tofile(f)
+        with open(chunk_path, 'wb') as f:
+            res.tofile(f)
 
     return res
 

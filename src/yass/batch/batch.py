@@ -522,7 +522,8 @@ class BatchProcessor(object):
             res = util.batch_runner(_data, function, self.reader,
                                     pass_batch_info, cast_dtype,
                                     kwargs, cleanup_function, self.buffer_size,
-                                    output_path)
+                                    output_path, save_chunks=False)
+            res.tofile(f)
 
         f.close()
 
@@ -575,7 +576,7 @@ class BatchProcessor(object):
             util.batch_runner(data, function, reader,
                               pass_batch_info, cast_dtype,
                               kwargs, cleanup_function, _buffer_size,
-                              output_path)
+                              output_path, save_chunks=True)
 
             # let the master process know that this job is done
             done.append(i)
