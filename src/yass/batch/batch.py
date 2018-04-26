@@ -336,7 +336,8 @@ class BatchProcessor(object):
                             output_path=None, from_time=None, to_time=None,
                             channels='all', if_file_exists='overwrite',
                             cast_dtype=None, pass_batch_info=False,
-                            pass_batch_results=False, **kwargs):
+                            pass_batch_results=False, processes=1,
+                            **kwargs):
         """
         Apply a function where each batch has observations from more than
         one channel
@@ -471,7 +472,12 @@ class BatchProcessor(object):
             return output_path, params
 
         if mode == 'disk':
-            fn = self._multi_channel_apply_disk
+
+            if processes == 1:
+                fn = self._multi_channel_apply_disk
+            else:
+                fn = partial(self._multi_channel_apply_disk_parallel,
+                             processes=processes)
 
             start = time.time()
             res = fn(function, cleanup_function, output_path, from_time,
@@ -506,29 +512,17 @@ class BatchProcessor(object):
 
         f = open(output_path, 'wb')
 
-        data = self.multi_channel(from_time, to_time, channels)
+        output_path = Path(output_path)
 
-        for i, (subset, idx_local, idx) in enumerate(data):
+        data = self.multi_channel(from_time, to_time, channels,
+                                  return_data=False)
 
-            self.logger.debug('Processing batch {}...'.format(i))
-
-            kwargs_other = dict()
-
-            if pass_batch_info:
-                kwargs_other['idx_local'] = idx_local
-                kwargs_other['idx'] = idx
-
-            kwargs.update(kwargs_other)
-
-            res = function(subset, **kwargs)
-
-            if cast_dtype is not None:
-                res = res.astype(cast_dtype)
-
-            if cleanup_function:
-                res = cleanup_function(res, idx_local, idx, self.buffer_size)
-
-            res.tofile(f)
+        for i, (idx_local, idx) in enumerate(data):
+            _data = i, (idx_local, idx)
+            res = util.batch_runner(_data, function, self.reader,
+                                    pass_batch_info, cast_dtype,
+                                    kwargs, cleanup_function, self.buffer_size,
+                                    output_path)
 
         f.close()
 
@@ -539,8 +533,8 @@ class BatchProcessor(object):
 
     def _multi_channel_apply_disk_parallel(self, function, cleanup_function,
                                            output_path, from_time, to_time,
-                                           channels,
-                                           cast_dtype, pass_batch_info,
+                                           channels, cast_dtype,
+                                           pass_batch_info,
                                            pass_batch_results,
                                            processes=1, **kwargs):
 

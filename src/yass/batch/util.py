@@ -41,6 +41,8 @@ def batch_runner(data, function, reader, pass_batch_info, cast_dtype,
     with open(chunk_path, 'wb') as f:
         res.tofile(f)
 
+    return res
+
 
 def make_chunk_path(output_path, i):
     name, ext = output_path.parts[-1].split('.')
@@ -73,7 +75,7 @@ def make_metadata(channels, n_channels, dtype, output_path):
         _n_channels = len(channels)
 
     # save yaml file with params
-    path_to_yaml = output_path.replace('.bin', '.yaml')
+    path_to_yaml = str(output_path).replace('.bin', '.yaml')
 
     params = dict(dtype=dtype, n_channels=_n_channels, data_order='samples')
 
