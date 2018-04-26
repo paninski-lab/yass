@@ -10,6 +10,7 @@ import os
 import yaml
 
 from yass.util import function_path, human_readable_time
+from yass.batch import util
 from yass.batch.generator import IndexGenerator
 from yass.batch.reader import RecordingsReader
 from yass.batch.buffer import BufferGenerator
@@ -300,26 +301,10 @@ class BatchProcessor(object):
             self.logger.debug('Writing to disk...')
             res.tofile(f)
 
-        dtype = str(res.dtype)
-
-        if channels == 'all':
-            n_channels = self.reader.channels
-        elif isinstance(channels, numbers.Integral):
-            n_channels = 1
-        else:
-            n_channels = len(channels)
-
         f.close()
 
-        # save yaml file with params
-        path_to_yaml = output_path.replace('.bin', '.yaml')
-
-        params = dict(dtype=dtype, n_channels=n_channels,
-                      data_order='channels')
-
-        with open(path_to_yaml, 'w') as f:
-            self.logger.debug('Saving params...')
-            yaml.dump(params, f)
+        params = util.make_metadata(channels, self.n_channels, str(res.dtype),
+                                    output_path)
 
         return output_path, params
 
@@ -545,24 +530,10 @@ class BatchProcessor(object):
 
             res.tofile(f)
 
-        dtype = str(res.dtype)
-
         f.close()
 
-        if channels == 'all':
-            n_channels = self.reader.channels
-        elif isinstance(channels, numbers.Integral):
-            n_channels = 1
-        else:
-            n_channels = len(channels)
-
-        # save yaml file with params
-        path_to_yaml = output_path.replace('.bin', '.yaml')
-
-        params = dict(dtype=dtype, n_channels=n_channels, data_order='samples')
-
-        with open(path_to_yaml, 'w') as f:
-            yaml.dump(params, f)
+        params = util.make_metadata(channels, self.n_channels, str(res.dtype),
+                                    output_path)
 
         return output_path, params
 
@@ -587,7 +558,6 @@ class BatchProcessor(object):
         _n_channels = copy(self.n_channels)
         _data_order = copy(self.data_order)
         _loader = copy(self.loader)
-
 
         # the list will keep track of finished jobs so their output can be
         # written to disk
@@ -654,6 +624,11 @@ class BatchProcessor(object):
                     break
 
         f.close()
+
+        # TODO: save metadata
+        # params = util.make_metadata(channels, self.n_channels,
+        # str(res.dtype),
+        #                             output_path)
 
         return output_path
 
