@@ -598,9 +598,7 @@ class BatchProcessor(object):
                 res = cleanup_function(res, idx_local, idx, _buffer_size)
 
             # save chunk to disk
-            name, ext = output_path.parts[-1].split('.')
-            filename = name+str(i)+'.'+ext
-            chunk_path = Path(*output_path.parts[:-1], filename)
+            chunk_path = util.make_chunk_path(output_path, i)
 
             with open(chunk_path, 'wb') as f:
                 res.tofile(f)
@@ -628,9 +626,7 @@ class BatchProcessor(object):
             if next_to_write in done:
 
                 # read its chunk and append it to the main file
-                name, ext = output_path.parts[-1].split('.')
-                filename = name+str(next_to_write)+'.'+ext
-                chunk_path = Path(*output_path.parts[:-1], filename)
+                chunk_path = util.make_chunk_path(output_path, next_to_write)
 
                 with open(chunk_path, "rb") as f2:
                     f.write(f2.read())

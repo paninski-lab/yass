@@ -8,7 +8,7 @@ def make_chunk_path(output_path, i):
     filename = name+str(i)+'.'+ext
     chunk_path = Path(*output_path.parts[:-1], filename)
 
-    return chunk_path
+    return str(chunk_path)
 
 
 def make_metadata(channels, n_channels, dtype, output_path):
