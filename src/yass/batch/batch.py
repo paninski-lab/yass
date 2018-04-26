@@ -581,12 +581,16 @@ class BatchProcessor(object):
 
         output_path = Path(output_path)
 
+        # create local variables to avoid pickling problems
         _path_to_recordings = copy(self.path_to_recordings)
         _dtype = copy(self.dtype)
         _n_channels = copy(self.n_channels)
         _data_order = copy(self.data_order)
         _loader = copy(self.loader)
 
+
+        # the list will keep track of finished jobs so their output can be
+        # written to disk
         m = Manager()
         done = m.list()
 
@@ -594,12 +598,16 @@ class BatchProcessor(object):
             """Runner function sent to every process
             """
             i, (local_idx, idx) = data
+
             reader = RecordingsReader(_path_to_recordings,
                                       _dtype, _n_channels,
                                       _data_order,
                                       loader=_loader)
+
+            # read chunk
             res = function(reader[idx], **kwargs)
 
+            # save chunk to disk
             name, ext = output_path.parts[-1].split('.')
             filename = name+str(i)+'.'+ext
             _output_path = Path(*output_path.parts[:-1], filename)
@@ -607,11 +615,15 @@ class BatchProcessor(object):
             with open(str(_output_path), 'wb') as f:
                 res.tofile(f)
 
+            # let the master process know that this job is done
             done.append(i)
 
+        # run jobs
         p = Pool(processes)
         p.map_async(runner, enumerate(data))
 
+        # since we need to write chunks in order, start this flag to know
+        # which one is next
         next_to_write = 0
 
         if output_path.is_file():
@@ -621,7 +633,10 @@ class BatchProcessor(object):
 
         while True:
 
+            # wait for the next job to write to be done
             if next_to_write in done:
+
+                # read its chunk and append it to the main file
                 name, ext = output_path.parts[-1].split('.')
                 filename = name+str(next_to_write)+'.'+ext
                 _output_path = Path(*output_path.parts[:-1], filename)
@@ -629,10 +644,12 @@ class BatchProcessor(object):
                 with open(str(_output_path), "rb") as f2:
                     f.write(f2.read())
 
+                # remove chunk
                 os.remove(str(_output_path))
 
                 next_to_write += 1
 
+                # finish when you've written all parts
                 if next_to_write == len(data):
                     break
 
