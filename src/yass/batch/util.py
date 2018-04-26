@@ -1,6 +1,45 @@
+import logging
 from pathlib import Path
 import yaml
 import numbers
+
+
+def batch_runner(data, function, reader, pass_batch_info, cast_dtype,
+                 kwargs, cleanup_function, buffer_size, output_path):
+    i, (idx_local, idx) = data
+
+    logger = logging.getLogger(__name__)
+    logger.debug('Processing batch {}...'.format(i))
+
+    kwargs_other = dict()
+
+    if pass_batch_info:
+        kwargs_other['idx_local'] = idx_local
+        kwargs_other['idx'] = idx
+
+    kwargs.update(kwargs_other)
+
+    if callable(reader):
+        _reader = reader()
+    else:
+        _reader = reader
+
+    # read chunk and run function
+    logger.debug('Applying function in batch {}...'.format(i))
+    res = function(_reader[idx], **kwargs)
+    logger.debug('Done Applying function in batch {}...'.format(i))
+
+    if cast_dtype is not None:
+        res = res.astype(cast_dtype)
+
+    if cleanup_function:
+        res = cleanup_function(res, idx_local, idx, buffer_size)
+
+    # save chunk to disk
+    chunk_path = make_chunk_path(output_path, i)
+
+    with open(chunk_path, 'wb') as f:
+        res.tofile(f)
 
 
 def make_chunk_path(output_path, i):

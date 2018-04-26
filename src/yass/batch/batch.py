@@ -1,3 +1,4 @@
+from functools import partial
 import time
 import logging
 import os.path
@@ -562,46 +563,25 @@ class BatchProcessor(object):
         _loader = copy(self.loader)
         _buffer_size = copy(self.buffer_size)
 
+        reader = partial(RecordingsReader,
+                         path_to_recordings=_path_to_recordings,
+                         dtype=_dtype,
+                         n_channels=_n_channels,
+                         data_order=_data_order,
+                         loader=_loader)
+
         # the list will keep track of finished jobs so their output can be
         # written to disk
         m = Manager()
         done = m.list()
 
-        def runner(data):
-            """Runner function sent to every process
-            """
+        def parallel_runner(data):
             i, (idx_local, idx) = data
 
-            logger = logging.getLogger(__name__)
-            logger.debug('Processing batch {}...'.format(i))
-
-            reader = RecordingsReader(_path_to_recordings,
-                                      _dtype, _n_channels,
-                                      _data_order,
-                                      loader=_loader)
-
-            kwargs_other = dict()
-
-            if pass_batch_info:
-                kwargs_other['idx_local'] = idx_local
-                kwargs_other['idx'] = idx
-
-            kwargs.update(kwargs_other)
-
-            # read chunk and run function
-            res = function(reader[idx], **kwargs)
-
-            if cast_dtype is not None:
-                res = res.astype(cast_dtype)
-
-            if cleanup_function:
-                res = cleanup_function(res, idx_local, idx, _buffer_size)
-
-            # save chunk to disk
-            chunk_path = util.make_chunk_path(output_path, i)
-
-            with open(chunk_path, 'wb') as f:
-                res.tofile(f)
+            util.batch_runner(data, function, reader,
+                              pass_batch_info, cast_dtype,
+                              kwargs, cleanup_function, _buffer_size,
+                              output_path)
 
             # let the master process know that this job is done
             done.append(i)
@@ -609,7 +589,7 @@ class BatchProcessor(object):
         # run jobs
         self.logger.debug('Creating processes pool...')
         p = Pool(processes)
-        p.map_async(runner, enumerate(data))
+        p.map_async(parallel_runner, enumerate(data))
 
         # since we need to write chunks in order, start this flag to know
         # which one is next
