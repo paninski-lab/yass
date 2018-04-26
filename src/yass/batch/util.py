@@ -1,5 +1,14 @@
+from pathlib import Path
 import yaml
 import numbers
+
+
+def make_chunk_path(output_path, i):
+    name, ext = output_path.parts[-1].split('.')
+    filename = name+str(i)+'.'+ext
+    chunk_path = Path(*output_path.parts[:-1], filename)
+
+    return chunk_path
 
 
 def make_metadata(channels, n_channels, dtype, output_path):

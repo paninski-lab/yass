@@ -600,9 +600,9 @@ class BatchProcessor(object):
             # save chunk to disk
             name, ext = output_path.parts[-1].split('.')
             filename = name+str(i)+'.'+ext
-            _output_path = Path(*output_path.parts[:-1], filename)
+            chunk_path = Path(*output_path.parts[:-1], filename)
 
-            with open(str(_output_path), 'wb') as f:
+            with open(chunk_path, 'wb') as f:
                 res.tofile(f)
 
             # let the master process know that this job is done
@@ -630,14 +630,14 @@ class BatchProcessor(object):
                 # read its chunk and append it to the main file
                 name, ext = output_path.parts[-1].split('.')
                 filename = name+str(next_to_write)+'.'+ext
-                _output_path = Path(*output_path.parts[:-1], filename)
+                chunk_path = Path(*output_path.parts[:-1], filename)
 
-                with open(str(_output_path), "rb") as f2:
+                with open(chunk_path, "rb") as f2:
                     f.write(f2.read())
                     self.logger.debug('Appending chunk %i...', next_to_write)
 
                 # remove chunk
-                os.remove(str(_output_path))
+                os.remove(chunk_path)
 
                 next_to_write += 1
 
