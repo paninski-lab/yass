@@ -560,6 +560,7 @@ class BatchProcessor(object):
         _n_channels = copy(self.n_channels)
         _data_order = copy(self.data_order)
         _loader = copy(self.loader)
+        _buffer_size = copy(self.buffer_size)
 
         # the list will keep track of finished jobs so their output can be
         # written to disk
@@ -594,7 +595,7 @@ class BatchProcessor(object):
                 res = res.astype(cast_dtype)
 
             if cleanup_function:
-                res = cleanup_function(res, idx_local, idx, self.buffer_size)
+                res = cleanup_function(res, idx_local, idx, _buffer_size)
 
             # save chunk to disk
             name, ext = output_path.parts[-1].split('.')
