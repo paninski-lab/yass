@@ -3,7 +3,7 @@ Filtering functions
 """
 import os
 
-from scipy.signal import butter, lfilter
+from scipy.signal import butter, filtfilt
 
 from yass.batch import BatchProcessor
 from yass.util import check_for_files, ExpandPath, LoadFile
@@ -127,19 +127,17 @@ def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
 
         (T,) = ts.shape
         low = float(low_frequency)/sampling_frequency * 2
-        high = float(high_factor) * 2
-        b, a = butter(order, [low, high], btype='band')
+        b, a = butter(order, low, btype='highpass')
 
-        return lfilter(b, a, ts)
+        return filtfilt(b, a, ts)
 
     else:
 
         T, C = ts.shape
         low = float(low_frequency)/sampling_frequency * 2
-        high = float(high_factor) * 2
-        b, a = butter(order, [low, high], btype='band')
+        b, a = butter(order, low, btype='highpass')
 
-        return lfilter(b, a, ts, 0)
+        return filtfilt(b, a, ts, 0)
 
 
 def fix_indexes(res, idx_local, idx, buffer_size):
