@@ -524,10 +524,15 @@ class BatchProcessor(object):
 
         output_path = Path(output_path)
 
-        data = self.multi_channel(from_time, to_time, channels,
-                                  return_data=False)
+        data = list(self.multi_channel(from_time, to_time, channels,
+                                       return_data=False))
 
-        for i, (idx_local, idx) in enumerate(data):
+        iterator = enumerate(data)
+
+        if self.show_progress_bar:
+            iterator = tqdm(iterator, total=len(data))
+
+        for i, (idx_local, idx) in iterator:
             _data = i, (idx_local, idx)
             res = util.batch_runner(_data, function, self.reader,
                                     pass_batch_info, cast_dtype,
@@ -659,12 +664,20 @@ class BatchProcessor(object):
                                     pass_batch_info, pass_batch_results,
                                     **kwargs):
 
-        data = self.multi_channel(from_time, to_time, channels)
+        data = list(self.multi_channel(from_time, to_time, channels,
+                                       return_data=False))
 
         results = []
         previous_batch = None
 
-        for i, (subset, idx_local, idx) in enumerate(data):
+        iterator = enumerate(data)
+
+        if self.show_progress_bar:
+            iterator = tqdm(iterator, total=len(data))
+
+        for i, (idx_local, idx) in iterator:
+
+            subset = self.reader[idx]
 
             self.logger.debug('Processing batch {}...'.format(i))
 
