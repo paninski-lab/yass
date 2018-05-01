@@ -153,6 +153,10 @@ class BatchProcessor(object):
                               obs_idx.stop - obs_idx.start + self.buffer_size,
                               obs_idx.step), slice(None, None, None))
 
+            # if not return_data and self.buffer_size != 0:
+            #     raise ValueError('return_data=False is not supported when '
+            #                      'buffer is set')
+
             if return_data:
 
                 if self.buffer_size:
@@ -299,8 +303,8 @@ class BatchProcessor(object):
         indexes = list(indexes)
         iterator = enumerate(indexes)
 
-        if self.show_progress_bar:
-            iterator = tqdm(iterator, total=len(indexes))
+        # if self.show_progress_bar:
+        #     iterator = tqdm(iterator, total=len(indexes))
 
         for i, idx in iterator:
             self.logger.debug('Processing channel {}...'.format(i))
@@ -335,8 +339,8 @@ class BatchProcessor(object):
 
         iterator = enumerate(indexes)
 
-        if self.show_progress_bar:
-            iterator = tqdm(iterator, total=len(indexes))
+        # if self.show_progress_bar:
+        #     iterator = tqdm(iterator, total=len(indexes))
 
         results = []
 
@@ -537,13 +541,14 @@ class BatchProcessor(object):
 
         output_path = Path(output_path)
 
-        data = list(self.multi_channel(from_time, to_time, channels,
-                                       return_data=False))
+        data = self.multi_channel(from_time, to_time, channels,
+                                  return_data=False)
+        n_batches = self.indexer.n_batches(from_time, to_time, channels)
 
         iterator = enumerate(data)
 
-        if self.show_progress_bar:
-            iterator = tqdm(iterator, total=len(data))
+        # if self.show_progress_bar:
+        #     iterator = tqdm(iterator, total=n_batches)
 
         for i, (idx_local, idx) in iterator:
             _data = i, (idx_local, idx)
@@ -573,9 +578,11 @@ class BatchProcessor(object):
             raise NotImplementedError("pass_batch_results is not "
                                       "implemented on 'disk' mode")
 
-        data = list(self.multi_channel(from_time, to_time, channels,
-                                       return_data=False))
-        self.logger.info('Data will be splitted in %s batches', len(data))
+        data = self.multi_channel(from_time, to_time, channels,
+                                  return_data=False)
+        n_batches = self.indexer.n_batches(from_time, to_time, channels)
+
+        self.logger.info('Data will be splitted in %s batches', n_batches)
 
         output_path = Path(output_path)
 
@@ -635,7 +642,7 @@ class BatchProcessor(object):
         f = open(str(output_path), 'ab')
 
         if self.show_progress_bar:
-            pbar = tqdm(total=len(data))
+            pbar = tqdm(total=n_batches)
 
         while True:
 
@@ -658,7 +665,7 @@ class BatchProcessor(object):
                     pbar.update()
 
                 # finish when you've written all parts
-                if next_to_write == len(data):
+                if next_to_write == n_batches:
                     self.logger.debug('Done running parallel operation...')
                     break
 
@@ -677,16 +684,17 @@ class BatchProcessor(object):
                                     pass_batch_info, pass_batch_results,
                                     **kwargs):
 
-        data = list(self.multi_channel(from_time, to_time, channels,
-                                       return_data=False))
+        data = self.multi_channel(from_time, to_time, channels,
+                                  return_data=False)
+        n_batches = self.indexer.n_batches(from_time, to_time, channels)
 
         results = []
         previous_batch = None
 
         iterator = enumerate(data)
 
-        if self.show_progress_bar:
-            iterator = tqdm(iterator, total=len(data))
+        # if self.show_progress_bar:
+        #     iterator = tqdm(iterator, total=n_batches)
 
         for i, (idx_local, idx) in iterator:
 
