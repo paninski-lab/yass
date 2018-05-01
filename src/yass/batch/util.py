@@ -1,5 +1,8 @@
 import logging
-from pathlib import Path
+try:
+    from pathlib2 import Path
+except Exception:
+    from pathlib import Path
 import yaml
 import numbers
 
