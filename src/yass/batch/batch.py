@@ -303,8 +303,8 @@ class BatchProcessor(object):
         indexes = list(indexes)
         iterator = enumerate(indexes)
 
-        # if self.show_progress_bar:
-        #     iterator = tqdm(iterator, total=len(indexes))
+        if self.show_progress_bar:
+            iterator = tqdm(iterator, total=len(indexes))
 
         for i, idx in iterator:
             self.logger.debug('Processing channel {}...'.format(i))
@@ -339,8 +339,8 @@ class BatchProcessor(object):
 
         iterator = enumerate(indexes)
 
-        # if self.show_progress_bar:
-        #     iterator = tqdm(iterator, total=len(indexes))
+        if self.show_progress_bar:
+            iterator = tqdm(iterator, total=len(indexes))
 
         results = []
 
@@ -547,8 +547,8 @@ class BatchProcessor(object):
 
         iterator = enumerate(data)
 
-        # if self.show_progress_bar:
-        #     iterator = tqdm(iterator, total=n_batches)
+        if self.show_progress_bar:
+            iterator = tqdm(iterator, total=n_batches)
 
         for i, (idx_local, idx) in iterator:
             _data = i, (idx_local, idx)
@@ -669,7 +669,8 @@ class BatchProcessor(object):
                     self.logger.debug('Done running parallel operation...')
                     break
 
-        pbar.close()
+        if self.show_progress_bar:
+            pbar.close()
 
         f.close()
 
@@ -693,8 +694,8 @@ class BatchProcessor(object):
 
         iterator = enumerate(data)
 
-        # if self.show_progress_bar:
-        #     iterator = tqdm(iterator, total=n_batches)
+        if self.show_progress_bar:
+            iterator = tqdm(iterator, total=n_batches)
 
         for i, (subset, idx_local, idx) in iterator:
 
