@@ -684,8 +684,8 @@ class BatchProcessor(object):
                                     pass_batch_info, pass_batch_results,
                                     **kwargs):
 
-        data = self.multi_channel(from_time, to_time, channels,
-                                  return_data=False)
+        data = self.multi_channel(from_time, to_time, channels)#,
+                                  # return_data=False)
         n_batches = self.indexer.n_batches(from_time, to_time, channels)
 
         results = []
@@ -696,9 +696,9 @@ class BatchProcessor(object):
         # if self.show_progress_bar:
         #     iterator = tqdm(iterator, total=n_batches)
 
-        for i, (idx_local, idx) in iterator:
+        for i, (subset, idx_local, idx) in iterator:
 
-            subset = self.reader[idx]
+            # subset = self.reader[idx]
 
             self.logger.debug('Processing batch {}...'.format(i))
 
