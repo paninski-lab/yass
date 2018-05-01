@@ -547,6 +547,7 @@ class BatchProcessor(object):
 
         data = list(self.multi_channel(from_time, to_time, channels,
                                        return_data=False))
+        self.logger.info('Data will be splitted in %s batches', len(data))
 
         output_path = Path(output_path)
 
