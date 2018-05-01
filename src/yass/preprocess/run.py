@@ -88,32 +88,33 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     # optionally filter the data - generates filtered.bin
     if CONFIG.preprocess.apply_filter:
-        path, params = butterworth(path,
-                                   params['dtype'],
-                                   params['n_channels'],
-                                   params['data_order'],
-                                   CONFIG.preprocess.filter.low_pass_freq,
-                                   CONFIG.preprocess.filter.high_factor,
-                                   CONFIG.preprocess.filter.order,
-                                   CONFIG.recordings.sampling_rate,
-                                   CONFIG.resources.max_memory,
-                                   TMP,
-                                   OUTPUT_DTYPE,
-                                   output_filename='filtered.bin',
-                                   if_file_exists=if_file_exists)
-
-    # standarize - generates standarized.bin
-    (standarized_path,
-     standarized_params) = standarize(path,
-                                      params['dtype'],
-                                      params['n_channels'],
-                                      params['data_order'],
-                                      CONFIG.recordings.sampling_rate,
-                                      CONFIG.resources.max_memory,
-                                      TMP,
-                                      OUTPUT_DTYPE,
-                                      output_filename='standarized.bin',
-                                      if_file_exists=if_file_exists)
+        (standarized_path,
+         standarized_params) = butterworth(path,
+                                           params['dtype'],
+                                           params['n_channels'],
+                                           params['data_order'],
+                                           CONFIG.preprocess.filter.low_pass_freq,
+                                           CONFIG.preprocess.filter.high_factor,
+                                           CONFIG.preprocess.filter.order,
+                                           CONFIG.recordings.sampling_rate,
+                                           CONFIG.resources.max_memory,
+                                           TMP,
+                                           OUTPUT_DTYPE,
+                                           output_filename='filtered.bin',
+                                           if_file_exists=if_file_exists)
+    else:
+        # standarize - generates standarized.bin
+        (standarized_path,
+         standarized_params) = standarize(path,
+                                          params['dtype'],
+                                          params['n_channels'],
+                                          params['data_order'],
+                                          CONFIG.recordings.sampling_rate,
+                                          CONFIG.resources.max_memory,
+                                          TMP,
+                                          OUTPUT_DTYPE,
+                                          output_filename='standarized.bin',
+                                          if_file_exists=if_file_exists)
 
     # TODO: this shoulnd't be done here, it would be better to compute
     # this when initializing the config object and then access it from there

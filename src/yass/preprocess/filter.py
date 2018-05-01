@@ -5,6 +5,7 @@ import os
 
 from scipy.signal import butter, lfilter
 
+from yass.preprocess.standarize import _standarize
 from yass.batch import BatchProcessor
 from yass.util import check_for_files, ExpandPath, LoadFile
 
@@ -83,7 +84,7 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
     _output_path = os.path.join(output_path, output_filename)
 
     (path,
-     params) = bp.multi_channel_apply(_butterworth, mode='disk',
+     params) = bp.multi_channel_apply(_butterworth_standarize, mode='disk',
                                       cleanup_function=fix_indexes,
                                       output_path=_output_path,
                                       if_file_exists=if_file_exists,
@@ -95,6 +96,14 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
                                       processes=8)
 
     return path, params
+
+
+def _butterworth_standarize(ts, low_frequency, high_factor, order,
+                            sampling_frequency):
+    filtered = _butterworth(ts, low_frequency, high_factor, order,
+                            sampling_frequency)
+    standarized = _standarize(filtered, sampling_frequency)
+    return standarized
 
 
 def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
