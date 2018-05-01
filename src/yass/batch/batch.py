@@ -3,7 +3,7 @@ import time
 import logging
 import os.path
 from pathlib import Path
-from multiprocess import Pool, Manager
+from multiprocess import Pool, Manager, Value
 from copy import copy
 import os
 
@@ -546,7 +546,7 @@ class BatchProcessor(object):
                                       "implemented on 'disk' mode")
 
         data = list(self.multi_channel(from_time, to_time, channels,
-                    return_data=False))
+                                       return_data=False))
 
         output_path = Path(output_path)
 
@@ -569,14 +569,18 @@ class BatchProcessor(object):
         # written to disk
         m = Manager()
         done = m.list()
+        mapping = m.dict()
 
         def parallel_runner(data):
             i, (idx_local, idx) = data
 
-            util.batch_runner(data, function, reader,
-                              pass_batch_info, cast_dtype,
-                              kwargs, cleanup_function, _buffer_size,
-                              output_path, save_chunks=True)
+            res = util.batch_runner(data, function, reader,
+                                    pass_batch_info, cast_dtype,
+                                    kwargs, cleanup_function, _buffer_size,
+                                    output_path, save_chunks=True)
+
+            if i == 0:
+                mapping['dtype'] = str(res.dtype)
 
             # let the master process know that this job is done
             done.append(i)
@@ -619,12 +623,11 @@ class BatchProcessor(object):
 
         f.close()
 
-        # TODO: save metadata
-        # params = util.make_metadata(channels, self.n_channels,
-        # str(res.dtype),
-        #                             output_path)
+        # save metadata
+        params = util.make_metadata(channels, self.n_channels,
+                                    mapping['dtype'], output_path)
 
-        return output_path, None
+        return output_path, params
 
     def _multi_channel_apply_memory(self, function, cleanup_function,
                                     from_time, to_time, channels, cast_dtype,
