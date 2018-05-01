@@ -1,7 +1,6 @@
 """
 Recording standarization
 """
-from functools import partial
 import multiprocess
 import os.path
 
