@@ -69,6 +69,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     CONFIG = read_config()
     OUTPUT_DTYPE = CONFIG.preprocess.dtype
+    PROCESSES = CONFIG.resources.processes
     TMP = os.path.join(CONFIG.data.root_folder, output_directory)
 
     logger.info('Output dtype for transformed data will be {}'
@@ -105,7 +106,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                            standarize=True,
                                            output_filename='standarized.bin',
                                            if_file_exists=if_file_exists,
-                                           processes=8)
+                                           processes=PROCESSES)
     # just standarize
     else:
         (standarized_path,
@@ -119,7 +120,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                           OUTPUT_DTYPE,
                                           output_filename='standarized.bin',
                                           if_file_exists=if_file_exists,
-                                          processes=8)
+                                          processes=PROCESSES)
 
     # TODO: this shoulnd't be done here, it would be better to compute
     # this when initializing the config object and then access it from there

@@ -35,6 +35,10 @@ resources:
       type: [integer, string]
       required: False
       default: 1GB
+    processes:
+      type: [integer, string]
+      required: False
+      default: max
 
 
 recordings:
