@@ -100,7 +100,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                            CONFIG.resources.max_memory,
                                            TMP,
                                            OUTPUT_DTYPE,
-                                           output_filename='filtered.bin',
+                                           output_filename='standarized.bin',
                                            if_file_exists=if_file_exists)
     else:
         # standarize - generates standarized.bin
