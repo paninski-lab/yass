@@ -542,7 +542,7 @@ class BatchProcessor(object):
                                            channels, cast_dtype,
                                            pass_batch_info,
                                            pass_batch_results,
-                                           processes=1, **kwargs):
+                                           processes, **kwargs):
 
         self.logger.debug('Starting parallel operation...')
 
@@ -593,7 +593,10 @@ class BatchProcessor(object):
 
         # run jobs
         self.logger.debug('Creating processes pool...')
-        p = Pool(processes)
+
+        # create [processes - 1] since we are also counting the current
+        # process, which collects the results
+        p = Pool(processes - 1)
         result = p.map_async(parallel_runner, enumerate(data))
 
         # this will raise exceptions from the child workers if any
