@@ -2,6 +2,8 @@ from functools import partial
 import time
 import logging
 import os.path
+from copy import copy
+import os
 
 try:
     from pathlib2 import Path
@@ -9,10 +11,8 @@ except ImportError:
     from pathlib import Path
 
 from multiprocess import Pool, Manager
-from copy import copy
-import os
-
 import yaml
+from tqdm import tqdm
 
 from yass.util import function_path, human_readable_time
 from yass.batch import util
@@ -60,6 +60,9 @@ class BatchProcessor(object):
         loader has limited indexing capabilities, see
         :class:`~yass.batch.BinaryReader` for details
 
+    show_progress_bar: bool, optional
+        Show progress bar when running operations, defaults to True
+
     Raises
     ------
     ValueError
@@ -69,7 +72,7 @@ class BatchProcessor(object):
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
                  data_order=None, max_memory='1GB', buffer_size=0,
-                 loader='memmap'):
+                 loader='memmap', show_progress_bar=True):
         self.data_order = data_order
         self.buffer_size = buffer_size
         self.path_to_recordings = path_to_recordings
@@ -77,6 +80,8 @@ class BatchProcessor(object):
         self.n_channels = n_channels
         self.data_order = data_order
         self.loader = loader
+        self.show_progress_bar = show_progress_bar
+
         self.reader = RecordingsReader(self.path_to_recordings,
                                        self.dtype, self.n_channels,
                                        self.data_order,
@@ -611,6 +616,9 @@ class BatchProcessor(object):
 
         f = open(str(output_path), 'ab')
 
+        if self.show_progress_bar:
+            pbar = tqdm(total=len(data))
+
         while True:
 
             # wait for the next job to write to be done
@@ -628,10 +636,15 @@ class BatchProcessor(object):
 
                 next_to_write += 1
 
+                if self.show_progress_bar:
+                    pbar.update()
+
                 # finish when you've written all parts
                 if next_to_write == len(data):
                     self.logger.debug('Done running parallel operation...')
                     break
+
+        pbar.close()
 
         f.close()
 
