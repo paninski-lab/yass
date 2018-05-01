@@ -49,7 +49,10 @@ def batch_runner(data, function, reader, pass_batch_info, cast_dtype,
 def make_chunk_path(output_path, i):
     name, ext = output_path.parts[-1].split('.')
     filename = name+str(i)+'.'+ext
-    chunk_path = Path(*output_path.parts[:-1], filename)
+
+    parts = output_path.parts[:-1]
+    parts.append(filename)
+    chunk_path = Path(*parts)
 
     return str(chunk_path)
 
