@@ -6,6 +6,9 @@ tmp/
 *.ipynb
 *.orig
 
+# sublime text files
+*.sublime*
+
 # documentation build
 doc/_build/
 

@@ -271,6 +271,7 @@ def run_neural_network(standarized_path, standarized_params,
         detection_fname = CONFIG.detect.neural_network_detector.filename
         ae_fname = CONFIG.detect.neural_network_autoencoder.filename
         triage_fname = CONFIG.detect.neural_network_triage.filename
+
         (x_tf, output_tf, NND,
          NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
                                                whiten_filter,
@@ -320,6 +321,7 @@ def run_neural_network(standarized_path, standarized_params,
         # transform scores to location + shape feature space
         # TODO: move this to another place
         rotation = NNAE.load_rotation()
+
         if CONFIG.cluster.method == 'location':
             threshold = 2
             scores = get_locations_features(scores, rotation, clear[:, 1],
