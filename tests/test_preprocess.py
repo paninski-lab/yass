@@ -47,6 +47,10 @@ def path_to_geometry():
     return path
 
 
+def teardown_function(function):
+    clean_tmp()
+
+
 def test_can_apply_butterworth_filter(data):
     _butterworth(data[:, 0], low_frequency=300, high_factor=0.1,
                  order=3, sampling_frequency=20000)
@@ -89,7 +93,16 @@ def test_can_preprocess(path_to_threshold_config):
     yass.set_config(path_to_threshold_config)
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
-    clean_tmp()
+
+
+def test_can_preprocess_serially(path_to_threshold_config):
+    CONFIG = load_yaml(path_to_threshold_config)
+    CONFIG['resources']['processes'] = 1
+
+    yass.set_config(CONFIG)
+
+    (standarized_path, standarized_params, channel_index,
+     whiten_filter) = preprocess.run()
 
 
 def test_can_preprocess_without_filtering(path_to_threshold_config):
@@ -100,4 +113,3 @@ def test_can_preprocess_without_filtering(path_to_threshold_config):
 
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
-    clean_tmp()

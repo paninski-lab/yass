@@ -594,7 +594,10 @@ class BatchProcessor(object):
         # run jobs
         self.logger.debug('Creating processes pool...')
         p = Pool(processes)
-        p.map_async(parallel_runner, enumerate(data))
+        result = p.map_async(parallel_runner, enumerate(data))
+
+        # this will raise exceptions from the child workers if any
+        result.get()
 
         # since we need to write chunks in order, start this flag to know
         # which one is next
