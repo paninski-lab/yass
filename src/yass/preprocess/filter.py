@@ -91,7 +91,8 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
                                       low_frequency=low_frequency,
                                       high_factor=high_factor,
                                       order=order,
-                                      sampling_frequency=sampling_frequency)
+                                      sampling_frequency=sampling_frequency,
+                                      processes=8)
 
     return path, params
 

@@ -63,6 +63,7 @@ class RecordingsReader(object):
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
                  data_order=None, loader='memmap'):
 
+        path_to_recordings = str(path_to_recordings)
         path_to_yaml = str(path_to_recordings).replace('.bin', '.yaml')
 
         if (not os.path.isfile(path_to_yaml) and (dtype is None or

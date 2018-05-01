@@ -64,7 +64,7 @@ class BatchProcessor(object):
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
                  data_order=None, max_memory='1GB', buffer_size=0,
-                 loader='python'):
+                 loader='memmap'):
         self.data_order = data_order
         self.buffer_size = buffer_size
         self.path_to_recordings = path_to_recordings
@@ -624,7 +624,7 @@ class BatchProcessor(object):
         # str(res.dtype),
         #                             output_path)
 
-        return output_path
+        return output_path, None
 
     def _multi_channel_apply_memory(self, function, cleanup_function,
                                     from_time, to_time, channels, cast_dtype,
