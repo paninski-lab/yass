@@ -1,6 +1,7 @@
 """
 Recording standarization
 """
+from functools import partial
 import multiprocess
 import os.path
 
@@ -75,57 +76,42 @@ def standarize(path_to_data, dtype, n_channels, data_order,
         (dtype, n_channels, data_order)
     """
     processes = multiprocess.cpu_count() if processes == 'max' else processes
+    _output_path = os.path.join(output_path, output_filename)
 
     # init batch processor
     bp = BatchProcessor(path_to_data, dtype, n_channels, data_order,
                         max_memory)
 
-    # read a batch from all channels
-    batches = bp.multi_channel()
-    first_batch, _, _ = next(batches)
+    sd = standard_deviation(bp, sampling_frequency)
 
-    # estimate standard deviation using the first batch
-    sd = standard_deviation(first_batch, sampling_frequency)
-
-    _output_path = os.path.join(output_path, output_filename)
+    def divide(rec):
+        return np.divide(rec, sd)
 
     # apply transformation
     (standarized_path,
-     standarized_params) = bp.multi_channel_apply(_standarize,
+     standarized_params) = bp.multi_channel_apply(divide,
                                                   mode='disk',
                                                   output_path=_output_path,
                                                   cast_dtype=output_dtype,
-                                                  sd=sd,
                                                   processes=processes)
 
     return standarized_path, standarized_params
 
 
-def _standarize(rec, sampling_freq=None, sd=None):
-    """Standarize recordings
-
-    Parameters
-    ----------
-    sampling_freq: int, optional
-        Recording sample frequency, if None, sd is required
-
-    sd: float, optional
-        Standard deviation, if None, will be calculated
-
-
-    Returns
-    -------
-    numpy.ndarray
-        Standarized recordings
-
+def standard_deviation(batch_processor, sampling_frequency):
+    """Estimate standard deviation using the first batch in a large file
     """
-    if sd is None:
-        sd = standard_deviation(rec, sampling_freq)
+    # read a batch from all channels
+    batches = batch_processor.multi_channel()
+    first_batch, _, _ = next(batches)
 
-    return np.divide(rec, sd)
+    # estimate standard deviation using the first batch
+    sd = _standard_deviation(first_batch, sampling_frequency)
+
+    return sd
 
 
-def standard_deviation(rec, sampling_freq):
+def _standard_deviation(rec, sampling_freq):
     """Determine standard deviation of noise in each channel
 
     Parameters

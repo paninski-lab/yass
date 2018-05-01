@@ -13,7 +13,7 @@ from yass.geometry import (parse, find_channel_neighbors,
                            make_channel_index)
 
 from yass.threshold import detect
-from yass.preprocess.standarize import _standarize
+from yass.preprocess.standarize import _standard_deviation
 from yass.util import load_yaml
 
 import yass
@@ -56,8 +56,8 @@ def test_can_apply_butterworth_filter(data):
                  order=3, sampling_frequency=20000)
 
 
-def test_can_standarize(data):
-    _standarize(data, srate)
+def test_can_compute_standar_deviation(data):
+    _standard_deviation(data, srate)
 
 
 def test_can_parse(path_to_geometry):

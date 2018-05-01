@@ -1,12 +1,14 @@
 """
 Filtering functions
 """
+from functools import partial
 import os
 
 import multiprocess
 from scipy.signal import butter, lfilter
+import numpy as np
 
-from yass.preprocess.standarize import _standarize
+from yass.preprocess.standarize import standard_deviation
 from yass.batch import BatchProcessor
 from yass.util import check_for_files, ExpandPath, LoadFile
 
@@ -87,11 +89,21 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
         (dtype, n_channels, data_order)
     """
     processes = multiprocess.cpu_count() if processes == 'max' else processes
-    fn = _butterworth_standarize if standarize else _butterworth
 
     # init batch processor
     bp = BatchProcessor(path_to_data, dtype, n_channels, data_order,
                         max_memory, buffer_size=200)
+
+    if standarize:
+        # if standarize, estimate sd from first batch and use
+        # _butterworth_standarize function
+        sd = standard_deviation(bp, sampling_frequency)
+        fn = partial(_butterworth_standarize, sd=sd)
+        # add name to the partial object, since it is not added...
+        fn.__name__ = _butterworth_standarize.__name__
+    else:
+        # otherwise use _butterworth function
+        fn = _butterworth
 
     _output_path = os.path.join(output_path, output_filename)
 
@@ -111,13 +123,13 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
 
 
 def _butterworth_standarize(ts, low_frequency, high_factor, order,
-                            sampling_frequency):
+                            sampling_frequency, sd):
     """Filter and then standarize
     """
     filtered = _butterworth(ts, low_frequency, high_factor, order,
                             sampling_frequency)
-    standarized = _standarize(filtered, sampling_frequency)
-    return standarized
+
+    return np.divide(filtered, sd)
 
 
 def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
