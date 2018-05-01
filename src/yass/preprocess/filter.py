@@ -3,6 +3,7 @@ Filtering functions
 """
 import os
 
+import multiprocess
 from scipy.signal import butter, lfilter
 
 from yass.preprocess.standarize import _standarize
@@ -15,8 +16,9 @@ from yass.util import check_for_files, ExpandPath, LoadFile
                  mode='extract', relative_to='output_path')
 def butterworth(path_to_data, dtype, n_channels, data_order,
                 low_frequency, high_factor, order, sampling_frequency,
-                max_memory, output_path, output_dtype,
-                output_filename='filtered.bin', if_file_exists='skip'):
+                max_memory, output_path, output_dtype, standarize=False,
+                output_filename='filtered.bin', if_file_exists='skip',
+                processes='max'):
     """Filter (butterworth) recordings in batches
 
     Parameters
@@ -62,11 +64,18 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
     output_dtype: str
         dtype for filtered data
 
+    standarize: bool
+        Whether to standarize the data after the filtering step
+
     if_file_exists: str, optional
         One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces the
         file if it exists, if 'abort' if raise a ValueError exception if
         the file exists, if 'skip' if skips the operation if the file
         exists
+
+    processes: str or int, optional
+        Number of processes to use, if 'max', it uses all cores in the machine
+        if a number, it uses that number of cores
 
     Returns
     -------
@@ -77,6 +86,9 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
         A dictionary with the parameters for the filtered recordings
         (dtype, n_channels, data_order)
     """
+    processes = multiprocess.cpu_count() if processes == 'max' else processes
+    fn = _butterworth_standarize if standarize else _butterworth
+
     # init batch processor
     bp = BatchProcessor(path_to_data, dtype, n_channels, data_order,
                         max_memory, buffer_size=200)
@@ -84,7 +96,7 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
     _output_path = os.path.join(output_path, output_filename)
 
     (path,
-     params) = bp.multi_channel_apply(_butterworth_standarize, mode='disk',
+     params) = bp.multi_channel_apply(fn, mode='disk',
                                       cleanup_function=fix_indexes,
                                       output_path=_output_path,
                                       if_file_exists=if_file_exists,
@@ -93,13 +105,15 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
                                       high_factor=high_factor,
                                       order=order,
                                       sampling_frequency=sampling_frequency,
-                                      processes=8)
+                                      processes=processes)
 
     return path, params
 
 
 def _butterworth_standarize(ts, low_frequency, high_factor, order,
                             sampling_frequency):
+    """Filter and then standarize
+    """
     filtered = _butterworth(ts, low_frequency, high_factor, order,
                             sampling_frequency)
     standarized = _standarize(filtered, sampling_frequency)
@@ -107,7 +121,7 @@ def _butterworth_standarize(ts, low_frequency, high_factor, order,
 
 
 def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
-    """Butterworth filter for a one dimensional time series
+    """Butterworth filter
 
     Parameters
     ----------

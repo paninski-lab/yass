@@ -1,6 +1,7 @@
 """
 Recording standarization
 """
+import multiprocess
 import os.path
 
 from yass.batch import BatchProcessor
@@ -15,7 +16,7 @@ import numpy as np
 def standarize(path_to_data, dtype, n_channels, data_order,
                sampling_frequency, max_memory, output_path,
                output_dtype, output_filename='standarized.bin',
-               if_file_exists='skip'):
+               if_file_exists='skip', processes='max'):
     """
     Standarize recordings in batches and write results to disk. Standard
     deviation is estimated using the first batch
@@ -60,6 +61,10 @@ def standarize(path_to_data, dtype, n_channels, data_order,
         exception if the file exists, if 'skip' if skips the operation if the
         file exists
 
+    processes: str or int, optional
+        Number of processes to use, if 'max', it uses all cores in the machine
+        if a number, it uses that number of cores
+
     Returns
     -------
     standarized_path: str
@@ -69,6 +74,8 @@ def standarize(path_to_data, dtype, n_channels, data_order,
         A dictionary with the parameters for the standarized recordings
         (dtype, n_channels, data_order)
     """
+    processes = multiprocess.cpu_count() if processes == 'max' else processes
+
     # init batch processor
     bp = BatchProcessor(path_to_data, dtype, n_channels, data_order,
                         max_memory)
@@ -88,7 +95,8 @@ def standarize(path_to_data, dtype, n_channels, data_order,
                                                   mode='disk',
                                                   output_path=_output_path,
                                                   cast_dtype=output_dtype,
-                                                  sd=sd)
+                                                  sd=sd,
+                                                  processes=processes)
 
     return standarized_path, standarized_params
 
