@@ -2,8 +2,13 @@ from functools import partial
 import time
 import logging
 import os.path
-from pathlib import Path
-from multiprocess import Pool, Manager, Value
+
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
+
+from multiprocess import Pool, Manager
 from copy import copy
 import os
 
