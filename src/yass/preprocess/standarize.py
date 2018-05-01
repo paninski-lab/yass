@@ -102,7 +102,7 @@ def standard_deviation(batch_processor, sampling_frequency):
     """
     # read a batch from all channels
     batches = batch_processor.multi_channel()
-    first_batch, _, _ = next(batches)
+    first_batch = next(batches)
 
     # estimate standard deviation using the first batch
     sd = _standard_deviation(first_batch, sampling_frequency)

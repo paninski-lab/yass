@@ -18,7 +18,6 @@ from yass.util import function_path, human_readable_time
 from yass.batch import util
 from yass.batch.generator import IndexGenerator
 from yass.batch.reader import RecordingsReader
-from yass.batch.buffer import BufferGenerator
 
 
 class BatchProcessor(object):
@@ -85,16 +84,12 @@ class BatchProcessor(object):
         self.reader = RecordingsReader(self.path_to_recordings,
                                        self.dtype, self.n_channels,
                                        self.data_order,
-                                       loader=self.loader)
+                                       loader=self.loader,
+                                       buffer_size=buffer_size)
         self.indexer = IndexGenerator(self.reader.observations,
                                       self.reader.channels,
                                       self.reader.dtype,
                                       max_memory)
-
-        # data format is long since reader will return data in that format
-        self.buffer_generator = BufferGenerator(self.reader.observations,
-                                                data_shape='long',
-                                                buffer_size=buffer_size)
 
         self.logger = logging.getLogger(__name__)
 
@@ -148,31 +143,10 @@ class BatchProcessor(object):
         indexes = self.indexer.multi_channel(from_time, to_time, channels)
 
         for idx in indexes:
-            obs_idx = idx[0]
-            data_idx = (slice(self.buffer_size,
-                              obs_idx.stop - obs_idx.start + self.buffer_size,
-                              obs_idx.step), slice(None, None, None))
-
-            # if not return_data and self.buffer_size != 0:
-            #     raise ValueError('return_data=False is not supported when '
-            #                      'buffer is set')
-
             if return_data:
-
-                if self.buffer_size:
-                    (idx_new,
-                     (buff_start, buff_end)) = (self.buffer_generator
-                                                .update_key_with_buffer(idx))
-                    subset = self.reader[idx_new]
-                    subset_buff = self.buffer_generator.add_buffer(subset,
-                                                                   buff_start,
-                                                                   buff_end)
-                    yield subset_buff, data_idx, idx
-                else:
-                    yield self.reader[idx], data_idx, idx
-
+                yield self.reader[idx]
             else:
-                yield data_idx, idx
+                yield idx
 
     def single_channel_apply(self, function, mode, output_path=None,
                              force_complete_channel_batch=True,
@@ -336,7 +310,6 @@ class BatchProcessor(object):
                                               from_time, to_time,
                                               channels)
         indexes = list(indexes)
-
         iterator = enumerate(indexes)
 
         if self.show_progress_bar:
@@ -550,9 +523,8 @@ class BatchProcessor(object):
         if self.show_progress_bar:
             iterator = tqdm(iterator, total=n_batches)
 
-        for i, (idx_local, idx) in iterator:
-            _data = i, (idx_local, idx)
-            res = util.batch_runner(_data, function, self.reader,
+        for i, idx in iterator:
+            res = util.batch_runner((i, idx), function, self.reader,
                                     pass_batch_info, cast_dtype,
                                     kwargs, cleanup_function, self.buffer_size,
                                     output_path, save_chunks=False)
@@ -607,10 +579,10 @@ class BatchProcessor(object):
         done = m.list()
         mapping = m.dict()
 
-        def parallel_runner(data):
-            i, (idx_local, idx) = data
+        def parallel_runner(element):
+            i, _ = data
 
-            res = util.batch_runner(data, function, reader,
+            res = util.batch_runner(element, function, reader,
                                     pass_batch_info, cast_dtype,
                                     kwargs, cleanup_function, _buffer_size,
                                     output_path, save_chunks=True)
@@ -685,8 +657,8 @@ class BatchProcessor(object):
                                     pass_batch_info, pass_batch_results,
                                     **kwargs):
 
-        data = self.multi_channel(from_time, to_time, channels)#,
-                                  # return_data=False)
+        data = self.multi_channel(from_time, to_time, channels,
+                                  return_data=False)
         n_batches = self.indexer.n_batches(from_time, to_time, channels)
 
         results = []
@@ -697,9 +669,9 @@ class BatchProcessor(object):
         if self.show_progress_bar:
             iterator = tqdm(iterator, total=n_batches)
 
-        for i, (subset, idx_local, idx) in iterator:
+        for i, idx in iterator:
 
-            # subset = self.reader[idx]
+            subset, idx_local = self.reader[idx]
 
             self.logger.debug('Processing batch {}...'.format(i))
 

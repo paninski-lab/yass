@@ -4,6 +4,7 @@ import yaml
 import numpy as np
 from functools import partial, reduce
 from collections import Iterable
+from yass.batch.buffer import BufferGenerator
 
 
 class RecordingsReader(object):
@@ -39,6 +40,11 @@ class RecordingsReader(object):
         loader has limited indexing capabilities, see
         :class:`~yass.batch.BinaryReader` for details
 
+    buffer_size: int, optional
+        Adds buffer, if different than zero, a tuple will be returned when
+        indexing: the first element will be the data + buffer and the second
+        the index corresponding to the actual data (excluding bufffer)
+
 
     Raises
     ------
@@ -61,7 +67,7 @@ class RecordingsReader(object):
     """
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
-                 data_order=None, loader='memmap'):
+                 data_order=None, loader='memmap', buffer_size=0):
 
         path_to_recordings = str(path_to_recordings)
         path_to_yaml = str(path_to_recordings).replace('.bin', '.yaml')
@@ -85,6 +91,7 @@ class RecordingsReader(object):
         self._data_order = data_order
         self._n_channels = n_channels
         self._dtype = dtype if not isinstance(dtype, str) else np.dtype(dtype)
+        self.buffer_size = buffer_size
 
         filesize = os.path.getsize(path_to_recordings)
 
@@ -101,6 +108,12 @@ class RecordingsReader(object):
 
         self._n_observations = int(filesize / self._dtype.itemsize /
                                    n_channels)
+
+        if self.buffer_size:
+            # data format is long since reader will return data in that format
+            self.buffer_generator = BufferGenerator(self._n_observations,
+                                                    data_shape='long',
+                                                    buffer_size=buffer_size)
 
         if loader not in ['memmap', 'array', 'python']:
             raise ValueError("loader must be one of 'memmap', 'array' or "
@@ -140,7 +153,21 @@ class RecordingsReader(object):
         if not isinstance(key, tuple):
             key = (key, slice(None))
 
-        return self._data[key]
+        subset = self._data[key]
+
+        if self.buffer_size:
+            # modify indexes to include buffered data
+            (idx_new,
+             (buff_start, buff_end)) = (self.buffer_generator
+                                        .update_key_with_buffer(key))
+
+            # add zeros if needed (start or end of the data)
+            subset_buff = self.buffer_generator.add_buffer(subset,
+                                                           buff_start,
+                                                           buff_end)
+            return subset_buff, key
+        else:
+            return subset
 
     def __repr__(self):
         return ('Reader for recordings with {:,} observations and {:,} '
