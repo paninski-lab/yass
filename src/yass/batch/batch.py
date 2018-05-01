@@ -296,7 +296,13 @@ class BatchProcessor(object):
         indexes = self.indexer.single_channel(force_complete_channel_batch,
                                               from_time, to_time,
                                               channels)
-        for i, idx in enumerate(indexes):
+        indexes = list(indexes)
+        iterator = enumerate(indexes)
+
+        if self.show_progress_bar:
+            iterator = tqdm(iterator, total=len(indexes))
+
+        for i, idx in iterator:
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
             subset = self.reader[idx]
@@ -325,9 +331,16 @@ class BatchProcessor(object):
         indexes = self.indexer.single_channel(force_complete_channel_batch,
                                               from_time, to_time,
                                               channels)
+        indexes = list(indexes)
+
+        iterator = enumerate(indexes)
+
+        if self.show_progress_bar:
+            iterator = tqdm(iterator, total=len(indexes))
+
         results = []
 
-        for i, idx in enumerate(indexes):
+        for i, idx in iterator:
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
             subset = self.reader[idx]
