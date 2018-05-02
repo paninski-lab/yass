@@ -531,7 +531,7 @@ class BatchProcessor(object):
             res = util.batch_runner((i, idx), function, self.reader,
                                     pass_batch_info, cast_dtype,
                                     kwargs, cleanup_function, self.buffer_size,
-                                    output_path, save_chunks=False)
+                                    save_chunks=False)
             res.tofile(f)
 
         f.close()
@@ -591,7 +591,7 @@ class BatchProcessor(object):
             res = util.batch_runner(element, function, reader,
                                     pass_batch_info, cast_dtype,
                                     kwargs, cleanup_function, _buffer_size,
-                                    output_path, save_chunks=True)
+                                    save_chunks=True, output_path=output_path)
 
             if i == 0:
                 mapping['dtype'] = str(res.dtype)

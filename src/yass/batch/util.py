@@ -8,8 +8,8 @@ import numbers
 
 
 def batch_runner(element, function, reader, pass_batch_info, cast_dtype,
-                 kwargs, cleanup_function, buffer_size, output_path,
-                 save_chunks):
+                 kwargs, cleanup_function, buffer_size, save_chunks,
+                 output_path=None):
     i, idx = element
 
     logger = logging.getLogger(__name__)
