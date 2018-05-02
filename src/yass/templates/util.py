@@ -109,7 +109,7 @@ def random_sample_spike_train(spike_train, n_max):
     return spike_train_small
 
 
-def align_templates(templates, spike_train, max_shift):
+def align_templates(templates, max_shift):
     C, R, K = templates.shape
     spike_size = int((R-1)/2 - max_shift)
 
@@ -140,9 +140,8 @@ def align_templates(templates, spike_train, max_shift):
     for k in range(K):
         s = best_shift[k]
         templates_final[:, :, k] = templates[:, s:(s+2*spike_size+1), k]
-        spike_train[spike_train[:, 1] == k, 0] += (s - max_shift)
 
-    return templates_final, spike_train
+    return templates_final
 
 
 # TODO: documentation
@@ -209,7 +208,7 @@ def merge_templates(templates, weights, spike_train, neighbors,
                     templatesNew_temp[:, :, j2] = templates[:, :, temp[j2]]
 
                 idx_old_id = spike_train[:, 1] == temp[j2]
-                spt_new[idx_old_id] = spike_train[idx_old_id, 0] + s
+                spt_new[idx_old_id] = spike_train[idx_old_id, 0]
                 id_new[idx_old_id] = k
 
             weightNew[k] = np.sum(weight_temp)
@@ -224,10 +223,12 @@ def merge_templates(templates, weights, spike_train, neighbors,
             spt_new[idx_old_id] = spike_train[idx_old_id, 0]
             id_new[idx_old_id] = k
 
-    spike_train_clear_new = np.hstack((
+    spike_train_merged = np.hstack((
         spt_new[:, np.newaxis], id_new[:, np.newaxis]))
 
-    return templatesNew, spike_train_clear_new, groups
+    spike_train_merged = remove_duplicates(spike_train_merged)
+
+    return templatesNew, spike_train_merged, groups
 
 
 # TODO: documentation
@@ -346,3 +347,19 @@ def TemplatesSimilarity(t1, t2, th, W):
             similar = 1
 
     return similar
+
+
+def remove_duplicates(spike_train):
+    K = int(np.max(spike_train[:, 1])) + 1
+    spike_train2 = np.zeros((0, 2), 'int32')
+    for k in range(K):
+        idx_k = np.where(spike_train[:, 1] == k)[0]
+        tt = np.unique(spike_train[idx_k, 0])
+        temp = np.hstack((tt[:, np.newaxis], k * np.ones(
+            (tt.shape[0], 1), 'int32')))
+        spike_train2 = np.vstack((spike_train2, temp))
+
+    idx_sort = np.argsort(spike_train2[:, 0])
+    spike_train2 = spike_train2[idx_sort]
+
+    return spike_train2

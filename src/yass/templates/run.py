@@ -106,8 +106,7 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
         snr_threshold, spread_threshold)
 
     # align templates
-    templates, spike_train = align_templates(templates, spike_train,
-                                             template_max_shift)
+    templates = align_templates(templates, template_max_shift)
 
     # merge templates
     templates, spike_train, groups = merge_templates(
