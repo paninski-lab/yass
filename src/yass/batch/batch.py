@@ -85,7 +85,8 @@ class BatchProcessor(object):
                                        self.dtype, self.n_channels,
                                        self.data_order,
                                        loader=self.loader,
-                                       buffer_size=buffer_size)
+                                       buffer_size=buffer_size,
+                                       return_data_index=True)
         self.indexer = IndexGenerator(self.reader.observations,
                                       self.reader.channels,
                                       self.reader.dtype,
@@ -115,11 +116,13 @@ class BatchProcessor(object):
                                               channels)
         if force_complete_channel_batch:
             for idx in indexes:
-                yield self.reader[idx]
+                subset, _ = self.reader[idx]
+                yield subset
         else:
             for idx in indexes:
                 channel_idx = idx[1]
-                yield self.reader[idx], channel_idx
+                subset, _ = self.reader[idx]
+                yield subset, channel_idx
 
     def multi_channel(self, from_time=None, to_time=None, channels='all',
                       return_data=True):
@@ -144,7 +147,8 @@ class BatchProcessor(object):
 
         for idx in indexes:
             if return_data:
-                yield self.reader[idx]
+                subset, _ = self.reader[idx]
+                yield subset
             else:
                 yield idx
 
@@ -283,7 +287,7 @@ class BatchProcessor(object):
         for i, idx in iterator:
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
-            subset = self.reader[idx]
+            subset, _ = self.reader[idx]
 
             self.logger.debug('Executing function...')
 
@@ -320,7 +324,7 @@ class BatchProcessor(object):
         for i, idx in iterator:
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
-            subset = self.reader[idx]
+            subset, _ = self.reader[idx]
 
             if cast_dtype is None:
                 res = function(subset, **kwargs)
@@ -550,8 +554,9 @@ class BatchProcessor(object):
             raise NotImplementedError("pass_batch_results is not "
                                       "implemented on 'disk' mode")
 
-        data = self.multi_channel(from_time, to_time, channels,
-                                  return_data=False)
+        # need to convert to a list, oherwise cannot be pickled
+        data = list(self.multi_channel(from_time, to_time, channels,
+                    return_data=False))
         n_batches = self.indexer.n_batches(from_time, to_time, channels)
 
         self.logger.info('Data will be splitted in %s batches', n_batches)
@@ -571,7 +576,8 @@ class BatchProcessor(object):
                          dtype=_dtype,
                          n_channels=_n_channels,
                          data_order=_data_order,
-                         loader=_loader)
+                         loader=_loader,
+                         return_data_index=True)
 
         # the list will keep track of finished jobs so their output can be
         # written to disk
@@ -580,7 +586,7 @@ class BatchProcessor(object):
         mapping = m.dict()
 
         def parallel_runner(element):
-            i, _ = data
+            i, _ = element
 
             res = util.batch_runner(element, function, reader,
                                     pass_batch_info, cast_dtype,

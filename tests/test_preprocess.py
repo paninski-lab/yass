@@ -95,9 +95,9 @@ def test_can_preprocess(path_to_threshold_config):
      whiten_filter) = preprocess.run()
 
 
-def test_can_preprocess_serially(path_to_threshold_config):
+def test_can_preprocess_in_parallel(path_to_threshold_config):
     CONFIG = load_yaml(path_to_threshold_config)
-    CONFIG['resources']['processes'] = 1
+    CONFIG['resources']['processes'] = 'max'
 
     yass.set_config(CONFIG)
 

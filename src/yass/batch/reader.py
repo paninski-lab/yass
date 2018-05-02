@@ -41,10 +41,13 @@ class RecordingsReader(object):
         :class:`~yass.batch.BinaryReader` for details
 
     buffer_size: int, optional
-        Adds buffer, if different than zero, a tuple will be returned when
-        indexing: the first element will be the data + buffer and the second
-        the index corresponding to the actual data (excluding bufffer)
+        Adds buffer
 
+    return_data_index: bool, optional
+        If True, a tuple will be returned when indexing: the first element will
+        be the data and the second the index corresponding to the actual data
+        (excluding bufffer), when buffer is equal to zero, this just returns
+        they original index since there is no buffer
 
     Raises
     ------
@@ -67,13 +70,15 @@ class RecordingsReader(object):
     """
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
-                 data_order=None, loader='memmap', buffer_size=0):
+                 data_order=None, loader='memmap', buffer_size=0,
+                 return_data_index=False):
 
         path_to_recordings = str(path_to_recordings)
         path_to_yaml = str(path_to_recordings).replace('.bin', '.yaml')
 
         if (not os.path.isfile(path_to_yaml) and (dtype is None or
-           n_channels is None or data_order is None)):
+                                                  n_channels is None or
+                                                  data_order is None)):
             raise ValueError('At least one of: dtype, channels or data_order '
                              'are None, this is only allowed when a yaml '
                              'file is present in the same location as '
@@ -92,6 +97,7 @@ class RecordingsReader(object):
         self._n_channels = n_channels
         self._dtype = dtype if not isinstance(dtype, str) else np.dtype(dtype)
         self.buffer_size = buffer_size
+        self.return_data_index = return_data_index
 
         filesize = os.path.getsize(path_to_recordings)
 
@@ -155,6 +161,11 @@ class RecordingsReader(object):
 
         subset = self._data[key]
 
+        obs_idx = key[0]
+        data_idx = (slice(self.buffer_size,
+                          obs_idx.stop - obs_idx.start + self.buffer_size,
+                          obs_idx.step), slice(None, None, None))
+
         if self.buffer_size:
             # modify indexes to include buffered data
             (idx_new,
@@ -165,9 +176,11 @@ class RecordingsReader(object):
             subset_buff = self.buffer_generator.add_buffer(subset,
                                                            buff_start,
                                                            buff_end)
-            return subset_buff, key
+
+            return ((subset_buff, data_idx) if self.return_data_index
+                    else subset_buff)
         else:
-            return subset
+            return (subset, data_idx) if self.return_data_index else subset
 
     def __repr__(self):
         return ('Reader for recordings with {:,} observations and {:,} '
@@ -364,6 +377,7 @@ class MemoryMap:
     Wrapper for numpy.memmap that creates a new memmap on each __getitem__
     call to save memory
     """
+
     def __init__(self, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs

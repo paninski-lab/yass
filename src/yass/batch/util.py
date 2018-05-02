@@ -22,7 +22,10 @@ def batch_runner(element, function, reader, pass_batch_info, cast_dtype,
 
     # read chunk and run function
     logger.debug('Applying function in batch {}...'.format(i))
-    res, idx_local = function(_reader[idx], **kwargs)
+
+    subset, idx_local = _reader[idx]
+    res = function(subset, **kwargs)
+
     logger.debug('Done Applying function in batch {}...'.format(i))
 
     kwargs_other = dict()

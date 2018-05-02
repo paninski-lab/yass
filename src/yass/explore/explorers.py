@@ -475,15 +475,15 @@ class RecordingExplorer(object):
     def __init__(self, path_to_recordings, path_to_geom=None, spike_size=None,
                  neighbor_radius=None, dtype=None, n_channels=None,
                  data_order=None, loader='memmap', waveform_dtype='float32'):
-        self.data = RecordingsReader(path_to_recordings, dtype, n_channels,
-                                     data_order, loader)
+        self.reader = RecordingsReader(path_to_recordings, dtype, n_channels,
+                                       data_order, loader)
 
         if path_to_geom is not None:
             self.geom = geom.parse(path_to_geom, n_channels)
             self.neighbor_radius = neighbor_radius
             self.neigh_matrix = geom.find_channel_neighbors(self.geom,
                                                             neighbor_radius)
-        self.n_channels = self.data.channels
+        self.n_channels = self.reader.channels
         self.spike_size = spike_size
 
         if waveform_dtype == 'default':
@@ -523,9 +523,9 @@ class RecordingExplorer(object):
         end = time + self.spike_size + 1
 
         if isinstance(channels, str) and channels == 'all':
-            wf = self.data[start:end, :].astype(self.waveform_dtype)
+            wf = self.reader[start:end, :].astype(self.waveform_dtype)
         else:
-            wf = self.data[start:end, channels].astype(self.waveform_dtype)
+            wf = self.reader[start:end, channels].astype(self.waveform_dtype)
 
         if len(wf) != 2 * self.spike_size + 1:
             raise ValueError('Cannot read waveform at time {}, there is not '
@@ -750,7 +750,7 @@ class RecordingExplorer(object):
         formatter = FuncFormatter(lambda x, pos: from_time + int(x))
 
         for ax, ch in zip(axs, channels):
-            ax.plot(self.data[from_time:to_time, ch])
+            ax.plot(self.reader[from_time:to_time, ch])
             ax.set_title('Channel {}'.format(ch), fontsize=25)
             ax.xaxis.set_major_formatter(formatter)
             ax.tick_params(axis='x', which='major', labelsize=25)
