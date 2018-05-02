@@ -11,8 +11,10 @@ from yass.batch import RecordingsReader, BatchProcessor
 from yass import neuralnetwork
 from yass.geometry import make_channel_index, n_steps_neigh_channels
 
+SAVE = False
 
-def test_can_use_neural_network_detector(path_to_tests):
+
+def run_nnet(path_to_tests):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -43,8 +45,39 @@ def test_can_use_neural_network_detector(path_to_tests):
                                            )
 
     neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-    neuralnetwork.run_detect_triage_featurize(data, x_tf, output_tf,
-                                              NND, NNAE, NNT, neighbors)
+    return neuralnetwork.run_detect_triage_featurize(data, x_tf, output_tf,
+                                                     NND, NNAE, NNT, neighbors)
+
+
+def test_can_use_neural_network_detector(path_to_tests):
+    scores, clear, collision = run_nnet(path_to_tests)
+
+
+def test_same_result_as_before(path_to_tests, path_to_data_folder):
+    scores, clear, collision = run_nnet(path_to_tests)
+
+    path_to_clear = path.join(path_to_data_folder,
+                              'output_reference',
+                              'nnet_detector_clear.npy')
+    path_to_scores = path.join(path_to_data_folder,
+                               'output_reference',
+                               'nnet_detector_scores.npy')
+    path_to_collision = path.join(path_to_data_folder,
+                                  'output_reference',
+                                  'nnet_detector_collision.npy')
+
+    if SAVE:
+        np.save(path_to_clear, clear)
+        np.save(path_to_scores, scores)
+        np.save(path_to_collision, collision)
+
+    clear_saved = np.load(path_to_clear)
+    scores_saved = np.load(path_to_scores)
+    collision_saved = np.load(path_to_collision)
+
+    np.testing.assert_array_equal(clear_saved, clear)
+    np.testing.assert_array_equal(scores_saved, scores)
+    np.testing.assert_array_equal(collision_saved, collision)
 
 
 def test_splitting_in_batches_does_not_affect_result(path_to_tests):
@@ -112,7 +145,3 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
     np.testing.assert_array_equal(clear_batch, clear)
     np.testing.assert_array_equal(collision_batch, collision)
     np.testing.assert_array_equal(scores_batch, scores)
-
-
-def test_can_train_nnet(path_to_tests):
-    pass
