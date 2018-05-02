@@ -604,8 +604,8 @@ class BatchProcessor(object):
 
             while True:
                 if next_to_write.value == i:
-
-                    with open(str(output_path), 'ab') as f:
+                    mode = 'wb' if i == 0 else 'ab'
+                    with open(str(output_path), mode) as f:
                         # print("writing...")
                         res.tofile(f)
 
