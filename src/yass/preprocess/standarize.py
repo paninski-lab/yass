@@ -97,12 +97,16 @@ def standarize(path_to_data, dtype, n_channels, data_order,
     return standarized_path, standarized_params
 
 
-def standard_deviation(batch_processor, sampling_frequency):
+def standard_deviation(batch_processor, sampling_frequency,
+                       preprocess_fn=None):
     """Estimate standard deviation using the first batch in a large file
     """
     # read a batch from all channels
     batches = batch_processor.multi_channel()
     first_batch = next(batches)
+
+    if preprocess_fn:
+        first_batch = preprocess_fn(first_batch)
 
     # estimate standard deviation using the first batch
     sd = _standard_deviation(first_batch, sampling_frequency)

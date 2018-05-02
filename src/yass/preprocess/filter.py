@@ -95,12 +95,19 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
                         max_memory, buffer_size=200)
 
     if standarize:
+        filtering = partial(_butterworth, low_frequency=low_frequency,
+                            high_factor=high_factor,
+                            order=order,
+                            sampling_frequency=sampling_frequency)
+
         # if standarize, estimate sd from first batch and use
-        # _butterworth_standarize function
-        sd = standard_deviation(bp, sampling_frequency)
-        fn = partial(_butterworth_standarize, sd=sd)
+        # _butterworth_scale function, pass filtering to estimate sd from the
+        # filtered data
+        sd = standard_deviation(bp, sampling_frequency,
+                                preprocess_fn=filtering)
+        fn = partial(_butterworth_scale, denominator=sd)
         # add name to the partial object, since it is not added...
-        fn.__name__ = _butterworth_standarize.__name__
+        fn.__name__ = _butterworth_scale.__name__
     else:
         # otherwise use _butterworth function
         fn = _butterworth
@@ -122,14 +129,14 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
     return path, params
 
 
-def _butterworth_standarize(ts, low_frequency, high_factor, order,
-                            sampling_frequency, sd):
-    """Filter and then standarize
+def _butterworth_scale(ts, low_frequency, high_factor, order,
+                       sampling_frequency, denominator):
+    """Filter and then divide
     """
     filtered = _butterworth(ts, low_frequency, high_factor, order,
                             sampling_frequency)
 
-    return np.divide(filtered, sd)
+    return np.divide(filtered, denominator)
 
 
 def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
