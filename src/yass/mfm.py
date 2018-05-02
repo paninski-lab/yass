@@ -253,8 +253,6 @@ class vbPar:
                 self.invVhat[:, :, k, n] += suffStat.sumYSq[:, :, k, n]
                 self.Vhat[:, :, k, n] = safe_inversion(
                     self.invVhat[:, :, k, n])
-                # self.Vhat[:, :, k, n] = np.linalg.solve(
-                #     np.squeeze(self.invVhat[:, :, k, n]), np.eye(nfeature))
         self.nuhat = prior.nu + suffStat.Nhat
 
     def update_global_selected(self, suffStat, param):
@@ -294,8 +292,6 @@ class vbPar:
                     :, :, k, n] + suffStat.sumYSq[:, :, k, n]
                 self.Vhat[:, :, k, n] = safe_inversion(
                     self.invVhat[:, :, k, n])
-                # self.Vhat[:, :, k, n] = np.linalg.solve(
-                #    np.squeeze(self.invVhat[:, :, k, n]), np.eye(nfeature))
         self.nuhat = prior.nu + suffStat.Nhat
 
 
@@ -640,10 +636,6 @@ def safe_inversion(X):
     w, d = np.linalg.eigh(X)
     w[w <= 0] = 1e-8
 
-    if np.any(np.iscomplex(np.matmul(np.matmul(d, np.diag(1 / w)), d.T))):
-        print(d)
-        print(w)
-        print(X)
     return np.matmul(np.matmul(d, np.diag(1 / w)), d.T)
 
 
@@ -795,7 +787,6 @@ def weightedKmeansplusplus(X, w, k):
 
 def birth_move(maskedData, vbParam, suffStat, param, L):
 
-    # Khat = suffStat.sumY.shape[1]
     collectionThreshold = 0.1
     extraK = param.cluster.n_split
     big_units = np.where(np.sum(
@@ -953,8 +944,6 @@ def check_merge(maskedData, vbParam, suffStat, ka, kb, param, L, ELBO):
             suffStatTemp.sumYSq[:, :, K - 2, n]
 
         VhatTemp[:, :, 0, n] = safe_inversion(invVhatTemp[:, :, 0, n])
-        # VhatTemp[:, :, 0, n] = np.linalg.solve(invVhatTemp[:, :, 0, n],
-        #                                        np.eye(nfeature))
     vbParamTemp.Vhat = np.concatenate(
         (vbParam.Vhat[:, :, no_kab, :], VhatTemp), axis=2)
     vbParamTemp.invVhat = np.concatenate(
@@ -990,16 +979,7 @@ def spikesort(score, mask, group, param):
         rhat_full[j] = vbParam.rhat[group[j]]
 
     vbParam.rhat = rhat_full
-    # assignmentTemp = np.argmax(vbParam.rhat, axis=1)
 
-    # assignment = np.zeros(score.shape[0], 'int16')
-    # for j in range(score.shape[0]):
-    #     assignment[j] = assignmentTemp[group[j]]
-
-    # idx_triage = cluster_triage(vbParam, score, 20)
-    # assignment[idx_triage] = -1
-
-    # return assignment, vbParam
     return vbParam
 
 

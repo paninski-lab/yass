@@ -175,7 +175,6 @@ def calculate_sparse_rhat(vbParam, tmp_loc, scores,
         score = scores[idx_data]
         n_data = score.shape[0]
 
-        # ch_idx = np.where(neighbors[channel])[0]
         ch_idx = [channel]
         cluster_idx = np.zeros(n_templates, 'bool')
         for c in ch_idx:
