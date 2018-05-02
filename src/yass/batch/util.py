@@ -24,9 +24,6 @@ def batch_runner(element, function, reader, pass_batch_info, cast_dtype,
     logger.debug('Applying function in batch {}...'.format(i))
 
     subset, idx_local = _reader[idx]
-    res = function(subset, **kwargs)
-
-    logger.debug('Done Applying function in batch {}...'.format(i))
 
     kwargs_other = dict()
 
@@ -35,6 +32,10 @@ def batch_runner(element, function, reader, pass_batch_info, cast_dtype,
         kwargs_other['idx'] = idx
 
     kwargs.update(kwargs_other)
+
+    res = function(subset, **kwargs)
+
+    logger.debug('Done Applying function in batch {}...'.format(i))
 
     if cast_dtype is not None:
         res = res.astype(cast_dtype)

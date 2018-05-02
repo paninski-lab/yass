@@ -161,7 +161,8 @@ class RecordingsReader(object):
 
         subset = self._data[key]
 
-        obs_idx = key[0]
+        obs_idx, _ = key
+
         data_idx = (slice(self.buffer_size,
                           obs_idx.stop - obs_idx.start + self.buffer_size,
                           obs_idx.step), slice(None, None, None))
