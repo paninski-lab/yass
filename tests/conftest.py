@@ -21,6 +21,12 @@ def path_to_data_folder():
     return os.path.join(path, 'data/')
 
 
+@pytest.fixture(scope='session')
+def path_to_output_reference():
+    path = os.path.dirname(os.path.realpath(__file__))
+    return os.path.join(path, 'data', 'output_reference')
+
+
 @pytest.fixture
 def path_to_nnet_config(scope='session'):
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
