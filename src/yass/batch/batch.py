@@ -581,9 +581,12 @@ class BatchProcessor(object):
 
         # the list will keep track of finished jobs so their output can be
         # written to disk
+        from multiprocessing import Value
+
         m = Manager()
         done = m.list()
         mapping = m.dict()
+        next_to_write = m.Value('i', 0)
 
         def parallel_runner(element):
             i, _ = element
@@ -591,13 +594,26 @@ class BatchProcessor(object):
             res = util.batch_runner(element, function, reader,
                                     pass_batch_info, cast_dtype,
                                     kwargs, cleanup_function, _buffer_size,
-                                    save_chunks=True, output_path=output_path)
+                                    save_chunks=False, output_path=output_path)
 
             if i == 0:
                 mapping['dtype'] = str(res.dtype)
 
             # let the master process know that this job is done
-            done.append(i)
+            # done.append(i)
+
+            while True:
+                if next_to_write.value == i:
+
+                    with open(str(output_path), 'ab') as f:
+                        # print("writing...")
+                        res.tofile(f)
+
+                        if i % 20 == 0:
+                            print('finished part...', i)
+
+                    next_to_write.value += 1
+                    break
 
         # run jobs
         self.logger.debug('Creating processes pool...')
@@ -605,57 +621,58 @@ class BatchProcessor(object):
         # create [processes - 1] since we are also counting the current
         # process, which collects the results
         p = Pool(processes - 1)
-        result = p.map_async(parallel_runner, enumerate(data))
+        result = p.map(parallel_runner, enumerate(data))
 
         # this will raise exceptions from the child workers if any
-        result.get()
+        # result.get()
 
-        # since we need to write chunks in order, start this flag to know
-        # which one is next
-        next_to_write = 0
+        # # since we need to write chunks in order, start this flag to know
+        # # which one is next
+        # next_to_write = 0
 
-        if output_path.is_file():
-            os.remove(str(output_path))
+        # if output_path.is_file():
+        #     os.remove(str(output_path))
 
-        f = open(str(output_path), 'ab')
+        # f = open(str(output_path), 'ab')
 
-        if self.show_progress_bar:
-            pbar = tqdm(total=n_batches)
+        # if self.show_progress_bar:
+        #     pbar = tqdm(total=n_batches)
 
-        while True:
+        # while True:
 
-            # wait for the next job to write to be done
-            if next_to_write in done:
+        #     # wait for the next job to write to be done
+        #     if next_to_write in done:
 
-                # read its chunk and append it to the main file
-                chunk_path = util.make_chunk_path(output_path, next_to_write)
+        #         # read its chunk and append it to the main file
+        #         chunk_path = util.make_chunk_path(output_path, next_to_write)
 
-                with open(chunk_path, "rb") as f2:
-                    f.write(f2.read())
-                    self.logger.debug('Appending chunk %i...', next_to_write)
+        #         with open(chunk_path, "rb") as f2:
+        #             f.write(f2.read())
+        #             self.logger.debug('Appending chunk %i...', next_to_write)
 
-                # remove chunk
-                os.remove(chunk_path)
+        #         # remove chunk
+        #         os.remove(chunk_path)
 
-                next_to_write += 1
+        #         next_to_write += 1
 
-                if self.show_progress_bar:
-                    pbar.update()
+        #         if self.show_progress_bar:
+        #             pbar.update()
 
-                # finish when you've written all parts
-                if next_to_write == n_batches:
-                    self.logger.debug('Done running parallel operation...')
-                    break
+        #         # finish when you've written all parts
+        #         if next_to_write == n_batches:
+        #             self.logger.debug('Done running parallel operation...')
+        #             break
 
-        if self.show_progress_bar:
-            pbar.close()
+        # if self.show_progress_bar:
+        #     pbar.close()
 
-        f.close()
+        # f.close()
 
         # save metadata
         params = util.make_metadata(channels, self.n_channels,
                                     mapping['dtype'], output_path)
 
+        # return None
         return output_path, params
 
     def _multi_channel_apply_memory(self, function, cleanup_function,
