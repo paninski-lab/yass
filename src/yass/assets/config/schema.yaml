@@ -247,7 +247,7 @@ cluster:
           type: integer
           default: 5
         V:
-          type: integer
+          type: float
           default: 2
 
     triage:

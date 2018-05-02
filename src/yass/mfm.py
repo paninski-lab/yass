@@ -238,8 +238,8 @@ class vbPar:
         invV = np.eye(nfeature) / prior.V
         self.Vhat = np.zeros([nfeature, nfeature, Khat, nchannel])
         self.invVhat = np.zeros([nfeature, nfeature, Khat, nchannel])
-        for n in range(nchannel):
-            for k in range(Khat):
+        for k in range(Khat):
+            for n in range(nchannel):
                 self.invVhat[:, :, k, n] = self.invVhat[:, :, k, n] + invV
                 self.invVhat[
                     :, :, k, n] = self.invVhat[
@@ -251,8 +251,10 @@ class vbPar:
                               suffStat.sumY[:, np.newaxis, k, n].T)
                 self.invVhat[:, :, k, n] -= (temp + temp.T)
                 self.invVhat[:, :, k, n] += suffStat.sumYSq[:, :, k, n]
-                self.Vhat[:, :, k, n] = np.linalg.solve(
-                    np.squeeze(self.invVhat[:, :, k, n]), np.eye(nfeature))
+                self.Vhat[:, :, k, n] = safe_inversion(
+                    self.invVhat[:, :, k, n])
+                # self.Vhat[:, :, k, n] = np.linalg.solve(
+                #     np.squeeze(self.invVhat[:, :, k, n]), np.eye(nfeature))
         self.nuhat = prior.nu + suffStat.Nhat
 
     def update_global_selected(self, suffStat, param):
@@ -290,8 +292,10 @@ class vbPar:
                     :, :, k, n] = self.invVhat[:, :, k, n] - temp - temp.T
                 self.invVhat[:, :, k, n] = self.invVhat[
                     :, :, k, n] + suffStat.sumYSq[:, :, k, n]
-                self.Vhat[:, :, k, n] = np.linalg.solve(
-                    np.squeeze(self.invVhat[:, :, k, n]), np.eye(nfeature))
+                self.Vhat[:, :, k, n] = safe_inversion(
+                    self.invVhat[:, :, k, n])
+                # self.Vhat[:, :, k, n] = np.linalg.solve(
+                #    np.squeeze(self.invVhat[:, :, k, n]), np.eye(nfeature))
         self.nuhat = prior.nu + suffStat.Nhat
 
 
@@ -631,6 +635,18 @@ class ELBO_Class:
         self.total = np.sum(self.percluster) + self.rest_term
 
 
+def safe_inversion(X):
+
+    w, d = np.linalg.eigh(X)
+    w[w <= 0] = 1e-8
+
+    if np.any(np.iscomplex(np.matmul(np.matmul(d, np.diag(1 / w)), d.T))):
+        print(d)
+        print(w)
+        print(X)
+    return np.matmul(np.matmul(d, np.diag(1 / w)), d.T)
+
+
 def multivariate_normal_logpdf(x, mu, Lam):
     """
         Calculates the gaussian density of the given point(s). returns N x 1
@@ -779,16 +795,18 @@ def weightedKmeansplusplus(X, w, k):
 
 def birth_move(maskedData, vbParam, suffStat, param, L):
 
-    Khat = suffStat.sumY.shape[1]
+    # Khat = suffStat.sumY.shape[1]
     collectionThreshold = 0.1
     extraK = param.cluster.n_split
-
-    if np.any(np.sum(vbParam.rhat > collectionThreshold, 0) >= extraK):
-        weight = (suffStat.Nhat + 0.001) * L ** 2
+    big_units = np.where(np.sum(
+        vbParam.rhat > collectionThreshold, 0) >= 20)[0]
+    if big_units.shape[0] > 0:
+        weight = (suffStat.Nhat[big_units] + 0.001) * L[big_units] ** 2
         weight = weight / np.sum(weight)
         idx = np.zeros(1).astype(int)
         while np.sum(idx) < extraK:
-            kpicked = np.random.choice(np.arange(Khat).astype(int), p=weight)
+            kpicked = big_units[np.random.choice(
+                np.arange(big_units.shape[0]).astype(int), p=weight)]
             idx = vbParam.rhat[:, kpicked] > collectionThreshold
 
         idx = np.where(idx)[0]
@@ -814,24 +832,28 @@ def birth_move(maskedData, vbParam, suffStat, param, L):
             suffStatPrime = suffStatistics(maskedDataPrime, vbParamPrime)
             vbParamPrime.update_global(suffStatPrime, param)
 
-        vbParam.ahat = np.concatenate(
-            (vbParam.ahat, vbParamPrime.ahat), axis=0)
-        vbParam.lambdahat = np.concatenate(
-            (vbParam.lambdahat, vbParamPrime.lambdahat), axis=0)
-        vbParam.muhat = np.concatenate(
-            (vbParam.muhat, vbParamPrime.muhat), axis=1)
-        vbParam.Vhat = np.concatenate(
-            (vbParam.Vhat, vbParamPrime.Vhat), axis=2)
-        vbParam.invVhat = np.concatenate(
-            (vbParam.invVhat, vbParamPrime.invVhat), axis=2)
-        vbParam.nuhat = np.concatenate(
-            (vbParam.nuhat, vbParamPrime.nuhat), axis=0)
+        temp = vbParamPrime.rhat * maskedDataPrime.weight[:, np.newaxis]
+        goodK = np.sum(temp, axis=0) > 10
+        Nbirth = np.sum(goodK)
+        if Nbirth >= 1:
+            vbParam.ahat = np.concatenate(
+                (vbParam.ahat, vbParamPrime.ahat[goodK]), axis=0)
+            vbParam.lambdahat = np.concatenate(
+                (vbParam.lambdahat, vbParamPrime.lambdahat[goodK]), axis=0)
+            vbParam.muhat = np.concatenate(
+                (vbParam.muhat, vbParamPrime.muhat[:, goodK, :]), axis=1)
+            vbParam.Vhat = np.concatenate(
+                (vbParam.Vhat, vbParamPrime.Vhat[:, :, goodK, :]), axis=2)
+            vbParam.invVhat = np.concatenate(
+                (vbParam.invVhat,
+                 vbParamPrime.invVhat[:, :, goodK, :]), axis=2)
+            vbParam.nuhat = np.concatenate(
+                (vbParam.nuhat, vbParamPrime.nuhat[goodK]), axis=0)
+            L = np.concatenate((L, np.ones(Nbirth)), axis=0)
 
         vbParam.update_local(maskedData)
         suffStat = suffStatistics(maskedData, vbParam)
         vbParam.update_global(suffStat, param)
-        nbrith = vbParamPrime.rhat.shape[1]
-        L = np.concatenate((L, np.ones(nbrith)), axis=0)
 
     return vbParam, suffStat, L
 
@@ -929,8 +951,10 @@ def check_merge(maskedData, vbParam, suffStat, ka, kb, param, L, ELBO):
         invVhatTemp[:, :, 0, n] = invV + vbParamTemp.lambdahat[K - 2] * \
             np.dot(muhatC, muhatC.T) - temp - temp.T + \
             suffStatTemp.sumYSq[:, :, K - 2, n]
-        VhatTemp[:, :, 0, n] = np.linalg.solve(invVhatTemp[:, :, 0, n],
-                                               np.eye(nfeature))
+
+        VhatTemp[:, :, 0, n] = safe_inversion(invVhatTemp[:, :, 0, n])
+        # VhatTemp[:, :, 0, n] = np.linalg.solve(invVhatTemp[:, :, 0, n],
+        #                                        np.eye(nfeature))
     vbParamTemp.Vhat = np.concatenate(
         (vbParam.Vhat[:, :, no_kab, :], VhatTemp), axis=2)
     vbParamTemp.invVhat = np.concatenate(
@@ -960,6 +984,12 @@ def spikesort(score, mask, group, param):
 
     vbParam = split_merge(maskedData, param)
 
+    n_data = score.shape[0]
+    rhat_full = np.zeros((n_data, vbParam.rhat.shape[1]))
+    for j in range(n_data):
+        rhat_full[j] = vbParam.rhat[group[j]]
+
+    vbParam.rhat = rhat_full
     # assignmentTemp = np.argmax(vbParam.rhat, axis=1)
 
     # assignment = np.zeros(score.shape[0], 'int16')
@@ -1040,8 +1070,8 @@ def get_core_data(vbParam, score, n_max, threshold):
                     scoremhat[:, :, :, :, np.newaxis]),
                 axis=(3, 4),
                 keepdims=False))
-        maha = np.squeeze(maha)
-        idx_data = idx_data[maha < threshold]
+        maha = np.sum(maha, 1)
+        idx_data = idx_data[np.all(maha < threshold, axis=1)]
 
         if idx_data.shape[0] > n_max:
             idx_data = np.random.choice(idx_data, n_max, replace=False)
