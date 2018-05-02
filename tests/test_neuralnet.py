@@ -11,7 +11,23 @@ from yass.batch import RecordingsReader, BatchProcessor
 from yass import neuralnetwork
 from yass.geometry import make_channel_index, n_steps_neigh_channels
 
-SAVE = False
+SAVE_BEFORE_TESTING = True
+
+
+class ReferenceTesting:
+
+    def __init__(self, save_before_testing=False):
+        self.save_before_testing = save_before_testing
+
+    def __getattr__(self, name):
+
+        def wrapper(arr, path_to_reference):
+            if self.save_before_testing:
+                np.save(path_to_reference, arr)
+
+            fn = getattr(np.testing, name)
+            arr_reference = np.load(path_to_reference)
+            fn(arr, arr_reference)
 
 
 def run_nnet(path_to_tests):
