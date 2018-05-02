@@ -1,3 +1,4 @@
+from os import path
 import os
 
 import numpy as np
@@ -20,6 +21,8 @@ import yass
 from yass import preprocess
 
 from util import clean_tmp
+from util import ReferenceTesting
+
 
 spike_sizeMS = 1
 srate = 30000
@@ -89,6 +92,30 @@ def test_can_preprocess(path_to_threshold_config):
     yass.set_config(path_to_threshold_config)
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
+    clean_tmp()
+
+
+def test_preprocess_returns_expected_results(path_to_threshold_config,
+                                             path_to_output_reference):
+    yass.set_config(path_to_threshold_config)
+    (standarized_path, standarized_params, channel_index,
+     whiten_filter) = preprocess.run()
+
+    # load standarized data
+    standarized = np.fromfile(standarized_path,
+                              dtype=standarized_params['dtype'])
+
+    path_to_standarized = path.join(path_to_output_reference,
+                                    'preprocess_standarized.npy')
+    path_to_whiten_filter = path.join(path_to_output_reference,
+                                      'preprocess_whiten_filter.npy')
+    path_to_channel_index = path.join(path_to_output_reference,
+                                      'preprocess_channel_index.npy')
+
+    ReferenceTesting.assert_array_equal(standarized, path_to_standarized)
+    ReferenceTesting.assert_array_equal(whiten_filter, path_to_whiten_filter)
+    ReferenceTesting.assert_array_equal(channel_index, path_to_channel_index)
+
     clean_tmp()
 
 
