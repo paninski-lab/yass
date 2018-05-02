@@ -10,8 +10,7 @@ import yass
 from yass.batch import RecordingsReader, BatchProcessor
 from yass import neuralnetwork
 from yass.geometry import make_channel_index, n_steps_neigh_channels
-
-SAVE = False
+from util import ReferenceTesting
 
 
 def run_nnet(path_to_tests):
@@ -66,18 +65,9 @@ def test_same_result_as_before(path_to_tests, path_to_data_folder):
                                   'output_reference',
                                   'nnet_detector_collision.npy')
 
-    if SAVE:
-        np.save(path_to_clear, clear)
-        np.save(path_to_scores, scores)
-        np.save(path_to_collision, collision)
-
-    clear_saved = np.load(path_to_clear)
-    scores_saved = np.load(path_to_scores)
-    collision_saved = np.load(path_to_collision)
-
-    np.testing.assert_array_equal(clear_saved, clear)
-    np.testing.assert_array_equal(scores_saved, scores)
-    np.testing.assert_array_equal(collision_saved, collision)
+    ReferenceTesting.assert_array_equal(clear, path_to_clear)
+    ReferenceTesting.assert_array_equal(scores, path_to_scores)
+    ReferenceTesting.assert_array_equal(collision, path_to_collision)
 
 
 def test_splitting_in_batches_does_not_affect_result(path_to_tests):
