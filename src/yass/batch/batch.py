@@ -579,12 +579,7 @@ class BatchProcessor(object):
                          loader=_loader,
                          return_data_index=True)
 
-        # the list will keep track of finished jobs so their output can be
-        # written to disk
-        from multiprocessing import Value
-
         m = Manager()
-        done = m.list()
         mapping = m.dict()
         next_to_write = m.Value('i', 0)
 
@@ -599,18 +594,11 @@ class BatchProcessor(object):
             if i == 0:
                 mapping['dtype'] = str(res.dtype)
 
-            # let the master process know that this job is done
-            # done.append(i)
-
             while True:
                 if next_to_write.value == i:
                     mode = 'wb' if i == 0 else 'ab'
                     with open(str(output_path), mode) as f:
-                        # print("writing...")
                         res.tofile(f)
-
-                        if i % 20 == 0:
-                            print('finished part...', i)
 
                     next_to_write.value += 1
                     break
@@ -618,61 +606,31 @@ class BatchProcessor(object):
         # run jobs
         self.logger.debug('Creating processes pool...')
 
-        # create [processes - 1] since we are also counting the current
-        # process, which collects the results
-        p = Pool(processes - 1)
-        result = p.map(parallel_runner, enumerate(data))
+        p = Pool(processes)
+        res = p.map_async(parallel_runner, enumerate(data))
 
-        # this will raise exceptions from the child workers if any
-        # result.get()
+        current = 0
+        pbar = tqdm(total=n_batches)
 
-        # # since we need to write chunks in order, start this flag to know
-        # # which one is next
-        # next_to_write = 0
+        if self.show_progress_bar:
 
-        # if output_path.is_file():
-        #     os.remove(str(output_path))
+            while True:
+                if next_to_write.value > current:
+                    update = next_to_write.value - current + 1
+                    pbar.update(update)
+                    current = next_to_write.value
 
-        # f = open(str(output_path), 'ab')
+                if next_to_write.value == n_batches:
+                    break
 
-        # if self.show_progress_bar:
-        #     pbar = tqdm(total=n_batches)
-
-        # while True:
-
-        #     # wait for the next job to write to be done
-        #     if next_to_write in done:
-
-        #         # read its chunk and append it to the main file
-        #         chunk_path = util.make_chunk_path(output_path, next_to_write)
-
-        #         with open(chunk_path, "rb") as f2:
-        #             f.write(f2.read())
-        #             self.logger.debug('Appending chunk %i...', next_to_write)
-
-        #         # remove chunk
-        #         os.remove(chunk_path)
-
-        #         next_to_write += 1
-
-        #         if self.show_progress_bar:
-        #             pbar.update()
-
-        #         # finish when you've written all parts
-        #         if next_to_write == n_batches:
-        #             self.logger.debug('Done running parallel operation...')
-        #             break
-
-        # if self.show_progress_bar:
-        #     pbar.close()
-
-        # f.close()
+            pbar.close()
+        else:
+            res.get()
 
         # save metadata
         params = util.make_metadata(channels, self.n_channels,
                                     mapping['dtype'], output_path)
 
-        # return None
         return output_path, params
 
     def _multi_channel_apply_memory(self, function, cleanup_function,
