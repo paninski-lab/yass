@@ -13,13 +13,13 @@ class TestingType(type):
 
     def __getattr__(self, name):
 
-        def wrapper(arr, path_to_reference):
+        def wrapper(arr, path_to_reference, **kwargs):
             if self.SAVE_BEFORE_TESTING:
                 np.save(path_to_reference, arr)
 
             fn = getattr(np.testing, name)
             arr_reference = np.load(path_to_reference)
-            fn(arr, arr_reference)
+            fn(arr, arr_reference, **kwargs)
 
         return wrapper
 

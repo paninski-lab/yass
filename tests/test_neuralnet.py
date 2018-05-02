@@ -10,10 +10,9 @@ import yass
 from yass.batch import RecordingsReader, BatchProcessor
 from yass import neuralnetwork
 from yass.geometry import make_channel_index, n_steps_neigh_channels
-from util import ReferenceTesting
 
 
-def run_nnet(path_to_tests):
+def test_can_use_neural_network_detector(path_to_tests):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -44,30 +43,8 @@ def run_nnet(path_to_tests):
                                            )
 
     neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-    return neuralnetwork.run_detect_triage_featurize(data, x_tf, output_tf,
-                                                     NND, NNAE, NNT, neighbors)
-
-
-def test_can_use_neural_network_detector(path_to_tests):
-    scores, clear, collision = run_nnet(path_to_tests)
-
-
-def test_same_result_as_before(path_to_tests, path_to_data_folder):
-    scores, clear, collision = run_nnet(path_to_tests)
-
-    path_to_clear = path.join(path_to_data_folder,
-                              'output_reference',
-                              'nnet_detector_clear.npy')
-    path_to_scores = path.join(path_to_data_folder,
-                               'output_reference',
-                               'nnet_detector_scores.npy')
-    path_to_collision = path.join(path_to_data_folder,
-                                  'output_reference',
-                                  'nnet_detector_collision.npy')
-
-    ReferenceTesting.assert_array_equal(clear, path_to_clear)
-    ReferenceTesting.assert_array_equal(scores, path_to_scores)
-    ReferenceTesting.assert_array_equal(collision, path_to_collision)
+    neuralnetwork.run_detect_triage_featurize(data, x_tf, output_tf,
+                                              NND, NNAE, NNT, neighbors)
 
 
 def test_splitting_in_batches_does_not_affect_result(path_to_tests):
