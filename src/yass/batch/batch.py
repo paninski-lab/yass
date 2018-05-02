@@ -667,7 +667,9 @@ class BatchProcessor(object):
         n_batches = self.indexer.n_batches(from_time, to_time, channels)
 
         results = []
-        previous_batch = None
+
+        if pass_batch_results:
+            kwargs['previous_batch'] = None
 
         iterator = enumerate(data)
 
@@ -675,33 +677,14 @@ class BatchProcessor(object):
             iterator = tqdm(iterator, total=n_batches)
 
         for i, idx in iterator:
-
-            subset, idx_local = self.reader[idx]
-
-            self.logger.debug('Processing batch {}...'.format(i))
-
-            kwargs_other = dict()
-
-            if pass_batch_info:
-                kwargs_other['idx_local'] = idx_local
-                kwargs_other['idx'] = idx
+            res = util.batch_runner((i, idx), function, self.reader,
+                                    pass_batch_info, cast_dtype,
+                                    kwargs, cleanup_function, self.buffer_size,
+                                    save_chunks=False)
 
             if pass_batch_results:
-                kwargs_other['previous_batch'] = previous_batch
-
-            kwargs.update(kwargs_other)
-
-            res = function(subset, **kwargs)
-
-            if cast_dtype is not None:
-                res = res.astype(cast_dtype)
-
-            if cleanup_function:
-                res = cleanup_function(res, idx_local, idx, self.buffer_size)
-
-            if pass_batch_results:
-                previous_batch = res
+                kwargs['previous_batch'] = res
             else:
                 results.append(res)
 
-        return previous_batch if pass_batch_results else results
+        return res if pass_batch_results else results
