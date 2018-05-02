@@ -75,9 +75,9 @@ def test_same_result_as_before(path_to_tests, path_to_data_folder):
     scores_saved = np.load(path_to_scores)
     collision_saved = np.load(path_to_collision)
 
-    np.testing.assert_array_almost_equal(clear_saved, clear)
-    np.testing.assert_array_almost_equal(scores_saved, scores)
-    np.testing.assert_array_almost_equal(collision_saved, collision)
+    np.testing.assert_array_equal(clear_saved, clear)
+    np.testing.assert_array_equal(scores_saved, scores)
+    np.testing.assert_array_equal(collision_saved, collision)
 
 
 def test_splitting_in_batches_does_not_affect_result(path_to_tests):
