@@ -10,24 +10,7 @@ import yass
 from yass.batch import RecordingsReader, BatchProcessor
 from yass import neuralnetwork
 from yass.geometry import make_channel_index, n_steps_neigh_channels
-
-SAVE_BEFORE_TESTING = True
-
-
-class ReferenceTesting:
-
-    def __init__(self, save_before_testing=False):
-        self.save_before_testing = save_before_testing
-
-    def __getattr__(self, name):
-
-        def wrapper(arr, path_to_reference):
-            if self.save_before_testing:
-                np.save(path_to_reference, arr)
-
-            fn = getattr(np.testing, name)
-            arr_reference = np.load(path_to_reference)
-            fn(arr, arr_reference)
+from util import ReferenceTesting
 
 
 def run_nnet(path_to_tests):
@@ -82,18 +65,9 @@ def test_same_result_as_before(path_to_tests, path_to_data_folder):
                                   'output_reference',
                                   'nnet_detector_collision.npy')
 
-    if SAVE:
-        np.save(path_to_clear, clear)
-        np.save(path_to_scores, scores)
-        np.save(path_to_collision, collision)
-
-    clear_saved = np.load(path_to_clear)
-    scores_saved = np.load(path_to_scores)
-    collision_saved = np.load(path_to_collision)
-
-    np.testing.assert_array_equal(clear_saved, clear)
-    np.testing.assert_array_equal(scores_saved, scores)
-    np.testing.assert_array_equal(collision_saved, collision)
+    ReferenceTesting.assert_array_equal(clear, path_to_clear)
+    ReferenceTesting.assert_array_equal(scores, path_to_scores)
+    ReferenceTesting.assert_array_equal(collision, path_to_collision)
 
 
 def test_splitting_in_batches_does_not_affect_result(path_to_tests):
