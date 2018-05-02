@@ -159,8 +159,6 @@ class RecordingsReader(object):
         if not isinstance(key, tuple):
             key = (key, slice(None))
 
-        subset = self._data[key]
-
         obs_idx, _ = key
 
         data_idx = (slice(self.buffer_size,
@@ -172,6 +170,7 @@ class RecordingsReader(object):
             (idx_new,
              (buff_start, buff_end)) = (self.buffer_generator
                                         .update_key_with_buffer(key))
+            subset = self._data[idx_new]
 
             # add zeros if needed (start or end of the data)
             subset_buff = self.buffer_generator.add_buffer(subset,
@@ -181,6 +180,7 @@ class RecordingsReader(object):
             return ((subset_buff, data_idx) if self.return_data_index
                     else subset_buff)
         else:
+            subset = self._data[key]
             return (subset, data_idx) if self.return_data_index else subset
 
     def __repr__(self):
