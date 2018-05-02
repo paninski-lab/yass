@@ -9,7 +9,7 @@ class BaseClass(object):
 
 
 class TestingType(type):
-    SAVE_BEFORE_TESTING = False
+    SAVE_BEFORE_TESTING = True
 
     def __getattr__(self, name):
 
