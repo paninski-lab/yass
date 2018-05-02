@@ -20,7 +20,7 @@ def run_nnet(path_to_tests):
 
     data = RecordingsReader(path.join(path_to_tests,
                                       'data/standarized.bin'),
-                            loader='array').data.T
+                            loader='array').data
 
     channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom)
