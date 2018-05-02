@@ -79,14 +79,22 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
                                            triage_fname,
                                            )
 
-    # buffer size makes sure we can detect spikes if they appear at the end of
-    # any batch
+    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+
+    # run all at once
+    (scores, clear,
+     collision) = neuralnetwork.run_detect_triage_featurize(data, x_tf,
+                                                            output_tf,
+                                                            NND, NNAE,
+                                                            NNT, neighbors)
+
+    # run in batches - buffer size makes sure we can detect spikes if they
+    # appear at the end of any batch
     bp = BatchProcessor(PATH_TO_DATA, PARAMS['dtype'], PARAMS['n_channels'],
                         PARAMS['data_order'], '100KB',
                         buffer_size=CONFIG.spike_size)
-    mc = bp.multi_channel_apply
-    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-    res = mc(
+
+    res = bp.multi_channel_apply(
         neuralnetwork.run_detect_triage_featurize,
         mode='memory',
         cleanup_function=neuralnetwork.fix_indexes,
@@ -100,12 +108,6 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
     scores_batch = np.concatenate([element[0] for element in res], axis=0)
     clear_batch = np.concatenate([element[1] for element in res], axis=0)
     collision_batch = np.concatenate([element[2] for element in res], axis=0)
-
-    (scores, clear,
-     collision) = neuralnetwork.run_detect_triage_featurize(data, x_tf,
-                                                            output_tf,
-                                                            NND, NNAE,
-                                                            NNT, neighbors)
 
     np.testing.assert_array_equal(clear_batch, clear)
     np.testing.assert_array_equal(collision_batch, collision)

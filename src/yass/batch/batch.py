@@ -662,7 +662,6 @@ class BatchProcessor(object):
                                     from_time, to_time, channels, cast_dtype,
                                     pass_batch_info, pass_batch_results,
                                     **kwargs):
-
         data = self.multi_channel(from_time, to_time, channels,
                                   return_data=False)
         n_batches = self.indexer.n_batches(from_time, to_time, channels)
