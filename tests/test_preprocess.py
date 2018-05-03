@@ -59,7 +59,7 @@ def test_can_apply_butterworth_filter(data):
                  order=3, sampling_frequency=20000)
 
 
-def test_standard_deviation_returns_as_espected(path_to_output_reference,
+def test_standard_deviation_returns_as_expected(path_to_output_reference,
                                                 data):
     sd = _standard_deviation(data, 20000)
 
@@ -131,8 +131,10 @@ def test_preprocess_returns_expected_results(path_to_threshold_config,
     path_to_channel_index = path.join(path_to_output_reference,
                                       'preprocess_channel_index.npy')
 
-    ReferenceTesting.assert_array_equal(standarized, path_to_standarized)
-    ReferenceTesting.assert_array_equal(whiten_filter, path_to_whiten_filter)
+    ReferenceTesting.assert_array_almost_equal(standarized,
+                                               path_to_standarized)
+    ReferenceTesting.assert_array_almost_equal(whiten_filter,
+                                               path_to_whiten_filter)
     ReferenceTesting.assert_array_equal(channel_index, path_to_channel_index)
 
     clean_tmp()

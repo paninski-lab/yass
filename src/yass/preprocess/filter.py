@@ -95,6 +95,9 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
                         max_memory, buffer_size=200)
 
     if standarize:
+        bp_ = BatchProcessor(path_to_data, dtype, n_channels, data_order,
+                             max_memory, buffer_size=0)
+
         filtering = partial(_butterworth, low_frequency=low_frequency,
                             high_factor=high_factor,
                             order=order,
@@ -103,7 +106,7 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
         # if standarize, estimate sd from first batch and use
         # _butterworth_scale function, pass filtering to estimate sd from the
         # filtered data
-        sd = standard_deviation(bp, sampling_frequency,
+        sd = standard_deviation(bp_, sampling_frequency,
                                 preprocess_fn=filtering)
         fn = partial(_butterworth_scale, denominator=sd)
         # add name to the partial object, since it is not added...
