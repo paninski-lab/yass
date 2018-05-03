@@ -35,7 +35,7 @@ def coreset(scores, spike_index, coreset_k, coreset_th):
     for channel in range(n_channels):
 
         idx_data = np.where(spike_index[:, 1] == channel)[0]
-        scores_channel = scores[idx_data, :, 0]
+        scores_channel = scores[idx_data]
 
         # get data relevant to this channel
         n_data, n_features, n_neigh = scores_channel.shape
