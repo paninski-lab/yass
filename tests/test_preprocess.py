@@ -59,8 +59,14 @@ def test_can_apply_butterworth_filter(data):
                  order=3, sampling_frequency=20000)
 
 
-def test_can_compute_standar_deviation(data):
-    _standard_deviation(data, srate)
+def test_standard_deviation_returns_as_espected(path_to_output_reference,
+                                                data):
+    sd = _standard_deviation(data, 20000)
+
+    path_to_sd = path.join(path_to_output_reference,
+                           'preprocess_sd.npy')
+
+    ReferenceTesting.assert_array_almost_equal(sd, path_to_sd)
 
 
 def test_can_parse(path_to_geometry):
