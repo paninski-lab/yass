@@ -596,8 +596,7 @@ class BatchProcessor(object):
 
             while True:
                 if next_to_write.value == i:
-                    mode = 'wb' if i == 0 else 'ab'
-                    with open(str(output_path), mode) as f:
+                    with open(str(output_path), 'wb' if i == 0 else 'ab') as f:
                         res.tofile(f)
 
                     next_to_write.value += 1
@@ -609,16 +608,18 @@ class BatchProcessor(object):
         p = Pool(processes)
         res = p.map_async(parallel_runner, enumerate(data))
 
-        current = 0
-        pbar = tqdm(total=n_batches)
+        finished = 0
+
+        if self.show_progress_bar:
+            pbar = tqdm(total=n_batches)
 
         if self.show_progress_bar:
 
             while True:
-                if next_to_write.value > current:
-                    update = next_to_write.value - current + 1
+                if next_to_write.value > finished:
+                    update = next_to_write.value - finished
                     pbar.update(update)
-                    current = next_to_write.value
+                    finished = next_to_write.value
 
                 if next_to_write.value == n_batches:
                     break
