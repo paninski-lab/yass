@@ -6,6 +6,7 @@ import os.path
 from functools import reduce
 
 import numpy as np
+import tensorflow as tf
 
 from yass import read_config, GPU_ENABLED
 from yass.batch import BatchProcessor, RecordingsReader
@@ -281,18 +282,20 @@ def run_neural_network(standarized_path, standarized_params,
                                                triage_fname)
 
         # run nn preprocess batch-wsie
-        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-        mc = bp.multi_channel_apply
-        res = mc(
-            neuralnetwork.run_detect_triage_featurize,
-            mode='memory',
-            cleanup_function=neuralnetwork.fix_indexes,
-            x_tf=x_tf,
-            output_tf=output_tf,
-            NND=NND,
-            NNAE=NNAE,
-            NNT=NNT,
-            neighbors=neighbors)
+        with tf.Session() as sess:
+            neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+            mc = bp.multi_channel_apply
+            res = mc(
+                neuralnetwork.run_detect_triage_featurize,
+                mode='memory',
+                cleanup_function=neuralnetwork.fix_indexes,
+                sess=sess,
+                x_tf=x_tf,
+                output_tf=output_tf,
+                NND=NND,
+                NNAE=NNAE,
+                NNT=NNT,
+                neighbors=neighbors)
 
         # get clear spikes
         clear = np.concatenate([element[1] for element in res], axis=0)
