@@ -626,15 +626,17 @@ def PCA(X, n_components):
 
 
 def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end, 
-                         n_mad_chans, n_max_chans, n_max_chans):
+                         n_mad_chans, n_max_chans, CONFIG):
     
     ''' New voltage feature based clustering
     ''' 
-
+    
+    channels = np.arange(49)
 
     for channel in channels: 
         # grab spike waveforms already saved to disk
-        wf_data = load_waveforms(channel_spikes)
+        indexes = np.where(spike_index_clear[:,1]==channel)[0]
+        wf_data = load_waveforms(spike_index_clear[indexes], CONFIG)
 
     # find max amplitude chans
     template = np.mean(wf_data,axis=2)
@@ -662,16 +664,107 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
 
 
 
-
-
-
-
-def load_waveforms(channel_spikes): 
+def load_waveforms(channel_spikes, CONFIG): 
     
     
     wf_data = np.load('/media/cat/1TB/liam/49channels/tmp/wf/wf_ch'+str(channel)+'.npy')
     wf_data = np.swapaxes(wf_data,2,0)
     print ("wf_data.shape: ", wf_data.shape)
+
+#def get_templates_parallel(spike_train,
+#                           path_to_recordings,
+#                           out_dir,
+#                           CONFIG,
+#                           n_max=5000):
+    # CONFIG, n_max=100):
+
+    spike_size = 2 * (CONFIG.spike_size + CONFIG.templates.max_shift)
+    n_processors = CONFIG.resources.n_processors
+    n_channels = CONFIG.recordings.n_channels
+    sampling_rate = CONFIG.recordings.sampling_rate
+    # n_sec_chunk = CONFIG.resources.n_sec_chunk
+    n_sec_chunk = 100
+
+    # number of templates
+    n_templates = int(np.max(spike_train[:, 1]) + 1)
+    spike_train_small = random_sample_spike_train(spike_train, n_max, CONFIG)
+
+    # determine length of processing chunk based on lenght of rec
+    standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
+                                         'standarized.bin')
+    fp = np.memmap(standardized_filename, dtype='float32', mode='r')
+    fp_len = fp.shape[0]
+
+    buffer_size = 200
+
+    indexes = np.arange(0, fp_len / n_channels, sampling_rate * n_sec_chunk)
+    if indexes[-1] != fp_len / n_channels:
+        indexes = np.hstack((indexes, fp_len / n_channels))
+
+    idx_list = []
+    for k in range(len(indexes) - 1):
+        idx_list.append([
+            indexes[k], indexes[k + 1], buffer_size,
+            indexes[k + 1] - indexes[k] + buffer_size
+        ])
+
+    idx_list = np.int64(np.vstack(idx_list))
+
+    proc_indexes = np.arange(len(idx_list))
+
+    print("...computing templates (fixed chunk to 100sec for efficiency)")
+    if CONFIG.resources.multi_processing:
+        res = parmap.map(
+            compute_weighted_templates_parallel,
+            zip(idx_list, proc_indexes),
+            spike_train_small,
+            spike_size,
+            n_templates,
+            n_channels,
+            buffer_size,
+            standardized_filename,
+            processes=n_processors,
+            pm_pbar=True)
+    else:
+        res = []
+        for k in range(len(idx_list)):
+            temp = compute_weighted_templates_parallel(
+                [idx_list[k], k], spike_train_small, spike_size, n_templates,
+                n_channels, buffer_size, standardized_filename)
+            res.append(temp)
+
+    # Reconstruct templates from parallel proecessing
+    print("... reconstructing templates")
+    res0 = np.zeros(res[0][0].shape)
+    res1 = np.zeros(res[0][1].shape)
+    for k in range(len(res)):
+        res0 += res[k][0]
+        res1 += res[k][1]
+
+    print("... dividing templates by weights")
+    templates = res0
+    weights = res1
+    weights[weights == 0] = 1
+    templates = templates / weights[np.newaxis, np.newaxis, :]
+
+    return templates, weights
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     return wf_data    
 

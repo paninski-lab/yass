@@ -8,7 +8,7 @@ from yass.cluster.subsample import random_subsample
 from yass.cluster.triage import triage
 from yass.cluster.coreset import coreset
 from yass.cluster.mask import getmask
-from yass.cluster.util import (run_cluster, run_cluster_location,
+from yass.cluster.util import (run_cluster, run_cluster_features,
                                calculate_sparse_rhat)
 from yass.mfm import get_core_data
 
@@ -101,10 +101,9 @@ def run(scores,
         n_max_chans = 3
 
         res = run_cluster_features(spike_index_clear, n_dim_pca, wf_start,
-                                   wf_end, n_mad_chans, n_max_chans, 
-                                   n_max_chans)
+                                   wf_end, n_mad_chans, n_max_chans)
 
-
+                         
     # Cat: 2 previous methods for featurization
     # eventually need to comment out / delete
     # 3 AE + 2 location features based clustering
