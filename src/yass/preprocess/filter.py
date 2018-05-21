@@ -188,6 +188,83 @@ def fix_indexes(res, idx_local, idx, buffer_size):
 
     return res[data_start:data_end]
 
+def filter_standardize_parallel(data_in, low_frequency, high_factor, order,
+                       sampling_frequency, buffer_size, filename_dat,
+                       n_channels):
+                           
+    """ Butterworth as explained above; TO FILL IN
+    """
+
+    # Load data from disk; buffer as required:
+    idx_list, chunk_idx = data_in[0], data_in[1]
+
+    # prPurple("Loading data files for chunk: "+str(chunk_idx))
+
+    # New indexes
+    idx_start = idx_list[0]
+    idx_stop = idx_list[1]
+
+    data_start = idx_start
+    data_end = idx_stop
+
+    # *****************************************************************
+    # ********** LOAD RAW RECORDING ***********************************
+    # *****************************************************************
+
+    with open(filename_dat, "rb") as fin:
+        if data_start == 0:
+            # Seek position and read N bytes
+            recordings_1D = np.fromfile(
+                fin,
+                dtype='int16',
+                count=(data_end + buffer_size) * n_channels)
+            recordings_1D = np.hstack((np.zeros(
+                buffer_size * n_channels, dtype='int16'), recordings_1D))
+        else:
+            fin.seek((data_start - buffer_size) * 2 * n_channels, os.SEEK_SET)
+            recordings_1D = np.fromfile(
+                fin,
+                dtype='int16',
+                count=((data_end - data_start + buffer_size * 2) * n_channels))
+
+        # If at end of recording
+        if len(recordings_1D) != ((data_end - data_start +
+                                   buffer_size * 2) * n_channels):
+                recordings_1D = np.hstack((recordings_1D,
+                                           np.zeros(buffer_size * n_channels,
+                                                    dtype='int16')))
+
+    fin.close()
+
+    # Convert to 2D array
+    recordings = recordings_1D.reshape(-1, n_channels)
+
+    ts = recordings
+
+    # ******************************************************************
+    # *********** FILTER DATA ******************************************
+    # ******************************************************************
+    T, C = ts.shape
+    
+    low = float(low_frequency) / sampling_frequency * 2
+    high = float(high_factor) * 2
+    #b, a = butter(order, [low, high], btype='band')
+    b, a = butter(order, low, btype='high', analog=False)
+
+    output = np.zeros((T, C), 'float32')
+    for c in range(C):
+        output[:, c] = filtfilt(b, a, ts[:, c])
+
+    # Fix indexes function: remove buffers
+    res = output[buffer_size:data_end - data_start + buffer_size]
+
+    # Standardize data
+    sd = standard_deviation(res, sampling_frequency)
+    standardized = np.divide(res, sd)
+
+    return standardized
+    
+    
 
 def filter_standardize(data_in, low_frequency, high_factor, order,
                        sampling_frequency, buffer_size, filename_dat,

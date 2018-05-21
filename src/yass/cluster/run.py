@@ -81,66 +81,95 @@ def run(scores,
     logger = logging.getLogger(__name__)
 
     scores_all = np.copy(scores)
-    spike_index_all = np.copy(spike_index)
+    spike_index_all = np.copy(spike_index)  # this is only spike_index clear
 
-    ##########
-    # Triage #
-    ##########
-
+    # start timer
     _b = datetime.datetime.now()
-    logger.info("Randomly subsampling...")
-    scores, spike_index = random_subsample(scores, spike_index,
-                                           CONFIG.cluster.max_n_spikes)
-    logger.info("Triaging...")
-    scores, spike_index = triage(
-        scores, spike_index, CONFIG.cluster.triage.nearest_neighbors,
-        CONFIG.cluster.triage.percent, CONFIG.cluster.method == 'location')
-    Time['t'] += (datetime.datetime.now() - _b).total_seconds()
 
-    if CONFIG.cluster.method == 'location':
-        ##############
-        # Clustering #
-        ##############
-        _b = datetime.datetime.now()
-        logger.info("Clustering...")
-        vbParam, tmp_loc, scores, spike_index = run_cluster_location(
-            scores, spike_index, CONFIG.cluster.min_spikes, CONFIG)
-        Time['s'] += (datetime.datetime.now() - _b).total_seconds()
 
-    else:
-        ###########
-        # Coreset #
-        ###########
-        _b = datetime.datetime.now()
-        logger.info("Coresetting...")
-        groups = coreset(scores, CONFIG.cluster.coreset.clusters,
-                         CONFIG.cluster.coreset.threshold)
-        Time['c'] += (datetime.datetime.now() - _b).total_seconds()
+    # voltage space feature clustering
+    if CONFIG.cluster.method == 'voltage_features': 
 
-        ###########
-        # Masking #
-        ###########
-        _b = datetime.datetime.now()
-        logger.info("Masking...")
-        masks = getmask(scores, groups, CONFIG.cluster.masking_threshold)
-        Time['m'] += (datetime.datetime.now() - _b).total_seconds()
+        spike_index_clear = spike_index
 
-        ##############
-        # Clustering #
-        ##############
-        _b = datetime.datetime.now()
-        logger.info("Clustering...")
-        vbParam, tmp_loc, scores, spike_index = run_cluster(
-            scores, masks, groups, spike_index, CONFIG.cluster.min_spikes,
-            CONFIG)
-        Time['s'] += (datetime.datetime.now() - _b).total_seconds()
+        select_variances = False
+        n_variance_pts = 3
+        n_dim_pca = 3
+        wf_start = 0
+        wf_end = 25
+        n_mad_chans = 3
+        n_max_chans = 3
 
-    vbParam.rhat = calculate_sparse_rhat(
-        vbParam, tmp_loc, scores_all, spike_index_all, CONFIG.neigh_channels)
-    idx_keep = get_core_data(vbParam, scores_all, np.inf, 5)
-    spike_train = vbParam.rhat[idx_keep]
-    spike_train[:, 0] = spike_index_all[spike_train[:, 0].astype('int32'), 0]
+        res = run_cluster_features(spike_index_clear, n_dim_pca, wf_start,
+                                   wf_end, n_mad_chans, n_max_chans, 
+                                   n_max_chans)
 
+
+    # Cat: 2 previous methods for featurization
+    # eventually need to comment out / delete
+    # 3 AE + 2 location features based clustering
+    else: 
+        if CONFIG.cluster.method == 'location':
+
+            ##########
+            # Triage #
+            ##########
+
+            logger.info("Randomly subsampling...")
+            scores, spike_index = random_subsample(scores, spike_index,
+                                                   CONFIG.cluster.max_n_spikes)
+            logger.info("Triaging...")
+            scores, spike_index = triage(
+                scores, spike_index, CONFIG.cluster.triage.nearest_neighbors,
+                CONFIG.cluster.triage.percent, CONFIG.cluster.method == 'location')
+            Time['t'] += (datetime.datetime.now() - _b).total_seconds()
+            
+            ##############
+            # Clustering #
+            ##############
+            _b = datetime.datetime.now()
+            logger.info("Clustering...")
+            vbParam, tmp_loc, scores, spike_index = run_cluster_location(
+                scores, spike_index, CONFIG.cluster.min_spikes, CONFIG)
+            Time['s'] += (datetime.datetime.now() - _b).total_seconds()
+            
+            
+        # older AE feature space clustering
+        else: 
+            ###########
+            # Coreset #
+            ###########
+            _b = datetime.datetime.now()
+            logger.info("Coresetting...")
+            groups = coreset(scores, CONFIG.cluster.coreset.clusters,
+                             CONFIG.cluster.coreset.threshold)
+            Time['c'] += (datetime.datetime.now() - _b).total_seconds()
+
+            ###########
+            # Masking #
+            ###########
+            _b = datetime.datetime.now()
+            logger.info("Masking...")
+            masks = getmask(scores, groups, CONFIG.cluster.masking_threshold)
+            Time['m'] += (datetime.datetime.now() - _b).total_seconds()
+
+            ##############
+            # Clustering #
+            ##############
+            _b = datetime.datetime.now()
+            logger.info("Clustering...")
+            vbParam, tmp_loc, scores, spike_index = run_cluster(
+                scores, masks, groups, spike_index, CONFIG.cluster.min_spikes,
+                CONFIG)
+            Time['s'] += (datetime.datetime.now() - _b).total_seconds()
+
+        vbParam.rhat = calculate_sparse_rhat(
+            vbParam, tmp_loc, scores_all, spike_index_all, CONFIG.neigh_channels)
+        idx_keep = get_core_data(vbParam, scores_all, np.inf, 5)
+        spike_train = vbParam.rhat[idx_keep]
+        spike_train[:, 0] = spike_index_all[spike_train[:, 0].astype('int32'), 0]
+          
+    
     # report timing
     currentTime = datetime.datetime.now()
     logger.info("Mainprocess done in {0} seconds.".format(

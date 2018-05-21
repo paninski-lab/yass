@@ -516,3 +516,185 @@ def clean_empty_cluster(vbParam, min_spikes=20):
     vbParam.rhat = vbParam.rhat[:, Ks]
 
     return vbParam
+
+
+
+# wf is an array of waveforms: chans x time_steps x n_spikes; e.g. 49,31,7263
+def upsample_resample(wf, upsample_factor):
+    waveform_len, n_spikes = wf.shape
+    traces = np.zeros((n_spikes, waveform_len*upsample_factor),'float32')
+    for j in range(n_spikes):
+        traces[j] = signal.resample(wf[:,j],waveform_len*upsample_factor)
+       
+    return traces
+
+
+def usample_resample2(wf, upsample_factor):
+    n_spikes = wf.shape[1]
+    traces=[]
+    for j in range(n_spikes):
+        traces.append(signal.resample(wf[:,j],91))
+        
+    return wfs_upsampled
+    
+    
+def upsample_template(wf,upsample_factor,n_steps):
+
+    # reduce waveform to 5 time_steps
+    wf = wf[wf.shape[0]//2-n_steps: wf.shape[0]//2+n_steps+1]
+    # get shapes
+    waveform_size, n_spikes = wf.shape
+
+    # upsample using cubic interpolation
+    x = np.linspace(0, waveform_size - 1, num=waveform_size, endpoint=True)
+    shifts = np.linspace(0, 1, upsample_factor, endpoint=False)
+    xnew = np.sort(np.reshape(x[:, np.newaxis] + shifts, -1))
+    wfs_upsampled = np.zeros((waveform_size * upsample_factor, n_spikes))
+    
+    # compute template and interpolate it
+    template = np.mean(wf,axis=1)
+    ff = interp1d(x, template, kind='cubic')
+    idx_good = np.logical_and(xnew >= 0, xnew <= waveform_size - 1)
+    template_upsampled = ff(xnew[idx_good])
+        
+    return template_upsampled
+
+
+def shift_template(template_upsampled, n_shifts, window):
+
+    temp_array = []
+    for s in range(-n_shifts//2, n_shifts//2+1, 1):
+        temp_array.append(template_upsampled[template_upsampled.shape[0]//2-window+s:
+                                             template_upsampled.shape[0]//2+window+s])
+
+    return np.array(temp_array)
+
+
+def return_shifts(wfs_upsampled,template_shifted, window):
+    
+    shift_array = []
+    out_array = []
+    waveform_len = wfs_upsampled.shape[0]
+
+    for k in range(wfs_upsampled.shape[1]):
+        temp = np.matmul(wfs_upsampled[waveform_len//2-window:waveform_len//2+window,k],
+                        template_shifted.T)
+        
+        shift_array.append(np.argmax(temp))
+    
+    return np.array(shift_array) #, out_array
+
+
+def align_channelwise(wf, upsample_factor=20, n_steps=15):
+    
+    # upsample template and max channel data
+    waveform_len = wf.shape[0]
+
+    n_shifts=7*upsample_factor
+    window=7*upsample_factor
+
+    # upsample mad chans
+    wf_upsampled = upsample_resample(wf, upsample_factor)
+    
+    template_upsampled = upsample_resample(np.mean(wf,axis=1)[:,np.newaxis], upsample_factor).reshape(upsample_factor*waveform_len)
+    template_shifted = shift_template(template_upsampled, n_shifts, window)
+
+    shift_array = return_shifts(wf_upsampled.T, template_shifted, window)
+
+    aligned_chunks = np.zeros((len(shift_array), waveform_len))
+    for ctr, shift in enumerate(shift_array):
+        chunk = wf_upsampled[ctr,n_shifts-shift:][::upsample_factor][:waveform_len]
+
+        # conditional required in case shift leads to short waveforms
+        if len(chunk) < waveform_len: 
+            chunk = np.concatenate((chunk, np.zeros(waveform_len-len(chunk))))
+        aligned_chunks[ctr] = chunk
+
+    return aligned_chunks
+
+
+# PCA function return PCA and reconstructed data
+def PCA(X, n_components):
+    from sklearn import decomposition
+
+    pca = decomposition.PCA(n_components)
+    pca.fit(X)
+    X = pca.transform(X)
+    Y = pca.inverse_transform(X)
+    return X,Y
+
+
+
+def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end, 
+                         n_mad_chans, n_max_chans, n_max_chans):
+    
+    ''' New voltage feature based clustering
+    ''' 
+
+
+    for channel in channels: 
+        # grab spike waveforms already saved to disk
+        wf_data = load_waveforms(channel_spikes)
+
+    # find max amplitude chans
+    template = np.mean(wf_data,axis=2)
+    rank_amp_chans = np.max(np.abs(template),axis=1)
+    rank_indexes = np.argsort(rank_amp_chans,axis=0)[::-1] 
+    max_chans = rank_indexes[:n_max_chans]      # select top chans
+    print ("max chans: ", max_chans)
+          
+    # find top 3 mad chans out of chans with template > 2SU
+
+    ptps = np.ptp(template,axis=1)
+    chan_indexes_2SU = np.where(ptps>2)[0]
+
+    rank_chans_max = np.max(robust.mad(wf_data[chan_indexes_2SU,:,:],axis=2),axis=1)
+
+    # rank channels by max mad value
+    rank_indexes = np.argsort(rank_chans_max,axis=0)[::-1]
+    mad_chans = chan_indexes_2SU[rank_indexes][:n_mad_chans]      # select top chans
+    print ("chan: ", channel,  "   mad chans: ", mad_chans)
+
+    # make feature chans from union 
+    feat_chans = np.union1d(max_chans, mad_chans)
+
+    print "feat chans: ", feat_chans,'\n'
+
+
+
+
+
+
+
+def load_waveforms(channel_spikes): 
+    
+    
+    wf_data = np.load('/media/cat/1TB/liam/49channels/tmp/wf/wf_ch'+str(channel)+'.npy')
+    wf_data = np.swapaxes(wf_data,2,0)
+    print ("wf_data.shape: ", wf_data.shape)
+
+    return wf_data    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
