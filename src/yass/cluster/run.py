@@ -101,7 +101,8 @@ def run(scores,
         n_max_chans = 3
 
         res = run_cluster_features(spike_index_clear, n_dim_pca, wf_start,
-                                   wf_end, n_mad_chans, n_max_chans)
+                                   wf_end, n_mad_chans, n_max_chans, 
+                                   CONFIG, output_directory)
 
                          
     # Cat: 2 previous methods for featurization

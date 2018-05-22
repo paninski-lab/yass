@@ -185,7 +185,7 @@ class ChristmasPlot(object):
                         x_, y_, color=self.new_colors[method_idx],
                         marker=self.method_markers[method_idx], markersize=4)
                 except Exception as exception:
-                    print(exception)
+                    print (exception)
                     print("No metric found for {} for dataset {}".format(
                         method, i + 1))
         self.fig.set_size_inches(9, 6 * self.n_dataset)
@@ -201,8 +201,22 @@ class ChristmasPlot(object):
 class WaveFormTrace(object):
     """Class for plotting spatial traces of waveforms."""
 
-    def __init__(self, geometry, templates, unit_labels=None,
-                 templates_sec=None, unit_map=None):
+    def __init__(self, background_clr='black', x_width=20, y_width=10, fig = None, ax1=None):
+        ''' It's more flexible to not do anything by default; or just initialize a plot for example
+	    Then can load units and do other things on this plotting canvas;
+	    This allows overlaying of multiple unit plots on top of each other if necessary;
+        
+        x_width and y_width are the fgireu sizes
+        
+	'''
+        if fig==None:
+            self.fig, self.ax1 = plt.subplots(figsize=(x_width, y_width))
+            self.ax1.set_facecolor('xkcd:black')
+        else: 
+            self.fig = fig
+            self.ax1= ax1
+
+    def load_units(self, geometry):
         """Sets up the plotting descriptions for spatial trace.
 
         Parameters:
@@ -212,90 +226,319 @@ class WaveFormTrace(object):
         templates: numpy.ndarray shape (T, C, K)
             Where T, C and K respectively indicate time samples, number of
             channels, and number of units.
-        unit_labels: None or list of length K
-            Labels corresponding to each unit. These labels are displayed
-            in legends.
-        templates_sec: numpy.ndarray shape (T', C, K')
-            Where T', C and K' respectively indicate time samples, number of
-            channels, and number of units. Number of chennels should be the
-            same as first templates.
-        unit_map: list or map
-            maps the units of the first templates to units of the second
-            templates.
         """
-        if not isinstance(geometry, np.ndarray):
-            raise ValueError("geometry should be of type numpy.ndarray")
-        if not isinstance(templates, np.ndarray):
-            raise ValueError("templates should be of type numpy.ndarray")
-        if not len(templates.shape) == 3:
-            raise ValueError(
-                    "template must have shape (n_samples, n_channel, n_unit).")
-        if not len(geometry.shape) == 2 or not geometry.shape[1] == 2:
-            raise ValueError("geometry should be of shape (n_electrodes, 2).")
-        if not geometry.shape[0] == templates.shape[1]:
-            message = "channels are not consistent for geometry and templates."
-            raise ValueError(message)
-        if unit_labels is None:
-            n_units = templates.shape[2]
-            unit_labels = ["Unit {}".format(unit) for unit in range(n_units)]
-        if not len(unit_labels) == templates.shape[2]:
-            message = "# units not consistent for unit_labels and templates."
-            raise ValueError(message)
-        self.unit_labels = unit_labels
+		
         self.geometry = geometry
-        self.templates = templates
-        self.samples = templates.shape[0]
-        self.n_channels = templates.shape[1]
-        self.n_units = templates.shape[2]
-        # Second set of templates.
-        self.templates_sec = templates_sec
-        self.unit_map = unit_map
-        if self.templates_sec is not None:
-            self.samples_sec = templates_sec.shape[0]
-            self.n_units_sec = templates_sec.shape[2]
 
-    def plot_wave(self, units, trace_size=6, scale=5):
+    def generate_geometry(self, geom, size=10):
+        ''' Generate a plot of electrode locations
+        '''
+        self.geometry = geom
+
+        for k in range(len(self.geometry)):
+            self.ax1.scatter(self.geometry[k, 0], self.geometry[k, 1], color='black',s=size)
+
+    def plot_wave(self, units, n_vis_chans=1, scale=5):
         """Plot spatial trace of the units
 
         Parameters:
         -----------
         units: list of int
             The units for which the spatial trace will be dispalyed.
-        trace_size: int
+        n_vis_chans: int
             Number of channels for which each waveform should be displayed.
         scale: float
             Scale the spikes for display purposes.
         """
         fig, ax = plt.subplots()
-        if self.n_channels < trace_size:
-            trace_size = self.n_channels
+        if self.n_channels < n_vis_chans:
+            n_vis_chans = self.n_channels
         for unit in units:
             # Only plot the strongest channels based on the given size.
-            channels = main_channels(self.templates[:, :, unit])[-trace_size:]
+            channels = main_channels(self.templates[:, :, unit])[-n_vis_chans:]
             p = ax.scatter(
                     self.geometry[channels, 0], self.geometry[channels, 1])
             # Get the color of the recent scatter to plot the trace with the
             # same color..
             col = p.get_facecolor()[-1, :3]
+            #print (col)
             for c in channels:
                 x_ = np.arange(0, self.samples, 1.0)
                 x_ += self.geometry[c, 0] - self.samples / 2
                 y_ = (self.templates[:, c, unit]) * scale + self.geometry[c, 1]
                 ax.plot(x_, y_, color=col, label='_nolegend_')
-                # Plot the second set of templates
-                if self.templates_sec is None:
-                    continue
-                elif self.unit_map[unit] < 0:
-                    # There is no match for this particular unit.
-                    continue
-                x_ = np.arange(0, self.samples_sec, 1.0) + 1
-                x_ += self.geometry[c, 0] - self.samples_sec / 2
-                y_ = (self.templates_sec[:, c, self.unit_map[unit]]) * scale
-                y_ += self.geometry[c, 1]
-                ax.plot(x_, y_, color=col, label='_nolegend_', linestyle='--')
-
-        ax.legend(["{}".format(self.unit_labels[unit]) for unit in units])
+        #ax.legend(["Unit {}".format(unit) for unit in units])
         ax.set_xlabel('Probe x coordinate')
         ax.set_ylabel('Probe y coordinate')
         fig.set_size_inches(15, 15)
         plt.show()
+        
+    
+    def generate_energy_space_plot(self, units, n_vis_chans=5, color='black'):
+        """Plot spatial trace of the units
+
+        Parameters:
+        -----------
+        units: list of int
+            The units for which the spatial trace will be dispalyed.
+        n_vis_chans: int
+            Number of channels for which each waveform should be displayed.
+        scale: float
+            Scale the spikes for display purposes.
+        """
+
+        for unit in units:
+            # Only plot the strongest channels based on the given size.
+            channels = main_channels(self.templates[:, :, unit])[-n_vis_chans:]
+
+            #Compute peak-to-peak at each channel
+            max_channel = channels[-1]
+            locx = 0
+            locy = 0
+            ptp_sum=0
+            for ch in channels:
+                ptp = np.max(self.templates[:, ch, unit])-np.min(self.templates[:, ch, unit])
+            
+                ptp_sum +=ptp
+                locx = locx + self.geometry[ch, 0]*ptp
+                locy = locy + self.geometry[ch, 1]*ptp
+            
+            self.ax1.scatter(locx/float(ptp_sum), locy/float(ptp_sum),s=(np.max(self.templates[:, max_channel, unit])-np.min(self.templates[:, max_channel, unit]))*10,color=color,edgecolors='b',alpha=0.5)
+            
+        self.ax1.set_xlabel('Probe x coordinate',fontsize=25)
+        self.ax1.set_ylabel('Probe y coordinate',fontsize=25)
+        self.ax1.tick_params(axis='both', which='both', labelsize=20)
+        self.ax1.set_ylim(-500,500)
+        self.ax1.set_xlim(-1000,1000)
+
+        return
+
+    def generate_template_spatial_location(self, templates, units, n_vis_chans=5, scale = 1.0, color='black'):
+        """Plot spatial trace of the units
+
+        Parameters:
+        -----------
+        units: list of int
+            The units for which the spatial trace will be dispalyed.
+        n_vis_chans: int
+            Number of channels for which each waveform should be displayed.
+        scale: float
+            Scale the spikes for display purposes.
+        """
+        
+        self.templates = templates
+        self.samples = templates[:,:,units[0]].shape[1]
+        self.n_channels = templates[:,:,units[0]].shape[0]
+
+
+        self.ax1.set_facecolor('xkcd:black')
+        #if self.n_channels < n_vis_chans:
+        #    n_vis_chans = self.n_channels
+        text_label = ''
+        for unit in units:
+            # Only plot the strongest channels based on the given size.
+            channels = main_channels(self.templates[:, :, unit])[-n_vis_chans:]
+            p = self.ax1.scatter(self.geometry[channels, 0], self.geometry[channels, 1])
+            # Get the color of the recent scatter to plot the trace with the
+            # same color..
+#            col = p.get_facecolor()[-1, :3]
+            col = color
+            #print (col)
+            for c in channels:
+                x_ = np.arange(0, self.samples, 1.0)/2.
+                x_ += self.geometry[c, 0] - self.samples / 2
+                y_ = (self.templates[:, c, unit]) * scale + self.geometry[c, 1]
+                self.ax1.plot(x_, y_, color=col, label='_nolegend_', linewidth=2)
+            
+            text_label+=" "+str(unit)+", max ch: "+str(channels[0])
+        
+        #ax.legend(["Unit {}".format(unit) for unit in units])
+        self.ax1.set_title("Unit "+text_label,fontsize=15)
+        self.ax1.set_xlabel('Probe x coordinate')
+        self.ax1.set_ylabel('Probe y coordinate')
+        #fig.set_size_inches(15, 15)
+        #plt.show()
+
+
+    def generate_traces_spatial_location(self, traces, vis_chans=[0], scale = 1.0, color='black',linewidth=1, alpha=0.1, x_width=None, y_width=None):
+        """Plot spatial trace of the units
+
+        Parameters:
+        -----------
+        units: list of int
+            The units for which the spatial trace will be dispalyed.
+        n_vis_chans: int
+            Number of channels for which each waveform should be displayed.
+        scale: float
+            Scale the spikes for display purposes.
+        """
+        
+        
+        samples = traces.shape[1]
+        channels = vis_chans
+
+        self.ax1.set_facecolor('xkcd:white')
+        # Only plot the strongest channels based on the given size.
+        #channels = main_channels
+        #print channels
+        
+        #Plot chan locations
+        p = self.ax1.scatter(self.geometry[channels, 0], self.geometry[channels, 1])
+        # Get the color of the recent scatter to plot the trace with the
+        col = color
+
+        for ctr,c in enumerate(channels):
+            x_ = np.arange(0, samples, 1.0)/2.     #x indexes
+            x_ += self.geometry[c, 0] - samples / 2    #Offset x indexes by location of channel in physical space
+            #print x_.shape
+            x_array = np.tile(x_,(traces.shape[0],1)).T
+            #print x_array.shape
+            
+            y_array = (traces[:,:,c].T) * scale + self.geometry[c, 1]  #Load spike waveform and offset in space
+            #print y_array.shape
+            
+            # only write text in plotting window otherwise looks bad
+            if x_width is not None: 
+                if (self.geometry[c, 0]>x_width[0]) and (self.geometry[c, 0]<x_width[1]):
+                    if (self.geometry[c, 1]>y_width[0]) and (self.geometry[c, 1]<y_width[1]):
+                        self.ax1.text(self.geometry[c, 0]+2, self.geometry[c, 1], str(c), fontsize=10)
+            else: 
+                self.ax1.text(self.geometry[c, 0]+2, self.geometry[c, 1], str(c), fontsize=10)
+            
+            self.ax1.plot(x_array, y_array, color=col, label='_nolegend_', linewidth=linewidth, alpha=alpha)
+        
+        #text_label+=" "+str(unit)+", max ch: "+str(channels[0])
+        
+        #ax.legend(["Unit {}".format(unit) for unit in units])
+        #self.ax1.set_title("Unit "+text_label,fontsize=15)
+        self.ax1.set_xlabel('Probe x coordinate')
+        self.ax1.set_ylabel('Probe y coordinate')
+        #fig.set_size_inches(15, 15)
+        #plt.show()
+     
+     
+     
+    def generate_template_spatial_location_visible_chans(self, template, vis_chans=[0,1,2,3,4,5], scale = 1.0, color='black'):
+        """Plot spatial trace of the units
+
+        Parameters:
+        -----------
+        units: list of int
+            The units for which the spatial trace will be dispalyed.
+        n_vis_chans: int
+            Number of channels for which each waveform should be displayed.
+        scale: float
+            Scale the spikes for display purposes.
+        """
+        
+        self.template = template
+        self.samples = template.shape[1]
+        print ("self.samples", self.samples)
+
+        #if self.n_channels < n_vis_chans:
+        #    n_vis_chans = self.n_channels
+        text_label = ''
+        # Only plot the strongest channels based on the given size.
+        #channels = main_channels(self.template[:, :, unit])[-n_vis_chans:]
+        channels = vis_chans
+        print ("vis_chans: ", vis_chans)
+        p = self.ax1.scatter(self.geometry[channels, 0], self.geometry[channels, 1])
+        
+        # Get the color of the recent scatter to plot the trace with the
+        # same color..
+#            col = p.get_facecolor()[-1, :3]
+        col = color
+        #print (col)
+        for c in range(len(channels)):
+            x_ = np.arange(0, self.samples, 1.0)/2.
+            x_ += self.geometry[channels[c], 0] - self.samples / 2
+            y_ = (self.template[c,:]) * scale + self.geometry[channels[c], 1]
+            self.ax1.plot(x_, y_, color=col, label='_nolegend_', linewidth=2)
+        
+        #text_label+=" "+str(unit)+", max ch: "+str(channels[0])
+        #self.ax1.xlim(np.min(), np.max())
+        #ax.legend(["Unit {}".format(unit) for unit in units])
+        #self.ax1.set_title("Unit "+text_label,fontsize=15)
+        self.ax1.set_xlabel('Probe x coordinate')
+        self.ax1.set_ylabel('Probe y coordinate')
+        #fig.set_size_inches(15, 15)
+        #plt.show()   
+
+    def generate_template_multi_channel(self, units, n_vis_chans=5, scale = 1.0, color='black'):
+        """Plot spatial trace of the units
+
+        Parameters:
+        -----------
+        units: list of int
+            The units for which the spatial trace will be dispalyed.
+        n_vis_chans: int
+            Number of channels for which each waveform should be displayed.
+        scale: float
+            Scale the spikes for display purposes.
+        """
+        for unit in units:
+            # Only plot the strongest channels based on the given size.
+            channels = main_channels(self.templates[:, :, unit])[-n_vis_chans:]
+
+	    #Find weighted-average location for each template
+            max_channel = channels[-1]
+            locx = 0
+            locy = 0
+            ptp_sum=0
+            for ch in channels:
+                ptp = np.max(self.templates[:, ch, unit])-np.min(self.templates[:, ch, unit])
+	    
+                ptp_sum +=ptp
+                locx = locx + self.geometry[ch, 0]*ptp
+                locy = locy + self.geometry[ch, 1]*ptp
+            locx = locx/float(ptp_sum)
+            locy = locy/float(ptp_sum)
+	
+            x_ = np.arange(0, self.samples, 1.0)/2.
+            #print (x_)
+            x_ = x_+locx - self.samples / 2
+            #print (x_)
+            y_ = (self.templates[:, max_channel, unit]) * scale + locy
+            self.ax1.plot(x_, y_, color=color,alpha=0.5)
+	    
+        self.ax1.set_xlabel('Probe x coordinate',fontsize=25)
+        self.ax1.set_ylabel('Probe y coordinate',fontsize=25)
+        self.ax1.tick_params(axis='both', which='both', labelsize=20)
+        self.ax1.set_ylim(50,500)
+        self.ax1.set_xlim(-850,-325)
+
+        return
+	
+	
+	
+    def make_legend(self, legend_list, legend_colors,legend_size=15):
+        import matplotlib.patches as mpatches
+        
+        legend_items=[]
+        for name,clr in zip(legend_list,legend_colors):
+            legend_items.append(mpatches.Patch(color = clr, edgecolor='black',label = name))
+
+        self.ax1.legend(legend_items, legend_list,loc=1, ncol=2, prop={'size':legend_size}) 
+
+	#Plot second legend using twinx()
+        ax2 = self.ax1.twinx()
+        #ax2.set_xticks([])
+        ax2.set_yticks([])
+        plt.scatter([50], [50], c='k', alpha=0.3, s=50, label='MEA Location')
+        for area in [10, 100]:
+            plt.scatter([], [], c='k', alpha=0.3, s=area, label=str(area)+"uV (PTP/SNR)")
+        
+        plt.legend(scatterpoints=1, loc=4, ncol=3, labelspacing=1, handletextpad=0.0, prop={'size':legend_size})
+
+    def show(self):
+        self.fig
+
+
+
+
+
+
+
+
+
+

@@ -1,8 +1,13 @@
 import numpy as np
 import logging
+import os
+import parmap
+from scipy import signal
+from scipy.spatial import cKDTree
 
 from yass import mfm
 from scipy.sparse import lil_matrix
+from statsmodels import robust
 
 
 def run_cluster(scores, masks, groups, spike_index,
@@ -626,68 +631,238 @@ def PCA(X, n_components):
 
 
 def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end, 
-                         n_mad_chans, n_max_chans, CONFIG):
+                         n_mad_chans, n_max_chans, CONFIG, out_dir):
     
     ''' New voltage feature based clustering
     ''' 
     
+    # loop over channels 
+    # Cat: TODO: Parallelize over channels
     channels = np.arange(49)
-
     for channel in channels: 
-        # grab spike waveforms already saved to disk
+        
+        # **** grab spike waveforms ****
         indexes = np.where(spike_index_clear[:,1]==channel)[0]
-        wf_data = load_waveforms(spike_index_clear[indexes], CONFIG)
+        wf_data = load_waveforms_parallel(spike_index_clear[indexes], 
+                                          CONFIG, out_dir)
+        wf_data = np.swapaxes(wf_data,2,0)
 
-    # find max amplitude chans
-    template = np.mean(wf_data,axis=2)
-    rank_amp_chans = np.max(np.abs(template),axis=1)
-    rank_indexes = np.argsort(rank_amp_chans,axis=0)[::-1] 
-    max_chans = rank_indexes[:n_max_chans]      # select top chans
-    print ("max chans: ", max_chans)
-          
-    # find top 3 mad chans out of chans with template > 2SU
+        # **** find feature channels ****
+        # find max amplitude chans 
+        template = np.mean(wf_data,axis=2)
+        rank_amp_chans = np.max(np.abs(template),axis=1)
+        rank_indexes = np.argsort(rank_amp_chans,axis=0)[::-1] 
+        max_chans = rank_indexes[:n_max_chans]      # select top chans
+              
+        # find top 3 mad chans out of chans with template > 2SU
+        ptps = np.ptp(template,axis=1)
+        chan_indexes_2SU = np.where(ptps>2)[0]
+        rank_chans_max = np.max(robust.mad(wf_data[chan_indexes_2SU,:,:],axis=2),axis=1)
 
-    ptps = np.ptp(template,axis=1)
-    chan_indexes_2SU = np.where(ptps>2)[0]
+        # rank channels by max mad value
+        rank_indexes = np.argsort(rank_chans_max,axis=0)[::-1]
+        mad_chans = chan_indexes_2SU[rank_indexes][:n_mad_chans]      # select top chans
 
-    rank_chans_max = np.max(robust.mad(wf_data[chan_indexes_2SU,:,:],axis=2),axis=1)
+        # make feature chans from union 
+        feat_chans = np.union1d(max_chans, mad_chans)
 
-    # rank channels by max mad value
-    rank_indexes = np.argsort(rank_chans_max,axis=0)[::-1]
-    mad_chans = chan_indexes_2SU[rank_indexes][:n_mad_chans]      # select top chans
-    print ("chan: ", channel,  "   mad chans: ", mad_chans)
+        print "chan: ", channel, "  feat chans: ", feat_chans
 
-    # make feature chans from union 
-    feat_chans = np.union1d(max_chans, mad_chans)
+        # **** cluster ****
+        
+        wf_data = wf_data.T
+        data_in = wf_data[:,:,feat_chans]
+        print data_in.shape
+                
+        data_aligned = []
+        for k in range(data_in.shape[2]):
+            print ("aligning ch: ",k)
+            data_aligned.append(align_channelwise(data_in[:,:,k].T, upsample_factor=20, n_steps=15))
 
-    print "feat chans: ", feat_chans,'\n'
+        data_in = np.array(data_aligned)
+        print ("aligned data: ", data_in.shape)
+        data_in = data_in[:,:,wf_start:wf_end]
+       
+        # reshape data for PCA
+        data_in = data_in.swapaxes(0,1).reshape(data_in.shape[1],-1)
+        print ("reshaped aligned data_in: ", data_in.shape)
 
+        # norm = np.max(pca_wf,axis=1,keepdims=True)
+        pca_wf,pca_wf_reconstruct = PCA(data_in,n_dim_pca)
+        print pca_wf.shape
+        
+        # triage percentile
+        th = 90
+        # get distance to nearest neighbors
+        tree = cKDTree(pca_wf)
+        dist, ind = tree.query(pca_wf, k=11)
+        dist = np.sum(dist, 1)
+        # triage far ones
+        idx_keep1 = dist < np.percentile(dist, th)
+        pca_wf = pca_wf[idx_keep1]
+        print pca_wf.shape
+        # run pca second time
 
+        pca_wf_original,pca_wf_reconstruct = PCA(data_in[idx_keep1],n_dim_pca)
 
-def load_waveforms(channel_spikes, CONFIG): 
+        # run mfm iteratively 
+        print "wf_data shape (pre triage): ", wf_data.shape
+        wf_data_original = wf_data[idx_keep1].copy()
+        print "wf data original: ", wf_data_original.shape
+
+        spike_train_clustered = run_mfm(wf_data_original, pca_wf_original, 
+                                        feat_chans, idx_keep1, wf_start,
+                                        wf_end, n_dim_pca, CONFIG)
+        
+        #for train in spike_train_clustered:
+        #    print len(train)
+        #quit()
+        
+def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1, 
+            wf_start, wf_end, n_dim_pca, CONFIG):
     
+    assignment_array = []
+
+    # ************ reset data *************
+    kk = pca_wf_original
+    wf_data = wf_data_original
+    index_vals = np.arange(len(np.where(idx_keep1)[0]))
+
+    # ************ inital cluster ************
+    mask = np.ones((kk.shape[0], 1))
+    group = np.arange(kk.shape[0])
+    vbParam2 = mfm.spikesort(kk[:,:,np.newaxis],
+                            mask,
+                            group, CONFIG)
+    vbParam2.rhat[vbParam2.rhat < 0.1] = 0
+    vbParam2.rhat = vbParam2.rhat/np.sum(vbParam2.rhat,
+                                         1, keepdims=True)
+
+    assignment2 = np.argmax(vbParam2.rhat, axis=1)
+    assignment_array.append(vbParam2.rhat)
+
+    rolling_index_array=[]
+    for s in range(1000):
+        print "\n  ***iteration ", s, "***"
+        # remove most stable cluster
+        stability = []
+        indexes = []
+        remove_indexes =[]
+        title_string = []
+        cluster_removed = []
+        for k in range(vbParam2.rhat.shape[1]):
+            index = np.where(vbParam2.rhat[:,k]>0)[0]
+            indexes.append(index)
+            stability.append(np.mean(vbParam2.rhat[index,k]))
+        
+            #most_stable = np.argmax(stability)
+            if np.mean(vbParam2.rhat[index,k]) > 0.90: 
+                remove_indexes.extend(index)
+                rolling_index_array.append(index_vals[index])
+
+                template = np.mean(wf_data_original.T[:,:,index_vals[index]],axis=2)
+                ptps = np.max(np.abs(template),axis=1)
+                print ("cluster: ",k,  " stability: ", np.mean(vbParam2.rhat[index,k]), 
+                        "  # spikes: ", len(index_vals[index]), " ptp: ", np.max(ptps), " ch: ", np.argmax(ptps), " remove***")
+                #ptp_temp_array.append([np.max(ptps), len(index_vals[index]), np.mean(vbParam2.rhat[index,k])])
+
+                #title_string.append(clrs[k]+": "+str(np.round(np.max(ptps),1))+' '+str(len(index))+' '+str(np.round(np.mean(vbParam2.rhat[index,k]),2)))
+                cluster_removed.append(k)
+            else:
+                print "cluster ", k, ", # spikes: ", len(index), ", stability: ", np.mean(vbParam2.rhat[index,k]) 
+                            
+        if len(remove_indexes)>0: 
+            index_vals = np.delete(index_vals, remove_indexes,axis=0)
+            wf_data = np.delete(wf_data, remove_indexes,axis=0)
+
+        # remove most stable cluster
+        else:
+            most_stable = np.argmax(stability)  #Find most stable index using above stability list
+            index = indexes[most_stable]        # find indexes of most stable index using above list
+            remove_indexes.append(index)
+            #print index_vals
+            #print index
+            rolling_index_array.append(index_vals[index])
+
+            template = np.mean(wf_data_original.T[:,:,index_vals[index]],axis=2)
+            ptps = np.max(np.abs(template),axis=1)
+            print ("cluster: ",most_stable,  " stability: ", np.mean(vbParam2.rhat[index,most_stable]), 
+                    "  # spikes: ", len(index_vals[index]), " ptp: ", np.max(ptps), " ch: ", np.argmax(ptps), " remove***")
+            #ptp_temp_array.append([np.max(ptps), len(index_vals[index]), np.mean(vbParam2.rhat[index,most_stable])])
+
+            #title_string.append(clrs[most_stable]+': '+str(np.round(np.max(ptps),1))+' '+str(len(index))+' '+str(np.round(np.mean(vbParam2.rhat[index,most_stable]),2)))
+
+            index_vals = np.delete(index_vals, index,axis=0)
+            wf_data = np.delete(wf_data, index,axis=0)            
+
+        # realign data on feat chans
+        data_in = wf_data[:,:,feat_chans]
+        
+        print ("aligned data: ", data_in.shape)
+        data_in = data_in[:,:,wf_start:wf_end]
+
+        # clip data  
+        if data_in.shape[0]<=35:
+            print "< 35 spikes left ...discarding and exiting mfm"
+            break
+        
+        # realign data after every iteration
+        data_aligned = []
+        for k in range(data_in.shape[2]):
+            data_aligned.append(align_channelwise(data_in[:,:,k].T, upsample_factor=20, n_steps=15))
+
+        data_in = np.array(data_aligned)
+        data_in = data_in[:,:,wf_start:wf_end]
+        data_in = data_in.swapaxes(0,1).reshape(data_in.shape[1],-1)
+
+        pca_wf,pca_wf_reconstruct = PCA(data_in,n_dim_pca)
+        #print pca_wf.shape
+
+        kk = pca_wf
+        mask = np.ones((kk.shape[0], 1))
+        group = np.arange(kk.shape[0])
+
+        
+        vbParam2 = mfm.spikesort(kk[:,:,np.newaxis],
+                                mask,
+                                group, CONFIG)
+        vbParam2.rhat[vbParam2.rhat < 0.1] = 0
+        vbParam2.rhat = vbParam2.rhat/np.sum(vbParam2.rhat,
+                                             1, keepdims=True)
+
+        assignment2 = np.argmax(vbParam2.rhat, axis=1)
+        assignment_array.append(vbParam2.rhat)
+
+        # if only one cluster left
+        if vbParam2.rhat.shape[1]==1:
+            #Grab last cluster
+            index = np.where(vbParam2.rhat[:,0]>0)[0]
+            indexes.append(index)
+            
+            rolling_index_array.append(index_vals) # add the remaning absolute index_vals
+
+            # add last templates
+            template = np.mean(wf_data_original.T[:,:,index_vals],axis=2)
+            ptps = np.max(np.abs(template),axis=1)
+            print "last cluster # spikes: ", len(index), " ptp: ", np.max(ptps), " ch: ", np.argmax(ptps)
+            #ptp_temp_array.append([np.max(ptps), len(index_vals), np.mean(vbParam2.rhat[index,0])])
+
+            break
+            
+    return rolling_index_array
+            
+def load_waveforms_parallel(spike_train, CONFIG, out_dir): 
     
-    wf_data = np.load('/media/cat/1TB/liam/49channels/tmp/wf/wf_ch'+str(channel)+'.npy')
-    wf_data = np.swapaxes(wf_data,2,0)
-    print ("wf_data.shape: ", wf_data.shape)
-
-#def get_templates_parallel(spike_train,
-#                           path_to_recordings,
-#                           out_dir,
-#                           CONFIG,
-#                           n_max=5000):
-    # CONFIG, n_max=100):
-
-    spike_size = 2 * (CONFIG.spike_size + CONFIG.templates.max_shift)
+    # Cat: TODO: link spike_size in CONFIG param
+    spike_size = 15
     n_processors = CONFIG.resources.n_processors
     n_channels = CONFIG.recordings.n_channels
     sampling_rate = CONFIG.recordings.sampling_rate
-    # n_sec_chunk = CONFIG.resources.n_sec_chunk
-    n_sec_chunk = 100
 
-    # number of templates
-    n_templates = int(np.max(spike_train[:, 1]) + 1)
-    spike_train_small = random_sample_spike_train(spike_train, n_max, CONFIG)
+    # select length of recording to read at once and grab data
+    # currently fixed to 60 sec, but may wish to change
+    # n_sec_chunk = CONFIG.resources.n_sec_chunk
+    n_sec_chunk = 60
 
     # determine length of processing chunk based on lenght of rec
     standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
@@ -695,8 +870,8 @@ def load_waveforms(channel_spikes, CONFIG):
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
 
+    # make index list for chunk/parallel processing
     buffer_size = 200
-
     indexes = np.arange(0, fp_len / n_channels, sampling_rate * n_sec_chunk)
     if indexes[-1] != fp_len / n_channels:
         indexes = np.hstack((indexes, fp_len / n_channels))
@@ -709,64 +884,88 @@ def load_waveforms(channel_spikes, CONFIG):
         ])
 
     idx_list = np.int64(np.vstack(idx_list))
-
     proc_indexes = np.arange(len(idx_list))
 
-    print("...computing templates (fixed chunk to 100sec for efficiency)")
     if CONFIG.resources.multi_processing:
         res = parmap.map(
-            compute_weighted_templates_parallel,
+            load_waveforms_,
             zip(idx_list, proc_indexes),
-            spike_train_small,
+            spike_train,
             spike_size,
-            n_templates,
             n_channels,
             buffer_size,
             standardized_filename,
             processes=n_processors,
-            pm_pbar=True)
+            pm_pbar=False)
     else:
         res = []
         for k in range(len(idx_list)):
-            temp = compute_weighted_templates_parallel(
-                [idx_list[k], k], spike_train_small, spike_size, n_templates,
+            temp = load_waveforms_(
+                [idx_list[k], k], spike_train, spike_size, 
                 n_channels, buffer_size, standardized_filename)
             res.append(temp)
 
     # Reconstruct templates from parallel proecessing
-    print("... reconstructing templates")
-    res0 = np.zeros(res[0][0].shape)
-    res1 = np.zeros(res[0][1].shape)
-    for k in range(len(res)):
-        res0 += res[k][0]
-        res1 += res[k][1]
+    wfs = np.vstack(res)
+    print wfs.shape
+    
+    return wfs
 
-    print("... dividing templates by weights")
-    templates = res0
-    weights = res1
-    weights[weights == 0] = 1
-    templates = templates / weights[np.newaxis, np.newaxis, :]
+def load_waveforms_(data_in, spike_train, spike_size,
+                    n_channels, buffer_size,
+                    standardized_filename):
 
-    return templates, weights
+    idx_list = data_in[0]
 
+    # New indexes
+    idx_start = idx_list[0]
+    idx_stop = idx_list[1]
+    idx_local = idx_list[2]
 
+    data_start = idx_start
+    data_end = idx_stop
+    offset = idx_local
 
+    # ***** LOAD RAW RECORDING *****
+    with open(standardized_filename, "rb") as fin:
+        if data_start == 0:
+            # Seek position and read N bytes
+            recordings_1D = np.fromfile(
+                fin,
+                dtype='float32',
+                count=(data_end + buffer_size) * n_channels)
+            recordings_1D = np.hstack((np.zeros(
+                buffer_size * n_channels, dtype='float32'), recordings_1D))
+        else:
+            fin.seek((data_start - buffer_size) * 4 * n_channels, os.SEEK_SET)
+            recordings_1D = np.fromfile(
+                fin,
+                dtype='float32',
+                count=((data_end - data_start + buffer_size * 2) * n_channels))
 
+        if len(recordings_1D) != (
+              (data_end - data_start + buffer_size * 2) * n_channels):
+            recordings_1D = np.hstack((recordings_1D,
+                                       np.zeros(
+                                           buffer_size * n_channels,
+                                           dtype='float32')))
 
+    fin.close()
 
+    # Convert to 2D array
+    recording = recordings_1D.reshape(-1, n_channels)
 
+                                    
+    # convert spike train back to 0-offset values for indexeing into recordings
+    indexes = np.where(np.logical_and(spike_train[:,0]>data_start, 
+                                      spike_train[:,0]<data_end))[0]
+    spike_train = spike_train[indexes]-data_start 
 
+    # read all waveforms at once
+    waveforms = recording[spike_train[:, [0]].astype('int32')+offset
+                  + np.arange(-spike_size, spike_size + 1)]
 
-
-
-
-
-
-
-
-
-
-    return wf_data    
+    return waveforms    
 
 
 
