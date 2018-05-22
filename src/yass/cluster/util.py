@@ -666,30 +666,29 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
         # make feature chans from union 
         feat_chans = np.union1d(max_chans, mad_chans)
 
-        print "chan: ", channel, "  feat chans: ", feat_chans
 
         # **** cluster ****
         
         wf_data = wf_data.T
         data_in = wf_data[:,:,feat_chans]
-        print data_in.shape
+        print "chan: ", channel, "  feat chans: ", feat_chans, data_in.shape, 
                 
         data_aligned = []
         for k in range(data_in.shape[2]):
-            print ("aligning ch: ",k)
+            #print ("aligning ch: ",k)
             data_aligned.append(align_channelwise(data_in[:,:,k].T, upsample_factor=20, n_steps=15))
 
         data_in = np.array(data_aligned)
-        print ("aligned data: ", data_in.shape)
+        #print ("aligned data: ", data_in.shape)
         data_in = data_in[:,:,wf_start:wf_end]
        
         # reshape data for PCA
         data_in = data_in.swapaxes(0,1).reshape(data_in.shape[1],-1)
-        print ("reshaped aligned data_in: ", data_in.shape)
+        #print ("reshaped aligned data_in: ", data_in.shape)
 
         # norm = np.max(pca_wf,axis=1,keepdims=True)
         pca_wf,pca_wf_reconstruct = PCA(data_in,n_dim_pca)
-        print pca_wf.shape
+        #print pca_wf.shape
         
         # triage percentile
         th = 90
@@ -700,20 +699,21 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
         # triage far ones
         idx_keep1 = dist < np.percentile(dist, th)
         pca_wf = pca_wf[idx_keep1]
-        print pca_wf.shape
+        #print pca_wf.shape
         # run pca second time
 
         pca_wf_original,pca_wf_reconstruct = PCA(data_in[idx_keep1],n_dim_pca)
 
         # run mfm iteratively 
-        print "wf_data shape (pre triage): ", wf_data.shape
+        #print "wf_data shape (pre triage): ", wf_data.shape
         wf_data_original = wf_data[idx_keep1].copy()
-        print "wf data original: ", wf_data_original.shape
+        #print "wf data original: ", wf_data_original.shape
 
         spike_train_clustered = run_mfm(wf_data_original, pca_wf_original, 
                                         feat_chans, idx_keep1, wf_start,
                                         wf_end, n_dim_pca, CONFIG)
         
+        print " # cluster: ", len(spike_train_clustered)
         #for train in spike_train_clustered:
         #    print len(train)
         #quit()
@@ -743,7 +743,7 @@ def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1,
 
     rolling_index_array=[]
     for s in range(1000):
-        print "\n  ***iteration ", s, "***"
+        #print " **iteration ", s, "**"
         # remove most stable cluster
         stability = []
         indexes = []
@@ -762,14 +762,14 @@ def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1,
 
                 template = np.mean(wf_data_original.T[:,:,index_vals[index]],axis=2)
                 ptps = np.max(np.abs(template),axis=1)
-                print ("cluster: ",k,  " stability: ", np.mean(vbParam2.rhat[index,k]), 
-                        "  # spikes: ", len(index_vals[index]), " ptp: ", np.max(ptps), " ch: ", np.argmax(ptps), " remove***")
+                #print ("cluster: ",k,  " stability: ", np.mean(vbParam2.rhat[index,k]), 
+                #        "  # spikes: ", len(index_vals[index]), " ptp: ", np.max(ptps), " ch: ", np.argmax(ptps), " remove***")
                 #ptp_temp_array.append([np.max(ptps), len(index_vals[index]), np.mean(vbParam2.rhat[index,k])])
 
                 #title_string.append(clrs[k]+": "+str(np.round(np.max(ptps),1))+' '+str(len(index))+' '+str(np.round(np.mean(vbParam2.rhat[index,k]),2)))
                 cluster_removed.append(k)
-            else:
-                print "cluster ", k, ", # spikes: ", len(index), ", stability: ", np.mean(vbParam2.rhat[index,k]) 
+            #else:
+            #    print "cluster ", k, ", # spikes: ", len(index), ", stability: ", np.mean(vbParam2.rhat[index,k]) 
                             
         if len(remove_indexes)>0: 
             index_vals = np.delete(index_vals, remove_indexes,axis=0)
@@ -786,8 +786,8 @@ def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1,
 
             template = np.mean(wf_data_original.T[:,:,index_vals[index]],axis=2)
             ptps = np.max(np.abs(template),axis=1)
-            print ("cluster: ",most_stable,  " stability: ", np.mean(vbParam2.rhat[index,most_stable]), 
-                    "  # spikes: ", len(index_vals[index]), " ptp: ", np.max(ptps), " ch: ", np.argmax(ptps), " remove***")
+            #print ("cluster: ",most_stable,  " stability: ", np.mean(vbParam2.rhat[index,most_stable]), 
+            #        "  # spikes: ", len(index_vals[index]), " ptp: ", np.max(ptps), " ch: ", np.argmax(ptps), " remove***")
             #ptp_temp_array.append([np.max(ptps), len(index_vals[index]), np.mean(vbParam2.rhat[index,most_stable])])
 
             #title_string.append(clrs[most_stable]+': '+str(np.round(np.max(ptps),1))+' '+str(len(index))+' '+str(np.round(np.mean(vbParam2.rhat[index,most_stable]),2)))
@@ -798,12 +798,12 @@ def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1,
         # realign data on feat chans
         data_in = wf_data[:,:,feat_chans]
         
-        print ("aligned data: ", data_in.shape)
+        #print ("aligned data: ", data_in.shape)
         data_in = data_in[:,:,wf_start:wf_end]
 
         # clip data  
         if data_in.shape[0]<=35:
-            print "< 35 spikes left ...discarding and exiting mfm"
+            #print "< 35 spikes left ...discarding and exiting mfm"
             break
         
         # realign data after every iteration
@@ -844,7 +844,7 @@ def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1,
             # add last templates
             template = np.mean(wf_data_original.T[:,:,index_vals],axis=2)
             ptps = np.max(np.abs(template),axis=1)
-            print "last cluster # spikes: ", len(index), " ptp: ", np.max(ptps), " ch: ", np.argmax(ptps)
+            #print "last cluster # spikes: ", len(index), " ptp: ", np.max(ptps), " ch: ", np.argmax(ptps)
             #ptp_temp_array.append([np.max(ptps), len(index_vals), np.mean(vbParam2.rhat[index,0])])
 
             break
@@ -907,7 +907,7 @@ def load_waveforms_parallel(spike_train, CONFIG, out_dir):
 
     # Reconstruct templates from parallel proecessing
     wfs = np.vstack(res)
-    print wfs.shape
+    #print wfs.shape
     
     return wfs
 
