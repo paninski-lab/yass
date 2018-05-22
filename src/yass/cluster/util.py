@@ -638,6 +638,8 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
     
     # loop over channels 
     # Cat: TODO: Parallelize over channels
+    cluster_ctr=0
+    spike_list = []
     channels = np.arange(49)
     for channel in channels: 
         
@@ -668,7 +670,6 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
 
 
         # **** cluster ****
-        
         wf_data = wf_data.T
         data_in = wf_data[:,:,feat_chans]
         print "chan: ", channel, "  feat chans: ", feat_chans, data_in.shape, 
@@ -681,7 +682,7 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
         data_in = np.array(data_aligned)
         #print ("aligned data: ", data_in.shape)
         data_in = data_in[:,:,wf_start:wf_end]
-       
+        
         # reshape data for PCA
         data_in = data_in.swapaxes(0,1).reshape(data_in.shape[1],-1)
         #print ("reshaped aligned data_in: ", data_in.shape)
@@ -696,27 +697,42 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
         tree = cKDTree(pca_wf)
         dist, ind = tree.query(pca_wf, k=11)
         dist = np.sum(dist, 1)
+       
         # triage far ones
         idx_keep1 = dist < np.percentile(dist, th)
         pca_wf = pca_wf[idx_keep1]
-        #print pca_wf.shape
-        # run pca second time
+        wf_data_original = wf_data[idx_keep1].copy()
 
+        # save indexes for mapping back
+        indexes=indexes[idx_keep1]
+
+        # run pca second time
         pca_wf_original,pca_wf_reconstruct = PCA(data_in[idx_keep1],n_dim_pca)
 
         # run mfm iteratively 
-        #print "wf_data shape (pre triage): ", wf_data.shape
-        wf_data_original = wf_data[idx_keep1].copy()
-        #print "wf data original: ", wf_data_original.shape
-
         spike_train_clustered = run_mfm(wf_data_original, pca_wf_original, 
                                         feat_chans, idx_keep1, wf_start,
                                         wf_end, n_dim_pca, CONFIG)
         
         print " # cluster: ", len(spike_train_clustered)
-        #for train in spike_train_clustered:
-        #    print len(train)
-        #quit()
+        #print spike_train_clustered[0]
+        
+        for c in range(len(spike_train_clustered)):
+            temp = np.zeros((spike_train_clustered[c].shape[0],2),'int32')
+            temp[:,0]=indexes[spike_train_clustered[c]]
+            temp[:,1]=cluster_ctr
+            spike_list.append(temp)
+            cluster_ctr+=1
+    
+    # format output
+    print ("..formating spike trains ...")
+    s = np.vstack(spike_list)
+    #print s[:100]
+    indexes = np.argsort(s[:,0])
+    spike_train_clustered = s[indexes]
+    print spike_train_clustered.shape
+    
+    return spike_train_clustered
         
 def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1, 
             wf_start, wf_end, n_dim_pca, CONFIG):
@@ -848,7 +864,8 @@ def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1,
             #ptp_temp_array.append([np.max(ptps), len(index_vals), np.mean(vbParam2.rhat[index,0])])
 
             break
-            
+    
+    
     return rolling_index_array
             
 def load_waveforms_parallel(spike_train, CONFIG, out_dir): 

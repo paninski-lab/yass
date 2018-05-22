@@ -1,6 +1,7 @@
 import logging
 import datetime
 import numpy as np
+import os
 
 from yass import read_config
 from yass.util import file_loader, check_for_files, LoadFile
@@ -86,27 +87,34 @@ def run(scores,
     # start timer
     _b = datetime.datetime.now()
 
+    
 
     # voltage space feature clustering
     if CONFIG.cluster.method == 'voltage_features': 
 
-        spike_index_clear = spike_index
-
-        select_variances = False
-        n_variance_pts = 3
-        n_dim_pca = 3
-        wf_start = 0
-        wf_end = 25
-        n_mad_chans = 3
-        n_max_chans = 3
-
-        res = run_cluster_features(spike_index_clear, n_dim_pca, wf_start,
-                                   wf_end, n_mad_chans, n_max_chans, 
-                                   CONFIG, output_directory)
-
+        fname = os.path.join(CONFIG.data.root_folder, 
+                              output_directory, 'spike_train_clustered.npy')
         
+        if os.path.exists(fname):
+            spike_train = np.load(fname)
+        
+        else: 
+            spike_index_clear = spike_index
 
-                         
+            select_variances = False
+            n_variance_pts = 3
+            n_dim_pca = 3
+            wf_start = 0
+            wf_end = 25
+            n_mad_chans = 3
+            n_max_chans = 3
+
+            spike_train = run_cluster_features(spike_index_clear, n_dim_pca, 
+                                       wf_start, wf_end, n_mad_chans, 
+                                       n_max_chans, CONFIG, output_directory)
+            
+            np.save(fname,spike_train)
+            
     # Cat: 2 previous methods for featurization
     # eventually need to comment out / delete
     # 3 AE + 2 location features based clustering
@@ -181,4 +189,4 @@ def run(scores,
     logger.info("\tmasking:\t{0} seconds".format(Time['m']))
     logger.info("\tclustering:\t{0} seconds".format(Time['s']))
 
-    return spike_train, tmp_loc, vbParam
+    return spike_train #, tmp_loc, vbParam
