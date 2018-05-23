@@ -100,12 +100,7 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     templates, weights = get_templates_parallel(spike_train,
                                                 path_to_recordings,
                                                 output_directory, CONFIG)
-    np.save(os.path.join(CONFIG.data.root_folder, output_directory,
-                                        "templates_preclean.npy"), templates)
-    
-    np.save(os.path.join(CONFIG.data.root_folder, output_directory,
-                                        "weights_preclean.npy"), weights)
-    
+   
 
     # Cat: this seems to be broken right now, gives error for align_templates
     # templates, weights = get_templates(spike_train, path_to_recordings,
@@ -150,4 +145,5 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
 
     np.save(spike_train_clear_after_templates, spike_train)
 
-    return templates, spike_train, groups, idx_good_templates
+    #return templates, spike_train, groups, idx_good_templates
+    return templates, spike_train

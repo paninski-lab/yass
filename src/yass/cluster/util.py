@@ -640,6 +640,7 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
     # Cat: TODO: Parallelize over channels
     cluster_ctr=0
     spike_list = []
+    tmp_loc = []
     channels = np.arange(49)
     for channel in channels: 
         
@@ -672,7 +673,6 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
         # **** cluster ****
         wf_data = wf_data.T
         data_in = wf_data[:,:,feat_chans]
-        print "chan: ", channel, "  feat chans: ", feat_chans, data_in.shape, 
                 
         data_aligned = []
         for k in range(data_in.shape[2]):
@@ -714,25 +714,25 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
                                         feat_chans, idx_keep1, wf_start,
                                         wf_end, n_dim_pca, CONFIG)
         
-        print " # cluster: ", len(spike_train_clustered)
-        #print spike_train_clustered[0]
-        
+        print ("chan: ", channel, "  feat chans: ", feat_chans, data_in.shape, 
+                                ' # clusters: ', len(spike_train_clustered))
+
+        # make 2 column list 
         for c in range(len(spike_train_clustered)):
             temp = np.zeros((spike_train_clustered[c].shape[0],2),'int32')
             temp[:,0]=spike_index_clear[:,0][indexes[spike_train_clustered[c]]]
             temp[:,1]=cluster_ctr
             spike_list.append(temp)
             cluster_ctr+=1
-    
-    # format output
+            tmp_loc.append(channel)
+            
+    # format output in time order
     print ("..formating spike trains ...")
     s = np.vstack(spike_list)
-    #print s[:100]
     indexes = np.argsort(s[:,0])
     spike_train_clustered = s[indexes]
-    print spike_train_clustered.shape
     
-    return spike_train_clustered
+    return spike_train_clustered, tmp_loc
         
 def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1, 
             wf_start, wf_end, n_dim_pca, CONFIG):
@@ -971,10 +971,9 @@ def load_waveforms_(data_in, spike_train, spike_size,
 
     # Convert to 2D array
     recording = recordings_1D.reshape(-1, n_channels)
-
                                     
     # convert spike train back to 0-offset values for indexeing into recordings
-    indexes = np.where(np.logical_and(spike_train[:,0]>data_start, 
+    indexes = np.where(np.logical_and(spike_train[:,0]>=data_start, 
                                       spike_train[:,0]<data_end))[0]
     spike_train = spike_train[indexes]-data_start 
 

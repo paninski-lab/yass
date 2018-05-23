@@ -122,17 +122,20 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                                    save_results=CONFIG.detect.save_results)
     time_detect = time.time() - start
 
-     # cluster
+    # cluster
+    start=time.time()
     path_to_spike_train_clear = path.join(TMP_FOLDER, 'spike_train_cluster.npy')
     if os.path.exists(path_to_spike_train_clear):
         spike_train_clear = np.load(path_to_spike_train_clear)
-
+        tmp_loc = np.load(os.path.join(TMP_FOLDER,'tmp_loc.npy'))
     else:
-        spike_train_clear = cluster.run(score, spike_index_clear)
+        spike_train_clear, tmp_loc = cluster.run(score, spike_index_clear)
         logging.info('Saving clear spike train in {}'.format(path_to_spike_train_clear))
         np.save(path_to_spike_train_clear, spike_train_clear)
+    time_cluster = time.time() - start
 
     # get templates
+    start=time.time()
     path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
     path_to_clear_spike_train_after_merge = path.join(TMP_FOLDER, 'spike_train_cluster_after_merge.npy')
     if os.path.exists(path_to_clear_spike_train_after_merge):
@@ -140,16 +143,19 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         spike_train_clear = np.load(path_to_clear_spike_train_after_merge)
     else:
         templates, spike_train_clear = get_templates.run(spike_train_clear,
-                                                         path_to_templates)   
+                                                         tmp_loc)   
         logging.info('Saving templates in {}'.format(path_to_templates))
         np.save(path_to_templates, templates)
         np.save(path_to_clear_spike_train_after_merge, spike_train_clear)
+    time_templates = time.time() - start
 
 
     print (templates.shape, spike_train_clear.shape)
     # run deconvolution
+    start=time.time()
     spike_train, templates = deconvolute.run(spike_index_all, templates,
                                              output_directory=output_dir)
+    time_deconvolution = time.time() - start
 
     # save templates
     path_to_templates = path.join(TMP_FOLDER, 'templates.npy')

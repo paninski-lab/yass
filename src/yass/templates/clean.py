@@ -84,7 +84,9 @@ def clean_up_templates(templates, weights, spike_train,
     idx_good_templates = np.where(~np.logical_or(
         np.logical_or(too_spread, uncentered), too_small))[0]
 
-    spike_train2 = np.zeros((0, 3), 'int32')
+    # Cat: don't have soft assignments any longer
+    #spike_train2 = np.zeros((0, 3), 'int32')
+    spike_train2 = np.zeros((0, 2), 'int32')
     for j, k in enumerate(idx_good_templates):
         idx_k = np.where(spike_train[:, 1] == k)[0]
         temp = np.copy(spike_train[idx_k])
@@ -92,7 +94,6 @@ def clean_up_templates(templates, weights, spike_train,
         spike_train2 = np.vstack((spike_train2, temp))
 
     templates = templates[:, :, idx_good_templates]
-    #weights = weights[idx_good_templates]
+    weights = weights[idx_good_templates]
 
-    #return templates, weights, spike_train2, idx_good_templates
-    return templates, spike_train2, idx_good_templates
+    return templates, weights, spike_train2, idx_good_templates

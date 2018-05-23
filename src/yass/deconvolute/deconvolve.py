@@ -149,15 +149,22 @@ def deconvolve_new_allcores_updated(
     clear_spiketimes_unique = np.int32(clear_spiketimes_unique)
 
     # ***** REMOVING CLEAR SPIKES *********
-    window = 30
+    window = 20
     recordings_copy = recordings.copy()
 
     for p in range(len(clear_spiketimes_unique)):
         # Load correct templates_shifted - but only chunk in centre
+        #print shifted_templates.shape
+        #print shifted_templates[
+        #    clear_spiketimes_unique[p, 1], :, :,
+        #    principal_channels[
+        #        clear_spiketimes_unique[p, 1]]].shape
+                
+                
         templates_shifted = shifted_templates[
             clear_spiketimes_unique[p, 1], :, :,
             principal_channels[
-                clear_spiketimes_unique[p, 1]]][:, 30-window:30+window+1]
+                clear_spiketimes_unique[p, 1]]][:, :window*2+1]
 
         # Select times and expand into window
         times = (clear_spiketimes_unique[p, 0, np.newaxis] +
@@ -168,7 +175,7 @@ def deconvolve_new_allcores_updated(
             p, 1]]]
 
         # Select X number of recoding chunks that are time_shifted
-        # Cat: try to pythonize this step
+        # Cat: TODO pythonize this step
         recording_chunks = []
         for time_ in times:
             recording_chunks.append(recording[
@@ -177,6 +184,7 @@ def deconvolve_new_allcores_updated(
         recording_chunks = np.array(recording_chunks)
 
         # Dot product of shifted recording chunks and shifted raw data
+        #print recording_chunks.shape, templates_shifted.shape
         dot_product = np.matmul(templates_shifted, recording_chunks.T)
         index = np.unravel_index(dot_product.argmax(), dot_product.shape)
 
@@ -186,7 +194,7 @@ def deconvolve_new_allcores_updated(
             buffer_size + time_ + index[1] - 2*(R2 + n_explore) +
             window + 1 - data_start,
             :] -= shifted_templates[clear_spiketimes_unique[p, 1],
-                                    index[0], 30 - window:30 + window + 1]
+                                    index[0], : window*2 + 1]
 
     # Save spike_cleared recordings into recordings
     recordings = recordings_copy

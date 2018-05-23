@@ -109,11 +109,13 @@ def run(scores,
             n_mad_chans = 3
             n_max_chans = 3
 
-            spike_train = run_cluster_features(spike_index_clear, n_dim_pca, 
+            spike_train, tmp_loc = run_cluster_features(spike_index_clear, n_dim_pca, 
                                        wf_start, wf_end, n_mad_chans, 
                                        n_max_chans, CONFIG, output_directory)
             
             np.save(fname,spike_train)
+            np.save(os.path.join(CONFIG.data.root_folder, 
+                              output_directory,'tmp_loc.npy'), tmp_loc)
             
     # Cat: 2 previous methods for featurization
     # eventually need to comment out / delete
@@ -189,4 +191,4 @@ def run(scores,
     logger.info("\tmasking:\t{0} seconds".format(Time['m']))
     logger.info("\tclustering:\t{0} seconds".format(Time['s']))
 
-    return spike_train #, tmp_loc, vbParam
+    return spike_train, tmp_loc #, vbParam
