@@ -48,6 +48,8 @@ def clean_up_templates(templates, weights, spike_train,
     idx_good_templates: np.array
         index of which templates are kept
     """
+    #print tmp_loc
+    
     # get size
     n_channels, temporal_size, n_templates = templates.shape
 
@@ -90,6 +92,7 @@ def clean_up_templates(templates, weights, spike_train,
         spike_train2 = np.vstack((spike_train2, temp))
 
     templates = templates[:, :, idx_good_templates]
-    weights = weights[idx_good_templates]
+    #weights = weights[idx_good_templates]
 
-    return templates, weights, spike_train2, idx_good_templates
+    #return templates, weights, spike_train2, idx_good_templates
+    return templates, spike_train2, idx_good_templates

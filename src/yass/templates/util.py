@@ -113,20 +113,25 @@ def get_templates_parallel(spike_train,
                 n_channels, buffer_size, standardized_filename)
             res.append(temp)
 
-    print " res: ", res[0].shape
+    #print " res: ", res[0][0].shape
     print len(res)
-    # Reconstruct templates from parallel proecessing
+    
+    # reconstruct templates without weights; 
     print("... reconstructing templates")
     res0 = np.zeros(res[0][0].shape)
     res1 = np.zeros(res[0][1].shape)
     for k in range(len(res)):
+        #print res[k].shape
         res0 += res[k][0]
         res1 += res[k][1]
 
     print("... dividing templates by weights")
     templates = res0
+    print templates.shape
+    #quit()
     weights = res1
     weights[weights == 0] = 1
+    
     templates = templates / weights[np.newaxis, np.newaxis, :]
 
     return templates, weights
@@ -228,14 +233,9 @@ def compute_weighted_templates_parallel(data_in, spike_train, spike_size,
 
     # Compute search time
     spike_time = spike_train[:, 0]
-    print spike_train
     spike_train = spike_train[np.logical_and(spike_time >= data_start,
                                              spike_time < data_end)]
-    
-    print spike_train
-    print data_start, data_end, offset
-    spike_train = spike_train - data_start + offset
-    print spike_train.shape
+    spike_train[:, 0] = spike_train[:, 0] - data_start + offset
 
     # calculate weight templates
     weighted_templates = np.zeros(
@@ -250,15 +250,95 @@ def compute_weighted_templates_parallel(data_in, spike_train, spike_size,
                 recording[spt[:, [0]].astype('int32')
                           + np.arange(-spike_size, spike_size + 1)],
                 axis=0)
+            #weights[k] = np.sum(spt[:, 2])
+            weights[k] = spt[:, 0].shape[0]
+            weighted_templates[k] *= weights[k]
+
+    weighted_templates = np.transpose(weighted_templates, (2, 1, 0))
+    # print (weighted_templates.shape, weights.shape)
+
+    return weighted_templates, weights
+
+
+def compute_templates_parallel(data_in, spike_train, spike_size,
+                                        n_templates, n_channels, buffer_size,
+                                        standardized_filename):
+
+    idx_list = data_in[0]
+
+    # prPurple("Processing chunk: "+str(chunk_idx))
+
+    # New indexes
+    idx_start = idx_list[0]
+    idx_stop = idx_list[1]
+    idx_local = idx_list[2]
+
+    data_start = idx_start
+    data_end = idx_stop
+    offset = idx_local
+
+    # ***** LOAD RAW RECORDING *****
+    with open(standardized_filename, "rb") as fin:
+        if data_start == 0:
+            # Seek position and read N bytes
+            recordings_1D = np.fromfile(
+                fin,
+                dtype='float32',
+                count=(data_end + buffer_size) * n_channels)
+            recordings_1D = np.hstack((np.zeros(
+                buffer_size * n_channels, dtype='float32'), recordings_1D))
+        else:
+            fin.seek((data_start - buffer_size) * 4 * n_channels, os.SEEK_SET)
+            recordings_1D = np.fromfile(
+                fin,
+                dtype='float32',
+                count=((data_end - data_start + buffer_size * 2) * n_channels))
+
+        if len(recordings_1D) != (
+              (data_end - data_start + buffer_size * 2) * n_channels):
+            recordings_1D = np.hstack((recordings_1D,
+                                       np.zeros(
+                                           buffer_size * n_channels,
+                                           dtype='float32')))
+
+    fin.close()
+
+    # Convert to 2D array
+    recording = recordings_1D.reshape(-1, n_channels)
+
+    # Compute search time
+    spike_time = spike_train[:, 0]
+    print spike_train
+    spike_train = spike_train[np.logical_and(spike_time >= data_start,
+                                             spike_time < data_end)]
+    
+    print spike_train
+    print data_start, data_end, offset
+    spike_train = spike_train - data_start + offset
+    print spike_train.shape
+
+    # calculate weight templates
+    templates = np.zeros(
+        (n_templates, 2 * spike_size + 1, n_channels), dtype=np.float32)
+    #weights = np.zeros(n_templates)
+
+    for k in range(n_templates):
+        spt = spike_train[spike_train[:, 1] == k]
+        n_spikes = spt.shape[0]
+        if n_spikes > 0:
+            templates[k] = np.average(
+                recording[spt[:, [0]].astype('int32')
+                          + np.arange(-spike_size, spike_size + 1)],
+                axis=0)
                 #weights=spt[:, 2])
             #weights[k] = np.sum(spt[:, 2])
             #weighted_templates[k] *= weights[k]
 
-    weighted_templates = np.transpose(weighted_templates, (2, 1, 0))
+    templates = np.transpose(templates, (2, 1, 0))
 
     # print (weighted_templates.shape, weights.shape)
 
-    return weighted_templates #, weights
+    return templates #, weights
 
 
 def random_sample_spike_train_parallel(data_in, chunk_len, n_templates,

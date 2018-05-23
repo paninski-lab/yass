@@ -96,12 +96,16 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     neighbors = CONFIG.neigh_channels
     geometry = CONFIG.geom
 
-    print spike_train
-    quit()
     # make templates using parallel code
     templates, weights = get_templates_parallel(spike_train,
                                                 path_to_recordings,
                                                 output_directory, CONFIG)
+    np.save(os.path.join(CONFIG.data.root_folder, output_directory,
+                                        "templates_preclean.npy"), templates)
+    
+    np.save(os.path.join(CONFIG.data.root_folder, output_directory,
+                                        "weights_preclean.npy"), weights)
+    
 
     # Cat: this seems to be broken right now, gives error for align_templates
     # templates, weights = get_templates(spike_train, path_to_recordings,

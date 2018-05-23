@@ -122,7 +122,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                                    save_results=CONFIG.detect.save_results)
     time_detect = time.time() - start
 
-
      # cluster
     path_to_spike_train_clear = path.join(TMP_FOLDER, 'spike_train_cluster.npy')
     if os.path.exists(path_to_spike_train_clear):
