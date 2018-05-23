@@ -122,38 +122,48 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                                    save_results=CONFIG.detect.save_results)
     time_detect = time.time() - start
 
-    # cluster
-    start = time.time()
-    #spike_train_clear, tmp_loc, vbParam = cluster.run(
-    spike_train_clear = cluster.run(
-        score,
-        spike_index_clear,
-        output_directory=output_dir,
-        if_file_exists=CONFIG.cluster.if_file_exists,
-        save_results=CONFIG.cluster.save_results)
-    time_cluster = time.time() - start
 
+     # cluster
+    path_to_spike_train_clear = path.join(TMP_FOLDER, 'spike_train_cluster.npy')
+    if os.path.exists(path_to_spike_train_clear):
+        spike_train_clear = np.load(path_to_spike_train_clear)
 
+    else:
+        spike_train_clear = cluster.run(score, spike_index_clear)
+        logging.info('Saving clear spike train in {}'.format(path_to_spike_train_clear))
+        np.save(path_to_spike_train_clear, spike_train_clear)
 
     # get templates
-    start = time.time()
-    (templates,
-     spike_train_clear_after_templates,
-     groups,
-     idx_good_templates) = get_templates.run(
-        spike_train_clear, tmp_loc,
-        output_directory=output_dir,
-        if_file_exists=CONFIG.templates.if_file_exists,
-        save_results=CONFIG.templates.save_results)
-    time_templates = time.time() - start
+    path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
+    path_to_clear_spike_train_after_merge = path.join(TMP_FOLDER, 'spike_train_cluster_after_merge.npy')
+    if os.path.exists(path_to_clear_spike_train_after_merge):
+        templates = np.load(path_to_templates)
+        spike_train_clear = np.load(path_to_clear_spike_train_after_merge)
+    else:
+        templates, spike_train_clear = get_templates.run(spike_train_clear,
+                                                         path_to_templates)   
+        logging.info('Saving templates in {}'.format(path_to_templates))
+        np.save(path_to_templates, templates)
+        np.save(path_to_clear_spike_train_after_merge, spike_train_clear)
 
 
-
+    print (templates.shape, spike_train_clear.shape)
     # run deconvolution
-    start = time.time()
     spike_train, templates = deconvolute.run(spike_index_all, templates,
                                              output_directory=output_dir)
-    time_deconvolution = time.time() - start
+
+    # save templates
+    path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
+    logging.info('Saving templates in {}'.format(path_to_templates))
+    np.save(path_to_templates, templates)
+    
+    # save metadata in tmp
+    path_to_metadata = path.join(TMP_FOLDER, 'metadata.yaml')
+    logging.info('Saving metadata in {}'.format(path_to_metadata))
+    save_metadata(path_to_metadata)
+
+
+
 
     # save metadata in tmp
     path_to_metadata = path.join(TMP_FOLDER, 'metadata.yaml')

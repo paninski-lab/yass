@@ -719,7 +719,7 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
         
         for c in range(len(spike_train_clustered)):
             temp = np.zeros((spike_train_clustered[c].shape[0],2),'int32')
-            temp[:,0]=indexes[spike_train_clustered[c]]
+            temp[:,0]=spike_index_clear[:,0][indexes[spike_train_clustered[c]]]
             temp[:,1]=cluster_ctr
             spike_list.append(temp)
             cluster_ctr+=1

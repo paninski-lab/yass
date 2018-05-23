@@ -96,6 +96,8 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     neighbors = CONFIG.neigh_channels
     geometry = CONFIG.geom
 
+    print spike_train
+    quit()
     # make templates using parallel code
     templates, weights = get_templates_parallel(spike_train,
                                                 path_to_recordings,
