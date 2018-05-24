@@ -69,6 +69,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     CONFIG = read_config()
     OUTPUT_DTYPE = CONFIG.preprocess.dtype
+    PROCESSES = CONFIG.resources.processes
     TMP = os.path.join(CONFIG.data.root_folder, output_directory)
 
     logger.info('Output dtype for transformed data will be {}'
@@ -86,34 +87,40 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                   n_channels=CONFIG.recordings.n_channels,
                   data_order=CONFIG.recordings.order)
 
-    # optionally filter the data - generates filtered.bin
+    # filter and standarize
     if CONFIG.preprocess.apply_filter:
-        path, params = butterworth(path,
-                                   params['dtype'],
-                                   params['n_channels'],
-                                   params['data_order'],
-                                   CONFIG.preprocess.filter.low_pass_freq,
-                                   CONFIG.preprocess.filter.high_factor,
-                                   CONFIG.preprocess.filter.order,
-                                   CONFIG.recordings.sampling_rate,
-                                   CONFIG.resources.max_memory,
-                                   TMP,
-                                   OUTPUT_DTYPE,
-                                   output_filename='filtered.bin',
-                                   if_file_exists=if_file_exists)
+        filter_params = CONFIG.preprocess.filter
 
-    # standarize - generates standarized.bin
-    (standarized_path,
-     standarized_params) = standarize(path,
-                                      params['dtype'],
-                                      params['n_channels'],
-                                      params['data_order'],
-                                      CONFIG.recordings.sampling_rate,
-                                      CONFIG.resources.max_memory,
-                                      TMP,
-                                      OUTPUT_DTYPE,
-                                      output_filename='standarized.bin',
-                                      if_file_exists=if_file_exists)
+        (standarized_path,
+         standarized_params) = butterworth(path,
+                                           params['dtype'],
+                                           params['n_channels'],
+                                           params['data_order'],
+                                           filter_params.low_pass_freq,
+                                           filter_params.high_factor,
+                                           filter_params.order,
+                                           CONFIG.recordings.sampling_rate,
+                                           CONFIG.resources.max_memory,
+                                           TMP,
+                                           OUTPUT_DTYPE,
+                                           standarize=True,
+                                           output_filename='standarized.bin',
+                                           if_file_exists=if_file_exists,
+                                           processes=PROCESSES)
+    # just standarize
+    else:
+        (standarized_path,
+         standarized_params) = standarize(path,
+                                          params['dtype'],
+                                          params['n_channels'],
+                                          params['data_order'],
+                                          CONFIG.recordings.sampling_rate,
+                                          CONFIG.resources.max_memory,
+                                          TMP,
+                                          OUTPUT_DTYPE,
+                                          output_filename='standarized.bin',
+                                          if_file_exists=if_file_exists,
+                                          processes=PROCESSES)
 
     # TODO: this shoulnd't be done here, it would be better to compute
     # this when initializing the config object and then access it from there

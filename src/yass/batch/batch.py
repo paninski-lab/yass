@@ -1,14 +1,23 @@
+from functools import partial
 import time
-import numbers
 import logging
 import os.path
+from copy import copy
+import os
 
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
+
+from multiprocess import Pool, Manager
 import yaml
+from tqdm import tqdm
 
 from yass.util import function_path, human_readable_time
+from yass.batch import util
 from yass.batch.generator import IndexGenerator
 from yass.batch.reader import RecordingsReader
-from yass.batch.buffer import BufferGenerator
 
 
 class BatchProcessor(object):
@@ -50,6 +59,9 @@ class BatchProcessor(object):
         loader has limited indexing capabilities, see
         :class:`~yass.batch.BinaryReader` for details
 
+    show_progress_bar: bool, optional
+        Show progress bar when running operations, defaults to True
+
     Raises
     ------
     ValueError
@@ -59,22 +71,26 @@ class BatchProcessor(object):
 
     def __init__(self, path_to_recordings, dtype=None, n_channels=None,
                  data_order=None, max_memory='1GB', buffer_size=0,
-                 loader='python'):
+                 loader='memmap', show_progress_bar=True):
         self.data_order = data_order
         self.buffer_size = buffer_size
-        self.reader = RecordingsReader(path_to_recordings,
-                                       dtype, n_channels,
-                                       data_order,
-                                       loader=loader)
+        self.path_to_recordings = path_to_recordings
+        self.dtype = dtype
+        self.n_channels = n_channels
+        self.data_order = data_order
+        self.loader = loader
+        self.show_progress_bar = show_progress_bar
+
+        self.reader = RecordingsReader(self.path_to_recordings,
+                                       self.dtype, self.n_channels,
+                                       self.data_order,
+                                       loader=self.loader,
+                                       buffer_size=buffer_size,
+                                       return_data_index=True)
         self.indexer = IndexGenerator(self.reader.observations,
                                       self.reader.channels,
                                       self.reader.dtype,
                                       max_memory)
-
-        # data format is long since reader will return data in that format
-        self.buffer_generator = BufferGenerator(self.reader.observations,
-                                                data_shape='long',
-                                                buffer_size=buffer_size)
 
         self.logger = logging.getLogger(__name__)
 
@@ -100,13 +116,16 @@ class BatchProcessor(object):
                                               channels)
         if force_complete_channel_batch:
             for idx in indexes:
-                yield self.reader[idx]
+                subset, _ = self.reader[idx]
+                yield subset
         else:
             for idx in indexes:
                 channel_idx = idx[1]
-                yield self.reader[idx], channel_idx
+                subset, _ = self.reader[idx]
+                yield subset, channel_idx
 
-    def multi_channel(self, from_time=None, to_time=None, channels='all'):
+    def multi_channel(self, from_time=None, to_time=None, channels='all',
+                      return_data=True):
         """
         Generate indexes where each index has observations from more than
         one channel
@@ -127,22 +146,11 @@ class BatchProcessor(object):
         indexes = self.indexer.multi_channel(from_time, to_time, channels)
 
         for idx in indexes:
-            obs_idx = idx[0]
-            data_idx = (slice(self.buffer_size,
-                              obs_idx.stop - obs_idx.start + self.buffer_size,
-                              obs_idx.step), slice(None, None, None))
-
-            if self.buffer_size:
-                (idx_new,
-                 (buff_start, buff_end)) = (self.buffer_generator
-                                            .update_key_with_buffer(idx))
-                subset = self.reader[idx_new]
-                subset_buff = self.buffer_generator.add_buffer(subset,
-                                                               buff_start,
-                                                               buff_end)
-                yield subset_buff, data_idx, idx
+            if return_data:
+                subset, _ = self.reader[idx]
+                yield subset
             else:
-                yield self.reader[idx], data_idx, idx
+                yield idx
 
     def single_channel_apply(self, function, mode, output_path=None,
                              force_complete_channel_batch=True,
@@ -215,11 +223,11 @@ class BatchProcessor(object):
             raise ValueError('output_path is required in "disk" mode')
 
         if (mode == 'disk' and if_file_exists == 'abort' and
-           os.path.exists(output_path)):
+                os.path.exists(output_path)):
             raise ValueError('{} already exists'.format(output_path))
 
         if (mode == 'disk' and if_file_exists == 'skip' and
-           os.path.exists(output_path)):
+                os.path.exists(output_path)):
             # load params...
             path_to_yaml = output_path.replace('.bin', '.yaml')
 
@@ -270,10 +278,16 @@ class BatchProcessor(object):
         indexes = self.indexer.single_channel(force_complete_channel_batch,
                                               from_time, to_time,
                                               channels)
-        for i, idx in enumerate(indexes):
+        indexes = list(indexes)
+        iterator = enumerate(indexes)
+
+        if self.show_progress_bar:
+            iterator = tqdm(iterator, total=len(indexes))
+
+        for i, idx in iterator:
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
-            subset = self.reader[idx]
+            subset, _ = self.reader[idx]
 
             self.logger.debug('Executing function...')
 
@@ -285,26 +299,10 @@ class BatchProcessor(object):
             self.logger.debug('Writing to disk...')
             res.tofile(f)
 
-        dtype = str(res.dtype)
-
-        if channels == 'all':
-            n_channels = self.reader.channels
-        elif isinstance(channels, numbers.Integral):
-            n_channels = 1
-        else:
-            n_channels = len(channels)
-
         f.close()
 
-        # save yaml file with params
-        path_to_yaml = output_path.replace('.bin', '.yaml')
-
-        params = dict(dtype=dtype, n_channels=n_channels,
-                      data_order='channels')
-
-        with open(path_to_yaml, 'w') as f:
-            self.logger.debug('Saving params...')
-            yaml.dump(params, f)
+        params = util.make_metadata(channels, self.n_channels, str(res.dtype),
+                                    output_path)
 
         return output_path, params
 
@@ -315,12 +313,18 @@ class BatchProcessor(object):
         indexes = self.indexer.single_channel(force_complete_channel_batch,
                                               from_time, to_time,
                                               channels)
+        indexes = list(indexes)
+        iterator = enumerate(indexes)
+
+        if self.show_progress_bar:
+            iterator = tqdm(iterator, total=len(indexes))
+
         results = []
 
-        for i, idx in enumerate(indexes):
+        for i, idx in iterator:
             self.logger.debug('Processing channel {}...'.format(i))
             self.logger.debug('Reading batch...')
-            subset = self.reader[idx]
+            subset, _ = self.reader[idx]
 
             if cast_dtype is None:
                 res = function(subset, **kwargs)
@@ -336,7 +340,8 @@ class BatchProcessor(object):
                             output_path=None, from_time=None, to_time=None,
                             channels='all', if_file_exists='overwrite',
                             cast_dtype=None, pass_batch_info=False,
-                            pass_batch_results=False, **kwargs):
+                            pass_batch_results=False, processes=1,
+                            **kwargs):
         """
         Apply a function where each batch has observations from more than
         one channel
@@ -447,14 +452,14 @@ class BatchProcessor(object):
             raise ValueError('output_path is required in "disk" mode')
 
         if (mode == 'disk' and if_file_exists == 'abort' and
-           os.path.exists(output_path)):
+                os.path.exists(output_path)):
             raise ValueError('{} already exists'.format(output_path))
 
         self.logger.info('Applying function {}...'
                          .format(function_path(function)))
 
         if (mode == 'disk' and if_file_exists == 'skip' and
-           os.path.exists(output_path)):
+                os.path.exists(output_path)):
             # load params...
             path_to_yaml = output_path.replace('.bin', '.yaml')
 
@@ -471,7 +476,12 @@ class BatchProcessor(object):
             return output_path, params
 
         if mode == 'disk':
-            fn = self._multi_channel_apply_disk
+
+            if processes == 1:
+                fn = self._multi_channel_apply_disk
+            else:
+                fn = partial(self._multi_channel_apply_disk_parallel,
+                             processes=processes)
 
             start = time.time()
             res = fn(function, cleanup_function, output_path, from_time,
@@ -506,48 +516,121 @@ class BatchProcessor(object):
 
         f = open(output_path, 'wb')
 
-        data = self.multi_channel(from_time, to_time, channels)
+        output_path = Path(output_path)
 
-        for i, (subset, idx_local, idx) in enumerate(data):
+        data = self.multi_channel(from_time, to_time, channels,
+                                  return_data=False)
+        n_batches = self.indexer.n_batches(from_time, to_time, channels)
 
-            self.logger.debug('Processing batch {}...'.format(i))
+        iterator = enumerate(data)
 
-            kwargs_other = dict()
+        if self.show_progress_bar:
+            iterator = tqdm(iterator, total=n_batches)
 
-            if pass_batch_info:
-                kwargs_other['idx_local'] = idx_local
-                kwargs_other['idx'] = idx
-
-            kwargs.update(kwargs_other)
-
-            res = function(subset, **kwargs)
-
-            if cast_dtype is not None:
-                res = res.astype(cast_dtype)
-
-            if cleanup_function:
-                res = cleanup_function(res, idx_local, idx, self.buffer_size)
-
+        for i, idx in iterator:
+            res = util.batch_runner((i, idx), function, self.reader,
+                                    pass_batch_info, cast_dtype,
+                                    kwargs, cleanup_function, self.buffer_size,
+                                    save_chunks=False)
             res.tofile(f)
-
-        dtype = str(res.dtype)
 
         f.close()
 
-        if channels == 'all':
-            n_channels = self.reader.channels
-        elif isinstance(channels, numbers.Integral):
-            n_channels = 1
+        params = util.make_metadata(channels, self.n_channels, str(res.dtype),
+                                    output_path)
+
+        return output_path, params
+
+    def _multi_channel_apply_disk_parallel(self, function, cleanup_function,
+                                           output_path, from_time, to_time,
+                                           channels, cast_dtype,
+                                           pass_batch_info,
+                                           pass_batch_results,
+                                           processes, **kwargs):
+
+        self.logger.debug('Starting parallel operation...')
+
+        if pass_batch_results:
+            raise NotImplementedError("pass_batch_results is not "
+                                      "implemented on 'disk' mode")
+
+        # need to convert to a list, oherwise cannot be pickled
+        data = list(self.multi_channel(from_time, to_time, channels,
+                    return_data=False))
+        n_batches = self.indexer.n_batches(from_time, to_time, channels)
+
+        self.logger.info('Data will be splitted in %s batches', n_batches)
+
+        output_path = Path(output_path)
+
+        # create local variables to avoid pickling problems
+        _path_to_recordings = copy(self.path_to_recordings)
+        _dtype = copy(self.dtype)
+        _n_channels = copy(self.n_channels)
+        _data_order = copy(self.data_order)
+        _loader = copy(self.loader)
+        _buffer_size = copy(self.buffer_size)
+
+        reader = partial(RecordingsReader,
+                         path_to_recordings=_path_to_recordings,
+                         dtype=_dtype,
+                         n_channels=_n_channels,
+                         data_order=_data_order,
+                         loader=_loader,
+                         return_data_index=True)
+
+        m = Manager()
+        mapping = m.dict()
+        next_to_write = m.Value('i', 0)
+
+        def parallel_runner(element):
+            i, _ = element
+
+            res = util.batch_runner(element, function, reader,
+                                    pass_batch_info, cast_dtype,
+                                    kwargs, cleanup_function, _buffer_size,
+                                    save_chunks=False, output_path=output_path)
+
+            if i == 0:
+                mapping['dtype'] = str(res.dtype)
+
+            while True:
+                if next_to_write.value == i:
+                    with open(str(output_path), 'wb' if i == 0 else 'ab') as f:
+                        res.tofile(f)
+
+                    next_to_write.value += 1
+                    break
+
+        # run jobs
+        self.logger.debug('Creating processes pool...')
+
+        p = Pool(processes)
+        res = p.map_async(parallel_runner, enumerate(data))
+
+        finished = 0
+
+        if self.show_progress_bar:
+            pbar = tqdm(total=n_batches)
+
+        if self.show_progress_bar:
+
+            while True:
+                if next_to_write.value > finished:
+                    update = next_to_write.value - finished
+                    pbar.update(update)
+                    finished = next_to_write.value
+
+                if next_to_write.value == n_batches:
+                    break
+
+            pbar.close()
         else:
-            n_channels = len(channels)
+            res.get()
 
-        # save yaml file with params
-        path_to_yaml = output_path.replace('.bin', '.yaml')
-
-        params = dict(dtype=dtype, n_channels=n_channels, data_order='samples')
-
-        with open(path_to_yaml, 'w') as f:
-            yaml.dump(params, f)
+        # save metadata
+        params = util.make_metadata(channels, self.n_channels,
+                                    mapping['dtype'], output_path)
 
         return output_path, params
 
@@ -555,38 +638,29 @@ class BatchProcessor(object):
                                     from_time, to_time, channels, cast_dtype,
                                     pass_batch_info, pass_batch_results,
                                     **kwargs):
-
-        data = self.multi_channel(from_time, to_time, channels)
+        data = self.multi_channel(from_time, to_time, channels,
+                                  return_data=False)
+        n_batches = self.indexer.n_batches(from_time, to_time, channels)
 
         results = []
-        previous_batch = None
 
-        for i, (subset, idx_local, idx) in enumerate(data):
+        if pass_batch_results:
+            kwargs['previous_batch'] = None
 
-            self.logger.debug('Processing batch {}...'.format(i))
+        iterator = enumerate(data)
 
-            kwargs_other = dict()
+        if self.show_progress_bar:
+            iterator = tqdm(iterator, total=n_batches)
 
-            if pass_batch_info:
-                kwargs_other['idx_local'] = idx_local
-                kwargs_other['idx'] = idx
-
-            if pass_batch_results:
-                kwargs_other['previous_batch'] = previous_batch
-
-            kwargs.update(kwargs_other)
-
-            res = function(subset, **kwargs)
-
-            if cast_dtype is not None:
-                res = res.astype(cast_dtype)
-
-            if cleanup_function:
-                res = cleanup_function(res, idx_local, idx, self.buffer_size)
+        for i, idx in iterator:
+            res = util.batch_runner((i, idx), function, self.reader,
+                                    pass_batch_info, cast_dtype,
+                                    kwargs, cleanup_function, self.buffer_size,
+                                    save_chunks=False)
 
             if pass_batch_results:
-                previous_batch = res
+                kwargs['previous_batch'] = res
             else:
                 results.append(res)
 
-        return previous_batch if pass_batch_results else results
+        return res if pass_batch_results else results

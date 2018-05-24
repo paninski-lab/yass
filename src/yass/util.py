@@ -157,8 +157,12 @@ def function_path(fn):
     Returns the name of the function along with the module containing it:
     module.submodule.name
     """
-    module = inspect.getmodule(fn).__name__
-    return '{}.{}'.format(module, fn.__name__)
+    module = inspect.getmodule(fn)
+
+    if module is not None:
+        return '{}.{}'.format(module, fn.__name__)
+    else:
+        return fn.__name__
 
 
 def map_parameters_in_fn_call(args, kwargs, func):
