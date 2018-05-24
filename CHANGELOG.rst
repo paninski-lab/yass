@@ -1,6 +1,10 @@
 Changelog
 =========
 
+0.10dev
+-------
+
+
 0.9 (2018-05-24)
 -----------------
 * Added parallelization to batch processor
