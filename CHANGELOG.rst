@@ -1,8 +1,8 @@
 Changelog
 =========
 
-0.9dev
-------
+0.9 (2018-05-24)
+-----------------
 * Added parallelization to batch processor
 * Preprocess step now runs in parallel
 * Filtering and standarization running in one step to avoid I/O overhead
