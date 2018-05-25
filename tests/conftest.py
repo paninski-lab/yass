@@ -15,6 +15,9 @@ def data_info():
     d['n_features'] = 3
     d['n_channels'] = 10
     d['observations'] = 10000
+    d['data_order'] = 'samples'
+    d['dtype'] = 'int16'
+    d['sampling_frequency'] = 20000
 
     return d
 

@@ -43,7 +43,8 @@ def test_filter_does_not_run_if_files_already_exist(path_to_data,
     preprocess.butterworth(path_to_data, dtype='int16',
                            n_channels=data_info['n_channels'],
                            data_order='samples', low_frequency=300,
-                           high_factor=0.1, order=3, sampling_frequency=20000,
+                           high_factor=0.1, order=3,
+                           sampling_frequency=data_info['sampling_frequency'],
                            max_memory='1GB', output_path=path_to_tmp,
                            output_dtype='float32', processes=1)
 
@@ -52,15 +53,32 @@ def test_filter_does_not_run_if_files_already_exist(path_to_data,
     preprocess.butterworth(path_to_data, dtype='int16',
                            n_channels=data_info['n_channels'],
                            data_order='samples', low_frequency=300,
-                           high_factor=0.1, order=3, sampling_frequency=20000,
+                           high_factor=0.1, order=3,
+                           sampling_frequency=data_info['sampling_frequency'],
                            max_memory='1GB', output_path=path_to_tmp,
                            output_dtype='float32', processes=1)
 
     assert not preprocess.butterworth.executed
 
 
-def test_standarize_does_not_run_if_files_already_exist():
-    pass
+def test_standarize_does_not_run_if_files_already_exist(path_to_data,
+                                                        data_info,
+                                                        path_to_tmp):
+    make_tmp()
+
+    preprocess.standarize(path_to_data, data_info['dtype'],
+                          data_info['n_channels'], data_info['data_order'],
+                          data_info['sampling_frequency'], max_memory='1GB',
+                          output_path=path_to_tmp, output_dtype='float32')
+
+    assert preprocess.standarize.executed
+
+    preprocess.standarize(path_to_data, data_info['dtype'],
+                          data_info['n_channels'], data_info['data_order'],
+                          data_info['sampling_frequency'], max_memory='1GB',
+                          output_path=path_to_tmp, output_dtype='float32')
+
+    assert not preprocess.standarize.executed
 
 
 def test_whiten_does_not_run_if_files_already_exist():
