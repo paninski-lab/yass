@@ -20,7 +20,7 @@ from yass.util import load_yaml
 import yass
 from yass import preprocess
 
-from util import clean_tmp
+from util import clean_tmp, make_tmp
 from util import ReferenceTesting
 
 
@@ -96,6 +96,36 @@ def test_can_compute_whiten_matrix(data, path_to_geometry):
     channel_index = make_channel_index(neighbors, geometry)
 
     whiten._matrix(data, channel_index, spike_size)
+
+
+def test_filter_does_not_run_if_files_already_exist(path_to_data,
+                                                    path_to_tmp):
+
+    make_tmp()
+
+    preprocess.butterworth(path_to_data, dtype='int16', n_channels=n_channels,
+                           data_order='samples', low_frequency=300,
+                           high_factor=0.1, order=3, sampling_frequency=20000,
+                           max_memory='1GB', output_path=path_to_tmp,
+                           output_dtype='float32', processes=1)
+
+    assert preprocess.butterworth.executed
+
+    preprocess.butterworth(path_to_data, dtype='int16', n_channels=n_channels,
+                           data_order='samples', low_frequency=300,
+                           high_factor=0.1, order=3, sampling_frequency=20000,
+                           max_memory='1GB', output_path=path_to_tmp,
+                           output_dtype='float32', processes=1)
+
+    assert not preprocess.butterworth.executed
+
+
+def test_standarize_does_not_run_if_files_already_exist():
+    pass
+
+
+def test_whiten_does_not_run_if_files_already_exist():
+    pass
 
 
 def test_can_preprocess(path_to_threshold_config):

@@ -9,6 +9,19 @@ def path_to_tests():
 
 
 @pytest.fixture(scope='session')
+def path_to_tmp():
+    path = os.path.dirname(os.path.realpath(__file__))
+    return os.path.join(path, 'data/tmp/')
+
+
+@pytest.fixture(scope='session')
+def path_to_data():
+    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                        'data/neuropixel.bin')
+    return path
+
+
+@pytest.fixture(scope='session')
 def path_to_examples():
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                         '../examples')
