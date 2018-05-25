@@ -81,10 +81,6 @@ def test_standarize_does_not_run_if_files_already_exist(path_to_data,
     assert not preprocess.standarize.executed
 
 
-def test_whiten_does_not_run_if_files_already_exist():
-    pass
-
-
 def test_can_preprocess(path_to_threshold_config):
     yass.set_config(path_to_threshold_config)
     (standarized_path, standarized_params, channel_index,
