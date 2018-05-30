@@ -114,7 +114,6 @@ def test_can_preprocess_in_parallel(path_to_threshold_config):
      whiten_filter) = preprocess.run()
 
 
-@pytest.mark.xfail
 def test_preprocess_returns_expected_results(path_to_threshold_config,
                                              path_to_output_reference):
     yass.set_config(path_to_threshold_config)

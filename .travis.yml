@@ -14,5 +14,6 @@ install:
 script:
   - pip install tensorflow
   - pytest tests/test_detect.py
+  - pytest tests/test_preprocess.py
 
 after_success: coveralls
