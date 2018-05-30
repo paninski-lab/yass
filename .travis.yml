@@ -13,10 +13,10 @@ install:
 
 script:
   - pip install tensorflow
-  # - pytest tests/test_detect.py
-  # - pytest tests/test_preprocess.py
-  # - pytest tests/test_cluster.py
-  # - pytest tests/test_templates.py
+  - pytest tests/test_detect.py
+  - pytest tests/test_preprocess.py
+  - pytest tests/test_cluster.py
+  - pytest tests/test_templates.py
   - pytest tests/test_deconvolution.py
 
 after_success: coveralls
