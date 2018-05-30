@@ -2,7 +2,7 @@ language: python
 
 python:
   - 2.7
-  - 3.5
+  - 3.5.5
 
 sudo: required
 
@@ -13,6 +13,8 @@ install:
 
 script:
   - pip install tensorflow
-  - pytest tests/test_detect.py
+  - make test
+  - make integration-test
+  - make docs
 
 after_success: coveralls
