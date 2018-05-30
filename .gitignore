@@ -9,6 +9,9 @@ tmp/
 # documentation build
 doc/_build/
 
+# sublime text files
+*.sublime*
+
 #### joe made this: http://goel.io/joe
 
 #### python ####
