@@ -57,7 +57,6 @@ def test_can_detect_with_nnet(path_to_nnet_config):
     clean_tmp()
 
 
-@pytest.mark.xfail
 def test_nnet_detector_returns_expected_results(path_to_nnet_config,
                                                 path_to_output_reference):
     yass.set_config(path_to_nnet_config)
