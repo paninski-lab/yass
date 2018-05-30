@@ -13,8 +13,6 @@ install:
 
 script:
   - pip install tensorflow
-  - make test
-  - make integration-test
-  - make docs
+  - pytest tests/test_detect.py
 
 after_success: coveralls
