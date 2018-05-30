@@ -37,7 +37,8 @@ def test_threshold_detector_returns_expected_results(path_to_threshold_config,
     path_to_collision = path.join(path_to_output_reference,
                                   'detect_threshold_collision.npy')
 
-    ReferenceTesting.assert_array_almost_equal(scores, path_to_scores)
+    ReferenceTesting.assert_array_almost_equal(scores, path_to_scores,
+                                               decimal=4)
     ReferenceTesting.assert_array_equal(clear, path_to_clear)
     ReferenceTesting.assert_array_equal(collision, path_to_collision)
 
