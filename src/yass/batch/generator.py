@@ -249,3 +249,25 @@ class IndexGenerator(object):
             else:
                 end = start + obs_channel_residual
                 yield (slice(start, end), channel_indexes)
+
+    def n_batches(self, from_time, to_time, channels):
+        from_time = from_time if from_time is not None else 0
+        to_time = to_time if to_time is not None else self.n_observations
+
+        if channels == 'all':
+            channels_total = self.n_channels
+        elif isinstance(channels, numbers.Integral):
+            channels_total = 1
+        else:
+            channels_total = len(channels)
+
+        obs_channel_batch = int(floor(self.max_memory /
+                                      (channels_total*self.itemsize)))
+        obs_batch = obs_channel_batch * channels_total
+
+        t_total = to_time - from_time
+        obs_total = t_total * channels_total
+
+        n_batches = int(ceil(obs_total / obs_batch))
+
+        return n_batches

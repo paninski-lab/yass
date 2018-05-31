@@ -2,7 +2,7 @@
 process.run tests, checking that the pipeline finishes without errors for
 several configuration files
 """
-
+from os import path
 import os
 
 import pytest
@@ -14,6 +14,7 @@ from yass import cluster
 from yass import reset_config
 
 from util import clean_tmp
+from util import ReferenceTesting
 
 
 def teardown_function(function):
@@ -41,6 +42,35 @@ def test_cluster(path_to_config):
                                    whiten_filter)
 
     cluster.run(score, spike_index_clear)
+
+    clean_tmp()
+
+
+@pytest.mark.xfail
+def test_cluster_returns_expected_results(path_to_config,
+                                          path_to_data_folder):
+    yass.set_config(path_to_config)
+
+    (standarized_path, standarized_params, channel_index,
+     whiten_filter) = preprocess.run()
+
+    (score, spike_index_clear,
+     spike_index_all) = detect.run(standarized_path,
+                                   standarized_params,
+                                   channel_index,
+                                   whiten_filter)
+
+    spike_train, tmp_loc, vbParam = cluster.run(score, spike_index_clear)
+
+    path_to_spike_train = path.join(path_to_data_folder,
+                                    'output_reference',
+                                    'cluster_spike_train.npy')
+    path_to_tmp_loc = path.join(path_to_data_folder,
+                                'output_reference',
+                                'cluster_tmp_loc.npy')
+
+    ReferenceTesting.assert_array_equal(spike_train, path_to_spike_train)
+    ReferenceTesting.assert_array_equal(tmp_loc, path_to_tmp_loc)
 
     clean_tmp()
 

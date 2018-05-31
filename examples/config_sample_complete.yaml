@@ -21,6 +21,9 @@ resources:
   # maximum memory per batch allowed (only relevant for detection step
   # which uses tensorflow GPU is available)
   max_memory_gpu: 1GB
+  # number of processes to use for operations that support parallel execution,
+  # 'max' will use all cores, if you as an int, it will use that many cores
+  processes: max
 
 recordings:
   # precision of the recording – must be a valid numpy dtype

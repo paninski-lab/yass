@@ -1,3 +1,4 @@
+from os import path
 import os
 
 import numpy as np
@@ -13,13 +14,15 @@ from yass.geometry import (parse, find_channel_neighbors,
                            make_channel_index)
 
 from yass.threshold import detect
-from yass.preprocess.standarize import _standarize
+from yass.preprocess.standarize import _standard_deviation
 from yass.util import load_yaml
 
 import yass
 from yass import preprocess
 
 from util import clean_tmp
+from util import ReferenceTesting
+
 
 spike_sizeMS = 1
 srate = 30000
@@ -47,13 +50,23 @@ def path_to_geometry():
     return path
 
 
+def teardown_function(function):
+    clean_tmp()
+
+
 def test_can_apply_butterworth_filter(data):
     _butterworth(data[:, 0], low_frequency=300, high_factor=0.1,
                  order=3, sampling_frequency=20000)
 
 
-def test_can_standarize(data):
-    _standarize(data, srate)
+def test_standard_deviation_returns_as_expected(path_to_output_reference,
+                                                data):
+    sd = _standard_deviation(data, 20000)
+
+    path_to_sd = path.join(path_to_output_reference,
+                           'preprocess_sd.npy')
+
+    ReferenceTesting.assert_array_almost_equal(sd, path_to_sd)
 
 
 def test_can_parse(path_to_geometry):
@@ -89,6 +102,42 @@ def test_can_preprocess(path_to_threshold_config):
     yass.set_config(path_to_threshold_config)
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
+
+
+def test_can_preprocess_in_parallel(path_to_threshold_config):
+    CONFIG = load_yaml(path_to_threshold_config)
+    CONFIG['resources']['processes'] = 'max'
+
+    yass.set_config(CONFIG)
+
+    (standarized_path, standarized_params, channel_index,
+     whiten_filter) = preprocess.run()
+
+
+@pytest.mark.xfail
+def test_preprocess_returns_expected_results(path_to_threshold_config,
+                                             path_to_output_reference):
+    yass.set_config(path_to_threshold_config)
+    (standarized_path, standarized_params, channel_index,
+     whiten_filter) = preprocess.run()
+
+    # load standarized data
+    standarized = np.fromfile(standarized_path,
+                              dtype=standarized_params['dtype'])
+
+    path_to_standarized = path.join(path_to_output_reference,
+                                    'preprocess_standarized.npy')
+    path_to_whiten_filter = path.join(path_to_output_reference,
+                                      'preprocess_whiten_filter.npy')
+    path_to_channel_index = path.join(path_to_output_reference,
+                                      'preprocess_channel_index.npy')
+
+    ReferenceTesting.assert_array_almost_equal(standarized,
+                                               path_to_standarized)
+    ReferenceTesting.assert_array_almost_equal(whiten_filter,
+                                               path_to_whiten_filter)
+    ReferenceTesting.assert_array_equal(channel_index, path_to_channel_index)
+
     clean_tmp()
 
 
@@ -100,4 +149,3 @@ def test_can_preprocess_without_filtering(path_to_threshold_config):
 
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
-    clean_tmp()

@@ -1,5 +1,5 @@
 # for running tests
-pytest>=3.5
+pytest>=3.5.0
 pytest-flake8
 pytest-cov
 

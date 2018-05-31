@@ -28,10 +28,10 @@ long_data.tofile(path_to_long)
 # load the files using the readers, they are agnostic on the data shape
 # and will behave exactly the same
 reader_wide = RecordingsReader(path_to_wide, dtype='float64',
-                               n_channels=50, data_format='wide')
+                               n_channels=50, data_order='channels')
 
 reader_long = RecordingsReader(path_to_long, dtype='float64',
-                               n_channels=50, data_format='long')
+                               n_channels=50, data_order='samples')
 
 
 reader_wide.shape, reader_long.shape
