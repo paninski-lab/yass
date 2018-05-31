@@ -2,6 +2,7 @@
 Built-in pipeline
 """
 import time
+import coloredlogs
 import logging
 import logging.config
 import shutil
@@ -94,8 +95,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # configure logging
     logging.config.dictConfig(logging_config)
 
-    # instantiate logger
+    # instantiate logger and start coloredlogs
     logger = logging.getLogger(__name__)
+    coloredlogs.install(logger=logger)
 
     # print yass version
     logger.info('YASS version: %s', yass.__version__)

@@ -1,8 +1,11 @@
 """Script to run pipeline and save results at every step
 """
+import numpy as np
 import logging
 import yass
 from yass import preprocess, detect, cluster, templates, deconvolute
+
+np.random.seed(0)
 
 # configure logging module to get useful information
 logging.basicConfig(level=logging.INFO)

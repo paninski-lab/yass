@@ -1,7 +1,9 @@
 data:
   root_folder: /Users/Edu/data/yass
-  recordings: ej49_data1_set1.bin
-  geometry: ej49_geometry1.txt
+  recordings: 7ch.bin
+  geometry: geometry.txt
+  # recordings: ej49_data1_set1.bin
+  # geometry: ej49_geometry1.txt
 
 resources:
   max_memory: 100MB
@@ -9,7 +11,7 @@ resources:
 recordings:
   dtype: int16
   sampling_rate: 20000
-  n_channels: 49
+  n_channels: 7 #49
   spatial_radius: 70
   spike_size_ms: 1
   order: samples
