@@ -363,7 +363,7 @@ def run_neural_network(standarized_path, standarized_params,
                          'program halted since the following files '
                          'already exist: {}'.format(message))
     elif if_file_exists == 'skip' and all(exists):
-        logger.warning('Skipped execution. All necessary files exist'
+        logger.warning('Skipped execution. All output files exist'
                        ', loading them...')
         scores = np.load(path_to_score)
         clear = np.load(path_to_spike_index_clear)

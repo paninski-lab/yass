@@ -560,7 +560,7 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
 
                 wrapper.executed = False
 
-                logging.warning('Skipped {} execution. All necessary files '
+                logging.warning('Skipped {} execution. All output files '
                                 'exist, loading them...'
                                 .format(function_path(func)))
 
