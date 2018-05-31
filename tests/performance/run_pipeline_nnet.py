@@ -22,14 +22,15 @@ yass.set_config('config_threshold_49.yaml')
  spike_index_all) = detect.run(standarized_path,
                                standarized_params,
                                channel_index,
-                               whiten_filter)
+                               whiten_filter,
+                               save_results=True)
 
 
-spike_train_clear, tmp_loc, vbParam = cluster.run(
-    score, spike_index_clear)
+(spike_train_clear,
+ tmp_loc, vbParam) = cluster.run(score, spike_index_clear, save_results=True)
 
 (templates_, spike_train,
- groups, idx_good_templates) = templates.run(
-    spike_train_clear, tmp_loc)
+ groups, idx_good_templates) = templates.run(spike_train_clear, tmp_loc,
+                                             save_results=True)
 
 spike_train = deconvolute.run(spike_index_all, templates_)

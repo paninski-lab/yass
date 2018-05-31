@@ -3,12 +3,17 @@ Detection pipeline
 """
 import logging
 import os.path
+import os
 from functools import reduce
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
 
 import numpy as np
 
 from yass import read_config, GPU_ENABLED
-from yass.batch import BatchProcessor, RecordingsReader
+from yass.batch import BatchProcessor
 from yass.threshold.detect import threshold
 from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
@@ -135,10 +140,12 @@ def run_threshold(standarized_path, standarized_params, channel_index,
 
     CONFIG = read_config()
 
+    folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+    folder.mkdir(exist_ok=True)
+
     # Set TMP_FOLDER to None if not save_results, this will disable
     # saving results in every function below
-    TMP_FOLDER = (os.path.join(CONFIG.data.root_folder, output_directory)
-                  if save_results else None)
+    TMP_FOLDER = (str(folder) if save_results else None)
 
     # files that will be saved if enable by the if_file_exists option
     filename_index_clear = 'spike_index_clear.npy'
