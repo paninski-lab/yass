@@ -257,7 +257,7 @@ def run_neural_network(standarized_path, standarized_params,
 
     if (if_file_exists == 'overwrite' or
         if_file_exists == 'abort' and not any(exists)
-       or if_file_exists == 'skip' and not all(exists)):
+            or if_file_exists == 'skip' and not all(exists)):
         max_memory = (CONFIG.resources.max_memory_gpu if GPU_ENABLED else
                       CONFIG.resources.max_memory)
 
@@ -363,8 +363,8 @@ def run_neural_network(standarized_path, standarized_params,
                          'program halted since the following files '
                          'already exist: {}'.format(message))
     elif if_file_exists == 'skip' and all(exists):
-        logger.info('Skipped execution. All necessary files exist'
-                    ', loading them...')
+        logger.warning('Skipped execution. All necessary files exist'
+                       ', loading them...')
         scores = np.load(path_to_score)
         clear = np.load(path_to_spike_index_clear)
         spikes_all = np.load(path_to_spike_index_all)
