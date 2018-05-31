@@ -1,4 +1,3 @@
-import pytest
 from os import path
 import yass
 from yass import preprocess
