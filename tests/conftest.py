@@ -38,6 +38,11 @@ def path_to_tests():
 
 
 @pytest.fixture(scope='session')
+def path_to_performance():
+    return os.path.join(path_to_tests(), 'performance/')
+
+
+@pytest.fixture(scope='session')
 def path_to_tmp():
     return os.path.join(path_to_tests(), 'data/tmp/')
 

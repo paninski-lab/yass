@@ -1,6 +1,5 @@
 """Script to run pipeline and save results at every step
 """
-
 import logging
 
 import yass
@@ -14,7 +13,7 @@ from yass import deconvolute
 logging.basicConfig(level=logging.INFO)
 
 # set yass configuration parameters
-yass.set_config('config_nnet.yaml')
+yass.set_config('config_threshold_49.yaml')
 
 (standarized_path, standarized_params, channel_index,
  whiten_filter) = preprocess.run()
