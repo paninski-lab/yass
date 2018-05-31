@@ -167,12 +167,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     logging.info('Saving copy of config: {} in {}'.format(config,
                                                           path_to_config_copy))
 
-    # save templates
-    # TODO: templates.run has now an option to save them, remove this...
-    path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
-    logging.info('Saving templates in {}'.format(path_to_templates))
-    np.save(path_to_templates, templates)
-
     path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
     np.save(path_to_spike_train, spike_train)
     logger.info('Spike train saved in: {}'.format(path_to_spike_train))
