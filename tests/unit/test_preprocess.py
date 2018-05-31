@@ -1,7 +1,6 @@
 from os import path
 
 import numpy as np
-import pytest
 
 
 from yass.preprocess.filter import _butterworth
