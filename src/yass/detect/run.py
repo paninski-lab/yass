@@ -201,10 +201,17 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     # apply whitening to scores
     scores_clear = whiten.score(pca_scores, clear[:, 1], whiten_filter)
 
+    # TODO: this shouldn't be here
+    # transform scores to location + shape feature space
+    if CONFIG.cluster.method == 'location':
+        scores = get_locations_features_threshold(scores_clear, clear[:, 1],
+                                                  channel_index,
+                                                  CONFIG.geom)
+
     if TMP_FOLDER is not None:
         # saves whiten scores
         path_to_scores = os.path.join(TMP_FOLDER, filename_scores_clear)
-        save_numpy_object(scores_clear, path_to_scores, if_file_exists,
+        save_numpy_object(scores, path_to_scores, if_file_exists,
                           name='scores')
 
         # save spike_index_all (same as spike_index_clear for threshold
@@ -213,13 +220,6 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                                                filename_spike_index_all)
         save_numpy_object(clear, path_to_spike_index_all, if_file_exists,
                           name='Spike index all')
-
-    # TODO: this shouldn't be here
-    # transform scores to location + shape feature space
-    if CONFIG.cluster.method == 'location':
-        scores = get_locations_features_threshold(scores_clear, clear[:, 1],
-                                                  channel_index,
-                                                  CONFIG.geom)
 
     return scores, clear, np.copy(clear)
 

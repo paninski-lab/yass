@@ -88,6 +88,7 @@ def run(spike_train, tmp_loc, output_directory='tmp/templates/',
 
     path_to_recordings = os.path.join(CONFIG.data.root_folder,
                                       str(Path(output_directory).parent),
+                                      'preprocess',
                                       recordings_filename)
 
     # relevant parameters
