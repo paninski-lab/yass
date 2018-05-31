@@ -171,6 +171,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     np.save(path_to_spike_train, spike_train)
     logger.info('Spike train saved in: {}'.format(path_to_spike_train))
 
+    # TODO: complete flag saves other files needed for integrating phy
+    # with yass, the integration hasn't been completed yet
     # this part loads waveforms for all spikes in the spike train and scores
     # them, this data is needed to later generate phy files
     if complete:
