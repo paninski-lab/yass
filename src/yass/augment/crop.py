@@ -45,8 +45,9 @@ def crop_templates(templatesBig, R, neighbors, geom):
             templates_mainc[k] = t1
 
     # determin temporal center of templates and crop around it
+    R2 = int(R/2)
     center = np.argmax(np.convolve(
-        np.sum(np.square(templates_mainc), 0), np.ones(2*R+1), 'valid')) + R
+        np.sum(np.square(templates_mainc), 0), np.ones(2*R2+1), 'valid')) + R2
     templatesBig = templatesBig[:, (center-3*R):(center+3*R+1)]
 
     # spatially crop

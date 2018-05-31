@@ -6,7 +6,7 @@ from yass.templates.util import strongly_connected_components_iterative
 
 
 def run_detect_triage_featurize(recordings, sess, x_tf, output_tf,
-                                NND, NNAE, NNT, neighbors):
+                                neighbors, rot):
     """Detect spikes using a neural network
 
     Parameters
@@ -47,15 +47,9 @@ def run_detect_triage_featurize(recordings, sess, x_tf, output_tf,
         (channel whose amplitude is maximum)
     """
 
-    # get values of above tensors
-    NND.saver.restore(sess, NND.path_to_detector_model)
-    NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
-    NNT.saver.restore(sess, NNT.path_to_triage_model)
-
     score, spike_index, idx_clean = sess.run(
         output_tf, feed_dict={x_tf: recordings})
 
-    rot = NNAE.load_rotation()
     energy = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
 
     idx_survive = deduplicate(spike_index, energy, neighbors)

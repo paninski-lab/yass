@@ -283,6 +283,13 @@ def run_neural_network(standarized_path, standarized_params,
 
         # run nn preprocess batch-wsie
         with tf.Session() as sess:
+
+            # get values of above tensors
+            NND.saver.restore(sess, NND.path_to_detector_model)
+            NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
+            NNT.saver.restore(sess, NNT.path_to_triage_model)
+            
+            rot = NNAE.load_rotation()
             neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
             mc = bp.multi_channel_apply
             res = mc(
@@ -292,9 +299,7 @@ def run_neural_network(standarized_path, standarized_params,
                 sess=sess,
                 x_tf=x_tf,
                 output_tf=output_tf,
-                NND=NND,
-                NNAE=NNAE,
-                NNT=NNT,
+                rot=rot,
                 neighbors=neighbors)
 
         # get clear spikes
