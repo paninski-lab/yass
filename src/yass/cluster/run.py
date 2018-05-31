@@ -18,7 +18,7 @@ from yass.mfm import get_core_data
                             LoadFile('vbPar.pickle')],
                  mode='values', relative_to='output_directory',
                  auto_save=True, prepend_root_folder=True)
-def run(scores, spike_index, output_directory='tmp/',
+def run(scores, spike_index, output_directory='tmp/cluster/',
         if_file_exists='skip', save_results=False):
     """Spike clustering
 

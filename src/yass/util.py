@@ -516,6 +516,8 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
             else:
                 root_path = Path(_kwargs[relative_to])
 
+            root_path.mkdir(parents=True, exist_ok=True)
+
             paths = [root_path / f.value for f in names]
             exists = [p.exists() for p in paths]
 

@@ -57,6 +57,7 @@ def run(spike_index, templates, output_directory='tmp/',
     # read recording
     recording_path = os.path.join(CONFIG.data.root_folder,
                                   output_directory,
+                                  'preprocess',
                                   recordings_filename)
     bp = BatchProcessor(recording_path,
                         buffer_size=templates.shape[1])

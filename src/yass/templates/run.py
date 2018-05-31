@@ -1,6 +1,10 @@
 import os
 import logging
 import datetime
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
 
 from yass import read_config
 from yass.templates.util import get_templates, align_templates, merge_templates
@@ -14,7 +18,7 @@ from yass.util import check_for_files, LoadFile, file_loader
                             LoadFile('idx_good_templates.npy')],
                  mode='values', relative_to='output_directory',
                  auto_save=True, prepend_root_folder=True)
-def run(spike_train, tmp_loc, output_directory='tmp/',
+def run(spike_train, tmp_loc, output_directory='tmp/templates/',
         recordings_filename='standarized.bin',
         if_file_exists='skip', save_results=False):
     """Compute templates
@@ -83,7 +87,7 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
     logger.info("Getting Templates...")
 
     path_to_recordings = os.path.join(CONFIG.data.root_folder,
-                                      output_directory,
+                                      str(Path(output_directory).parent),
                                       recordings_filename)
 
     # relevant parameters

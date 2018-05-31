@@ -1,13 +1,8 @@
 """Script to run pipeline and save results at every step
 """
 import logging
-
 import yass
-from yass import preprocess
-from yass import detect
-from yass import cluster
-from yass import templates
-from yass import deconvolute
+from yass import preprocess, detect, cluster, templates, deconvolute
 
 # configure logging module to get useful information
 logging.basicConfig(level=logging.INFO)
