@@ -169,15 +169,12 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     # PCA #
     #######
 
-    recordings = RecordingsReader(standarized_path)
-
     # run PCA, save rotation matrix and pca scores under TMP_FOLDER
     # TODO: remove clear as input for PCA and create an independent function
     pca_scores, clear, _ = pca(standarized_path,
                                standarized_params['dtype'],
                                standarized_params['n_channels'],
                                standarized_params['data_order'],
-                               recordings,
                                clear,
                                CONFIG.spike_size,
                                CONFIG.detect.temporal_features,
