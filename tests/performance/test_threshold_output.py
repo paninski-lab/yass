@@ -10,6 +10,8 @@ PATHT_TO_REF = '/Users/Edu/data/yass/ref49/'
 def test_threshold_output(path_to_tests):
     """Test that pipeline using threshold detector returns the same results
     """
+    np.random.seed(0)
+
     yass.set_config(path.join(path_to_tests, 'config_threshold_49.yaml'))
 
     # run preprocess
