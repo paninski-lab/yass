@@ -26,8 +26,7 @@ def data_info():
 def data():
     info = data_info()
 
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'data/neuropixel.bin')
+    path = os.path.join(path_to_tests(), 'data/neuropixel.bin')
     d = np.fromfile(path, dtype='int16')
     d = d.reshape(info['observations'], info['n_channels'])
     return d
@@ -35,65 +34,59 @@ def data():
 
 @pytest.fixture(scope='session')
 def path_to_tests():
-    path = os.path.dirname(os.path.realpath(__file__))
-    return path
+    return os.path.dirname(os.path.realpath(__file__))
 
 
 @pytest.fixture(scope='session')
 def path_to_tmp():
-    path = os.path.dirname(os.path.realpath(__file__))
-    return os.path.join(path, 'data/tmp/')
+    return os.path.join(path_to_tests(), 'data/tmp/')
 
 
 @pytest.fixture(scope='session')
 def path_to_data():
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'data/neuropixel.bin')
-    return path
+    return os.path.join(path_to_tests(), 'data/neuropixel.bin')
 
 
 @pytest.fixture(scope='session')
 def path_to_geometry():
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'data/neuropixel_channels.npy')
-    return path
+    return os.path.join(path_to_tests(), 'data/neuropixel_channels.npy')
 
 
 @pytest.fixture(scope='session')
 def path_to_examples():
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        '../examples')
-    return path
+    return os.path.join(path_to_tests(), '../examples')
 
 
 @pytest.fixture(scope='session')
 def path_to_data_folder():
-    path = os.path.dirname(os.path.realpath(__file__))
-    return os.path.join(path, 'data/')
+    return os.path.join(path_to_tests(), 'data/')
 
 
 @pytest.fixture(scope='session')
 def path_to_output_reference():
-    path = os.path.dirname(os.path.realpath(__file__))
-    return os.path.join(path, 'data', 'output_reference')
+    return os.path.join(path_to_tests(), 'data', 'output_reference')
 
 
 @pytest.fixture
 def path_to_nnet_config(scope='session'):
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'config_nnet.yaml')
-    return path
+    return os.path.join(path_to_tests(), 'config_nnet.yaml')
 
 
 @pytest.fixture
 def path_to_threshold_config(scope='session'):
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'config_threshold.yaml')
-    return path
+    return os.path.join(path_to_tests(), 'config_threshold.yaml')
 
 
 @pytest.fixture
 def path_to_config_sample(scope='session'):
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'config_sample.yaml')
-    return path
+    return os.path.join(path_to_tests(), 'config_sample.yaml')
+
+
+@pytest.fixture
+def path_to_txt_geometry(scope='session'):
+    return os.path.join(path_to_tests(), 'data/geometry.txt')
+
+
+@pytest.fixture
+def path_to_npy_geometry(scope='session'):
+    return os.path.join(path_to_tests(), 'data/geometry.npy')

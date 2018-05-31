@@ -1,21 +1,10 @@
 from os import path
-import os
-
-import pytest
-
 import yass
 from yass import preprocess, detect, cluster, templates, deconvolute
 from util import clean_tmp, ReferenceTesting
 
 
-@pytest.fixture
-def path_to_config():
-    path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                        'config_threshold.yaml')
-    return path
-
-
-def test_decovnolution(path_to_config):
+def test_decovnolution(path_to_threshold_config):
     yass.set_config('tests/config_nnet.yaml')
 
     (standarized_path,
@@ -42,9 +31,9 @@ def test_decovnolution(path_to_config):
     clean_tmp()
 
 
-def test_deconvolution_returns_expected_results(path_to_config,
+def test_deconvolution_returns_expected_results(path_to_threshold_config,
                                                 path_to_data_folder):
-    yass.set_config(path_to_config)
+    yass.set_config(path_to_threshold_config)
 
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
