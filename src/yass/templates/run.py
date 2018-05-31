@@ -1,10 +1,7 @@
+from os.path import join
 import os
 import logging
 import datetime
-try:
-    from pathlib2 import Path
-except ImportError:
-    from pathlib import Path
 
 from yass import read_config
 from yass.templates.util import get_templates, align_templates, merge_templates
@@ -12,15 +9,16 @@ from yass.templates.clean import clean_up_templates
 from yass.util import check_for_files, LoadFile, file_loader
 
 
-@check_for_files(filenames=[LoadFile('templates.npy'),
-                            LoadFile('spike_train.npy'),
-                            LoadFile('groups.pickle'),
-                            LoadFile('idx_good_templates.npy')],
+@check_for_files(filenames=[LoadFile(join('templates', 'templates.npy')),
+                            LoadFile(join('templates', 'spike_train.npy')),
+                            LoadFile(join('templates', 'groups.pickle')),
+                            LoadFile(join('templates',
+                                          'idx_good_templates.npy'))],
                  mode='values', relative_to='output_directory',
                  auto_save=True, prepend_root_folder=True)
-def run(spike_train, tmp_loc, output_directory='tmp/templates/',
+def run(spike_train, tmp_loc, output_directory='tmp/',
         recordings_filename='standarized.bin',
-        if_file_exists='skip', save_results=False):
+        if_file_exists='skip', save_results=True):
     """Compute templates
 
     Parameters
@@ -87,7 +85,7 @@ def run(spike_train, tmp_loc, output_directory='tmp/templates/',
     logger.info("Getting Templates...")
 
     path_to_recordings = os.path.join(CONFIG.data.root_folder,
-                                      str(Path(output_directory).parent),
+                                      output_directory,
                                       'preprocess',
                                       recordings_filename)
 

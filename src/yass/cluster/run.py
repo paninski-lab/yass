@@ -1,3 +1,4 @@
+from os.path import join
 import logging
 import datetime
 import numpy as np
@@ -13,12 +14,13 @@ from yass.cluster.util import (run_cluster, run_cluster_location,
 from yass.mfm import get_core_data
 
 
-@check_for_files(filenames=[LoadFile('spike_train_cluster.npy'),
-                            LoadFile('tmp_loc.npy'),
-                            LoadFile('vbPar.pickle')],
+@check_for_files(filenames=[LoadFile(join('cluster',
+                                          'spike_train_cluster.npy')),
+                            LoadFile(join('cluster', 'tmp_loc.npy')),
+                            LoadFile(join('cluster', 'vbPar.pickle'))],
                  mode='values', relative_to='output_directory',
                  auto_save=True, prepend_root_folder=True)
-def run(scores, spike_index, output_directory='tmp/cluster/',
+def run(scores, spike_index, output_directory='tmp/',
         if_file_exists='skip', save_results=False):
     """Spike clustering
 

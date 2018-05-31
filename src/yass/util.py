@@ -518,7 +518,13 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
 
             root_path.mkdir(parents=True, exist_ok=True)
 
+            # generate paths for files
             paths = [root_path / f.value for f in names]
+
+            # make sure parent folders exist
+            for p in paths:
+                p.parent.mkdir(parents=True, exist_ok=True)
+
             exists = [p.exists() for p in paths]
 
             if (if_file_exists == 'overwrite' or
