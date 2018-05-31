@@ -1,4 +1,5 @@
 from os import path
+import numpy as np
 import yass
 from yass import preprocess
 from yass import detect
@@ -20,6 +21,8 @@ def test_can_detect_with_threshold(path_to_threshold_config):
 
 def test_threshold_detector_returns_expected_results(path_to_threshold_config,
                                                      path_to_output_reference):
+    np.random.seed(0)
+
     yass.set_config(path_to_threshold_config)
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
@@ -58,6 +61,8 @@ def test_can_detect_with_nnet(path_to_nnet_config):
 
 def test_nnet_detector_returns_expected_results(path_to_nnet_config,
                                                 path_to_output_reference):
+    np.random.seed(0)
+
     yass.set_config(path_to_nnet_config)
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()

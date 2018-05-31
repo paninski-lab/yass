@@ -5,6 +5,7 @@ several configuration files
 from os import path
 
 import pytest
+import numpy as np
 
 import yass
 from yass import preprocess
@@ -92,6 +93,8 @@ def test_templates_loads_from_disk_if_files_exist(caplog,
 
 def test_templates_returns_expected_results(path_to_threshold_config,
                                             path_to_data_folder):
+    np.random.seed(0)
+
     yass.set_config(path_to_threshold_config)
 
     (standarized_path, standarized_params, channel_index,
