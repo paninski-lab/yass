@@ -32,7 +32,7 @@ from yass.threshold import dimensionality_reduction as dim_red
 
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
-        complete=False):
+        complete=False, set_zero_seed=False):
     """Run YASS built-in pipeline
 
     Parameters
@@ -98,6 +98,10 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # instantiate logger and start coloredlogs
     logger = logging.getLogger(__name__)
     coloredlogs.install(logger=logger)
+
+    if set_zero_seed:
+        logger.warning('Set numpy seed to zero')
+        np.random.seed(0)
 
     # print yass version
     logger.info('YASS version: %s', yass.__version__)

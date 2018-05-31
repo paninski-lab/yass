@@ -23,3 +23,10 @@ preprocess:
 detect:
   method: threshold
   temporal_features: 3
+  save_results: true
+
+cluster:
+  save_results: true
+
+templates:
+  save_results: true
