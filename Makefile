@@ -21,6 +21,17 @@ test: ## Run Tests
 	pytest tests/unit --flake8 --cov=yass
 
 
+output-test: ## Generate output for performance tests
+	@echo "--> Generating output for performance tests"
+	cd tests/
+	yass sort config_threshold_49.yaml --zero_seed
+
+
+performance-test: ## Run performance tests
+	@echo "--> Running performance tests"
+	pytest tests/performance/
+
+
 integration-test: ## Run Integration Tests
 	bash integration-test/integration-test.sh
 
