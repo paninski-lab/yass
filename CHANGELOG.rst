@@ -3,6 +3,8 @@ Changelog
 
 0.10dev
 -------
+* Colored logs
+* Improved testing coverage
 
 
 0.9 (2018-05-24)

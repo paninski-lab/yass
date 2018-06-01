@@ -19,7 +19,7 @@ preprocess:
   dtype: float32
 
 detect:
-  method: threshold
+  method: nn
   temporal_features: 3
   save_results: true
 
