@@ -243,7 +243,11 @@ def run_neural_network(standarized_path, standarized_params,
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
-    TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
+
+    folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+    folder.mkdir(exist_ok=True)
+
+    TMP_FOLDER = str(folder)
 
     # check if all scores, clear and collision spikes exist..
     path_to_score = os.path.join(TMP_FOLDER, 'scores_clear.npy')
