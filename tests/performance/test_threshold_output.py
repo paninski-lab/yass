@@ -1,13 +1,29 @@
+import shutil
 from os import path
 import numpy as np
+import logging
 import yass
 from yass import preprocess, detect, cluster, templates, deconvolute
 from yass.batch import RecordingsReader
+from yass import read_config
+
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
 
 
 def test_threshold_output(path_to_tests):
     """Test that pipeline using threshold detector returns the same results
     """
+    logger = logging.getLogger(__name__)
+
+    CONFIG = read_config()
+    TMP = Path(CONFIG.data.root_folder, 'tmp')
+
+    logger.info('Removing %s', TMP)
+    shutil.rmtree(str(TMP))
+
     PATH_TO_REF = '/ssd/data/eduardo/threshold_49/'
 
     np.random.seed(0)
