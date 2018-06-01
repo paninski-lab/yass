@@ -5,6 +5,7 @@ data:
 
 resources:
   max_memory: 100MB
+  max_memory_gpu: 20MB
 
 recordings:
   dtype: int16
