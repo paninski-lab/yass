@@ -32,7 +32,7 @@ output-test: ## Generate output for performance tests
 
 performance-test: ## Run performance tests
 	@echo "--> Running performance tests"
-	pytest tests/performance/
+	pytest tests/performance/ --log-cli-level=INFO
 
 
 integration-test: ## Run Integration Tests
