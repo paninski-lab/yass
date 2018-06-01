@@ -1,9 +1,7 @@
 data:
-  root_folder: /Users/Edu/data/yass
-  recordings: 7ch.bin
-  geometry: geometry.txt
-  # recordings: ej49_data1_set1.bin
-  # geometry: ej49_geometry1.txt
+  root_folder: /ssd/data/eduardo
+  recordings: ej49_data1_set1.bin
+  geometry: ej49_geometry1.txt
 
 resources:
   max_memory: 100MB

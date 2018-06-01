@@ -4,7 +4,7 @@ import yass
 from yass import preprocess, detect, cluster, templates, deconvolute
 from yass.batch import RecordingsReader
 
-PATH_TO_REF = '/Users/Edu/data/yass/ref49/'
+PATH_TO_REF = '/ssd/data/eduardo/output_49/'
 
 
 def test_threshold_output(path_to_tests):
