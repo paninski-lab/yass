@@ -34,7 +34,7 @@ def getmask(scores, spike_index, groups, mask_th):
         idx_data = np.where(spike_index[:, 1] == channel)[0]
 
         # get score and group for this channel
-        score_channel = scores[idx_data, :, 0]
+        score_channel = scores[idx_data]
         group_channel = groups[channel]
 
         if score_channel.shape[0] > 0:

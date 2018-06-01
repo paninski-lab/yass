@@ -5,6 +5,7 @@ data:
 
 resources:
   max_memory: 200MB
+  processes: 1
 
 recordings:
   dtype: int16

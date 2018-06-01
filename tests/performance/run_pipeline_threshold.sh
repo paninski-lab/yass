@@ -1,0 +1,1 @@
+yass sort config_threshold_49.yaml --zero_seed

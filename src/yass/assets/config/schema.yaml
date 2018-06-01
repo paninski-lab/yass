@@ -35,6 +35,10 @@ resources:
       type: [integer, string]
       required: False
       default: 1GB
+    processes:
+      type: [integer, string]
+      required: False
+      default: max
 
 
 recordings:
@@ -247,7 +251,7 @@ cluster:
           type: integer
           default: 5
         V:
-          type: integer
+          type: float
           default: 2
 
     triage:
@@ -283,14 +287,14 @@ cluster:
 templates:
   type: dict
   default:
-    save_results: False
+    save_results: True
     if_file_exists: skip
     max_shift: 3
     merge_threshold: [0.85, 0.8]
   schema:
     save_results:
       type: boolean
-      default: False
+      default: True
       required: False
     if_file_exists:
       type: string

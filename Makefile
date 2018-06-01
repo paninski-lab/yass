@@ -18,7 +18,7 @@ install-yass: ## Install Yass package
 
 test: ## Run Tests
 	@echo "--> Running Tests"
-	pytest --flake8 --cov=yass
+	pytest tests/unit --flake8 --cov=yass
 
 
 integration-test: ## Run Integration Tests

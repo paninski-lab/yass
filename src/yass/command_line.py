@@ -48,22 +48,16 @@ def cli():
 @click.option('-cm', '--complete',
               help='Generates extra files (needed to generate phy files)',
               is_flag=True, default=False)
-def sort(config, logger_level, clean, output_dir, complete):
+@click.option('-z', '--zero_seed',
+              help='Sets numpy random seed to zero before running',
+              is_flag=True, default=False)
+def sort(config, logger_level, clean, output_dir, complete, zero_seed):
     """
     Sort recordings using a configuration file located in CONFIG
     """
-    return _run_pipeline(config, output_file='spike_train.npy',
-                         logger_level=logger_level, clean=clean,
-                         output_dir=output_dir, complete=complete)
-
-
-def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
-                  output_dir='tmp/', complete=False):
-    """
-    Run the entire pipeline given a path to a config file
-    and output path
-    """
-    pipeline.run(config, logger_level, clean, output_dir, complete)
+    return pipeline.run(config, logger_level=logger_level, clean=clean,
+                        output_dir=output_dir, complete=complete,
+                        set_zero_seed=zero_seed)
 
 
 @cli.command()
@@ -208,7 +202,7 @@ def export(directory, output_dir):
     # template_features.npy
     templates_score = np.load(path.join(TMP_FOLDER, 'templates_score.npy'))
     templates_main_channel = np.load(path.join(TMP_FOLDER,
-                                     'templates_main_channel.npy'))
+                                               'templates_main_channel.npy'))
     waveforms_score = np.load(path.join(TMP_FOLDER, 'waveforms_score.npy'))
 
     path_to_template_features = path.join(PHY_FOLDER, 'template_features.npy')

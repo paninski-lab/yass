@@ -2,6 +2,7 @@
 Built-in pipeline
 """
 import time
+import coloredlogs
 import logging
 import logging.config
 import shutil
@@ -31,7 +32,7 @@ from yass.threshold import dimensionality_reduction as dim_red
 
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
-        complete=False):
+        complete=False, set_zero_seed=False):
     """Run YASS built-in pipeline
 
     Parameters
@@ -94,8 +95,13 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # configure logging
     logging.config.dictConfig(logging_config)
 
-    # instantiate logger
+    # instantiate logger and start coloredlogs
     logger = logging.getLogger(__name__)
+    coloredlogs.install(logger=logger)
+
+    if set_zero_seed:
+        logger.warning('Set numpy seed to zero')
+        np.random.seed(0)
 
     # print yass version
     logger.info('YASS version: %s', yass.__version__)
@@ -167,16 +173,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     logging.info('Saving copy of config: {} in {}'.format(config,
                                                           path_to_config_copy))
 
-    # save templates
-    # TODO: templates.run has now an option to save them, remove this...
-    path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
-    logging.info('Saving templates in {}'.format(path_to_templates))
-    np.save(path_to_templates, templates)
-
-    path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
-    np.save(path_to_spike_train, spike_train)
-    logger.info('Spike train saved in: {}'.format(path_to_spike_train))
-
+    # TODO: complete flag saves other files needed for integrating phy
+    # with yass, the integration hasn't been completed yet
     # this part loads waveforms for all spikes in the spike train and scores
     # them, this data is needed to later generate phy files
     if complete:

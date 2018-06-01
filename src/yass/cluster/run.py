@@ -1,3 +1,4 @@
+from os.path import join
 import logging
 import datetime
 import numpy as np
@@ -13,9 +14,10 @@ from yass.cluster.util import (run_cluster, run_cluster_location,
 from yass.mfm import get_core_data
 
 
-@check_for_files(filenames=[LoadFile('spike_train_cluster.npy'),
-                            LoadFile('tmp_loc.npy'),
-                            LoadFile('vbPar.pickle')],
+@check_for_files(filenames=[LoadFile(join('cluster',
+                                          'spike_train_cluster.npy')),
+                            LoadFile(join('cluster', 'tmp_loc.npy')),
+                            LoadFile(join('cluster', 'vbPar.pickle'))],
                  mode='values', relative_to='output_directory',
                  auto_save=True, prepend_root_folder=True)
 def run(scores, spike_index, output_directory='tmp/',
@@ -107,6 +109,7 @@ def run(scores, spike_index, output_directory='tmp/',
         _b = datetime.datetime.now()
         logger.info("Coresetting...")
         groups = coreset(scores,
+                         spike_index,
                          CONFIG.cluster.coreset.clusters,
                          CONFIG.cluster.coreset.threshold)
         Time['c'] += (datetime.datetime.now() - _b).total_seconds()
@@ -116,7 +119,7 @@ def run(scores, spike_index, output_directory='tmp/',
         ###########
         _b = datetime.datetime.now()
         logger.info("Masking...")
-        masks = getmask(scores, groups,
+        masks = getmask(scores, spike_index, groups,
                         CONFIG.cluster.masking_threshold)
         Time['m'] += (datetime.datetime.now() - _b).total_seconds()
 
@@ -133,7 +136,7 @@ def run(scores, spike_index, output_directory='tmp/',
     vbParam.rhat = calculate_sparse_rhat(vbParam, tmp_loc, scores_all,
                                          spike_index_all,
                                          CONFIG.neigh_channels)
-    idx_keep = get_core_data(vbParam, scores_all, np.inf, 3)
+    idx_keep = get_core_data(vbParam, scores_all, np.inf, 2)
     spike_train = vbParam.rhat[idx_keep]
     spike_train[:, 0] = spike_index_all[spike_train[:, 0].astype('int32'), 0]
 
