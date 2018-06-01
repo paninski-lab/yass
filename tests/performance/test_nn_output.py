@@ -18,6 +18,8 @@ def test_threshold_output(path_to_tests):
     """
     logger = logging.getLogger(__name__)
 
+    yass.set_config(path.join(path_to_tests, 'config_nn_49.yaml'))
+
     CONFIG = read_config()
     TMP = Path(CONFIG.data.root_folder, 'tmp')
 
@@ -27,8 +29,6 @@ def test_threshold_output(path_to_tests):
     PATH_TO_REF = '/ssd/data/eduardo/nn_49/'
 
     np.random.seed(0)
-
-    yass.set_config(path.join(path_to_tests, 'config_nn_49.yaml'))
 
     # run preprocess
     (standarized_path, standarized_params, channel_index,
