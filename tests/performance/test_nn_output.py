@@ -13,7 +13,7 @@ except ImportError:
     from pathlib import Path
 
 
-def test_threshold_output(path_to_tests):
+def test_nn_output(path_to_tests):
     """Test that pipeline using threshold detector returns the same results
     """
     logger = logging.getLogger(__name__)
