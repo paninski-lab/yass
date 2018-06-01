@@ -24,6 +24,9 @@ test: ## Run Tests
 output-test: ## Generate output for performance tests
 	@echo "--> Generating output for performance tests"
 	cd tests/
+	@echo "--> Running pipeline with threshold detector..."
+	yass sort config_threshold_49.yaml --zero_seed
+	@echo "--> Running pipeline with neural network detector..."
 	yass sort config_threshold_49.yaml --zero_seed
 
 
