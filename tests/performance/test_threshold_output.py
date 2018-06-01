@@ -4,12 +4,12 @@ import yass
 from yass import preprocess, detect, cluster, templates, deconvolute
 from yass.batch import RecordingsReader
 
-PATH_TO_REF = '/ssd/data/eduardo/output_49/'
-
 
 def test_threshold_output(path_to_tests):
     """Test that pipeline using threshold detector returns the same results
     """
+    PATH_TO_REF = '/ssd/data/eduardo/threshold_49/'
+
     np.random.seed(0)
 
     yass.set_config(path.join(path_to_tests, 'config_threshold_49.yaml'))
