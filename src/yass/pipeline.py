@@ -71,6 +71,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     numpy.ndarray
         Spike train
     """
+    
     # load yass configuration parameters
     set_config(config)
     CONFIG = read_config()
@@ -166,8 +167,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     path_to_metadata = path.join(TMP_FOLDER, 'metadata.yaml')
     logging.info('Saving metadata in {}'.format(path_to_metadata))
     save_metadata(path_to_metadata)
-
-
 
 
     # save metadata in tmp

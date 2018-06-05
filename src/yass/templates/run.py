@@ -109,11 +109,11 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
 
     logger.info("Cleaning Templates...")
     # clean up bad templates
-    snr_threshold = 2
-    spread_threshold = 100
-    templates, weights, spike_train, idx_good_templates = clean_up_templates(
-        templates, weights, spike_train, tmp_loc, geometry, neighbors,
-        snr_threshold, spread_threshold)
+    #snr_threshold = 2
+    #spread_threshold = 100
+    #templates, weights, spike_train, idx_good_templates = clean_up_templates(
+        #templates, weights, spike_train, tmp_loc, geometry, neighbors,
+        #snr_threshold, spread_threshold)
 
     logger.info("Aligning Templates...")
     # align templates

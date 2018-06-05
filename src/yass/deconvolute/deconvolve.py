@@ -272,7 +272,7 @@ def deconvolve_new_allcores_updated(
 
         ctr_times += 1
 
-# Skip this chunk of time entirely
+    # Skip this chunk of time entirely
     if ctr_times == 0:
         return None
 
@@ -343,7 +343,6 @@ def deconvolve_new_allcores_updated(
 
         # new: #Cat: seems to run faster than above
         max_d = np.max(d_matrix, (1, 2))
-
         max_val = np.max(max_d)
 
         spike_train_temp = np.hstack((spike_time[:, np.newaxis],

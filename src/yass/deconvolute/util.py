@@ -278,8 +278,8 @@ def make_spt_list_parallel(spike_index, n_channels):
     spike_index_list = [None] * n_channels
 
     for c in range(n_channels):
-        if c % 50 == 0:
-            print("making spt list channel: ", c)
+        #if c % 50 == 0:
+        #    print("making spt list channel: ", c)
         spike_index_list[c] = spike_index[spike_index[:, 1] == c, 0]
 
     return spike_index_list

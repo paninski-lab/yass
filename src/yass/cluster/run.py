@@ -9,7 +9,7 @@ from yass.cluster.subsample import random_subsample
 from yass.cluster.triage import triage
 from yass.cluster.coreset import coreset
 from yass.cluster.mask import getmask
-from yass.cluster.util import (run_cluster, run_cluster_features,
+from yass.cluster.util import (run_cluster_features_2, 
                                calculate_sparse_rhat)
 from yass.mfm import get_core_data
 
@@ -87,8 +87,6 @@ def run(scores,
     # start timer
     _b = datetime.datetime.now()
 
-    
-
     # voltage space feature clustering
     if CONFIG.cluster.method == 'voltage_features': 
 
@@ -101,17 +99,20 @@ def run(scores,
         else: 
             spike_index_clear = spike_index
 
-            select_variances = False
-            n_variance_pts = 3
+            # option to select highest variance points on a channel
+            #select_variances = False
+            #n_variance_pts = 3
             n_dim_pca = 3
             wf_start = 0
             wf_end = 25
-            n_mad_chans = 3
-            n_max_chans = 3
+            n_mad_chans = 5
+            n_max_chans = 5
+            mfm_threshold = 0.80
 
-            spike_train, tmp_loc = run_cluster_features(spike_index_clear, n_dim_pca, 
-                                       wf_start, wf_end, n_mad_chans, 
-                                       n_max_chans, CONFIG, output_directory)
+            spike_train, tmp_loc = run_cluster_features_2(spike_index_clear, 
+                                    n_dim_pca, wf_start, wf_end, n_mad_chans, 
+                                    n_max_chans, CONFIG, output_directory,
+                                    mfm_threshold)
             
             np.save(fname,spike_train)
             np.save(os.path.join(CONFIG.data.root_folder, 

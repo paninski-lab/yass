@@ -8,159 +8,49 @@ from scipy.spatial import cKDTree
 from yass import mfm
 from scipy.sparse import lil_matrix
 from statsmodels import robust
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
+colors = np.asarray([   "#000000", "#FFFF00", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#006FA6", "#A30059",
+        "#FFDBE5", "#7A4900", "#0000A6", "#63FFAC", "#B79762", "#004D43", "#8FB0FF", "#997D87",
+        "#5A0007", "#809693", "#FEFFE6", "#1B4400", "#4FC601", "#3B5DFF", "#4A3B53", "#FF2F80",
+        "#61615A", "#BA0900", "#6B7900", "#00C2A0", "#FFAA92", "#FF90C9", "#B903AA", "#D16100",
+        "#DDEFFF", "#000035", "#7B4F4B", "#A1C299", "#300018", "#0AA6D8", "#013349", "#00846F",
+        "#372101", "#FFB500", "#C2FFED", "#A079BF", "#CC0744", "#C0B9B2", "#C2FF99", "#001E09",
+        "#00489C", "#6F0062", "#0CBD66", "#EEC3FF", "#456D75", "#B77B68", "#7A87A1", "#788D66",
+        "#885578", "#FAD09F", "#FF8A9A", "#D157A0", "#BEC459", "#456648", "#0086ED", "#886F4C",
+        
+        "#34362D", "#B4A8BD", "#00A6AA", "#452C2C", "#636375", "#A3C8C9", "#FF913F", "#938A81",
+        "#575329", "#00FECF", "#B05B6F", "#8CD0FF", "#3B9700", "#04F757", "#C8A1A1", "#1E6E00",
+        "#7900D7", "#A77500", "#6367A9", "#A05837", "#6B002C", "#772600", "#D790FF", "#9B9700",
+        "#549E79", "#FFF69F", "#201625", "#72418F", "#BC23FF", "#99ADC0", "#3A2465", "#922329",
+        "#5B4534", "#FDE8DC", "#404E55", "#0089A3", "#CB7E98", "#A4E804", "#324E72", "#6A3A4C",
+        "#83AB58", "#001C1E", "#D1F7CE", "#004B28", "#C8D0F6", "#A3A489", "#806C66", "#222800",
+        "#BF5650", "#E83000", "#66796D", "#DA007C", "#FF1A59", "#8ADBB4", "#1E0200", "#5B4E51",
+        "#C895C5", "#320033", "#FF6832", "#66E1D3", "#CFCDAC", "#D0AC94", "#7ED379", "#012C58",
+        
+        "#7A7BFF", "#D68E01", "#353339", "#78AFA1", "#FEB2C6", "#75797C", "#837393", "#943A4D",
+        "#B5F4FF", "#D2DCD5", "#9556BD", "#6A714A", "#001325", "#02525F", "#0AA3F7", "#E98176",
+        "#DBD5DD", "#5EBCD1", "#3D4F44", "#7E6405", "#02684E", "#962B75", "#8D8546", "#9695C5",
+        "#E773CE", "#D86A78", "#3E89BE", "#CA834E", "#518A87", "#5B113C", "#55813B", "#E704C4",
+        "#00005F", "#A97399", "#4B8160", "#59738A", "#FF5DA7", "#F7C9BF", "#643127", "#513A01",
+        "#6B94AA", "#51A058", "#A45B02", "#1D1702", "#E20027", "#E7AB63", "#4C6001", "#9C6966",
+        "#64547B", "#97979E", "#006A66", "#391406", "#F4D749", "#0045D2", "#006C31", "#DDB6D0",
+        "#7C6571", "#9FB2A4", "#00D891", "#15A08A", "#BC65E9", "#FFFFFE", "#C6DC99", "#203B3C",
 
-def run_cluster(scores, masks, groups, spike_index,
-                min_spikes, CONFIG):
-    """
-    run clustering algorithm using MFM
-
-    Parameters
-    ----------
-    scores: list (n_channels)
-        A list such that scores[c] contains all scores whose main
-        channel is c
-
-    masks: list (n_channels)
-        mask for each data in scores
-        masks[c] is the mask of spikes in scores[c]
-
-    groups: list (n_channels)
-        coreset represented as group id.
-        groups[c] is the group id of spikes in scores[c]
-
-    spike_index: list (n_channels)
-        A list such that spike_index[c] cointains all spike times
-        whose channel is c
-
-    CONFIG: class
-       configuration class
-
-    Returns
-    -------
-    spike_train: np.array (n_data, 2)
-        spike_train such that spike_train[j, 0] and spike_train[j, 1]
-        are the spike time and spike id of spike j
-    """
-
-    # FIXME: mutating parameter
-    # this function is passing a config object and mutating it,
-    # this is not a good idea as having a mutable object lying around the code
-    # can break things and make it hard to debug
-    # (09/27/17) Eduardo
-
-    n_channels = np.max(spike_index[:, 1]) + 1
-    global_score = None
-    global_vbParam = None
-    global_spike_index = None
-    global_tmp_loc = None
-
-    # run clustering algorithm per main channel
-    for channel in range(n_channels):
-
-        idx_data = np.where(spike_index[:, 1] == channel)[0]
-        score_channel = scores[idx_data]
-        mask_channel = masks[channel]
-        group_channel = groups[channel]
-        spike_index_channel = spike_index[idx_data]
-        n_data = score_channel.shape[0]
-
-        if n_data > 1:
-            # run clustering
-            vbParam = mfm.spikesort(np.copy(score_channel),
-                                    mask_channel,
-                                    group_channel, CONFIG)
-
-            # make rhat more sparse
-            vbParam.rhat[vbParam.rhat < 0.1] = 0
-            vbParam.rhat = vbParam.rhat/np.sum(vbParam.rhat,
-                                               1, keepdims=True)
-
-            # clean clusters with nearly no spikes
-            vbParam = clean_empty_cluster(vbParam, min_spikes)
-
-            # add changes to global parameters
-            (global_vbParam,
-             global_tmp_loc,
-             global_score,
-             global_spike_index) = global_cluster_info(
-                vbParam, channel, score_channel, spike_index_channel,
-                global_vbParam, global_tmp_loc,
-                global_score, global_spike_index)
-
-    return global_vbParam, global_tmp_loc, global_score, global_spike_index
-
-
-def run_cluster_location(scores, spike_index, min_spikes, CONFIG):
-    """
-    run clustering algorithm using MFM and location features
-
-    Parameters
-    ----------
-    scores: list (n_channels)
-        A list such that scores[c] contains all scores whose main
-        channel is c
-
-    spike_times: list (n_channels)
-        A list such that spike_index[c] cointains all spike times
-        whose channel is c
-
-    CONFIG: class
-        configuration class
-
-    Returns
-    -------
-    spike_train: np.array (n_data, 2)
-        spike_train such that spike_train[j, 0] and spike_train[j, 1]
-        are the spike time and spike id of spike j
-    """
-    logger = logging.getLogger(__name__)
-
-    n_channels = np.max(spike_index[:, 1]) + 1
-    global_score = None
-    global_vbParam = None
-    global_spike_index = None
-    global_tmp_loc = None
-
-    # run clustering algorithm per main channel
-    for channel in range(n_channels):
-
-        logger.info('Processing channel {}'.format(channel))
-
-        idx_data = np.where(spike_index[:, 1] == channel)[0]
-        score_channel = scores[idx_data]
-        spike_index_channel = spike_index[idx_data]
-        n_data = score_channel.shape[0]
-
-        if n_data > 1:
-
-            # make a fake mask of ones to run clustering algorithm
-            mask = np.ones((n_data, 1))
-            group = np.arange(n_data)
-            vbParam = mfm.spikesort(np.copy(score_channel),
-                                    mask,
-                                    group, CONFIG)
-
-            # make rhat more sparse
-            vbParam.rhat[vbParam.rhat < 0.1] = 0
-            vbParam.rhat = vbParam.rhat/np.sum(vbParam.rhat,
-                                               1, keepdims=True)
-
-            # clean clusters with nearly no spikes
-            vbParam = clean_empty_cluster(vbParam, min_spikes)
-            if vbParam.rhat.shape[1] > 0:
-                # add changes to global parameters
-                (global_vbParam,
-                 global_tmp_loc,
-                 global_score,
-                 global_spike_index) = global_cluster_info(
-                    vbParam, channel, score_channel, spike_index_channel,
-                    global_vbParam, global_tmp_loc,
-                    global_score, global_spike_index)
-
-    return global_vbParam, global_tmp_loc, global_score, global_spike_index
-
-
+        "#671190", "#6B3A64", "#F5E1FF", "#FFA0F2", "#CCAA35", "#374527", "#8BB400", "#797868",
+        "#C6005A", "#3B000A", "#C86240", "#29607C", "#402334", "#7D5A44", "#CCB87C", "#B88183",
+        "#AA5199", "#B5D6C3", "#A38469", "#9F94F0", "#A74571", "#B894A6", "#71BB8C", "#00B433",
+        "#789EC9", "#6D80BA", "#953F00", "#5EFF03", "#E4FFFC", "#1BE177", "#BCB1E5", "#76912F",
+        "#003109", "#0060CD", "#D20096", "#895563", "#29201D", "#5B3213", "#A76F42", "#89412E",
+        "#1A3A2A", "#494B5A", "#A88C85", "#F4ABAA", "#A3F3AB", "#00C6C8", "#EA8B66", "#958A9F",
+        "#BDC9D2", "#9FA064", "#BE4700", "#658188", "#83A485", "#453C23", "#47675D", "#3A3F00",
+        "#061203", "#DFFB71", "#868E7E", "#98D058", "#6C8F7D", "#D7BFC2", "#3C3E6E", "#D83D66",
+        
+        "#2F5D9B", "#6C5E46", "#D25B88", "#5B656C", "#00B57F", "#545C46", "#866097", "#365D25",
+        "#252F99", "#00CCFF", "#674E60", "#FC009C", "#92896B"])
+        
+        
 def calculate_sparse_rhat(vbParam, tmp_loc, scores,
                           spike_index, neighbors):
 
@@ -566,16 +456,20 @@ def upsample_template(wf,upsample_factor,n_steps):
 
 
 def shift_template(template_upsampled, n_shifts, window):
-
+    ''' Select n_shifts version of the tempalte shifting from
+        -n_shifts/2 to + n_shifts/2 in the original waveform
+        
+        Cat TODO: this should be done pythonically
+    '''
+    
     temp_array = []
-    for s in range(-n_shifts//2, n_shifts//2+1, 1):
+    for s in range(-n_shifts//2, n_shifts//2, 1):
         temp_array.append(template_upsampled[template_upsampled.shape[0]//2-window+s:
                                              template_upsampled.shape[0]//2+window+s])
-
     return np.array(temp_array)
 
 
-def return_shifts(wfs_upsampled,template_shifted, window):
+def return_shifts(wfs_upsampled, template_shifted, window):
     
     shift_array = []
     out_array = []
@@ -590,20 +484,22 @@ def return_shifts(wfs_upsampled,template_shifted, window):
     return np.array(shift_array) #, out_array
 
 
-def align_channelwise(wf, upsample_factor=20, n_steps=15):
+def align_channelwise(wf, upsample_factor=20, n_steps=7):
     
-    # upsample template and max channel data
+    n_shifts=n_steps*upsample_factor
+    window=n_steps*upsample_factor
     waveform_len = wf.shape[0]
-
-    n_shifts=7*upsample_factor
-    window=7*upsample_factor
-
-    # upsample mad chans
+    
+    # upsample waveforms
     wf_upsampled = upsample_resample(wf, upsample_factor)
     
+    # upsample tempalte
     template_upsampled = upsample_resample(np.mean(wf,axis=1)[:,np.newaxis], upsample_factor).reshape(upsample_factor*waveform_len)
+    
+    # shift template
     template_shifted = shift_template(template_upsampled, n_shifts, window)
-
+    
+    # find optimal fits between template and waveforms and return shifts
     shift_array = return_shifts(wf_upsampled.T, template_shifted, window)
 
     aligned_chunks = np.zeros((len(shift_array), waveform_len))
@@ -677,7 +573,7 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
         data_aligned = []
         for k in range(data_in.shape[2]):
             #print ("aligning ch: ",k)
-            data_aligned.append(align_channelwise(data_in[:,:,k].T, upsample_factor=20, n_steps=15))
+            data_aligned.append(align_channelwise(data_in[:,:,k].T, upsample_factor=20, n_steps=7))
 
         data_in = np.array(data_aligned)
         #print ("aligned data: ", data_in.shape)
@@ -709,7 +605,7 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
         # run pca second time
         pca_wf_original,pca_wf_reconstruct = PCA(data_in[idx_keep1],n_dim_pca)
 
-        # run mfm iteratively 
+        # run mfm iteratively
         spike_train_clustered = run_mfm(wf_data_original, pca_wf_original, 
                                         feat_chans, idx_keep1, wf_start,
                                         wf_end, n_dim_pca, CONFIG)
@@ -733,6 +629,251 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
     spike_train_clustered = s[indexes]
     
     return spike_train_clustered, tmp_loc
+
+def iterative_clustering(wf_data, spike_index_clear, all_assignments, 
+                         spike_times, chans, n_mad_chans, n_max_chans, 
+                         n_dim_pca, wf_start, wf_end, channel, triageflag,
+                         mfm_threshold, gen, clust_id, CONFIG):
+    
+    # exit if too few points
+    if wf_data.shape[0]<15:
+        N = len(all_assignments)
+        all_assignments.append(N*np.ones(wf_data.shape[0]))
+        chans.append(channel)
+        spike_times.append(spike_index_clear)
+        return
+        
+    
+    # find feature chans
+    template = np.mean(wf_data, axis = 0)
+    feat_chans = get_feat_channels(template, wf_data, n_max_chans, n_max_chans)
+
+    # align data
+    data_in = align_wf(wf_data[:,:, feat_chans], upsample_factor = 20, n_steps = 15)[:,wf_start:wf_end,:].swapaxes(1,2).reshape(wf_data.shape[0],-1)
+        
+    # run PCA on feat chans
+    pca_wf,_ = PCA(data_in, n_dim_pca)
+    
+    # triage
+    if triageflag: 
+        idx_keep1 = triage(mfm_threshold*100, pca_wf)
+    
+        # rerun PCA on feat chans if triaged to recompress w/o outliers
+        pca_wf,_ = PCA(data_in[idx_keep1], n_dim_pca)
+        
+    else:
+        idx_keep1 = np.ones(pca_wf.shape[0],'bool')
+
+    
+    # run mfm
+    vbParam2, assignment2 = run_mfm_2(pca_wf, CONFIG)
+    mask = vbParam2.rhat > 0.0
+
+    # compute stability
+    stability  = np.average(mask * vbParam2.rhat, axis = 0, weights = mask)
+    
+    uni,sizes = np.unique(assignment2, return_counts = True)
+
+    # save distributions to disk
+    #clrs=np.array(['blue','red','green','magenta','black', 'skyblue','salmon','lightgreen','violet','grey', "pink",'midnightblue','turquoise', 'firebrick'])
+    plt.figure(figsize=(30,10))
+    
+    labels = []
+    for j in uni:
+        patch_i = mpatches.Patch(color = colors[j], label = "cluster: {}, size: {}".format(j, sizes[j]))
+        labels.append(patch_i)
+        
+    ax=plt.subplot(1,3,1)
+    plt.scatter(pca_wf[:,0], pca_wf[:,1], c=colors[assignment2.astype('int')], s=10, edgecolor='black', alpha=.5)
+    
+    ax=plt.subplot(1,3,2)
+    plt.scatter(pca_wf[:,0], pca_wf[:,2], c=colors[assignment2.astype('int')], s=10, edgecolor='black', alpha=.5)
+    plt.legend(handles = labels)
+    
+    ax=plt.subplot(1,3,3)
+    plt.scatter(pca_wf[:,1], pca_wf[:,2], c=colors[assignment2.astype('int')], s=10, edgecolor='black', alpha=.5)
+    
+    plt.savefig('/media/cat/1TB/liam/49channels/data1_allset/tmp/figs/channel'+str(channel)+"_gen"+str(gen)+"_cluster"+str(clust_id), dpi=100)
+    plt.close()
+    
+    # if single cluster exit
+    if uni.size == 1:
+        #print("single cluster found...................returning")
+        N = len(all_assignments)
+        all_assignments.append(N*np.ones(assignment2.size))
+        chans.append(channel)
+        spike_times.append(spike_index_clear[idx_keep1])
+        print("************final cluster ***, gen: ", gen, " #events ", 
+            wf_data.shape[0])            
+
+        return 
+    
+    # remove all clusters > mfm_threshold stability
+    elif np.any(stability>mfm_threshold):
+        triageflag = False
+        idx = stability>mfm_threshold
+        for clust in np.where(idx)[0]:
+            # don't recluster perfectly stable clusters            
+            if stability[clust]==1.0: 
+                print("***final cluster ***, gen: ", gen, " cluster ", clust, 
+                " #events ", wf_data[idx_keep1][assignment2==clust].shape[0],
+                " stability ", stability[clust])    
+                continue
+            else: 
+                print("re-clustering; gen: ", gen, " cluster ", clust, 
+                " #events ", wf_data[idx_keep1][assignment2==clust].shape[0],
+                " stability ", stability[clust])    
+
+                iterative_clustering(wf_data[idx_keep1][assignment2==clust], 
+                            spike_index_clear[idx_keep1][assignment2==clust], 
+                            all_assignments, spike_times, chans, n_mad_chans, 
+                            n_max_chans, n_dim_pca, wf_start, wf_end, channel, 
+                            triageflag, mfm_threshold, gen+1, clust, 
+                            CONFIG)
+        
+        # run mfm on remaining clusters - if any
+        if (~idx).sum() > 0:
+            print("re-clustering; gen: ", gen, " cluster ", clust, 
+            " #events ", wf_data[idx_keep1][np.in1d(assignment2, 
+                        np.where(~idx)[0])].shape[0])
+            
+            iterative_clustering(wf_data[idx_keep1][np.in1d(assignment2, 
+                        np.where(~idx)[0])], 
+                        spike_index_clear[idx_keep1][np.in1d(assignment2, 
+                        np.where(~idx)[0])],
+                        all_assignments, spike_times, chans, n_mad_chans, 
+                        n_max_chans, n_dim_pca, wf_start, wf_end, channel, 
+                        triageflag, mfm_threshold, gen+1, "re-cluster", 
+                        CONFIG)
+    
+    # remove most stable cluster
+    else:
+        print ("re-triaging: ", gen, " #events ", 
+                   wf_data[idx_keep1].shape[0], "max stability ", 
+                   stability[np.argmax(stability)])
+        triageflag = True
+        iterative_clustering(wf_data[idx_keep1], spike_index_clear[idx_keep1], 
+                                    all_assignments, spike_times, chans, 
+                                    n_mad_chans, n_max_chans, n_dim_pca, 
+                                    wf_start, wf_end, channel, triageflag, 
+                                    mfm_threshold, gen+1, 're-triage', 
+                                    CONFIG)
+
+
+def run_cluster_features_2(spike_index_clear, n_dim_pca, wf_start, wf_end, 
+                         n_mad_chans, n_max_chans, CONFIG, out_dir,
+                         mfm_threshold):
+    
+    ''' New voltage feature based clustering
+    ''' 
+    
+    # loop over channels 
+    # hold spike times and chans in two arrays passed in and out
+    all_assignments = []
+    spike_times = []
+    chans = [] 
+    channels = np.arange(CONFIG.recordings.n_channels)
+    triageflag = True
+    gen = 0     #Set default generation for starting clustering stpe
+    for channel in channels: 
+        
+        # **** grab spike waveforms ****
+        indexes = np.where(spike_index_clear[:,1]==channel)[0]
+        wf_data = load_waveforms_parallel(spike_index_clear[indexes], 
+                                          CONFIG, out_dir)
+        #wf_data = np.swapaxes(wf_data,2,0)
+
+        # run iterative clustering on channel
+            #print ('initial shape',wf_data.shape)
+  
+        print ('')
+        print ('')
+        print("******CHANNEL: ", channel, " # spikes: ", wf_data.shape[0])
+
+        iterative_clustering(wf_data, spike_index_clear[indexes], 
+                            all_assignments, spike_times, chans, n_mad_chans,
+                            n_max_chans, n_dim_pca, wf_start, wf_end,
+                            channel, triageflag, mfm_threshold, gen, 
+                            "init_cluster", CONFIG)
+        
+    # add channels of templates
+    tmp_loc = chans
+    
+    # assign each cluster with a unique id
+    for k in range(len(spike_times)):
+        spike_times[k][:,1]=k
+    
+    # format output in time order
+    print ("..formating spike trains ...")
+    s = np.vstack(spike_times)
+    print s
+    
+    # sort by time
+    indexes = np.argsort(s[:,0])
+    spike_train_clustered = s[indexes]
+    
+    print tmp_loc
+    print len(tmp_loc), np.max(spike_train_clustered[:,1])
+    
+    
+    return spike_train_clustered, tmp_loc
+
+def get_feat_channels(template, wf_data, n_max_chans, n_mad_chans):
+    rank_amp_chans = np.max(np.abs(template),axis=0)
+    rank_indexes = np.argsort(rank_amp_chans)[::-1] 
+    
+    max_chans = rank_indexes[:n_max_chans]      # select top chans
+#     print ("max chans: ", max_chans)
+    
+    ptps = np.ptp(template,axis=0)
+    chan_indexes_2SU = np.where(ptps>2)[0]
+    
+    rank_chans_max = np.max(robust.mad(wf_data[:,:,chan_indexes_2SU],axis=0),axis=0)
+    
+    rank_indexes = np.argsort(rank_chans_max,axis=0)[::-1]
+    mad_chans = chan_indexes_2SU[rank_indexes][:n_mad_chans]      # select top chans
+#     print ("chan: ", channel,  "   mad chans: ", mad_chans)
+    
+    feat_chans = np.union1d(max_chans, mad_chans)
+#     print ("feat chans: ", feat_chans,'\n')
+    
+    return feat_chans
+
+
+def align_wf(data_in, upsample_factor, n_steps):
+    ''' TODO parallelize this step
+    '''
+    data_aligned = np.zeros(data_in.shape)
+    for k in range(data_in.shape[2]):
+        data_aligned[:,:,k] = align_channelwise(data_in[:,:,k].T, upsample_factor=20, n_steps=7)
+    return data_aligned
+
+
+def triage(th, pca_wf):
+    th = 90
+#     # get distance to nearest neighbors
+    tree = cKDTree(pca_wf)
+    dist, ind = tree.query(pca_wf, k=11)
+    dist = np.sum(dist, 1)
+#     # triage far ones
+    idx_keep1 = dist < np.percentile(dist, th)
+    return idx_keep1
+
+def run_mfm_2(kk, CONFIG):
+    mask = np.ones((kk.shape[0], 1))
+    group = np.arange(kk.shape[0])
+    vbParam2 = mfm.spikesort(kk[:,:,np.newaxis],
+                            mask,
+                            group, CONFIG)
+    vbParam2.rhat[vbParam2.rhat < 0.1] = 0 #Cat todo; look at this
+    vbParam2.rhat = vbParam2.rhat/np.sum(vbParam2.rhat,
+                                         1, keepdims=True)
+
+    assignment2 = np.argmax(vbParam2.rhat, axis=1)
+    return vbParam2, assignment2
+
+
+
         
 def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1, 
             wf_start, wf_end, n_dim_pca, CONFIG):
@@ -750,7 +891,7 @@ def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1,
     vbParam2 = mfm.spikesort(kk[:,:,np.newaxis],
                             mask,
                             group, CONFIG)
-    vbParam2.rhat[vbParam2.rhat < 0.1] = 0
+    vbParam2.rhat[vbParam2.rhat < 0.1] = 0  # Cat: TODO; look at this 
     vbParam2.rhat = vbParam2.rhat/np.sum(vbParam2.rhat,
                                          1, keepdims=True)
 
@@ -825,7 +966,7 @@ def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1,
         # realign data after every iteration
         data_aligned = []
         for k in range(data_in.shape[2]):
-            data_aligned.append(align_channelwise(data_in[:,:,k].T, upsample_factor=20, n_steps=15))
+            data_aligned.append(align_channelwise(data_in[:,:,k].T, upsample_factor=20, n_steps=7))
 
         data_in = np.array(data_aligned)
         data_in = data_in[:,:,wf_start:wf_end]

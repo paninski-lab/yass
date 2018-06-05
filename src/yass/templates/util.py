@@ -14,11 +14,8 @@ logger = logging.getLogger(__name__)
 
 
 # TODO: remove this function and use the explorer directly
-def get_templates(spike_train,
-                  path_to_recordings,
-                  max_memory,
-                  spike_size,
-                  n_max=5000):
+def get_templates(spike_train, path_to_recordings,
+                  max_memory, spike_size, n_max=5000):
 
     logger.info('Computing templates...')
 
@@ -48,6 +45,27 @@ def get_templates(spike_train,
 
     return templates, weights
 
+def random_sample_spike_train(spike_train, n_max):
+
+    n_templates = int(np.max(spike_train[:, 1]) + 1)
+
+    idx_keep = np.zeros(spike_train.shape[0], 'bool')
+    for k in range(n_templates):
+        idx_data = np.where(spike_train[:, 1] == k)[0]
+        n_data = idx_data.shape[0]
+
+        if n_data > n_max:
+            idx_sample = np.random.choice(n_data,
+                                          n_max,
+                                          replace=False)
+            idx_keep[idx_data[idx_sample]] = 1
+        else:
+            idx_keep[idx_data] = 1
+
+    spike_train_small = spike_train[idx_keep]
+
+    return spike_train_small
+    
 
 # TODO: remove this function and use the explorer directly
 def get_templates_parallel(spike_train,
@@ -66,7 +84,7 @@ def get_templates_parallel(spike_train,
 
     # number of templates
     n_templates = int(np.max(spike_train[:, 1]) + 1)
-    spike_train_small = random_sample_spike_train(spike_train, n_max, CONFIG)
+    spike_train_small = random_sample_spike_train_do(spike_train, n_max, CONFIG)
     print spike_train_small.shape, " spike train small"
 
     # determine length of processing chunk based on lenght of rec
@@ -364,7 +382,7 @@ def random_sample_spike_train_parallel(data_in, chunk_len, n_templates,
     return spike_train_small
 
 
-def random_sample_spike_train(spike_train, n_max, CONFIG):
+def random_sample_spike_train_do(spike_train, n_max, CONFIG):
 
     n_templates = int(np.max(spike_train[:, 1]) + 1)
 

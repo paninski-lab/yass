@@ -7,7 +7,7 @@ import math
 from numpy.random import dirichlet
 import scipy.spatial as ss
 from numpy.random import dirichlet
-
+from sklearn.cluster import KMeans
 
 logger = logging.getLogger(__name__)
 
@@ -636,10 +636,18 @@ def init_param(maskedData, K, param):
     data = np.copy(maskedData.meanY.reshape(
         [N, nfeature * nchannel], order='F').T)
     data /= np.std(data, 1)[:, np.newaxis]
+    
+    # old method using manually written kmeans++
     allocation = weightedKmeansplusplus(
         data,
         maskedData.weight, K)
-
+    #print (allocation.shape)
+    
+    # new method relies on sklearn kmeans
+    #print (np.max(data))
+    #kmeans = KMeans(n_clusters=K, random_state=0).fit(data.T)
+    #allocation = kmeans.labels_
+    
     if N < K:
         rhat = np.zeros([N, N])
     else:
@@ -661,7 +669,10 @@ def weightedKmeansplusplus(X, w, k):
     L1 = 0
     p = w ** 2 / np.sum(w ** 2)
     n = X.shape[1]
+    ctr_outer = 0
     while np.unique(L).size != k:
+        #print ("ctr_outer: ", ctr_outer, L, L1)
+        ctr_outer+=1
         ii = np.random.choice(np.arange(n), size=1, replace=True, p=p)
         C = X[:, ii]
         L = np.zeros([1, n]).astype(int)
@@ -677,7 +688,10 @@ def weightedKmeansplusplus(X, w, k):
             L = np.argmax(
                 2 * np.dot(C.T, X) - np.sum(C * C, axis=0)[:, np.newaxis],
                 axis=0)
+        ctr_inner=0
         while np.any(L != L1):
+            #print ("ctr_inner: ", ctr_inner)
+            ctr_inner+=1
             L1 = L
             for i in range(k):
                 ll = L == i

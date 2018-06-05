@@ -220,7 +220,7 @@ def run(spike_index_all,
     spike_train = np.vstack(spike_train)
 
     # sort spikes by time and remove templates with spikes < max_spikes
-    spike_train, templates = clean_up(spike_train, templates, max_spikes)
+    #spike_train, templates = clean_up(spike_train, templates, max_spikes)
 
     # Optional save spike_train as txt file for human readability
     # filename_spike_train = os.path.join(CONFIG.data.root_folder,
