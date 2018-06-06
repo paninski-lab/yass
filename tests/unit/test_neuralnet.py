@@ -4,6 +4,7 @@ neuralnetwork module tests
 import os.path as path
 
 import numpy as np
+import tensorflow as tf
 import yaml
 
 import yass
@@ -42,9 +43,17 @@ def test_can_use_neural_network_detector(path_to_tests):
                                            triage_fname
                                            )
 
-    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-    neuralnetwork.run_detect_triage_featurize(data, x_tf, output_tf,
-                                              NND, NNAE, NNT, neighbors)
+    with tf.Session() as sess:
+        # get values of above tensors
+        NND.saver.restore(sess, NND.path_to_detector_model)
+        NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
+        NNT.saver.restore(sess, NNT.path_to_triage_model)
+        rot = NNAE.load_rotation()
+        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+
+        neuralnetwork.run_detect_triage_featurize(data, sess, x_tf, output_tf,
+                                                  neighbors,
+                                                  rot)
 
 
 def test_splitting_in_batches_does_not_affect_result(path_to_tests):
@@ -79,14 +88,21 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
                                            triage_fname,
                                            )
 
-    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-
     # run all at once
-    (scores, clear,
-     collision) = neuralnetwork.run_detect_triage_featurize(data, x_tf,
-                                                            output_tf,
-                                                            NND, NNAE,
-                                                            NNT, neighbors)
+    with tf.Session() as sess:
+        # get values of above tensors
+        NND.saver.restore(sess, NND.path_to_detector_model)
+        NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
+        NNT.saver.restore(sess, NNT.path_to_triage_model)
+        rot = NNAE.load_rotation()
+        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+
+        (scores, clear,
+         collision) = neuralnetwork.run_detect_triage_featurize(data, sess,
+                                                                x_tf,
+                                                                output_tf,
+                                                                neighbors,
+                                                                rot)
 
     # run in batches - buffer size makes sure we can detect spikes if they
     # appear at the end of any batch
@@ -94,16 +110,24 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
                         PARAMS['data_order'], '100KB',
                         buffer_size=CONFIG.spike_size)
 
-    res = bp.multi_channel_apply(
-        neuralnetwork.run_detect_triage_featurize,
-        mode='memory',
-        cleanup_function=neuralnetwork.fix_indexes,
-        x_tf=x_tf,
-        output_tf=output_tf,
-        NND=NND,
-        NNAE=NNAE,
-        NNT=NNT,
-        neighbors=neighbors)
+    with tf.Session() as sess:
+        # get values of above tensors
+        NND.saver.restore(sess, NND.path_to_detector_model)
+        NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
+        NNT.saver.restore(sess, NNT.path_to_triage_model)
+
+        rot = NNAE.load_rotation()
+        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+
+        res = bp.multi_channel_apply(
+            neuralnetwork.run_detect_triage_featurize,
+            mode='memory',
+            cleanup_function=neuralnetwork.fix_indexes,
+            sess=sess,
+            x_tf=x_tf,
+            output_tf=output_tf,
+            rot=rot,
+            neighbors=neighbors)
 
     scores_batch = np.concatenate([element[0] for element in res], axis=0)
     clear_batch = np.concatenate([element[1] for element in res], axis=0)

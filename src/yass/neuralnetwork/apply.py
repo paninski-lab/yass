@@ -1,9 +1,11 @@
-import tensorflow as tf
 import numpy as np
+from collections import defaultdict
+
+from yass.templates.util import strongly_connected_components_iterative
 
 
-def run_detect_triage_featurize(recordings, x_tf, output_tf,
-                                NND, NNAE, NNT, neighbors):
+def run_detect_triage_featurize(recordings, sess, x_tf, output_tf,
+                                neighbors, rot):
     """Detect spikes using a neural network
 
     Parameters
@@ -44,63 +46,72 @@ def run_detect_triage_featurize(recordings, x_tf, output_tf,
         (channel whose amplitude is maximum)
     """
 
-    # get values of above tensors
-    with tf.Session() as sess:
-        NND.saver.restore(sess, NND.path_to_detector_model)
-        NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
-        NNT.saver.restore(sess, NNT.path_to_triage_model)
+    score, spike_index, idx_clean = sess.run(
+        output_tf, feed_dict={x_tf: recordings})
 
-        score, spike_index, idx_clean = sess.run(
-            output_tf, feed_dict={x_tf: recordings})
+    energy = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
 
-        rot = NNAE.load_rotation()
-        energy = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
-
-        T, C = recordings.shape
-        killed = remove_axons(spike_index, energy, neighbors, T, C)
-
-        idx_keep = np.logical_and(~killed, idx_clean)
-        score_clear = score[idx_keep]
-        spike_index_clear = spike_index[idx_keep]
+    idx_survive = deduplicate(spike_index, energy, neighbors)
+    idx_keep = np.logical_and(idx_survive, idx_clean)
+    score_clear = score[idx_keep]
+    spike_index_clear = spike_index[idx_keep]
 
     return (score_clear, spike_index_clear, spike_index)
 
 
-def remove_axons(spike_index, energy, neighbors, T, C):
+def deduplicate(spike_index, energy, neighbors, w=5):
 
+    # number of data points
     n_data = spike_index.shape[0]
 
-    temp = np.ones((T, C), 'int32')*-1
-    temp[spike_index[:, 0], spike_index[:, 1]] = np.arange(n_data)
+    # separate time and channel info
+    TT = spike_index[:, 0]
+    CC = spike_index[:, 1]
 
-    kill = np.zeros(n_data, 'bool')
-    energy_killed = np.zeros(n_data, 'float32')
-    search_order = np.argsort(energy)[::-1]
-
+    # Index counting
+    # indices in index_counter[t-1]+1 to index_counter[t] have time t
+    T_max = np.max(TT)
+    T_min = np.min(TT)
+    index_counter = np.zeros(T_max + w + 1, 'int32')
+    t_now = T_min
     for j in range(n_data):
-        kill, energy_killed = kill_spikes(temp, neighbors, spike_index,
-                                          energy, kill,
-                                          energy_killed, search_order[j])
+        if TT[j] > t_now:
+            index_counter[t_now:TT[j]] = j - 1
+            t_now = TT[j]
+    index_counter[T_max:] = n_data - 1
 
-    return kill
+    # connecting edges
+    j_now = 0
+    edges = defaultdict(list)
+    for t in range(T_min, T_max + 1):
 
+        # time of j_now to index_counter[t] is t
+        # j_now to index_counter[t+w] has all index from t to t+w
+        max_index = index_counter[t+w]
+        cc_temporal_neighs = CC[j_now:max_index+1]
 
-def kill_spikes(temp, neighbors, spike_index, energy, kill,
-                energy_killed, current_idx):
+        for j in range(index_counter[t]-j_now+1):
+            # check if channels are also neighboring
+            idx_neighs = np.where(
+                neighbors[cc_temporal_neighs[j],
+                          cc_temporal_neighs[j+1:]])[0] + j + 1 + j_now
 
-    tt, cc = spike_index[current_idx]
-    energy_threshold = max(energy_killed[current_idx], energy[current_idx])
-    ch_idx = np.where(neighbors[cc])[0]
-    w = 5
-    indices = temp[tt-w:tt+w+1, ch_idx].ravel()
-    indices = indices[indices > -1]
+            # connect edges to neighboring spikes
+            for j2 in idx_neighs:
+                edges[j2].append(j+j_now)
+                edges[j+j_now].append(j2)
 
-    for j in indices:
-        if energy[j] < energy_threshold:
-            kill[j] = 1
-            energy_killed[j] = energy_threshold
+        # update j_now
+        j_now = index_counter[t]+1
 
-    return kill, energy_killed
+    # Using scc, build connected components from the graph
+    idx_survive = np.zeros(n_data, 'bool')
+    for scc in strongly_connected_components_iterative(np.arange(n_data),
+                                                       edges):
+        idx = list(scc)
+        idx_survive[idx[np.argmax(energy[idx])]] = 1
+
+    return idx_survive
 
 
 def fix_indexes(res, idx_local, idx, buffer_size):

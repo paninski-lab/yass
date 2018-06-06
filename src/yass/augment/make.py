@@ -87,7 +87,11 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     # get templates
     templates, _ = get_templates(
-        spike_train, path_to_data, 4*CONFIG.spike_size)
+        np.hstack((spike_train,
+                   np.ones((spike_train.shape[0], 1), 'int32'))),
+        path_to_data,
+        CONFIG.resources.max_memory,
+        4*CONFIG.spike_size)
 
     templates = np.transpose(templates, (2, 1, 0))
 
@@ -95,6 +99,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     # choose good templates (good looking and big enough)
     templates = choose_templates(templates, chosen_templates)
+    templates_uncropped = np.copy(templates)
 
     if templates.shape[0] == 0:
         raise ValueError("Coulndt find any good templates...")
@@ -304,18 +309,33 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
         x_triage = x[:, (mid_point-R):(mid_point+R+1), 0]
         y_triage = np.concatenate((y_clean, np.zeros((x_collision.shape[0]))))
 
-    # ge training set for auto encoder
-    ae_shift_max = 1
-    temporal_shifts_ae = np.random.randint(
-        ae_shift_max*2+1, size=x_clean.shape[0]) - ae_shift_max
-    y_ae = np.zeros((x_clean.shape[0], 2*R+1))
-    x_ae = np.zeros((x_clean.shape[0], 2*R+1))
-    for j in range(x_ae.shape[0]):
-        y_ae[j] = x_clean[j, (mid_point-R+temporal_shifts_ae[j]):
-                          (mid_point+R+1+temporal_shifts_ae[j]), 0]
-        x_ae[j] = x_clean[j, (mid_point-R+temporal_shifts_ae[j]):
-                          (mid_point+R+1+temporal_shifts_ae[j]), 0]+noise[
-            j, (mid_point-R+temporal_shifts_ae[j]):
-            (mid_point+R+1+temporal_shifts_ae[j]), 0]
+    ###############
+    # Autoencoder #
+    ###############
+
+    n_channels = templates_uncropped.shape[2]
+    templates_ae = crop_templates(templates_uncropped, CONFIG.spike_size,
+                                  np.ones((n_channels, n_channels), 'int32'),
+                                  CONFIG.geom)
+
+    tt = templates_ae.transpose(1, 0, 2).reshape(templates_ae.shape[1], -1)
+    tt = tt[:, np.ptp(tt, axis=0) > 2]
+    max_amp = np.max(np.ptp(tt, axis=0))
+
+    y_ae = np.zeros((nk*tt.shape[1], tt.shape[0]))
+    for k in range(tt.shape[1]):
+        amp_now = np.ptp(tt[:, k])
+        amps_range = (np.arange(nk)*(max_amp-min_amp)
+                      / nk+min_amp)[:, np.newaxis, np.newaxis]
+
+        y_ae[k*nk:(k+1)*nk] = ((tt[:, k]/amp_now)[np.newaxis, :]
+                               * amps_range[:, :, 0])
+
+    noise = np.random.normal(size=y_ae.shape)
+    noise = np.matmul(noise, temporal_SIG)
+
+    x_ae = y_ae + noise
+    x_ae = x_ae[:, (mid_point-R):(mid_point+R+1)]
+    y_ae = y_ae[:, (mid_point-R):(mid_point+R+1)]
 
     return x_detect, y_detect, x_triage, y_triage, x_ae, y_ae
