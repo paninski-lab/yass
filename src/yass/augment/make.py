@@ -9,9 +9,6 @@ from yass.augment.noise import noise_cov
 from yass.templates.util import get_templates
 from yass.util import load_yaml
 
-# TODO: documentation
-# TODO: comment code, it's not clear what it does
-
 
 def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                        nspikes, data_folder, noise_ratio=10, collision_ratio=1,
@@ -22,41 +19,51 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     CONFIG: yaml file
         Configuration file
     spike_train: numpy.ndarray
-        [number of spikes, 2] Ground truth for training. First column is the spike time, second column is the spike id  
+        [number of spikes, 2] Ground truth for training. First column is the
+        spike time, second column is the spike id
     chosen_templates: list
-        List of chosen templates' id's  
+        List of chosen templates' id's
     min_amp: float
-        Minimum value allowed for the maximum absolute amplitude of the isolated spike on its main channel  
+        Minimum value allowed for the maximum absolute amplitude of the
+        isolated spike on its main channel
     nspikes: int
-        Number of isolated spikes to generate. This is different from the total number of x_detect   
+        Number of isolated spikes to generate. This is different from the
+        total number of x_detect
     data_folder: str
-        Folder storing the standarized data (if not exist, run preprocess to automatically generate)     
+        Folder storing the standarized data (if not exist, run preprocess to
+        automatically generate)
     noise_ratio: int
-        Ratio of number of noise to isolated spikes. For example, if n_isolated_spike=1000, noise_ratio=5, then n_noise=5000     
+        Ratio of number of noise to isolated spikes. For example, if
+        n_isolated_spike=1000, noise_ratio=5, then n_noise=5000
     collision_ratio: int
-        Ratio of number of collisions to isolated spikes.    
+        Ratio of number of collisions to isolated spikes.
     misalign_ratio: int
-        Ratio of number of spatially and temporally misaligned spikes to isolated spikes 
+        Ratio of number of spatially and temporally misaligned spikes to
+        isolated spikes
     misalign_ratio2: int
-        Ratio of number of only-spatially misaligned spikes to isolated spikes      
+        Ratio of number of only-spatially misaligned spikes to isolated spikes
     multi: bool
-        If multi= True, generate training data for multi-channel neural network. Otherwise generate single-channel data
+        If multi= True, generate training data for multi-channel neural
+        network. Otherwise generate single-channel data
 
     Returns
     -------
     x_detect: numpy.ndarray
-        [number of detection training data, temporal length, number of channels] Training data for the detect net.
+        [number of detection training data, temporal length, number of
+        channels] Training data for the detect net.
     y_detect: numpy.ndarray
         [number of detection training data] Label for x_detect
 
     x_triage: numpy.ndarray
-        [number of triage training data, temporal length, number of channels] Training data for the triage net.
+        [number of triage training data, temporal length, number of channels]
+        Training data for the triage net.
     y_triage: numpy.ndarray
         [number of triage training data] Label for x_triage
 
 
     x_ae: numpy.ndarray
-        [number of ae training data, temporal length] Training data for the autoencoder: noisy spikes
+        [number of ae training data, temporal length] Training data for the
+        autoencoder: noisy spikes
     y_ae: numpy.ndarray
         [number of ae training data, temporal length] Denoised x_ae
 
