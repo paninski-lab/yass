@@ -54,7 +54,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     # choose good templates (good looking and big enough)
     templates = choose_templates(templates, chosen_templates)
     templates_uncropped = np.copy(templates)
-    
+
     if templates.shape[0] == 0:
         raise ValueError("Coulndt find any good templates...")
 
@@ -190,7 +190,6 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     x_triage = x[:, (mid_point-R):(mid_point+R+1), :]
     y_triage = np.concatenate((y_clean, np.zeros((x_clean.shape[0]))))
 
-
     ###############
     # Autoencoder #
     ###############
@@ -209,7 +208,9 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
         amp_now = np.ptp(tt[:, k])
         amps_range = (np.arange(nk)*(max_amp-min_amp)
                       / nk+min_amp)[:, np.newaxis, np.newaxis]
-        y_ae[k*nk:(k+1)*nk] = (tt[:, k]/amp_now)[np.newaxis, :]*amps_range[:, :, 0]
+
+        y_ae[k*nk:(k+1)*nk] = ((tt[:, k]/amp_now)[np.newaxis, :]
+                               * amps_range[:, :, 0])
 
     noise = np.random.normal(size=y_ae.shape)
     noise = np.matmul(noise, temporal_SIG)

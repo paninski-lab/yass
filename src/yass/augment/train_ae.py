@@ -1,7 +1,5 @@
-import numpy as np
 import tensorflow as tf
 from sklearn.decomposition import PCA
-from tqdm import tqdm
 
 
 def train_ae(x_train, y_train, n_feature, n_iter, n_batch, train_step_size,
@@ -25,7 +23,7 @@ def train_ae(x_train, y_train, n_feature, n_iter, n_batch, train_step_size,
     n_data, n_input = x_train.shape
 
     pca = PCA(n_components=n_feature).fit(x_train)
-    
+
     # encoding
     W_ae = tf.Variable((pca.components_.T).astype('float32'))
 

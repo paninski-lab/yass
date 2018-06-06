@@ -1050,7 +1050,7 @@ def get_core_data(vbParam, score, n_max, threshold):
                     scoremhat[:, :, :, :, np.newaxis]),
                 axis=(3, 4),
                 keepdims=False))
-        idx_data = idx_data[np.all(maha < threshold, axis=(1,2))]
+        idx_data = idx_data[np.all(maha < threshold, axis=(1, 2))]
 
         if idx_data.shape[0] > n_max:
             idx_data = np.random.choice(idx_data, n_max, replace=False)
