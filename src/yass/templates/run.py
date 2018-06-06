@@ -1,3 +1,4 @@
+from os.path import join
 import os
 import logging
 import datetime
@@ -8,15 +9,16 @@ from yass.templates.clean import clean_up_templates
 from yass.util import check_for_files, LoadFile, file_loader
 
 
-@check_for_files(filenames=[LoadFile('templates.npy'),
-                            LoadFile('spike_train.npy'),
-                            LoadFile('groups.pickle'),
-                            LoadFile('idx_good_templates.npy')],
+@check_for_files(filenames=[LoadFile(join('templates', 'templates.npy')),
+                            LoadFile(join('templates', 'spike_train.npy')),
+                            LoadFile(join('templates', 'groups.pickle')),
+                            LoadFile(join('templates',
+                                          'idx_good_templates.npy'))],
                  mode='values', relative_to='output_directory',
                  auto_save=True, prepend_root_folder=True)
 def run(spike_train, tmp_loc, output_directory='tmp/',
         recordings_filename='standarized.bin',
-        if_file_exists='skip', save_results=False):
+        if_file_exists='skip', save_results=True):
     """Compute templates
 
     Parameters
@@ -84,6 +86,7 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
 
     path_to_recordings = os.path.join(CONFIG.data.root_folder,
                                       output_directory,
+                                      'preprocess',
                                       recordings_filename)
 
     # relevant parameters
@@ -106,8 +109,7 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
         snr_threshold, spread_threshold)
 
     # align templates
-    templates, spike_train = align_templates(templates, spike_train,
-                                             template_max_shift)
+    templates = align_templates(templates, template_max_shift)
 
     # merge templates
     templates, spike_train, groups = merge_templates(

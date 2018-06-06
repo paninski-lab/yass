@@ -2,6 +2,7 @@ import logging
 from logging import NullHandler
 from yass.util import running_on_gpu
 
+
 try:
     import tensorflow as tf
 except ImportError:
@@ -17,7 +18,7 @@ logging.getLogger(__name__).addHandler(NullHandler())
 
 logger = logging.getLogger(__name__)
 
-__version__ = '0.9dev'
+__version__ = '0.10dev'
 
 CONFIG = None
 

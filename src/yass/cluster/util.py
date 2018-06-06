@@ -44,6 +44,8 @@ def run_cluster(scores, masks, groups, spike_index,
     # can break things and make it hard to debug
     # (09/27/17) Eduardo
 
+    logger = logging.getLogger(__name__)
+
     n_channels = np.max(spike_index[:, 1]) + 1
     global_score = None
     global_vbParam = None
@@ -52,6 +54,8 @@ def run_cluster(scores, masks, groups, spike_index,
 
     # run clustering algorithm per main channel
     for channel in range(n_channels):
+
+        logger.info('Processing channel {}'.format(channel))
 
         idx_data = np.where(spike_index[:, 1] == channel)[0]
         score_channel = scores[idx_data]
@@ -62,7 +66,7 @@ def run_cluster(scores, masks, groups, spike_index,
 
         if n_data > 1:
             # run clustering
-            vbParam = mfm.spikesort(np.copy(score_channel),
+            vbParam = mfm.spikesort(score_channel,
                                     mask_channel,
                                     group_channel, CONFIG)
 
@@ -171,7 +175,7 @@ def calculate_sparse_rhat(vbParam, tmp_loc, scores,
         score = scores[idx_data]
         n_data = score.shape[0]
 
-        ch_idx = np.where(neighbors[channel])[0]
+        ch_idx = [channel]
         cluster_idx = np.zeros(n_templates, 'bool')
         for c in ch_idx:
             cluster_idx[tmp_loc == c] = 1

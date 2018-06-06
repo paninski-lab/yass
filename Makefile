@@ -18,7 +18,21 @@ install-yass: ## Install Yass package
 
 test: ## Run Tests
 	@echo "--> Running Tests"
-	pytest --flake8 --cov=yass
+	pytest tests/unit --flake8 --cov=yass
+
+
+output-test: ## Generate output for performance tests
+	@echo "--> Generating output for performance tests"
+	cd tests/
+	@echo "--> Running pipeline with threshold detector..."
+	yass sort config_threshold_49.yaml --zero_seed
+	@echo "--> Running pipeline with neural network detector..."
+	yass sort config_nn_49.yaml --zero_seed
+
+
+performance-test: ## Run performance tests
+	@echo "--> Running performance tests"
+	pytest tests/performance/ --log-cli-level=INFO
 
 
 integration-test: ## Run Integration Tests

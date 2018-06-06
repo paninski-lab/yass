@@ -40,12 +40,12 @@ def triage(scores, spike_index, triage_k,
     idx_triage = np.zeros(scores.shape[0], 'bool')
     for channel in range(n_channels):
         idx_data = np.where(spike_index[:, 1] == channel)[0]
-        scores_channel = scores[
-            idx_data, :, 0]
+        scores_channel = scores[idx_data]
         nc = scores_channel.shape[0]
 
         if nc > triage_k + 1:
             if location_feature:
+                scores_channel = scores_channel[:, :, 0]
                 th = (1 - triage_percent/2)*100
 
                 # get distance to nearest neighbors
@@ -63,13 +63,16 @@ def triage(scores, spike_index, triage_k,
                 idx_triage[idx_data[dist > np.percentile(dist, th)]] = 1
 
             else:
-                # get distance to nearest neighbors
-                tree = cKDTree(scores_channel)
-                dist, ind = tree.query(scores_channel, k=triage_k + 1)
-                dist = np.sum(dist, 1)
+                n_neigh = scores_channel.shape[2]
+                th = (1 - triage_percent/n_neigh)*100
 
-                # triage far ones
-                idx_triage[idx_data[dist > np.percentile(dist, th)]] = 1
+                for c in range(n_neigh):
+                    tree = cKDTree(scores_channel[:, :, c])
+                    dist, ind = tree.query(scores_channel[:, :, c],
+                                           k=triage_k + 1)
+                    dist = np.sum(dist, 1)
+                    # triage far ones
+                    idx_triage[idx_data[dist > np.percentile(dist, th)]] = 1
 
     idx_triage = np.where(idx_triage)[0]
     scores = np.delete(scores, idx_triage, 0)
