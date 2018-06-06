@@ -287,14 +287,14 @@ cluster:
 templates:
   type: dict
   default:
-    save_results: False
+    save_results: True
     if_file_exists: skip
     max_shift: 3
     merge_threshold: [0.85, 0.8]
   schema:
     save_results:
       type: boolean
-      default: False
+      default: True
       required: False
     if_file_exists:
       type: string

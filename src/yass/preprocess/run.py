@@ -3,6 +3,10 @@ Preprocess pipeline
 """
 import logging
 import os.path
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
 
 from yass import read_config
 from yass.geometry import make_channel_index
@@ -51,11 +55,11 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     Running the preprocessor will generate the followiing files in
     CONFIG.data.root_folder/output_directory/:
 
-    * ``filtered.bin`` - Filtered recordings
-    * ``filtered.yaml`` - Filtered recordings metadata
-    * ``standarized.bin`` - Standarized recordings
-    * ``standarized.yaml`` - Standarized recordings metadata
-    * ``whitening.npy`` - Whitening filter
+    * ``preprocess/filtered.bin`` - Filtered recordings
+    * ``preprocess/filtered.yaml`` - Filtered recordings metadata
+    * ``preprocess/standarized.bin`` - Standarized recordings
+    * ``preprocess/standarized.yaml`` - Standarized recordings metadata
+    * ``preprocess/whitening.npy`` - Whitening filter
 
     Everything is run on CPU.
 
@@ -70,17 +74,14 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     CONFIG = read_config()
     OUTPUT_DTYPE = CONFIG.preprocess.dtype
     PROCESSES = CONFIG.resources.processes
-    TMP = os.path.join(CONFIG.data.root_folder, output_directory)
 
     logger.info('Output dtype for transformed data will be {}'
                 .format(OUTPUT_DTYPE))
 
-    if not os.path.exists(TMP):
-        logger.info('Creating temporary folder: {}'.format(TMP))
-        os.makedirs(TMP)
-    else:
-        logger.info('Temporary folder {} already exists, output will be '
-                    'stored there'.format(TMP))
+    TMP = Path(CONFIG.data.root_folder, output_directory,
+               'preprocess/')
+    TMP.mkdir(parents=True, exist_ok=True)
+    TMP = str(TMP)
 
     path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
     params = dict(dtype=CONFIG.recordings.dtype,

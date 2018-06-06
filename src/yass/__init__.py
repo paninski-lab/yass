@@ -2,6 +2,7 @@ import logging
 from logging import NullHandler
 from yass.util import running_on_gpu
 
+
 try:
     import tensorflow as tf
 except ImportError:

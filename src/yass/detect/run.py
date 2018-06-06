@@ -3,13 +3,18 @@ Detection pipeline
 """
 import logging
 import os.path
+import os
 from functools import reduce
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
 
 from yass import read_config, GPU_ENABLED
-from yass.batch import BatchProcessor, RecordingsReader
+from yass.batch import BatchProcessor
 from yass.threshold.detect import threshold
 from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
@@ -136,10 +141,12 @@ def run_threshold(standarized_path, standarized_params, channel_index,
 
     CONFIG = read_config()
 
+    folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+    folder.mkdir(exist_ok=True)
+
     # Set TMP_FOLDER to None if not save_results, this will disable
     # saving results in every function below
-    TMP_FOLDER = (os.path.join(CONFIG.data.root_folder, output_directory)
-                  if save_results else None)
+    TMP_FOLDER = (str(folder) if save_results else None)
 
     # files that will be saved if enable by the if_file_exists option
     filename_index_clear = 'spike_index_clear.npy'
@@ -170,15 +177,12 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     # PCA #
     #######
 
-    recordings = RecordingsReader(standarized_path)
-
     # run PCA, save rotation matrix and pca scores under TMP_FOLDER
     # TODO: remove clear as input for PCA and create an independent function
     pca_scores, clear, _ = pca(standarized_path,
                                standarized_params['dtype'],
                                standarized_params['n_channels'],
                                standarized_params['data_order'],
-                               recordings,
                                clear,
                                CONFIG.spike_size,
                                CONFIG.detect.temporal_features,
@@ -198,10 +202,17 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     # apply whitening to scores
     scores_clear = whiten.score(pca_scores, clear[:, 1], whiten_filter)
 
+    # TODO: this shouldn't be here
+    # transform scores to location + shape feature space
+    if CONFIG.cluster.method == 'location':
+        scores = get_locations_features_threshold(scores_clear, clear[:, 1],
+                                                  channel_index,
+                                                  CONFIG.geom)
+
     if TMP_FOLDER is not None:
         # saves whiten scores
         path_to_scores = os.path.join(TMP_FOLDER, filename_scores_clear)
-        save_numpy_object(scores_clear, path_to_scores, if_file_exists,
+        save_numpy_object(scores, path_to_scores, if_file_exists,
                           name='scores')
 
         # save spike_index_all (same as spike_index_clear for threshold
@@ -210,13 +221,6 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                                                filename_spike_index_all)
         save_numpy_object(clear, path_to_spike_index_all, if_file_exists,
                           name='Spike index all')
-
-    # TODO: this shouldn't be here
-    # transform scores to location + shape feature space
-    if CONFIG.cluster.method == 'location':
-        scores = get_locations_features_threshold(scores_clear, clear[:, 1],
-                                                  channel_index,
-                                                  CONFIG.geom)
 
     return scores, clear, np.copy(clear)
 
@@ -240,7 +244,11 @@ def run_neural_network(standarized_path, standarized_params,
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
-    TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
+
+    folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+    folder.mkdir(exist_ok=True)
+
+    TMP_FOLDER = str(folder)
 
     # check if all scores, clear and collision spikes exist..
     path_to_score = os.path.join(TMP_FOLDER, 'scores_clear.npy')
@@ -254,7 +262,7 @@ def run_neural_network(standarized_path, standarized_params,
 
     if (if_file_exists == 'overwrite' or
         if_file_exists == 'abort' and not any(exists)
-       or if_file_exists == 'skip' and not all(exists)):
+            or if_file_exists == 'skip' and not all(exists)):
         max_memory = (CONFIG.resources.max_memory_gpu if GPU_ENABLED else
                       CONFIG.resources.max_memory)
 
@@ -367,8 +375,8 @@ def run_neural_network(standarized_path, standarized_params,
                          'program halted since the following files '
                          'already exist: {}'.format(message))
     elif if_file_exists == 'skip' and all(exists):
-        logger.info('Skipped execution. All necessary files exist'
-                    ', loading them...')
+        logger.warning('Skipped execution. All output files exist'
+                       ', loading them...')
         scores = np.load(path_to_score)
         clear = np.load(path_to_spike_index_clear)
         spikes_all = np.load(path_to_spike_index_all)

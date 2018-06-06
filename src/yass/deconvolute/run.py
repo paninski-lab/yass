@@ -6,7 +6,7 @@ import numpy as np
 from yass.deconvolute.deconvolve import deconvolve, fix_indexes
 from yass import read_config
 from yass.batch import BatchProcessor
-from yass.util import file_loader
+from yass.util import file_loader, file_saver
 
 
 def run(spike_index, templates, output_directory='tmp/',
@@ -57,6 +57,7 @@ def run(spike_index, templates, output_directory='tmp/',
     # read recording
     recording_path = os.path.join(CONFIG.data.root_folder,
                                   output_directory,
+                                  'preprocess',
                                   recordings_filename)
     bp = BatchProcessor(recording_path,
                         buffer_size=templates.shape[1])
@@ -91,5 +92,11 @@ def run(spike_index, templates, output_directory='tmp/',
 
     # sort spikes by time
     spike_train = spike_train[np.argsort(spike_train[:, 0])]
+
+    # save spike train
+    path_to_spike_train = os.path.join(CONFIG.data.root_folder,
+                                       output_directory, 'spike_train.npy')
+    logger.info('Spike train saved in %s', path_to_spike_train)
+    file_saver(spike_train, path_to_spike_train)
 
     return spike_train
