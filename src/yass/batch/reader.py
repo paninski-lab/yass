@@ -161,9 +161,14 @@ class RecordingsReader(object):
 
         obs_idx, _ = key
 
-        data_idx = (slice(self.buffer_size,
-                          obs_idx.stop - obs_idx.start + self.buffer_size,
-                          obs_idx.step), slice(None, None, None))
+        # index where the data is located (excluding buffer)
+        # build indexes for observations
+        idx = slice(self.buffer_size,
+                    obs_idx.stop - obs_idx.start + self.buffer_size,
+                    obs_idx.step)
+        # buffer is added to all channels
+        ch_idx = slice(None, None, None)
+        data_idx = (idx, ch_idx)
 
         if self.buffer_size:
             # modify indexes to include buffered data
