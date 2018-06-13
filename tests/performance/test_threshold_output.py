@@ -26,7 +26,7 @@ def test_threshold_output(path_to_tests):
     logger.info('Removing %s', TMP)
     shutil.rmtree(str(TMP))
 
-    PATH_TO_REF = '/ssd/data/eduardo/threshold_49/'
+    PATH_TO_REF = '/home/Edu/data/threshold'
 
     np.random.seed(0)
 

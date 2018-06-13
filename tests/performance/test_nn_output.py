@@ -26,7 +26,7 @@ def test_nn_output(path_to_tests):
     logger.info('Removing %s', TMP)
     shutil.rmtree(str(TMP))
 
-    PATH_TO_REF = '/ssd/data/eduardo/nn_49/'
+    PATH_TO_REF = '/home/Edu/data/nnet'
 
     np.random.seed(0)
 
