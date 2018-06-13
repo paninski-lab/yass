@@ -72,8 +72,9 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     logger = logging.getLogger(__name__)
 
-    path_to_data = os.path.join(data_folder, 'standarized.bin')
-    path_to_config = os.path.join(data_folder, 'standarized.yaml')
+    path_to_data = os.path.join(data_folder, 'preprocess', 'standarized.bin')
+    path_to_config = os.path.join(data_folder, 'preprocess',
+                                  'standarized.yaml')
 
     # make sure standarized data already exists
     if not os.path.exists(path_to_data):
