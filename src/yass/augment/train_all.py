@@ -32,11 +32,11 @@ def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
     n_batch = CONFIG_TRAIN['training']['n_batch']
     l2_reg_scale = CONFIG_TRAIN['training']['l2_regularization_scale']
     train_step_size = CONFIG_TRAIN['training']['step_size']
-    detectnet_name = CONFIG_TRAIN['network_detector']['name']+'.ckpt'
+    detectnet_name = './'+CONFIG_TRAIN['network_detector']['name']+'.ckpt'
     n_filters_triage = CONFIG_TRAIN['network_triage']['n_filters']
-    triagenet_name = CONFIG_TRAIN['network_triage']['name']+'.ckpt'
+    triagenet_name = './'+CONFIG_TRAIN['network_triage']['name']+'.ckpt'
     n_features = CONFIG_TRAIN['network_autoencoder']['n_features']
-    ae_name = CONFIG_TRAIN['network_autoencoder']['name']+'.ckpt'
+    ae_name = './'+CONFIG_TRAIN['network_autoencoder']['name']+'.ckpt'
 
     # generate training data for detection, triage and autoencoder
     logger.info('Generating training data...')
