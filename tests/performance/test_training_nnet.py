@@ -17,7 +17,7 @@ def test_can_generate_training_data():
 def test_can_train_neural_networks(path_to_tests):
     path_to_spike_train = path.join(PATH_TO_REF, 'spike_train.npy')
     path_to_config = path.join(PATH_TO_REF, 'config.yaml')
-    path_to_config_train = path.join(path_to_tests, 'config_nn_49.yaml')
+    path_to_config_train = path.join(path_to_tests, 'config_train')
 
     spike_train = np.load(path_to_spike_train)
     CONFIG = Config.from_yaml(path_to_config)
