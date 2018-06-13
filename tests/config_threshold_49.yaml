@@ -1,5 +1,5 @@
 data:
-  root_folder: /ssd/data/eduardo
+  root_folder: /home/Edu/data
   recordings: ej49_data1_set1.bin
   geometry: ej49_geometry1.txt
 
