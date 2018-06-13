@@ -7,7 +7,7 @@ from yass.config import Config
 from yass.util import load_yaml
 from yass.augment import train_neural_networks
 
-PATH_TO_REF = '/ssd/data/eduardo/nn_49/'
+PATH_TO_REF = '/home/Edu/data/nnet'
 
 
 def test_can_generate_training_data():
