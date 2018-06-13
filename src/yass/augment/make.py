@@ -13,7 +13,8 @@ from yass.util import load_yaml
 def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                        nspikes, data_folder, noise_ratio=10, collision_ratio=1,
                        misalign_ratio=1, misalign_ratio2=1, multi=True):
-    """[Description]
+    """Makes training sets for detector, triage and autoencoder
+
     Parameters
     ----------
     CONFIG: yaml file

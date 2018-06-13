@@ -10,10 +10,17 @@ from yass.util import change_extension
 
 
 def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
-    """Train all neural networks
+    """
+    Train neural network
 
     Parameters
     ----------
+    CONFIG
+        YASS configuration file
+    CONFIG_TRAIN
+        YASS Neural Network configuration file
+    spike_train: numpy.ndarray
+        Spike train, first column is spike index and second is main channel
     """
     logger = logging.getLogger(__name__)
 
@@ -31,7 +38,7 @@ def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
     n_features = CONFIG_TRAIN['network_autoencoder']['n_features']
     ae_name = CONFIG_TRAIN['network_autoencoder']['name']+'.ckpt'
 
-    # generate training data
+    # generate training data for detection, triage and autoencoder
     logger.info('Generating training data...')
     (x_detect, y_detect,
      x_triage, y_triage,
