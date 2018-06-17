@@ -156,15 +156,13 @@ def _threshold(rec, neighbors, spike_size, threshold):
     th = threshold
     neigh_channels_big = n_steps_neigh_channels(neighbors, steps=2)
 
-    # FIXME: is this a safe thing to do?
+    # FIXME: is this a safe thing to do? NOPE
     index = np.zeros((1000000, 2), 'int32')
     count = 0
 
     for c in range(C):
         # For each channel, mark down location where it crosses the threshold
-        idx = np.logical_and(rec[:, c] < -th, np.r_[True, rec[1:, c]
-                             < rec[:-1, c]] & np.r_[rec[:-1, c]
-                             < rec[1:, c], True])
+        idx = np.logical_and(rec[:, c] < -th, np.r_[True, rec[1:, c] < rec[:-1, c]] & np.r_[rec[:-1, c] < rec[1:, c], True])
         nc = np.sum(idx)
 
         if nc > 0:

@@ -226,26 +226,26 @@ def deconvolve_new_allcores_updated(
     # ***************** STAGE 3:  DOT PRODUCT LOOP *********************
     # ******************************************************************
     # ******************************************************************
-
     ctr_times = 0
     for k in range(n_templates):
         # Select spikes on the max channel and offset to t=0 + buffer
-        if False:
-            spt = spt_list[principal_channels[k]]
-            spt = spt[np.logical_and(spt >= data_start, spt < data_end)]
-            spt = np.int32(spt - data_start + offset)
+        #if False:
+            #spt = spt_list[principal_channels[k]]
+            #spt = spt[np.logical_and(spt >= data_start, spt < data_end)]
+            #spt = np.int32(spt - data_start + offset)
 
         # Cat use cleared_spike spt_list, also index locally only
         # #Cat: todo talk to Peter re: eliminating spt_list
-        else:
-            spt = spt_list_local[principal_channels[k]]
-            spt = np.int32(spt + offset)
+        #else:
+        spt = spt_list_local[principal_channels[k]]
+        spt = np.int32(spt + offset)
 
         # Pick channels around template
         ch_idx = np.where(visible_channels[k])[0]
 
         times = (spt[:, np.newaxis] +
                  np.arange(-R2-n_explore, n_explore+R2+1))
+                 
         if len(times) == 0:
             continue
 

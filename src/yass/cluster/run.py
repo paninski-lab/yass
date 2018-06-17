@@ -104,16 +104,19 @@ def run(scores,
             #n_variance_pts = 3
             n_dim_pca = 3
             wf_start = 0
-            wf_end = 25
+            wf_end = int(CONFIG.recordings.spike_size_ms*
+                     CONFIG.recordings.sampling_rate//1000)
             n_mad_chans = 5
             n_max_chans = 5
-            mfm_threshold = 0.80
+            mfm_threshold = 0.85
 
             spike_train, tmp_loc = run_cluster_features_2(spike_index_clear, 
                                     n_dim_pca, wf_start, wf_end, n_mad_chans, 
                                     n_max_chans, CONFIG, output_directory,
                                     mfm_threshold)
             
+            print ("Spike train clustered: ", spike_train.shape, " # clusters: ",
+                        np.max(spike_train[:,1])+1)
             np.save(fname,spike_train)
             np.save(os.path.join(CONFIG.data.root_folder, 
                               output_directory,'tmp_loc.npy'), tmp_loc)

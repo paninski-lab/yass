@@ -77,6 +77,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     PARAMS = load_yaml(path_to_config)
 
+    print ("getting tempaltes...")
     logger.info('Getting templates...')
 
     # get templates - making templates from spike train
@@ -107,12 +108,14 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     # align and crop templates;
     # Cat: original size of tempalte is 4 x cross size; 
     #      need to make it smaller
+    print ("cropping tempaltes...")
     templates = crop_templates(templates, CONFIG.spike_size,
                                CONFIG.neigh_channels, CONFIG.geom)
 
     # determine noise covariance structure
     # Cat: spatial covariance matrix is 7 x 7
     # 2 matrices spatial and temporal
+    print ("compute spatial covariance...")
     spatial_SIG, temporal_SIG = noise_cov(path_to_data,
                                           PARAMS['dtype'],
                                           CONFIG.recordings.n_channels,
@@ -140,6 +143,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     # generate augmented spikes for eacah tempalte
     # arange tempaltes from min to max amplitude
     # clean spikes, no noise
+    print ("Making clean spikes...")
     x_clean = np.zeros((nk*K, templates.shape[1], templates.shape[2]))
     for k in range(K):
         tt = templates[k]
@@ -153,6 +157,8 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     # collision #
     #############
     # collision_ratio: # of clean spikes to # of collision spikes
+    print ("making collission spikes...")
+
     x_collision = np.zeros(
         (x_clean.shape[0]*int(collision_ratio), templates.shape[1],
          templates.shape[2]))
@@ -201,7 +207,8 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     ##############################################
     # temporally and spatially misaligned spikes #
     ##############################################
-    
+    print ("making spatio-temporal misaligned spikes...")
+
     # Cat: another negative case with just reference spikes that are 
     # misalgined, i.e. offcentre, or whose main channel is not first channel
     # train to discard these
@@ -243,6 +250,8 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     # Cat: another case where just spatially misaligning
     # need this case for triage nn; 
     # misalgined2 different than above
+    print ("making spatially misaligned spikes...")
+
     if multi:
         x_misaligned2 = np.zeros(
             (x_clean.shape[0]*int(misalign_ratio2), templates.shape[1],
@@ -257,13 +266,17 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     #########
     # get noise
     # Cat: generate gaussian with mean=0; covariance same as above;
+
     noise = np.random.normal(
         size=[x_clean.shape[0]*int(noise_ratio), templates.shape[1],
               templates.shape[2]])
+    print ("making noise...", noise.shape, temporal_SIG.shape)
     for c in range(noise.shape[2]):
+        print ("c: ", c)
         noise[:, :, c] = np.matmul(noise[:, :, c], temporal_SIG)
-
-        reshaped_noise = np.reshape(noise, (-1, noise.shape[2]))
+    
+    reshaped_noise = np.reshape(noise, (-1, noise.shape[2]))
+        
     noise = np.reshape(np.matmul(reshaped_noise, spatial_SIG),
                        [noise.shape[0], x_clean.shape[1], x_clean.shape[2]])
 
@@ -280,6 +293,8 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     # get training set for detection
     # stacking all data together:  clean, collissions, misaligned, noise
     # everything gets noise addded
+    print ("concatenating data...")
+
     if multi:
         x = np.concatenate((
             x_clean +

@@ -57,6 +57,7 @@ def run_detect_triage_featurize(recordings, x_tf, output_tf,
         energy = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
 
         T, C = recordings.shape
+        print ("Killing axons...")
         killed = remove_axons(spike_index, energy, neighbors, T, C)
 
         idx_keep = np.logical_and(~killed, idx_clean)

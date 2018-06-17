@@ -413,17 +413,6 @@ def clean_empty_cluster(vbParam, min_spikes=20):
     return vbParam
 
 
-
-# wf is an array of waveforms: chans x time_steps x n_spikes; e.g. 49,31,7263
-def upsample_resample(wf, upsample_factor):
-    waveform_len, n_spikes = wf.shape
-    traces = np.zeros((n_spikes, waveform_len*upsample_factor),'float32')
-    for j in range(n_spikes):
-        traces[j] = signal.resample(wf[:,j],waveform_len*upsample_factor)
-       
-    return traces
-
-
 def usample_resample2(wf, upsample_factor):
     n_spikes = wf.shape[1]
     traces=[]
@@ -484,34 +473,34 @@ def return_shifts(wfs_upsampled, template_shifted, window):
     return np.array(shift_array) #, out_array
 
 
-def align_channelwise(wf, upsample_factor=20, n_steps=7):
+#def align_channelwise(wf, upsample_factor=20, n_steps=7):
     
-    n_shifts=n_steps*upsample_factor
-    window=n_steps*upsample_factor
-    waveform_len = wf.shape[0]
+    #n_shifts=n_steps*upsample_factor
+    #window=n_steps*upsample_factor
+    #waveform_len = wf.shape[0]
     
-    # upsample waveforms
-    wf_upsampled = upsample_resample(wf, upsample_factor)
+    ## upsample waveforms
+    #wf_upsampled = upsample_resample(wf, upsample_factor)
     
-    # upsample tempalte
-    template_upsampled = upsample_resample(np.mean(wf,axis=1)[:,np.newaxis], upsample_factor).reshape(upsample_factor*waveform_len)
+    ## upsample tempalte
+    #template_upsampled = upsample_resample(np.mean(wf,axis=1)[:,np.newaxis], upsample_factor).reshape(upsample_factor*waveform_len)
     
-    # shift template
-    template_shifted = shift_template(template_upsampled, n_shifts, window)
+    ## shift template
+    #template_shifted = shift_template(template_upsampled, n_shifts, window)
     
-    # find optimal fits between template and waveforms and return shifts
-    shift_array = return_shifts(wf_upsampled.T, template_shifted, window)
+    ## find optimal fits between template and waveforms and return shifts
+    #shift_array = return_shifts(wf_upsampled.T, template_shifted, window)
 
-    aligned_chunks = np.zeros((len(shift_array), waveform_len))
-    for ctr, shift in enumerate(shift_array):
-        chunk = wf_upsampled[ctr,n_shifts-shift:][::upsample_factor][:waveform_len]
+    #aligned_chunks = np.zeros((len(shift_array), waveform_len))
+    #for ctr, shift in enumerate(shift_array):
+        #chunk = wf_upsampled[ctr,n_shifts-shift:][::upsample_factor][:waveform_len]
 
-        # conditional required in case shift leads to short waveforms
-        if len(chunk) < waveform_len: 
-            chunk = np.concatenate((chunk, np.zeros(waveform_len-len(chunk))))
-        aligned_chunks[ctr] = chunk
+        ## conditional required in case shift leads to short waveforms
+        #if len(chunk) < waveform_len: 
+            #chunk = np.concatenate((chunk, np.zeros(waveform_len-len(chunk))))
+        #aligned_chunks[ctr] = chunk
 
-    return aligned_chunks
+    #return aligned_chunks
 
 
 # PCA function return PCA and reconstructed data
@@ -630,6 +619,40 @@ def run_cluster_features(spike_index_clear, n_dim_pca, wf_start, wf_end,
     
     return spike_train_clustered, tmp_loc
 
+
+def align_channelwise3(wf, upsample_factor = 20, nshifts = 7):
+
+    wf_up = upsample_resample(wf.T, upsample_factor)
+    wlen = wf_up.shape[1]
+    wf_start = int(.2 * (wlen-1))
+    wf_end = -int(.3 * (wlen-1))
+    wf_trunc = wf_up[:,wf_start:wf_end]
+    wlen_trunc = wf_trunc.shape[1]
+   
+    #if type(ref) == 'ndarray':
+    #    ref_upsampled = upsample_resample(ref,20)
+    #else:
+    ref_upsampled = wf_up.mean(0)
+    
+    ref_shifted = np.zeros([wf_trunc.shape[1], nshifts])
+    for i,s in enumerate(range(-int((nshifts-1)/2), int((nshifts-1)/2+1))):
+        ref_shifted[:,i] = ref_upsampled[s+ wf_start: s+ wf_end]
+    bs_indices = np.matmul(wf_trunc[:,np.newaxis,:], ref_shifted).squeeze(1).argmax(1)
+    best_shifts = (np.arange(-int((nshifts-1)/2), int((nshifts-1)/2+1)))[bs_indices]
+    
+    wf_final = np.zeros([wf.shape[0], (wlen-1)//2 +1])
+    for i,s in enumerate(best_shifts):
+        wf_final[i] = wf_up[i,-s+ wf_start: -s+ wf_end]
+    return wf_final[:,::upsample_factor]
+    
+    
+def upsample_resample(wf, upsample_factor):
+    waveform_len, n_spikes = wf.shape
+    traces = np.zeros((n_spikes, (waveform_len-1)*upsample_factor+1),'float32')
+    for j in range(n_spikes):
+        traces[j] = signal.resample(wf[:,j],(waveform_len-1)*upsample_factor+1)
+    return traces
+    
 def iterative_clustering(wf_data, spike_index_clear, all_assignments, 
                          spike_times, chans, n_mad_chans, n_max_chans, 
                          n_dim_pca, wf_start, wf_end, channel, triageflag,
@@ -637,6 +660,7 @@ def iterative_clustering(wf_data, spike_index_clear, all_assignments,
     
     # exit if too few points
     if wf_data.shape[0]<15:
+        # Exclude points ?... unclear if we should drop?
         N = len(all_assignments)
         all_assignments.append(N*np.ones(wf_data.shape[0]))
         chans.append(channel)
@@ -649,8 +673,15 @@ def iterative_clustering(wf_data, spike_index_clear, all_assignments,
     feat_chans = get_feat_channels(template, wf_data, n_max_chans, n_max_chans)
 
     # align data
-    data_in = align_wf(wf_data[:,:, feat_chans], upsample_factor = 20, n_steps = 15)[:,wf_start:wf_end,:].swapaxes(1,2).reshape(wf_data.shape[0],-1)
-        
+    #data_in = align_wf(wf_data[:,:, feat_chans], upsample_factor = 20, n_steps = 15)[:,wf_start:wf_end,:].swapaxes(1,2).reshape(wf_data.shape[0],-1)
+    data_in_array=[]
+    for feat_chan in feat_chans:
+        data_out = align_channelwise3(wf_data[:,:, feat_chan], upsample_factor = 20, nshifts = 51)
+        data_out = data_out[:,wf_start:wf_end]
+        data_in_array.append(data_out)
+    
+    data_in = np.hstack(data_in_array)
+   
     # run PCA on feat chans
     pca_wf,_ = PCA(data_in, n_dim_pca)
     
@@ -664,10 +695,23 @@ def iterative_clustering(wf_data, spike_index_clear, all_assignments,
     else:
         idx_keep1 = np.ones(pca_wf.shape[0],'bool')
 
-    
+    np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/figs/channel'+str(channel)+"_gen"+str(gen)+"_cluster"+str(clust_id)+".npy",pca_wf)
+
     # run mfm
-    vbParam2, assignment2 = run_mfm_2(pca_wf, CONFIG)
+    #vbParam2, assignment2 = run_mfm_2(pca_wf, CONFIG)
+    
+    # run mfm_3 doesn't zero out <10% assignments
+    vbParam2 = run_mfm_3(pca_wf, CONFIG)
+
+    np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/figs/channel'+str(channel)+"_gen"+str(gen)+"_cluster"+str(clust_id)+"_mfm.npy",vbParam2.rhat)
+
+    vbParam2.rhat[vbParam2.rhat < 0.1] = 0 #Cat todo; look at this
+    vbParam2.rhat = vbParam2.rhat/np.sum(vbParam2.rhat,
+                                         1, keepdims=True)
+    assignment2 = np.argmax(vbParam2.rhat, axis=1)
+
     mask = vbParam2.rhat > 0.0
+
 
     # compute stability
     stability  = np.average(mask * vbParam2.rhat, axis = 0, weights = mask)
@@ -677,24 +721,21 @@ def iterative_clustering(wf_data, spike_index_clear, all_assignments,
     # save distributions to disk
     #clrs=np.array(['blue','red','green','magenta','black', 'skyblue','salmon','lightgreen','violet','grey', "pink",'midnightblue','turquoise', 'firebrick'])
     plt.figure(figsize=(30,10))
-    
     labels = []
     for j in uni:
-        patch_i = mpatches.Patch(color = colors[j], label = "cluster: {}, size: {}".format(j, sizes[j]))
+        patch_i = mpatches.Patch(color = colors[j], label = "{}, size: {}, stab{}".format(j, sizes[j], stability[j]))
         labels.append(patch_i)
-        
     ax=plt.subplot(1,3,1)
     plt.scatter(pca_wf[:,0], pca_wf[:,1], c=colors[assignment2.astype('int')], s=10, edgecolor='black', alpha=.5)
-    
     ax=plt.subplot(1,3,2)
     plt.scatter(pca_wf[:,0], pca_wf[:,2], c=colors[assignment2.astype('int')], s=10, edgecolor='black', alpha=.5)
     plt.legend(handles = labels)
-    
     ax=plt.subplot(1,3,3)
     plt.scatter(pca_wf[:,1], pca_wf[:,2], c=colors[assignment2.astype('int')], s=10, edgecolor='black', alpha=.5)
-    
     plt.savefig('/media/cat/1TB/liam/49channels/data1_allset/tmp/figs/channel'+str(channel)+"_gen"+str(gen)+"_cluster"+str(clust_id), dpi=100)
     plt.close()
+    
+    #quit()
     
     # if single cluster exit
     if uni.size == 1:
@@ -704,7 +745,7 @@ def iterative_clustering(wf_data, spike_index_clear, all_assignments,
         chans.append(channel)
         spike_times.append(spike_index_clear[idx_keep1])
         print("************final cluster ***, gen: ", gen, " #events ", 
-            wf_data.shape[0])            
+            pca_wf.shape[0])            
 
         return 
     
@@ -714,11 +755,19 @@ def iterative_clustering(wf_data, spike_index_clear, all_assignments,
         idx = stability>mfm_threshold
         for clust in np.where(idx)[0]:
             # don't recluster perfectly stable clusters            
-            if stability[clust]==1.0: 
+            #if stability[clust]==1.0: 
+            if stability[clust]>0.95: 
                 print("***final cluster ***, gen: ", gen, " cluster ", clust, 
                 " #events ", wf_data[idx_keep1][assignment2==clust].shape[0],
                 " stability ", stability[clust])    
+                
+                if wf_data.shape[0]>15:
+                    N = len(all_assignments)
+                    all_assignments.append(N*np.ones(assignment2.size))
+                    chans.append(channel)
+                    spike_times.append(spike_index_clear[idx_keep1])
                 continue
+
             else: 
                 print("re-clustering; gen: ", gen, " cluster ", clust, 
                 " #events ", wf_data[idx_keep1][assignment2==clust].shape[0],
@@ -775,16 +824,12 @@ def run_cluster_features_2(spike_index_clear, n_dim_pca, wf_start, wf_end,
     channels = np.arange(CONFIG.recordings.n_channels)
     triageflag = True
     gen = 0     #Set default generation for starting clustering stpe
+
     for channel in channels: 
-        
         # **** grab spike waveforms ****
         indexes = np.where(spike_index_clear[:,1]==channel)[0]
         wf_data = load_waveforms_parallel(spike_index_clear[indexes], 
                                           CONFIG, out_dir)
-        #wf_data = np.swapaxes(wf_data,2,0)
-
-        # run iterative clustering on channel
-            #print ('initial shape',wf_data.shape)
   
         print ('')
         print ('')
@@ -796,6 +841,8 @@ def run_cluster_features_2(spike_index_clear, n_dim_pca, wf_start, wf_end,
                             channel, triageflag, mfm_threshold, gen, 
                             "init_cluster", CONFIG)
         
+        print np.array(spike_times).shape
+        
     # add channels of templates
     tmp_loc = chans
     
@@ -804,17 +851,11 @@ def run_cluster_features_2(spike_index_clear, n_dim_pca, wf_start, wf_end,
         spike_times[k][:,1]=k
     
     # format output in time order
-    print ("..formating spike trains ...")
     s = np.vstack(spike_times)
-    print s
     
     # sort by time
     indexes = np.argsort(s[:,0])
     spike_train_clustered = s[indexes]
-    
-    print tmp_loc
-    print len(tmp_loc), np.max(spike_train_clustered[:,1])
-    
     
     return spike_train_clustered, tmp_loc
 
@@ -865,12 +906,25 @@ def run_mfm_2(kk, CONFIG):
     vbParam2 = mfm.spikesort(kk[:,:,np.newaxis],
                             mask,
                             group, CONFIG)
+    
     vbParam2.rhat[vbParam2.rhat < 0.1] = 0 #Cat todo; look at this
+    
     vbParam2.rhat = vbParam2.rhat/np.sum(vbParam2.rhat,
                                          1, keepdims=True)
 
     assignment2 = np.argmax(vbParam2.rhat, axis=1)
     return vbParam2, assignment2
+
+
+
+def run_mfm_3(kk, CONFIG):
+    mask = np.ones((kk.shape[0], 1))
+    group = np.arange(kk.shape[0])
+    vbParam2 = mfm.spikesort(kk[:,:,np.newaxis],
+                            mask,
+                            group, CONFIG)
+    
+    return vbParam2
 
 
 
@@ -1012,7 +1066,8 @@ def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1,
 def load_waveforms_parallel(spike_train, CONFIG, out_dir): 
     
     # Cat: TODO: link spike_size in CONFIG param
-    spike_size = 15
+    spike_size = int(CONFIG.recordings.spike_size_ms*
+                     CONFIG.recordings.sampling_rate//1000)
     n_processors = CONFIG.resources.n_processors
     n_channels = CONFIG.recordings.n_channels
     sampling_rate = CONFIG.recordings.sampling_rate
@@ -1029,7 +1084,7 @@ def load_waveforms_parallel(spike_train, CONFIG, out_dir):
     fp_len = fp.shape[0]
 
     # make index list for chunk/parallel processing
-    buffer_size = 200
+    buffer_size = 400
     indexes = np.arange(0, fp_len / n_channels, sampling_rate * n_sec_chunk)
     if indexes[-1] != fp_len / n_channels:
         indexes = np.hstack((indexes, fp_len / n_channels))
