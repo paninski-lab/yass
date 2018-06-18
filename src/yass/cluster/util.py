@@ -656,7 +656,8 @@ def upsample_resample(wf, upsample_factor):
 def iterative_clustering(wf_data, spike_index_clear, all_assignments, 
                          spike_times, chans, n_mad_chans, n_max_chans, 
                          n_dim_pca, wf_start, wf_end, channel, triageflag,
-                         mfm_threshold, gen, clust_id, CONFIG):
+                         mfm_threshold, gen, clust_id, CONFIG, upsampe_factor,
+                         nshifts):
     
     # exit if too few points
     if wf_data.shape[0]<15:
@@ -778,7 +779,7 @@ def iterative_clustering(wf_data, spike_index_clear, all_assignments,
                             all_assignments, spike_times, chans, n_mad_chans, 
                             n_max_chans, n_dim_pca, wf_start, wf_end, channel, 
                             triageflag, mfm_threshold, gen+1, clust, 
-                            CONFIG)
+                            CONFIG,upsampe_factor, nshifts)
         
         # run mfm on remaining clusters - if any
         if (~idx).sum() > 0:
@@ -793,7 +794,7 @@ def iterative_clustering(wf_data, spike_index_clear, all_assignments,
                         all_assignments, spike_times, chans, n_mad_chans, 
                         n_max_chans, n_dim_pca, wf_start, wf_end, channel, 
                         triageflag, mfm_threshold, gen+1, "re-cluster", 
-                        CONFIG)
+                        CONFIG, upsampe_factor, nshifts)
     
     # remove most stable cluster
     else:
@@ -806,12 +807,159 @@ def iterative_clustering(wf_data, spike_index_clear, all_assignments,
                                     n_mad_chans, n_max_chans, n_dim_pca, 
                                     wf_start, wf_end, channel, triageflag, 
                                     mfm_threshold, gen+1, 're-triage', 
-                                    CONFIG)
+                                    CONFIG, upsampe_factor, nshifts)
+
+
+def RRR2(channel, wf, sic, gen, fig, grid, triageflag, plotting, 
+         chans, n_mad_chans, n_max_chans, 
+         n_dim_pca, wf_start, wf_end, mfm_threshold,  CONFIG, 
+         upsample_factor, nshifts, assignment_global, spike_index):
+                    
+             
+    print("**********Generation {}***********".format(gen))
+    if wf.shape[0] < 30:
+        return
+    print("getting feature channels")
+    print(wf.shape, sic.shape)
+    feat_chans = get_feat_channels(wf.mean(0), wf, 3,3)
+    data_in = wf[:,:,feat_chans][:,0:40].swapaxes(1,2).reshape(wf.shape[0],-1)
+    pca_wf, _ = PCA(data_in, 3)
+    print("triaging")
+    if triageflag:
+        idx_keep = triage(80, pca_wf)
+        pca_wf,_ = PCA(data_in[idx_keep],3)
+    else:
+        idx_keep = np.ones(pca_wf.shape[0],dtype = bool)
+    print("clustering")
+    vbParam, assignment = run_mfm3(pca_wf, CONFIG)
+    print(wf[idx_keep].shape, sic[idx_keep].shape)
+    
+    if vbParam.rhat.shape[1] != 1:
+        if plotting:
+            if np.all(x[gen]<=20) and gen <20:
+                mask = vbParam.rhat>0
+                stability = np.average(mask * vbParam.rhat, axis = 0, weights = mask)
+                print("plotting")
+                labels = []
+                clusters, sizes = np.unique(assignment, return_counts=True)
+
+                fig.add_subplot(grid[gen, x[gen]])
+                x[gen] += 1
+                for clust in clusters:
+                    patch_j = mpatches.Patch(color = colors[clust], label = "size = {}, stability = {}".format(sizes[clust], stability[clust]))
+                    labels.append(patch_j)
+                plt.scatter(pca_wf[:,0], pca_wf[:,1], c = colors[assignment], edgecolor = 'k')
+                plt.legend(handles = labels)
+    
+    if vbParam.rhat.shape[1] == 1:
+        print("single cluster found regressing")
+        residual = regress(wf[idx_keep], channel)
+        feat_chans_reg = get_feat_channels(residual.mean(0), residual, 3, 3)
+        feat_chans = np.union1d(feat_chans, feat_chans_reg)
+        data_in = wf[idx_keep][:,:,feat_chans][:,0:40].swapaxes(1,2).reshape(wf[idx_keep].shape[0],-1)
+        pca_wf, _ = PCA(data_in, 3)
+        print("reclustering")
+        vbParam, assignment = run_mfm3(pca_wf, CONFIG)
+        
+        if plotting:
+            if np.all(x[gen]<=20) and gen <20:
+                mask = vbParam.rhat>0
+                stability = np.average(mask * vbParam.rhat, axis = 0, weights = mask)
+                print("plotting")
+                labels = []
+                clusters, sizes = np.unique(assignment, return_counts=True)
+
+                ax = fig.add_subplot(grid[gen, x[gen]])
+                x[gen] += 1
+                for clust in clusters:
+                    patch_j = mpatches.Patch(color = colors[clust], label = "size = {}, stability = {}".format(sizes[clust], stability[clust]))
+                    labels.append(patch_j)
+                plt.scatter(pca_wf[:,0], pca_wf[:,1], c = colors[assignment], edgecolor = 'k')
+                if clusters.size == 1:
+                    ax.scatter(pca_wf[:,0].mean(), pca_wf[:,1].mean(), c= 'r', s = 2000)
+                ax.legend(handles = labels)
+        
+        if vbParam.rhat.shape[1] == 1:
+            print("&&&&&&&writing to list&&&&&&")
+            N = len(assignment_global)
+            np.save('/media/cat/12TB/Dropbox/Dropbox/data_temp/liam/clusters/june_18/wf_cluster_{}.npy'.format(N), wf[idx_keep])
+            np.save('/media/cat/12TB/Dropbox/Dropbox/data_temp/liam/clusters/june_18/residual_cluster_{}.npy'.format(N), residual)
+            assignment_global.append(N * np.ones(assignment.shape[0], dtype = int))
+            spike_index.append(sic[idx_keep])
+            return
+        else:
+            print("multiple clusters found after single cluster")
+            mask = vbParam.rhat>0
+            stability = np.average(mask * vbParam.rhat, axis = 0, weights = mask)
+            clusters, sizes = np.unique(assignment, return_counts = True)
+            print(stability)
+            print(sizes)
+            for clust in np.where(stability>0.9)[0]:
+                idx = assignment == clust
+                print(idx_keep.sum())
+                print(wf[idx_keep].shape, idx_keep.sum(), sic[idx_keep].shape, idx_keep.sum())
+                #RRR(channel, wf[idx_keep][idx], sic[idx_keep][idx], gen+1,fig, grid, False, True)
+                RRR2(channel, wf[idx_keep][idx], sic[idx_keep][idx], gen+1, fig, grid, False, plotting, 
+                 chans, n_mad_chans, n_max_chans, 
+                 n_dim_pca, wf_start, wf_end, mfm_threshold,  CONFIG, upsample_factor,
+                 nshifts, assignment_global, spike_index)
+                 
+            if np.any(stability <=0.9):
+                print("rest of the clusters (currently triaging; INSERT GROUP ANNEALING INSTEAD OF TRIAGE <<<<<<<<<<<<<<<")
+                print(idx_keep.sum())
+                print(wf[idx_keep].shape, idx_keep.sum(), sic[idx_keep].shape, idx_keep.sum())
+                idx = np.in1d(assignment, np.where(stability<=0.9)[0])
+                #RRR(channel, wf[idx_keep][idx], sic[idx_keep][idx], gen+1, fig, grid, True, True)        
+                RRR2(channel, wf[idx_keep][idx], sic[idx_keep][idx], gen+1, fig, grid, True, plotting, 
+                 chans, n_mad_chans, n_max_chans, 
+                 n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor,
+                 nshifts, assignment_global, spike_index)
+                 
+    else:
+        print("multiple clusters found")
+        mask = vbParam.rhat>0
+        stability = np.average(mask * vbParam.rhat, axis = 0, weights = mask)
+        
+        clusters, sizes = np.unique(assignment, return_counts = True)
+        print(stability)
+        print(sizes)
+        for clust in np.where(stability>0.9)[0]:
+            
+            idx = assignment == clust
+            print(idx_keep.sum())
+            print(wf[idx_keep].shape, idx_keep.sum(), sic[idx_keep].shape, idx_keep.sum())
+            #RRR(channel, wf[idx_keep][idx], sic[idx_keep][idx], gen+1, fig, grid, False, True)
+            RRR2(channel, wf[idx_keep][idx], sic[idx_keep][idx], gen+1, fig, grid, False, plotting, 
+                 chans, n_mad_chans, n_max_chans, 
+                 n_dim_pca, wf_start, wf_end, mfm_threshold,  CONFIG, upsample_factor,
+                 nshifts, assignment_global, spike_index)
+                 
+        if np.any(stability <=0.9):
+            print("rest of the clusters (currently triaging; INSERT GROUP ANNEALING INSTEAD OF TRIAGE <<<<<<<<<<<<<<<")
+            idx = np.in1d(assignment, np.where(stability<=0.9)[0])
+            print(idx_keep.sum())
+            print(wf[idx_keep].shape, idx_keep.sum(), sic[idx_keep].shape, idx_keep.sum())
+            #RRR(channel, wf[idx_keep][idx], sic[idx_keep][idx], gen+1, fig, grid, True, True)            
+            RRR2(channel, wf[idx_keep][idx], sic[idx_keep][idx], gen+1, fig, grid, True, plotting, 
+                 chans, n_mad_chans, n_max_chans, 
+                 n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor,
+                 nshifts, assignment_global, spike_index)
+
+    
+def regress(wf, mc):
+    template = wf.mean(0)
+    channels = np.where(template.ptp(0)>0)[0]
+    wf_x = wf[:,:,mc]
+    wf_y = wf[:,:, channels]
+    A = np.matmul(np.matmul(wf_y.transpose([2,1,0]), wf_x)/2+np.matmul(wf_x.T,wf_y.transpose([2,0,1]))/2\
+                  ,np.linalg.inv(np.matmul(wf_x.T, wf_x)))
+    residual = wf_y - np.matmul(A, wf_x.T).transpose([2,1,0])
+    return residual
 
 
 def run_cluster_features_2(spike_index_clear, n_dim_pca, wf_start, wf_end, 
                          n_mad_chans, n_max_chans, CONFIG, out_dir,
-                         mfm_threshold):
+                         mfm_threshold, upsample_factor, nshifts):
     
     ''' New voltage feature based clustering
     ''' 
@@ -823,24 +971,43 @@ def run_cluster_features_2(spike_index_clear, n_dim_pca, wf_start, wf_end,
     chans = [] 
     channels = np.arange(CONFIG.recordings.n_channels)
     triageflag = True
-    gen = 0     #Set default generation for starting clustering stpe
+    plotting = True
 
+    gen = 0     #Set default generation for starting clustering stpe
+    assignment_global = []
+    spike_index = []
     for channel in channels: 
         # **** grab spike waveforms ****
         indexes = np.where(spike_index_clear[:,1]==channel)[0]
-        wf_data = load_waveforms_parallel(spike_index_clear[indexes], 
+        wf = load_waveforms_parallel(spike_index_clear[indexes], 
                                           CONFIG, out_dir)
   
-        print ('')
-        print ('')
-        print("******CHANNEL: ", channel, " # spikes: ", wf_data.shape[0])
+        #iterative_clustering(wf_data, spike_index_clear[indexes], 
+                            #all_assignments, spike_times, chans, n_mad_chans,
+                            #n_max_chans, n_dim_pca, wf_start, wf_end,
+                            #channel, triageflag, mfm_threshold, gen, 
+                            #"init_cluster", CONFIG, upsampe_factor,
+                            #nshifts)
 
-        iterative_clustering(wf_data, spike_index_clear[indexes], 
-                            all_assignments, spike_times, chans, n_mad_chans,
-                            n_max_chans, n_dim_pca, wf_start, wf_end,
-                            channel, triageflag, mfm_threshold, gen, 
-                            "init_cluster", CONFIG)
+        print("***********Channel {}**********************".format(channel))
+        global x
+        x = np.zeros(20, dtype = int)
+        fig = plt.figure(figsize =(100,100))
+        grid = plt.GridSpec(20,20,wspace = 0.0, hspace = 0.2)
+        #wf = np.load('data/tmp3/wf/wf_channel_{}.npy'.format(channel))
+        #wf_aligned = align_wf(wf, wf[:,:,channel].mean(0), 20, 51)
         
+        RRR2(channel, wf, spike_index_clear[indexes,1], gen, fig, grid, 
+             triageflag, plotting, chans, 
+             n_mad_chans, n_max_chans, n_dim_pca, wf_start, wf_end, 
+             mfm_threshold, CONFIG, upsample_factor, nshifts,
+             assignment_global, spike_index)
+
+
+        plt.savefig("/media/cat/12TB/Dropbox/Dropbox/data_temp/liam/clusters/june_18/channel_{}.png".format(channel))
+        plt.close('all')
+        print("*************Total clusters {}**********************".format(len(assignment_global)))
+                
         print np.array(spike_times).shape
         
     # add channels of templates
@@ -928,140 +1095,19 @@ def run_mfm_3(kk, CONFIG):
 
 
 
-        
-def run_mfm(wf_data_original, pca_wf_original, feat_chans, idx_keep1, 
-            wf_start, wf_end, n_dim_pca, CONFIG):
-    
-    assignment_array = []
-
-    # ************ reset data *************
-    kk = pca_wf_original
-    wf_data = wf_data_original
-    index_vals = np.arange(len(np.where(idx_keep1)[0]))
-
-    # ************ inital cluster ************
+def run_mfm3(kk, CONFIG):
     mask = np.ones((kk.shape[0], 1))
     group = np.arange(kk.shape[0])
     vbParam2 = mfm.spikesort(kk[:,:,np.newaxis],
                             mask,
                             group, CONFIG)
-    vbParam2.rhat[vbParam2.rhat < 0.1] = 0  # Cat: TODO; look at this 
+    vbParam2.rhat[vbParam2.rhat < 0.1] = 0
     vbParam2.rhat = vbParam2.rhat/np.sum(vbParam2.rhat,
                                          1, keepdims=True)
 
     assignment2 = np.argmax(vbParam2.rhat, axis=1)
-    assignment_array.append(vbParam2.rhat)
+    return vbParam2, assignment2
 
-    rolling_index_array=[]
-    for s in range(1000):
-        #print " **iteration ", s, "**"
-        # remove most stable cluster
-        stability = []
-        indexes = []
-        remove_indexes =[]
-        title_string = []
-        cluster_removed = []
-        for k in range(vbParam2.rhat.shape[1]):
-            index = np.where(vbParam2.rhat[:,k]>0)[0]
-            indexes.append(index)
-            stability.append(np.mean(vbParam2.rhat[index,k]))
-        
-            #most_stable = np.argmax(stability)
-            if np.mean(vbParam2.rhat[index,k]) > 0.90: 
-                remove_indexes.extend(index)
-                rolling_index_array.append(index_vals[index])
-
-                template = np.mean(wf_data_original.T[:,:,index_vals[index]],axis=2)
-                ptps = np.max(np.abs(template),axis=1)
-                #print ("cluster: ",k,  " stability: ", np.mean(vbParam2.rhat[index,k]), 
-                #        "  # spikes: ", len(index_vals[index]), " ptp: ", np.max(ptps), " ch: ", np.argmax(ptps), " remove***")
-                #ptp_temp_array.append([np.max(ptps), len(index_vals[index]), np.mean(vbParam2.rhat[index,k])])
-
-                #title_string.append(clrs[k]+": "+str(np.round(np.max(ptps),1))+' '+str(len(index))+' '+str(np.round(np.mean(vbParam2.rhat[index,k]),2)))
-                cluster_removed.append(k)
-            #else:
-            #    print "cluster ", k, ", # spikes: ", len(index), ", stability: ", np.mean(vbParam2.rhat[index,k]) 
-                            
-        if len(remove_indexes)>0: 
-            index_vals = np.delete(index_vals, remove_indexes,axis=0)
-            wf_data = np.delete(wf_data, remove_indexes,axis=0)
-
-        # remove most stable cluster
-        else:
-            most_stable = np.argmax(stability)  #Find most stable index using above stability list
-            index = indexes[most_stable]        # find indexes of most stable index using above list
-            remove_indexes.append(index)
-            #print index_vals
-            #print index
-            rolling_index_array.append(index_vals[index])
-
-            template = np.mean(wf_data_original.T[:,:,index_vals[index]],axis=2)
-            ptps = np.max(np.abs(template),axis=1)
-            #print ("cluster: ",most_stable,  " stability: ", np.mean(vbParam2.rhat[index,most_stable]), 
-            #        "  # spikes: ", len(index_vals[index]), " ptp: ", np.max(ptps), " ch: ", np.argmax(ptps), " remove***")
-            #ptp_temp_array.append([np.max(ptps), len(index_vals[index]), np.mean(vbParam2.rhat[index,most_stable])])
-
-            #title_string.append(clrs[most_stable]+': '+str(np.round(np.max(ptps),1))+' '+str(len(index))+' '+str(np.round(np.mean(vbParam2.rhat[index,most_stable]),2)))
-
-            index_vals = np.delete(index_vals, index,axis=0)
-            wf_data = np.delete(wf_data, index,axis=0)            
-
-        # realign data on feat chans
-        data_in = wf_data[:,:,feat_chans]
-        
-        #print ("aligned data: ", data_in.shape)
-        data_in = data_in[:,:,wf_start:wf_end]
-
-        # clip data  
-        if data_in.shape[0]<=35:
-            #print "< 35 spikes left ...discarding and exiting mfm"
-            break
-        
-        # realign data after every iteration
-        data_aligned = []
-        for k in range(data_in.shape[2]):
-            data_aligned.append(align_channelwise(data_in[:,:,k].T, upsample_factor=20, n_steps=7))
-
-        data_in = np.array(data_aligned)
-        data_in = data_in[:,:,wf_start:wf_end]
-        data_in = data_in.swapaxes(0,1).reshape(data_in.shape[1],-1)
-
-        pca_wf,pca_wf_reconstruct = PCA(data_in,n_dim_pca)
-        #print pca_wf.shape
-
-        kk = pca_wf
-        mask = np.ones((kk.shape[0], 1))
-        group = np.arange(kk.shape[0])
-
-        
-        vbParam2 = mfm.spikesort(kk[:,:,np.newaxis],
-                                mask,
-                                group, CONFIG)
-        vbParam2.rhat[vbParam2.rhat < 0.1] = 0
-        vbParam2.rhat = vbParam2.rhat/np.sum(vbParam2.rhat,
-                                             1, keepdims=True)
-
-        assignment2 = np.argmax(vbParam2.rhat, axis=1)
-        assignment_array.append(vbParam2.rhat)
-
-        # if only one cluster left
-        if vbParam2.rhat.shape[1]==1:
-            #Grab last cluster
-            index = np.where(vbParam2.rhat[:,0]>0)[0]
-            indexes.append(index)
-            
-            rolling_index_array.append(index_vals) # add the remaning absolute index_vals
-
-            # add last templates
-            template = np.mean(wf_data_original.T[:,:,index_vals],axis=2)
-            ptps = np.max(np.abs(template),axis=1)
-            #print "last cluster # spikes: ", len(index), " ptp: ", np.max(ptps), " ch: ", np.argmax(ptps)
-            #ptp_temp_array.append([np.max(ptps), len(index_vals), np.mean(vbParam2.rhat[index,0])])
-
-            break
-    
-    
-    return rolling_index_array
             
 def load_waveforms_parallel(spike_train, CONFIG, out_dir): 
     

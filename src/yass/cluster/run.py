@@ -109,12 +109,14 @@ def run(scores,
             n_mad_chans = 5
             n_max_chans = 5
             mfm_threshold = 0.85
+            upsample_factor = 20
+            nshifts = 51
 
             spike_train, tmp_loc = run_cluster_features_2(spike_index_clear, 
                                     n_dim_pca, wf_start, wf_end, n_mad_chans, 
                                     n_max_chans, CONFIG, output_directory,
-                                    mfm_threshold)
-            
+                                    mfm_threshold, upsample_factor, nshifts)
+          
             print ("Spike train clustered: ", spike_train.shape, " # clusters: ",
                         np.max(spike_train[:,1])+1)
             np.save(fname,spike_train)
