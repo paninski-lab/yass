@@ -11,12 +11,40 @@ from yass.geometry import make_channel_index
 from yass.neuralnetwork import NeuralNetDetector
 
 
-# TODO: missing parameters docs
 def get_o_layer(standarized_path, standarized_params,
                 output_directory='tmp/',
                 output_dtype='float32', output_filename='o_layer.bin',
                 if_file_exists='skip', save_partial_results=False):
     """Get the output of NN detector instead of outputting the spike index
+
+    Parameters
+    ----------
+    recordings: numpy.ndarray (n_observations, n_channels)
+        Neural recordings
+
+    x_tf: tf.tensors (n_observations, n_channels)
+        placeholder of recording for running tensorflow
+
+    output_tf: tuple of tf.tensors
+        a tuple of tensorflow tensors that produce score, spike_index_clear,
+        and spike_index_collision
+
+    Returns
+    -------
+    scores: numpy.ndarray (n_clear_spikes, n_features, n_neigh)
+        3D array with the scores for the clear spikes, first dimension is
+        the number of spikes, second is the nymber of features and third the
+        number of neighboring channels
+
+    spike_index_clear: numpy.ndarray (n_clear_spikes, 2)
+        2D array with indexes for clear spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
+
+    spike_index_collision: numpy.ndarray (n_collided_spikes, 2)
+        2D array with indexes for collided spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
     """
 
     CONFIG = read_config()
@@ -56,38 +84,6 @@ def get_o_layer(standarized_path, standarized_params,
 
 
 def _get_o_layer(recordings, x_tf, o_layer_tf, NND):
-    """Detect spikes using a neural network
-
-    Parameters
-    ----------
-    recordings: numpy.ndarray (n_observations, n_channels)
-        Neural recordings
-
-    x_tf: tf.tensors (n_observations, n_channels)
-        placeholder of recording for running tensorflow
-
-    output_tf: tuple of tf.tensors
-        a tuple of tensorflow tensors that produce score, spike_index_clear,
-        and spike_index_collision
-
-    Returns
-    -------
-    scores: numpy.ndarray (n_clear_spikes, n_features, n_neigh)
-        3D array with the scores for the clear spikes, first dimension is
-        the number of spikes, second is the nymber of features and third the
-        number of neighboring channels
-
-    spike_index_clear: numpy.ndarray (n_clear_spikes, 2)
-        2D array with indexes for clear spikes, first column contains the
-        spike location in the recording and the second the main channel
-        (channel whose amplitude is maximum)
-
-    spike_index_collision: numpy.ndarray (n_collided_spikes, 2)
-        2D array with indexes for collided spikes, first column contains the
-        spike location in the recording and the second the main channel
-        (channel whose amplitude is maximum)
-    """
-
     # get values of above tensors
     with tf.Session() as sess:
         NND.saver.restore(sess, NND.path_to_detector_model)
