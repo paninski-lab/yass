@@ -10,6 +10,15 @@ from yass.templates.util import get_templates
 from yass.util import load_yaml
 
 
+def make_noisy(x, the_noise):
+    """Make a noisy version of x
+    """
+    noise_sample = the_noise[np.random.choice(the_noise.shape[0],
+                                              x.shape[0],
+                                              replace=False)]
+    return x + noise_sample
+
+
 def clean_spikes(templates, min_amp, max_amp, nk):
     """Make clean spikes
     """
@@ -290,69 +299,40 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     y_col = np.ones((x_collision.shape[0]))
 
     y_misaligned = np.zeros((x_misaligned.shape[0]))
+    y_noise = np.zeros((the_noise.shape[0]))
 
     if multi:
         y_misaligned2 = np.zeros((x_misaligned2.shape[0]))
 
-    y_noise = np.zeros((the_noise.shape[0]))
-
     mid_point = int((x_clean.shape[1]-1)/2)
+
+    x_clean_noisy = make_noisy(x_clean)
+    x_collision_noisy = make_noisy(x_collision)
+    x_misaligned_noisy = make_noisy(x_misaligned)
+    x_misaligned2_noisy = make_noisy(x_misaligned2)
 
     # get training set for detection
     if multi:
-        x = np.concatenate((
-            x_clean +
-            the_noise[np.random.choice(
-                the_noise.shape[0], x_clean.shape[0], replace=False)],
-            x_collision +
-            the_noise[np.random.choice(
-                the_noise.shape[0], x_collision.shape[0], replace=False)],
-            x_misaligned +
-            the_noise[np.random.choice(
-                the_noise.shape[0], x_misaligned.shape[0], replace=False)],
-            the_noise
-        ))
+        x = np.concatenate((x_clean_noisy, x_collision_noisy,
+                            x_misaligned_noisy, the_noise))
 
         x_detect = x[:, (mid_point-R):(mid_point+R+1), :]
         y_detect = np.concatenate((y_clean, y_col, y_misaligned, y_noise))
     else:
-        x = np.concatenate((
-            x_clean +
-            the_noise[np.random.choice(
-                the_noise.shape[0], x_clean.shape[0], replace=False)],
-            x_misaligned +
-            the_noise[np.random.choice(
-                the_noise.shape[0], x_misaligned.shape[0], replace=False)],
-            the_noise
-        ))
+        x = np.concatenate((x_clean_noisy, x_misaligned_noisy, the_noise))
         x_detect = x[:, (mid_point-R):(mid_point+R+1), 0]
         y_detect = np.concatenate((y_clean, y_misaligned, y_noise))
 
     # get training set for triage
     if multi:
-        x = np.concatenate((
-            x_clean +
-            the_noise[np.random.choice(
-                the_noise.shape[0], x_clean.shape[0], replace=False)],
-            x_collision +
-            the_noise[np.random.choice(
-                the_noise.shape[0], x_collision.shape[0], replace=False)],
-            x_misaligned2 +
-            the_noise[np.random.choice(
-                the_noise.shape[0], x_misaligned2.shape[0], replace=False)],
-        ))
+        x = np.concatenate((x_clean_noisy, x_collision_noisy,
+                            x_misaligned2_noisy))
+
         x_triage = x[:, (mid_point-R):(mid_point+R+1), :]
         y_triage = np.concatenate(
             (y_clean, np.zeros((x_collision.shape[0])), y_misaligned2))
     else:
-        x = np.concatenate((
-            x_clean +
-            the_noise[np.random.choice(
-                the_noise.shape[0], x_clean.shape[0], replace=False)],
-            x_collision +
-            the_noise[np.random.choice(
-                the_noise.shape[0], x_collision.shape[0], replace=False)],
-        ))
+        x = np.concatenate((x_clean_noisy, x_collision_noisy,))
         x_triage = x[:, (mid_point-R):(mid_point+R+1), 0]
         y_triage = np.concatenate((y_clean, np.zeros((x_collision.shape[0]))))
 
@@ -370,6 +350,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     max_amp = np.max(np.ptp(tt, axis=0))
 
     y_ae = np.zeros((nk*tt.shape[1], tt.shape[0]))
+
     for k in range(tt.shape[1]):
         amp_now = np.ptp(tt[:, k])
         amps_range = (np.arange(nk)*(max_amp-min_amp)
