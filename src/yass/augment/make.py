@@ -10,7 +10,7 @@ from yass.templates.util import get_templates
 from yass.util import load_yaml
 
 
-def make_clean_spikes(templates, min_amp, max_amp, nk):
+def clean_spikes(templates, min_amp, max_amp, nk):
     """Make clean spikes
     """
     K = templates.shape[0]
@@ -27,8 +27,8 @@ def make_clean_spikes(templates, min_amp, max_amp, nk):
     return x_clean
 
 
-def make_collided_spikes(x_clean, collision_ratio, templates, R, multi,
-                         nneigh):
+def collided_spikes(x_clean, collision_ratio, templates, R, multi,
+                    nneigh):
     """Make collided spikes
     """
     x_collision = np.zeros(
@@ -70,6 +70,58 @@ def make_collided_spikes(x_clean, collision_ratio, templates, R, multi,
             x_collision[j] += x_clean2
 
     return x_collision
+
+
+def misaligned_spikes(x_clean, templates, max_shift, misalign_ratio,
+                      multi, misalign_ratio2, nneigh):
+    """temporally and spatially misaligned spikes
+    """
+
+    x_misaligned = np.zeros(
+        (x_clean.shape[0]*int(misalign_ratio), templates.shape[1],
+            templates.shape[2]))
+
+    temporal_shifts = np.random.randint(
+        max_shift*2, size=x_misaligned.shape[0]) - max_shift
+    temporal_shifts[temporal_shifts < 0] = temporal_shifts[
+        temporal_shifts < 0]-5
+    temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
+        temporal_shifts >= 0]+6
+
+    for j in range(x_misaligned.shape[0]):
+        shift = temporal_shifts[j]
+        if multi:
+            x_clean2 = np.copy(x_clean[np.random.choice(
+                x_clean.shape[0], 1, replace=True)][:, :, np.random.choice(
+                    nneigh, nneigh, replace=False)])
+            x_clean2 = np.squeeze(x_clean2)
+        else:
+            x_clean2 = np.copy(x_clean[np.random.choice(
+                x_clean.shape[0], 1, replace=True)])
+            x_clean2 = np.squeeze(x_clean2)
+
+        if shift > 0:
+            x_misaligned[j, :(x_misaligned.shape[1]-shift)] += x_clean2[shift:]
+
+        elif shift < 0:
+            x_misaligned[
+                j, (-shift):] += x_clean2[:(x_misaligned.shape[1]+shift)]
+        else:
+            x_misaligned[j] += x_clean2
+
+    ################################
+    # spatially misaligned spikes #
+    ##############################
+    if multi:
+        x_misaligned2 = np.zeros(
+            (x_clean.shape[0]*int(misalign_ratio2), templates.shape[1],
+                templates.shape[2]))
+        for j in range(x_misaligned2.shape[0]):
+            x_misaligned2[j] = np.copy(x_clean[np.random.choice(
+                x_clean.shape[0], 1, replace=True)][:, :, np.random.choice(
+                    nneigh, nneigh, replace=False)])
+
+    return x_misaligned, x_misaligned2
 
 
 def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
@@ -195,58 +247,19 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     max_shift = 2*R
 
     # make clean spikes
-    x_clean = make_clean_spikes(templates, min_amp, max_amp, nk)
+    x_clean = clean_spikes(templates, min_amp, max_amp, nk)
 
     # make collided spikes
-    x_collision = make_collided_spikes(x_clean, collision_ratio, templates,
-                                       R, multi, nneigh)
+    x_collision = collided_spikes(x_clean, collision_ratio, templates,
+                                  R, multi, nneigh)
 
-    ###############################################
-    # temporally and spatially misaligned spikes #
-    #############################################
-    x_misaligned = np.zeros(
-        (x_clean.shape[0]*int(misalign_ratio), templates.shape[1],
-            templates.shape[2]))
-
-    temporal_shifts = np.random.randint(
-        max_shift*2, size=x_misaligned.shape[0]) - max_shift
-    temporal_shifts[temporal_shifts < 0] = temporal_shifts[
-        temporal_shifts < 0]-5
-    temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
-        temporal_shifts >= 0]+6
-
-    for j in range(x_misaligned.shape[0]):
-        shift = temporal_shifts[j]
-        if multi:
-            x_clean2 = np.copy(x_clean[np.random.choice(
-                x_clean.shape[0], 1, replace=True)][:, :, np.random.choice(
-                    nneigh, nneigh, replace=False)])
-            x_clean2 = np.squeeze(x_clean2)
-        else:
-            x_clean2 = np.copy(x_clean[np.random.choice(
-                x_clean.shape[0], 1, replace=True)])
-            x_clean2 = np.squeeze(x_clean2)
-
-        if shift > 0:
-            x_misaligned[j, :(x_misaligned.shape[1]-shift)] += x_clean2[shift:]
-
-        elif shift < 0:
-            x_misaligned[
-                j, (-shift):] += x_clean2[:(x_misaligned.shape[1]+shift)]
-        else:
-            x_misaligned[j] += x_clean2
-
-    ################################
-    # spatially misaligned spikes #
-    ##############################
-    if multi:
-        x_misaligned2 = np.zeros(
-            (x_clean.shape[0]*int(misalign_ratio2), templates.shape[1],
-                templates.shape[2]))
-        for j in range(x_misaligned2.shape[0]):
-            x_misaligned2[j] = np.copy(x_clean[np.random.choice(
-                x_clean.shape[0], 1, replace=True)][:, :, np.random.choice(
-                    nneigh, nneigh, replace=False)])
+    # make misaligned spikes
+    x_misaligned, x_misaligned2 = misaligned_spikes(x_clean,
+                                                    templates, max_shift,
+                                                    misalign_ratio,
+                                                    misalign_ratio2,
+                                                    multi,
+                                                    nneigh)
 
     #########
     # noise #
