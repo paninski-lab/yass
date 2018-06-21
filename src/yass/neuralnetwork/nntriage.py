@@ -28,9 +28,13 @@ class NeuralNetTriage(object):
             bias variable for the convolutional layers.
         saver: tf.train.Saver
             saver object for the neural network detector.
+        detector: NeuralNetDetector
+            Instance of detector
+        threshold_triage: int
+        threshold for neural net triage
     """
 
-    def __init__(self, path_to_triage_model):
+    def __init__(self, path_to_triage_model, detector, threshold_triage):
         """
             Initializes the attributes for the class NeuralNetTriage.
 
@@ -68,6 +72,11 @@ class NeuralNetTriage(object):
             "b11": self.b11,
             "b2": self.b2
         })
+
+        # run neural net triage
+        nneigh = detector.filters_dict['n_neighbors']
+        self.idx_clean = self.triage_wf(detector.waveform_tf[:, :, :nneigh],
+                                        threshold_triage)
 
     def triage_wf(self, wf_tf, threshold):
         """

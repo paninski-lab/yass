@@ -66,6 +66,7 @@ def prepare_nn(channel_index, whiten_filter,
     return NND.x_tf, output_tf, NND, NNAE, NNT
 
 
+# FIXME: this isn't used. remove?
 def make_whitened_score(score_tf, main_channel_tf, whiten_filter):
     """
     make a tf tesor that outputs whitened score give scor and
@@ -94,6 +95,7 @@ def make_whitened_score(score_tf, main_channel_tf, whiten_filter):
     return tf.matmul(score_tf, whiten_filter_per_data)
 
 
+# FIXME: this isn't used. remove?
 def remove_uncetered(score_tf, waveform_tf, spike_index_tf):
     """
     Given scores remove spatially uncentered spikes. Spatially unceneterd is
