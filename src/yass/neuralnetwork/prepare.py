@@ -58,27 +58,21 @@ def prepare_nn(channel_index, whiten_filter,
     NNT: class
         an instance of class, NeuralNetTriage
     """
-
-    # placeholder for input recording
-    x_tf = tf.placeholder("float", [None, None])
-
     # load Neural Net's
     NND = NeuralNetDetector(detector_filename)
     NNAE = AutoEncoder(autoencoder_filename)
     NNT = NeuralNetTriage(triage_filename)
 
     # make spike_index tensorflow tensor
-    spike_index_tf_all = NND.make_detection_tf_tensors(x_tf,
-                                                       channel_index,
+    spike_index_tf_all = NND.make_detection_tf_tensors(channel_index,
                                                        threshold_detect)
 
     # remove edge spike time
-    spike_index_tf = remove_edge_spikes(x_tf, spike_index_tf_all,
+    spike_index_tf = remove_edge_spikes(spike_index_tf_all,
                                         NND.filters_dict['size'])
 
     # make waveform tensorflow tensor
-    waveform_tf = make_waveform_tf_tensor(x_tf,
-                                          spike_index_tf,
+    waveform_tf = make_waveform_tf_tensor(spike_index_tf,
                                           channel_index,
                                           NND.filters_dict['size'])
 
@@ -92,7 +86,7 @@ def prepare_nn(channel_index, whiten_filter,
     # gather all output tensors
     output_tf = (score_tf, spike_index_tf, idx_clean)
 
-    return x_tf, output_tf, NND, NNAE, NNT
+    return NND.x_tf, output_tf, NND, NNAE, NNT
 
 
 def make_whitened_score(score_tf, main_channel_tf, whiten_filter):

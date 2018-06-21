@@ -71,7 +71,10 @@ class NeuralNetDetector(object):
             "b2": self.b2
         })
 
-    def _make_graph(self, x_tf, channel_index):
+        # placeholder for input recording
+        self.x_tf = tf.placeholder("float", [None, None])
+
+    def _make_graph(self, channel_index):
         """Makes tensorflow graph
         """
         # get parameters
@@ -82,10 +85,10 @@ class NeuralNetDetector(object):
         self.channel_index = channel_index[:, :nneigh]
 
         # Temporal shape of input
-        T = tf.shape(x_tf)[0]
+        T = tf.shape(self.x_tf)[0]
 
         # input tensor into CNN
-        x_cnn_tf = tf.expand_dims(tf.expand_dims(x_tf, -1), 0)
+        x_cnn_tf = tf.expand_dims(tf.expand_dims(self.x_tf, -1), 0)
 
         # NN structures
         # first temporal layer
@@ -109,7 +112,7 @@ class NeuralNetDetector(object):
 
         return o_layer
 
-    def make_detection_tf_tensors(self, x_tf, channel_index, threshold):
+    def make_detection_tf_tensors(self, channel_index, threshold):
         """
         Make a tensorflow tensor that outputs spike index
 
@@ -135,7 +138,7 @@ class NeuralNetDetector(object):
         spike_index_tf: tf tensor (n_spikes, 2)
             tensorflow tensor that produces spike_index
         """
-        o_layer = self._make_graph(x_tf, channel_index)
+        o_layer = self._make_graph(self.x_tf, channel_index)
 
         # temporal max
         temporal_max = max_pool(o_layer, [1, 3, 1, 1]) - 1e-8
