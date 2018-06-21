@@ -138,7 +138,7 @@ class NeuralNetDetector(object):
         spike_index_tf: tf tensor (n_spikes, 2)
             tensorflow tensor that produces spike_index
         """
-        o_layer = self._make_graph(self.x_tf, channel_index)
+        o_layer = self._make_graph(channel_index)
 
         # temporal max
         temporal_max = max_pool(o_layer, [1, 3, 1, 1]) - 1e-8
@@ -172,6 +172,6 @@ class NeuralNetDetector(object):
         output_tf: tf tensor (n_observations, n_channels)
             tensorflow tensor that produces spike_index
         """
-        o_layer = self._make_graph(x_tf, channel_index)
+        o_layer = self._make_graph(channel_index)
 
         return tf.sigmoid(o_layer[0, :, :, 0])

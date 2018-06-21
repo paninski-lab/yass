@@ -68,11 +68,11 @@ def prepare_nn(channel_index, whiten_filter,
                                                        threshold_detect)
 
     # remove edge spike time
-    spike_index_tf = remove_edge_spikes(spike_index_tf_all,
+    spike_index_tf = remove_edge_spikes(NND.x_tf, spike_index_tf_all,
                                         NND.filters_dict['size'])
 
     # make waveform tensorflow tensor
-    waveform_tf = make_waveform_tf_tensor(spike_index_tf,
+    waveform_tf = make_waveform_tf_tensor(NND.x_tf, spike_index_tf,
                                           channel_index,
                                           NND.filters_dict['size'])
 
