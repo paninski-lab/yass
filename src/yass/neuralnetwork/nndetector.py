@@ -175,3 +175,33 @@ class NeuralNetDetector(object):
         o_layer = self._make_graph(channel_index)
 
         return tf.sigmoid(o_layer[0, :, :, 0])
+
+    def remove_edge_spikes(self, spike_index_tf, waveform_length):
+        """
+        It moves spikes at edge times.
+
+        Parameters
+        ----------
+        x_tf: tf.tensors (n_observations, n_channels)
+            placeholder of recording for running tensorflow
+
+        spike_index_tf: tf tensor (n_spikes, 2)
+            a tf tensor holding spike index.
+            The first column is time and the second column is the main channel
+
+        waveform_length: int
+            temporal length of waveform
+
+        Returns
+        -------
+        tf tensor (n_spikes, 2)
+        """
+
+        R = int((waveform_length-1)/2)
+        min_spike_time = R
+        max_spike_time = tf.shape(self.x_tf)[0] - R
+
+        idx_middle = tf.logical_and(spike_index_tf[:, 0] > min_spike_time,
+                                    spike_index_tf[:, 0] < max_spike_time)
+
+        return tf.boolean_mask(spike_index_tf, idx_middle)

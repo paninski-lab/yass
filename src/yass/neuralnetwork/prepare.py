@@ -68,8 +68,8 @@ def prepare_nn(channel_index, whiten_filter,
                                                        threshold_detect)
 
     # remove edge spike time
-    spike_index_tf = remove_edge_spikes(NND.x_tf, spike_index_tf_all,
-                                        NND.filters_dict['size'])
+    spike_index_tf = NND.remove_edge_spikes(spike_index_tf_all,
+                                            NND.filters_dict['size'])
 
     # make waveform tensorflow tensor
     waveform_tf = make_waveform_tf_tensor(NND.x_tf, spike_index_tf,
@@ -215,34 +215,3 @@ def make_waveform_tf_tensor(x_tf, spike_index_tf,
     x_tf_zero_added = tf.concat([x_tf, tf.zeros((T, 1))], axis=1)
 
     return tf.gather_nd(x_tf_zero_added, wf_idx)
-
-
-def remove_edge_spikes(x_tf, spike_index_tf, waveform_length):
-    """
-    It moves spikes at edge times.
-
-    Parameters
-    ----------
-    x_tf: tf.tensors (n_observations, n_channels)
-        placeholder of recording for running tensorflow
-
-    spike_index_tf: tf tensor (n_spikes, 2)
-        a tf tensor holding spike index.
-        The first column is time and the second column is the main channel
-
-    waveform_length: int
-        temporal length of waveform
-
-    Returns
-    -------
-    tf tensor (n_spikes, 2)
-    """
-
-    R = int((waveform_length-1)/2)
-    min_spike_time = R
-    max_spike_time = tf.shape(x_tf)[0] - R
-
-    idx_middle = tf.logical_and(spike_index_tf[:, 0] > min_spike_time,
-                                spike_index_tf[:, 0] < max_spike_time)
-
-    return tf.boolean_mask(spike_index_tf, idx_middle)
