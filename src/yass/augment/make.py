@@ -124,6 +124,26 @@ def misaligned_spikes(x_clean, templates, max_shift, misalign_ratio,
     return x_misaligned, x_misaligned2
 
 
+def noise(x_clean, noise_ratio, templates, spatial_SIG, temporal_SIG):
+    """make noise
+    """
+
+    # get noise
+    noise = np.random.normal(
+        size=[x_clean.shape[0]*int(noise_ratio), templates.shape[1],
+              templates.shape[2]])
+
+    for c in range(noise.shape[2]):
+        noise[:, :, c] = np.matmul(noise[:, :, c], temporal_SIG)
+        reshaped_noise = np.reshape(noise, (-1, noise.shape[2]))
+
+    the_noise = np.reshape(np.matmul(reshaped_noise, spatial_SIG),
+                           [noise.shape[0],
+                            x_clean.shape[1], x_clean.shape[2]])
+
+    return the_noise
+
+
 def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                        nspikes, data_folder, noise_ratio=10, collision_ratio=1,
                        misalign_ratio=1, misalign_ratio2=1, multi=True):
@@ -226,15 +246,6 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     templates = crop_templates(templates, CONFIG.spike_size,
                                CONFIG.neigh_channels, CONFIG.geom)
 
-    # determine noise covariance structure
-    spatial_SIG, temporal_SIG = noise_cov(path_to_data,
-                                          PARAMS['dtype'],
-                                          CONFIG.recordings.n_channels,
-                                          PARAMS['data_order'],
-                                          CONFIG.neigh_channels,
-                                          CONFIG.geom,
-                                          templates.shape[1])
-
     # make training data set
     K = templates.shape[0]
     R = CONFIG.spike_size
@@ -261,27 +272,29 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                                                     multi,
                                                     nneigh)
 
-    #########
-    # noise #
-    #########
+    # determine noise covariance structure
+    spatial_SIG, temporal_SIG = noise_cov(path_to_data,
+                                          PARAMS['dtype'],
+                                          CONFIG.recordings.n_channels,
+                                          PARAMS['data_order'],
+                                          CONFIG.neigh_channels,
+                                          CONFIG.geom,
+                                          templates.shape[1])
 
-    # get noise
-    noise = np.random.normal(
-        size=[x_clean.shape[0]*int(noise_ratio), templates.shape[1],
-              templates.shape[2]])
-    for c in range(noise.shape[2]):
-        noise[:, :, c] = np.matmul(noise[:, :, c], temporal_SIG)
+    # make noise
+    the_noise = noise(x_clean, noise_ratio, templates, spatial_SIG,
+                      temporal_SIG)
 
-        reshaped_noise = np.reshape(noise, (-1, noise.shape[2]))
-    noise = np.reshape(np.matmul(reshaped_noise, spatial_SIG),
-                       [noise.shape[0], x_clean.shape[1], x_clean.shape[2]])
-
+    # make labels
     y_clean = np.ones((x_clean.shape[0]))
     y_col = np.ones((x_collision.shape[0]))
+
     y_misaligned = np.zeros((x_misaligned.shape[0]))
+
     if multi:
         y_misaligned2 = np.zeros((x_misaligned2.shape[0]))
-    y_noise = np.zeros((noise.shape[0]))
+
+    y_noise = np.zeros((the_noise.shape[0]))
 
     mid_point = int((x_clean.shape[1]-1)/2)
 
@@ -289,15 +302,15 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     if multi:
         x = np.concatenate((
             x_clean +
-            noise[np.random.choice(
-                noise.shape[0], x_clean.shape[0], replace=False)],
+            the_noise[np.random.choice(
+                the_noise.shape[0], x_clean.shape[0], replace=False)],
             x_collision +
-            noise[np.random.choice(
-                noise.shape[0], x_collision.shape[0], replace=False)],
+            the_noise[np.random.choice(
+                the_noise.shape[0], x_collision.shape[0], replace=False)],
             x_misaligned +
-            noise[np.random.choice(
-                noise.shape[0], x_misaligned.shape[0], replace=False)],
-            noise
+            the_noise[np.random.choice(
+                the_noise.shape[0], x_misaligned.shape[0], replace=False)],
+            the_noise
         ))
 
         x_detect = x[:, (mid_point-R):(mid_point+R+1), :]
@@ -305,12 +318,12 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     else:
         x = np.concatenate((
             x_clean +
-            noise[np.random.choice(
-                noise.shape[0], x_clean.shape[0], replace=False)],
+            the_noise[np.random.choice(
+                the_noise.shape[0], x_clean.shape[0], replace=False)],
             x_misaligned +
-            noise[np.random.choice(
-                noise.shape[0], x_misaligned.shape[0], replace=False)],
-            noise
+            the_noise[np.random.choice(
+                the_noise.shape[0], x_misaligned.shape[0], replace=False)],
+            the_noise
         ))
         x_detect = x[:, (mid_point-R):(mid_point+R+1), 0]
         y_detect = np.concatenate((y_clean, y_misaligned, y_noise))
@@ -319,14 +332,14 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     if multi:
         x = np.concatenate((
             x_clean +
-            noise[np.random.choice(
-                noise.shape[0], x_clean.shape[0], replace=False)],
+            the_noise[np.random.choice(
+                the_noise.shape[0], x_clean.shape[0], replace=False)],
             x_collision +
-            noise[np.random.choice(
-                noise.shape[0], x_collision.shape[0], replace=False)],
+            the_noise[np.random.choice(
+                the_noise.shape[0], x_collision.shape[0], replace=False)],
             x_misaligned2 +
-            noise[np.random.choice(
-                noise.shape[0], x_misaligned2.shape[0], replace=False)],
+            the_noise[np.random.choice(
+                the_noise.shape[0], x_misaligned2.shape[0], replace=False)],
         ))
         x_triage = x[:, (mid_point-R):(mid_point+R+1), :]
         y_triage = np.concatenate(
@@ -334,11 +347,11 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     else:
         x = np.concatenate((
             x_clean +
-            noise[np.random.choice(
-                noise.shape[0], x_clean.shape[0], replace=False)],
+            the_noise[np.random.choice(
+                the_noise.shape[0], x_clean.shape[0], replace=False)],
             x_collision +
-            noise[np.random.choice(
-                noise.shape[0], x_collision.shape[0], replace=False)],
+            the_noise[np.random.choice(
+                the_noise.shape[0], x_collision.shape[0], replace=False)],
         ))
         x_triage = x[:, (mid_point-R):(mid_point+R+1), 0]
         y_triage = np.concatenate((y_clean, np.zeros((x_collision.shape[0]))))
@@ -365,10 +378,10 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
         y_ae[k*nk:(k+1)*nk] = ((tt[:, k]/amp_now)[np.newaxis, :]
                                * amps_range[:, :, 0])
 
-    noise = np.random.normal(size=y_ae.shape)
-    noise = np.matmul(noise, temporal_SIG)
+    the_noise_ae = np.random.normal(size=y_ae.shape)
+    the_noise_ae = np.matmul(the_noise_ae, temporal_SIG)
 
-    x_ae = y_ae + noise
+    x_ae = y_ae + the_noise_ae
     x_ae = x_ae[:, (mid_point-R):(mid_point+R+1)]
     y_ae = y_ae[:, (mid_point-R):(mid_point+R+1)]
 
