@@ -266,7 +266,7 @@ def run_neural_network(standarized_path, standarized_params,
         max_memory = (CONFIG.resources.max_memory_gpu if GPU_ENABLED else
                       CONFIG.resources.max_memory)
 
-        # Batch processor
+        # instantiate batch processor
         bp = BatchProcessor(standarized_path,
                             standarized_params['dtype'],
                             standarized_params['n_channels'],
@@ -274,13 +274,14 @@ def run_neural_network(standarized_path, standarized_params,
                             max_memory,
                             buffer_size=CONFIG.spike_size)
 
-        # make tensorflow tensors and neural net classes
+        # load parameters
         detection_th = CONFIG.detect.neural_network_detector.threshold_spike
         triage_th = CONFIG.detect.neural_network_triage.threshold_collision
         detection_fname = CONFIG.detect.neural_network_detector.filename
         ae_fname = CONFIG.detect.neural_network_autoencoder.filename
         triage_fname = CONFIG.detect.neural_network_triage.filename
 
+        # load tensor
         (x_tf, output_tf, NND,
          NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
                                                whiten_filter,
@@ -290,7 +291,7 @@ def run_neural_network(standarized_path, standarized_params,
                                                ae_fname,
                                                triage_fname)
 
-        # run nn preprocess batch-wsie
+        # run detection
         with tf.Session() as sess:
 
             # get values of above tensors
