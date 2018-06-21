@@ -28,9 +28,6 @@ def prepare_nn(channel_index, whiten_filter,
         filter of channel c and its neighboring channel determined from
         channel_index.
 
-    threshold_detect: int
-        threshold for neural net detection
-
     threshold_triage: int
         threshold for neural net triage
 
@@ -59,32 +56,19 @@ def prepare_nn(channel_index, whiten_filter,
         an instance of class, NeuralNetTriage
     """
     # load Neural Net's
-    NND = NeuralNetDetector(detector_filename)
+    NND = NeuralNetDetector(detector_filename, threshold_detect, channel_index)
     NNAE = AutoEncoder(autoencoder_filename)
     NNT = NeuralNetTriage(triage_filename)
 
-    # make spike_index tensorflow tensor
-    spike_index_tf_all = NND.make_detection_tf_tensors(channel_index,
-                                                       threshold_detect)
-
-    # remove edge spike time
-    spike_index_tf = NND.remove_edge_spikes(spike_index_tf_all,
-                                            NND.filters_dict['size'])
-
-    # make waveform tensorflow tensor
-    waveform_tf = NND.make_waveform_tf_tensor(spike_index_tf,
-                                              channel_index,
-                                              NND.filters_dict['size'])
-
     # make score tensorflow tensor from waveform
-    score_tf = NNAE.make_score_tf_tensor(waveform_tf)
+    score_tf = NNAE.make_score_tf_tensor(NND.waveform_tf)
 
     # run neural net triage
     nneigh = NND.filters_dict['n_neighbors']
-    idx_clean = NNT.triage_wf(waveform_tf[:, :, :nneigh], threshold_triage)
+    idx_clean = NNT.triage_wf(NND.waveform_tf[:, :, :nneigh], threshold_triage)
 
     # gather all output tensors
-    output_tf = (score_tf, spike_index_tf, idx_clean)
+    output_tf = (score_tf, NND.spike_index_tf, idx_clean)
 
     return NND.x_tf, output_tf, NND, NNAE, NNT
 

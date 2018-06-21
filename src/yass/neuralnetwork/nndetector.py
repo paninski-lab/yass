@@ -94,6 +94,11 @@ class NeuralNetDetector(object):
                                remove_edge_spikes(self.spike_index_tf_all,
                                                   self.filters_dict['size']))
 
+        # make waveform tensorflow tensor
+        size = self.filters_dict['size']
+        self.waveform_tf = self.make_waveform_tf_tensor(self.spike_index_tf,
+                                                        channel_index, size)
+
     def _make_graph(self, channel_index):
         """Makes tensorflow graph
         """
