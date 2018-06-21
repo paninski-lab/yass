@@ -306,10 +306,10 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     mid_point = int((x_clean.shape[1]-1)/2)
 
-    x_clean_noisy = make_noisy(x_clean)
-    x_collision_noisy = make_noisy(x_collision)
-    x_misaligned_noisy = make_noisy(x_misaligned)
-    x_misaligned2_noisy = make_noisy(x_misaligned2)
+    x_clean_noisy = make_noisy(x_clean, the_noise)
+    x_collision_noisy = make_noisy(x_collision, the_noise)
+    x_misaligned_noisy = make_noisy(x_misaligned, the_noise)
+    x_misaligned2_noisy = make_noisy(x_misaligned2, the_noise)
 
     # get training set for detection
     if multi:

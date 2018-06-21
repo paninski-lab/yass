@@ -52,11 +52,13 @@ def train_detector(x_train, y_train, n_filters, n_iter, n_batch, l2_reg_scale,
     cross_entropy = tf.reduce_mean(
         tf.nn.sigmoid_cross_entropy_with_logits(logits=o_layer, labels=y_tf))
 
-    # regularization term
     weights = tf.trainable_variables()
+
+    # regularization term
     l2_regularizer = tf.contrib.layers.l2_regularizer(scale=l2_reg_scale)
     regularization_penalty = tf.contrib.layers.apply_regularization(
         l2_regularizer, weights)
+
     regularized_loss = cross_entropy + regularization_penalty
 
     # train step
@@ -78,24 +80,34 @@ def train_detector(x_train, y_train, n_filters, n_iter, n_batch, l2_reg_scale,
     ############
 
     bar = tqdm(total=n_iter)
+
     with tf.Session() as sess:
+
         init_op = tf.global_variables_initializer()
         sess.run(init_op)
 
         for i in range(0, n_iter):
+
+            # sample n_batch observations from 0, ..., n_data
             idx_batch = np.random.choice(ndata, n_batch, replace=False)
+
             sess.run(
                 train_step,
                 feed_dict={
                     x_tf: x_train[idx_batch],
                     y_tf: y_train[idx_batch]
                 })
+
             bar.update(i + 1)
+
         saver.save(sess, nn_name)
 
+        # estimate tp and fp with a sample
         idx_batch = np.random.choice(ndata, n_batch, replace=False)
+
         output = sess.run(o_layer, feed_dict={x_tf: x_train[idx_batch]})
         y_test = y_train[idx_batch]
+
         tp = np.mean(output[y_test == 1] > 0)
         fp = np.mean(output[y_test == 0] > 0)
 
