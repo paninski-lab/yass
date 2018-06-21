@@ -72,9 +72,9 @@ def prepare_nn(channel_index, whiten_filter,
                                             NND.filters_dict['size'])
 
     # make waveform tensorflow tensor
-    waveform_tf = make_waveform_tf_tensor(NND.x_tf, spike_index_tf,
-                                          channel_index,
-                                          NND.filters_dict['size'])
+    waveform_tf = NND.make_waveform_tf_tensor(spike_index_tf,
+                                              channel_index,
+                                              NND.filters_dict['size'])
 
     # make score tensorflow tensor from waveform
     score_tf = NNAE.make_score_tf_tensor(waveform_tf)
@@ -163,55 +163,3 @@ def remove_uncetered(score_tf, waveform_tf, spike_index_tf):
     spike_index_keep_tf = tf.boolean_mask(spike_index_tf, idx_centered)
 
     return score_keep_tf, wf_keep_tf, spike_index_keep_tf
-
-
-def make_waveform_tf_tensor(x_tf, spike_index_tf,
-                            channel_index, waveform_length):
-    """
-    It produces a tf tensor holding waveforms given recording and spike index.
-    It does not hold waveforms on all channels but channels around their main
-    channels specified in channel_index
-
-    Parameters
-    ----------
-    x_tf: tf.tensors (n_observations, n_channels)
-        placeholder of recording for running tensorflow
-
-    spike_index_tf: tf tensor (n_spikes, 2)
-        a tf tensor holding spike index.
-        The first column is time and the second column is the main channel
-
-    channel_index: np.array (n_channels, n_neigh)
-        refer above
-
-    waveform_length: int
-        temporal length of waveform
-
-    Returns
-    -------
-    tf tensor (n_spikes, waveform_length, n_neigh)
-    """
-    # get waveform temporally
-    R = int((waveform_length-1)/2)
-    spike_time = tf.expand_dims(spike_index_tf[:, 0], -1)
-    temporal_index = tf.expand_dims(tf.range(-R, R+1), 0)
-    wf_temporal = tf.add(spike_time, temporal_index)
-
-    # get waveform spatially
-    nneigh = channel_index.shape[1]
-    wf_spatial = tf.gather(channel_index, spike_index_tf[:, 1])
-
-    wf_temporal_expand = tf.expand_dims(
-        tf.expand_dims(wf_temporal, -1), -1)
-    wf_spatial_expand = tf.expand_dims(
-        tf.expand_dims(wf_spatial, 1), -1)
-
-    wf_idx = tf.concat((tf.tile(wf_temporal_expand, (1, 1, nneigh, 1)),
-                        tf.tile(wf_spatial_expand,
-                                (1, waveform_length, 1, 1))), 3)
-
-    # temproal length of recording
-    T = tf.shape(x_tf)[0]
-    x_tf_zero_added = tf.concat([x_tf, tf.zeros((T, 1))], axis=1)
-
-    return tf.gather_nd(x_tf_zero_added, wf_idx)

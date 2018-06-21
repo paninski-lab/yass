@@ -28,9 +28,19 @@ class NeuralNetDetector(object):
         bias variable for the convolutional layers.
     saver: tf.train.Saver
         saver object for the neural network detector.
+    threshold_detect: int
+        threshold for neural net detection
+    channel_index: np.array (n_channels, n_neigh)
+        Each row indexes its neighboring channels.
+        For example, channel_index[c] is the index of
+        neighboring channels (including itself)
+        If any value is equal to n_channels, it is nothing but
+        a space holder in a case that a channel has less than
+        n_neigh neighboring channels
     """
 
-    def __init__(self, path_to_detector_model):
+    def __init__(self, path_to_detector_model, threshold_detect,
+                 channel_index):
         """
         Initializes the attributes for the class NeuralNetDetector.
 
@@ -73,6 +83,16 @@ class NeuralNetDetector(object):
 
         # placeholder for input recording
         self.x_tf = tf.placeholder("float", [None, None])
+
+        # make spike_index tensorflow tensor
+        self.spike_index_tf_all = (self.
+                                   make_detection_tf_tensors(channel_index,
+                                                             threshold_detect))
+
+        # remove edge spike time
+        self.spike_index_tf = (self.
+                               remove_edge_spikes(self.spike_index_tf_all,
+                                                  self.filters_dict['size']))
 
     def _make_graph(self, channel_index):
         """Makes tensorflow graph
