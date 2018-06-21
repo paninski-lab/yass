@@ -10,6 +10,68 @@ from yass.templates.util import get_templates
 from yass.util import load_yaml
 
 
+def make_clean_spikes(templates, min_amp, max_amp, nk):
+    """Make clean spikes
+    """
+    K = templates.shape[0]
+
+    x_clean = np.zeros((nk * K, templates.shape[1], templates.shape[2]))
+
+    for k in range(K):
+        tt = templates[k]
+        amp_now = np.max(np.abs(tt))
+        amps_range = (np.arange(nk)*(max_amp-min_amp)
+                      / nk+min_amp)[:, np.newaxis, np.newaxis]
+        x_clean[k*nk:(k+1)*nk] = (tt/amp_now)[np.newaxis, :, :]*amps_range
+
+    return x_clean
+
+
+def make_collided_spikes(x_clean, collision_ratio, templates, R, multi,
+                         nneigh):
+    """Make collided spikes
+    """
+    x_collision = np.zeros(
+        (x_clean.shape[0]*int(collision_ratio), templates.shape[1],
+         templates.shape[2]))
+    max_shift = 2*R
+
+    temporal_shifts = np.random.randint(
+        max_shift*2, size=x_collision.shape[0]) - max_shift
+    temporal_shifts[temporal_shifts < 0] = temporal_shifts[
+        temporal_shifts < 0]-5
+    temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
+        temporal_shifts >= 0]+6
+
+    amp_per_data = np.max(x_clean[:, :, 0], axis=1)
+
+    for j in range(x_collision.shape[0]):
+        shift = temporal_shifts[j]
+
+        x_collision[j] = np.copy(x_clean[np.random.choice(
+            x_clean.shape[0], 1, replace=True)])
+        idx_candidate = np.where(
+            amp_per_data > np.max(x_collision[j, :, 0])*0.3)[0]
+        idx_match = idx_candidate[np.random.randint(
+            idx_candidate.shape[0], size=1)[0]]
+        if multi:
+            x_clean2 = np.copy(x_clean[idx_match][:, np.random.choice(
+                nneigh, nneigh, replace=False)])
+        else:
+            x_clean2 = np.copy(x_clean[idx_match])
+
+        if shift > 0:
+            x_collision[j, :(x_collision.shape[1]-shift)] += x_clean2[shift:]
+
+        elif shift < 0:
+            x_collision[
+                j, (-shift):] += x_clean2[:(x_collision.shape[1]+shift)]
+        else:
+            x_collision[j] += x_clean2
+
+    return x_collision
+
+
 def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                        nspikes, data_folder, noise_ratio=10, collision_ratio=1,
                        misalign_ratio=1, misalign_ratio2=1, multi=True):
@@ -130,57 +192,14 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     nk = int(np.ceil(nspikes/K))
     max_amp = np.max(amps)*1.5
     nneigh = templates.shape[2]
-
-    ################
-    # clean spikes #
-    ################
-    x_clean = np.zeros((nk*K, templates.shape[1], templates.shape[2]))
-    for k in range(K):
-        tt = templates[k]
-        amp_now = np.max(np.abs(tt))
-        amps_range = (np.arange(nk)*(max_amp-min_amp)
-                      / nk+min_amp)[:, np.newaxis, np.newaxis]
-        x_clean[k*nk:(k+1)*nk] = (tt/amp_now)[np.newaxis, :, :]*amps_range
-
-    #############
-    # collision #
-    #############
-    x_collision = np.zeros(
-        (x_clean.shape[0]*int(collision_ratio), templates.shape[1],
-         templates.shape[2]))
     max_shift = 2*R
 
-    temporal_shifts = np.random.randint(
-        max_shift*2, size=x_collision.shape[0]) - max_shift
-    temporal_shifts[temporal_shifts < 0] = temporal_shifts[
-        temporal_shifts < 0]-5
-    temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
-        temporal_shifts >= 0]+6
+    # make clean spikes
+    x_clean = make_clean_spikes(templates, min_amp, max_amp, nk)
 
-    amp_per_data = np.max(x_clean[:, :, 0], axis=1)
-    for j in range(x_collision.shape[0]):
-        shift = temporal_shifts[j]
-
-        x_collision[j] = np.copy(x_clean[np.random.choice(
-            x_clean.shape[0], 1, replace=True)])
-        idx_candidate = np.where(
-            amp_per_data > np.max(x_collision[j, :, 0])*0.3)[0]
-        idx_match = idx_candidate[np.random.randint(
-            idx_candidate.shape[0], size=1)[0]]
-        if multi:
-            x_clean2 = np.copy(x_clean[idx_match][:, np.random.choice(
-                nneigh, nneigh, replace=False)])
-        else:
-            x_clean2 = np.copy(x_clean[idx_match])
-
-        if shift > 0:
-            x_collision[j, :(x_collision.shape[1]-shift)] += x_clean2[shift:]
-
-        elif shift < 0:
-            x_collision[
-                j, (-shift):] += x_clean2[:(x_collision.shape[1]+shift)]
-        else:
-            x_collision[j] += x_clean2
+    # make collided spikes
+    x_collision = make_collided_spikes(x_clean, collision_ratio, templates,
+                                       R, multi, nneigh)
 
     ###############################################
     # temporally and spatially misaligned spikes #
