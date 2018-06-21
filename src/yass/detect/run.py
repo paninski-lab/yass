@@ -286,7 +286,7 @@ def run_neural_network(standarized_path, standarized_params,
         NND = NeuralNetDetector(detection_fname, detection_th,
                                 channel_index)
         NNAE = AutoEncoder(ae_fname, NND)
-        NNT = NeuralNetTriage(triage_fname, triage_th)
+        NNT = NeuralNetTriage(triage_fname, NND, triage_th)
 
         # gather all output tensors
         output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
