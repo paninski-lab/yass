@@ -93,14 +93,17 @@ def train_detector(x_train, y_train, n_filters, n_iter, n_batch, l2_reg_scale,
             # sample n_batch observations from 0, ..., n_data
             idx_batch = np.random.choice(ndata, n_batch, replace=False)
 
-            sess.run(
-                train_step,
+            res = sess.run(
+                [train_step, regularized_loss],
                 feed_dict={
                     x_tf: x_train[idx_batch],
                     y_tf: y_train[idx_batch]
                 })
 
             bar.update(i + 1)
+
+            #if not i % 100:
+            #    logger.info('Loss: %s', res[1])
 
         saver.save(sess, nn_name)
 
