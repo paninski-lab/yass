@@ -282,11 +282,14 @@ def run_neural_network(standarized_path, standarized_params,
         ae_fname = CONFIG.detect.neural_network_autoencoder.filename
         triage_fname = CONFIG.detect.neural_network_triage.filename
 
-        # load tensor
+        # instantiate neural networks
         NND = NeuralNetDetector(detection_fname, detection_th,
                                 channel_index)
         NNAE = AutoEncoder(ae_fname, NND)
         NNT = NeuralNetTriage(triage_fname, NND, triage_th)
+
+        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+        rot = NNAE.load_rotation()
 
         # gather all output tensors
         output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
@@ -299,8 +302,6 @@ def run_neural_network(standarized_path, standarized_params,
             NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
             NNT.saver.restore(sess, NNT.path_to_triage_model)
 
-            rot = NNAE.load_rotation()
-            neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
             mc = bp.multi_channel_apply
             res = mc(
                 neuralnetwork.run_detect_triage_featurize,
