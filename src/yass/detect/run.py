@@ -19,6 +19,7 @@ from yass.threshold.detect import threshold
 from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
 from yass import neuralnetwork
+from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
 from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
 from yass.util import file_loader, save_numpy_object
@@ -282,14 +283,13 @@ def run_neural_network(standarized_path, standarized_params,
         triage_fname = CONFIG.detect.neural_network_triage.filename
 
         # load tensor
-        (x_tf, output_tf, NND,
-         NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
-                                               whiten_filter,
-                                               detection_th,
-                                               triage_th,
-                                               detection_fname,
-                                               ae_fname,
-                                               triage_fname)
+        NND = NeuralNetDetector(detection_fname, detection_th,
+                                channel_index)
+        NNAE = AutoEncoder(ae_fname, NND)
+        NNT = NeuralNetTriage(triage_fname, triage_th)
+
+        # gather all output tensors
+        output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
 
         # run detection
         with tf.Session() as sess:
@@ -307,7 +307,7 @@ def run_neural_network(standarized_path, standarized_params,
                 mode='memory',
                 cleanup_function=neuralnetwork.fix_indexes,
                 sess=sess,
-                x_tf=x_tf,
+                x_tf=NND.x_tf,
                 output_tf=output_tf,
                 rot=rot,
                 neighbors=neighbors)
