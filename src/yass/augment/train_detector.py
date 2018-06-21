@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
+import logging
 
 from yass.neuralnetwork.utils import \
     weight_variable, bias_variable, conv2d, conv2d_VALID
@@ -24,6 +25,7 @@ def train_detector(x_train, y_train, n_filters, n_iter, n_batch, l2_reg_scale,
         nn_name: string
             name of the .ckpt to be saved
     """
+    logger = logging.getLogger(__name__)
 
     # get parameters
     ndata, R, C = x_train.shape
@@ -111,6 +113,6 @@ def train_detector(x_train, y_train, n_filters, n_iter, n_batch, l2_reg_scale,
         tp = np.mean(output[y_test == 1] > 0)
         fp = np.mean(output[y_test == 0] > 0)
 
-        print('Approximate training true positive rate: ' + str(tp) +
-              ', false positive rate: ' + str(fp))
+        logger.info('Approximate training true positive rate: ' + str(tp) +
+                    ', false positive rate: ' + str(fp))
     bar.close()
