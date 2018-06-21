@@ -98,13 +98,16 @@ class NeuralNetDetector(object):
         zero_added_layer11 = tf.concat(
             (tf.transpose(layer11, [2, 0, 1, 3]), tf.zeros((1, 1, T, K2))),
             axis=0)
+
         temp = tf.transpose(
             tf.gather(zero_added_layer11, self.channel_index), [0, 2, 3, 1, 4])
 
         temp2 = conv2d_VALID(tf.reshape(temp, [-1, T, nneigh, K2]),
                              self.W2) + self.b2
 
-        return temp2
+        o_layer = tf.transpose(temp2, [2, 1, 0, 3])
+
+        return o_layer
 
     def make_detection_tf_tensors(self, x_tf, channel_index, threshold):
         """
@@ -132,10 +135,7 @@ class NeuralNetDetector(object):
         spike_index_tf: tf tensor (n_spikes, 2)
             tensorflow tensor that produces spike_index
         """
-        temp2 = self._make_graph(x_tf, channel_index)
-
-        # output layer
-        o_layer = tf.transpose(temp2, [2, 1, 0, 3])
+        o_layer = self._make_graph(x_tf, channel_index)
 
         # temporal max
         temporal_max = max_pool(o_layer, [1, 3, 1, 1]) - 1e-8
@@ -149,7 +149,7 @@ class NeuralNetDetector(object):
         return spike_index_tf
 
     def make_o_layer_tf_tensors(self, x_tf, channel_index):
-        """Build tensorflow graph, returns the output layer
+        """Build tensorflow graph, returns sigmoid(output)
 
         Parameters
         -----------
@@ -169,11 +169,6 @@ class NeuralNetDetector(object):
         output_tf: tf tensor (n_observations, n_channels)
             tensorflow tensor that produces spike_index
         """
-        temp2 = self._make_graph(x_tf, channel_index)
+        o_layer = self._make_graph(x_tf, channel_index)
 
-        # output layer
-        # o_layer: [1, temporal, spatial, 1]
-        o_layer = tf.transpose(temp2, [2, 1, 0, 3])[0, :, :, 0]
-        output_tf = tf.sigmoid(o_layer)
-
-        return output_tf
+        return tf.sigmoid(o_layer[0, :, :, 0])
