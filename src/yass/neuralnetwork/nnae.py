@@ -20,9 +20,11 @@ class AutoEncoder(object):
         [n_input, n_features] weight matrix for the autoencoder.
     saver_ae: tf.train.Saver
         saver object for the autoencoder.
+    detector: NeuralNetDetector
+        Instance of detector
     """
 
-    def __init__(self, path_to_ae_model):
+    def __init__(self, path_to_ae_model, detector):
         """
         Initializes the attributes for the class NeuralNetDetector.
 
@@ -48,6 +50,9 @@ class AutoEncoder(object):
 
         # create saver variables
         self.saver_ae = tf.train.Saver({"W_ae": self.W_ae})
+
+        # make score tensorflow tensor from waveform
+        self.score_tf = self.make_score_tf_tensor(detector.waveform_tf)
 
     def make_score_tf_tensor(self, waveform_tf):
         """

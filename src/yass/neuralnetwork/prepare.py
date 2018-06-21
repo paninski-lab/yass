@@ -57,18 +57,11 @@ def prepare_nn(channel_index, whiten_filter,
     """
     # load Neural Net's
     NND = NeuralNetDetector(detector_filename, threshold_detect, channel_index)
-    NNAE = AutoEncoder(autoencoder_filename)
+    NNAE = AutoEncoder(autoencoder_filename, NND)
     NNT = NeuralNetTriage(triage_filename)
 
-    # make score tensorflow tensor from waveform
-    score_tf = NNAE.make_score_tf_tensor(NND.waveform_tf)
-
-    # run neural net triage
-    nneigh = NND.filters_dict['n_neighbors']
-    idx_clean = NNT.triage_wf(NND.waveform_tf[:, :, :nneigh], threshold_triage)
-
     # gather all output tensors
-    output_tf = (score_tf, NND.spike_index_tf, idx_clean)
+    output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
 
     return NND.x_tf, output_tf, NND, NNAE, NNT
 
