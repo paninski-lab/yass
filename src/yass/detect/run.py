@@ -289,7 +289,7 @@ def run_neural_network(standarized_path, standarized_params,
         NNT = NeuralNetTriage(triage_fname, NND, triage_th)
 
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-        rot = NNAE.load_rotation()
+        rotation = NNAE.load_rotation()
 
         # gather all output tensors
         output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
@@ -310,7 +310,7 @@ def run_neural_network(standarized_path, standarized_params,
                 sess=sess,
                 x_tf=NND.x_tf,
                 output_tf=output_tf,
-                rot=rot,
+                rot=rotation,
                 neighbors=neighbors)
 
         # get clear spikes
@@ -338,7 +338,6 @@ def run_neural_network(standarized_path, standarized_params,
 
         # transform scores to location + shape feature space
         # TODO: move this to another place
-        rotation = NNAE.load_rotation()
 
         if CONFIG.cluster.method == 'location':
             threshold = 2
