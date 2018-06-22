@@ -118,7 +118,7 @@ class NeuralNetTriage(object):
     def restore(self, sess):
         """Restore tensor values
         """
-        self.saver.restore(sess, self.path_triage_model)
+        self.saver.restore(sess, self.path_to_triage_model)
 
     @classmethod
     def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
