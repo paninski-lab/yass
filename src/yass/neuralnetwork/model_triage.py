@@ -116,8 +116,8 @@ class NeuralNetTriage(object):
         return o_layer[:, 0, 0, 0] > np.log(threshold / (1 - threshold))
 
     @classmethod
-    def train_triage(cls, x_train, y_train, n_filters, n_iter, n_batch,
-                     l2_reg_scale, train_step_size, nn_name):
+    def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
+              l2_reg_scale, train_step_size, nn_name):
         """
         Trains the triage network
 

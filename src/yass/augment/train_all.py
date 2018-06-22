@@ -9,6 +9,7 @@ from yass.augment import train_detector, train_ae, train_triage
 from yass.util import change_extension
 
 
+# FIXME: needs update
 def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
     """
     Train neural network
