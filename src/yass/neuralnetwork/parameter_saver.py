@@ -24,8 +24,8 @@ def seq_rep(dumper, data):
                                      flow_style=True)
 
 
-CustomYAMLDumper.add_representer(map_data, map_data)
-CustomYAMLDumper.add_representer(seq_data, map_rep)
+# CustomYAMLDumper.add_representer(map_data, map_data)
+# CustomYAMLDumper.add_representer(seq_data, map_rep)
 
 
 def save_detect_network_params(filters, size, n_neighbors, output_path):
