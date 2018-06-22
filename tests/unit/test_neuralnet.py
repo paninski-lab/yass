@@ -40,10 +40,10 @@ def test_can_use_neural_network_detector(path_to_tests):
     output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
 
     with tf.Session() as sess:
-        # get values of above tensors
-        NND.saver.restore(sess, NND.path_to_detector_model)
-        NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
-        NNT.saver.restore(sess, NNT.path_to_triage_model)
+        NND.restore(sess)
+        NNAE.restore(sess)
+        NNT.restore(sess)
+
         rot = NNAE.load_rotation()
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
 
@@ -84,9 +84,10 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
     # run all at once
     with tf.Session() as sess:
         # get values of above tensors
-        NND.saver.restore(sess, NND.path_to_detector_model)
-        NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
-        NNT.saver.restore(sess, NNT.path_to_triage_model)
+        NND.restore(sess)
+        NNAE.restore(sess)
+        NNT.restore(sess)
+
         rot = NNAE.load_rotation()
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
 
