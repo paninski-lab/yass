@@ -6,7 +6,7 @@ import logging
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID, max_pool)
 from yass.util import load_yaml, change_extension
-from yass.augment.util import save_detect_network_params
+from yass.neuralnetwork.parameter_saver import save_detect_network_params
 
 
 class NeuralNetDetector(object):

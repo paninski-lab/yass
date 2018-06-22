@@ -4,7 +4,7 @@ import tensorflow as tf
 from sklearn.decomposition import PCA
 
 from yass.util import load_yaml, change_extension
-from yass.augment.util import save_ae_network_params
+from yass.neuralnetwork.parameter_saver import save_ae_network_params
 
 
 class AutoEncoder(object):

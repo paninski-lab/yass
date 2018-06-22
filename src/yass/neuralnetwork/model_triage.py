@@ -6,7 +6,7 @@ from tqdm import tqdm
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID)
 from yass.util import load_yaml, change_extension
-from yass.augment.util import save_triage_network_params
+from yass.neuralnetwork.parameter_saver import save_triage_network_params
 
 
 class NeuralNetTriage(object):
