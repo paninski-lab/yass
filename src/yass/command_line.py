@@ -20,7 +20,7 @@ from yass import pipeline
 from yass import geometry
 from yass.export import generate
 from yass.util import load_yaml
-from yass.augment import train_neural_networks
+from yass import neuralnetwork
 from yass.config import Config
 
 
@@ -87,8 +87,8 @@ def train(directory, config_train, logger_level):
 
     CONFIG_TRAIN = load_yaml(config_train)
 
-    train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train,
-                          data_folder=directory)
+    neuralnetwork.train(CONFIG, CONFIG_TRAIN, spike_train,
+                        data_folder=directory)
 
 
 @cli.command()
