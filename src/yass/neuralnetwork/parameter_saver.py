@@ -24,9 +24,6 @@ def seq_rep(dumper, data):
                                      flow_style=True)
 
 
-print(yaml)
-print(Dumper)
-print(CustomYAMLDumper)
 CustomYAMLDumper.add_representer(map_data, map_data)
 CustomYAMLDumper.add_representer(seq_data, map_rep)
 
