@@ -298,9 +298,9 @@ def run_neural_network(standarized_path, standarized_params,
         with tf.Session() as sess:
 
             # get values of above tensors
-            NND.saver.restore(sess, NND.path_to_detector_model)
-            NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
-            NNT.saver.restore(sess, NNT.path_to_triage_model)
+            NND.restore(sess)
+            NNAE.restore(sess)
+            NNT.restore(sess)
 
             mc = bp.multi_channel_apply
             res = mc(

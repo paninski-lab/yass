@@ -115,6 +115,11 @@ class NeuralNetTriage(object):
         # thrshold it
         return o_layer[:, 0, 0, 0] > np.log(threshold / (1 - threshold))
 
+    def restore(self, sess):
+        """Restore tensor values
+        """
+        self.saver.restore(sess, self.path_triage_model)
+
     @classmethod
     def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
               l2_reg_scale, train_step_size, nn_name):

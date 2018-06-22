@@ -19,7 +19,7 @@ class AutoEncoder(object):
         temporal size of a spike feeded into ae.
     W_ae: tf.Variable
         [n_input, n_features] weight matrix for the autoencoder.
-    saver_ae: tf.train.Saver
+    saver: tf.train.Saver
         saver object for the autoencoder.
     detector: NeuralNetDetector
         Instance of detector
@@ -50,7 +50,7 @@ class AutoEncoder(object):
                               1.0 / np.sqrt(n_input)))
 
         # create saver variables
-        self.saver_ae = tf.train.Saver({"W_ae": self.W_ae})
+        self.saver = tf.train.Saver({"W_ae": self.W_ae})
 
         # make score tensorflow tensor from waveform
         self.score_tf = self.make_score_tf_tensor(detector.waveform_tf)
@@ -88,10 +88,15 @@ class AutoEncoder(object):
         """
 
         with tf.Session() as sess:
-            self.saver_ae.restore(sess, self.path_to_ae_model)
+            self.saver.restore(sess, self.path_to_ae_model)
             rotation = sess.run(self.W_ae)
 
         return rotation
+
+    def restore(self, sess):
+        """Restore tensor values
+        """
+        self.saver.restore(sess, self.path_to_ae_model)
 
     @classmethod
     def train(cls, x_train, y_train, n_feature, n_iter, n_batch,
@@ -120,7 +125,7 @@ class AutoEncoder(object):
         W_ae = tf.Variable((pca.components_.T).astype('float32'))
 
         # saver
-        saver_ae = tf.train.Saver({"W_ae": W_ae})
+        saver = tf.train.Saver({"W_ae": W_ae})
 
         ############
         # training #
@@ -129,4 +134,4 @@ class AutoEncoder(object):
         with tf.Session() as sess:
             init_op = tf.global_variables_initializer()
             sess.run(init_op)
-            saver_ae.save(sess, nn_name)
+            saver.save(sess, nn_name)

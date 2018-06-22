@@ -284,6 +284,11 @@ class NeuralNetDetector(object):
 
         return tf.gather_nd(x_tf_zero_added, wf_idx)
 
+    def restore(self, sess):
+        """Restore tensor values
+        """
+        self.saver.restore(sess, self.path_to_detector_model)
+
     @classmethod
     def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
               l2_reg_scale, train_step_size, nn_name):
