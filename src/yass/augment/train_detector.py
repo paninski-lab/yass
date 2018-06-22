@@ -28,7 +28,7 @@ def train_detector(x_train, y_train, n_filters, n_iter, n_batch, l2_reg_scale,
     logger = logging.getLogger(__name__)
 
     # get parameters
-    ndata, R, C = x_train.shape
+    n_data, R, C = x_train.shape
     K1, K2 = n_filters
 
     # x and y input tensors
@@ -51,21 +51,22 @@ def train_detector(x_train, y_train, n_filters, n_iter, n_batch, l2_reg_scale,
     o_layer = tf.squeeze(conv2d_VALID(layer11, W2) + b2)
 
     # cross entropy
-    cross_entropy = tf.reduce_mean(
-        tf.nn.sigmoid_cross_entropy_with_logits(logits=o_layer, labels=y_tf))
+    _ = tf.nn.sigmoid_cross_entropy_with_logits(logits=o_layer, labels=y_tf)
+    cross_entropy = tf.reduce_mean(_)
 
     weights = tf.trainable_variables()
 
     # regularization term
     l2_regularizer = tf.contrib.layers.l2_regularizer(scale=l2_reg_scale)
-    regularization_penalty = tf.contrib.layers.apply_regularization(
-        l2_regularizer, weights)
 
-    regularized_loss = cross_entropy + regularization_penalty
+    regularization = tf.contrib.layers.apply_regularization(l2_regularizer,
+                                                            weights)
+
+    regularized_loss = cross_entropy + regularization
 
     # train step
-    train_step = tf.train.AdamOptimizer(train_step_size).minimize(
-        regularized_loss)
+    train_step = (tf.train.AdamOptimizer(train_step_size)
+                    .minimize(regularized_loss))
 
     # saver
     saver = tf.train.Saver({
@@ -91,7 +92,7 @@ def train_detector(x_train, y_train, n_filters, n_iter, n_batch, l2_reg_scale,
         for i in range(0, n_iter):
 
             # sample n_batch observations from 0, ..., n_data
-            idx_batch = np.random.choice(ndata, n_batch, replace=False)
+            idx_batch = np.random.choice(n_data, n_batch, replace=False)
 
             res = sess.run(
                 [train_step, regularized_loss],
@@ -102,13 +103,13 @@ def train_detector(x_train, y_train, n_filters, n_iter, n_batch, l2_reg_scale,
 
             bar.update(i + 1)
 
-            #if not i % 100:
+            # if not i % 100:
             #    logger.info('Loss: %s', res[1])
 
         saver.save(sess, nn_name)
 
         # estimate tp and fp with a sample
-        idx_batch = np.random.choice(ndata, n_batch, replace=False)
+        idx_batch = np.random.choice(n_data, n_batch, replace=False)
 
         output = sess.run(o_layer, feed_dict={x_tf: x_train[idx_batch]})
         y_test = y_train[idx_batch]

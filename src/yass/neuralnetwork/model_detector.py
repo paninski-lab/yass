@@ -112,7 +112,8 @@ class NeuralNetDetector(object):
         # Temporal shape of input
         T = tf.shape(self.x_tf)[0]
 
-        # input tensor into CNN
+        # input tensor into CNN - add one dimension at the beginning and
+        # at the end
         x_cnn_tf = tf.expand_dims(tf.expand_dims(self.x_tf, -1), 0)
 
         # NN structures
@@ -123,15 +124,15 @@ class NeuralNetDetector(object):
         layer11 = tf.nn.relu(conv2d(layer1, self.W11) + self.b11)
 
         # first spatial layer
-        zero_added_layer11 = tf.concat(
-            (tf.transpose(layer11, [2, 0, 1, 3]), tf.zeros((1, 1, T, K2))),
-            axis=0)
+        zero_added_layer11 = tf.concat(tf.transpose(layer11, [2, 0, 1, 3]),
+                                       tf.zeros((1, 1, T, K2)),
+                                       axis=0)
 
-        temp = tf.transpose(
-            tf.gather(zero_added_layer11, self.channel_index), [0, 2, 3, 1, 4])
+        temp = tf.transpose(tf.gather(zero_added_layer11, self.channel_index),
+                            [0, 2, 3, 1, 4])
 
-        temp2 = conv2d_VALID(tf.reshape(temp, [-1, T, nneigh, K2]),
-                             self.W2) + self.b2
+        temp2 = (conv2d_VALID(tf.reshape(temp, [-1, T, nneigh, K2]), self.W2)
+                 + self.b2)
 
         o_layer = tf.transpose(temp2, [2, 1, 0, 3])
 
