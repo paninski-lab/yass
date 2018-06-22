@@ -2,11 +2,7 @@ import logging
 
 
 from yass.augment.make import make_training_data
-from yass.augment.util import (save_detect_network_params,
-                               save_triage_network_params,
-                               save_ae_network_params)
 from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
-from yass.util import change_extension
 
 
 def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
@@ -47,40 +43,15 @@ def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
                                       data_folder=data_folder)
 
     # train detector
-    logger.info('Training detector network...')
     NeuralNetDetector.train(x_detect, y_detect, n_filters_detect, n_iter,
                             n_batch, l2_reg_scale, train_step_size,
                             detectnet_name)
 
-    # save detector model parameters
-    logger.info('Saving detector network parameters...')
-    save_detect_network_params(filters=n_filters_detect,
-                               size=x_detect.shape[1],
-                               n_neighbors=x_detect.shape[2],
-                               output_path=change_extension(detectnet_name,
-                                                            'yaml'))
-
     # train triage
-    logger.info('Training triage network...')
     NeuralNetTriage.train(x_triage, y_triage, n_filters_triage, n_iter,
                           n_batch, l2_reg_scale, train_step_size,
                           triagenet_name)
 
-    # save triage model parameters
-    logger.info('Saving triage network parameters...')
-    save_triage_network_params(filters=n_filters_triage,
-                               size=x_detect.shape[1],
-                               n_neighbors=x_detect.shape[2],
-                               output_path=change_extension(triagenet_name,
-                                                            'yaml'))
-
     # train autoencoder
-    logger.info('Training autoencoder network...')
     AutoEncoder.train(x_ae, y_ae, n_features, n_iter, n_batch, train_step_size,
                       ae_name)
-
-    # save autoencoder model parameters
-    logger.info('Saving autoencoder network parameters...')
-    save_ae_network_params(n_input=x_ae.shape[1],
-                           n_features=n_features,
-                           output_path=change_extension(ae_name, 'yaml'))

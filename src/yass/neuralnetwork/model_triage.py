@@ -6,6 +6,7 @@ from tqdm import tqdm
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID)
 from yass.util import load_yaml, change_extension
+from yass.augment.util import save_triage_network_params
 
 
 class NeuralNetTriage(object):
@@ -191,6 +192,8 @@ class NeuralNetTriage(object):
         # training #
         ############
 
+        logger.info('Training triage network...')
+
         bar = tqdm(total=n_iter)
 
         with tf.Session() as sess:
@@ -218,3 +221,10 @@ class NeuralNetTriage(object):
             logger.info('Approximate training true positive rate: ' + str(tp) +
                         ', false positive rate: ' + str(fp))
         bar.close()
+
+        logger.info('Saving triage network parameters...')
+        save_triage_network_params(filters=n_filters,
+                                   size=x_train.shape[1],
+                                   n_neighbors=x_train.shape[2],
+                                   output_path=change_extension(nn_name,
+                                                                'yaml'))

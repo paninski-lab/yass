@@ -6,6 +6,7 @@ import logging
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID, max_pool)
 from yass.util import load_yaml, change_extension
+from yass.augment.util import save_detect_network_params
 
 
 class NeuralNetDetector(object):
@@ -366,6 +367,8 @@ class NeuralNetDetector(object):
         # training #
         ############
 
+        logger.info('Training detector network...')
+
         bar = tqdm(total=n_iter)
 
         with tf.Session() as sess:
@@ -404,3 +407,10 @@ class NeuralNetDetector(object):
             logger.info('Approximate training true positive rate: ' + str(tp) +
                         ', false positive rate: ' + str(fp))
         bar.close()
+
+        logger.info('Saving detector network parameters...')
+        save_detect_network_params(filters=n_filters,
+                                   size=x_train.shape[1],
+                                   n_neighbors=x_train.shape[2],
+                                   output_path=change_extension(nn_name,
+                                                                'yaml'))
