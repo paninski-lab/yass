@@ -1,8 +1,10 @@
+import logging
 import numpy as np
 import tensorflow as tf
 from sklearn.decomposition import PCA
 
 from yass.util import load_yaml, change_extension
+from yass.augment.util import save_ae_network_params
 
 
 class AutoEncoder(object):
@@ -99,7 +101,7 @@ class AutoEncoder(object):
         self.saver.restore(sess, self.path_to_ae_model)
 
     @classmethod
-    def train(cls, x_train, y_train, n_feature, n_iter, n_batch,
+    def train(cls, x_train, y_train, n_features, n_iter, n_batch,
               train_step_size, nn_name):
         """
         Trains the autoencoder for feature extraction
@@ -115,11 +117,12 @@ class AutoEncoder(object):
         nn_name: string
             name of the .ckpt to be saved.
         """
+        logger = logging.getLogger(__name__)
 
         # parameters
         n_data, n_input = x_train.shape
 
-        pca = PCA(n_components=n_feature).fit(x_train)
+        pca = PCA(n_components=n_features).fit(x_train)
 
         # encoding
         W_ae = tf.Variable((pca.components_.T).astype('float32'))
@@ -131,7 +134,13 @@ class AutoEncoder(object):
         # training #
         ############
 
+        logger.info('Training autoencoder network...')
+
         with tf.Session() as sess:
             init_op = tf.global_variables_initializer()
             sess.run(init_op)
             saver.save(sess, nn_name)
+
+        save_ae_network_params(n_input=x_train.shape[1],
+                               n_features=n_features,
+                               output_path=change_extension(nn_name, 'yaml'))
