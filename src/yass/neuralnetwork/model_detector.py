@@ -122,8 +122,8 @@ class NeuralNetDetector(object):
         layer11 = tf.nn.relu(conv2d(layer1, self.W11) + self.b11)
 
         # first spatial layer
-        zero_added_layer11 = tf.concat(tf.transpose(layer11, [2, 0, 1, 3]),
-                                       tf.zeros((1, 1, T, K2)),
+        zero_added_layer11 = tf.concat((tf.transpose(layer11, [2, 0, 1, 3]),
+                                        tf.zeros((1, 1, T, K2))),
                                        axis=0)
 
         temp = tf.transpose(tf.gather(zero_added_layer11, self.channel_index),
@@ -282,8 +282,8 @@ class NeuralNetDetector(object):
         return tf.gather_nd(x_tf_zero_added, wf_idx)
 
     @classmethod
-    def train_detector(cls, x_train, y_train, n_filters, n_iter, n_batch,
-                       l2_reg_scale, train_step_size, nn_name):
+    def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
+              l2_reg_scale, train_step_size, nn_name):
         """
         Trains the neural network detector for spike detection
 
