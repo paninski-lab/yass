@@ -51,6 +51,9 @@ class NeuralNetDetector(object):
         path_to_detector_model: str
             location of trained neural net detectior
         """
+        # add locations as attributes
+        self.path_to_detector_model = path_to_detector_model
+
         # load nn parameter files
         path_to_filters = change_extension(path_to_detector_model, 'yaml')
         self.filters_dict = load_yaml(path_to_filters)
