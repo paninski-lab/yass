@@ -5,11 +5,10 @@ from yass.augment.make import make_training_data
 from yass.augment.util import (save_detect_network_params,
                                save_triage_network_params,
                                save_ae_network_params)
-from yass.augment import train_detector, train_ae, train_triage
+from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
 from yass.util import change_extension
 
 
-# FIXME: needs update
 def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
     """
     Train neural network
@@ -49,8 +48,9 @@ def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
 
     # train detector
     logger.info('Training detector network...')
-    train_detector(x_detect, y_detect, n_filters_detect, n_iter, n_batch,
-                   l2_reg_scale, train_step_size, detectnet_name)
+    NeuralNetDetector.train(x_detect, y_detect, n_filters_detect, n_iter,
+                            n_batch, l2_reg_scale, train_step_size,
+                            detectnet_name)
 
     # save detector model parameters
     logger.info('Saving detector network parameters...')
@@ -62,8 +62,9 @@ def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
 
     # train triage
     logger.info('Training triage network...')
-    train_triage(x_triage, y_triage, n_filters_triage, n_iter, n_batch,
-                 l2_reg_scale, train_step_size, triagenet_name)
+    NeuralNetTriage.train(x_triage, y_triage, n_filters_triage, n_iter,
+                          n_batch, l2_reg_scale, train_step_size,
+                          triagenet_name)
 
     # save triage model parameters
     logger.info('Saving triage network parameters...')
@@ -75,7 +76,8 @@ def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
 
     # train autoencoder
     logger.info('Training autoencoder network...')
-    train_ae(x_ae, y_ae, n_features, n_iter, n_batch, train_step_size, ae_name)
+    AutoEncoder.train(x_ae, y_ae, n_features, n_iter, n_batch, train_step_size,
+                      ae_name)
 
     # save autoencoder model parameters
     logger.info('Saving autoencoder network parameters...')
