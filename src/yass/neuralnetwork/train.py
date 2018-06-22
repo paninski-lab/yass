@@ -5,7 +5,7 @@ from yass.augment.make import make_training_data
 from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
 
 
-def train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
+def train(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
     """
     Train neural network
 

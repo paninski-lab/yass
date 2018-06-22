@@ -5,7 +5,7 @@ from os import path
 import numpy as np
 from yass.config import Config
 from yass.util import load_yaml
-from yass.augment import train_neural_networks
+from yass import neuralnetwork
 
 PATH_TO_REF = '/home/Edu/data/nnet'
 
@@ -23,5 +23,5 @@ def test_can_train_neural_networks(path_to_tests):
     CONFIG = Config.from_yaml(path_to_config)
     CONFIG_TRAIN = load_yaml(path_to_config_train)
 
-    train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train,
-                          data_folder=PATH_TO_REF)
+    neuralnetwork.train(CONFIG, CONFIG_TRAIN, spike_train,
+                        data_folder=PATH_TO_REF)
