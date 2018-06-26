@@ -27,24 +27,24 @@ class AutoEncoder(object):
         Instance of detector
     """
 
-    def __init__(self, path_to_ae_model, detector):
+    def __init__(self, path_to_model, detector):
         """
         Initializes the attributes for the class NeuralNetDetector.
 
         Parameters:
         -----------
-        path_to_ae_model: str
+        path_to_model: str
             location of trained neural net autoencoder
         """
 
         # add locations as attributes
-        if not path_to_ae_model.endswith('.ckpt'):
-            path_to_ae_model = path_to_ae_model+'.ckpt'
+        if not path_to_model.endswith('.ckpt'):
+            path_to_model = path_to_model+'.ckpt'
 
-        self.path_to_ae_model = path_to_ae_model
+        self.path_to_model = path_to_model
 
         # load parameter of autoencoder
-        path_to_filters_ae = change_extension(path_to_ae_model, 'yaml')
+        path_to_filters_ae = change_extension(path_to_model, 'yaml')
         self.ae_dict = load_yaml(path_to_filters_ae)
         n_input = self.ae_dict['n_input']
         n_features = self.ae_dict['n_features']
@@ -93,7 +93,7 @@ class AutoEncoder(object):
         """
 
         with tf.Session() as sess:
-            self.saver.restore(sess, self.path_to_ae_model)
+            self.saver.restore(sess, self.path_to_model)
             rotation = sess.run(self.W_ae)
 
         return rotation
@@ -101,11 +101,11 @@ class AutoEncoder(object):
     def restore(self, sess):
         """Restore tensor values
         """
-        self.saver.restore(sess, self.path_to_ae_model)
+        self.saver.restore(sess, self.path_to_model)
 
     @classmethod
     def train(cls, x_train, y_train, n_features, n_iter, n_batch,
-              train_step_size, nn_name):
+              train_step_size, path_to_model):
         """
         Trains the autoencoder for feature extraction
 
@@ -117,7 +117,7 @@ class AutoEncoder(object):
         y_train: np.array
             [number of training data, temporal length] clean (denoised)
             isolated spikes as labels.
-        nn_name: string
+        path_to_model: string
             name of the .ckpt to be saved.
         """
         logger = logging.getLogger(__name__)
@@ -142,8 +142,9 @@ class AutoEncoder(object):
         with tf.Session() as sess:
             init_op = tf.global_variables_initializer()
             sess.run(init_op)
-            saver.save(sess, nn_name)
+            saver.save(sess, path_to_model)
 
         save_ae_network_params(n_input=x_train.shape[1],
                                n_features=n_features,
-                               output_path=change_extension(nn_name, 'yaml'))
+                               output_path=change_extension(path_to_model,
+                                                            'yaml'))

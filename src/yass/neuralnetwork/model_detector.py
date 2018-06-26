@@ -31,7 +31,7 @@ class NeuralNetDetector(object):
         bias variable for the convolutional layers.
     saver: tf.train.Saver
         saver object for the neural network detector.
-    threshold_detect: int
+    threshold: int
         threshold for neural net detection
     channel_index: np.array (n_channels, n_neigh)
         Each row indexes its neighboring channels.
@@ -42,24 +42,24 @@ class NeuralNetDetector(object):
         n_neigh neighboring channels
     """
 
-    def __init__(self, path_to_detector_model, threshold_detect,
+    def __init__(self, path_to_model, threshold,
                  channel_index):
         """
         Initializes the attributes for the class NeuralNetDetector.
 
         Parameters:
         -----------
-        path_to_detector_model: str
+        path_to_model: str
             location of trained neural net detectior
         """
         # add locations as attributes
-        if not path_to_detector_model.endswith('.ckpt'):
-            path_to_detector_model = path_to_detector_model+'.ckpt'
+        if not path_to_model.endswith('.ckpt'):
+            path_to_model = path_to_model+'.ckpt'
 
-        self.path_to_detector_model = path_to_detector_model
+        self.path_to_model = path_to_model
 
         # load nn parameter files
-        path_to_filters = change_extension(path_to_detector_model, 'yaml')
+        path_to_filters = change_extension(path_to_model, 'yaml')
         self.filters_dict = load_yaml(path_to_filters)
 
         # initialize neural net weights and add as attributes
@@ -92,7 +92,7 @@ class NeuralNetDetector(object):
         # make spike_index tensorflow tensor
         self.spike_index_tf_all = (self.
                                    make_detection_tf_tensors(channel_index,
-                                                             threshold_detect))
+                                                             threshold))
 
         # remove edge spike time
         self.spike_index_tf = (self.
@@ -291,11 +291,11 @@ class NeuralNetDetector(object):
     def restore(self, sess):
         """Restore tensor values
         """
-        self.saver.restore(sess, self.path_to_detector_model)
+        self.saver.restore(sess, self.path_to_model)
 
     @classmethod
     def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
-              l2_reg_scale, train_step_size, nn_name):
+              l2_reg_scale, train_step_size, path_to_model):
         """
         Trains the neural network detector for spike detection
 
@@ -309,7 +309,7 @@ class NeuralNetDetector(object):
             [number of training data] label for x_train. '1' denotes presence
             of an isolated spike and '0' denotes
             the presence of a noise data or misaligned spike.
-        nn_name: string
+        path_to_model: string
             name of the .ckpt to be saved
         """
         logger = logging.getLogger(__name__)
@@ -396,7 +396,7 @@ class NeuralNetDetector(object):
                 # if not i % 100:
                 #    logger.info('Loss: %s', res[1])
 
-            saver.save(sess, nn_name)
+            saver.save(sess, path_to_model)
 
             # estimate tp and fp with a sample
             idx_batch = np.random.choice(n_data, n_batch, replace=False)
@@ -415,5 +415,5 @@ class NeuralNetDetector(object):
         save_detect_network_params(filters=n_filters,
                                    size=x_train.shape[1],
                                    n_neighbors=x_train.shape[2],
-                                   output_path=change_extension(nn_name,
+                                   output_path=change_extension(path_to_model,
                                                                 'yaml'))

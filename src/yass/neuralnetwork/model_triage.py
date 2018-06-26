@@ -33,11 +33,11 @@ class NeuralNetTriage(object):
             saver object for the neural network detector.
         detector: NeuralNetDetector
             Instance of detector
-        threshold_triage: int
+        threshold: int
         threshold for neural net triage
     """
 
-    def __init__(self, path_to_triage_model, detector, threshold_triage):
+    def __init__(self, path_to_model, detector, threshold):
         """
             Initializes the attributes for the class NeuralNetTriage.
 
@@ -47,13 +47,13 @@ class NeuralNetTriage(object):
                 location of trained neural net triage
         """
         # save path to the model as an attribute
-        if not path_to_triage_model.endswith('.ckpt'):
-            path_to_triage_model = path_to_triage_model+'.ckpt'
+        if not path_to_model.endswith('.ckpt'):
+            path_to_model = path_to_model+'.ckpt'
 
-        self.path_to_triage_model = path_to_triage_model
+        self.path_to_model = path_to_model
 
         # load necessary parameters
-        path_to_filters = change_extension(path_to_triage_model, 'yaml')
+        path_to_filters = change_extension(path_to_model, 'yaml')
         self.filters_dict = load_yaml(path_to_filters)
         R1 = self.filters_dict['size']
         K1, K2 = self.filters_dict['filters']
@@ -82,7 +82,7 @@ class NeuralNetTriage(object):
         # run neural net triage
         nneigh = detector.filters_dict['n_neighbors']
         self.idx_clean = self.triage_wf(detector.waveform_tf[:, :, :nneigh],
-                                        threshold_triage)
+                                        threshold)
 
     def triage_wf(self, wf_tf, threshold):
         """
@@ -122,11 +122,11 @@ class NeuralNetTriage(object):
     def restore(self, sess):
         """Restore tensor values
         """
-        self.saver.restore(sess, self.path_to_triage_model)
+        self.saver.restore(sess, self.path_to_model)
 
     @classmethod
     def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
-              l2_reg_scale, train_step_size, nn_name):
+              l2_reg_scale, train_step_size, path_to_model):
         """
         Trains the triage network
 
@@ -137,7 +137,7 @@ class NeuralNetTriage(object):
             for the triage network.
         y_train: np.array
             [number of data] training label for the triage network.
-        nn_name: string
+        path_to_model: string
             name of the .ckpt to be saved.
         """
         logger = logging.getLogger(__name__)
@@ -213,7 +213,8 @@ class NeuralNetTriage(object):
                         y_tf: y_train[idx_batch]
                     })
                 bar.update(i + 1)
-            saver.save(sess, nn_name)
+
+            saver.save(sess, path_to_model)
 
             idx_batch = np.random.choice(ndata, n_batch, replace=False)
             output = sess.run(o_layer, feed_dict={x_tf: x_train[idx_batch]})
@@ -229,5 +230,5 @@ class NeuralNetTriage(object):
         save_triage_network_params(filters=n_filters,
                                    size=x_train.shape[1],
                                    n_neighbors=x_train.shape[2],
-                                   output_path=change_extension(nn_name,
+                                   output_path=change_extension(path_to_model,
                                                                 'yaml'))
