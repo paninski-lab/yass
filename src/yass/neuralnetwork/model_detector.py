@@ -309,6 +309,8 @@ class NeuralNetDetector(object):
         path_to_model: string
             name of the .ckpt to be saved
         """
+        # FIXME reuse the make_graph method to avoid repeating code
+
         logger = logging.getLogger(__name__)
 
         # get parameters
