@@ -10,12 +10,10 @@ from util import ReferenceTesting
 
 def test_can_detect_with_threshold(path_to_threshold_config):
     yass.set_config(path_to_threshold_config)
-    (standarized_path, standarized_params, channel_index,
-     whiten_filter) = preprocess.run()
+    standarized_path, standarized_params, whiten_filter = preprocess.run()
 
     scores, clear, collision = detect.run(standarized_path,
                                           standarized_params,
-                                          channel_index,
                                           whiten_filter)
     clean_tmp()
 
@@ -26,12 +24,10 @@ def test_threshold_detector_returns_expected_results(path_to_threshold_config,
     np.random.seed(0)
 
     yass.set_config(path_to_threshold_config)
-    (standarized_path, standarized_params, channel_index,
-     whiten_filter) = preprocess.run()
+    standarized_path, standarized_params, whiten_filter = preprocess.run()
 
     scores, clear, collision = detect.run(standarized_path,
                                           standarized_params,
-                                          channel_index,
                                           whiten_filter)
 
     path_to_scores = path.join(path_to_output_reference,
@@ -51,12 +47,10 @@ def test_threshold_detector_returns_expected_results(path_to_threshold_config,
 
 def test_can_detect_with_nnet(path_to_nnet_config):
     yass.set_config(path_to_nnet_config)
-    (standarized_path, standarized_params, channel_index,
-     whiten_filter) = preprocess.run()
+    standarized_path, standarized_params, whiten_filter = preprocess.run()
 
     scores, clear, collision = detect.run(standarized_path,
                                           standarized_params,
-                                          channel_index,
                                           whiten_filter)
     clean_tmp()
 
@@ -66,12 +60,10 @@ def test_nnet_detector_returns_expected_results(path_to_nnet_config,
     np.random.seed(0)
 
     yass.set_config(path_to_nnet_config)
-    (standarized_path, standarized_params, channel_index,
-     whiten_filter) = preprocess.run()
+    standarized_path, standarized_params, whiten_filter = preprocess.run()
 
     scores, clear, collision = detect.run(standarized_path,
                                           standarized_params,
-                                          channel_index,
                                           whiten_filter)
 
     path_to_scores = path.join(path_to_output_reference,

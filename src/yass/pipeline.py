@@ -110,7 +110,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     start = time.time()
     (standarized_path,
      standarized_params,
-     channel_index,
      whiten_filter) = (preprocess
                        .run(output_directory=output_dir,
                             if_file_exists=CONFIG.preprocess.if_file_exists))
@@ -121,7 +120,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     (score, spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   channel_index,
                                    whiten_filter,
                                    output_directory=output_dir,
                                    if_file_exists=CONFIG.detect.if_file_exists,

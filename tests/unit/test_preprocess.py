@@ -82,8 +82,7 @@ def test_standarize_does_not_run_if_files_already_exist(path_to_data,
 
 def test_can_preprocess(path_to_threshold_config):
     yass.set_config(path_to_threshold_config)
-    (standarized_path, standarized_params, channel_index,
-     whiten_filter) = preprocess.run()
+    standarized_path, standarized_params, whiten_filter = preprocess.run()
 
 
 def test_can_preprocess_in_parallel(path_to_threshold_config):
@@ -92,15 +91,13 @@ def test_can_preprocess_in_parallel(path_to_threshold_config):
 
     yass.set_config(CONFIG)
 
-    (standarized_path, standarized_params, channel_index,
-     whiten_filter) = preprocess.run()
+    standarized_path, standarized_params, whiten_filter = preprocess.run()
 
 
 def test_preprocess_returns_expected_results(path_to_threshold_config,
                                              path_to_output_reference):
     yass.set_config(path_to_threshold_config)
-    (standarized_path, standarized_params, channel_index,
-     whiten_filter) = preprocess.run()
+    standarized_path, standarized_params, whiten_filter = preprocess.run()
 
     # load standarized data
     standarized = np.fromfile(standarized_path,
@@ -110,14 +107,11 @@ def test_preprocess_returns_expected_results(path_to_threshold_config,
                                     'preprocess_standarized.npy')
     path_to_whiten_filter = path.join(path_to_output_reference,
                                       'preprocess_whiten_filter.npy')
-    path_to_channel_index = path.join(path_to_output_reference,
-                                      'preprocess_channel_index.npy')
 
     ReferenceTesting.assert_array_almost_equal(standarized,
                                                path_to_standarized)
     ReferenceTesting.assert_array_almost_equal(whiten_filter,
                                                path_to_whiten_filter)
-    ReferenceTesting.assert_array_equal(channel_index, path_to_channel_index)
 
     clean_tmp()
 
@@ -128,5 +122,4 @@ def test_can_preprocess_without_filtering(path_to_threshold_config):
 
     yass.set_config(CONFIG)
 
-    (standarized_path, standarized_params, channel_index,
-     whiten_filter) = preprocess.run()
+    standarized_path, standarized_params, whiten_filter = preprocess.run()
