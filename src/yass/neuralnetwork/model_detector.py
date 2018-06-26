@@ -46,10 +46,18 @@ class NeuralNetDetector(object):
     x_tf
         Input layer
 
+    spike_index_tf
+        Spike index output layer
+
+    waveform_tf
+        Waveform output layer
+
+    probability
+        Probability output layer
+
     """
 
-    def __init__(self, path_to_model, threshold,
-                 channel_index):
+    def __init__(self, path_to_model, threshold, channel_index):
         """
         Initializes the attributes for the class NeuralNetDetector.
 
@@ -96,9 +104,9 @@ class NeuralNetDetector(object):
         self.x_tf = tf.placeholder("float", [None, None])
 
         # make spike_index tensorflow tensor
-        self.spike_index_tf_all = (self.
-                                   make_detection_tf_tensors(channel_index,
-                                                             threshold))
+        (self.spike_index_tf_all,
+         self.probability) = (self.make_output_layers(channel_index,
+                                                      threshold))
 
         # remove edge spike time
         self.spike_index_tf = (self.
@@ -107,11 +115,11 @@ class NeuralNetDetector(object):
 
         # make waveform tensorflow tensor
         size = self.filters_dict['size']
-        self.waveform_tf = self.make_waveform_tf_tensor(self.spike_index_tf,
-                                                        channel_index, size)
+        self.waveform_tf = self.make_waveform_tf(self.spike_index_tf,
+                                                 channel_index, size)
 
     def _make_graph(self, channel_index):
-        """Makes tensorflow graph
+        """Makes basic tensorflow graph with output convolutional layer
         """
         # get parameters
         K1, K2 = self.filters_dict['filters']
@@ -149,9 +157,10 @@ class NeuralNetDetector(object):
 
         return o_layer
 
-    def make_detection_tf_tensors(self, channel_index, threshold):
+    def make_output_layers(self, channel_index, threshold):
         """
-        Make a tensorflow tensor that outputs spike index
+        Make a tensorflow tensor that outputs spike index (takes output
+        convolutional layer as input)
 
         Parameters
         -----------
@@ -186,32 +195,10 @@ class NeuralNetDetector(object):
                            o_layer[0, :, :, 0] >
                            np.log(threshold / (1 - threshold)))), 'int32')
 
-        return spike_index_tf
+        # make probability layer
+        probability_layer = tf.sigmoid(o_layer[0, :, :, 0])
 
-    def make_o_layer_tf_tensors(self, x_tf, channel_index):
-        """Build tensorflow graph, returns sigmoid(output)
-
-        Parameters
-        -----------
-        x_tf: tf.tensors (n_observations, n_channels)
-            placeholder of recording for running tensorflow
-
-        channel_index: np.array (n_channels, n_neigh)
-            Each row indexes its neighboring channels.
-            For example, channel_index[c] is the index of
-            neighboring channels (including itself)
-            If any value is equal to n_channels, it is nothing but
-            a space holder in a case that a channel has less than
-            n_neigh neighboring channels
-
-        Returns
-        -------
-        output_tf: tf tensor (n_observations, n_channels)
-            tensorflow tensor that produces spike_index
-        """
-        o_layer = self._make_graph(channel_index)
-
-        return tf.sigmoid(o_layer[0, :, :, 0])
+        return spike_index_tf, probability_layer
 
     def remove_edge_spikes(self, spike_index_tf, waveform_length):
         """
@@ -243,8 +230,8 @@ class NeuralNetDetector(object):
 
         return tf.boolean_mask(spike_index_tf, idx_middle)
 
-    def make_waveform_tf_tensor(self, spike_index_tf,
-                                channel_index, waveform_length):
+    def make_waveform_tf(self, spike_index_tf,
+                         channel_index, waveform_length):
         """
         It produces a tf tensor holding waveforms given recording and spike
         index. It does not hold waveforms on all channels but channels around
