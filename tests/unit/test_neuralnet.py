@@ -35,7 +35,7 @@ def test_can_use_neural_network_detector(path_to_tests):
     NND = NeuralNetDetector(detection_fname, detection_th,
                             channel_index)
     NNAE = AutoEncoder(ae_fname, NND)
-    NNT = NeuralNetTriage(triage_fname, NND, triage_th)
+    NNT = NeuralNetTriage(triage_fname, triage_th)
 
     output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
 
@@ -77,7 +77,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
     NND = NeuralNetDetector(detection_fname, detection_th,
                             channel_index)
     NNAE = AutoEncoder(ae_fname, NND)
-    NNT = NeuralNetTriage(triage_fname, NND, triage_th)
+    NNT = NeuralNetTriage(triage_fname, triage_th)
 
     output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
 
