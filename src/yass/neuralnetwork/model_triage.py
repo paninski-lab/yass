@@ -98,10 +98,10 @@ class NeuralNetTriage(object):
             clear spikes
         """
         # input tensor (waveforms)
-        if input_tensor:
-            self.x_tf = input_tensor
-        else:
+        if input_tensor is None:
             self.x_tf = tf.placeholder("float", [None, None, self.C])
+        else:
+            self.x_tf = input_tensor
 
         # get parameters
         K1, K2 = self.filters_dict['filters']

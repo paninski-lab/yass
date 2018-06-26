@@ -73,10 +73,10 @@ class AutoEncoder(object):
             tensorflow tensor that produces scores
         """
         # input tensor (waveforms)
-        if input_tensor:
-            self.x_tf = input_tensor
-        else:
+        if input_tensor is None:
             self.x_tf = tf.placeholder("float", [None, None, self.C])
+        else:
+            self.x_tf = input_tensor
 
         n_input = self.ae_dict['n_input']
         n_features = self.ae_dict['n_features']
