@@ -156,9 +156,7 @@ def _threshold(rec, neighbors, spike_size, threshold):
     th = threshold
     neigh_channels_big = n_steps_neigh_channels(neighbors, steps=2)
 
-    # FIXME: is this a safe thing to do?
-    index = np.zeros((1000000, 2), 'int32')
-    count = 0
+    index = np.zeros((0, 2), 'int32')
 
     for c in range(C):
         # For each channel, mark down location where it crosses the threshold
@@ -184,6 +182,7 @@ def _threshold(rec, neighbors, spike_size, threshold):
             # it spatial and temporal window, keep it.
             # Otherwise, disregard it
             idx_keep = np.zeros(nc, 'bool')
+
             for j in range(nc):
                 # get waveforms
                 wf_temp = rec[spt_c[j]+np.arange(-2*R, 2*R+1)][:, ch_idx]
@@ -191,15 +190,17 @@ def _threshold(rec, neighbors, spike_size, threshold):
                 # location with the biggest amplitude: (t_min, c_min)
                 c_min = np.argmin(np.amin(wf_temp, axis=0))
                 t_min = np.argmin(wf_temp[:, c_min])
+
                 if t_min == 2*R and c_min == c_main:
                     idx_keep[j] = 1
 
-            nc = np.sum(idx_keep)
-            index[count:(count+nc), 0] = spt_c[idx_keep]
-            index[count:(count+nc), 1] = c
-            count += nc
+            to_keep = spt_c[idx_keep]
+            new_spikes = np.zeros((len(to_keep), 2), 'int32')
+            new_spikes[:, 0] = to_keep
+            new_spikes[:, 1] = c
+            np.append(index, new_spikes, axis=0)
 
-    return index[:count]
+    return index
 
 
 def fix_indexes(spikes, idx_local, idx, buffer_size):
