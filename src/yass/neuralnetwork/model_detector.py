@@ -224,7 +224,6 @@ class NeuralNetDetector(object):
         tf tensor (n_spikes, wf_length, n_neigh)
         """
         R = int((wf_length-1)/2)  # half waveform length
-        n_neigh = channel_index.shape[1]  # number of n_neighbors
         T = self.x_tf.shape[0]  # length of recording
 
         # get waveform temporally
@@ -251,7 +250,7 @@ class NeuralNetDetector(object):
 
         # tile temporal indexes on the number of channels and spatial indexes
         # on the waveform length, then concatenate
-        _ = (tf.tile(wf_temporal, (1, 1, n_neigh, 1)),
+        _ = (tf.tile(wf_temporal, (1, 1, self.n_neigh, 1)),
              tf.tile(wf_spatial, (1, wf_length, 1, 1)))
         idx = tf.concat(_, 3)
 
