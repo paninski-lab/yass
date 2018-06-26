@@ -9,11 +9,12 @@ from yass.util import load_yaml, change_extension
 from yass.neuralnetwork.parameter_saver import save_detect_network_params
 
 
+# FIXME: missing documentation, how does changing the step parameter in
+# the passed channel_index chages the detector behavior?
 class NeuralNetDetector(object):
     """
     Class for training and running convolutional neural network detector
     for spike detection
-    and autoencoder for feature extraction.
 
     Parameters
     ----------
@@ -61,16 +62,16 @@ class NeuralNetDetector(object):
 
         # initialize neural net weights and add as attributes
         wf_length = self.filters_dict['size']
-        K1, K2 = self.filters_dict['filters']
-        C = self.filters_dict['n_neighbors']
+        self.K1, self.K2 = self.filters_dict['filters']
+        self.n_neigh = self.filters_dict['n_neighbors']
 
-        self.W1 = weight_variable([wf_length, 1, 1, K1])
-        self.b1 = bias_variable([K1])
+        self.W1 = weight_variable([wf_length, 1, 1, self.K1])
+        self.b1 = bias_variable([self.K1])
 
-        self.W11 = weight_variable([1, 1, K1, K2])
-        self.b11 = bias_variable([K2])
+        self.W11 = weight_variable([1, 1, self.K1, self.K2])
+        self.b11 = bias_variable([self.K2])
 
-        self.W2 = weight_variable([1, C, K2, 1])
+        self.W2 = weight_variable([1, self.n_neigh, self.K2, 1])
         self.b2 = bias_variable([1])
 
         # create saver variables
@@ -120,12 +121,8 @@ class NeuralNetDetector(object):
         spike_index_tf: tf tensor (n_spikes, 2)
             tensorflow tensor that produces spike_index
         """
-        # get parameters
-        K1, K2 = self.filters_dict['filters']
-        nneigh = self.filters_dict['n_neighbors']
-
         # save neighbor channel index
-        self.channel_index = channel_index[:, :nneigh]
+        self.channel_index = channel_index[:, :self.n_neigh]
 
         # placeholder for input recording
         self.x_tf = tf.placeholder("float", [None, None])
@@ -146,14 +143,14 @@ class NeuralNetDetector(object):
 
         # first spatial layer
         zero_added_layer11 = tf.concat((tf.transpose(layer11, [2, 0, 1, 3]),
-                                        tf.zeros((1, 1, T, K2))),
+                                        tf.zeros((1, 1, T, self.K2))),
                                        axis=0)
 
         temp = tf.transpose(tf.gather(zero_added_layer11, self.channel_index),
                             [0, 2, 3, 1, 4])
 
-        temp2 = (conv2d_VALID(tf.reshape(temp, [-1, T, nneigh, K2]), self.W2)
-                 + self.b2)
+        _ = [-1, T, self.n_neigh, self.K2]
+        temp2 = conv2d_VALID(tf.reshape(temp, _), self.W2) + self.b2
 
         o_layer = tf.transpose(temp2, [2, 1, 0, 3])
 
