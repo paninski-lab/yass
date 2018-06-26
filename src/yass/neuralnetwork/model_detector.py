@@ -40,21 +40,6 @@ class NeuralNetDetector(object):
         If any value is equal to n_channels, it is nothing but
         a space holder in a case that a channel has less than
         n_neigh neighboring channels
-
-    Attributes
-    ----------
-    x_tf
-        Input layer
-
-    spike_index_tf
-        Spike index output layer
-
-    waveform_tf
-        Waveform output layer
-
-    probability
-        Probability output layer
-
     """
 
     def __init__(self, path_to_model, threshold, channel_index):
@@ -105,7 +90,7 @@ class NeuralNetDetector(object):
 
         # make spike_index tensorflow tensor
         (self.spike_index_tf_all,
-         self.probability) = (self.make_graph(channel_index, threshold))
+         self.probability_tf) = (self.make_graph(channel_index, threshold))
 
         # remove edge spike time
         self.spike_index_tf = (self.
@@ -186,9 +171,9 @@ class NeuralNetDetector(object):
                            np.log(threshold / (1 - threshold)))), 'int32')
 
         # make probability layer
-        probability_layer = tf.sigmoid(o_layer[0, :, :, 0])
+        probability_tf = tf.sigmoid(o_layer[0, :, :, 0])
 
-        return spike_index_tf, probability_layer
+        return spike_index_tf, probability_tf
 
     def remove_edge_spikes(self, spike_index_tf, waveform_length):
         """
@@ -276,11 +261,22 @@ class NeuralNetDetector(object):
         """
         self.saver.restore(sess, self.path_to_model)
 
-    def predict(self, recordings, output_names=('spike_index_tf',)):
+    def predict(self, recordings, output_names=('spike_index',)):
         """Make predictions
-        """
 
-        output_tensors = [getattr(self, name) for name in output_names]
+        Parameters
+        ----------
+        output: tuple
+            Which output layers to return, valid options are: spike_index,
+            waveform and probability
+
+
+        Returns
+        -------
+        tuple
+            A tuple of numpy.ndarrays, one for every element in output_names
+        """
+        output_tensors = [getattr(self, name+'_tf') for name in output_names]
 
         with tf.Session() as sess:
             self.restore(sess)
