@@ -84,7 +84,7 @@ class NeuralNetTriage(object):
 
         Parameters:
         -----------
-        wf_tf: tf tensor (n_spikes, n_temporal_length, n_neigh)
+        input_tensor: tf tensor (n_spikes, n_temporal_length, n_neigh)
             tf tensor that produces spikes waveforms
 
         threshold: int

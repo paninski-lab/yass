@@ -58,13 +58,13 @@ class AutoEncoder(object):
         # make score tensorflow tensor from waveform
         self.score_tf = self._make_graph(input_tensor)
 
-    def _make_graph(self, waveform_tf, input_tensor):
+    def _make_graph(self, input_tensor):
         """
         Make a tensorflow tensor that outputs scores
 
         Parameters
         -----------
-        waveform_tf: tf tensor (n_spikes, n_temporal_size, n_neigh)
+        input_tensor: tf tensor (n_spikes, n_temporal_size, n_neigh)
             tensorflow tensor that contains waveforms of spikes
 
         Returns
@@ -80,7 +80,7 @@ class AutoEncoder(object):
 
         n_input = self.ae_dict['n_input']
         n_features = self.ae_dict['n_features']
-        nneigh_tf = tf.shape(waveform_tf)[2]
+        nneigh_tf = tf.shape(self.x_tf)[2]
 
         reshaped_wf = tf.reshape(tf.transpose(self.x_tf, [0, 2, 1]),
                                  [-1, n_input])
