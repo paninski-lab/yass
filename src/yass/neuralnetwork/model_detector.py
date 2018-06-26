@@ -34,12 +34,11 @@ class NeuralNetDetector(object):
     threshold: int
         threshold for neural net detection
     channel_index: np.array (n_channels, n_neigh)
-        Each row indexes its neighboring channels.
-        For example, channel_index[c] is the index of
-        neighboring channels (including itself)
-        If any value is equal to n_channels, it is nothing but
-        a space holder in a case that a channel has less than
-        n_neigh neighboring channels
+            Each row indexes its neighboring channels. For example,
+            channel_index[c] is the index of neighboring channels (including
+            itself) If any value is equal to n_channels, it is nothing but
+            a placeholder in a case that a channel has less than n_neigh
+            neighboring channels
     """
 
     def __init__(self, path_to_model, threshold, channel_index):
@@ -61,11 +60,11 @@ class NeuralNetDetector(object):
         self.filters_dict = load_yaml(path_to_filters)
 
         # initialize neural net weights and add as attributes
-        R1 = self.filters_dict['size']
+        wf_length = self.filters_dict['size']
         K1, K2 = self.filters_dict['filters']
         C = self.filters_dict['n_neighbors']
 
-        self.W1 = weight_variable([R1, 1, 1, K1])
+        self.W1 = weight_variable([wf_length, 1, 1, K1])
         self.b1 = bias_variable([K1])
 
         self.W11 = weight_variable([1, 1, K1, K2])
@@ -91,12 +90,11 @@ class NeuralNetDetector(object):
         # remove edge spike time
         self.spike_index_tf = (self.
                                remove_edge_spikes(self.spike_index_tf_all,
-                                                  self.filters_dict['size']))
+                                                  wf_length))
 
-        # make waveform tensorflow tensor
-        size = self.filters_dict['size']
+        # make waveform tensorflow tensor from the spike index tensor
         self.waveform_tf = self.make_waveform_tf(self.spike_index_tf,
-                                                 channel_index, size)
+                                                 channel_index, wf_length)
 
     def make_graph(self, channel_index, threshold):
         """Build tensorflow graph with input and two output layers
@@ -107,12 +105,11 @@ class NeuralNetDetector(object):
             placeholder of recording for running tensorflow
 
         channel_index: np.array (n_channels, n_neigh)
-            Each row indexes its neighboring channels.
-            For example, channel_index[c] is the index of
-            neighboring channels (including itself)
-            If any value is equal to n_channels, it is nothing but
-            a space holder in a case that a channel has less than
-            n_neigh neighboring channels
+            Each row indexes its neighboring channels. For example,
+            channel_index[c] is the index of neighboring channels (including
+            itself) If any value is equal to n_channels, it is nothing but
+            a placeholder in a case that a channel has less than n_neigh
+            neighboring channels
 
         threshold: int
             threshold on a probability to determine
@@ -204,8 +201,7 @@ class NeuralNetDetector(object):
 
         return tf.boolean_mask(spike_index_tf, idx_middle)
 
-    def make_waveform_tf(self, spike_index_tf,
-                         channel_index, waveform_length):
+    def make_waveform_tf(self, spike_index_tf, channel_index, wf_length):
         """
         It produces a tf tensor holding waveforms given recording and spike
         index. It does not hold waveforms on all channels but channels around
@@ -223,37 +219,49 @@ class NeuralNetDetector(object):
         channel_index: np.array (n_channels, n_neigh)
             refer above
 
-        waveform_length: int
+        wf_length: int
             temporal length of waveform
 
         Returns
         -------
-        tf tensor (n_spikes, waveform_length, n_neigh)
+        tf tensor (n_spikes, wf_length, n_neigh)
         """
+        R = int((wf_length-1)/2)  # half waveform length
+        n_neigh = channel_index.shape[1]  # number of n_neighbors
+        T = self.x_tf.shape[0]  # length of recording
+
         # get waveform temporally
-        R = int((waveform_length-1)/2)
-        spike_time = tf.expand_dims(spike_index_tf[:, 0], -1)
-        temporal_index = tf.expand_dims(tf.range(-R, R+1), 0)
-        wf_temporal = tf.add(spike_time, temporal_index)
+
+        # make indexes with the appropriate waveform length, centered at zero
+        # shape: [1, wf_length]
+        waveform_indexes = tf.expand_dims(tf.range(-R, R+1), 0)
+        # get all spike times, shape: [n_spikes, 1]
+        spike_times = tf.expand_dims(spike_index_tf[:, 0], -1)
+        # shift indexes and add two dimensions, shape: [n_spikes, wf_length]
+        _ = tf.add(spike_times, waveform_indexes)
+        # add two trailing extra dimensions, shape: [n_spikes, wf_length, 1, 1]
+        wf_temporal = tf.expand_dims(tf.expand_dims(_, -1), -1)
 
         # get waveform spatially
-        nneigh = channel_index.shape[1]
-        wf_spatial = tf.gather(channel_index, spike_index_tf[:, 1])
+        # get neighbors for main channels in the spike index
+        # shape: [n_spikes, n_neigh]
+        _ = tf.gather(channel_index, spike_index_tf[:, 1])
+        # add one dimension to the left and one to the right
+        # shape: [n_spikes, 1, n_neigh, 1]
+        wf_spatial = tf.expand_dims(tf.expand_dims(_, 1), -1)
 
-        wf_temporal_expand = tf.expand_dims(
-            tf.expand_dims(wf_temporal, -1), -1)
-        wf_spatial_expand = tf.expand_dims(
-            tf.expand_dims(wf_spatial, 1), -1)
+        # build spatio-temporal index
 
-        wf_idx = tf.concat((tf.tile(wf_temporal_expand, (1, 1, nneigh, 1)),
-                            tf.tile(wf_spatial_expand,
-                                    (1, waveform_length, 1, 1))), 3)
+        # tile temporal indexes on the number of channels and spatial indexes
+        # on the waveform length, then concatenate
+        _ = (tf.tile(wf_temporal, (1, 1, n_neigh, 1)),
+             tf.tile(wf_spatial, (1, wf_length, 1, 1)))
+        idx = tf.concat(_, 3)
 
-        # temproal length of recording
-        T = tf.shape(self.x_tf)[0]
+        # add one extra value in the channels dimension
         x_tf_zero_added = tf.concat([self.x_tf, tf.zeros((T, 1))], axis=1)
 
-        return tf.gather_nd(x_tf_zero_added, wf_idx)
+        return tf.gather_nd(x_tf_zero_added, idx)
 
     def restore(self, sess):
         """Restore tensor values
