@@ -198,7 +198,7 @@ def _threshold(rec, neighbors, spike_size, threshold):
             new_spikes = np.zeros((len(to_keep), 2), 'int32')
             new_spikes[:, 0] = to_keep
             new_spikes[:, 1] = c
-            np.append(index, new_spikes, axis=0)
+            index = np.append(index, new_spikes, axis=0)
 
     return index
 
