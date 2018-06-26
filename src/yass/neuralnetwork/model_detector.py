@@ -15,8 +15,8 @@ class NeuralNetDetector(object):
     for spike detection
     and autoencoder for feature extraction.
 
-    Attributes:
-    -----------
+    Parameters
+    ----------
     C: int
         spatial filter size of the spatial convolutional layer.
     R1: int
@@ -40,6 +40,12 @@ class NeuralNetDetector(object):
         If any value is equal to n_channels, it is nothing but
         a space holder in a case that a channel has less than
         n_neigh neighboring channels
+
+    Attributes
+    ----------
+    x_tf
+        Input layer
+
     """
 
     def __init__(self, path_to_model, threshold,
@@ -292,6 +298,20 @@ class NeuralNetDetector(object):
         """Restore tensor values
         """
         self.saver.restore(sess, self.path_to_model)
+
+    def predict(self, recordings, output_names=('spike_index_tf',)):
+        """Make predictions
+        """
+
+        output_tensors = [getattr(self, name) for name in output_names]
+
+        with tf.Session() as sess:
+            self.restore(sess)
+
+            output = sess.run(output_tensors,
+                              feed_dict={self.x_tf: recordings})
+
+        return output
 
     @classmethod
     def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
