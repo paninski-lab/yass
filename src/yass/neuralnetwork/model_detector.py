@@ -51,7 +51,6 @@ class NeuralNetDetector(object):
         path_to_model: str
             location of trained neural net detectior
         """
-        # add locations as attributes
         if not path_to_model.endswith('.ckpt'):
             path_to_model = path_to_model+'.ckpt'
 
@@ -308,6 +307,9 @@ class NeuralNetDetector(object):
         # FIXME reuse the make_graph method to avoid repeating code
 
         logger = logging.getLogger(__name__)
+
+        if not path_to_model.endswith('.ckpt'):
+            path_to_model = path_to_model+'.ckpt'
 
         # get parameters
         n_data, R, C = x_train.shape

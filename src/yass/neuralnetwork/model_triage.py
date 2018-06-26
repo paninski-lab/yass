@@ -46,7 +46,6 @@ class NeuralNetTriage(object):
             path_to_detector_model: str
                 location of trained neural net triage
         """
-        # save path to the model as an attribute
         if not path_to_model.endswith('.ckpt'):
             path_to_model = path_to_model+'.ckpt'
 
@@ -152,6 +151,9 @@ class NeuralNetTriage(object):
             name of the .ckpt to be saved.
         """
         logger = logging.getLogger(__name__)
+
+        if not path_to_model.endswith('.ckpt'):
+            path_to_model = path_to_model+'.ckpt'
 
         # get parameters
         ndata, R, C = x_train.shape
