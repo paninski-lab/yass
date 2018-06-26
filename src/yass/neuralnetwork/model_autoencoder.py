@@ -27,7 +27,7 @@ class AutoEncoder(object):
         Instance of detector
     """
 
-    def __init__(self, path_to_model):
+    def __init__(self, path_to_model, input_tensor=None):
         """
         Initializes the attributes for the class NeuralNetDetector.
 
@@ -56,9 +56,9 @@ class AutoEncoder(object):
         self.saver = tf.train.Saver({"W_ae": self.W_ae})
 
         # make score tensorflow tensor from waveform
-        self.score_tf = self.make_graph()
+        self.score_tf = self._make_graph(input_tensor)
 
-    def make_graph(self, waveform_tf):
+    def _make_graph(self, waveform_tf, input_tensor):
         """
         Make a tensorflow tensor that outputs scores
 
@@ -73,7 +73,10 @@ class AutoEncoder(object):
             tensorflow tensor that produces scores
         """
         # input tensor (waveforms)
-        self.x_tf = tf.placeholder("float", [None, None, self.C])
+        if input_tensor:
+            self.x_tf = input_tensor
+        else:
+            self.x_tf = tf.placeholder("float", [None, None, self.C])
 
         n_input = self.ae_dict['n_input']
         n_features = self.ae_dict['n_features']

@@ -41,10 +41,10 @@ class NeuralNetTriage(object):
         detector: NeuralNetDetector
             Instance of detector
         threshold: int
-        threshold for neural net triage
+            threshold for neural net triage
     """
 
-    def __init__(self, path_to_model, threshold):
+    def __init__(self, path_to_model, threshold, input_tensor=None):
         if not path_to_model.endswith('.ckpt'):
             path_to_model = path_to_model+'.ckpt'
 
@@ -77,9 +77,9 @@ class NeuralNetTriage(object):
             "b2": self.b2
         })
 
-        self.idx_clean = self.make_graph(threshold)
+        self.idx_clean = self._make_graph(threshold, input_tensor)
 
-    def make_graph(self, threshold):
+    def _make_graph(self, threshold, input_tensor):
         """Builds graph for triage
 
         Parameters:
@@ -98,7 +98,10 @@ class NeuralNetTriage(object):
             clear spikes
         """
         # input tensor (waveforms)
-        self.x_tf = tf.placeholder("float", [None, None, self.C])
+        if input_tensor:
+            self.x_tf = input_tensor
+        else:
+            self.x_tf = tf.placeholder("float", [None, None, self.C])
 
         # get parameters
         K1, K2 = self.filters_dict['filters']

@@ -86,18 +86,18 @@ class NeuralNetDetector(object):
 
         # make spike_index tensorflow tensor
         (self.spike_index_tf_all,
-         self.probability_tf) = (self.make_graph(channel_index, threshold))
+         self.probability_tf) = (self._make_graph(channel_index, threshold))
 
         # remove edge spike time
         self.spike_index_tf = (self.
-                               remove_edge_spikes(self.spike_index_tf_all,
-                                                  wf_length))
+                               _remove_edge_spikes(self.spike_index_tf_all,
+                                                   wf_length))
 
         # make waveform tensorflow tensor from the spike index tensor
-        self.waveform_tf = self.make_waveform_tf(self.spike_index_tf,
-                                                 channel_index, wf_length)
+        self.waveform_tf = self._make_waveform_tf(self.spike_index_tf,
+                                                  channel_index, wf_length)
 
-    def make_graph(self, channel_index, threshold):
+    def _make_graph(self, channel_index, threshold):
         """Build tensorflow graph with input and two output layers
 
         Parameters
@@ -168,7 +168,7 @@ class NeuralNetDetector(object):
 
         return spike_index_tf, probability_tf
 
-    def remove_edge_spikes(self, spike_index_tf, waveform_length):
+    def _remove_edge_spikes(self, spike_index_tf, waveform_length):
         """
         It moves spikes at edge times.
 
@@ -198,7 +198,7 @@ class NeuralNetDetector(object):
 
         return tf.boolean_mask(spike_index_tf, idx_middle)
 
-    def make_waveform_tf(self, spike_index_tf, channel_index, wf_length):
+    def _make_waveform_tf(self, spike_index_tf, channel_index, wf_length):
         """
         It produces a tf tensor holding waveforms given recording and spike
         index. It does not hold waveforms on all channels but channels around
