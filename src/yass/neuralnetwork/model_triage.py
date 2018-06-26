@@ -15,7 +15,14 @@ class NeuralNetTriage(object):
         for spike detection
         and autoencoder for feature extraction.
 
-        Attributes:
+        Parameters
+        ----------
+        path_to_model: str
+            location of trained neural net triage
+        threshold: float
+            Threshold between 0 and 1
+
+        Attributes
         -----------
         C: int
             spatial filter size of the spatial convolutional layer.
@@ -38,14 +45,6 @@ class NeuralNetTriage(object):
     """
 
     def __init__(self, path_to_model, threshold):
-        """
-            Initializes the attributes for the class NeuralNetTriage.
-
-            Parameters:
-            -----------
-            path_to_detector_model: str
-                location of trained neural net triage
-        """
         if not path_to_model.endswith('.ckpt'):
             path_to_model = path_to_model+'.ckpt'
 
@@ -56,7 +55,7 @@ class NeuralNetTriage(object):
         self.filters_dict = load_yaml(path_to_filters)
         R1 = self.filters_dict['size']
         K1, K2 = self.filters_dict['filters']
-        C = self.filters_dict['n_neighbors']
+        self.C = self.filters_dict['n_neighbors']
 
         # initialize and save nn weights
         self.W1 = weight_variable([R1, 1, 1, K1])
@@ -65,7 +64,7 @@ class NeuralNetTriage(object):
         self.W11 = weight_variable([1, 1, K1, K2])
         self.b11 = bias_variable([K2])
 
-        self.W2 = weight_variable([1, C, K2, 1])
+        self.W2 = weight_variable([1, self.C, K2, 1])
         self.b2 = bias_variable([1])
 
         # initialize savers
@@ -80,7 +79,7 @@ class NeuralNetTriage(object):
 
         self.idx_clean = self.make_graph(threshold)
 
-    def make_graph(self, threshold, nneigh):
+    def make_graph(self, threshold):
         """Builds graph for triage
 
         Parameters:
@@ -99,7 +98,7 @@ class NeuralNetTriage(object):
             clear spikes
         """
         # input tensor (waveforms)
-        x_tf = tf.placeholder("float", [None, None, nneigh])
+        x_tf = tf.placeholder("float", [None, None, self.C])
 
         # get parameters
         K1, K2 = self.filters_dict['filters']
