@@ -250,7 +250,9 @@ class NeuralNetDetector(object):
 
         # tile temporal indexes on the number of channels and spatial indexes
         # on the waveform length, then concatenate
-        _ = (tf.tile(wf_temporal, (1, 1, self.n_neigh, 1)),
+        # FIXME: there is a mismatch here, we aren't we using self.n_neigh
+        n_neigh = channel_index.shape[1]
+        _ = (tf.tile(wf_temporal, (1, 1, n_neigh, 1)),
              tf.tile(wf_spatial, (1, wf_length, 1, 1)))
         idx = tf.concat(_, 3)
 
