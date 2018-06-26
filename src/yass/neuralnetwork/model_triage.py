@@ -37,7 +37,7 @@ class NeuralNetTriage(object):
         threshold for neural net triage
     """
 
-    def __init__(self, path_to_model, detector, threshold):
+    def __init__(self, path_to_model, threshold):
         """
             Initializes the attributes for the class NeuralNetTriage.
 
@@ -79,13 +79,9 @@ class NeuralNetTriage(object):
             "b2": self.b2
         })
 
-        # run neural net triage
-        nneigh = detector.filters_dict['n_neighbors']
+        self.idx_clean = self.make_graph(threshold)
 
-        self.idx_clean = self.make_graph(detector.waveform_tf[:, :, :nneigh],
-                                         threshold)
-
-    def make_graph(self, wf_tf, threshold):
+    def make_graph(self, threshold, nneigh):
         """Builds graph for triage
 
         Parameters:
@@ -103,11 +99,14 @@ class NeuralNetTriage(object):
             a boolean tensorflow tensor that produces indices of
             clear spikes
         """
+        # input tensor (waveforms)
+        x_tf = tf.placeholder("float", [None, None, nneigh])
+
         # get parameters
         K1, K2 = self.filters_dict['filters']
 
         # first layer: temporal feature
-        layer1 = tf.nn.relu(conv2d_VALID(tf.expand_dims(wf_tf, -1),
+        layer1 = tf.nn.relu(conv2d_VALID(tf.expand_dims(x_tf, -1),
                                          self.W1) + self.b1)
 
         # second layer: feataure mapping

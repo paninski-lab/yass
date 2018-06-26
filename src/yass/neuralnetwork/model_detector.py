@@ -85,9 +85,6 @@ class NeuralNetDetector(object):
             "b2": self.b2
         })
 
-        # placeholder for input recording
-        self.x_tf = tf.placeholder("float", [None, None])
-
         # make spike_index tensorflow tensor
         (self.spike_index_tf_all,
          self.probability_tf) = (self.make_graph(channel_index, threshold))
@@ -133,6 +130,9 @@ class NeuralNetDetector(object):
 
         # save neighbor channel index
         self.channel_index = channel_index[:, :nneigh]
+
+        # placeholder for input recording
+        self.x_tf = tf.placeholder("float", [None, None])
 
         # Temporal shape of input
         T = tf.shape(self.x_tf)[0]
