@@ -53,6 +53,9 @@ class NeuralNetDetector(object):
             location of trained neural net detectior
         """
         # add locations as attributes
+        if not path_to_detector_model.endswith('.ckpt'):
+            path_to_detector_model = path_to_detector_model+'.ckpt'
+
         self.path_to_detector_model = path_to_detector_model
 
         # load nn parameter files

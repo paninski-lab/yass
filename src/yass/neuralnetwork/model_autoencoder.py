@@ -38,6 +38,9 @@ class AutoEncoder(object):
         """
 
         # add locations as attributes
+        if not path_to_ae_model.endswith('.ckpt'):
+            path_to_ae_model = path_to_ae_model+'.ckpt'
+
         self.path_to_ae_model = path_to_ae_model
 
         # load parameter of autoencoder

@@ -47,6 +47,9 @@ class NeuralNetTriage(object):
                 location of trained neural net triage
         """
         # save path to the model as an attribute
+        if not path_to_triage_model.endswith('.ckpt'):
+            path_to_triage_model = path_to_triage_model+'.ckpt'
+
         self.path_to_triage_model = path_to_triage_model
 
         # load necessary parameters
