@@ -98,13 +98,13 @@ class NeuralNetTriage(object):
             clear spikes
         """
         # input tensor (waveforms)
-        x_tf = tf.placeholder("float", [None, None, self.C])
+        self.x_tf = tf.placeholder("float", [None, None, self.C])
 
         # get parameters
         K1, K2 = self.filters_dict['filters']
 
         # first layer: temporal feature
-        layer1 = tf.nn.relu(conv2d_VALID(tf.expand_dims(x_tf, -1),
+        layer1 = tf.nn.relu(conv2d_VALID(tf.expand_dims(self.x_tf, -1),
                                          self.W1) + self.b1)
 
         # second layer: feataure mapping
@@ -128,7 +128,7 @@ class NeuralNetTriage(object):
             self.restore(sess)
 
             idx_clean = sess.run(self.idx_clean,
-                                 feed_dict={self.detector.x_tf: waveforms})
+                                 feed_dict={self.x_tf: waveforms})
 
         return idx_clean
 
