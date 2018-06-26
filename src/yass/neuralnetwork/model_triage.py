@@ -125,7 +125,6 @@ class NeuralNetTriage(object):
         """Triage waveforms
         """
         with tf.Session() as sess:
-            self.detector.restore(sess)
             self.restore(sess)
 
             idx_clean = sess.run(self.idx_clean,
