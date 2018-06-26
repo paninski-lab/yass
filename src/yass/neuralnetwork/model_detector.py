@@ -105,8 +105,7 @@ class NeuralNetDetector(object):
 
         # make spike_index tensorflow tensor
         (self.spike_index_tf_all,
-         self.probability) = (self.make_output_layers(channel_index,
-                                                      threshold))
+         self.probability) = (self.make_graph(channel_index, threshold))
 
         # remove edge spike time
         self.spike_index_tf = (self.
@@ -118,8 +117,30 @@ class NeuralNetDetector(object):
         self.waveform_tf = self.make_waveform_tf(self.spike_index_tf,
                                                  channel_index, size)
 
-    def _make_graph(self, channel_index):
-        """Makes basic tensorflow graph with output convolutional layer
+    def make_graph(self, channel_index, threshold):
+        """Build tensorflow graph with input and two output layers
+
+        Parameters
+        -----------
+        x_tf: tf.tensors (n_observations, n_channels)
+            placeholder of recording for running tensorflow
+
+        channel_index: np.array (n_channels, n_neigh)
+            Each row indexes its neighboring channels.
+            For example, channel_index[c] is the index of
+            neighboring channels (including itself)
+            If any value is equal to n_channels, it is nothing but
+            a space holder in a case that a channel has less than
+            n_neigh neighboring channels
+
+        threshold: int
+            threshold on a probability to determine
+            location of spikes
+
+        Returns
+        -------
+        spike_index_tf: tf tensor (n_spikes, 2)
+            tensorflow tensor that produces spike_index
         """
         # get parameters
         K1, K2 = self.filters_dict['filters']
@@ -154,37 +175,6 @@ class NeuralNetDetector(object):
                  + self.b2)
 
         o_layer = tf.transpose(temp2, [2, 1, 0, 3])
-
-        return o_layer
-
-    def make_output_layers(self, channel_index, threshold):
-        """
-        Make a tensorflow tensor that outputs spike index (takes output
-        convolutional layer as input)
-
-        Parameters
-        -----------
-        x_tf: tf.tensors (n_observations, n_channels)
-            placeholder of recording for running tensorflow
-
-        channel_index: np.array (n_channels, n_neigh)
-            Each row indexes its neighboring channels.
-            For example, channel_index[c] is the index of
-            neighboring channels (including itself)
-            If any value is equal to n_channels, it is nothing but
-            a space holder in a case that a channel has less than
-            n_neigh neighboring channels
-
-        threshold: int
-            threshold on a probability to determine
-            location of spikes
-
-        Returns
-        -------
-        spike_index_tf: tf tensor (n_spikes, 2)
-            tensorflow tensor that produces spike_index
-        """
-        o_layer = self._make_graph(channel_index)
 
         # temporal max
         temporal_max = max_pool(o_layer, [1, 3, 1, 1]) - 1e-8
