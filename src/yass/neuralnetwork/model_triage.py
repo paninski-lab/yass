@@ -81,27 +81,27 @@ class NeuralNetTriage(object):
 
         # run neural net triage
         nneigh = detector.filters_dict['n_neighbors']
-        self.idx_clean = self.triage_wf(detector.waveform_tf[:, :, :nneigh],
-                                        threshold)
 
-    def triage_wf(self, wf_tf, threshold):
-        """
-            Run neural net triage on given spike waveforms
+        self.idx_clean = self.make_graph(detector.waveform_tf[:, :, :nneigh],
+                                         threshold)
 
-            Parameters:
-            -----------
-            wf_tf: tf tensor (n_spikes, n_temporal_length, n_neigh)
-                tf tensor that produces spikes waveforms
+    def make_graph(self, wf_tf, threshold):
+        """Builds graph for triage
 
-            threshold: int
-                threshold used on a probability obtained after nn to determine
-                whether it is a clear spike
+        Parameters:
+        -----------
+        wf_tf: tf tensor (n_spikes, n_temporal_length, n_neigh)
+            tf tensor that produces spikes waveforms
 
-            Returns:
-            -----------
-            tf tensor (n_spikes,)
-                a boolean tensorflow tensor that produces indices of
-                clear spikes
+        threshold: int
+            threshold used on a probability obtained after nn to determine
+            whether it is a clear spike
+
+        Returns:
+        -----------
+        tf tensor (n_spikes,)
+            a boolean tensorflow tensor that produces indices of
+            clear spikes
         """
         # get parameters
         K1, K2 = self.filters_dict['filters']
@@ -123,6 +123,11 @@ class NeuralNetTriage(object):
         """Restore tensor values
         """
         self.saver.restore(sess, self.path_to_model)
+
+    def predict(self, waveforms):
+        """Triage waveforms
+        """
+        pass
 
     @classmethod
     def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
