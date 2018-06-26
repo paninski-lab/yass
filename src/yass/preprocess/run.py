@@ -9,10 +9,8 @@ except ImportError:
     from pathlib import Path
 
 from yass import read_config
-from yass.geometry import make_channel_index
 from yass.preprocess.filter import butterworth
 from yass.preprocess.standarize import standarize
-from yass.util import save_numpy_object
 from yass.preprocess import whiten
 
 
@@ -123,27 +121,16 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                                           if_file_exists=if_file_exists,
                                           processes=PROCESSES)
 
-    # TODO: this shoulnd't be done here, it would be better to compute
-    # this when initializing the config object and then access it from there
-    channel_index = make_channel_index(CONFIG.neigh_channels,
-                                       CONFIG.geom, 2)
-
     # TODO: remove whiten_filter out of output argument
     whiten_filter = whiten.matrix(standarized_path,
                                   standarized_params['dtype'],
                                   standarized_params['n_channels'],
                                   standarized_params['data_order'],
-                                  channel_index,
+                                  CONFIG.channel_index,
                                   CONFIG.spike_size,
                                   CONFIG.resources.max_memory,
                                   TMP,
                                   output_filename='whitening.npy',
                                   if_file_exists=if_file_exists)
 
-    path_to_channel_index = os.path.join(TMP, 'channel_index.npy')
-    save_numpy_object(channel_index, path_to_channel_index,
-                      if_file_exists=if_file_exists,
-                      name='Channel index')
-
-    return (str(standarized_path), standarized_params, channel_index,
-            whiten_filter)
+    return str(standarized_path), standarized_params, whiten_filter

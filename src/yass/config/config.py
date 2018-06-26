@@ -130,6 +130,10 @@ class Config(FrozenJSON):
                 np.round(self.recordings.spike_size_ms *
                          self.recordings.sampling_rate / (2 * 1000))))
 
+        channel_index = geom.make_channel_index(self.neigh_channels,
+                                                self.geom, 2)
+        self._set_param('channel_index', channel_index)
+
     def __setattr__(self, name, value):
         if not name.startswith('_'):
             raise AttributeError('Cannot set values once the object has '
