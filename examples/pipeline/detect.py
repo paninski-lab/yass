@@ -15,11 +15,9 @@ logging.basicConfig(level=logging.INFO)
 yass.set_config('config_sample.yaml')
 
 # run preprocessor
-(standarized_path, standarized_params, channel_index,
- whiten_filter) = preprocess.run()
+standarized_path, standarized_params, whiten_filter = preprocess.run()
 
 # run detection
 scores, clear, collision = detect.run(standarized_path,
                                       standarized_params,
-                                      channel_index,
                                       whiten_filter)
