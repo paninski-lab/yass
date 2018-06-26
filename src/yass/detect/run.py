@@ -25,9 +25,8 @@ from yass.geometry import n_steps_neigh_channels
 from yass.util import file_loader, save_numpy_object
 
 
-def run(standarized_path, standarized_params,
-        channel_index, whiten_filter, output_directory='tmp/',
-        if_file_exists='skip', save_results=False):
+def run(standarized_path, standarized_params, whiten_filter,
+        output_directory='tmp/', if_file_exists='skip', save_results=False):
     """Execute detect step
 
     Parameters
@@ -37,9 +36,6 @@ def run(standarized_path, standarized_params,
 
     standarized_params: dict, str or pathlib.Path
         Dictionary with standarized data parameters or path to a yaml file
-
-    channel_index: numpy.ndarray, str or pathlib.Path
-        Channel index or path to a npy file
 
     whiten_filter: numpy.ndarray, str or pathlib.Path
         Whiten matrix or path to a npy file
@@ -97,14 +93,12 @@ def run(standarized_path, standarized_params,
 
     # load files in case they are strings or Path objects
     standarized_params = file_loader(standarized_params)
-    channel_index = file_loader(channel_index)
     whiten_filter = file_loader(whiten_filter)
 
     # run detection
     if CONFIG.detect.method == 'threshold':
         return run_threshold(standarized_path,
                              standarized_params,
-                             channel_index,
                              whiten_filter,
                              output_directory,
                              if_file_exists,
@@ -112,14 +106,13 @@ def run(standarized_path, standarized_params,
     elif CONFIG.detect.method == 'nn':
         return run_neural_network(standarized_path,
                                   standarized_params,
-                                  channel_index,
                                   whiten_filter,
                                   output_directory,
                                   if_file_exists,
                                   save_results)
 
 
-def run_threshold(standarized_path, standarized_params, channel_index,
+def run_threshold(standarized_path, standarized_params,
                   whiten_filter, output_directory, if_file_exists,
                   save_results):
     """Run threshold detector and dimensionality reduction using PCA
@@ -188,7 +181,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
                                CONFIG.spike_size,
                                CONFIG.detect.temporal_features,
                                CONFIG.neigh_channels,
-                               channel_index,
+                               CONFIG.channel_index,
                                CONFIG.resources.max_memory,
                                TMP_FOLDER,
                                'scores_pca.npy',
@@ -207,7 +200,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     # transform scores to location + shape feature space
     if CONFIG.cluster.method == 'location':
         scores = get_locations_features_threshold(scores_clear, clear[:, 1],
-                                                  channel_index,
+                                                  CONFIG.channel_index,
                                                   CONFIG.geom)
 
     if TMP_FOLDER is not None:
@@ -227,7 +220,7 @@ def run_threshold(standarized_path, standarized_params, channel_index,
 
 
 def run_neural_network(standarized_path, standarized_params,
-                       channel_index, whiten_filter, output_directory,
+                       whiten_filter, output_directory,
                        if_file_exists, save_results):
     """Run neural network detection and autoencoder dimensionality reduction
 
@@ -284,7 +277,7 @@ def run_neural_network(standarized_path, standarized_params,
 
         # instantiate neural networks
         NND = NeuralNetDetector(detection_fname, detection_th,
-                                channel_index)
+                                CONFIG.channel_index)
         NNAE = AutoEncoder(ae_fname, NND)
         NNT = NeuralNetTriage(triage_fname, NND, triage_th)
 
@@ -342,7 +335,7 @@ def run_neural_network(standarized_path, standarized_params,
         if CONFIG.cluster.method == 'location':
             threshold = 2
             scores = get_locations_features(scores, rotation, clear[:, 1],
-                                            channel_index, CONFIG.geom,
+                                            CONFIG.channel_index, CONFIG.geom,
                                             threshold)
             idx_nan = np.where(np.isnan(np.sum(scores, axis=(1, 2))))[0]
             scores = np.delete(scores, idx_nan, 0)

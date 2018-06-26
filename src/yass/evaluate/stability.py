@@ -49,7 +49,7 @@ class RecordingBatchIterator(object):
         batch_time_samples: int
             Number of time samples per each batch to be used.
         filter_std: bool
-            The iterator both filters and standardizes the recording (dividing
+            The iterator both filters and standarizes the recording (dividing
             by standard deviation.
         whiten: bool
             Spatially whiten the recording.

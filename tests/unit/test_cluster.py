@@ -25,13 +25,11 @@ def teardown_function(function):
 def test_cluster(path_to_threshold_config):
     yass.set_config(path_to_threshold_config)
 
-    (standarized_path, standarized_params, channel_index,
-     whiten_filter) = preprocess.run()
+    (standarized_path, standarized_params, whiten_filter) = preprocess.run()
 
     (score, spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   channel_index,
                                    whiten_filter)
 
     cluster.run(score, spike_index_clear)
@@ -46,13 +44,11 @@ def test_cluster_returns_expected_results(path_to_threshold_config,
 
     yass.set_config(path_to_threshold_config)
 
-    (standarized_path, standarized_params, channel_index,
-     whiten_filter) = preprocess.run()
+    (standarized_path, standarized_params, whiten_filter) = preprocess.run()
 
     (score, spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   channel_index,
                                    whiten_filter)
 
     spike_train, tmp_loc, vbParam = cluster.run(score, spike_index_clear)
@@ -74,13 +70,11 @@ def test_cluster_save_results(path_to_threshold_config):
 
     yass.set_config(path_to_threshold_config)
 
-    (standarized_path, standarized_params, channel_index,
-     whiten_filter) = preprocess.run()
+    (standarized_path, standarized_params, whiten_filter) = preprocess.run()
 
     (score, spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   channel_index,
                                    whiten_filter)
 
     cluster.run(score, spike_index_clear, save_results=True)
@@ -93,13 +87,11 @@ def test_cluster_loads_from_disk_if_all_files_exist(caplog,
 
     yass.set_config(path_to_threshold_config)
 
-    (standarized_path, standarized_params, channel_index,
-     whiten_filter) = preprocess.run()
+    (standarized_path, standarized_params, whiten_filter) = preprocess.run()
 
     (score, spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   channel_index,
                                    whiten_filter)
 
     # save results
