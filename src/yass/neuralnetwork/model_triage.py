@@ -79,9 +79,8 @@ class NeuralNetTriage(object):
             "b2": self.b2
         })
 
-        # run neural net triage
+        self.detector = detector
         nneigh = detector.filters_dict['n_neighbors']
-
         self.idx_clean = self.make_graph(detector.waveform_tf[:, :, :nneigh],
                                          threshold)
 
@@ -127,7 +126,14 @@ class NeuralNetTriage(object):
     def predict(self, waveforms):
         """Triage waveforms
         """
-        pass
+        with tf.Session() as sess:
+            self.detector.restore(sess)
+            self.restore(sess)
+
+            idx_clean = sess.run(self.idx_clean,
+                                 feed_dict={self.detector.x_tf: waveforms})
+
+        return idx_clean
 
     @classmethod
     def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
