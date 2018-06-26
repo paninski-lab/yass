@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from sklearn.decomposition import PCA
 
-from yass.util import load_yaml
+from yass.util import load_yaml, change_extension
 from yass.neuralnetwork.parameter_saver import save_ae_network_params
 
 
@@ -41,7 +41,7 @@ class AutoEncoder(object):
         self.path_to_ae_model = path_to_ae_model
 
         # load parameter of autoencoder
-        path_to_filters_ae = path_to_ae_model+'.yaml'
+        path_to_filters_ae = change_extension(path_to_ae_model, 'yaml')
         self.ae_dict = load_yaml(path_to_filters_ae)
         n_input = self.ae_dict['n_input']
         n_features = self.ae_dict['n_features']
@@ -143,4 +143,4 @@ class AutoEncoder(object):
 
         save_ae_network_params(n_input=x_train.shape[1],
                                n_features=n_features,
-                               output_path=nn_name+'.yaml')
+                               output_path=change_extension(nn_name, 'yaml'))
