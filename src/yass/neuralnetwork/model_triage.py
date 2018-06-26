@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID)
-from yass.util import load_yaml, change_extension
+from yass.util import load_yaml
 from yass.neuralnetwork.parameter_saver import save_triage_network_params
 
 
@@ -50,7 +50,7 @@ class NeuralNetTriage(object):
         self.path_to_triage_model = path_to_triage_model
 
         # load necessary parameters
-        path_to_filters = change_extension(path_to_triage_model, 'yaml')
+        path_to_filters = path_to_triage_model+'.yaml'
         self.filters_dict = load_yaml(path_to_filters)
         R1 = self.filters_dict['size']
         K1, K2 = self.filters_dict['filters']
@@ -226,5 +226,4 @@ class NeuralNetTriage(object):
         save_triage_network_params(filters=n_filters,
                                    size=x_train.shape[1],
                                    n_neighbors=x_train.shape[2],
-                                   output_path=change_extension(nn_name,
-                                                                'yaml'))
+                                   output_path=nn_name+'.yaml')

@@ -5,7 +5,7 @@ import logging
 
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID, max_pool)
-from yass.util import load_yaml, change_extension
+from yass.util import load_yaml
 from yass.neuralnetwork.parameter_saver import save_detect_network_params
 
 
@@ -56,7 +56,7 @@ class NeuralNetDetector(object):
         self.path_to_detector_model = path_to_detector_model
 
         # load nn parameter files
-        path_to_filters = change_extension(path_to_detector_model, 'yaml')
+        path_to_filters = path_to_detector_model+'.yaml'
         self.filters_dict = load_yaml(path_to_filters)
 
         # initialize neural net weights and add as attributes
@@ -412,5 +412,4 @@ class NeuralNetDetector(object):
         save_detect_network_params(filters=n_filters,
                                    size=x_train.shape[1],
                                    n_neighbors=x_train.shape[2],
-                                   output_path=change_extension(nn_name,
-                                                                'yaml'))
+                                   output_path=nn_name+'.yaml')
