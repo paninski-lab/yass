@@ -36,8 +36,6 @@ class AutoEncoder(object):
         path_to_model: str
             location of trained neural net autoencoder
         """
-
-        # add locations as attributes
         if not path_to_model.endswith('.ckpt'):
             path_to_model = path_to_model+'.ckpt'
 
@@ -121,6 +119,9 @@ class AutoEncoder(object):
             name of the .ckpt to be saved.
         """
         logger = logging.getLogger(__name__)
+
+        if not path_to_model.endswith('.ckpt'):
+            path_to_model = path_to_model+'.ckpt'
 
         # parameters
         n_data, n_input = x_train.shape

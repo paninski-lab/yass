@@ -46,7 +46,6 @@ class NeuralNetTriage(object):
             path_to_detector_model: str
                 location of trained neural net triage
         """
-        # save path to the model as an attribute
         if not path_to_model.endswith('.ckpt'):
             path_to_model = path_to_model+'.ckpt'
 
@@ -126,7 +125,14 @@ class NeuralNetTriage(object):
     def predict(self, waveforms):
         """Triage waveforms
         """
-        pass
+        with tf.Session() as sess:
+            self.detector.restore(sess)
+            self.restore(sess)
+
+            idx_clean = sess.run(self.idx_clean,
+                                 feed_dict={self.detector.x_tf: waveforms})
+
+        return idx_clean
 
     @classmethod
     def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
@@ -145,6 +151,9 @@ class NeuralNetTriage(object):
             name of the .ckpt to be saved.
         """
         logger = logging.getLogger(__name__)
+
+        if not path_to_model.endswith('.ckpt'):
+            path_to_model = path_to_model+'.ckpt'
 
         # get parameters
         ndata, R, C = x_train.shape
