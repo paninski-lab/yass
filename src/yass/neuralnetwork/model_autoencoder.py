@@ -27,7 +27,7 @@ class AutoEncoder(object):
         Instance of detector
     """
 
-    def __init__(self, path_to_model, detector):
+    def __init__(self, path_to_model):
         """
         Initializes the attributes for the class NeuralNetDetector.
 
@@ -56,9 +56,9 @@ class AutoEncoder(object):
         self.saver = tf.train.Saver({"W_ae": self.W_ae})
 
         # make score tensorflow tensor from waveform
-        self.score_tf = self.make_score_tf_tensor(detector.waveform_tf)
+        self.score_tf = self.make_graph()
 
-    def make_score_tf_tensor(self, waveform_tf):
+    def make_graph(self, waveform_tf):
         """
         Make a tensorflow tensor that outputs scores
 
@@ -72,12 +72,14 @@ class AutoEncoder(object):
         score_tf: tf tensor (n_spikes, n_features, n_neigh)
             tensorflow tensor that produces scores
         """
+        # input tensor (waveforms)
+        self.x_tf = tf.placeholder("float", [None, None, self.C])
 
         n_input = self.ae_dict['n_input']
         n_features = self.ae_dict['n_features']
         nneigh_tf = tf.shape(waveform_tf)[2]
 
-        reshaped_wf = tf.reshape(tf.transpose(waveform_tf, [0, 2, 1]),
+        reshaped_wf = tf.reshape(tf.transpose(self.x_tf, [0, 2, 1]),
                                  [-1, n_input])
         score_tf = tf.transpose(tf.reshape(tf.matmul(reshaped_wf, self.W_ae),
                                            [-1, nneigh_tf, n_features]),
@@ -100,6 +102,17 @@ class AutoEncoder(object):
         """Restore tensor values
         """
         self.saver.restore(sess, self.path_to_model)
+
+    def predict(self, waveforms):
+        """Apply autoencoder
+        """
+        with tf.Session() as sess:
+            self.restore(sess)
+
+            scores = sess.run(self.score_tf,
+                              feed_dict={self.x_tf: waveforms})
+
+        return scores
 
     @classmethod
     def train(cls, x_train, y_train, n_features, n_iter, n_batch,

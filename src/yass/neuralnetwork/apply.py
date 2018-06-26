@@ -45,6 +45,13 @@ def run_detect_triage_featurize(recordings, sess, x_tf, output_tf,
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
     """
+    # # run detection
+    # output_names = ('spike_index', 'waveform')
+    # spike_index, waveform = detector.predict(recordings,
+    #                                          output_names=output_names)
+
+    # # run triage
+    # idx_clean = triager.predict(waveform[:, :, :detector.n_neigh])
 
     score, spike_index, idx_clean = sess.run(
         output_tf, feed_dict={x_tf: recordings})
