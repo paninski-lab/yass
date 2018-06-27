@@ -44,42 +44,28 @@ class NeuralNetTriage(object):
             threshold for neural net triage
     """
 
-    def __init__(self, path_to_model, threshold, input_tensor=None):
-        if not path_to_model.endswith('.ckpt'):
-            path_to_model = path_to_model+'.ckpt'
+    def __init__(self, path_to_model, threshold,
+                 input_tensor=None, parameters=None):
 
-        self.path_to_model = path_to_model
+        # restoring a model
+        if path_to_model:
+            if not path_to_model.endswith('.ckpt'):
+                path_to_model = path_to_model+'.ckpt'
 
-        # load necessary parameters
-        path_to_filters = change_extension(path_to_model, 'yaml')
-        self.filters_dict = load_yaml(path_to_filters)
-        R1 = self.filters_dict['size']
-        K1, K2 = self.filters_dict['filters']
-        self.C = self.filters_dict['n_neighbors']
+            self.path_to_model = path_to_model
 
-        # initialize and save nn weights
-        self.W1 = weight_variable([R1, 1, 1, K1])
-        self.b1 = bias_variable([K1])
+            # load necessary parameters
+            path_to_filters = change_extension(path_to_model, 'yaml')
+            params = load_yaml(path_to_filters)
 
-        self.W11 = weight_variable([1, 1, K1, K2])
-        self.b11 = bias_variable([K2])
+            size = params['size']
+            filters = params['filters']
+            n_neigh = params['n_neighbors']
 
-        self.W2 = weight_variable([1, self.C, K2, 1])
-        self.b2 = bias_variable([1])
+            self.idx_clean = self._make_graph(threshold, input_tensor,
+                                              filters, size, n_neigh)
 
-        # initialize savers
-        self.saver = tf.train.Saver({
-            "W1": self.W1,
-            "W11": self.W11,
-            "W2": self.W2,
-            "b1": self.b1,
-            "b11": self.b11,
-            "b2": self.b2
-        })
-
-        self.idx_clean = self._make_graph(threshold, input_tensor)
-
-    def _make_graph(self, threshold, input_tensor):
+    def _make_graph(self, threshold, input_tensor, filters, size, n_neigh):
         """Builds graph for triage
 
         Parameters:
@@ -103,21 +89,42 @@ class NeuralNetTriage(object):
         else:
             self.x_tf = input_tensor
 
-        # get parameters
-        K1, K2 = self.filters_dict['filters']
-
-        # first layer: temporal feature
-        layer1 = tf.nn.relu(conv2d_VALID(tf.expand_dims(self.x_tf, -1),
-                                         self.W1) + self.b1)
-
-        # second layer: feataure mapping
-        layer11 = tf.nn.relu(conv2d(layer1, self.W11) + self.b11)
-
-        # third layer: spatial convolution
-        o_layer = conv2d_VALID(layer11, self.W2) + self.b2
+        self.o_layer, _ = NeuralNetTriage._make_network(self.x_tf, filters,
+                                                        size, n_neigh)
 
         # thrshold it
-        return o_layer[:, 0, 0, 0] > np.log(threshold / (1 - threshold))
+        return self.o_layer[:, 0, 0, 0] > np.log(threshold / (1 - threshold))
+
+    @classmethod
+    def _make_network(cls, input_tensor, filters, size, n_neigh):
+        """Mates tensorflow network, from first layer to output layer
+        """
+        K1, K2 = filters
+
+        # initialize and save nn weights
+        W1 = weight_variable([size, 1, 1, K1])
+        b1 = bias_variable([K1])
+
+        W11 = weight_variable([1, 1, K1, K2])
+        b11 = bias_variable([K2])
+
+        W2 = weight_variable([1, n_neigh, K2, 1])
+        b2 = bias_variable([1])
+
+        # first layer: temporal feature
+        layer1 = tf.nn.relu(conv2d_VALID(tf.expand_dims(input_tensor, -1),
+                                         W1) + b1)
+
+        # second layer: feataure mapping
+        layer11 = tf.nn.relu(conv2d(layer1, W11) + b11)
+
+        # third layer: spatial convolution
+        o_layer = conv2d_VALID(layer11, W2) + b2
+
+        vars_dict = {"W1": W1, "W11": W11, "W2": W2, "b1": b1, "b11": b11,
+                     "b2": b2}
+
+        return o_layer, vars_dict
 
     def restore(self, sess):
         """Restore tensor values
@@ -136,7 +143,7 @@ class NeuralNetTriage(object):
         return idx_clean
 
     @classmethod
-    def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
+    def train(cls, x_train, y_train, filters, n_iter, n_batch,
               l2_reg_scale, train_step_size, path_to_model):
         """
         Trains the triage network
@@ -157,31 +164,20 @@ class NeuralNetTriage(object):
             path_to_model = path_to_model+'.ckpt'
 
         # get parameters
-        ndata, R, C = x_train.shape
-        K1, K2 = n_filters
+        n_data, size, n_neigh = x_train.shape
+        K1, K2 = filters
 
         # x and y input tensors
-        x_tf = tf.placeholder("float", [n_batch, R, C])
+        x_tf = tf.placeholder("float", [n_batch, size, n_neigh])
         y_tf = tf.placeholder("float", [n_batch])
 
-        # first layer: temporal feature
-        W1 = weight_variable([R, 1, 1, K1])
-        b1 = bias_variable([K1])
-        layer1 = tf.nn.relu(conv2d_VALID(tf.expand_dims(x_tf, -1), W1) + b1)
-
-        # second layer: feataure mapping
-        W11 = weight_variable([1, 1, K1, K2])
-        b11 = bias_variable([K2])
-        layer11 = tf.nn.relu(conv2d(layer1, W11) + b11)
-
-        # third layer: spatial convolution
-        W2 = weight_variable([1, C, K2, 1])
-        b2 = bias_variable([1])
-        o_layer = tf.squeeze(conv2d_VALID(layer11, W2) + b2)
+        o_layer, vars_dict = NeuralNetTriage._make_network(x_tf, filters,
+                                                           size, n_neigh)
+        logits = tf.squeeze(o_layer)
 
         # cross entropy
         cross_entropy = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(logits=o_layer,
+            tf.nn.sigmoid_cross_entropy_with_logits(logits=logits,
                                                     labels=y_tf))
 
         # regularization term
@@ -196,14 +192,7 @@ class NeuralNetTriage(object):
             regularized_loss)
 
         # saver
-        saver = tf.train.Saver({
-            "W1": W1,
-            "W11": W11,
-            "W2": W2,
-            "b1": b1,
-            "b11": b11,
-            "b2": b2
-        })
+        saver = tf.train.Saver(vars_dict)
 
         ############
         # training #
@@ -219,7 +208,7 @@ class NeuralNetTriage(object):
 
             for i in range(0, n_iter):
 
-                idx_batch = np.random.choice(ndata, n_batch, replace=False)
+                idx_batch = np.random.choice(n_data, n_batch, replace=False)
                 sess.run(
                     train_step,
                     feed_dict={
@@ -230,7 +219,7 @@ class NeuralNetTriage(object):
 
             saver.save(sess, path_to_model)
 
-            idx_batch = np.random.choice(ndata, n_batch, replace=False)
+            idx_batch = np.random.choice(n_data, n_batch, replace=False)
             output = sess.run(o_layer, feed_dict={x_tf: x_train[idx_batch]})
             y_test = y_train[idx_batch]
             tp = np.mean(output[y_test == 1] > 0)
@@ -241,7 +230,7 @@ class NeuralNetTriage(object):
         bar.close()
 
         logger.info('Saving triage network parameters...')
-        save_triage_network_params(filters=n_filters,
+        save_triage_network_params(filters=filters,
                                    size=x_train.shape[1],
                                    n_neighbors=x_train.shape[2],
                                    output_path=change_extension(path_to_model,
