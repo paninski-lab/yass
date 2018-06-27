@@ -342,16 +342,19 @@ class NeuralNetDetector(object):
             path_to_model = path_to_model+'.ckpt'
 
         # get parameters
-        n_data, R, C = x_train.shape
+        n_data, waveform_length_train, n_neigh_train = x_train.shape
 
         # x and y input tensors
-        x_tf = tf.placeholder("float", [n_batch, R, C])
+        x_tf = tf.placeholder("float", [n_batch, waveform_length_train,
+                                        n_neigh_train])
         y_tf = tf.placeholder("float", [n_batch])
 
         input_tf = tf.expand_dims(x_tf, -1)
 
-        vars_dict, layer11 = cls._make_network(cls, input_tf, R, filters_size,
-                                               n_neigh)
+        vars_dict, layer11 = cls._make_network(cls, input_tf,
+                                               waveform_length_train,
+                                               filters_size,
+                                               n_neigh_train)
 
         W2 = vars_dict['W2']
         b2 = vars_dict['b2']
