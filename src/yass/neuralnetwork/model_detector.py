@@ -42,7 +42,10 @@ class NeuralNetDetector(object):
             neighboring channels
     """
 
-    def __init__(self, path_to_model, threshold, channel_index):
+    def __init__(self, path_to_model, filters_size, waveform_length,
+                 n_neighbors, threshold, channel_index, n_iter=50000,
+                 n_batch=512, l2_reg_scale=0.00000005,
+                 train_step_size=0.001):
         """
         Initializes the attributes for the class NeuralNetDetector.
 
@@ -51,19 +54,11 @@ class NeuralNetDetector(object):
         path_to_model: str
             location of trained neural net detectior
         """
-        if not path_to_model.endswith('.ckpt'):
-            path_to_model = path_to_model+'.ckpt'
-
         self.path_to_model = path_to_model
 
-        # load nn parameter files
-        path_to_filters = change_extension(path_to_model, 'yaml')
-        self.filters_dict = load_yaml(path_to_filters)
-
-        # initialize neural net weights and add as attributes
-        waveform_length = self.filters_dict['size']
-        filters_size = self.filters_dict['filters']
-        n_neigh = self.filters_dict['n_neighbors']
+        self.filters_size = filters_size
+        self.n_neighbors = n_neighbors
+        self.waveform_length = waveform_length
 
         # make spike_index tensorflow tensor
         (self.x_tf,
@@ -74,10 +69,24 @@ class NeuralNetDetector(object):
                                                     channel_index,
                                                     waveform_length,
                                                     filters_size,
-                                                    n_neigh)
+                                                    n_neighbors)
 
         # create saver variables
         self.saver = tf.train.Saver(vars_dict)
+
+    @classmethod
+    def load(cls, path_to_model, threshold, input_tensor=None):
+
+        if not path_to_model.endswith('.ckpt'):
+            path_to_model = path_to_model+'.ckpt'
+
+        # load nn parameter files
+        path_to_params = change_extension(path_to_model, 'yaml')
+        params = load_yaml(path_to_params)
+
+        return cls(path_to_model, params['filters_size'],
+                   params['waveform_length'], params['n_neighbors'],
+                   threshold, input_tensor=input_tensor)
 
     @classmethod
     def _make_network(cls, input_layer, waveform_length, filters_size,
@@ -330,9 +339,7 @@ class NeuralNetDetector(object):
 
         return output
 
-    @classmethod
-    def train(cls, x_train, y_train, filters_size, n_iter, n_batch,
-              l2_reg_scale, train_step_size, path_to_model):
+    def fit(self, x_train, y_train):
         """
         Trains the neural network detector for spike detection
 
@@ -355,27 +362,37 @@ class NeuralNetDetector(object):
 
         logger = logging.getLogger(__name__)
 
-        if not path_to_model.endswith('.ckpt'):
-            path_to_model = path_to_model+'.ckpt'
-
         # get parameters
-        n_data, waveform_length_train, n_neigh_train = x_train.shape
+        n_data, waveform_length_train, n_neighbors_train = x_train.shape
+
+        if self.waveform_length != waveform_length_train:
+            raise ValueError('waveform length from network ({}) does not '
+                             'match training data ({})'
+                             .format(self.waveform_length,
+                                     waveform_length_train))
+
+        if self.n_neighbors != n_neighbors_train:
+            raise ValueError('number of n_neighbors from network ({}) does '
+                             'not match training data ({})'
+                             .format(self.n_neigh,
+                                     n_neighbors_train))
 
         ####################
         # Building network #
         ####################
 
         # x and y input tensors
-        x_tf = tf.placeholder("float", [n_batch, waveform_length_train,
-                                        n_neigh_train])
-        y_tf = tf.placeholder("float", [n_batch])
+        x_tf = tf.placeholder("float", [self.n_batch, self.waveform_length,
+                                        self.n_neighbors])
+        y_tf = tf.placeholder("float", [self.n_batch])
 
         input_tf = tf.expand_dims(x_tf, -1)
 
-        vars_dict, layer11 = cls._make_network(cls, input_tf,
-                                               waveform_length_train,
-                                               filters_size,
-                                               n_neigh_train)
+        vars_dict, layer11 = (NeuralNetDetector
+                              ._make_network(input_tf,
+                                             self.waveform_length,
+                                             self.filters_size,
+                                             self.n_neighbors))
 
         W2 = vars_dict['W2']
         b2 = vars_dict['b2']
@@ -395,7 +412,8 @@ class NeuralNetDetector(object):
         weights = tf.trainable_variables()
 
         # regularization term
-        l2_regularizer = tf.contrib.layers.l2_regularizer(scale=l2_reg_scale)
+        l2_regularizer = (tf.contrib.layers
+                          .l2_regularizer(scale=self.l2_reg_scale))
 
         regularization = tf.contrib.layers.apply_regularization(l2_regularizer,
                                                                 weights)
@@ -403,7 +421,7 @@ class NeuralNetDetector(object):
         regularized_loss = cross_entropy + regularization
 
         # train step
-        train_step = (tf.train.AdamOptimizer(train_step_size)
+        train_step = (tf.train.AdamOptimizer(self.train_step_size)
                         .minimize(regularized_loss))
 
         ############
@@ -415,17 +433,18 @@ class NeuralNetDetector(object):
 
         logger.info('Training detector network...')
 
-        bar = tqdm(total=n_iter)
+        bar = tqdm(total=self.n_iter)
 
         with tf.Session() as sess:
 
             init_op = tf.global_variables_initializer()
             sess.run(init_op)
 
-            for i in range(0, n_iter):
+            for i in range(0, self.n_iter):
 
                 # sample n_batch observations from 0, ..., n_data
-                idx_batch = np.random.choice(n_data, n_batch, replace=False)
+                idx_batch = np.random.choice(n_data, self.n_batch,
+                                             replace=False)
 
                 res = sess.run(
                     [train_step, regularized_loss],
@@ -439,10 +458,10 @@ class NeuralNetDetector(object):
                 # if not i % 100:
                 #    logger.info('Loss: %s', res[1])
 
-            saver.save(sess, path_to_model)
+            saver.save(sess, self.path_to_model)
 
             # estimate tp and fp with a sample
-            idx_batch = np.random.choice(n_data, n_batch, replace=False)
+            idx_batch = np.random.choice(n_data, self.n_batch, replace=False)
 
             output = sess.run(o_layer, feed_dict={x_tf: x_train[idx_batch]})
             y_test = y_train[idx_batch]
@@ -454,9 +473,10 @@ class NeuralNetDetector(object):
                         ', false positive rate: ' + str(fp))
         bar.close()
 
+        path_to_params = change_extension(self.path_to_model, 'yaml')
+
         logger.info('Saving detector network parameters...')
-        save_detect_network_params(filters=filters_size,
-                                   size=waveform_length_train,
-                                   n_neighbors=n_neigh_train,
-                                   output_path=change_extension(path_to_model,
-                                                                'yaml'))
+        save_detect_network_params(filters=self.filters_size,
+                                   size=self.waveform_length,
+                                   n_neighbors=self.n_neighbors,
+                                   output_path=path_to_params)

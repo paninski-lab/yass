@@ -76,13 +76,13 @@ class NeuralNetTriage(object):
             path_to_model = path_to_model+'.ckpt'
 
         # load necessary parameters
-        path_to_filters = change_extension(path_to_model, 'yaml')
-        params = load_yaml(path_to_filters)
+        path_to_params = change_extension(path_to_model, 'yaml')
+        params = load_yaml(path_to_params)
 
-        return NeuralNetTriage(path_to_model, params['filters_size'],
-                               params['waveform_length'],
-                               params['n_neighbors'], threshold,
-                               input_tensor=input_tensor)
+        return cls(path_to_model, params['filters_size'],
+                   params['waveform_length'],
+                   params['n_neighbors'], threshold,
+                   input_tensor=input_tensor)
 
     @classmethod
     def _make_network(cls, input_tensor, filters_size, waveform_length,
