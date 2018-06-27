@@ -486,7 +486,7 @@ class NeuralNetDetector(object):
 
         path_to_params = change_extension(self.path_to_model, 'yaml')
         logger.debug('Saving network parameters: %s', path_to_params)
-        save_detect_network_params(filters=self.filters_size,
-                                   size=self.waveform_length,
+        save_detect_network_params(filters_size=self.filters_size,
+                                   waveform_length=self.waveform_length,
                                    n_neighbors=self.n_neighbors,
                                    output_path=path_to_params)
