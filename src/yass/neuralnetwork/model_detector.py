@@ -179,26 +179,30 @@ class NeuralNetDetector(object):
         # Output layer transformations #
         ################################
 
+        o_layer_val = o_layer[0, :, :, 0]
+
         # probability output - just sigmoid of output layer
-        probability_tf = tf.sigmoid(o_layer[0, :, :, 0])
+        probability_tf = tf.sigmoid(o_layer_val)
 
         # spike index output (local maximum crossing a threshold)
         temporal_max = max_pool(o_layer, [1, 3, 1, 1]) - 1e-8
 
-        spike_index_tf_all = tf.cast(tf.where(
-            tf.logical_and(o_layer[0, :, :, 0] >= temporal_max[0, :, :, 0],
-                           o_layer[0, :, :, 0] >
-                           np.log(threshold / (1 - threshold)))), 'int32')
+        higher_than_max_pool = o_layer_val >= temporal_max[0, :, :, 0]
 
-        spike_index_tf = (cls._remove_edge_spikes(x_tf,
-                                                  spike_index_tf_all,
-                                                  waveform_length))
+        higher_than_threshold = (o_layer_val >
+                                 np.log(threshold / (1 - threshold)))
+
+        both_higher = tf.logical_and(higher_than_max_pool,
+                                     higher_than_threshold)
+
+        index_all = tf.cast(tf.where(both_higher), 'int32')
+
+        spike_index_tf = cls._remove_edge_spikes(x_tf, index_all,
+                                                 waveform_length)
 
         # waveform output from spike index output
-        waveform_tf = cls._make_waveform_tf(x_tf,
-                                            spike_index_tf,
-                                            channel_index,
-                                            waveform_length)
+        waveform_tf = cls._make_waveform_tf(x_tf, spike_index_tf,
+                                            channel_index, waveform_length)
 
         return x_tf, spike_index_tf, probability_tf, waveform_tf, vars_dict
 
@@ -453,7 +457,7 @@ class NeuralNetDetector(object):
 
         logger.info('Saving detector network parameters...')
         save_detect_network_params(filters=filters_size,
-                                   size=x_train.shape[1],
-                                   n_neighbors=x_train.shape[2],
+                                   size=waveform_length_train,
+                                   n_neighbors=n_neigh_train,
                                    output_path=change_extension(path_to_model,
                                                                 'yaml'))
