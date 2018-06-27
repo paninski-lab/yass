@@ -1,3 +1,4 @@
+import warnings
 import logging
 import tensorflow as tf
 import numpy as np
@@ -54,11 +55,11 @@ class NeuralNetTriage(object):
 
         if input_tensor is not None:
             if n_neighbors != input_tensor.shape[2]:
-                self.logger.info('Network n_neighbors ({}) does not match '
-                                 'n_neighbors on input_tensor ({}), using '
-                                 'only the first n_neighbors from the '
-                                 'input_tensor'.format(n_neighbors,
-                                                       input_tensor.shape[2]))
+                warnings.warn('Network n_neighbors ({}) does not match '
+                              'n_neighbors on input_tensor ({}), using '
+                              'only the first n_neighbors from the '
+                              'input_tensor'.format(n_neighbors,
+                                                    input_tensor.shape[2]))
 
         self.path_to_model = path_to_model
 
@@ -245,7 +246,7 @@ class NeuralNetTriage(object):
         # training #
         ############
 
-        self.logger.info('Training triage network...')
+        self.logger.debug('Training triage network...')
 
         bar = tqdm(total=self.n_iter)
 
@@ -265,6 +266,7 @@ class NeuralNetTriage(object):
                     })
                 bar.update(i + 1)
 
+            self.logger.debug('Saving network: %s', self.path_to_model)
             saver.save(sess, self.path_to_model)
 
             idx_batch = np.random.choice(n_data, self.n_batch, replace=False)
@@ -273,13 +275,13 @@ class NeuralNetTriage(object):
             tp = np.mean(output[y_test == 1] > 0)
             fp = np.mean(output[y_test == 0] > 0)
 
-            self.logger.info('Approximate training true positive rate: '
-                             + str(tp) +
-                             ', false positive rate: ' + str(fp))
+            self.logger.debug('Approximate training true positive rate: '
+                              + str(tp) +
+                              ', false positive rate: ' + str(fp))
         bar.close()
 
-        self.logger.info('Saving triage network parameters...')
         path_to_params = change_extension(self.path_to_model, 'yaml')
+        self.logger.debug('Saving network parameters: %s', path_to_params)
         save_triage_network_params(filters_size=self.filters_size,
                                    waveform_length=self.waveform_length,
                                    n_neighbors=self.n_neighbors,

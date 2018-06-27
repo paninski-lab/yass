@@ -441,7 +441,7 @@ class NeuralNetDetector(object):
         # saver
         saver = tf.train.Saver(vars_dict)
 
-        logger.info('Training detector network...')
+        logger.debug('Training detector network...')
 
         bar = tqdm(total=self.n_iter)
 
@@ -466,8 +466,9 @@ class NeuralNetDetector(object):
                 bar.update(i + 1)
 
                 # if not i % 100:
-                #    logger.info('Loss: %s', res[1])
+                #    logger.debug('Loss: %s', res[1])
 
+            logger.debug('Saving network: %s', self.path_to_model)
             saver.save(sess, self.path_to_model)
 
             # estimate tp and fp with a sample
@@ -479,13 +480,12 @@ class NeuralNetDetector(object):
             tp = np.mean(output[y_test == 1] > 0)
             fp = np.mean(output[y_test == 0] > 0)
 
-            logger.info('Approximate training true positive rate: ' + str(tp) +
-                        ', false positive rate: ' + str(fp))
+            logger.debug('Approximate training true positive rate: '
+                         + str(tp) + ', false positive rate: ' + str(fp))
         bar.close()
 
         path_to_params = change_extension(self.path_to_model, 'yaml')
-
-        logger.info('Saving detector network parameters...')
+        logger.debug('Saving network parameters: %s', path_to_params)
         save_detect_network_params(filters=self.filters_size,
                                    size=self.waveform_length,
                                    n_neighbors=self.n_neighbors,
