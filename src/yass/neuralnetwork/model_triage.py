@@ -166,6 +166,10 @@ class NeuralNetTriage(object):
             [number of data] training label for the triage network.
         path_to_model: string
             name of the .ckpt to be saved.
+
+        Notes
+        -----
+        Size is determined but the second dimension in x_train
         """
         logger = logging.getLogger(__name__)
 
