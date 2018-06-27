@@ -112,8 +112,9 @@ class NeuralNetDetector(object):
                      "b2": b2}
 
         # first temporal layer
-        # NOTE: old training code was using conv2d_VALID
-        layer1 = tf.nn.relu(conv2d(input_layer, W1) + b1)
+        # NOTE: old training code was using conv2d_VALID, old graph building
+        # for prediction was using conv2d
+        layer1 = tf.nn.relu(conv2d_VALID(input_layer, W1) + b1)
 
         # second temporal layer
         layer11 = tf.nn.relu(conv2d(layer1, W11) + b11)

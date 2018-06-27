@@ -12,6 +12,19 @@ from yass.batch import RecordingsReader, BatchProcessor
 from yass import neuralnetwork
 from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
 from yass.geometry import make_channel_index, n_steps_neigh_channels
+from yass.augment import make_training_data
+
+
+def test_can_make_training_data():
+    pass
+
+
+def test_can_train_detector():
+    pass
+
+
+def test_can_train_triage():
+    pass
 
 
 def test_can_use_neural_network_detector(path_to_tests):
