@@ -194,14 +194,14 @@ class NeuralNetTriage(object):
 
         # x and y input tensors
         x_tf = tf.placeholder("float", [self.n_batch, self.waveform_length,
-                                        self.n_neigh])
+                                        self.n_neighbors])
         y_tf = tf.placeholder("float", [self.n_batch])
 
         o_layer, vars_dict = (NeuralNetTriage
                               ._make_network(x_tf,
                                              self.filters_size,
                                              self.waveform_length,
-                                             self.n_neigh))
+                                             self.n_neighbors))
         logits = tf.squeeze(o_layer)
 
         # cross entropy
