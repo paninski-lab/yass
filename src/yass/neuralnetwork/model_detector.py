@@ -360,8 +360,8 @@ class NeuralNetDetector(object):
         o_layer = tf.squeeze(conv2d_VALID(layer11, W2) + b2)
 
         # cross entropy
-        _ = tf.nn.sigmoid_cross_entropy_with_logits(
-            logits=o_layer, labels=y_tf)
+        _ = tf.nn.sigmoid_cross_entropy_with_logits(logits=o_layer,
+                                                    labels=y_tf)
         cross_entropy = tf.reduce_mean(_)
 
         weights = tf.trainable_variables()
