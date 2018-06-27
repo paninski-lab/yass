@@ -170,8 +170,7 @@ class NeuralNetDetector(object):
         temp = tf.transpose(tf.gather(zero_added_layer11, small_channel_index),
                             [0, 2, 3, 1, 4])
 
-        _ = [-1, T, n_neigh, K2]
-        temp2 = conv2d_VALID(tf.reshape(temp, _), W2) + b2
+        temp2 = conv2d_VALID(tf.reshape(temp, [-1, T, n_neigh, K2]), W2) + b2
 
         o_layer = tf.transpose(temp2, [2, 1, 0, 3])
 
@@ -179,15 +178,15 @@ class NeuralNetDetector(object):
         # Output layer transformations #
         ################################
 
-        o_layer_val = o_layer[0, :, :, 0]
+        o_layer_val = tf.squeeze(o_layer)
 
         # probability output - just sigmoid of output layer
         probability_tf = tf.sigmoid(o_layer_val)
 
         # spike index output (local maximum crossing a threshold)
-        temporal_max = max_pool(o_layer, [1, 3, 1, 1]) - 1e-8
+        temporal_max = tf.squeeze(max_pool(o_layer, [1, 3, 1, 1]) - 1e-8)
 
-        higher_than_max_pool = o_layer_val >= temporal_max[0, :, :, 0]
+        higher_than_max_pool = o_layer_val >= temporal_max
 
         higher_than_threshold = (o_layer_val >
                                  np.log(threshold / (1 - threshold)))
