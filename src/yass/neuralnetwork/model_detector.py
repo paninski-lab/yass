@@ -327,9 +327,7 @@ class NeuralNetDetector(object):
         # get parameters
         n_data, R, C = x_train.shape
 
-        vars_dict = NeuralNetDetector._make_network(R,
-                                                    n_filters,
-                                                    C)
+        vars_dict = NeuralNetDetector._make_network(R, n_filters, C)
         W1 = vars_dict['W1']
         b1 = vars_dict['b1']
         W11 = vars_dict['W11']
@@ -370,14 +368,7 @@ class NeuralNetDetector(object):
                         .minimize(regularized_loss))
 
         # saver
-        saver = tf.train.Saver({
-            "W1": W1,
-            "W11": W11,
-            "W2": W2,
-            "b1": b1,
-            "b11": b11,
-            "b2": b2
-        })
+        saver = tf.train.Saver(vars_dict)
 
         ############
         # training #
