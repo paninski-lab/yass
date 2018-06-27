@@ -15,16 +15,95 @@ from yass.geometry import make_channel_index, n_steps_neigh_channels
 from yass.augment import make_training_data
 
 
-def test_can_make_training_data():
-    pass
+def test_can_make_training_data(path_to_tests, path_to_data_folder):
+    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
+    CONFIG = yass.read_config()
+
+    spike_train = np.array([100, 0,
+                            150, 0,
+                            200, 1,
+                            250, 1,
+                            300, 2,
+                            350, 2]).reshape(-1, 2)
+
+    chosen_templates = [0, 1, 2]
+    min_amplitude = 2
+    n_spikes = 500
+
+    make_training_data(CONFIG, spike_train, chosen_templates,
+                       min_amplitude, n_spikes,
+                       data_folder=path_to_data_folder)
 
 
-def test_can_train_detector():
-    pass
+def test_can_train_detector(path_to_tests, path_to_data_folder, tmp_folder):
+    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
+    CONFIG = yass.read_config()
+
+    spike_train = np.array([100, 0,
+                            150, 0,
+                            200, 1,
+                            250, 1,
+                            300, 2,
+                            350, 2]).reshape(-1, 2)
+
+    chosen_templates = [0, 1, 2]
+    min_amplitude = 2
+    n_spikes = 500
+
+    (x_detect, y_detect,
+     x_triage, y_triage,
+     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+                                      min_amplitude, n_spikes,
+                                      data_folder=path_to_data_folder)
+
+    _, waveform_length, n_neighbors = x_detect.shape
+
+    filters = [8, 4]
+
+    path_to_model = path.join(tmp_folder, 'detect-net.ckpt')
+
+    detector = NeuralNetDetector(path_to_model, filters,
+                                 waveform_length, n_neighbors,
+                                 threshold=0.5,
+                                 channel_index=CONFIG.channel_index,
+                                 n_iter=10)
+
+    detector.fit(x_detect, y_detect)
 
 
-def test_can_train_triage():
-    pass
+def test_can_train_triage(path_to_tests, path_to_data_folder, tmp_folder):
+    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
+    CONFIG = yass.read_config()
+
+    spike_train = np.array([100, 0,
+                            150, 0,
+                            200, 1,
+                            250, 1,
+                            300, 2,
+                            350, 2]).reshape(-1, 2)
+
+    chosen_templates = [0, 1, 2]
+    min_amplitude = 2
+    n_spikes = 500
+
+    (x_detect, y_detect,
+     x_triage, y_triage,
+     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+                                      min_amplitude, n_spikes,
+                                      data_folder=path_to_data_folder)
+
+    _, waveform_length, n_neighbors = x_triage.shape
+
+    filters = [8, 4]
+
+    path_to_model = path.join(tmp_folder, 'triage-net.ckpt')
+
+    detector = NeuralNetTriage(path_to_model, filters,
+                               waveform_length, n_neighbors,
+                               threshold=0.5,
+                               n_iter=10)
+
+    detector.fit(x_detect, y_detect)
 
 
 def test_can_use_neural_network_detector(path_to_tests):
