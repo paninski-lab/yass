@@ -131,6 +131,10 @@ class NeuralNetDetector(object):
         spike_index_tf: tf tensor (n_spikes, 2)
             tensorflow tensor that produces spike_index
         """
+        ######################
+        # Loading parameters #
+        ######################
+
         # TODO: need to ask why we are sending different channel indexes
         # save neighbor channel index
         small_channel_index = channel_index[:, :n_neigh]
@@ -140,6 +144,10 @@ class NeuralNetDetector(object):
 
         # Temporal shape of input
         T = tf.shape(x_tf)[0]
+
+        ####################
+        # Building network #
+        ####################
 
         # input tensor into CNN - add one dimension at the beginning and
         # at the end
@@ -167,24 +175,26 @@ class NeuralNetDetector(object):
 
         o_layer = tf.transpose(temp2, [2, 1, 0, 3])
 
-        # temporal max
+        ################################
+        # Output layer transformations #
+        ################################
+
+        # probability output - just sigmoid of output layer
+        probability_tf = tf.sigmoid(o_layer[0, :, :, 0])
+
+        # spike index output (local maximum crossing a threshold)
         temporal_max = max_pool(o_layer, [1, 3, 1, 1]) - 1e-8
 
-        # spike index is local maximum crossing a threshold
         spike_index_tf_all = tf.cast(tf.where(
             tf.logical_and(o_layer[0, :, :, 0] >= temporal_max[0, :, :, 0],
                            o_layer[0, :, :, 0] >
                            np.log(threshold / (1 - threshold)))), 'int32')
 
-        # make probability layer
-        probability_tf = tf.sigmoid(o_layer[0, :, :, 0])
-
-        # remove edge spike time
         spike_index_tf = (cls._remove_edge_spikes(x_tf,
                                                   spike_index_tf_all,
                                                   waveform_length))
 
-        # make waveform tensorflow tensor from the spike index tensor
+        # waveform output from spike index output
         waveform_tf = cls._make_waveform_tf(x_tf,
                                             spike_index_tf,
                                             channel_index,
@@ -336,6 +346,10 @@ class NeuralNetDetector(object):
         path_to_model: string
             name of the .ckpt to be saved
         """
+        ######################
+        # Loading parameters #
+        ######################
+
         logger = logging.getLogger(__name__)
 
         if not path_to_model.endswith('.ckpt'):
@@ -343,6 +357,10 @@ class NeuralNetDetector(object):
 
         # get parameters
         n_data, waveform_length_train, n_neigh_train = x_train.shape
+
+        ####################
+        # Building network #
+        ####################
 
         # x and y input tensors
         x_tf = tf.placeholder("float", [n_batch, waveform_length_train,
@@ -361,6 +379,10 @@ class NeuralNetDetector(object):
 
         # third layer: spatial convolution
         o_layer = tf.squeeze(conv2d_VALID(layer11, W2) + b2)
+
+        ##########################
+        # Optimization objective #
+        ##########################
 
         # cross entropy
         _ = tf.nn.sigmoid_cross_entropy_with_logits(logits=o_layer,
@@ -381,12 +403,12 @@ class NeuralNetDetector(object):
         train_step = (tf.train.AdamOptimizer(train_step_size)
                         .minimize(regularized_loss))
 
+        ############
+        # Training #
+        ############
+
         # saver
         saver = tf.train.Saver(vars_dict)
-
-        ############
-        # training #
-        ############
 
         logger.info('Training detector network...')
 
