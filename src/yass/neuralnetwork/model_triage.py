@@ -49,7 +49,16 @@ class NeuralNetTriage(object):
                  waveform_length, n_neighbors, threshold,
                  n_iter=50000, n_batch=512, l2_reg_scale=0.00000005,
                  train_step_size=0.001, input_tensor=None):
+
         self.logger = logging.getLogger(__name__)
+
+        if input_tensor is not None:
+            if n_neighbors != input_tensor.shape[2]:
+                self.logger.info('Network n_neighbors ({}) does not match '
+                                 'n_neighbors on input_tensor ({}), using '
+                                 'only the first n_neighbors from the '
+                                 'input_tensor'.format(n_neighbors,
+                                                       input_tensor.shape[2]))
 
         self.path_to_model = path_to_model
 
@@ -86,7 +95,7 @@ class NeuralNetTriage(object):
 
     @classmethod
     def _make_network(cls, input_tensor, filters_size, waveform_length,
-                      n_neigh):
+                      n_neighbors):
         """Mates tensorflow network, from first layer to output layer
         """
         K1, K2 = filters_size
@@ -98,7 +107,7 @@ class NeuralNetTriage(object):
         W11 = weight_variable([1, 1, K1, K2])
         b11 = bias_variable([K2])
 
-        W2 = weight_variable([1, n_neigh, K2, 1])
+        W2 = weight_variable([1, n_neighbors, K2, 1])
         b2 = bias_variable([1])
 
         # first layer: temporal feature
@@ -117,12 +126,12 @@ class NeuralNetTriage(object):
         return o_layer, vars_dict
 
     def _make_graph(self, threshold, input_tensor, filters_size,
-                    waveform_length, n_neigh):
+                    waveform_length, n_neighbors):
         """Builds graph for triage
 
         Parameters:
         -----------
-        input_tensor: tf tensor (n_spikes, n_temporal_length, n_neigh)
+        input_tensor: tf tensor (n_spikes, n_temporal_length, n_neighbors)
             tf tensor that produces spikes waveforms
 
         threshold: int
@@ -137,7 +146,7 @@ class NeuralNetTriage(object):
         """
         # input tensor (waveforms)
         if input_tensor is None:
-            self.x_tf = tf.placeholder("float", [None, None, n_neigh])
+            self.x_tf = tf.placeholder("float", [None, None, n_neighbors])
         else:
             self.x_tf = input_tensor
 
@@ -145,7 +154,7 @@ class NeuralNetTriage(object):
             vars_dict) = NeuralNetTriage._make_network(self.x_tf,
                                                        filters_size,
                                                        waveform_length,
-                                                       n_neigh)
+                                                       n_neighbors)
 
         self.saver = tf.train.Saver(vars_dict)
 

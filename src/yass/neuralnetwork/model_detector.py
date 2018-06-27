@@ -75,7 +75,7 @@ class NeuralNetDetector(object):
         self.saver = tf.train.Saver(vars_dict)
 
     @classmethod
-    def load(cls, path_to_model, threshold):
+    def load(cls, path_to_model, threshold, channel_index):
 
         if not path_to_model.endswith('.ckpt'):
             path_to_model = path_to_model+'.ckpt'
@@ -86,7 +86,7 @@ class NeuralNetDetector(object):
 
         return cls(path_to_model, params['filters_size'],
                    params['waveform_length'], params['n_neighbors'],
-                   threshold)
+                   threshold, channel_index)
 
     @classmethod
     def _make_network(cls, input_layer, waveform_length, filters_size,
