@@ -60,6 +60,12 @@ class NeuralNetDetector(object):
         self.n_neighbors = n_neighbors
         self.waveform_length = waveform_length
 
+        self.threshold = threshold
+        self.n_batch = n_batch
+        self.l2_reg_scale = l2_reg_scale
+        self.train_step_size = train_step_size
+        self.n_iter = n_iter
+
         # make spike_index tensorflow tensor
         (self.x_tf,
          self.spike_index_tf,
