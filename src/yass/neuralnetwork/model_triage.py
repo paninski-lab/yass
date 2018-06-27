@@ -48,7 +48,7 @@ class NeuralNetTriage(object):
     def __init__(self, path_to_model, filters_size,
                  waveform_length, threshold, n_neighbors,
                  n_iter=50000, n_batch=512, l2_reg_scale=0.00000005,
-                 train_step_size=0.001, input_tensor=None):
+                 train_step_size=0.001):
         self.logger = logging.getLogger(__name__)
 
         self.path_to_model = path_to_model
@@ -63,7 +63,7 @@ class NeuralNetTriage(object):
         self.train_step_size = train_step_size
         self.n_iter = n_iter
 
-        self.idx_clean = self._make_graph(threshold, input_tensor,
+        self.idx_clean = self._make_graph(threshold, None,
                                           filters_size,
                                           waveform_length,
                                           n_neighbors)
