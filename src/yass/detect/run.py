@@ -276,8 +276,8 @@ def run_neural_network(standarized_path, standarized_params,
         triage_fname = CONFIG.detect.neural_network_triage.filename
 
         # instantiate neural networks
-        NND = NeuralNetDetector(detection_fname, detection_th,
-                                CONFIG.channel_index)
+        NND = NeuralNetDetector.load(detection_fname, detection_th,
+                                     CONFIG.channel_index)
         n_neighbors = NND.filters_dict['n_neighbors']
         NNT = NeuralNetTriage.load(triage_fname, triage_th,
                                    NND.waveform_tf[:, :, :n_neighbors])

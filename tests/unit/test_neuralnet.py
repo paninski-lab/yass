@@ -32,8 +32,8 @@ def test_can_use_neural_network_detector(path_to_tests):
     triage_fname = CONFIG.detect.neural_network_triage.filename
 
     # instantiate neural networks
-    NND = NeuralNetDetector(detection_fname, detection_th,
-                            channel_index)
+    NND = NeuralNetDetector.load(detection_fname, detection_th,
+                                 channel_index)
     n_neighbors = NND.filters_dict['n_neighbors']
     NNT = NeuralNetTriage.load(triage_fname, triage_th,
                                NND.waveform_tf[:, :, :n_neighbors])
@@ -76,8 +76,8 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests):
     triage_fname = CONFIG.detect.neural_network_triage.filename
 
     # instantiate neural networks
-    NND = NeuralNetDetector(detection_fname, detection_th,
-                            channel_index)
+    NND = NeuralNetDetector.load(detection_fname, detection_th,
+                                 channel_index)
     n_neighbors = NND.filters_dict['n_neighbors']
     NNT = NeuralNetTriage.load(triage_fname, triage_th,
                                NND.waveform_tf[:, :, :n_neighbors])
