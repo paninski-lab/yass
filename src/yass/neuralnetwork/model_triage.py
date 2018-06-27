@@ -89,8 +89,11 @@ class NeuralNetTriage(object):
         else:
             self.x_tf = input_tensor
 
-        self.o_layer, _ = NeuralNetTriage._make_network(self.x_tf, filters,
-                                                        size, n_neigh)
+        self.o_layer, vars_dict = NeuralNetTriage._make_network(self.x_tf,
+                                                                filters,
+                                                                size, n_neigh)
+
+        self.saver = tf.train.Saver(vars_dict)
 
         # thrshold it
         return self.o_layer[:, 0, 0, 0] > np.log(threshold / (1 - threshold))
