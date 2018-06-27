@@ -10,43 +10,46 @@ from yass.neuralnetwork.parameter_saver import save_triage_network_params
 
 
 class NeuralNetTriage(object):
-    """
-        Class for training and running convolutional neural network detector
-        for spike detection
-        and autoencoder for feature extraction.
+    """Convolutional Neural Network for spike detection
 
-        Parameters
-        ----------
-        path_to_model: str
-            location of trained neural net triage
-        threshold: float
-            Threshold between 0 and 1
+    Parameters
+    ----------
+    path_to_model: str
+        location of trained neural net triage
 
-        Attributes
-        -----------
-        C: int
-            spatial filter size of the spatial convolutional layer.
-        R1: int
-            temporal filter sizes for the temporal convolutional layers.
-        K1,K2: int
-            number of filters for each convolutional layer.
-        W1, W11, W2: tf.Variable
-            [temporal_filter_size, spatial_filter_size, input_filter_number,
-            ouput_filter_number] weight matrices
-            for the covolutional layers.
-        b1, b11, b2: tf.Variable
-            bias variable for the convolutional layers.
-        saver: tf.train.Saver
-            saver object for the neural network detector.
-        detector: NeuralNetDetector
-            Instance of detector
-        threshold: int
-            threshold for neural net triage
+    threshold: float
+        Threshold between 0 and 1, values higher than the threshold are
+        considered spikes
+
+    input_tensor
+
+    Attributes
+    -----------
+    C: int
+        spatial filter size of the spatial convolutional layer.
+    R1: int
+        temporal filter sizes for the temporal convolutional layers.
+    K1,K2: int
+        number of filters for each convolutional layer.
+    W1, W11, W2: tf.Variable
+        [temporal_filter_size, spatial_filter_size, input_filter_number,
+        ouput_filter_number] weight matrices
+        for the covolutional layers.
+    b1, b11, b2: tf.Variable
+        bias variable for the convolutional layers.
+    saver: tf.train.Saver
+        saver object for the neural network detector.
+    detector: NeuralNetDetector
+        Instance of detector
+    threshold: int
+        threshold for neural net triage
     """
 
     def __init__(self, path_to_model, threshold,
                  input_tensor=None, params=None, n_batch=None,
                  l2_reg_scale=None, train_step_size=None, n_iter=None):
+        self.logger = logging.getLogger(__name__)
+
         self.path_to_model = path_to_model
         self.threshold = threshold
         self.params = params
@@ -171,8 +174,6 @@ class NeuralNetTriage(object):
         -----
         Size is determined but the second dimension in x_train
         """
-        logger = logging.getLogger(__name__)
-
         # get parameters
         n_data, size, n_neigh = x_train.shape
         filters = self.params['filters']
@@ -209,7 +210,7 @@ class NeuralNetTriage(object):
         # training #
         ############
 
-        logger.info('Training triage network...')
+        self.logger.info('Training triage network...')
 
         bar = tqdm(total=self.n_iter)
 
@@ -237,11 +238,12 @@ class NeuralNetTriage(object):
             tp = np.mean(output[y_test == 1] > 0)
             fp = np.mean(output[y_test == 0] > 0)
 
-            logger.info('Approximate training true positive rate: ' + str(tp) +
-                        ', false positive rate: ' + str(fp))
+            self.logger.info('Approximate training true positive rate: '
+                             + str(tp) +
+                             ', false positive rate: ' + str(fp))
         bar.close()
 
-        logger.info('Saving triage network parameters...')
+        self.logger.info('Saving triage network parameters...')
         path_to_params = change_extension(self.path_to_model, 'yaml')
         save_triage_network_params(filters=filters,
                                    size=x_train.shape[1],
