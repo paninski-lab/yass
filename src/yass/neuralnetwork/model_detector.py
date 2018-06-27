@@ -61,28 +61,16 @@ class NeuralNetDetector(object):
         self.filters_dict = load_yaml(path_to_filters)
 
         # initialize neural net weights and add as attributes
-        wf_length = self.filters_dict['size']
-        self.K1, self.K2 = self.filters_dict['filters']
-        self.n_neigh = self.filters_dict['n_neighbors']
+        waveform_length = self.filters_dict['size']
+        filters_size = self.filters_dict['filters']
+        n_neigh = self.filters_dict['n_neighbors']
 
-        self.W1 = weight_variable([wf_length, 1, 1, self.K1])
-        self.b1 = bias_variable([self.K1])
-
-        self.W11 = weight_variable([1, 1, self.K1, self.K2])
-        self.b11 = bias_variable([self.K2])
-
-        self.W2 = weight_variable([1, self.n_neigh, self.K2, 1])
-        self.b2 = bias_variable([1])
+        vars_dict = NeuralNetDetector._make_network(waveform_length,
+                                                    filters_size,
+                                                    n_neigh)
 
         # create saver variables
-        self.saver = tf.train.Saver({
-            "W1": self.W1,
-            "W11": self.W11,
-            "W2": self.W2,
-            "b1": self.b1,
-            "b11": self.b11,
-            "b2": self.b2
-        })
+        self.saver = tf.train.Saver(vars_dict)
 
         # make spike_index tensorflow tensor
         (self.spike_index_tf_all,
@@ -91,11 +79,30 @@ class NeuralNetDetector(object):
         # remove edge spike time
         self.spike_index_tf = (self.
                                _remove_edge_spikes(self.spike_index_tf_all,
-                                                   wf_length))
+                                                   waveform_length))
 
         # make waveform tensorflow tensor from the spike index tensor
         self.waveform_tf = self._make_waveform_tf(self.spike_index_tf,
-                                                  channel_index, wf_length)
+                                                  channel_index,
+                                                  waveform_length)
+
+    @classmethod
+    def _make_network(cls, waveform_length, filters_size, n_neigh):
+        K1, K2 = filters_size
+
+        W1 = weight_variable([waveform_length, 1, 1, K1])
+        b1 = bias_variable([K1])
+
+        W11 = weight_variable([1, 1, K1, K2])
+        b11 = bias_variable([K2])
+
+        W2 = weight_variable([1, n_neigh, K2, 1])
+        b2 = bias_variable([1])
+
+        vars_dict = {"W1": W1, "W11": W11, "W2": W2, "b1": b1, "b11": b11,
+                     "b2": b2}
+
+        return vars_dict
 
     def _make_graph(self, channel_index, threshold):
         """Build tensorflow graph with input and two output layers
@@ -319,25 +326,28 @@ class NeuralNetDetector(object):
 
         # get parameters
         n_data, R, C = x_train.shape
-        K1, K2 = n_filters
+
+        vars_dict = NeuralNetDetector._make_network(R,
+                                                    n_filters,
+                                                    C)
+        W1 = vars_dict['W1']
+        b1 = vars_dict['b1']
+        W11 = vars_dict['W11']
+        b11 = vars_dict['b11']
+        W2 = vars_dict['W2']
+        b2 = vars_dict['b2']
 
         # x and y input tensors
         x_tf = tf.placeholder("float", [n_batch, R, C])
         y_tf = tf.placeholder("float", [n_batch])
 
         # first layer: temporal feature
-        W1 = weight_variable([R, 1, 1, K1])
-        b1 = bias_variable([K1])
         layer1 = tf.nn.relu(conv2d_VALID(tf.expand_dims(x_tf, -1), W1) + b1)
 
         # second layer: feataure mapping
-        W11 = weight_variable([1, 1, K1, K2])
-        b11 = bias_variable([K2])
         layer11 = tf.nn.relu(conv2d(layer1, W11) + b11)
 
         # third layer: spatial convolution
-        W2 = weight_variable([1, C, K2, 1])
-        b2 = bias_variable([1])
         o_layer = tf.squeeze(conv2d_VALID(layer11, W2) + b2)
 
         # cross entropy
