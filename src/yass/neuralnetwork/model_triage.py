@@ -46,9 +46,9 @@ class NeuralNetTriage(object):
     """
 
     def __init__(self, path_to_model, filters_size,
-                 waveform_length, threshold, n_neighbors,
+                 waveform_length, n_neighbors, threshold,
                  n_iter=50000, n_batch=512, l2_reg_scale=0.00000005,
-                 train_step_size=0.001):
+                 train_step_size=0.001, input_tensor=None):
         self.logger = logging.getLogger(__name__)
 
         self.path_to_model = path_to_model
@@ -63,13 +63,13 @@ class NeuralNetTriage(object):
         self.train_step_size = train_step_size
         self.n_iter = n_iter
 
-        self.idx_clean = self._make_graph(threshold, None,
+        self.idx_clean = self._make_graph(threshold, input_tensor,
                                           filters_size,
                                           waveform_length,
                                           n_neighbors)
 
     @classmethod
-    def load_from_file(cls, path_to_model, threshold, input_tensor=None):
+    def load(cls, path_to_model, threshold, input_tensor=None):
         """Load a model from a file
         """
         if not path_to_model.endswith('.ckpt'):
@@ -79,8 +79,10 @@ class NeuralNetTriage(object):
         path_to_filters = change_extension(path_to_model, 'yaml')
         params = load_yaml(path_to_filters)
 
-        return NeuralNetTriage(path_to_model, threshold, input_tensor,
-                               params)
+        return NeuralNetTriage(path_to_model, params['filters_size'],
+                               params['waveform_length'],
+                               params['n_neighbors'], threshold,
+                               input_tensor=input_tensor)
 
     @classmethod
     def _make_network(cls, input_tensor, filters_size, waveform_length,
@@ -269,7 +271,7 @@ class NeuralNetTriage(object):
 
         self.logger.info('Saving triage network parameters...')
         path_to_params = change_extension(self.path_to_model, 'yaml')
-        save_triage_network_params(filters=self.filters_size,
+        save_triage_network_params(filters_size=self.filters_size,
                                    waveform_length=self.waveform_length,
                                    n_neighbors=self.n_neighbors,
                                    output_path=path_to_params)
