@@ -97,6 +97,7 @@ class NeuralNetDetector(object):
                      "b2": b2}
 
         # first temporal layer
+        # NOTE: old training code was using conv2d_VALID
         layer1 = tf.nn.relu(conv2d(input_layer, W1) + b1)
 
         # second temporal layer
@@ -317,7 +318,7 @@ class NeuralNetDetector(object):
         return output
 
     @classmethod
-    def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
+    def train(cls, x_train, y_train, filters_size, n_iter, n_batch,
               l2_reg_scale, train_step_size, path_to_model):
         """
         Trains the neural network detector for spike detection
@@ -335,8 +336,6 @@ class NeuralNetDetector(object):
         path_to_model: string
             name of the .ckpt to be saved
         """
-        # FIXME reuse the make_graph method to avoid repeating code
-
         logger = logging.getLogger(__name__)
 
         if not path_to_model.endswith('.ckpt'):
@@ -345,25 +344,17 @@ class NeuralNetDetector(object):
         # get parameters
         n_data, R, C = x_train.shape
 
-        vars_dict = NeuralNetDetector._make_network(R, n_filters, C)
-        W1 = vars_dict['W1']
-        b1 = vars_dict['b1']
-        W11 = vars_dict['W11']
-        b11 = vars_dict['b11']
-        W2 = vars_dict['W2']
-        b2 = vars_dict['b2']
-
         # x and y input tensors
         x_tf = tf.placeholder("float", [n_batch, R, C])
         y_tf = tf.placeholder("float", [n_batch])
 
         input_tf = tf.expand_dims(x_tf, -1)
 
-        # first layer: temporal feature
-        layer1 = tf.nn.relu(conv2d_VALID(input_tf, W1) + b1)
+        vars_dict, layer11 = cls._make_network(cls, input_tf, R, filters_size,
+                                               n_neigh)
 
-        # second layer: feataure mapping
-        layer11 = tf.nn.relu(conv2d(layer1, W11) + b11)
+        W2 = vars_dict['W2']
+        b2 = vars_dict['b2']
 
         # third layer: spatial convolution
         o_layer = tf.squeeze(conv2d_VALID(layer11, W2) + b2)
@@ -436,7 +427,7 @@ class NeuralNetDetector(object):
         bar.close()
 
         logger.info('Saving detector network parameters...')
-        save_detect_network_params(filters=n_filters,
+        save_detect_network_params(filters=filters_size,
                                    size=x_train.shape[1],
                                    n_neighbors=x_train.shape[2],
                                    output_path=change_extension(path_to_model,
