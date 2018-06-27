@@ -13,7 +13,6 @@ from yass import neuralnetwork
 from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
 from yass.geometry import make_channel_index, n_steps_neigh_channels
 from yass.augment import make_training_data
-import pytest
 
 
 def test_can_make_training_data(path_to_tests, path_to_data_folder):
@@ -36,7 +35,6 @@ def test_can_make_training_data(path_to_tests, path_to_data_folder):
                        data_folder=path_to_data_folder)
 
 
-@pytest.mark.xfail
 def test_can_train_detector(path_to_tests, path_to_data_folder, tmp_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
@@ -73,7 +71,6 @@ def test_can_train_detector(path_to_tests, path_to_data_folder, tmp_folder):
     detector.fit(x_detect, y_detect)
 
 
-@pytest.mark.xfail
 def test_can_train_triage(path_to_tests, path_to_data_folder, tmp_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()

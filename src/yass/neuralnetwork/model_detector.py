@@ -96,7 +96,7 @@ class NeuralNetDetector(object):
 
     @classmethod
     def _make_network(cls, input_layer, waveform_length, filters_size,
-                      n_neigh):
+                      n_neigh, padding):
         K1, K2 = filters_size
 
         W1 = weight_variable([waveform_length, 1, 1, K1])
@@ -112,9 +112,10 @@ class NeuralNetDetector(object):
                      "b2": b2}
 
         # first temporal layer
-        # NOTE: old training code was using conv2d_VALID, old graph building
-        # for prediction was using conv2d
-        layer1 = tf.nn.relu(conv2d(input_layer, W1) + b1)
+        # FIXME: old training code was using conv2d_VALID, old graph building
+        # for prediction was using conv2d, that's why I need to add the
+        # padding parameter, otherwise it breaks. we need to fix it
+        layer1 = tf.nn.relu(conv2d(input_layer, W1, padding) + b1)
 
         # second temporal layer
         layer11 = tf.nn.relu(conv2d(layer1, W11) + b11)
@@ -172,7 +173,8 @@ class NeuralNetDetector(object):
         vars_dict, layer11 = cls._make_network(x_cnn_tf,
                                                waveform_length,
                                                filters_size,
-                                               n_neigh)
+                                               n_neigh,
+                                               padding='SAME')
         W2 = vars_dict['W2']
         b2 = vars_dict['b2']
 
@@ -399,7 +401,8 @@ class NeuralNetDetector(object):
                               ._make_network(input_tf,
                                              self.waveform_length,
                                              self.filters_size,
-                                             self.n_neighbors))
+                                             self.n_neighbors,
+                                             padding='VALID'))
 
         W2 = vars_dict['W2']
         b2 = vars_dict['b2']

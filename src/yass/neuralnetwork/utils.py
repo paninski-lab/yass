@@ -11,7 +11,7 @@ def bias_variable(shape, varName=None):
     return tf.Variable(initial, name=varName)
 
 
-def conv2d(x, W):
+def conv2d(x, W, padding='SAME'):
     """
     Performs 2-dimensional convolution with SAME padding.
 
@@ -28,7 +28,7 @@ def conv2d(x, W):
         output of the convolution function with the same shape as x.
     """
 
-    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding='SAME')
+    return tf.nn.conv2d(x, W, strides=[1, 1, 1, 1], padding=padding)
 
 
 def conv2d_VALID(x, W):
