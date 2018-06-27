@@ -15,7 +15,7 @@ class NeuralNetTriage(object):
     Parameters
     ----------
     path_to_model: str
-        location of trained neural net triage
+        Where to save the trained model
 
     threshold: float
         Threshold between 0 and 1, values higher than the threshold are
@@ -45,23 +45,28 @@ class NeuralNetTriage(object):
         threshold for neural net triage
     """
 
-    def __init__(self, path_to_model, threshold,
-                 input_tensor=None, params=None, n_batch=None,
-                 l2_reg_scale=None, train_step_size=None, n_iter=None):
+    def __init__(self, path_to_model, filters_size,
+                 waveform_length, threshold, n_neighbors,
+                 n_iter=50000, n_batch=512, l2_reg_scale=0.00000005,
+                 train_step_size=0.001, input_tensor=None):
         self.logger = logging.getLogger(__name__)
 
         self.path_to_model = path_to_model
+
+        self.filters_size = filters_size
+        self.n_neighbors = n_neighbors
+        self.waveform_length = waveform_length
+
         self.threshold = threshold
-        self.params = params
         self.n_batch = n_batch
         self.l2_reg_scale = l2_reg_scale
         self.train_step_size = train_step_size
         self.n_iter = n_iter
 
         self.idx_clean = self._make_graph(threshold, input_tensor,
-                                          self.params['filters'],
-                                          self.params['size'],
-                                          self.params['n_neighbors'])
+                                          filters_size,
+                                          waveform_length,
+                                          n_neighbors)
 
     @classmethod
     def load_from_file(cls, path_to_model, threshold, input_tensor=None):
@@ -78,13 +83,14 @@ class NeuralNetTriage(object):
                                params)
 
     @classmethod
-    def _make_network(cls, input_tensor, filters, size, n_neigh):
+    def _make_network(cls, input_tensor, filters_size, waveform_length,
+                      n_neigh):
         """Mates tensorflow network, from first layer to output layer
         """
-        K1, K2 = filters
+        K1, K2 = filters_size
 
         # initialize and save nn weights
-        W1 = weight_variable([size, 1, 1, K1])
+        W1 = weight_variable([waveform_length, 1, 1, K1])
         b1 = bias_variable([K1])
 
         W11 = weight_variable([1, 1, K1, K2])
@@ -108,7 +114,8 @@ class NeuralNetTriage(object):
 
         return o_layer, vars_dict
 
-    def _make_graph(self, threshold, input_tensor, filters, size, n_neigh):
+    def _make_graph(self, threshold, input_tensor, filters_size,
+                    waveform_length, n_neigh):
         """Builds graph for triage
 
         Parameters:
@@ -132,9 +139,11 @@ class NeuralNetTriage(object):
         else:
             self.x_tf = input_tensor
 
-        self.o_layer, vars_dict = NeuralNetTriage._make_network(self.x_tf,
-                                                                filters,
-                                                                size, n_neigh)
+        (self.o_layer,
+            vars_dict) = NeuralNetTriage._make_network(self.x_tf,
+                                                       filters_size,
+                                                       waveform_length,
+                                                       n_neigh)
 
         self.saver = tf.train.Saver(vars_dict)
 
@@ -175,15 +184,24 @@ class NeuralNetTriage(object):
         Size is determined but the second dimension in x_train
         """
         # get parameters
-        n_data, size, n_neigh = x_train.shape
-        filters = self.params['filters']
+        n_data, waveform_length_train, n_neigh_train = x_train.shape
+
+        if self.waveform_length != waveform_length_train:
+            raise ValueError('waveform length from network ({}) does not '
+                             'match training data ({})'
+                             .format(self.waveform_length,
+                                     waveform_length_train))
 
         # x and y input tensors
-        x_tf = tf.placeholder("float", [self.n_batch, size, n_neigh])
+        x_tf = tf.placeholder("float", [self.n_batch, self.waveform_length,
+                                        self.n_neigh])
         y_tf = tf.placeholder("float", [self.n_batch])
 
-        o_layer, vars_dict = NeuralNetTriage._make_network(x_tf, filters,
-                                                           size, n_neigh)
+        o_layer, vars_dict = (NeuralNetTriage
+                              ._make_network(x_tf,
+                                             self.filters_size,
+                                             self.waveform_length,
+                                             self.n_neigh))
         logits = tf.squeeze(o_layer)
 
         # cross entropy
@@ -245,7 +263,7 @@ class NeuralNetTriage(object):
 
         self.logger.info('Saving triage network parameters...')
         path_to_params = change_extension(self.path_to_model, 'yaml')
-        save_triage_network_params(filters=filters,
-                                   size=x_train.shape[1],
-                                   n_neighbors=x_train.shape[2],
+        save_triage_network_params(filters=self.filters_size,
+                                   waveform_length=self.waveform_length,
+                                   n_neighbors=self.n_neighbors,
                                    output_path=path_to_params)
