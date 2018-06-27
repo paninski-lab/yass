@@ -170,6 +170,10 @@ class NeuralNetTriage(object):
     def predict(self, waveforms):
         """Triage waveforms
         """
+        _, waveform_length, n_neighbors = waveforms.shape
+
+        self._validate_dimensions(waveform_length, n_neighbors)
+
         with tf.Session() as sess:
             self.restore(sess)
 
@@ -198,17 +202,7 @@ class NeuralNetTriage(object):
         # get parameters
         n_data, waveform_length_train, n_neighbors_train = x_train.shape
 
-        if self.waveform_length != waveform_length_train:
-            raise ValueError('waveform length from network ({}) does not '
-                             'match training data ({})'
-                             .format(self.waveform_length,
-                                     waveform_length_train))
-
-        if self.n_neighbors != n_neighbors_train:
-            raise ValueError('number of n_neighbors from network ({}) does '
-                             'not match training data ({})'
-                             .format(self.n_neigh,
-                                     n_neighbors_train))
+        self._validate_dimensions(waveform_length_train, n_neighbors_train)
 
         # x and y input tensors
         x_tf = tf.placeholder("float", [self.n_batch, self.waveform_length,
@@ -286,3 +280,16 @@ class NeuralNetTriage(object):
                                    waveform_length=self.waveform_length,
                                    n_neighbors=self.n_neighbors,
                                    output_path=path_to_params)
+
+    def _validate_dimensions(self, waveform_length, n_neighbors):
+        if self.waveform_length != waveform_length:
+            raise ValueError('waveform length from network ({}) does not '
+                             'match input data ({})'
+                             .format(self.waveform_length,
+                                     waveform_length))
+
+        if self.n_neighbors != n_neighbors:
+            raise ValueError('number of n_neighbors from network ({}) does '
+                             'not match input data ({})'
+                             .format(self.n_neighbors,
+                                     n_neighbors))

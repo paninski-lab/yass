@@ -79,6 +79,11 @@ def path_to_data_folder():
 
 
 @pytest.fixture(scope='session')
+def path_to_standarized_data():
+    return os.path.join(PATH_TO_TESTS, 'data', 'preprocess', 'standarized.bin')
+
+
+@pytest.fixture(scope='session')
 def path_to_output_reference():
     return os.path.join(PATH_TO_TESTS, 'data', 'output_reference')
 

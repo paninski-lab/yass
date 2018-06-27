@@ -13,6 +13,7 @@ from yass import neuralnetwork
 from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
 from yass.geometry import make_channel_index, n_steps_neigh_channels
 from yass.augment import make_training_data
+from yass.explore import RecordingExplorer
 
 
 spike_train = np.array([100, 0,
@@ -133,13 +134,101 @@ def test_can_reload_triage(path_to_tests, path_to_data_folder, tmp_folder):
     NeuralNetTriage.load(path_to_model, threshold=0.5)
 
 
-def test_can_use_neural_network_detector(path_to_tests):
+def test_can_use_detector_and_triage_after_fitting(path_to_tests,
+                                                   path_to_data_folder,
+                                                   tmp_folder,
+                                                   path_to_standarized_data):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
-    data = RecordingsReader(path.join(path_to_tests, 'data',
-                                      'preprocess', 'standarized.bin'),
-                            loader='array').data
+    (x_detect, y_detect,
+     x_triage, y_triage,
+     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+                                      min_amplitude, n_spikes,
+                                      data_folder=path_to_data_folder)
+
+    _, waveform_length, n_neighbors = x_detect.shape
+
+    path_to_model = path.join(tmp_folder, 'detect-net.ckpt')
+
+    detector = NeuralNetDetector(path_to_model, filters,
+                                 waveform_length, n_neighbors,
+                                 threshold=0.5,
+                                 channel_index=CONFIG.channel_index,
+                                 n_iter=10)
+
+    detector.fit(x_detect, y_detect)
+
+    triage = NeuralNetTriage(path_to_model, filters,
+                             waveform_length, n_neighbors,
+                             threshold=0.5,
+                             n_iter=10)
+
+    triage.fit(x_detect, y_detect)
+
+    data = RecordingExplorer(path_to_standarized_data).reader.data
+
+    output_names = ('spike_index', 'waveform', 'probability')
+
+    (spike_index, waveform,
+        proba) = detector.predict(data, output_names=output_names)
+
+    triage.predict(waveform[:, :, :n_neighbors])
+
+
+def test_can_use_detector_and_triage_after_reloading(path_to_tests,
+                                                     path_to_data_folder,
+                                                     tmp_folder,
+                                                     path_to_standarized_data):
+    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
+    CONFIG = yass.read_config()
+
+    (x_detect, y_detect,
+     x_triage, y_triage,
+     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+                                      min_amplitude, n_spikes,
+                                      data_folder=path_to_data_folder)
+
+    _, waveform_length, n_neighbors = x_detect.shape
+
+    path_to_model = path.join(tmp_folder, 'detect-net.ckpt')
+
+    detector = NeuralNetDetector(path_to_model, filters,
+                                 waveform_length, n_neighbors,
+                                 threshold=0.5,
+                                 channel_index=CONFIG.channel_index,
+                                 n_iter=10)
+
+    detector.fit(x_detect, y_detect)
+
+    detector = NeuralNetDetector.load(path_to_model, threshold=0.5,
+                                      channel_index=CONFIG.channel_index)
+
+    triage = NeuralNetTriage(path_to_model, filters,
+                             waveform_length, n_neighbors,
+                             threshold=0.5,
+                             n_iter=10)
+
+    triage.fit(x_detect, y_detect)
+
+    triage = NeuralNetTriage.load(path_to_model, threshold=0.5)
+
+    data = RecordingExplorer(path_to_standarized_data).reader.data
+
+    output_names = ('spike_index', 'waveform', 'probability')
+
+    (spike_index, waveform,
+        proba) = detector.predict(data, output_names=output_names)
+
+    triage.predict(waveform[:, :, :n_neighbors])
+
+
+def test_can_use_neural_network_detector(path_to_tests,
+                                         path_to_standarized_data):
+    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
+    CONFIG = yass.read_config()
+
+    data = RecordingsReader(path_to_standarized_data, loader='array').data
 
     channel_index = make_channel_index(CONFIG.neigh_channels,
                                        CONFIG.geom)
@@ -173,12 +262,12 @@ def test_can_use_neural_network_detector(path_to_tests):
                                                   rot)
 
 
-def test_splitting_in_batches_does_not_affect_result(path_to_tests):
+def test_splitting_in_batches_does_not_affect_result(path_to_tests,
+                                                     path_to_standarized_data):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
-    PATH_TO_DATA = path.join(path_to_tests, 'data',
-                             'preprocess', 'standarized.bin')
+    PATH_TO_DATA = path_to_standarized_data
 
     data = RecordingsReader(PATH_TO_DATA, loader='array').data
 
