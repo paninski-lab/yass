@@ -125,7 +125,7 @@ class NeuralNetTriage(object):
         """
         # input tensor (waveforms)
         if input_tensor is None:
-            self.x_tf = tf.placeholder("float", [None, None, self.C])
+            self.x_tf = tf.placeholder("float", [None, None, n_neigh])
         else:
             self.x_tf = input_tensor
 
