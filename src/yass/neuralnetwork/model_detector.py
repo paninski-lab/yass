@@ -65,9 +65,6 @@ class NeuralNetDetector(object):
         filters_size = self.filters_dict['filters']
         n_neigh = self.filters_dict['n_neighbors']
 
-        # save neighbor channel index
-        channel_index = channel_index[:, :n_neigh]
-
         # make spike_index tensorflow tensor
         (self.x_tf,
          self.spike_index_tf,
@@ -133,6 +130,10 @@ class NeuralNetDetector(object):
         spike_index_tf: tf tensor (n_spikes, 2)
             tensorflow tensor that produces spike_index
         """
+        # TODO: need to ask why we are sending different channel indexes
+        # save neighbor channel index
+        small_channel_index = channel_index[:, :n_neigh]
+
         # placeholder for input recording
         x_tf = tf.placeholder("float", [None, None])
 
@@ -157,7 +158,7 @@ class NeuralNetDetector(object):
                                         tf.zeros((1, 1, T, K2))),
                                        axis=0)
 
-        temp = tf.transpose(tf.gather(zero_added_layer11, channel_index),
+        temp = tf.transpose(tf.gather(zero_added_layer11, small_channel_index),
                             [0, 2, 3, 1, 4])
 
         _ = [-1, T, n_neigh, K2]
