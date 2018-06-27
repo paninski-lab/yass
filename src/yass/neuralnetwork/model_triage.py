@@ -184,7 +184,7 @@ class NeuralNetTriage(object):
         Size is determined but the second dimension in x_train
         """
         # get parameters
-        n_data, waveform_length_train, n_neigh_train = x_train.shape
+        n_data, waveform_length_train, n_neighbors_train = x_train.shape
 
         if self.waveform_length != waveform_length_train:
             raise ValueError('waveform length from network ({}) does not '
@@ -192,11 +192,11 @@ class NeuralNetTriage(object):
                              .format(self.waveform_length,
                                      waveform_length_train))
 
-        if self.n_neigh != n_neigh_train:
+        if self.n_neighbors != n_neighbors_train:
             raise ValueError('number of n_neighbors from network ({}) does '
                              'not match training data ({})'
                              .format(self.n_neigh,
-                                     n_neigh_train))
+                                     n_neighbors_train))
 
         # x and y input tensors
         x_tf = tf.placeholder("float", [self.n_batch, self.waveform_length,
