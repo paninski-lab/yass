@@ -58,7 +58,7 @@ class NeuralNetTriage(object):
         self.idx_clean = self._make_graph(threshold, input_tensor,
                                           self.params['filters'],
                                           self.params['size'],
-                                          self.params['n_neigh'])
+                                          self.params['n_neighbors'])
 
     @classmethod
     def load_from_file(cls, path_to_model, threshold, input_tensor=None):
