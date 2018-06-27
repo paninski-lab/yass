@@ -192,6 +192,12 @@ class NeuralNetTriage(object):
                              .format(self.waveform_length,
                                      waveform_length_train))
 
+        if self.n_neigh != n_neigh_train:
+            raise ValueError('number of n_neighbors from network ({}) does '
+                             'not match training data ({})'
+                             .format(self.n_neigh,
+                                     n_neigh_train))
+
         # x and y input tensors
         x_tf = tf.placeholder("float", [self.n_batch, self.waveform_length,
                                         self.n_neighbors])
