@@ -276,11 +276,10 @@ def run_neural_network(standarized_path, standarized_params,
         triage_fname = CONFIG.detect.neural_network_triage.filename
 
         # instantiate neural networks
-        NND = NeuralNetDetector(detection_fname, detection_th,
-                                CONFIG.channel_index)
-        n_neighbors = NND.filters_dict['n_neighbors']
-        NNT = NeuralNetTriage(triage_fname, triage_th,
-                              input_tensor=NND.waveform_tf[:, :, :n_neighbors])
+        NND = NeuralNetDetector.load(detection_fname, detection_th,
+                                     CONFIG.channel_index)
+        NNT = NeuralNetTriage.load(triage_fname, triage_th,
+                                   input_tensor=NND.waveform_tf)
         NNAE = AutoEncoder(ae_fname, input_tensor=NND.waveform_tf)
 
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)

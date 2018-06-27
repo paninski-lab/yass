@@ -4,7 +4,8 @@ from yass.explore import RecordingExplorer
 
 
 def test_can_read_waveform(path_to_data_folder):
-    e = RecordingExplorer(os.path.join(path_to_data_folder, 'filtered.bin'),
+    e = RecordingExplorer(os.path.join(path_to_data_folder, 'preprocess',
+                                       'filtered.bin'),
                           spike_size=15, dtype='float32', n_channels=10,
                           data_order='channels', loader='array')
 
@@ -15,7 +16,8 @@ def test_can_read_waveform(path_to_data_folder):
 def test_error_raised_if_cannot_read_complete_waveform(path_to_data_folder):
     spike_size = 15
 
-    e = RecordingExplorer(os.path.join(path_to_data_folder, 'filtered.bin'),
+    e = RecordingExplorer(os.path.join(path_to_data_folder, 'preprocess',
+                                       'filtered.bin'),
                           spike_size=spike_size, dtype='float32',
                           n_channels=10, data_order='channels', loader='array')
 

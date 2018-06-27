@@ -42,7 +42,10 @@ class NeuralNetDetector(object):
             neighboring channels
     """
 
-    def __init__(self, path_to_model, threshold, channel_index):
+    def __init__(self, path_to_model, filters_size, waveform_length,
+                 n_neighbors, threshold, channel_index, n_iter=50000,
+                 n_batch=512, l2_reg_scale=0.00000005,
+                 train_step_size=0.001):
         """
         Initializes the attributes for the class NeuralNetDetector.
 
@@ -51,53 +54,77 @@ class NeuralNetDetector(object):
         path_to_model: str
             location of trained neural net detectior
         """
+        self.path_to_model = path_to_model
+
+        self.filters_size = filters_size
+        self.n_neighbors = n_neighbors
+        self.waveform_length = waveform_length
+
+        self.threshold = threshold
+        self.n_batch = n_batch
+        self.l2_reg_scale = l2_reg_scale
+        self.train_step_size = train_step_size
+        self.n_iter = n_iter
+
+        # make spike_index tensorflow tensor
+        (self.x_tf,
+         self.spike_index_tf,
+         self.probability_tf,
+         self.waveform_tf,
+         vars_dict) = NeuralNetDetector._make_graph(threshold,
+                                                    channel_index,
+                                                    waveform_length,
+                                                    filters_size,
+                                                    n_neighbors)
+
+        # create saver variables
+        self.saver = tf.train.Saver(vars_dict)
+
+    @classmethod
+    def load(cls, path_to_model, threshold, channel_index):
+
         if not path_to_model.endswith('.ckpt'):
             path_to_model = path_to_model+'.ckpt'
 
-        self.path_to_model = path_to_model
-
         # load nn parameter files
-        path_to_filters = change_extension(path_to_model, 'yaml')
-        self.filters_dict = load_yaml(path_to_filters)
+        path_to_params = change_extension(path_to_model, 'yaml')
+        params = load_yaml(path_to_params)
 
-        # initialize neural net weights and add as attributes
-        wf_length = self.filters_dict['size']
-        self.K1, self.K2 = self.filters_dict['filters']
-        self.n_neigh = self.filters_dict['n_neighbors']
+        return cls(path_to_model, params['filters_size'],
+                   params['waveform_length'], params['n_neighbors'],
+                   threshold, channel_index)
 
-        self.W1 = weight_variable([wf_length, 1, 1, self.K1])
-        self.b1 = bias_variable([self.K1])
+    @classmethod
+    def _make_network(cls, input_layer, waveform_length, filters_size,
+                      n_neigh, padding):
+        K1, K2 = filters_size
 
-        self.W11 = weight_variable([1, 1, self.K1, self.K2])
-        self.b11 = bias_variable([self.K2])
+        W1 = weight_variable([waveform_length, 1, 1, K1])
+        b1 = bias_variable([K1])
 
-        self.W2 = weight_variable([1, self.n_neigh, self.K2, 1])
-        self.b2 = bias_variable([1])
+        W11 = weight_variable([1, 1, K1, K2])
+        b11 = bias_variable([K2])
 
-        # create saver variables
-        self.saver = tf.train.Saver({
-            "W1": self.W1,
-            "W11": self.W11,
-            "W2": self.W2,
-            "b1": self.b1,
-            "b11": self.b11,
-            "b2": self.b2
-        })
+        W2 = weight_variable([1, n_neigh, K2, 1])
+        b2 = bias_variable([1])
 
-        # make spike_index tensorflow tensor
-        (self.spike_index_tf_all,
-         self.probability_tf) = (self._make_graph(channel_index, threshold))
+        vars_dict = {"W1": W1, "W11": W11, "W2": W2, "b1": b1, "b11": b11,
+                     "b2": b2}
 
-        # remove edge spike time
-        self.spike_index_tf = (self.
-                               _remove_edge_spikes(self.spike_index_tf_all,
-                                                   wf_length))
+        # first temporal layer
+        # FIXME: old training code was using conv2d_VALID, old graph building
+        # for prediction was using conv2d, that's why I need to add the
+        # padding parameter, otherwise it breaks. we need to fix it
+        layer1 = tf.nn.relu(conv2d(input_layer, W1, padding) + b1)
 
-        # make waveform tensorflow tensor from the spike index tensor
-        self.waveform_tf = self._make_waveform_tf(self.spike_index_tf,
-                                                  channel_index, wf_length)
+        # second temporal layer
+        layer11 = tf.nn.relu(conv2d(layer1, W11) + b11)
 
-    def _make_graph(self, channel_index, threshold):
+        return vars_dict, layer11
+
+    @classmethod
+    def _make_graph(cls, threshold, channel_index, waveform_length,
+                    filters_size, n_neigh):
         """Build tensorflow graph with input and two output layers
 
         Parameters
@@ -121,54 +148,83 @@ class NeuralNetDetector(object):
         spike_index_tf: tf tensor (n_spikes, 2)
             tensorflow tensor that produces spike_index
         """
+        ######################
+        # Loading parameters #
+        ######################
+
+        # TODO: need to ask why we are sending different channel indexes
         # save neighbor channel index
-        self.channel_index = channel_index[:, :self.n_neigh]
+        small_channel_index = channel_index[:, :n_neigh]
 
         # placeholder for input recording
-        self.x_tf = tf.placeholder("float", [None, None])
+        x_tf = tf.placeholder("float", [None, None])
 
         # Temporal shape of input
-        T = tf.shape(self.x_tf)[0]
+        T = tf.shape(x_tf)[0]
+
+        ####################
+        # Building network #
+        ####################
 
         # input tensor into CNN - add one dimension at the beginning and
         # at the end
-        x_cnn_tf = tf.expand_dims(tf.expand_dims(self.x_tf, -1), 0)
+        x_cnn_tf = tf.expand_dims(tf.expand_dims(x_tf, -1), 0)
 
-        # NN structures
-        # first temporal layer
-        layer1 = tf.nn.relu(conv2d(x_cnn_tf, self.W1) + self.b1)
+        vars_dict, layer11 = cls._make_network(x_cnn_tf,
+                                               waveform_length,
+                                               filters_size,
+                                               n_neigh,
+                                               padding='SAME')
+        W2 = vars_dict['W2']
+        b2 = vars_dict['b2']
 
-        # second temporal layer
-        layer11 = tf.nn.relu(conv2d(layer1, self.W11) + self.b11)
+        K1, K2 = filters_size
 
         # first spatial layer
         zero_added_layer11 = tf.concat((tf.transpose(layer11, [2, 0, 1, 3]),
-                                        tf.zeros((1, 1, T, self.K2))),
+                                        tf.zeros((1, 1, T, K2))),
                                        axis=0)
 
-        temp = tf.transpose(tf.gather(zero_added_layer11, self.channel_index),
+        temp = tf.transpose(tf.gather(zero_added_layer11, small_channel_index),
                             [0, 2, 3, 1, 4])
 
-        _ = [-1, T, self.n_neigh, self.K2]
-        temp2 = conv2d_VALID(tf.reshape(temp, _), self.W2) + self.b2
+        temp2 = conv2d_VALID(tf.reshape(temp, [-1, T, n_neigh, K2]), W2) + b2
 
         o_layer = tf.transpose(temp2, [2, 1, 0, 3])
 
-        # temporal max
-        temporal_max = max_pool(o_layer, [1, 3, 1, 1]) - 1e-8
+        ################################
+        # Output layer transformations #
+        ################################
 
-        # spike index is local maximum crossing a threshold
-        spike_index_tf = tf.cast(tf.where(
-            tf.logical_and(o_layer[0, :, :, 0] >= temporal_max[0, :, :, 0],
-                           o_layer[0, :, :, 0] >
-                           np.log(threshold / (1 - threshold)))), 'int32')
+        o_layer_val = tf.squeeze(o_layer)
 
-        # make probability layer
-        probability_tf = tf.sigmoid(o_layer[0, :, :, 0])
+        # probability output - just sigmoid of output layer
+        probability_tf = tf.sigmoid(o_layer_val)
 
-        return spike_index_tf, probability_tf
+        # spike index output (local maximum crossing a threshold)
+        temporal_max = tf.squeeze(max_pool(o_layer, [1, 3, 1, 1]) - 1e-8)
 
-    def _remove_edge_spikes(self, spike_index_tf, waveform_length):
+        higher_than_max_pool = o_layer_val >= temporal_max
+
+        higher_than_threshold = (o_layer_val >
+                                 np.log(threshold / (1 - threshold)))
+
+        both_higher = tf.logical_and(higher_than_max_pool,
+                                     higher_than_threshold)
+
+        index_all = tf.cast(tf.where(both_higher), 'int32')
+
+        spike_index_tf = cls._remove_edge_spikes(x_tf, index_all,
+                                                 waveform_length)
+
+        # waveform output from spike index output
+        waveform_tf = cls._make_waveform_tf(x_tf, spike_index_tf,
+                                            channel_index, waveform_length)
+
+        return x_tf, spike_index_tf, probability_tf, waveform_tf, vars_dict
+
+    @classmethod
+    def _remove_edge_spikes(cls, x_tf, spike_index_tf, waveform_length):
         """
         It moves spikes at edge times.
 
@@ -191,14 +247,15 @@ class NeuralNetDetector(object):
 
         R = int((waveform_length-1)/2)
         min_spike_time = R
-        max_spike_time = tf.shape(self.x_tf)[0] - R
+        max_spike_time = tf.shape(x_tf)[0] - R
 
         idx_middle = tf.logical_and(spike_index_tf[:, 0] > min_spike_time,
                                     spike_index_tf[:, 0] < max_spike_time)
 
         return tf.boolean_mask(spike_index_tf, idx_middle)
 
-    def _make_waveform_tf(self, spike_index_tf, channel_index, wf_length):
+    @classmethod
+    def _make_waveform_tf(cls, x_tf, spike_index_tf, channel_index, wf_length):
         """
         It produces a tf tensor holding waveforms given recording and spike
         index. It does not hold waveforms on all channels but channels around
@@ -224,7 +281,7 @@ class NeuralNetDetector(object):
         tf tensor (n_spikes, wf_length, n_neigh)
         """
         R = int((wf_length-1)/2)  # half waveform length
-        T = tf.shape(self.x_tf)[0]  # length of recording
+        T = tf.shape(x_tf)[0]  # length of recording
 
         # get waveform temporally
 
@@ -257,7 +314,7 @@ class NeuralNetDetector(object):
         idx = tf.concat(_, 3)
 
         # add one extra value in the channels dimension
-        x_tf_zero_added = tf.concat([self.x_tf, tf.zeros((T, 1))], axis=1)
+        x_tf_zero_added = tf.concat([x_tf, tf.zeros((T, 1))], axis=1)
 
         return tf.gather_nd(x_tf_zero_added, idx)
 
@@ -291,9 +348,7 @@ class NeuralNetDetector(object):
 
         return output
 
-    @classmethod
-    def train(cls, x_train, y_train, n_filters, n_iter, n_batch,
-              l2_reg_scale, train_step_size, path_to_model):
+    def fit(self, x_train, y_train):
         """
         Trains the neural network detector for spike detection
 
@@ -310,45 +365,65 @@ class NeuralNetDetector(object):
         path_to_model: string
             name of the .ckpt to be saved
         """
-        # FIXME reuse the make_graph method to avoid repeating code
+        ######################
+        # Loading parameters #
+        ######################
 
         logger = logging.getLogger(__name__)
 
-        if not path_to_model.endswith('.ckpt'):
-            path_to_model = path_to_model+'.ckpt'
-
         # get parameters
-        n_data, R, C = x_train.shape
-        K1, K2 = n_filters
+        n_data, waveform_length_train, n_neighbors_train = x_train.shape
+
+        if self.waveform_length != waveform_length_train:
+            raise ValueError('waveform length from network ({}) does not '
+                             'match training data ({})'
+                             .format(self.waveform_length,
+                                     waveform_length_train))
+
+        if self.n_neighbors != n_neighbors_train:
+            raise ValueError('number of n_neighbors from network ({}) does '
+                             'not match training data ({})'
+                             .format(self.n_neigh,
+                                     n_neighbors_train))
+
+        ####################
+        # Building network #
+        ####################
 
         # x and y input tensors
-        x_tf = tf.placeholder("float", [n_batch, R, C])
-        y_tf = tf.placeholder("float", [n_batch])
+        x_tf = tf.placeholder("float", [self.n_batch, self.waveform_length,
+                                        self.n_neighbors])
+        y_tf = tf.placeholder("float", [self.n_batch])
 
-        # first layer: temporal feature
-        W1 = weight_variable([R, 1, 1, K1])
-        b1 = bias_variable([K1])
-        layer1 = tf.nn.relu(conv2d_VALID(tf.expand_dims(x_tf, -1), W1) + b1)
+        input_tf = tf.expand_dims(x_tf, -1)
 
-        # second layer: feataure mapping
-        W11 = weight_variable([1, 1, K1, K2])
-        b11 = bias_variable([K2])
-        layer11 = tf.nn.relu(conv2d(layer1, W11) + b11)
+        vars_dict, layer11 = (NeuralNetDetector
+                              ._make_network(input_tf,
+                                             self.waveform_length,
+                                             self.filters_size,
+                                             self.n_neighbors,
+                                             padding='VALID'))
+
+        W2 = vars_dict['W2']
+        b2 = vars_dict['b2']
 
         # third layer: spatial convolution
-        W2 = weight_variable([1, C, K2, 1])
-        b2 = bias_variable([1])
         o_layer = tf.squeeze(conv2d_VALID(layer11, W2) + b2)
 
+        ##########################
+        # Optimization objective #
+        ##########################
+
         # cross entropy
-        _ = tf.nn.sigmoid_cross_entropy_with_logits(
-            logits=o_layer, labels=y_tf)
+        _ = tf.nn.sigmoid_cross_entropy_with_logits(logits=o_layer,
+                                                    labels=y_tf)
         cross_entropy = tf.reduce_mean(_)
 
         weights = tf.trainable_variables()
 
         # regularization term
-        l2_regularizer = tf.contrib.layers.l2_regularizer(scale=l2_reg_scale)
+        l2_regularizer = (tf.contrib.layers
+                          .l2_regularizer(scale=self.l2_reg_scale))
 
         regularization = tf.contrib.layers.apply_regularization(l2_regularizer,
                                                                 weights)
@@ -356,36 +431,30 @@ class NeuralNetDetector(object):
         regularized_loss = cross_entropy + regularization
 
         # train step
-        train_step = (tf.train.AdamOptimizer(train_step_size)
+        train_step = (tf.train.AdamOptimizer(self.train_step_size)
                         .minimize(regularized_loss))
 
-        # saver
-        saver = tf.train.Saver({
-            "W1": W1,
-            "W11": W11,
-            "W2": W2,
-            "b1": b1,
-            "b11": b11,
-            "b2": b2
-        })
+        ############
+        # Training #
+        ############
 
-        ############
-        # training #
-        ############
+        # saver
+        saver = tf.train.Saver(vars_dict)
 
         logger.info('Training detector network...')
 
-        bar = tqdm(total=n_iter)
+        bar = tqdm(total=self.n_iter)
 
         with tf.Session() as sess:
 
             init_op = tf.global_variables_initializer()
             sess.run(init_op)
 
-            for i in range(0, n_iter):
+            for i in range(0, self.n_iter):
 
                 # sample n_batch observations from 0, ..., n_data
-                idx_batch = np.random.choice(n_data, n_batch, replace=False)
+                idx_batch = np.random.choice(n_data, self.n_batch,
+                                             replace=False)
 
                 res = sess.run(
                     [train_step, regularized_loss],
@@ -399,10 +468,10 @@ class NeuralNetDetector(object):
                 # if not i % 100:
                 #    logger.info('Loss: %s', res[1])
 
-            saver.save(sess, path_to_model)
+            saver.save(sess, self.path_to_model)
 
             # estimate tp and fp with a sample
-            idx_batch = np.random.choice(n_data, n_batch, replace=False)
+            idx_batch = np.random.choice(n_data, self.n_batch, replace=False)
 
             output = sess.run(o_layer, feed_dict={x_tf: x_train[idx_batch]})
             y_test = y_train[idx_batch]
@@ -414,9 +483,10 @@ class NeuralNetDetector(object):
                         ', false positive rate: ' + str(fp))
         bar.close()
 
+        path_to_params = change_extension(self.path_to_model, 'yaml')
+
         logger.info('Saving detector network parameters...')
-        save_detect_network_params(filters=n_filters,
-                                   size=x_train.shape[1],
-                                   n_neighbors=x_train.shape[2],
-                                   output_path=change_extension(path_to_model,
-                                                                'yaml'))
+        save_detect_network_params(filters=self.filters_size,
+                                   size=self.waveform_length,
+                                   n_neighbors=self.n_neighbors,
+                                   output_path=path_to_params)

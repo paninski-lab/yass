@@ -2,7 +2,8 @@ import os
 import shutil
 import numpy as np
 from six import with_metaclass
-from conftest import path_to_tests
+
+PATH_TO_TESTS = os.path.dirname(os.path.realpath(__file__))
 
 
 class BaseClass(object):
@@ -46,12 +47,12 @@ class ReferenceTesting(with_metaclass(TestingType, BaseClass)):
 
 
 def clean_tmp():
-    TMP = os.path.join(path_to_tests(), 'data/tmp/')
+    TMP = os.path.join(PATH_TO_TESTS, 'data/tmp/')
 
     if os.path.exists(TMP):
         shutil.rmtree(TMP)
 
 
 def make_tmp():
-    TMP = os.path.join(path_to_tests(), 'data/tmp/')
+    TMP = os.path.join(PATH_TO_TESTS, 'data/tmp/')
     os.mkdir(TMP)
