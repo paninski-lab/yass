@@ -5,6 +5,7 @@ Changelog
 -------
 * Colored logs
 * Improved testing coverage
+* Neural network code was simplified considerably
 
 
 0.9 (2018-05-24)
