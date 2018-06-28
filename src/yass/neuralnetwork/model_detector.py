@@ -448,21 +448,19 @@ class NeuralNetDetector(object):
             init_op = tf.global_variables_initializer()
             sess.run(init_op)
 
-            for i in trange(self.n_iter):
+            pbar = trange(self.n_iter)
+
+            for i in pbar:
 
                 # sample n_batch observations from 0, ..., n_data
                 idx_batch = np.random.choice(n_data, self.n_batch,
                                              replace=False)
 
-                res = sess.run(
-                    [train_step, regularized_loss],
-                    feed_dict={
-                        x_tf: x_train[idx_batch],
-                        y_tf: y_train[idx_batch]
-                    })
+                res = sess.run([train_step, regularized_loss],
+                               feed_dict={x_tf: x_train[idx_batch],
+                                          y_tf: y_train[idx_batch]})
 
-                # if not i % 100:
-                #    logger.debug('Loss: %s', res[1])
+                pbar.set_description('Loss: %s', res[1])
 
             logger.debug('Saving network: %s', self.path_to_model)
             saver.save(sess, self.path_to_model)

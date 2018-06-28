@@ -243,19 +243,22 @@ class NeuralNetTriage(object):
         self.logger.debug('Training triage network...')
 
         with tf.Session() as sess:
+
             init_op = tf.global_variables_initializer()
             sess.run(init_op)
+
+            pbar = trange(self.n_iter)
 
             for i in trange(self.n_iter):
 
                 idx_batch = np.random.choice(n_data, self.n_batch,
                                              replace=False)
-                sess.run(
-                    train_step,
-                    feed_dict={
-                        x_tf: x_train[idx_batch],
-                        y_tf: y_train[idx_batch]
-                    })
+
+                res = sess.run([train_step, regularized_loss],
+                               feed_dict={x_tf: x_train[idx_batch],
+                                          y_tf: y_train[idx_batch]})
+
+                pbar.set_description('Loss: %s', res[1])
 
             self.logger.debug('Saving network: %s', self.path_to_model)
             saver.save(sess, self.path_to_model)
@@ -269,7 +272,6 @@ class NeuralNetTriage(object):
             self.logger.debug('Approximate training true positive rate: '
                               + str(tp) +
                               ', false positive rate: ' + str(fp))
-        bar.close()
 
         path_to_params = change_extension(self.path_to_model, 'yaml')
         self.logger.debug('Saving network parameters: %s', path_to_params)
