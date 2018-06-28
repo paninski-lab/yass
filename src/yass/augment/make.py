@@ -165,7 +165,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
         y_misaligned2_0 = np.zeros((x_misaligned2.shape[0]))
 
     mid_point = int((x_clean.shape[1]-1)/2)
-    mid_point_idx = slice(mid_point - R, mid_point + R + 1)
+    MID_POINT_IDX = slice(mid_point - R, mid_point + R + 1)
 
     x_clean_noisy = make_noisy(x_clean, the_noise)
     x_collision_noisy = make_noisy(x_collision, the_noise)
@@ -176,13 +176,13 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     if multi:
         x = np.concatenate((x_clean_noisy, x_collision_noisy,
                             x_misaligned_noisy, the_noise))
-        x_detect = x[:, mid_point_idx, :]
+        x_detect = x[:, MID_POINT_IDX, :]
 
         y_detect = np.concatenate((y_clean_1, y_collision_1,
                                    y_misaligned_0, y_noise_0))
     else:
         x = np.concatenate((x_clean_noisy, x_misaligned_noisy, the_noise))
-        x_detect = x[:, mid_point_idx, 0]
+        x_detect = x[:, MID_POINT_IDX, 0]
 
         y_detect = np.concatenate((y_clean_1,
                                    y_misaligned_0, y_noise_0))
@@ -191,13 +191,13 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     if multi:
         x = np.concatenate((x_clean_noisy, x_collision_noisy,
                             x_misaligned2_noisy))
-        x_triage = x[:, mid_point_idx, :]
+        x_triage = x[:, MID_POINT_IDX, :]
 
         y_triage = np.concatenate((y_clean_1,
                                    y_collision_0, y_misaligned2_0))
     else:
         x = np.concatenate((x_clean_noisy, x_collision_noisy,))
-        x_triage = x[:, mid_point_idx, 0]
+        x_triage = x[:, MID_POINT_IDX, 0]
 
         y_triage = np.concatenate((y_clean_1,
                                    y_collision_0))
@@ -229,7 +229,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     the_noise_ae = np.matmul(the_noise_ae, temporal_SIG)
 
     x_ae = y_ae + the_noise_ae
-    x_ae = x_ae[:, mid_point_idx]
-    y_ae = y_ae[:, mid_point_idx]
+    x_ae = x_ae[:, MID_POINT_IDX]
+    y_ae = y_ae[:, MID_POINT_IDX]
 
     return x_detect, y_detect, x_triage, y_triage, x_ae, y_ae
