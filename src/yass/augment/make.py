@@ -14,7 +14,8 @@ from yass.util import load_yaml
 
 def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                        nspikes, data_folder, noise_ratio=10, collision_ratio=1,
-                       misalign_ratio=1, misalign_ratio2=1, multi=True):
+                       misalign_ratio=1, misalign_ratio2=1,
+                       multi_channel=True):
     """Makes training sets for detector, triage and autoencoder
 
     Parameters
@@ -45,8 +46,8 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
         isolated spikes
     misalign_ratio2: int
         Ratio of number of only-spatially misaligned spikes to isolated spikes
-    multi: bool
-        If multi= True, generate training data for multi-channel neural
+    multi_channel: bool
+        If True, generate training data for multi-channel neural
         network. Otherwise generate single-channel data
 
     Returns
@@ -62,14 +63,24 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
         Training data for the triage net.
     y_triage: numpy.ndarray
         [number of triage training data] Label for x_triage
-
-
     x_ae: numpy.ndarray
         [number of ae training data, temporal length] Training data for the
         autoencoder: noisy spikes
     y_ae: numpy.ndarray
         [number of ae training data, temporal length] Denoised x_ae
 
+    Notes
+    -----
+    * Detection training data
+        * Multi channel
+            * Positive examples: Clean spikes + noise, Collided spikes + noise
+            * Negative examples: Temporally misaligned spikes + noise, Noise
+
+    * Triage training data
+        * Multi channel
+            * Positive examples: Clean spikes + noise
+            * Negative examples: Collided spikes + noise,
+                spatially misaligned spikes  + noise
     """
 
     logger = logging.getLogger(__name__)
@@ -130,14 +141,14 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     # make collided spikes
     x_collision = collided_spikes(x_clean, collision_ratio, templates,
-                                  R, multi, nneigh)
+                                  R, multi_channel, nneigh)
 
     # make misaligned spikes
     x_misaligned, x_misaligned2 = misaligned_spikes(x_clean,
                                                     templates, max_shift,
                                                     misalign_ratio,
                                                     misalign_ratio2,
-                                                    multi,
+                                                    multi_channel,
                                                     nneigh)
 
     # determine noise covariance structure
@@ -161,7 +172,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     y_noise_0 = np.zeros((the_noise.shape[0]))
     y_collision_0 = np.zeros((x_collision.shape[0]))
 
-    if multi:
+    if multi_channel:
         y_misaligned2_0 = np.zeros((x_misaligned2.shape[0]))
 
     mid_point = int((x_clean.shape[1]-1)/2)
@@ -172,8 +183,11 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     x_misaligned_noisy = make_noisy(x_misaligned, the_noise)
     x_misaligned2_noisy = make_noisy(x_misaligned2, the_noise)
 
-    # get training set for detection
-    if multi:
+    #############
+    # Detection #
+    #############
+
+    if multi_channel:
         x = np.concatenate((x_clean_noisy, x_collision_noisy,
                             x_misaligned_noisy, the_noise))
         x_detect = x[:, MID_POINT_IDX, :]
@@ -187,8 +201,11 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
         y_detect = np.concatenate((y_clean_1,
                                    y_misaligned_0, y_noise_0))
 
-    # get training set for triage
-    if multi:
+    ##########
+    # Triage #
+    ##########
+
+    if multi_channel:
         x = np.concatenate((x_clean_noisy, x_collision_noisy,
                             x_misaligned2_noisy))
         x_triage = x[:, MID_POINT_IDX, :]
