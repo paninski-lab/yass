@@ -476,7 +476,6 @@ class NeuralNetDetector(object):
 
             logger.debug('Approximate training true positive rate: '
                          + str(tp) + ', false positive rate: ' + str(fp))
-        bar.close()
 
         path_to_params = change_extension(self.path_to_model, 'yaml')
         logger.debug('Saving network parameters: %s', path_to_params)
