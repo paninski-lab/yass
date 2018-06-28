@@ -2,7 +2,7 @@ import warnings
 import logging
 import tensorflow as tf
 import numpy as np
-from tqdm import tqdm
+from tqdm import trange
 
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID)
@@ -242,13 +242,11 @@ class NeuralNetTriage(object):
 
         self.logger.debug('Training triage network...')
 
-        bar = tqdm(total=self.n_iter)
-
         with tf.Session() as sess:
             init_op = tf.global_variables_initializer()
             sess.run(init_op)
 
-            for i in range(0, self.n_iter):
+            for i in trange(self.n_iter):
 
                 idx_batch = np.random.choice(n_data, self.n_batch,
                                              replace=False)
@@ -258,7 +256,6 @@ class NeuralNetTriage(object):
                         x_tf: x_train[idx_batch],
                         y_tf: y_train[idx_batch]
                     })
-                bar.update(i + 1)
 
             self.logger.debug('Saving network: %s', self.path_to_model)
             saver.save(sess, self.path_to_model)
