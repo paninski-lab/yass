@@ -144,12 +144,13 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                                   R, multi_channel, nneigh)
 
     # make misaligned spikes
-    x_misaligned, x_misaligned2 = misaligned_spikes(x_clean,
-                                                    templates, max_shift,
-                                                    misalign_ratio,
-                                                    misalign_ratio2,
-                                                    multi_channel,
-                                                    nneigh)
+    (x_temporally_misaligned,
+     x_spatially_misaligned) = misaligned_spikes(x_clean,
+                                                 templates, max_shift,
+                                                 misalign_ratio,
+                                                 misalign_ratio2,
+                                                 multi_channel,
+                                                 nneigh)
 
     # determine noise covariance structure
     spatial_SIG, temporal_SIG = noise_cov(path_to_data,
@@ -168,20 +169,22 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     y_clean_1 = np.ones((x_clean.shape[0]))
     y_collision_1 = np.ones((x_collision.shape[0]))
 
-    y_misaligned_0 = np.zeros((x_misaligned.shape[0]))
+    y_misaligned_0 = np.zeros((x_temporally_misaligned.shape[0]))
     y_noise_0 = np.zeros((the_noise.shape[0]))
     y_collision_0 = np.zeros((x_collision.shape[0]))
 
     if multi_channel:
-        y_misaligned2_0 = np.zeros((x_misaligned2.shape[0]))
+        y_misaligned2_0 = np.zeros((x_spatially_misaligned.shape[0]))
 
     mid_point = int((x_clean.shape[1]-1)/2)
     MID_POINT_IDX = slice(mid_point - R, mid_point + R + 1)
 
     x_clean_noisy = make_noisy(x_clean, the_noise)
     x_collision_noisy = make_noisy(x_collision, the_noise)
-    x_misaligned_noisy = make_noisy(x_misaligned, the_noise)
-    x_misaligned2_noisy = make_noisy(x_misaligned2, the_noise)
+    x_temporally_misaligned_noisy = make_noisy(x_temporally_misaligned,
+                                               the_noise)
+    x_spatially_misaligned_noisy = make_noisy(x_spatially_misaligned,
+                                              the_noise)
 
     #############
     # Detection #
@@ -189,13 +192,14 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     if multi_channel:
         x = np.concatenate((x_clean_noisy, x_collision_noisy,
-                            x_misaligned_noisy, the_noise))
+                            x_temporally_misaligned_noisy, the_noise))
         x_detect = x[:, MID_POINT_IDX, :]
 
         y_detect = np.concatenate((y_clean_1, y_collision_1,
                                    y_misaligned_0, y_noise_0))
     else:
-        x = np.concatenate((x_clean_noisy, x_misaligned_noisy, the_noise))
+        x = np.concatenate((x_clean_noisy, x_temporally_misaligned_noisy,
+                            the_noise))
         x_detect = x[:, MID_POINT_IDX, 0]
 
         y_detect = np.concatenate((y_clean_1,
@@ -207,7 +211,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     if multi_channel:
         x = np.concatenate((x_clean_noisy, x_collision_noisy,
-                            x_misaligned2_noisy))
+                            x_spatially_misaligned_noisy))
         x_triage = x[:, MID_POINT_IDX, :]
 
         y_triage = np.concatenate((y_clean_1,
