@@ -141,16 +141,16 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     # make collided spikes
     x_collision = make_collided(x_clean, collision_ratio, templates,
-                                  R, multi_channel, nneigh)
+                                R, multi_channel, nneigh)
 
     # make misaligned spikes
     (x_temporally_misaligned,
      x_spatially_misaligned) = make_misaligned(x_clean,
-                                                 templates, max_shift,
-                                                 misalign_ratio,
-                                                 misalign_ratio2,
-                                                 multi_channel,
-                                                 nneigh)
+                                               templates, max_shift,
+                                               misalign_ratio,
+                                               misalign_ratio2,
+                                               multi_channel,
+                                               nneigh)
 
     # determine noise covariance structure
     spatial_SIG, temporal_SIG = noise_cov(path_to_data,
@@ -163,7 +163,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     # make noise
     noise = make_noise(x_clean, noise_ratio, templates, spatial_SIG,
-                           temporal_SIG)
+                       temporal_SIG)
 
     # make labels
     y_clean_1 = np.ones((x_clean.shape[0]))
