@@ -258,7 +258,8 @@ class NeuralNetTriage(object):
                                feed_dict={x_tf: x_train[idx_batch],
                                           y_tf: y_train[idx_batch]})
 
-                pbar.set_description('Loss: %s', res[1])
+                if i % 100 == 0:
+                    pbar.set_description('Loss: %s' % res[1])
 
             self.logger.debug('Saving network: %s', self.path_to_model)
             saver.save(sess, self.path_to_model)
