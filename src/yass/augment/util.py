@@ -79,18 +79,22 @@ def misaligned_spikes(x_clean, templates, max_shift, misalign_ratio,
     """temporally and spatially misaligned spikes
     """
 
-    x_misaligned = np.zeros(
+    ################################
+    # temporally misaligned spikes #
+    ################################
+
+    x_temporally = np.zeros(
         (x_clean.shape[0]*int(misalign_ratio), templates.shape[1],
             templates.shape[2]))
 
     temporal_shifts = np.random.randint(
-        max_shift*2, size=x_misaligned.shape[0]) - max_shift
+        max_shift*2, size=x_temporally.shape[0]) - max_shift
     temporal_shifts[temporal_shifts < 0] = temporal_shifts[
         temporal_shifts < 0]-5
     temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
         temporal_shifts >= 0]+6
 
-    for j in range(x_misaligned.shape[0]):
+    for j in range(x_temporally.shape[0]):
         shift = temporal_shifts[j]
         if multi:
             x_clean2 = np.copy(x_clean[np.random.choice(
@@ -103,27 +107,29 @@ def misaligned_spikes(x_clean, templates, max_shift, misalign_ratio,
             x_clean2 = np.squeeze(x_clean2)
 
         if shift > 0:
-            x_misaligned[j, :(x_misaligned.shape[1]-shift)] += x_clean2[shift:]
+            x_temporally[j, :(x_temporally.shape[1]-shift)] += x_clean2[shift:]
 
         elif shift < 0:
-            x_misaligned[
-                j, (-shift):] += x_clean2[:(x_misaligned.shape[1]+shift)]
+            x_temporally[
+                j, (-shift):] += x_clean2[:(x_temporally.shape[1]+shift)]
         else:
-            x_misaligned[j] += x_clean2
+            x_temporally[j] += x_clean2
 
-    ################################
+    ###############################
     # spatially misaligned spikes #
-    ##############################
+    ###############################
+
     if multi:
-        x_misaligned2 = np.zeros(
+        x_spatially = np.zeros(
             (x_clean.shape[0]*int(misalign_ratio2), templates.shape[1],
                 templates.shape[2]))
-        for j in range(x_misaligned2.shape[0]):
-            x_misaligned2[j] = np.copy(x_clean[np.random.choice(
+
+        for j in range(x_spatially.shape[0]):
+            x_spatially[j] = np.copy(x_clean[np.random.choice(
                 x_clean.shape[0], 1, replace=True)][:, :, np.random.choice(
                     nneigh, nneigh, replace=False)])
 
-    return x_misaligned, x_misaligned2
+    return x_temporally, x_spatially
 
 
 def noise(x_clean, noise_ratio, templates, spatial_SIG, temporal_SIG):
