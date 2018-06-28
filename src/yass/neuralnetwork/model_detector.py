@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tqdm import tqdm
+from tqdm import trange
 import logging
 
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
@@ -443,14 +443,12 @@ class NeuralNetDetector(object):
 
         logger.debug('Training detector network...')
 
-        bar = tqdm(total=self.n_iter)
-
         with tf.Session() as sess:
 
             init_op = tf.global_variables_initializer()
             sess.run(init_op)
 
-            for i in range(0, self.n_iter):
+            for i in trange(self.n_iter):
 
                 # sample n_batch observations from 0, ..., n_data
                 idx_batch = np.random.choice(n_data, self.n_batch,
@@ -462,8 +460,6 @@ class NeuralNetDetector(object):
                         x_tf: x_train[idx_batch],
                         y_tf: y_train[idx_batch]
                     })
-
-                bar.update(i + 1)
 
                 # if not i % 100:
                 #    logger.debug('Loss: %s', res[1])
