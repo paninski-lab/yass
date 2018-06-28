@@ -249,7 +249,7 @@ class NeuralNetTriage(object):
 
             pbar = trange(self.n_iter)
 
-            for i in trange(self.n_iter):
+            for i in pbar:
 
                 idx_batch = np.random.choice(n_data, self.n_batch,
                                              replace=False)
