@@ -12,7 +12,7 @@ def make_noisy(x, the_noise):
     return x + noise_sample
 
 
-def clean_spikes(templates, min_amp, max_amp, nk):
+def make_clean(templates, min_amp, max_amp, nk):
     """Make clean spikes
     """
     K = templates.shape[0]
@@ -29,8 +29,8 @@ def clean_spikes(templates, min_amp, max_amp, nk):
     return x_clean
 
 
-def collided_spikes(x_clean, collision_ratio, templates, R, multi,
-                    nneigh):
+def make_collided(x_clean, collision_ratio, templates, R, multi,
+                  nneigh):
     """Make collided spikes
     """
     x_collision = np.zeros(
@@ -74,9 +74,9 @@ def collided_spikes(x_clean, collision_ratio, templates, R, multi,
     return x_collision
 
 
-def misaligned_spikes(x_clean, templates, max_shift, misalign_ratio,
-                      multi, misalign_ratio2, nneigh):
-    """temporally and spatially misaligned spikes
+def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
+                    multi, misalign_ratio2, nneigh):
+    """Make temporally and spatially misaligned spikes
     """
 
     ################################
@@ -132,8 +132,8 @@ def misaligned_spikes(x_clean, templates, max_shift, misalign_ratio,
     return x_temporally, x_spatially
 
 
-def noise(x_clean, noise_ratio, templates, spatial_SIG, temporal_SIG):
-    """make noise
+def make_noise(x_clean, noise_ratio, templates, spatial_SIG, temporal_SIG):
+    """Make noise
     """
 
     # get noise

@@ -6,8 +6,8 @@ import logging
 from yass.augment.choose import choose_templates
 from yass.augment.crop import crop_templates
 from yass.augment.noise import noise_cov
-from yass.augment.util import (make_noisy, clean_spikes, collided_spikes,
-                               misaligned_spikes, noise)
+from yass.augment.util import (make_noisy, make_clean, make_collided,
+                               make_misaligned, make_noise)
 from yass.templates.util import get_templates
 from yass.util import load_yaml
 
@@ -137,15 +137,15 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     max_shift = 2*R
 
     # make clean spikes
-    x_clean = clean_spikes(templates, min_amp, max_amp, nk)
+    x_clean = make_clean(templates, min_amp, max_amp, nk)
 
     # make collided spikes
-    x_collision = collided_spikes(x_clean, collision_ratio, templates,
+    x_collision = make_collided(x_clean, collision_ratio, templates,
                                   R, multi_channel, nneigh)
 
     # make misaligned spikes
     (x_temporally_misaligned,
-     x_spatially_misaligned) = misaligned_spikes(x_clean,
+     x_spatially_misaligned) = make_misaligned(x_clean,
                                                  templates, max_shift,
                                                  misalign_ratio,
                                                  misalign_ratio2,
@@ -162,15 +162,15 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                                           templates.shape[1])
 
     # make noise
-    the_noise = noise(x_clean, noise_ratio, templates, spatial_SIG,
-                      temporal_SIG)
+    noise = make_noise(x_clean, noise_ratio, templates, spatial_SIG,
+                           temporal_SIG)
 
     # make labels
     y_clean_1 = np.ones((x_clean.shape[0]))
     y_collision_1 = np.ones((x_collision.shape[0]))
 
     y_misaligned_0 = np.zeros((x_temporally_misaligned.shape[0]))
-    y_noise_0 = np.zeros((the_noise.shape[0]))
+    y_noise_0 = np.zeros((noise.shape[0]))
     y_collision_0 = np.zeros((x_collision.shape[0]))
 
     if multi_channel:
@@ -179,12 +179,12 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     mid_point = int((x_clean.shape[1]-1)/2)
     MID_POINT_IDX = slice(mid_point - R, mid_point + R + 1)
 
-    x_clean_noisy = make_noisy(x_clean, the_noise)
-    x_collision_noisy = make_noisy(x_collision, the_noise)
+    x_clean_noisy = make_noisy(x_clean, noise)
+    x_collision_noisy = make_noisy(x_collision, noise)
     x_temporally_misaligned_noisy = make_noisy(x_temporally_misaligned,
-                                               the_noise)
+                                               noise)
     x_spatially_misaligned_noisy = make_noisy(x_spatially_misaligned,
-                                              the_noise)
+                                              noise)
 
     #############
     # Detection #
@@ -192,14 +192,14 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     if multi_channel:
         x = np.concatenate((x_clean_noisy, x_collision_noisy,
-                            x_temporally_misaligned_noisy, the_noise))
+                            x_temporally_misaligned_noisy, noise))
         x_detect = x[:, MID_POINT_IDX, :]
 
         y_detect = np.concatenate((y_clean_1, y_collision_1,
                                    y_misaligned_0, y_noise_0))
     else:
         x = np.concatenate((x_clean_noisy, x_temporally_misaligned_noisy,
-                            the_noise))
+                            noise))
         x_detect = x[:, MID_POINT_IDX, 0]
 
         y_detect = np.concatenate((y_clean_1,
@@ -246,10 +246,10 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
         y_ae[k*nk:(k+1)*nk] = ((tt[:, k]/amp_now)[np.newaxis, :]
                                * amps_range[:, :, 0])
 
-    the_noise_ae = np.random.normal(size=y_ae.shape)
-    the_noise_ae = np.matmul(the_noise_ae, temporal_SIG)
+    noise_ae = np.random.normal(size=y_ae.shape)
+    noise_ae = np.matmul(noise_ae, temporal_SIG)
 
-    x_ae = y_ae + the_noise_ae
+    x_ae = y_ae + noise_ae
     x_ae = x_ae[:, MID_POINT_IDX]
     y_ae = y_ae[:, MID_POINT_IDX]
 
