@@ -218,6 +218,7 @@ def ordered_neighbors(geom, neighbors):
 def make_channel_index(neighbors, channel_geometry, steps=1):
 
     C, C2 = neighbors.shape
+
     if C != C2:
         raise ValueError('neighbors is not a square matrix, verify')
 
@@ -227,7 +228,8 @@ def make_channel_index(neighbors, channel_geometry, steps=1):
     # neighboring channel info
     nneigh = np.max(np.sum(neighbors, 0))
 
-    channel_index = np.ones((C, nneigh), 'int32')*C
+    channel_index = np.ones((C, nneigh), 'int32') * C
+
     for c_ref in range(C):
         neighbor_channels = np.where(neighbors[c_ref])[0]
         ch_idx, temp = order_channels_by_distance(c_ref, neighbor_channels,
