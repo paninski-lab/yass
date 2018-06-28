@@ -154,14 +154,15 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
                       temporal_SIG)
 
     # make labels
-    y_clean = np.ones((x_clean.shape[0]))
-    y_col = np.ones((x_collision.shape[0]))
+    y_clean_1 = np.ones((x_clean.shape[0]))
+    y_collision_1 = np.ones((x_collision.shape[0]))
 
-    y_misaligned = np.zeros((x_misaligned.shape[0]))
-    y_noise = np.zeros((the_noise.shape[0]))
+    y_misaligned_0 = np.zeros((x_misaligned.shape[0]))
+    y_noise_0 = np.zeros((the_noise.shape[0]))
+    y_collision_0 = np.zeros((x_collision.shape[0]))
 
     if multi:
-        y_misaligned2 = np.zeros((x_misaligned2.shape[0]))
+        y_misaligned2_0 = np.zeros((x_misaligned2.shape[0]))
 
     mid_point = int((x_clean.shape[1]-1)/2)
 
@@ -174,26 +175,31 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     if multi:
         x = np.concatenate((x_clean_noisy, x_collision_noisy,
                             x_misaligned_noisy, the_noise))
-
         x_detect = x[:, (mid_point-R):(mid_point+R+1), :]
-        y_detect = np.concatenate((y_clean, y_col, y_misaligned, y_noise))
+
+        y_detect = np.concatenate((y_clean_1, y_collision_1,
+                                   y_misaligned_0, y_noise_0))
     else:
         x = np.concatenate((x_clean_noisy, x_misaligned_noisy, the_noise))
         x_detect = x[:, (mid_point-R):(mid_point+R+1), 0]
-        y_detect = np.concatenate((y_clean, y_misaligned, y_noise))
+
+        y_detect = np.concatenate((y_clean_1,
+                                   y_misaligned_0, y_noise_0))
 
     # get training set for triage
     if multi:
         x = np.concatenate((x_clean_noisy, x_collision_noisy,
                             x_misaligned2_noisy))
-
         x_triage = x[:, (mid_point-R):(mid_point+R+1), :]
-        y_triage = np.concatenate(
-            (y_clean, np.zeros((x_collision.shape[0])), y_misaligned2))
+
+        y_triage = np.concatenate((y_clean_1,
+                                   y_collision_0, y_misaligned2_0))
     else:
         x = np.concatenate((x_clean_noisy, x_collision_noisy,))
         x_triage = x[:, (mid_point-R):(mid_point+R+1), 0]
-        y_triage = np.concatenate((y_clean, np.zeros((x_collision.shape[0]))))
+
+        y_triage = np.concatenate((y_clean_1,
+                                   y_collision_0))
 
     ###############
     # Autoencoder #
