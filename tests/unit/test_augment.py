@@ -146,17 +146,12 @@ def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):
 
     templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
 
-    spatial_SIG, temporal_SIG = noise_cov(path_to_standarized_data,
-                                          CONFIG.neigh_channels,
-                                          CONFIG.geom,
-                                          templates_uncropped.shape[1])
-
-    # print(spatial_SIG.shape, temporal_SIG.shape, CONFIG.neigh_channels.shape,
-          # CONFIG.geom.shape, templates_uncropped.shape[1])
-    # raise ValueError
+    noise_cov(path_to_standarized_data,
+              CONFIG.neigh_channels,
+              CONFIG.geom,
+              templates_uncropped.shape[1])
 
 
-# @pytest.mark.xfail
 def test_can_make_noise(path_to_tests, path_to_standarized_data):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()

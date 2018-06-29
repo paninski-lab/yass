@@ -27,7 +27,6 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size):
 
     temporal_SIG: numpy.ndarray
     """
-    print('nooise cov', neighbors.shape, geom.shape, temporal_size)
     c_ref = np.argmax(np.sum(neighbors, 0))
     ch_idx = np.where(neighbors[c_ref])[0]
     ch_idx, temp = order_channels_by_distance(c_ref, ch_idx, geom)
