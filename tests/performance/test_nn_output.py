@@ -31,24 +31,20 @@ def test_nn_output(path_to_tests):
     np.random.seed(0)
 
     # run preprocess
-    (standarized_path, standarized_params, channel_index,
+    (standarized_path, standarized_params,
      whiten_filter) = preprocess.run()
 
     # load preprocess output
     path_to_standarized = path.join(PATH_TO_REF,
                                     'preprocess', 'standarized.bin')
-    path_to_channel_index = path.join(PATH_TO_REF,
-                                      'preprocess', 'channel_index.npy')
     path_to_whitening = path.join(PATH_TO_REF, 'preprocess', 'whitening.npy')
 
-    channel_index_saved = np.load(path_to_channel_index)
     whitening_saved = np.load(path_to_whitening)
     standarized_saved = RecordingsReader(path_to_standarized,
                                          loader='array').data
     standarized = RecordingsReader(standarized_path, loader='array').data
 
     # test preprocess
-    np.testing.assert_array_equal(channel_index_saved, channel_index)
     np.testing.assert_array_equal(whitening_saved, whiten_filter)
     np.testing.assert_array_equal(standarized_saved, standarized)
 
@@ -56,7 +52,6 @@ def test_nn_output(path_to_tests):
     (score, spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   channel_index,
                                    whiten_filter)
     # load detect output
     path_to_scores = path.join(PATH_TO_REF, 'detect', 'scores_clear.npy')
