@@ -4,10 +4,8 @@ from yass.geometry import order_channels_by_distance
 from yass.batch import RecordingsReader
 
 
-# TODO: documentation
-# TODO: comment code, it's not clear what it does
 def noise_cov(path_to_data, neighbors, geom, temporal_size):
-    """[Description]
+    """Compute noise temporal and spatial covariance
 
     Parameters
     ----------
@@ -89,19 +87,3 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size):
     temporal_SIG = np.matmul(np.matmul(v, np.diag(np.sqrt(w))), v.T)
 
     return spatial_SIG, temporal_SIG
-
-
-# TODO: documentation
-# TODO: comment code, it's not clear what it does
-def align_templates(t1, t2):
-    """[Description]
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    """
-    temp = np.convolve(t1, np.flip(t2, 0), 'full')
-    shift = np.argmax(temp)
-    return shift - t1.shape[0] + 1

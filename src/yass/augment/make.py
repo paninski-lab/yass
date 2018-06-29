@@ -229,6 +229,9 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     # Autoencoder #
     ###############
 
+    # TODO: need to abstract this part of the code, create a separate
+    # function and document it
+
     neighbors_ae = np.ones((n_channels, n_channels), 'int32')
     templates_ae = crop_and_align_templates(templates_uncropped,
                                             CONFIG.spike_size,
