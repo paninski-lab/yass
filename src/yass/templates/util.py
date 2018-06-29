@@ -85,7 +85,7 @@ def get_templates_parallel(spike_train,
     # number of templates
     n_templates = int(np.max(spike_train[:, 1]) + 1)
     spike_train_small = random_sample_spike_train_do(spike_train, n_max, CONFIG)
-    print spike_train_small.shape, " spike train small"
+    print (spike_train_small.shape, " spike train small")
 
     # determine length of processing chunk based on lenght of rec
     standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
@@ -107,7 +107,7 @@ def get_templates_parallel(spike_train,
         ])
 
     idx_list = np.int64(np.vstack(idx_list))
-    print idx_list
+    print (idx_list)
     proc_indexes = np.arange(len(idx_list))
 
     print("...computing templates (fixed chunk to 100sec for efficiency)")
@@ -132,7 +132,7 @@ def get_templates_parallel(spike_train,
             res.append(temp)
 
     #print " res: ", res[0][0].shape
-    print len(res)
+    print (len(res))
     
     # reconstruct templates without weights; 
     print("... reconstructing templates")
@@ -145,8 +145,8 @@ def get_templates_parallel(spike_train,
 
     print("... dividing templates by weights")
     templates = res0
-    print templates.shape
-    #quit()
+    print (templates.shape)
+
     weights = res1
     weights[weights == 0] = 1
     
@@ -326,14 +326,9 @@ def compute_templates_parallel(data_in, spike_train, spike_size,
 
     # Compute search time
     spike_time = spike_train[:, 0]
-    print spike_train
     spike_train = spike_train[np.logical_and(spike_time >= data_start,
                                              spike_time < data_end)]
-    
-    print spike_train
-    print data_start, data_end, offset
     spike_train = spike_train - data_start + offset
-    print spike_train.shape
 
     # calculate weight templates
     templates = np.zeros(

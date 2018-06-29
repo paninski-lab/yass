@@ -103,14 +103,15 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
    
 
     # Cat: this seems to be broken right now, gives error for align_templates
+    # logger.info("Getting Templates....")
     # templates, weights = get_templates(spike_train, path_to_recordings,
     #                                   CONFIG.resources.max_memory,
     #                                   2 * (spike_size + template_max_shift))
 
-    logger.info("Cleaning Templates...")
     # clean up bad templates
-    #snr_threshold = 2
-    #spread_threshold = 100
+    # logger.info("Cleaning Templates...")
+    # snr_threshold = 2
+    # spread_threshold = 100
     #templates, weights, spike_train, idx_good_templates = clean_up_templates(
         #templates, weights, spike_train, tmp_loc, geometry, neighbors,
         #snr_threshold, spread_threshold)

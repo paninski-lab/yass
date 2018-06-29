@@ -579,7 +579,7 @@ class SpikeSortingEvaluation(object):
             array2.
         """
         # In time samples
-        self.admissible_proximity = 60
+        self.admissible_proximity = 5
         m, n = len(array1), len(array2)
         i, j = 0, 0
         count = 0
