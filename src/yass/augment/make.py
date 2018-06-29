@@ -4,7 +4,7 @@ import logging
 
 
 from yass.augment.choose import choose_templates
-from yass.augment.crop import crop_templates
+from yass.augment.crop import crop_and_align_templates
 from yass.augment.noise import noise_cov
 from yass.augment.util import (make_noisy, make_clean, make_collided,
                                make_misaligned, make_noise)
@@ -12,7 +12,7 @@ from yass.templates.util import get_templates
 from yass.util import load_yaml
 
 
-def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
+def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
                        nspikes, data_folder, noise_ratio=10, collision_ratio=1,
                        misalign_ratio=1, misalign_ratio2=1,
                        multi_channel=True):
@@ -25,7 +25,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     spike_train: numpy.ndarray
         [number of spikes, 2] Ground truth for training. First column is the
         spike time, second column is the spike id
-    chosen_templates: list
+    chosen_templates_indexes: list
         List of chosen templates' id's
     min_amp: float
         Minimum value allowed for the maximum absolute amplitude of the
@@ -89,6 +89,8 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     path_to_config = os.path.join(data_folder, 'preprocess',
                                   'standarized.yaml')
 
+    n_spikes, _ = spike_train.shape
+
     # make sure standarized data already exists
     if not os.path.exists(path_to_data):
         raise ValueError('Standarized data does not exist in: {}, this is '
@@ -100,33 +102,41 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
 
     logger.info('Getting templates...')
 
+    # add weight of one to every spike
+    weighted_spike_train = np.hstack((spike_train,
+                                      np.ones((n_spikes, 1), 'int32')))
+
     # get templates
-    templates, _ = get_templates(
-        np.hstack((spike_train,
-                   np.ones((spike_train.shape[0], 1), 'int32'))),
-        path_to_data,
-        CONFIG.resources.max_memory,
-        4*CONFIG.spike_size)
+    templates_uncropped, _ = get_templates(weighted_spike_train,
+                                           path_to_data,
+                                           CONFIG.resources.max_memory,
+                                           4*CONFIG.spike_size)
 
-    templates = np.transpose(templates, (2, 1, 0))
+    templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
 
-    logger.info('Got templates ndarray of shape: {}'.format(templates.shape))
+    K, _, n_channels = templates_uncropped.shape
 
-    # choose good templates (good looking and big enough)
-    templates = choose_templates(templates, chosen_templates)
-    templates_uncropped = np.copy(templates)
+    logger.info('Got templates ndarray of shape: {}'
+                .format(templates_uncropped.shape))
 
-    if templates.shape[0] == 0:
+    # choose good templates (user selected and amplitude above threshold)
+    # TODO: maybe the minimum_amplitude parameter should be selected by the
+    # user
+    templates_uncropped = choose_templates(templates_uncropped,
+                                           chosen_templates_indexes,
+                                           minimum_amplitude=4)
+
+    if templates_uncropped.shape[0] == 0:
         raise ValueError("Coulndt find any good templates...")
 
-    logger.info('Good looking templates of shape: {}'.format(templates.shape))
+    logger.info('Good looking templates of shape: {}'
+                .format(templates_uncropped.shape))
 
-    # align and crop templates
-    templates = crop_templates(templates, CONFIG.spike_size,
-                               CONFIG.neigh_channels, CONFIG.geom)
+    templates = crop_and_align_templates(templates_uncropped,
+                                         CONFIG.spike_size,
+                                         CONFIG.neigh_channels, CONFIG.geom)
 
     # make training data set
-    K = templates.shape[0]
     R = CONFIG.spike_size
     amps = np.max(np.abs(templates), axis=1)
 
@@ -227,10 +237,11 @@ def make_training_data(CONFIG, spike_train, chosen_templates, min_amp,
     # Autoencoder #
     ###############
 
-    n_channels = templates_uncropped.shape[2]
-    templates_ae = crop_templates(templates_uncropped, CONFIG.spike_size,
-                                  np.ones((n_channels, n_channels), 'int32'),
-                                  CONFIG.geom)
+    neighbors_ae = np.ones((n_channels, n_channels), 'int32')
+    templates_ae = crop_and_align_templates(templates_uncropped,
+                                            CONFIG.spike_size,
+                                            neighbors_ae,
+                                            CONFIG.geom)
 
     tt = templates_ae.transpose(1, 0, 2).reshape(templates_ae.shape[1], -1)
     tt = tt[:, np.ptp(tt, axis=0) > 2]
