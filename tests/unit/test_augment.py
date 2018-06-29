@@ -4,7 +4,6 @@ Tests for functions that create training data for the neural networks
 import os.path as path
 
 import numpy as np
-import pytest
 
 import yass
 from yass.augment import make_training_data
