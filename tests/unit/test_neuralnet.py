@@ -30,7 +30,7 @@ n_spikes = 500
 filters = [8, 4]
 
 
-def test_can_train_detector(path_to_tests, path_to_data_folder, tmp_folder):
+def test_can_train_detector(path_to_tests, path_to_sample_pipeline_folder, tmp_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -38,7 +38,7 @@ def test_can_train_detector(path_to_tests, path_to_data_folder, tmp_folder):
      x_triage, y_triage,
      x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
-                                      data_folder=path_to_data_folder)
+                                      data_folder=path_to_sample_pipeline_folder)
 
     _, waveform_length, n_neighbors = x_detect.shape
 
@@ -53,7 +53,7 @@ def test_can_train_detector(path_to_tests, path_to_data_folder, tmp_folder):
     detector.fit(x_detect, y_detect)
 
 
-def test_can_train_triage(path_to_tests, path_to_data_folder, tmp_folder):
+def test_can_train_triage(path_to_tests, path_to_sample_pipeline_folder, tmp_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -61,7 +61,7 @@ def test_can_train_triage(path_to_tests, path_to_data_folder, tmp_folder):
      x_triage, y_triage,
      x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
-                                      data_folder=path_to_data_folder)
+                                      data_folder=path_to_sample_pipeline_folder)
 
     _, waveform_length, n_neighbors = x_triage.shape
 
@@ -75,7 +75,7 @@ def test_can_train_triage(path_to_tests, path_to_data_folder, tmp_folder):
     triage.fit(x_detect, y_detect)
 
 
-def test_can_reload_detector(path_to_tests, path_to_data_folder, tmp_folder):
+def test_can_reload_detector(path_to_tests, path_to_sample_pipeline_folder, tmp_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -83,7 +83,7 @@ def test_can_reload_detector(path_to_tests, path_to_data_folder, tmp_folder):
      x_triage, y_triage,
      x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
-                                      data_folder=path_to_data_folder)
+                                      data_folder=path_to_sample_pipeline_folder)
 
     _, waveform_length, n_neighbors = x_detect.shape
 
@@ -101,7 +101,7 @@ def test_can_reload_detector(path_to_tests, path_to_data_folder, tmp_folder):
                            channel_index=CONFIG.channel_index)
 
 
-def test_can_reload_triage(path_to_tests, path_to_data_folder, tmp_folder):
+def test_can_reload_triage(path_to_tests, path_to_sample_pipeline_folder, tmp_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -109,7 +109,7 @@ def test_can_reload_triage(path_to_tests, path_to_data_folder, tmp_folder):
      x_triage, y_triage,
      x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
-                                      data_folder=path_to_data_folder)
+                                      data_folder=path_to_sample_pipeline_folder)
 
     _, waveform_length, n_neighbors = x_triage.shape
 
@@ -126,7 +126,7 @@ def test_can_reload_triage(path_to_tests, path_to_data_folder, tmp_folder):
 
 
 def test_can_use_detector_and_triage_after_fitting(path_to_tests,
-                                                   path_to_data_folder,
+                                                   path_to_sample_pipeline_folder,
                                                    tmp_folder,
                                                    path_to_standarized_data):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
@@ -136,7 +136,7 @@ def test_can_use_detector_and_triage_after_fitting(path_to_tests,
      x_triage, y_triage,
      x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
-                                      data_folder=path_to_data_folder)
+                                      data_folder=path_to_sample_pipeline_folder)
 
     _, waveform_length, n_neighbors = x_detect.shape
 
@@ -168,7 +168,7 @@ def test_can_use_detector_and_triage_after_fitting(path_to_tests,
 
 
 def test_can_use_detector_and_triage_after_reloading(path_to_tests,
-                                                     path_to_data_folder,
+                                                     path_to_sample_pipeline_folder,
                                                      tmp_folder,
                                                      path_to_standarized_data):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
@@ -178,7 +178,7 @@ def test_can_use_detector_and_triage_after_reloading(path_to_tests,
      x_triage, y_triage,
      x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
-                                      data_folder=path_to_data_folder)
+                                      data_folder=path_to_sample_pipeline_folder)
 
     _, waveform_length, n_neighbors = x_detect.shape
 
@@ -253,8 +253,9 @@ def test_can_use_neural_network_detector(path_to_tests,
                                                   rot)
 
 
-def test_splitting_in_batches_does_not_affect_result(path_to_tests,
-                                                     path_to_standarized_data):
+def test_splitting_in_batches_does_not_affect(path_to_tests,
+                                              path_to_standarized_data,
+                                              path_to_sample_pipeline_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -262,7 +263,7 @@ def test_splitting_in_batches_does_not_affect_result(path_to_tests,
 
     data = RecordingsReader(PATH_TO_DATA, loader='array').data
 
-    with open(path.join(path_to_tests, 'data', 'preprocess',
+    with open(path.join(path_to_sample_pipeline_folder, 'preprocess',
                         'standarized.yaml')) as f:
         PARAMS = yaml.load(f)
 
