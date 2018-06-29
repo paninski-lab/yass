@@ -111,6 +111,11 @@ def path_to_config_sample(scope='session'):
 
 
 @pytest.fixture
+def path_to_config_with_wrong_channels(scope='session'):
+    return os.path.join(PATH_TO_TESTS, 'config_wrong_channels.yaml')
+
+
+@pytest.fixture
 def path_to_txt_geometry(scope='session'):
     return os.path.join(PATH_TO_TESTS, 'data/geometry.txt')
 
