@@ -55,6 +55,7 @@ class NeuralNetTriage(object):
 
         if input_tensor is not None:
             if n_neighbors != input_tensor.shape[2]:
+
                 warnings.warn('Network n_neighbors ({}) does not match '
                               'n_neighbors on input_tensor ({}), using '
                               'only the first n_neighbors from the '
@@ -276,6 +277,7 @@ class NeuralNetTriage(object):
 
         path_to_params = change_extension(self.path_to_model, 'yaml')
         self.logger.debug('Saving network parameters: %s', path_to_params)
+
         save_triage_network_params(filters_size=self.filters_size,
                                    waveform_length=self.waveform_length,
                                    n_neighbors=self.n_neighbors,
