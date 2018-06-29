@@ -30,15 +30,6 @@ n_spikes = 500
 filters = [8, 4]
 
 
-def test_can_make_training_data(path_to_tests, path_to_data_folder):
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
-    CONFIG = yass.read_config()
-
-    make_training_data(CONFIG, spike_train, chosen_templates,
-                       min_amplitude, n_spikes,
-                       data_folder=path_to_data_folder)
-
-
 def test_can_train_detector(path_to_tests, path_to_data_folder, tmp_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
