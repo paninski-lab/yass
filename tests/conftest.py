@@ -45,7 +45,8 @@ def path_to_performance():
 
 @pytest.fixture(scope='session')
 def path_to_tmp():
-    # FIXME: remove this and replace for tmp_folder
+    # FIXME: remove this and replace for tmp_folder, that one creates and
+    # deletes the tmp/ folder automatically
     return os.path.join(PATH_TO_TESTS, 'data/tmp/')
 
 
@@ -79,6 +80,17 @@ def path_to_data_folder():
 
 
 @pytest.fixture(scope='session')
+def path_to_sample_pipeline_folder():
+    return os.path.join(PATH_TO_TESTS, 'data', 'sample_pipeline_output')
+
+
+@pytest.fixture(scope='session')
+def path_to_standarized_data():
+    return os.path.join(PATH_TO_TESTS, 'data', 'sample_pipeline_output',
+                        'preprocess', 'standarized.bin')
+
+
+@pytest.fixture(scope='session')
 def path_to_output_reference():
     return os.path.join(PATH_TO_TESTS, 'data', 'output_reference')
 
@@ -99,10 +111,15 @@ def path_to_config_sample(scope='session'):
 
 
 @pytest.fixture
+def path_to_config_with_wrong_channels(scope='session'):
+    return os.path.join(PATH_TO_TESTS, 'config_wrong_channels.yaml')
+
+
+@pytest.fixture
 def path_to_txt_geometry(scope='session'):
     return os.path.join(PATH_TO_TESTS, 'data/geometry.txt')
 
 
 @pytest.fixture
 def path_to_npy_geometry(scope='session'):
-    return os.path.join(PATH_TO_TESTS, 'data/geometry.npy')
+    return os.path.join(PATH_TO_TESTS, 'data/neuropixel_channels.npy')

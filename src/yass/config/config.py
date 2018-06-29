@@ -93,7 +93,22 @@ class Config(FrozenJSON):
     """
     A configuration object for the package, it is a read-only FrozenJSON that
     inits from a yaml file with some caching capbilities to avoid
-    redundant and common computations
+    redundant and common computations. It also computes some matrices that are
+    used in several functions through the pipeline, see attributes section
+    for more info
+
+    Attributes
+    ---------
+    geom: numpy.ndarray, [n_channels, 2]
+        Recordings geometry, every row contains an (x, y) pair
+
+    neigh_channels: numpy.ndarray, [n_channels, n_channels]
+        Symmetric boolean matrix with the i, j as True if the ith and jth
+        channels are considered neighbors
+
+    channel_index: numpy.ndarray, [n_channels, n_channels]
+        An array whose whose ith row contains the ordered (by distance)
+        neighbors for the ith channel
 
     Notes
     -----
@@ -115,6 +130,15 @@ class Config(FrozenJSON):
         path_to_geom = path.join(self.data.root_folder, self.data.geometry)
         self._set_param('geom',
                         geom.parse(path_to_geom, self.recordings.n_channels))
+
+        # check dimensions of the geometry file
+        n_channels_geom, _ = self.geom.shape
+
+        if self.recordings.n_channels != n_channels_geom:
+            raise ValueError('Channels in the geometry file ({}) does not '
+                             'value in the configuration file ({})'
+                             .format(n_channels_geom,
+                                     self.recordings.n_channels))
 
         neigh_channels = geom.find_channel_neighbors(
             self.geom, self.recordings.spatial_radius)

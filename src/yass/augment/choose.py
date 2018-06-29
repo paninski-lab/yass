@@ -1,24 +1,23 @@
 import numpy as np
 
 
-# TODO: documentation
-# TODO: comment code, it's not clear what it does
-def choose_templates(templates, chosen_templates):
-    """[Description]
-
-    Parameters
-    ----------
+def choose_templates(templates, chosen_templates_indexes,
+                     minimum_amplitude=4):
+    """
+    Keep only selected templates and from those, only the ones above certain
+    value
 
     Returns
     -------
     """
     try:
-        templates = templates[chosen_templates]
+        chosen_templates = templates[chosen_templates_indexes]
     except IndexError:
         raise IndexError('Error getting chosen_templates, make sure the ids'
                          'exist')
 
-    templates_small = np.max(templates, axis=(1, 2)) > 4
-    templates = templates[templates_small]
+    amplitudes = np.max(np.abs(chosen_templates), axis=(1, 2))
+    big_templates_indexes = amplitudes > minimum_amplitude
+    big_templates = chosen_templates[big_templates_indexes]
 
-    return templates
+    return big_templates

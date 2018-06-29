@@ -1,7 +1,8 @@
+import warnings
 import logging
 import tensorflow as tf
 import numpy as np
-from tqdm import tqdm
+from tqdm import trange
 
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID)
@@ -54,11 +55,12 @@ class NeuralNetTriage(object):
 
         if input_tensor is not None:
             if n_neighbors != input_tensor.shape[2]:
-                self.logger.info('Network n_neighbors ({}) does not match '
-                                 'n_neighbors on input_tensor ({}), using '
-                                 'only the first n_neighbors from the '
-                                 'input_tensor'.format(n_neighbors,
-                                                       input_tensor.shape[2]))
+
+                warnings.warn('Network n_neighbors ({}) does not match '
+                              'n_neighbors on input_tensor ({}), using '
+                              'only the first n_neighbors from the '
+                              'input_tensor'.format(n_neighbors,
+                                                    input_tensor.shape[2]))
 
         self.path_to_model = path_to_model
 
@@ -169,6 +171,10 @@ class NeuralNetTriage(object):
     def predict(self, waveforms):
         """Triage waveforms
         """
+        _, waveform_length, n_neighbors = waveforms.shape
+
+        self._validate_dimensions(waveform_length, n_neighbors)
+
         with tf.Session() as sess:
             self.restore(sess)
 
@@ -197,17 +203,7 @@ class NeuralNetTriage(object):
         # get parameters
         n_data, waveform_length_train, n_neighbors_train = x_train.shape
 
-        if self.waveform_length != waveform_length_train:
-            raise ValueError('waveform length from network ({}) does not '
-                             'match training data ({})'
-                             .format(self.waveform_length,
-                                     waveform_length_train))
-
-        if self.n_neighbors != n_neighbors_train:
-            raise ValueError('number of n_neighbors from network ({}) does '
-                             'not match training data ({})'
-                             .format(self.n_neigh,
-                                     n_neighbors_train))
+        self._validate_dimensions(waveform_length_train, n_neighbors_train)
 
         # x and y input tensors
         x_tf = tf.placeholder("float", [self.n_batch, self.waveform_length,
@@ -245,26 +241,28 @@ class NeuralNetTriage(object):
         # training #
         ############
 
-        self.logger.info('Training triage network...')
-
-        bar = tqdm(total=self.n_iter)
+        self.logger.debug('Training triage network...')
 
         with tf.Session() as sess:
+
             init_op = tf.global_variables_initializer()
             sess.run(init_op)
 
-            for i in range(0, self.n_iter):
+            pbar = trange(self.n_iter)
+
+            for i in pbar:
 
                 idx_batch = np.random.choice(n_data, self.n_batch,
                                              replace=False)
-                sess.run(
-                    train_step,
-                    feed_dict={
-                        x_tf: x_train[idx_batch],
-                        y_tf: y_train[idx_batch]
-                    })
-                bar.update(i + 1)
 
+                res = sess.run([train_step, regularized_loss],
+                               feed_dict={x_tf: x_train[idx_batch],
+                                          y_tf: y_train[idx_batch]})
+
+                if i % 100 == 0:
+                    pbar.set_description('Loss: %s' % res[1])
+
+            self.logger.debug('Saving network: %s', self.path_to_model)
             saver.save(sess, self.path_to_model)
 
             idx_batch = np.random.choice(n_data, self.n_batch, replace=False)
@@ -273,14 +271,27 @@ class NeuralNetTriage(object):
             tp = np.mean(output[y_test == 1] > 0)
             fp = np.mean(output[y_test == 0] > 0)
 
-            self.logger.info('Approximate training true positive rate: '
-                             + str(tp) +
-                             ', false positive rate: ' + str(fp))
-        bar.close()
+            self.logger.debug('Approximate training true positive rate: '
+                              + str(tp) +
+                              ', false positive rate: ' + str(fp))
 
-        self.logger.info('Saving triage network parameters...')
         path_to_params = change_extension(self.path_to_model, 'yaml')
+        self.logger.debug('Saving network parameters: %s', path_to_params)
+
         save_triage_network_params(filters_size=self.filters_size,
                                    waveform_length=self.waveform_length,
                                    n_neighbors=self.n_neighbors,
                                    output_path=path_to_params)
+
+    def _validate_dimensions(self, waveform_length, n_neighbors):
+        if self.waveform_length != waveform_length:
+            raise ValueError('waveform length from network ({}) does not '
+                             'match input data ({})'
+                             .format(self.waveform_length,
+                                     waveform_length))
+
+        if self.n_neighbors != n_neighbors:
+            raise ValueError('number of n_neighbors from network ({}) does '
+                             'not match input data ({})'
+                             .format(self.n_neighbors,
+                                     n_neighbors))

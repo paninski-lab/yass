@@ -1,8 +1,5 @@
-# NOTE: this are not the right
-# parameters for the neuropixel data
-# but we are using them to avoid breaking
-# the nnet detection, will update
-# when we incorporate new models
+# testing channels mismatch: declared 42 channels on this file but
+# geometry file has only 10 lines
 
 data:
   root_folder: tests/data
@@ -15,10 +12,10 @@ resources:
 
 recordings:
   dtype: int16
-  sampling_rate: 20000
-  n_channels: 10
-  spatial_radius: 50
-  spike_size_ms: 1.5
+  sampling_rate: 30000
+  n_channels: 42
+  spatial_radius: 70
+  spike_size_ms: 1
   order: samples
 
 preprocess:
@@ -26,5 +23,6 @@ preprocess:
   dtype: float32
 
 detect:
-  method: nn
+  method: threshold
   temporal_features: 3
+ 

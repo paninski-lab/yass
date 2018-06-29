@@ -10,15 +10,26 @@ from yass.batch import BatchProcessor
 logger = logging.getLogger(__name__)
 
 
+# FIXME: verify that  functions defined here are still used
+
+
 # TODO: remove this function and use the explorer directly
-def get_templates(spike_train, path_to_recordings,
+def get_templates(weighted_spike_train, path_to_recordings,
                   max_memory, spike_size, n_max=5000):
+    """
+
+    Parameters
+    ----------
+    weighted_spike_train: numpy.ndarray
+        Spike train with weights, first column is spike time, second is ID
+        and third is spike weight
+    """
 
     logger.info('Computing templates...')
 
     # number of templates
-    n_templates = int(np.max(spike_train[:, 1]) + 1)
-    spike_train_small = random_sample_spike_train(spike_train, n_max)
+    n_templates = int(np.max(weighted_spike_train[:, 1]) + 1)
+    spike_train_small = random_sample_spike_train(weighted_spike_train, n_max)
 
     # read recording
     bp = BatchProcessor(

@@ -8,8 +8,8 @@ from yass.threshold import detect
 
 
 def test_can_load_npy(path_to_npy_geometry):
-    geom = geometry.parse(path_to_npy_geometry, n_channels=374)
-    assert geom.shape == (374, 2)
+    geom = geometry.parse(path_to_npy_geometry, n_channels=10)
+    assert geom.shape == (10, 2)
 
 
 def test_can_load_txt(path_to_txt_geometry):

@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tqdm import tqdm
+from tqdm import trange
 import logging
 
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
@@ -440,34 +440,29 @@ class NeuralNetDetector(object):
 
         # saver
         saver = tf.train.Saver(vars_dict)
-
-        logger.info('Training detector network...')
-
-        bar = tqdm(total=self.n_iter)
+        logger.debug('Training detector network...')
 
         with tf.Session() as sess:
 
             init_op = tf.global_variables_initializer()
             sess.run(init_op)
 
-            for i in range(0, self.n_iter):
+            pbar = trange(self.n_iter)
+
+            for i in pbar:
 
                 # sample n_batch observations from 0, ..., n_data
                 idx_batch = np.random.choice(n_data, self.n_batch,
                                              replace=False)
 
-                res = sess.run(
-                    [train_step, regularized_loss],
-                    feed_dict={
-                        x_tf: x_train[idx_batch],
-                        y_tf: y_train[idx_batch]
-                    })
+                res = sess.run([train_step, regularized_loss],
+                               feed_dict={x_tf: x_train[idx_batch],
+                                          y_tf: y_train[idx_batch]})
 
-                bar.update(i + 1)
+                if i % 100 == 0:
+                    pbar.set_description('Loss: %s' % res[1])
 
-                # if not i % 100:
-                #    logger.info('Loss: %s', res[1])
-
+            logger.debug('Saving network: %s', self.path_to_model)
             saver.save(sess, self.path_to_model)
 
             # estimate tp and fp with a sample
@@ -479,14 +474,13 @@ class NeuralNetDetector(object):
             tp = np.mean(output[y_test == 1] > 0)
             fp = np.mean(output[y_test == 0] > 0)
 
-            logger.info('Approximate training true positive rate: ' + str(tp) +
-                        ', false positive rate: ' + str(fp))
-        bar.close()
+            logger.debug('Approximate training true positive rate: '
+                         + str(tp) + ', false positive rate: ' + str(fp))
 
         path_to_params = change_extension(self.path_to_model, 'yaml')
 
-        logger.info('Saving detector network parameters...')
-        save_detect_network_params(filters=self.filters_size,
-                                   size=self.waveform_length,
+        logger.debug('Saving network parameters: %s', path_to_params)
+        save_detect_network_params(filters_size=self.filters_size,
+                                   waveform_length=self.waveform_length,
                                    n_neighbors=self.n_neighbors,
                                    output_path=path_to_params)

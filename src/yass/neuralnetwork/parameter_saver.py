@@ -28,15 +28,16 @@ def seq_rep(dumper, data):
 # CustomYAMLDumper.add_representer(seq_data, map_rep)
 
 
-def save_detect_network_params(filters, size, n_neighbors, output_path):
+def save_detect_network_params(filters_size, waveform_length, n_neighbors,
+                               output_path):
     """Generate yaml file with parameters for a detect network
 
     Parameters
     ----------
-    filters: list
+    filters_size: list
         List with number of filters in each layer
 
-    size: int
+    waveform_length: int
         Temporal filter size
 
     n_neighbors: int
@@ -45,7 +46,8 @@ def save_detect_network_params(filters, size, n_neighbors, output_path):
     output_path: str
         Where to save the file
     """
-    d = dict(filters=filters, size=size, n_neighbors=n_neighbors)
+    d = dict(filters_size=filters_size, waveform_length=waveform_length,
+             n_neighbors=n_neighbors)
 
     with open(output_path, 'w') as f:
         yaml.dump(d, f, CustomYAMLDumper)
