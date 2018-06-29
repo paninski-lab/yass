@@ -12,6 +12,9 @@ def crop_and_align_templates(big_templates, R, neighbors, geom):
     Returns
     -------
     """
+    # copy templates to avoid modifying the original ones
+    big_templates = np.copy(big_templates)
+
     K, _, _ = big_templates.shape
 
     # main channel for each template and amplitudes

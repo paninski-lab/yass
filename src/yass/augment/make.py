@@ -127,9 +127,12 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     logger.info('Good looking templates of shape: {}'
                 .format(templates_uncropped.shape))
 
+    print(' 1crop in:', templates_uncropped.shape, CONFIG.neigh_channels.shape)
     templates = crop_and_align_templates(templates_uncropped,
                                          CONFIG.spike_size,
-                                         CONFIG.neigh_channels, CONFIG.geom)
+                                         CONFIG.neigh_channels,
+                                         CONFIG.geom)
+    print(' 1crop out:', templates.shape)
 
     # make training data set
     R = CONFIG.spike_size
@@ -231,14 +234,21 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
     # TODO: need to abstract this part of the code, create a separate
     # function and document it
+    print('uncropped', templates_uncropped.shape)
+    print('size', CONFIG.spike_size)
+    print('nei ae', n_channels)
 
     neighbors_ae = np.ones((n_channels, n_channels), 'int32')
+
+    print(' 2crop in:', templates_uncropped.shape, neighbors_ae.shape)
     templates_ae = crop_and_align_templates(templates_uncropped,
                                             CONFIG.spike_size,
                                             neighbors_ae,
                                             CONFIG.geom)
+    print(' 2crop out:', templates_ae.shape)
 
     tt = templates_ae.transpose(1, 0, 2).reshape(templates_ae.shape[1], -1)
+    print('tt', tt.shape)
     tt = tt[:, np.ptp(tt, axis=0) > 2]
     max_amp = np.max(np.ptp(tt, axis=0))
 
