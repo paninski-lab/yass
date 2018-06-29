@@ -29,13 +29,13 @@ n_spikes_to_make = 500
 filters = [8, 4]
 
 
-def test_can_make_training_data(path_to_tests, path_to_data_folder):
+def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
     make_training_data(CONFIG, spike_train, chosen_templates,
                        min_amplitude, n_spikes_to_make,
-                       data_folder=path_to_data_folder)
+                       data_folder=path_to_sample_pipeline_folder)
 
 
 def test_can_crop_and_align_templates(path_to_tests, path_to_standarized_data):
@@ -150,6 +150,10 @@ def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):
                                           CONFIG.neigh_channels,
                                           CONFIG.geom,
                                           templates_uncropped.shape[1])
+
+    # print(spatial_SIG.shape, temporal_SIG.shape, CONFIG.neigh_channels.shape,
+          # CONFIG.geom.shape, templates_uncropped.shape[1])
+    # raise ValueError
 
 
 @pytest.mark.xfail

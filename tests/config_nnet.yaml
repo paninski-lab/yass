@@ -7,7 +7,7 @@
 data:
   root_folder: tests/data
   recordings: neuropixel.bin
-  geometry: geometry_fake.txt
+  geometry: neuropixel_channels.npy
 
 resources:
   max_memory: 200MB

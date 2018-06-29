@@ -45,7 +45,8 @@ def path_to_performance():
 
 @pytest.fixture(scope='session')
 def path_to_tmp():
-    # FIXME: remove this and replace for tmp_folder
+    # FIXME: remove this and replace for tmp_folder, that one creates and
+    # deletes the tmp/ folder automatically
     return os.path.join(PATH_TO_TESTS, 'data/tmp/')
 
 
@@ -79,8 +80,14 @@ def path_to_data_folder():
 
 
 @pytest.fixture(scope='session')
+def path_to_sample_pipeline_folder():
+    return os.path.join(PATH_TO_TESTS, 'data', 'sample_pipeline_output')
+
+
+@pytest.fixture(scope='session')
 def path_to_standarized_data():
-    return os.path.join(PATH_TO_TESTS, 'data', 'preprocess', 'standarized.bin')
+    return os.path.join(PATH_TO_TESTS, 'data', 'sample_pipeline_output',
+                        'preprocess', 'standarized.bin')
 
 
 @pytest.fixture(scope='session')
