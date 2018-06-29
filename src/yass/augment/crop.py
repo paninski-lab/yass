@@ -12,7 +12,7 @@ def crop_and_align_templates(big_templates, R, neighbors, geom):
     Returns
     -------
     """
-    K, wf_length, _ = big_templates.shape
+    K, _, _ = big_templates.shape
 
     # main channel for each template and amplitudes
     mainC = np.argmax(np.amax(np.abs(big_templates), axis=1), axis=1)
@@ -20,7 +20,7 @@ def crop_and_align_templates(big_templates, R, neighbors, geom):
 
     # get a template on a main channel and align them
     K_big = np.argmax(amps)
-    templates_mainc = np.zeros((K, wf_length))
+    templates_mainc = np.zeros((K, big_templates.shape[1]))
     t_rec = big_templates[K_big, :, mainC[K_big]]
     t_rec = t_rec/np.sqrt(np.sum(np.square(t_rec)))
 
@@ -30,15 +30,16 @@ def crop_and_align_templates(big_templates, R, neighbors, geom):
         shift = align_templates(t1, t_rec)
 
         if shift > 0:
-            templates_mainc[k, :(wf_length-shift)] = t1[shift:]
-            big_templates[k, :(wf_length-shift)
+            templates_mainc[k, :(big_templates.shape[1]-shift)] = t1[shift:]
+            big_templates[k, :(big_templates.shape[1]-shift)
                           ] = big_templates[k, shift:]
 
         elif shift < 0:
-            templates_mainc[k, (-shift):] = t1[:(wf_length+shift)]
-            big_templates[k, (-shift):] = big_templates[k,
-                                                        :(wf_length
-                                                          + shift)]
+            templates_mainc[k, (-shift):] = t1[:(big_templates.shape[1]+shift)]
+            big_templates[k,
+                          (-shift):] = big_templates[k,
+                                                     :(big_templates.shape[1]
+                                                       + shift)]
 
         else:
             templates_mainc[k] = t1
@@ -52,7 +53,7 @@ def crop_and_align_templates(big_templates, R, neighbors, geom):
     # spatially crop
     nneigh = np.max(np.sum(neighbors, 0))
 
-    small_templates = np.zeros((K, wf_length, nneigh))
+    small_templates = np.zeros((K, big_templates.shape[1], nneigh))
 
     for k in range(K):
         ch_idx = np.where(neighbors[mainC[k]])[0]
