@@ -9,7 +9,6 @@ from yass.augment.noise import noise_cov
 from yass.augment.util import (make_noisy, make_clean, make_collided,
                                make_misaligned, make_noise)
 from yass.templates.util import get_templates
-from yass.util import load_yaml
 
 
 def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
@@ -86,8 +85,6 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     logger = logging.getLogger(__name__)
 
     path_to_data = os.path.join(data_folder, 'preprocess', 'standarized.bin')
-    path_to_config = os.path.join(data_folder, 'preprocess',
-                                  'standarized.yaml')
 
     n_spikes, _ = spike_train.shape
 
@@ -97,8 +94,6 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
                          'needed to generate training data, run the '
                          'preprocesor first to generate it'
                          .format(path_to_data))
-
-    PARAMS = load_yaml(path_to_config)
 
     logger.info('Getting templates...')
 
@@ -164,9 +159,6 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
     # determine noise covariance structure
     spatial_SIG, temporal_SIG = noise_cov(path_to_data,
-                                          PARAMS['dtype'],
-                                          CONFIG.recordings.n_channels,
-                                          PARAMS['data_order'],
                                           CONFIG.neigh_channels,
                                           CONFIG.geom,
                                           templates.shape[1])
