@@ -71,7 +71,7 @@ def parse(path, n_channels):
 
 
 def find_channel_neighbors(geom, radius):
-    """Compute a channel neighbors matrix
+    """Compute a neighbors matrix by using a radius
 
     Parameters
     ----------
@@ -89,12 +89,12 @@ def find_channel_neighbors(geom, radius):
     return (squareform(pdist(geom)) <= radius)
 
 
-def n_steps_neigh_channels(neighbors, steps):
+def n_steps_neigh_channels(neighbors_matrix, steps):
     """Compute a neighbors matrix by considering neighbors of neighbors
 
     Parameters
     ----------
-    neighbors: numpy.ndarray
+    neighbors_matrix: numpy.ndarray
         Neighbors matrix
     steps: int
         Number of steps to still consider channels as neighbors
@@ -105,12 +105,31 @@ def n_steps_neigh_channels(neighbors, steps):
         Symmetric boolean matrix with the i, j as True if the ith and jth
         channels are considered neighbors
     """
-    C = neighbors.shape[0]
+    C = neighbors_matrix.shape[0]
+
+    # each channel is its own neighbor (diagonal of trues)
     output = np.eye(C, dtype='bool')
 
-    for j in range(steps):
-        for c in range(C):
-            output[c][np.sum(neighbors[output[c]], axis=0).astype('bool')] = 1
+    # for every step
+    for _ in range(steps):
+
+        # go trough every channel
+        for current in range(C):
+
+            # neighbors of the current channel
+            neighbors_current = output[current]
+
+            # get the neighbors of all the neighbors of the current channel
+            neighbors_of_neighbors = neighbors_matrix[neighbors_current]
+
+            # sub over rows and convert to bool, this will turn to true entries
+            # where at least one of the neighbors has each channel as its
+            # neighbor
+            is_neighbor_of_neighbor = np.sum(neighbors_of_neighbors,
+                                             axis=0).astype('bool')
+
+            # set the channels that are neighbors to true
+            output[current][is_neighbor_of_neighbor] = True
 
     return output
 
@@ -192,18 +211,27 @@ def make_channel_index(neighbors, channel_geometry, steps=1):
     if C != C2:
         raise ValueError('neighbors is not a square matrix, verify')
 
-    # neighboring info
-    neighbors = n_steps_neigh_channels(neighbors, steps)
+    # get neighbors matrix
+    neighbors = n_steps_neigh_channels(neighbors, steps=steps)
 
-    # neighboring channel info
-    nneigh = np.max(np.sum(neighbors, 0))
+    # max number of neighbors for all channels
+    n_neighbors = np.max(np.sum(neighbors, 0))
 
-    channel_index = np.ones((C, nneigh), 'int32') * C
+    # initialize channel index, initially with a dummy C value (a channel)
+    # that does not exists
+    channel_index = np.ones((C, n_neighbors), 'int32') * C
 
-    for c_ref in range(C):
-        neighbor_channels = np.where(neighbors[c_ref])[0]
-        ch_idx, temp = order_channels_by_distance(c_ref, neighbor_channels,
-                                                  channel_geometry)
-        channel_index[c_ref, :ch_idx.shape[0]] = ch_idx
+    # fill every row in the matrix (one per channel)
+    for current in range(C):
+
+        # indexes of current channel neighbors
+        neighbor_channels, _ = np.where(neighbors[current])
+
+        # sort them by distance
+        ch_idx, _ = order_channels_by_distance(current, neighbor_channels,
+                                               channel_geometry)
+
+        # fill entries with the sorted neighbor indexes
+        channel_index[current, :ch_idx.shape[0]] = ch_idx
 
     return channel_index
