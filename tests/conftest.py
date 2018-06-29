@@ -117,4 +117,4 @@ def path_to_txt_geometry(scope='session'):
 
 @pytest.fixture
 def path_to_npy_geometry(scope='session'):
-    return os.path.join(PATH_TO_TESTS, 'data/geometry.npy')
+    return os.path.join(PATH_TO_TESTS, 'data/neuropixel_channels.npy')
