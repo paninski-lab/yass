@@ -167,12 +167,17 @@ def test_can_make_noise(path_to_tests, path_to_standarized_data):
 
     templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
 
+    templates = crop_and_align_templates(templates_uncropped,
+                                         CONFIG.spike_size,
+                                         CONFIG.neigh_channels,
+                                         CONFIG.geom)
+
     spatial_SIG, temporal_SIG = noise_cov(path_to_standarized_data,
                                           CONFIG.neigh_channels,
                                           CONFIG.geom,
-                                          templates_uncropped.shape[1])
+                                          templates.shape[1])
 
-    x_clean = make_clean(templates_uncropped, min_amp=2, max_amp=10, nk=100)
+    x_clean = make_clean(templates, min_amp=2, max_amp=10, nk=100)
 
-    make_noise(x_clean, noise_ratio=10, templates=templates_uncropped,
+    make_noise(x_clean, noise_ratio=10, templates=templates,
                spatial_SIG=spatial_SIG, temporal_SIG=temporal_SIG)

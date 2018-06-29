@@ -1,3 +1,6 @@
+import logging
+
+
 import numpy as np
 
 from yass.geometry import order_channels_by_distance
@@ -27,6 +30,12 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size):
 
     temporal_SIG: numpy.ndarray
     """
+    logger = logging.getLogger(__name__)
+
+    logger.debug('Computing noise_cov. Neighbors shape: {}, geom shape: {} '
+                 'temporal_size: {}'.format(neighbors.shape, geom.shape,
+                                            temporal_size))
+
     c_ref = np.argmax(np.sum(neighbors, 0))
     ch_idx = np.where(neighbors[c_ref])[0]
     ch_idx, temp = order_channels_by_distance(c_ref, ch_idx, geom)
@@ -81,5 +90,8 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size):
     w, v = np.linalg.eig(np.cov(noise_wf.T))
 
     temporal_SIG = np.matmul(np.matmul(v, np.diag(np.sqrt(w))), v.T)
+
+    logger.debug('spatial_SIG shape: {} temporal_SIG shape: {}'
+                 .format(spatial_SIG.shape, temporal_SIG.shape))
 
     return spatial_SIG, temporal_SIG

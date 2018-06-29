@@ -17,7 +17,7 @@ recordings:
   dtype: int16
   sampling_rate: 20000
   n_channels: 10
-  spatial_radius: 70
+  spatial_radius: 50
   spike_size_ms: 1.5
   order: samples
 
