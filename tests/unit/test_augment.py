@@ -156,7 +156,7 @@ def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):
     # raise ValueError
 
 
-@pytest.mark.xfail
+# @pytest.mark.xfail
 def test_can_make_noise(path_to_tests, path_to_standarized_data):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
