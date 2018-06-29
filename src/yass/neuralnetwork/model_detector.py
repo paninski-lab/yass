@@ -440,7 +440,6 @@ class NeuralNetDetector(object):
 
         # saver
         saver = tf.train.Saver(vars_dict)
-
         logger.debug('Training detector network...')
 
         with tf.Session() as sess:
@@ -479,6 +478,7 @@ class NeuralNetDetector(object):
                          + str(tp) + ', false positive rate: ' + str(fp))
 
         path_to_params = change_extension(self.path_to_model, 'yaml')
+
         logger.debug('Saving network parameters: %s', path_to_params)
         save_detect_network_params(filters_size=self.filters_size,
                                    waveform_length=self.waveform_length,
