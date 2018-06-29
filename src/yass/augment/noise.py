@@ -12,20 +12,6 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size):
     path_to_data: str
         Path to recordings data
 
-    dtype: str
-        dtype for recordings
-
-    n_channels: int
-        Number of channels in the recordings
-
-    data_order: str
-        Recordings order, one of ('channels', 'samples'). In a dataset with k
-        observations per channel and j channels: 'channels' means first k
-        contiguous observations come from channel 0, then channel 1, and so
-        on. 'sample' means first j contiguous data are the first observations
-        from all channels, then the second observations from all channels and
-        so on
-
     neighbors: numpy.ndarray
         Neighbors matrix
 
@@ -37,6 +23,9 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size):
 
     Returns
     -------
+    spatial_SIG: numpy.ndarray
+
+    temporal_SIG: numpy.ndarray
     """
     c_ref = np.argmax(np.sum(neighbors, 0))
     ch_idx = np.where(neighbors[c_ref])[0]
@@ -47,15 +36,19 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size):
 
     T, C = rec.shape
     idxNoise = np.zeros((T, C))
-
     R = int((temporal_size-1)/2)
+
     for c in range(C):
+
         idx_temp = np.where(rec[:, c] > 3)[0]
+
         for j in range(-R, R+1):
+
             idx_temp2 = idx_temp + j
-            idx_temp2 = idx_temp2[np.logical_and(
-                idx_temp2 >= 0, idx_temp2 < T)]
+            idx_temp2 = idx_temp2[np.logical_and(idx_temp2 >= 0,
+                                                 idx_temp2 < T)]
             rec[idx_temp2, c] = np.nan
+
         idxNoise_temp = (rec[:, c] == rec[:, c])
         rec[:, c] = rec[:, c]/np.nanstd(rec[:, c])
 
@@ -73,11 +66,14 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size):
 
     noise_wf = np.zeros((1000, temporal_size))
     count = 0
+
     while count < 1000:
+
         tt = np.random.randint(T-temporal_size)
         cc = np.random.randint(C)
         temp = rec[tt:(tt+temporal_size), cc]
         temp_idxnoise = idxNoise[tt:(tt+temporal_size), cc]
+
         if np.sum(temp_idxnoise == 0) == 0:
             noise_wf[count] = temp
             count += 1

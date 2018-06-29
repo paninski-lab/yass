@@ -130,6 +130,28 @@ def test_can_make_misaligned(path_to_tests, path_to_standarized_data):
                     nneigh=templates_uncropped.shape[2])
 
 
+def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):
+    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
+    CONFIG = yass.read_config()
+
+    n_spikes, _ = spike_train.shape
+
+    weighted_spike_train = np.hstack((spike_train,
+                                      np.ones((n_spikes, 1), 'int32')))
+
+    templates_uncropped, _ = get_templates(weighted_spike_train,
+                                           path_to_standarized_data,
+                                           CONFIG.resources.max_memory,
+                                           4*CONFIG.spike_size)
+
+    templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
+
+    spatial_SIG, temporal_SIG = noise_cov(path_to_standarized_data,
+                                          CONFIG.neigh_channels,
+                                          CONFIG.geom,
+                                          templates_uncropped.shape[1])
+
+
 @pytest.mark.xfail
 def test_can_make_noise(path_to_tests, path_to_standarized_data):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
