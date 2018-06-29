@@ -225,7 +225,7 @@ def make_channel_index(neighbors, channel_geometry, steps=1):
     for current in range(C):
 
         # indexes of current channel neighbors
-        neighbor_channels, _ = np.where(neighbors[current])
+        neighbor_channels = np.where(neighbors[current])[0]
 
         # sort them by distance
         ch_idx, _ = order_channels_by_distance(current, neighbor_channels,
