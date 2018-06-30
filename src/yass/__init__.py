@@ -12,6 +12,7 @@ except ImportError:
                'https://www.tensorflow.org/install/')
     raise ImportError(message)
 
+
 from yass.config import Config
 
 logging.getLogger(__name__).addHandler(NullHandler())
@@ -75,3 +76,27 @@ def set_config(config):
 def reset_config():
     global CONFIG
     CONFIG = None
+
+
+def set_tensorflow_config(config):
+    """Mock tf.Session to always return a session with the given config
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+    import yass
+
+    config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 0.4
+    yass.set_tensorflow_config(config=config)
+    """
+    original_tf_session = tf.Session
+
+    def tf_session_mock(*args, **kwargs):
+        logger.warning('Starting tensorflow session with config: {}'
+                       .format(config))
+        return original_tf_session(*args, **kwargs, config=config)
+
+    tf.Session = tf_session_mock
