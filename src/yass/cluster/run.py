@@ -10,6 +10,7 @@ from yass.cluster.triage import triage
 from yass.cluster.coreset import coreset
 from yass.cluster.mask import getmask
 from yass.cluster.util import (run_cluster_features_2, 
+                               run_cluster_features_2_parallel,
                                calculate_sparse_rhat)
 from yass.mfm import get_core_data
 
@@ -109,10 +110,15 @@ def run(scores,
             n_mad_chans = 5
             n_max_chans = 5
             mfm_threshold = 0.90
-            upsample_factor = 20
-            nshifts = 51
+            upsample_factor = 5
+            nshifts = 7
 
-            spike_train, tmp_loc = run_cluster_features_2(spike_index_clear, 
+            #spike_train, tmp_loc = run_cluster_features_2(spike_index_clear, 
+            #                        n_dim_pca, wf_start, wf_end, n_mad_chans, 
+            #                        n_max_chans, CONFIG, output_directory,
+            #                        mfm_threshold, upsample_factor, nshifts)
+
+            spike_train, tmp_loc = run_cluster_features_2_parallel(spike_index_clear, 
                                     n_dim_pca, wf_start, wf_end, n_mad_chans, 
                                     n_max_chans, CONFIG, output_directory,
                                     mfm_threshold, upsample_factor, nshifts)

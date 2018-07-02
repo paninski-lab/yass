@@ -145,15 +145,15 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         spike_train_clear = np.load(path_to_clear_spike_train_after_merge)
     else:
         templates, spike_train_clear = get_templates.run(spike_train_clear,
-                                                         tmp_loc)   
+                                                         tmp_loc)
         logging.info('Saving templates in {}'.format(path_to_templates))
         np.save(path_to_templates, templates)
         np.save(path_to_clear_spike_train_after_merge, spike_train_clear)
     time_templates = time.time() - start
 
     # compare templates to ks and gold standard
-    print (" checking templates against saved sorts ")
-    compare_templates(templates, spike_train_clear)
+    # print ("checking templates against saved sorts ")
+    # compare_templates(templates, spike_train_clear)
     
 
     print (templates.shape, spike_train_clear.shape)
