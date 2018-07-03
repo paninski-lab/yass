@@ -213,12 +213,10 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     ##########
 
     if multi_channel:
-        x = np.concatenate((x_clean_noisy, x_collision_noisy,
-                            x_spatially_misaligned_noisy))
+        x = np.concatenate((x_clean_noisy, x_collision_noisy))
         x_triage = x[:, MID_POINT_IDX, :]
 
-        y_triage = np.concatenate((y_clean_1,
-                                   y_collision_0, y_misaligned2_0))
+        y_triage = np.concatenate((y_clean_1, y_collision_0))
     else:
         x = np.concatenate((x_clean_noisy, x_collision_noisy,))
         x_triage = x[:, MID_POINT_IDX, 0]
