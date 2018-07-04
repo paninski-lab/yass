@@ -371,9 +371,9 @@ class NeuralNetDetector(object):
         # Splitting dataset #
         #####################
 
-        (x_train, x_test,
-         y_train, y_test) = train_test_split(x_train, y_train,
-                                             test_size=test_size)
+        (self.x_train, self.x_test,
+         self.y_train, self.y_test) = train_test_split(x_train, y_train,
+                                                       test_size=test_size)
 
         ######################
         # Loading parameters #
@@ -465,14 +465,14 @@ class NeuralNetDetector(object):
 
                 # run a training step and compute training loss
                 res = sess.run([train_step, regularized_loss],
-                               feed_dict={x_tf: x_train[idx_batch],
-                                          y_tf: y_train[idx_batch]})
+                               feed_dict={x_tf: self.x_train[idx_batch],
+                                          y_tf: self.y_train[idx_batch]})
 
                 if i % 100 == 0:
                     # compute validation loss and metrics
                     output = sess.run({'val loss': regularized_loss},
-                                      feed_dict={x_tf: x_test,
-                                                 y_tf: y_test})
+                                      feed_dict={x_tf: self.x_test,
+                                                 y_tf: self.y_test})
 
                     pbar.set_description('Tr loss: %s, '
                                          'Val loss: %s' % (res[1],
