@@ -411,7 +411,7 @@ class NeuralNetDetector(Model):
         """Predict probabilities
         """
         _, waveform_length, n_neighbors = waveforms.shape
-        self._validate_dimensions(self, waveform_length, n_neighbors)
+        self._validate_dimensions(waveform_length, n_neighbors)
 
         with tf.Session() as sess:
             self.restore(sess)
@@ -461,8 +461,7 @@ class NeuralNetDetector(Model):
 
         # get parameters
         n_data, waveform_length_train, n_neighbors_train = self.x_train.shape
-        self._validate_dimensions(self, waveform_length_train,
-                                  n_neighbors_train)
+        self._validate_dimensions(waveform_length_train, n_neighbors_train)
 
         ##########################
         # Optimization objective #
