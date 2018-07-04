@@ -216,9 +216,9 @@ class NeuralNetTriage(object):
         self._validate_dimensions(waveform_length_train, n_neighbors_train)
 
         # x and y input tensors
-        x_tf = tf.placeholder("float", [self.n_batch, self.waveform_length,
+        x_tf = tf.placeholder("float", [None, self.waveform_length,
                                         self.n_neighbors])
-        y_tf = tf.placeholder("float", [self.n_batch])
+        y_tf = tf.placeholder("float", [None])
 
         o_layer, vars_dict = (NeuralNetTriage
                               ._make_network(x_tf,
