@@ -365,11 +365,19 @@ class NeuralNetDetector(object):
             Proportion of the training set to be used, data is shuffled before
             splitting, defaults to 0.3
         """
+        logger = logging.getLogger(__name__)
+
+        #####################
+        # Splitting dataset #
+        #####################
+
+        (x_train, x_test,
+         y_train, y_test) = train_test_split(x_train, y_train,
+                                             test_size=test_size)
+
         ######################
         # Loading parameters #
         ######################
-
-        logger = logging.getLogger(__name__)
 
         # get parameters
         n_data, waveform_length_train, n_neighbors_train = x_train.shape
@@ -385,14 +393,6 @@ class NeuralNetDetector(object):
                              'not match training data ({})'
                              .format(self.n_neigh,
                                      n_neighbors_train))
-
-        #####################
-        # Splitting dataset #
-        #####################
-
-        (x_train, x_test,
-         y_train, y_test) = train_test_split(x_train, y_train,
-                                             test_size=test_size)
 
         ####################
         # Building network #
