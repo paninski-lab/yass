@@ -200,7 +200,8 @@ def test_can_use_detector_triage_ae_after_fit(path_to_tests,
     triage.fit(x_detect, y_detect)
 
     path_to_model = path.join(tmp_folder, 'ae.ckpt')
-    autoencoder = AutoEncoder(path_to_model, waveform_length, n_features=3)
+    autoencoder = AutoEncoder(path_to_model, waveform_length, n_neighbors,
+                              n_features=3)
     autoencoder.fit(x_ae)
 
     data = RecordingExplorer(path_to_standarized_data).reader.data
@@ -251,7 +252,8 @@ def test_can_use_detect_triage_ae_after_reload(path_to_tests,
     triage.fit(x_detect, y_detect)
     triage = NeuralNetTriage.load(path_to_model, threshold=0.5)
 
-    autoencoder = AutoEncoder(path_to_model, waveform_length, n_features=3)
+    autoencoder = AutoEncoder(path_to_model, waveform_length, n_neighbors,
+                              n_features=3)
     autoencoder.fit(x_ae)
     autoencoder = AutoEncoder.load(path_to_model)
 
