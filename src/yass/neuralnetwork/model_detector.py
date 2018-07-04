@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 from tqdm import trange
 import logging
 
@@ -9,8 +10,6 @@ from yass.util import load_yaml, change_extension
 from yass.neuralnetwork.parameter_saver import save_detect_network_params
 
 
-# FIXME: missing documentation, how does changing the step parameter in
-# the passed channel_index chages the detector behavior?
 class NeuralNetDetector(object):
     """
     Class for training and running convolutional neural network detector
@@ -348,7 +347,7 @@ class NeuralNetDetector(object):
 
         return output
 
-    def fit(self, x_train, y_train):
+    def fit(self, x_train, y_train, test_size=0.3):
         """
         Trains the neural network detector for spike detection
 
@@ -362,8 +361,9 @@ class NeuralNetDetector(object):
             [number of training data] label for x_train. '1' denotes presence
             of an isolated spike and '0' denotes
             the presence of a noise data or misaligned spike.
-        path_to_model: string
-            name of the .ckpt to be saved
+        test_size: float, optional
+            Proportion of the training set to be used, data is shuffled before
+            splitting, defaults to 0.3
         """
         ######################
         # Loading parameters #
@@ -385,6 +385,14 @@ class NeuralNetDetector(object):
                              'not match training data ({})'
                              .format(self.n_neigh,
                                      n_neighbors_train))
+
+        #####################
+        # Splitting dataset #
+        #####################
+
+        (x_train, x_test,
+         y_train, y_test) = train_test_split(x_train, y_train,
+                                             test_size=test_size)
 
         ####################
         # Building network #
@@ -455,27 +463,23 @@ class NeuralNetDetector(object):
                 idx_batch = np.random.choice(n_data, self.n_batch,
                                              replace=False)
 
+                # run a training step and compute training loss
                 res = sess.run([train_step, regularized_loss],
                                feed_dict={x_tf: x_train[idx_batch],
                                           y_tf: y_train[idx_batch]})
 
                 if i % 100 == 0:
-                    pbar.set_description('Loss: %s' % res[1])
+                    # compute validation loss and metrics
+                    output = sess.run({'val loss': regularized_loss},
+                                      feed_dict={x_tf: x_test,
+                                                 y_tf: y_test})
+
+                    pbar.set_description('Tr loss: %s, '
+                                         'Val loss: %s' % res[1],
+                                         output['val loss'])
 
             logger.debug('Saving network: %s', self.path_to_model)
             saver.save(sess, self.path_to_model)
-
-            # estimate tp and fp with a sample
-            idx_batch = np.random.choice(n_data, self.n_batch, replace=False)
-
-            output = sess.run(o_layer, feed_dict={x_tf: x_train[idx_batch]})
-            y_test = y_train[idx_batch]
-
-            tp = np.mean(output[y_test == 1] > 0)
-            fp = np.mean(output[y_test == 0] > 0)
-
-            logger.debug('Approximate training true positive rate: '
-                         + str(tp) + ', false positive rate: ' + str(fp))
 
         path_to_params = change_extension(self.path_to_model, 'yaml')
 

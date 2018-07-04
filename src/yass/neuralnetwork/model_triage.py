@@ -1,6 +1,7 @@
 import warnings
 import logging
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 import numpy as np
 from tqdm import trange
 
@@ -183,7 +184,7 @@ class NeuralNetTriage(object):
 
         return idx_clean
 
-    def fit(self, x_train, y_train):
+    def fit(self, x_train, y_train, test_size=0.3):
         """Trains the triage network
 
         Parameters:
@@ -193,13 +194,22 @@ class NeuralNetTriage(object):
             for the triage network.
         y_train: np.array
             [number of data] training label for the triage network.
-        path_to_model: string
-            name of the .ckpt to be saved.
+        test_size: float, optional
+            Proportion of the training set to be used, data is shuffled before
+            splitting, defaults to 0.3
 
         Notes
         -----
         Size is determined but the second dimension in x_train
         """
+        #####################
+        # Splitting dataset #
+        #####################
+
+        (x_train, x_test,
+         y_train, y_test) = train_test_split(x_train, y_train,
+                                             test_size=test_size)
+
         # get parameters
         n_data, waveform_length_train, n_neighbors_train = x_train.shape
 
@@ -260,20 +270,17 @@ class NeuralNetTriage(object):
                                           y_tf: y_train[idx_batch]})
 
                 if i % 100 == 0:
-                    pbar.set_description('Loss: %s' % res[1])
+                    # compute validation loss and metrics
+                    output = sess.run({'val loss': regularized_loss},
+                                      feed_dict={x_tf: x_test,
+                                                 y_tf: y_test})
+
+                    pbar.set_description('Tr loss: %s, '
+                                         'Val loss: %s' % res[1],
+                                         output['val loss'])
 
             self.logger.debug('Saving network: %s', self.path_to_model)
             saver.save(sess, self.path_to_model)
-
-            idx_batch = np.random.choice(n_data, self.n_batch, replace=False)
-            output = sess.run(o_layer, feed_dict={x_tf: x_train[idx_batch]})
-            y_test = y_train[idx_batch]
-            tp = np.mean(output[y_test == 1] > 0)
-            fp = np.mean(output[y_test == 0] > 0)
-
-            self.logger.debug('Approximate training true positive rate: '
-                              + str(tp) +
-                              ', false positive rate: ' + str(fp))
 
         path_to_params = change_extension(self.path_to_model, 'yaml')
         self.logger.debug('Saving network parameters: %s', path_to_params)
