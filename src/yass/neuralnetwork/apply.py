@@ -1,3 +1,4 @@
+import logging
 import numpy as np
 from collections import defaultdict
 
@@ -45,6 +46,10 @@ def run_detect_triage_featurize(recordings, sess, x_tf, output_tf,
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
     """
+    logger = logging.getLogger(__name__)
+
+    logger.debug('Recordings of size: %s', recordings.shape)
+
     score, spike_index, idx_clean = sess.run(
         output_tf, feed_dict={x_tf: recordings})
 
