@@ -39,7 +39,17 @@ class NeuralNetDetector(object):
             itself) If any value is equal to n_channels, it is nothing but
             a placeholder in a case that a channel has less than n_neigh
             neighboring channels
+
+    Attributes
+    ----------
+    SPIKE: int
+        Label assigned to the spike class (1)
+    NOT_SPIKE: int
+        Label assigned to the not spike class (0)
     """
+
+    SPIKE = 1
+    NOT_SPIKE = 0
 
     def __init__(self, path_to_model, filters_size, waveform_length,
                  n_neighbors, threshold, channel_index, n_iter=50000,

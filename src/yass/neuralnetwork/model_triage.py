@@ -45,7 +45,15 @@ class NeuralNetTriage(object):
         Instance of detector
     threshold: int
         threshold for neural net triage
+    CLEAN: int
+        Label assigned to the clean spike class (1)
+    COLLIDED: int
+        Label assigned to the collided spike class (0)
+
     """
+
+    CLEAN = 1
+    COLLIDED = 0
 
     def __init__(self, path_to_model, filters_size,
                  waveform_length, n_neighbors, threshold,
