@@ -65,7 +65,7 @@ def run(standarized_path, standarized_params, whiten_filter,
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
 
-    spike_index_call: numpy.ndarray (n_collided_spikes, 2)
+    spike_index_all: numpy.ndarray (n_collided_spikes, 2)
         2D array with indexes for all spikes, first column contains the
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)

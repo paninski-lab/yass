@@ -63,6 +63,8 @@ class NeuralNetDetector(object):
         path_to_model: str
             location of trained neural net detectior
         """
+        self.logger = logging.getLogger(__name__)
+
         self.path_to_model = path_to_model
 
         self.filters_size = filters_size
@@ -375,6 +377,8 @@ class NeuralNetDetector(object):
     def restore(self, sess):
         """Restore tensor values
         """
+        self.logger.debug('Restoring tensorflow session from: %s',
+                          self.path_to_model)
         self.saver.restore(sess, self.path_to_model)
 
     def predict_recording(self, recording, output_names=('spike_index',)):

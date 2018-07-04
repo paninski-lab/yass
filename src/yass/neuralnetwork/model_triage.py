@@ -175,6 +175,8 @@ class NeuralNetTriage(object):
     def restore(self, sess):
         """Restore tensor values
         """
+        self.logger.debug('Restoring tensorflow session from: %s',
+                          self.path_to_model)
         self.saver.restore(sess, self.path_to_model)
 
     def predict(self, waveforms):
