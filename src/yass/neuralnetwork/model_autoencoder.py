@@ -28,7 +28,7 @@ class AutoEncoder(Model):
         Instance of detector
     """
 
-    def __init__(self, path_to_model, waveform_length,
+    def __init__(self, path_to_model, waveform_length, n_neighbors,
                  n_features, input_tensor=None):
         """
         Initializes the attributes for the class NeuralNetDetector.
@@ -41,6 +41,7 @@ class AutoEncoder(Model):
         self.path_to_model = path_to_model
         self.waveform_length = waveform_length
         self.n_features = n_features
+        self.n_neighbors = n_neighbors
 
         W_ae = tf.Variable(
             tf.random_uniform((waveform_length, n_features),
@@ -82,7 +83,7 @@ class AutoEncoder(Model):
         # input tensor (waveforms)
         if input_tensor is None:
             self.x_tf = tf.placeholder("float", [None, self.waveform_length,
-                                                 1])
+                                                 self.n_neighbors])
         else:
             self.x_tf = input_tensor
 
