@@ -380,7 +380,7 @@ class NeuralNetDetector(object):
         ######################
 
         # get parameters
-        n_data, waveform_length_train, n_neighbors_train = x_train.shape
+        n_data, waveform_length_train, n_neighbors_train = self.x_train.shape
 
         if self.waveform_length != waveform_length_train:
             raise ValueError('waveform length from network ({}) does not '
