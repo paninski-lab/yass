@@ -130,7 +130,7 @@ class AutoEncoder(Model):
 
         return scores
 
-    def fit(self, x_train, y_train):
+    def fit(self, x_train):
         """
         Trains the autoencoder for feature extraction
 
@@ -145,6 +145,8 @@ class AutoEncoder(Model):
         path_to_model: string
             name of the .ckpt to be saved.
         """
+        # FIXME: y_ae no longer used
+
         logger = logging.getLogger(__name__)
 
         # parameters
