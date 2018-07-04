@@ -87,8 +87,8 @@ class NeuralNetDetector(object):
         W2 = weight_variable([1, self.n_neighbors, K2, 1])
         b2 = bias_variable([1])
 
-        vars_dict = {"W1": W1, "W11": W11, "W2": W2, "b1": b1, "b11": b11,
-                     "b2": b2}
+        self.vars_dict = {"W1": W1, "W11": W11, "W2": W2, "b1": b1, "b11": b11,
+                          "b2": b2}
 
         # graphs
         (self.x_tf,
@@ -100,16 +100,16 @@ class NeuralNetDetector(object):
                                                       waveform_length,
                                                       filters_size,
                                                       n_neighbors,
-                                                      vars_dict))
+                                                      self.vars_dict))
 
         (self.x_tf_tr, self.y_tf_tr,
          self.o_layer_tr) = (NeuralNetDetector
                              ._make_training_graph(self.waveform_length,
                                                    self.n_neighbors,
-                                                   vars_dict))
+                                                   self.vars_dict))
 
         # create saver variables
-        self.saver = tf.train.Saver(vars_dict)
+        self.saver = tf.train.Saver(self.vars_dict)
 
     @classmethod
     def load(cls, path_to_model, threshold, channel_index):
