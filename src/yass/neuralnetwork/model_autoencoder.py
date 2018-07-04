@@ -43,8 +43,13 @@ class AutoEncoder(object):
 
         # load parameter of autoencoder
         path_to_filters_ae = change_extension(path_to_model, 'yaml')
+
         self.ae_dict = load_yaml(path_to_filters_ae)
+
+        # number of input features
         n_input = self.ae_dict['n_input']
+
+        # number of output features
         n_features = self.ae_dict['n_features']
 
         # initialize autoencoder weight
@@ -82,6 +87,7 @@ class AutoEncoder(object):
         n_features = self.ae_dict['n_features']
         nneigh_tf = tf.shape(self.x_tf)[2]
 
+        # transpose to the expected input and flatten
         reshaped_wf = tf.reshape(tf.transpose(self.x_tf, [0, 2, 1]),
                                  [-1, n_input])
         score_tf = tf.transpose(tf.reshape(tf.matmul(reshaped_wf, self.W_ae),
