@@ -42,14 +42,12 @@ class AutoEncoder(Model):
         self.waveform_length = waveform_length
         self.n_features = n_features
 
-        # initialize autoencoder weight
-        self.W_ae = tf.Variable(
+        W_ae = tf.Variable(
             tf.random_uniform((waveform_length, n_features),
                               -1.0 / np.sqrt(waveform_length),
                               1.0 / np.sqrt(waveform_length)))
-
-        # create saver variables
-        self.saver = tf.train.Saver({"W_ae": self.W_ae})
+        self.vars_dict = {"W_ae": W_ae}
+        self.saver = tf.train.Saver(self.vars_dict)
 
         # make score tensorflow tensor from waveform
         self.score_tf = self._make_graph(input_tensor)
@@ -93,7 +91,8 @@ class AutoEncoder(Model):
         # transpose to the expected input and flatten
         reshaped_wf = tf.reshape(tf.transpose(self.x_tf, [0, 2, 1]),
                                  [-1, self.waveform_length])
-        score_tf = tf.transpose(tf.reshape(tf.matmul(reshaped_wf, self.W_ae),
+        score_tf = tf.transpose(tf.reshape(tf.matmul(reshaped_wf,
+                                           self.vars_dict['W_ae']),
                                            [-1, nneigh_tf,
                                             self.waveform_length]),
                                 [0, 2, 1])
@@ -107,7 +106,7 @@ class AutoEncoder(Model):
 
         with tf.Session() as sess:
             self.saver.restore(sess, self.path_to_model)
-            rotation = sess.run(self.W_ae)
+            rotation = sess.run(self.vars_dict['W_ae'])
 
         return rotation
 
@@ -156,11 +155,11 @@ class AutoEncoder(Model):
 
         pca = PCA(n_components=self.n_features).fit(x_train)
 
-        # encoding
-        W_ae = tf.Variable((pca.components_.T).astype('float32'))
+        self.vars_dict['W_ae'] = (tf.Variable((pca.components_.T)
+                                              .astype('float32')))
 
         # saver
-        saver = tf.train.Saver({"W_ae": W_ae})
+        saver = tf.train.Saver(self.vars_dict)
 
         ############
         # training #
