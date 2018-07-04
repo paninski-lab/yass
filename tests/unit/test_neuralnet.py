@@ -200,8 +200,7 @@ def test_can_use_detector_triage_ae_after_fit(path_to_tests,
     triage.fit(x_detect, y_detect)
 
     path_to_model = path.join(tmp_folder, 'ae.ckpt')
-    autoencoder = AutoEncoder(path_to_model, waveform_length, n_neighbors,
-                              n_features=3)
+    autoencoder = AutoEncoder(path_to_model, waveform_length, n_features=3)
     autoencoder.fit(x_ae)
 
     data = RecordingExplorer(path_to_standarized_data).reader.data
@@ -212,9 +211,7 @@ def test_can_use_detector_triage_ae_after_fit(path_to_tests,
         proba) = detector.predict_recording(data, output_names=output_names)
 
     detector.predict(x_detect)
-
     triage.predict(waveform[:, :, :n_neighbors])
-
     autoencoder.predict(x_ae)
 
 
@@ -234,7 +231,6 @@ def test_can_use_detect_triage_ae_after_reload(path_to_tests,
     _, waveform_length, n_neighbors = x_detect.shape
 
     path_to_model = path.join(tmp_folder, 'detect-net.ckpt')
-
     detector = NeuralNetDetector(path_to_model, filters,
                                  waveform_length, n_neighbors,
                                  threshold=0.5,
@@ -244,16 +240,16 @@ def test_can_use_detect_triage_ae_after_reload(path_to_tests,
     detector = NeuralNetDetector.load(path_to_model, threshold=0.5,
                                       channel_index=CONFIG.channel_index)
 
+    path_to_model = path.join(tmp_folder, 'triage-net.ckpt')
     triage = NeuralNetTriage(path_to_model, filters,
                              waveform_length, n_neighbors,
                              threshold=0.5,
                              n_iter=10)
-
     triage.fit(x_detect, y_detect)
     triage = NeuralNetTriage.load(path_to_model, threshold=0.5)
 
-    autoencoder = AutoEncoder(path_to_model, waveform_length, n_neighbors,
-                              n_features=3)
+    path_to_model = path.join(tmp_folder, 'ae.ckpt')
+    autoencoder = AutoEncoder(path_to_model, waveform_length, n_features=3)
     autoencoder.fit(x_ae)
     autoencoder = AutoEncoder.load(path_to_model)
 
@@ -263,7 +259,6 @@ def test_can_use_detect_triage_ae_after_reload(path_to_tests,
 
     (spike_index, waveform,
         proba) = detector.predict_recording(data, output_names=output_names)
-
     detector.predict(x_detect)
     triage.predict(waveform[:, :, :n_neighbors])
     autoencoder.predict(x_ae)

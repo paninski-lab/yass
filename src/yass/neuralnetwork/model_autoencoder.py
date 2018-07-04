@@ -28,8 +28,8 @@ class AutoEncoder(Model):
         Instance of detector
     """
 
-    def __init__(self, path_to_model, waveform_length, n_neighbors,
-                 n_features, input_tensor=None):
+    def __init__(self, path_to_model, waveform_length, n_features,
+                 input_tensor=None):
         """
         Initializes the attributes for the class NeuralNetDetector.
 
@@ -41,7 +41,6 @@ class AutoEncoder(Model):
         self.path_to_model = path_to_model
         self.waveform_length = waveform_length
         self.n_features = n_features
-        self.n_neighbors = n_neighbors
 
         W_ae = tf.Variable(
             tf.random_uniform((waveform_length, n_features),
@@ -64,7 +63,7 @@ class AutoEncoder(Model):
         params = load_yaml(path_to_params)
 
         return cls(path_to_model, params['waveform_length'],
-                   params['n_neighbors'], params['n_features'], input_tensor)
+                   params['n_features'], input_tensor)
 
     def _make_graph(self, input_tensor):
         """
@@ -89,10 +88,10 @@ class AutoEncoder(Model):
             # transpose to the expected input and flatten
             reshaped_wf = tf.reshape(tf.transpose(self.x_tf, [0, 2, 1]),
                                      [-1, self.waveform_length])
+            n_neigh = tf.shape(self.x_tf)[2]
 
             mult = tf.matmul(reshaped_wf, self.vars_dict['W_ae'])
-            mult_reshaped = tf.reshape(mult, [-1, self.n_neighbors,
-                                       self.n_features])
+            mult_reshaped = tf.reshape(mult, [-1, n_neigh, self.n_features])
             score_tf = tf.transpose(mult_reshaped, [0, 2, 1])
 
         return score_tf
@@ -171,7 +170,6 @@ class AutoEncoder(Model):
             saver.save(sess, self.path_to_model)
 
         save_ae_network_params(waveform_length=self.waveform_length,
-                               n_neighbors=self.n_neighbors,
                                n_features=self.n_features,
                                output_path=change_extension(self.path_to_model,
                                                             'yaml'))
