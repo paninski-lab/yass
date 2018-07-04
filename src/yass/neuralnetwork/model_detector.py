@@ -75,7 +75,6 @@ class NeuralNetDetector(object):
         self.train_step_size = train_step_size
         self.n_iter = n_iter
 
-        # make spike_index tensorflow tensor
         (self.x_tf,
          self.spike_index_tf,
          self.probability_tf,
@@ -86,8 +85,15 @@ class NeuralNetDetector(object):
                                                                filters_size,
                                                                n_neighbors)
 
+        (self.x_tf_tr, self.y_tf_tr,
+         self.o_layer_tr,
+         self.vars_dict) = (NeuralNetDetector
+                            ._make_training_graph(self.waveform_length,
+                                                  self.filters_size,
+                                                  self.n_neighbors))
+
         # create saver variables
-        self.saver = tf.train.Saver(vars_dict)
+        self.saver = tf.train.Saver(self.vars_dict)
 
     @classmethod
     def load(cls, path_to_model, threshold, channel_index):
@@ -452,17 +458,6 @@ class NeuralNetDetector(object):
                              .format(self.n_neigh,
                                      n_neighbors_train))
 
-        ####################
-        # Building network #
-        ####################
-
-        (self.x_tf_tr, self.y_tf_tr,
-         self.o_layer_tr,
-         vars_dict) = (NeuralNetDetector
-                       ._make_training_graph(self.waveform_length,
-                                             self.filters_size,
-                                             self.n_neighbors))
-
         ##########################
         # Optimization objective #
         ##########################
@@ -492,7 +487,7 @@ class NeuralNetDetector(object):
         ############
 
         # saver
-        saver = tf.train.Saver(vars_dict)
+        saver = tf.train.Saver(self.vars_dict)
         logger.debug('Training detector network...')
 
         with tf.Session() as sess:
