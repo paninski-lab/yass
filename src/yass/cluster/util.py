@@ -1350,8 +1350,7 @@ def run_cluster_features_2_parallel(spike_index_clear, n_dim_pca, wf_start, wf_e
 
     print ("res: ", len(res), " res[0]: ", len(res[0]))
 
-    # make tmp_loc array (contains channel for each cluster);
-    # make spike_train from returned data
+    # assign uinque ids to all clusters and make tmp_loc
     cluster_id = 0
     tmp_loc = []
     spike_train_clustered = np.zeros((0, 2), 'int32')
@@ -1367,6 +1366,13 @@ def run_cluster_features_2_parallel(spike_index_clear, n_dim_pca, wf_start, wf_e
             spike_train_clustered=np.concatenate((spike_train_clustered, train_temp))
 
             cluster_id+=1
+   
+    # run inter-channel template merge   
+   
+    
+   
+   
+   
    
     # sort by time
     indexes = np.argsort(spike_train_clustered[:,0])
@@ -1457,7 +1463,7 @@ def cluster_channels(channel, CONFIG, spike_index_clear, n_dim_pca,
     
     if True:
         # merge tempaltes and return spike_index for merged 
-        spike_index = merge_clean_templates_channel(channel, spike_index, 
+        spike_index = merge_templates_intra_channel(channel, spike_index, 
                                             spike_index_clear[indexes], wf,
                                             CONFIG)
     if False:    
@@ -1584,7 +1590,7 @@ def recover_clear_spikes_pcaspace(channel, wf, sic, indexes_subsampled,
     plt.close('all')
 
     
-def merge_clean_templates_channel(channel, spike_index, sic, wf, CONFIG):
+def merge_templates_intra_channel(channel, spike_index, sic, wf, CONFIG):
     ''' Function that cleans noisy templates and merges the rest    
     '''
     
@@ -1608,21 +1614,27 @@ def merge_clean_templates_channel(channel, spike_index, sic, wf, CONFIG):
             plot_merge_matrix(channel, n_chans, temp, CONFIG, sim_mat, 
                       sim_mat_floats, spike_index, feat_channels, "premerge")
 
+
+    # Cat: TODO: this technically should be inside loop below
     # merge as recommended
     spike_index_new = merge_spikes(sim_mat, spike_index)
 
-    # compute templates again: 
-    temp = np.zeros((len(spike_index_new),wf.shape[1],wf.shape[2]),'float32')
-    for t in range(len(spike_index_new)): 
-        idx = np.in1d(sic[:,0], spike_index_new[t][:,0])
-        temp[t] = np.mean(wf[idx],axis=0)
+    while len(spike_index_new)!=temp.shape[0]:
 
-    sim_mat, sim_mat_floats, feat_channels = calc_sim_all_chan(channel, temp, temp, CONFIG)
+        # compute templates again: 
+        temp = np.zeros((len(spike_index_new),wf.shape[1],wf.shape[2]),'float32')
+        for t in range(len(spike_index_new)): 
+            idx = np.in1d(sic[:,0], spike_index_new[t][:,0])
+            temp[t] = np.mean(wf[idx],axis=0)
 
+        sim_mat, sim_mat_floats, feat_channels = calc_sim_all_chan(channel, temp, temp, CONFIG)
+
+        spike_index_new = merge_spikes(sim_mat, spike_index)
+
+    # plot final merge table
     if plotting: 
             plot_merge_matrix(channel, n_chans, temp, CONFIG, sim_mat, sim_mat_floats, 
                       spike_index_new, feat_channels, "postmerge")
-
 
     return spike_index_new
 
@@ -1668,9 +1680,9 @@ def plot_merge_matrix(channel, n_chans, temp, CONFIG, sim_mat, sim_mat_floats,
     ctr=0
     scale = 10
     for i in range(temp.shape[0]):
-        for j in range(temp.shape[0]):
+        for j in range(i, temp.shape[0]):
             ctr+=1
-            ax=plt.subplot(sim_mat.shape[0],sim_mat.shape[0],ctr)
+            ax=plt.subplot(sim_mat.shape[0],sim_mat.shape[0],i*temp.shape[0]+j+1)
             
             for k in range(n_chans):
                 plt.text(CONFIG.geom[k,0], CONFIG.geom[k,1], str(k), fontsize=10)
