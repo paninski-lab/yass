@@ -251,4 +251,5 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     x_ae = x_ae[:, MID_POINT_IDX]
     y_ae = y_ae[:, MID_POINT_IDX]
 
+    # FIXME: y_ae is no longer used, autoencoder was replaced by PCA
     return x_detect, y_detect, x_triage, y_triage, x_ae, y_ae
