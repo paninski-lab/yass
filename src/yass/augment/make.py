@@ -78,8 +78,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     * Triage training data
         * Multi channel
             * Positive examples: Clean spikes + noise
-            * Negative examples: Collided spikes + noise,
-                spatially misaligned spikes  + noise
+            * Negative examples: Collided spikes + noise
     """
 
     logger = logging.getLogger(__name__)
