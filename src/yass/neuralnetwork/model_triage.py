@@ -9,9 +9,10 @@ from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID)
 from yass.util import load_yaml, change_extension
 from yass.neuralnetwork.parameter_saver import save_triage_network_params
+from yass.neuralnetwork.model import Model
 
 
-class NeuralNetTriage(object):
+class NeuralNetTriage(Model):
     """Convolutional Neural Network for spike detection
 
     Parameters
@@ -298,16 +299,3 @@ class NeuralNetTriage(object):
                                    waveform_length=self.waveform_length,
                                    n_neighbors=self.n_neighbors,
                                    output_path=path_to_params)
-
-    def _validate_dimensions(self, waveform_length, n_neighbors):
-        if self.waveform_length != waveform_length:
-            raise ValueError('waveform length from network ({}) does not '
-                             'match input data ({})'
-                             .format(self.waveform_length,
-                                     waveform_length))
-
-        if self.n_neighbors != n_neighbors:
-            raise ValueError('number of n_neighbors from network ({}) does '
-                             'not match input data ({})'
-                             .format(self.n_neighbors,
-                                     n_neighbors))
