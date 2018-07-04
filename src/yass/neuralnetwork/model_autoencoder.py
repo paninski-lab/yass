@@ -83,17 +83,17 @@ class AutoEncoder(Model):
         # input tensor (waveforms)
         if input_tensor is None:
             self.x_tf = tf.placeholder("float", [None, self.waveform_length])
-            reshaped_wf = self.x_tf
+            score_tf = tf.matmul(self.x_tf, self.vars_dict['W_ae'])
         else:
             self.x_tf = input_tensor
             # transpose to the expected input and flatten
             reshaped_wf = tf.reshape(tf.transpose(self.x_tf, [0, 2, 1]),
                                      [-1, self.waveform_length])
 
-        mult = tf.matmul(reshaped_wf, self.vars_dict['W_ae'])
-        mult_reshaped = tf.reshape(mult, [-1, self.n_neighbors,
-                                   self.waveform_length])
-        score_tf = tf.transpose(mult_reshaped, [0, 2, 1])
+            mult = tf.matmul(reshaped_wf, self.vars_dict['W_ae'])
+            mult_reshaped = tf.reshape(mult, [-1, self.n_neighbors,
+                                       self.n_features])
+            score_tf = tf.transpose(mult_reshaped, [0, 2, 1])
 
         return score_tf
 
