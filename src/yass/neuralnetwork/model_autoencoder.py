@@ -64,8 +64,8 @@ class AutoEncoder(Model):
         path_to_params = change_extension(path_to_model, 'yaml')
         params = load_yaml(path_to_params)
 
-        return cls(path_to_model, params['n_input'], params['n_features'],
-                   input_tensor)
+        return cls(path_to_model, params['waveform_length'],
+                   params['n_features'], input_tensor)
 
     def _make_graph(self, input_tensor):
         """
@@ -95,7 +95,7 @@ class AutoEncoder(Model):
                                  [-1, self.waveform_length])
         score_tf = tf.transpose(tf.reshape(tf.matmul(reshaped_wf, self.W_ae),
                                            [-1, nneigh_tf,
-                                           self.waveform_length]),
+                                            self.waveform_length]),
                                 [0, 2, 1])
 
         return score_tf
@@ -173,7 +173,7 @@ class AutoEncoder(Model):
             sess.run(init_op)
             saver.save(sess, self.path_to_model)
 
-        save_ae_network_params(n_input=self.waveform_length,
+        save_ae_network_params(waveform_length=self.waveform_length,
                                n_features=self.n_features,
                                output_path=change_extension(self.path_to_model,
                                                             'yaml'))
