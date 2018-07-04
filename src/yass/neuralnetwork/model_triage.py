@@ -274,7 +274,6 @@ class NeuralNetTriage(object):
                     output = sess.run({'val loss': regularized_loss},
                                       feed_dict={x_tf: self.x_test,
                                                  y_tf: self.y_test})
-
                     pbar.set_description('Tr loss: %s, '
                                          'Val loss: %s' % (res[1],
                                                            output['val loss']))
