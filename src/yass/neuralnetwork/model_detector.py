@@ -75,25 +75,41 @@ class NeuralNetDetector(object):
         self.train_step_size = train_step_size
         self.n_iter = n_iter
 
+        # variables
+        K1, K2 = filters_size
+
+        W1 = weight_variable([waveform_length, 1, 1, K1])
+        b1 = bias_variable([K1])
+
+        W11 = weight_variable([1, 1, K1, K2])
+        b11 = bias_variable([K2])
+
+        W2 = weight_variable([1, self.n_neighbors, K2, 1])
+        b2 = bias_variable([1])
+
+        vars_dict = {"W1": W1, "W11": W11, "W2": W2, "b1": b1, "b11": b11,
+                     "b2": b2}
+
+        # graphs
         (self.x_tf,
          self.spike_index_tf,
          self.probability_tf,
-         self.waveform_tf,
-         vars_dict) = NeuralNetDetector._make_recordings_graph(threshold,
-                                                               channel_index,
-                                                               waveform_length,
-                                                               filters_size,
-                                                               n_neighbors)
+         self.waveform_tf) = (NeuralNetDetector
+                              ._make_recordings_graph(threshold,
+                                                      channel_index,
+                                                      waveform_length,
+                                                      filters_size,
+                                                      n_neighbors,
+                                                      vars_dict))
 
         (self.x_tf_tr, self.y_tf_tr,
-         self.o_layer_tr,
-         self.vars_dict) = (NeuralNetDetector
-                            ._make_training_graph(self.waveform_length,
-                                                  self.filters_size,
-                                                  self.n_neighbors))
+         self.o_layer_tr) = (NeuralNetDetector
+                             ._make_training_graph(self.waveform_length,
+                                                   self.n_neighbors,
+                                                   vars_dict))
 
         # create saver variables
-        self.saver = tf.train.Saver(self.vars_dict)
+        self.saver = tf.train.Saver(vars_dict)
 
     @classmethod
     def load(cls, path_to_model, threshold, channel_index):
@@ -110,36 +126,24 @@ class NeuralNetDetector(object):
                    threshold, channel_index)
 
     @classmethod
-    def _make_network(cls, input_layer, waveform_length, filters_size,
-                      n_neigh, padding):
-        K1, K2 = filters_size
-
-        W1 = weight_variable([waveform_length, 1, 1, K1])
-        b1 = bias_variable([K1])
-
-        W11 = weight_variable([1, 1, K1, K2])
-        b11 = bias_variable([K2])
-
-        W2 = weight_variable([1, n_neigh, K2, 1])
-        b2 = bias_variable([1])
-
-        vars_dict = {"W1": W1, "W11": W11, "W2": W2, "b1": b1, "b11": b11,
-                     "b2": b2}
+    def _make_network(cls, input_layer, vars_dict, padding):
 
         # first temporal layer
         # FIXME: old training code was using conv2d_VALID, old graph building
         # for prediction was using conv2d, that's why I need to add the
         # padding parameter, otherwise it breaks. we need to fix it
-        layer1 = tf.nn.relu(conv2d(input_layer, W1, padding) + b1)
+        layer1 = tf.nn.relu(conv2d(input_layer, vars_dict['W1'], padding)
+                            + vars_dict['b1'])
 
         # second temporal layer
-        layer11 = tf.nn.relu(conv2d(layer1, W11) + b11)
+        layer11 = tf.nn.relu(conv2d(layer1, vars_dict['W11'])
+                             + vars_dict['b11'])
 
         return vars_dict, layer11
 
     @classmethod
     def _make_recordings_graph(cls, threshold, channel_index, waveform_length,
-                               filters_size, n_neigh):
+                               filters_size, n_neigh, vars_dict):
         """Build tensorflow graph with input and two output layers used for
         predicting on recordings
 
@@ -187,9 +191,7 @@ class NeuralNetDetector(object):
         x_cnn_tf = tf.expand_dims(tf.expand_dims(x_tf, -1), 0)
 
         vars_dict, layer11 = cls._make_network(x_cnn_tf,
-                                               waveform_length,
-                                               filters_size,
-                                               n_neigh,
+                                               vars_dict,
                                                padding='SAME')
         W2 = vars_dict['W2']
         b2 = vars_dict['b2']
@@ -237,10 +239,10 @@ class NeuralNetDetector(object):
         waveform_tf = cls._make_waveform_tf(x_tf, spike_index_tf,
                                             channel_index, waveform_length)
 
-        return x_tf, spike_index_tf, probability_tf, waveform_tf, vars_dict
+        return x_tf, spike_index_tf, probability_tf, waveform_tf
 
     @classmethod
-    def _make_training_graph(cls, waveform_length, filters_size, n_neighbors):
+    def _make_training_graph(cls, waveform_length, n_neighbors, vars_dict):
         """Make graph for training
 
         Returns
@@ -251,8 +253,6 @@ class NeuralNetDetector(object):
             Labels tensor
         o_layer: tf.tensor
             Output tensor
-        vars_dict: dict
-            Variables dictionary
         """
         # x and y input tensors
         x_tf = tf.placeholder("float", [None, waveform_length, n_neighbors])
@@ -262,9 +262,7 @@ class NeuralNetDetector(object):
 
         vars_dict, layer11 = (NeuralNetDetector
                               ._make_network(input_tf,
-                                             waveform_length,
-                                             filters_size,
-                                             n_neighbors,
+                                             vars_dict,
                                              padding='VALID'))
 
         W2 = vars_dict['W2']
@@ -273,7 +271,7 @@ class NeuralNetDetector(object):
         # third layer: spatial convolution
         o_layer = tf.squeeze(conv2d_VALID(layer11, W2) + b2)
 
-        return x_tf, y_tf, o_layer, vars_dict
+        return x_tf, y_tf, o_layer
 
     @classmethod
     def _remove_edge_spikes(cls, x_tf, spike_index_tf, waveform_length):
