@@ -103,7 +103,8 @@ class NeuralNetDetector(object):
                                                       self.vars_dict))
 
         (self.x_tf_tr, self.y_tf_tr,
-         self.o_layer_tr) = (NeuralNetDetector
+         self.o_layer_tr,
+         self.sigmoid_tr) = (NeuralNetDetector
                              ._make_training_graph(self.waveform_length,
                                                    self.n_neighbors,
                                                    self.vars_dict))
@@ -271,7 +272,10 @@ class NeuralNetDetector(object):
         # third layer: spatial convolution
         o_layer = tf.squeeze(conv2d_VALID(layer11, W2) + b2)
 
-        return x_tf, y_tf, o_layer
+        # sigmoid
+        sigmoid = tf.sigmoid(o_layer)
+
+        return x_tf, y_tf, o_layer, sigmoid
 
     @classmethod
     def _remove_edge_spikes(cls, x_tf, spike_index_tf, waveform_length):
@@ -404,7 +408,7 @@ class NeuralNetDetector(object):
         with tf.Session() as sess:
             self.restore(sess)
 
-            output = sess.run(self.o_layer_tr,
+            output = sess.run(self.sigmoid_tr,
                               feed_dict={self.x_tf_tr: waveforms})
 
         return output
