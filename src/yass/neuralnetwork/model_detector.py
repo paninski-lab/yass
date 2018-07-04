@@ -8,9 +8,10 @@ from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID, max_pool)
 from yass.util import load_yaml, change_extension
 from yass.neuralnetwork.parameter_saver import save_detect_network_params
+from yass.neuralnetwork.model import Model
 
 
-class NeuralNetDetector(object):
+class NeuralNetDetector(Model):
     """
     Class for training and running convolutional neural network detector
     for spike detection
@@ -409,6 +410,9 @@ class NeuralNetDetector(object):
     def predict_proba(self, waveforms):
         """Predict probabilities
         """
+        _, waveform_length, n_neighbors = waveforms.shape
+        self._validate_dimensions(self, waveform_length, n_neighbors)
+
         with tf.Session() as sess:
             self.restore(sess)
 
@@ -457,18 +461,8 @@ class NeuralNetDetector(object):
 
         # get parameters
         n_data, waveform_length_train, n_neighbors_train = self.x_train.shape
-
-        if self.waveform_length != waveform_length_train:
-            raise ValueError('waveform length from network ({}) does not '
-                             'match training data ({})'
-                             .format(self.waveform_length,
-                                     waveform_length_train))
-
-        if self.n_neighbors != n_neighbors_train:
-            raise ValueError('number of n_neighbors from network ({}) does '
-                             'not match training data ({})'
-                             .format(self.n_neigh,
-                                     n_neighbors_train))
+        self._validate_dimensions(self, waveform_length_train,
+                                  n_neighbors_train)
 
         ##########################
         # Optimization objective #
