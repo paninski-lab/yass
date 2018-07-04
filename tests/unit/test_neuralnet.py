@@ -10,7 +10,7 @@ import yaml
 import yass
 from yass.batch import RecordingsReader, BatchProcessor
 from yass import neuralnetwork
-from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
+from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder.load
 from yass.geometry import make_channel_index, n_steps_neigh_channels
 from yass.augment import make_training_data
 from yass.explore import RecordingExplorer
@@ -92,7 +92,7 @@ def test_can_train_autoencoder(path_to_tests, path_to_sample_pipeline_folder,
 
     path_to_model = path.join(tmp_folder, 'ae.ckpt')
 
-    autoencoder = AutoEncoder(path_to_model, waveform_length, n_features=3)
+    autoencoder = AutoEncoder.load(path_to_model, waveform_length, n_features=3)
     autoencoder.fit(x_ae)
 
 
@@ -163,10 +163,10 @@ def test_can_reload_autoencoder(path_to_tests, path_to_sample_pipeline_folder,
 
     path_to_model = path.join(tmp_folder, 'ae.ckpt')
 
-    autoencoder = AutoEncoder(path_to_model, waveform_length, n_features=3)
+    autoencoder = AutoEncoder.load(path_to_model, waveform_length, n_features=3)
     autoencoder.fit(x_ae)
 
-    AutoEncoder.load(path_to_model)
+    AutoEncoder.load.load(path_to_model)
 
 
 def test_can_use_detector_triage_ae_after_fit(path_to_tests,
@@ -201,7 +201,7 @@ def test_can_use_detector_triage_ae_after_fit(path_to_tests,
 
     triage.fit(x_detect, y_detect)
 
-    autoencoder = AutoEncoder(path_to_model, waveform_length, n_features=3)
+    autoencoder = AutoEncoder.load(path_to_model, waveform_length, n_features=3)
     autoencoder.fit(x_ae)
 
     data = RecordingExplorer(path_to_standarized_data).reader.data
@@ -252,9 +252,9 @@ def test_can_use_detect_triage_ae_after_reload(path_to_tests,
     triage.fit(x_detect, y_detect)
     triage = NeuralNetTriage.load(path_to_model, threshold=0.5)
 
-    autoencoder = AutoEncoder(path_to_model, waveform_length, n_features=3)
+    autoencoder = AutoEncoder.load(path_to_model, waveform_length, n_features=3)
     autoencoder.fit(x_ae)
-    autoencoder = AutoEncoder.load(path_to_model)
+    autoencoder = AutoEncoder.load.load(path_to_model)
 
     data = RecordingExplorer(path_to_standarized_data).reader.data
 
@@ -289,7 +289,7 @@ def test_can_use_neural_network_detector(path_to_tests,
                                  channel_index)
     NNT = NeuralNetTriage.load(triage_fname, triage_th,
                                input_tensor=NND.waveform_tf)
-    NNAE = AutoEncoder(ae_fname, input_tensor=NND.waveform_tf)
+    NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
     output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
 
@@ -335,7 +335,7 @@ def test_splitting_in_batches_does_not_affect(path_to_tests,
                                  channel_index)
     NNT = NeuralNetTriage.load(triage_fname, triage_th,
                                input_tensor=NND.waveform_tf)
-    NNAE = AutoEncoder(ae_fname, input_tensor=NND.waveform_tf)
+    NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
     output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
 
