@@ -470,13 +470,13 @@ class NeuralNetDetector(object):
 
                 if i % 100 == 0:
                     # compute validation loss and metrics
-                    output = sess.run({'val loss': regularized_loss},
+                    output = sess.run([regularized_loss],
                                       feed_dict={x_tf: x_test,
                                                  y_tf: y_test})
 
                     pbar.set_description('Tr loss: %s, '
                                          'Val loss: %s' % res[1],
-                                         output['val loss'])
+                                         output[0])
 
             logger.debug('Saving network: %s', self.path_to_model)
             saver.save(sess, self.path_to_model)
