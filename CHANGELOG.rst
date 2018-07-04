@@ -6,6 +6,8 @@ Changelog
 * Colored logs
 * Improved testing coverage
 * Neural network code was simplified considerably
+* Added features to Neural networks objects
+* Added neural networks to documentation
 
 
 0.9 (2018-05-24)
