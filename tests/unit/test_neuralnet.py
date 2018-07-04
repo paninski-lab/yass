@@ -88,7 +88,7 @@ def test_can_train_autoencoder(path_to_tests, path_to_sample_pipeline_folder,
                                       min_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
-    _, waveform_length, n_neighbors = x_triage.shape
+    _, waveform_length = x_ae.shape
 
     path_to_model = path.join(tmp_folder, 'ae.ckpt')
 
@@ -159,7 +159,7 @@ def test_can_reload_autoencoder(path_to_tests, path_to_sample_pipeline_folder,
                                       min_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
-    _, waveform_length, n_neighbors = x_triage.shape
+    _, waveform_length = x_ae.shape
 
     path_to_model = path.join(tmp_folder, 'ae.ckpt')
 
@@ -185,22 +185,21 @@ def test_can_use_detector_triage_ae_after_fit(path_to_tests,
     _, waveform_length, n_neighbors = x_detect.shape
 
     path_to_model = path.join(tmp_folder, 'detect-net.ckpt')
-
     detector = NeuralNetDetector(path_to_model, filters,
                                  waveform_length, n_neighbors,
                                  threshold=0.5,
                                  channel_index=CONFIG.channel_index,
                                  n_iter=10)
-
     detector.fit(x_detect, y_detect)
 
+    path_to_model = path.join(tmp_folder, 'triage-net.ckpt')
     triage = NeuralNetTriage(path_to_model, filters,
                              waveform_length, n_neighbors,
                              threshold=0.5,
                              n_iter=10)
-
     triage.fit(x_detect, y_detect)
 
+    path_to_model = path.join(tmp_folder, 'ae.ckpt')
     autoencoder = AutoEncoder(path_to_model, waveform_length, n_features=3)
     autoencoder.fit(x_ae)
 
