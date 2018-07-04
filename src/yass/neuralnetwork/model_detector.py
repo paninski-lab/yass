@@ -402,8 +402,8 @@ class NeuralNetDetector(object):
 
         return output
 
-    def predict(self, waveforms):
-        """Make predictions on waveforms
+    def predict_proba(self, waveforms):
+        """Predict probabilities
         """
         with tf.Session() as sess:
             self.restore(sess)
@@ -412,6 +412,12 @@ class NeuralNetDetector(object):
                               feed_dict={self.x_tf_tr: waveforms})
 
         return output
+
+    def predict(self, waveforms):
+        """Predict classes (higher or equal than threshold)
+        """
+        probas = self.predict_proba(waveforms)
+        return (probas > self.threshold).astype('int')
 
     def fit(self, x_train, y_train, test_size=0.3):
         """
