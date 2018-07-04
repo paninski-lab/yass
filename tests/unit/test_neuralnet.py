@@ -166,7 +166,9 @@ def test_can_use_detector_and_triage_after_fit(path_to_tests,
     output_names = ('spike_index', 'waveform', 'probability')
 
     (spike_index, waveform,
-        proba) = detector.predict(data, output_names=output_names)
+        proba) = detector.predict_recording(data, output_names=output_names)
+
+    detector.predict(x_detect)
 
     triage.predict(waveform[:, :, :n_neighbors])
 
@@ -213,7 +215,9 @@ def test_can_use_detect_and_triage_after_reload(path_to_tests,
     output_names = ('spike_index', 'waveform', 'probability')
 
     (spike_index, waveform,
-        proba) = detector.predict(data, output_names=output_names)
+        proba) = detector.predict_recording(data, output_names=output_names)
+
+    detector.predict(x_detect)
 
     triage.predict(waveform[:, :, :n_neighbors])
 

@@ -80,11 +80,11 @@ class NeuralNetDetector(object):
          self.spike_index_tf,
          self.probability_tf,
          self.waveform_tf,
-         vars_dict) = NeuralNetDetector._make_graph(threshold,
-                                                    channel_index,
-                                                    waveform_length,
-                                                    filters_size,
-                                                    n_neighbors)
+         vars_dict) = NeuralNetDetector._make_recordings_graph(threshold,
+                                                               channel_index,
+                                                               waveform_length,
+                                                               filters_size,
+                                                               n_neighbors)
 
         # create saver variables
         self.saver = tf.train.Saver(vars_dict)
@@ -132,9 +132,10 @@ class NeuralNetDetector(object):
         return vars_dict, layer11
 
     @classmethod
-    def _make_graph(cls, threshold, channel_index, waveform_length,
-                    filters_size, n_neigh):
-        """Build tensorflow graph with input and two output layers
+    def _make_recordings_graph(cls, threshold, channel_index, waveform_length,
+                               filters_size, n_neigh):
+        """Build tensorflow graph with input and two output layers used for
+        predicting on recordings
 
         Parameters
         -----------
@@ -231,6 +232,42 @@ class NeuralNetDetector(object):
                                             channel_index, waveform_length)
 
         return x_tf, spike_index_tf, probability_tf, waveform_tf, vars_dict
+
+    @classmethod
+    def _make_training_graph(cls, waveform_length, filters_size, n_neighbors):
+        """Make graph for training
+
+        Returns
+        -------
+        x_tf: tf.tensor
+            Input tensor
+        y_tf: tf.tensor
+            Labels tensor
+        o_layer: tf.tensor
+            Output tensor
+        vars_dict: dict
+            Variables dictionary
+        """
+        # x and y input tensors
+        x_tf = tf.placeholder("float", [None, waveform_length, n_neighbors])
+        y_tf = tf.placeholder("float", [None])
+
+        input_tf = tf.expand_dims(x_tf, -1)
+
+        vars_dict, layer11 = (NeuralNetDetector
+                              ._make_network(input_tf,
+                                             waveform_length,
+                                             filters_size,
+                                             n_neighbors,
+                                             padding='VALID'))
+
+        W2 = vars_dict['W2']
+        b2 = vars_dict['b2']
+
+        # third layer: spatial convolution
+        o_layer = tf.squeeze(conv2d_VALID(layer11, W2) + b2)
+
+        return x_tf, y_tf, o_layer, vars_dict
 
     @classmethod
     def _remove_edge_spikes(cls, x_tf, spike_index_tf, waveform_length):
@@ -332,8 +369,8 @@ class NeuralNetDetector(object):
         """
         self.saver.restore(sess, self.path_to_model)
 
-    def predict(self, recordings, output_names=('spike_index',)):
-        """Make predictions
+    def predict_recording(self, recording, output_names=('spike_index',)):
+        """Make predictions on recordings
 
         Parameters
         ----------
@@ -353,7 +390,18 @@ class NeuralNetDetector(object):
             self.restore(sess)
 
             output = sess.run(output_tensors,
-                              feed_dict={self.x_tf: recordings})
+                              feed_dict={self.x_tf: recording})
+
+        return output
+
+    def predict(self, waveforms):
+        """Make predictions on waveforms
+        """
+        with tf.Session() as sess:
+            self.restore(sess)
+
+            output = sess.run(self.o_layer_tr,
+                              feed_dict={self.x_tf_tr: waveforms})
 
         return output
 
@@ -408,33 +456,20 @@ class NeuralNetDetector(object):
         # Building network #
         ####################
 
-        # x and y input tensors
-        x_tf = tf.placeholder("float", [None, self.waveform_length,
-                                        self.n_neighbors])
-        y_tf = tf.placeholder("float", [None])
-
-        input_tf = tf.expand_dims(x_tf, -1)
-
-        vars_dict, layer11 = (NeuralNetDetector
-                              ._make_network(input_tf,
-                                             self.waveform_length,
+        (self.x_tf_tr, self.y_tf_tr,
+         self.o_layer_tr,
+         vars_dict) = (NeuralNetDetector
+                       ._make_training_graph(self.waveform_length,
                                              self.filters_size,
-                                             self.n_neighbors,
-                                             padding='VALID'))
-
-        W2 = vars_dict['W2']
-        b2 = vars_dict['b2']
-
-        # third layer: spatial convolution
-        o_layer = tf.squeeze(conv2d_VALID(layer11, W2) + b2)
+                                             self.n_neighbors))
 
         ##########################
         # Optimization objective #
         ##########################
 
         # cross entropy
-        _ = tf.nn.sigmoid_cross_entropy_with_logits(logits=o_layer,
-                                                    labels=y_tf)
+        _ = tf.nn.sigmoid_cross_entropy_with_logits(logits=self.o_layer_tr,
+                                                    labels=self.y_tf_tr)
         cross_entropy = tf.reduce_mean(_)
 
         weights = tf.trainable_variables()
@@ -473,16 +508,19 @@ class NeuralNetDetector(object):
                 idx_batch = np.random.choice(n_data, self.n_batch,
                                              replace=False)
 
+                x_train_batch = self.x_train[idx_batch]
+                y_train_batch = self.y_train[idx_batch]
+
                 # run a training step and compute training loss
                 res = sess.run([train_step, regularized_loss],
-                               feed_dict={x_tf: self.x_train[idx_batch],
-                                          y_tf: self.y_train[idx_batch]})
+                               feed_dict={self.x_tf_tr: x_train_batch,
+                                          self.y_tf_tr: y_train_batch})
 
                 if i % 100 == 0:
                     # compute validation loss and metrics
                     output = sess.run({'val loss': regularized_loss},
-                                      feed_dict={x_tf: self.x_test,
-                                                 y_tf: self.y_test})
+                                      feed_dict={self.x_tf_tr: self.x_test,
+                                                 self.y_tf_tr: self.y_test})
 
                     pbar.set_description('Tr loss: %s, '
                                          'Val loss: %s' % (res[1],
