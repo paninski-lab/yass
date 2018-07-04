@@ -663,6 +663,9 @@ def init_param(maskedData, K, param):
 
 def weightedKmeansplusplus(X, w, k):
     """
+        X = data (n_features, #spikes)
+        w = weight (vector of 1s, len=#spikes)
+        k = # of clusters requested?
 
     """
     L = np.asarray([])
@@ -889,7 +892,10 @@ def split_merge(maskedData, param):
     n_iter = 10
     extra_iter = 5
     k_max = 1
-    while iter < n_iter:
+    
+    # Cat: TODO: we limited # iterations; CHECK THIS
+    #while iter < n_iter:
+    while iter < min(n_iter,1000):
         iter += 1
         vbParam, suffStat, L = birth_move(maskedData, vbParam, suffStat, param,
                                           L)
@@ -904,8 +910,11 @@ def split_merge(maskedData, param):
             n_iter = iter + extra_iter
             k_max = k_now
 
+        if iter > 100:
+            print ("MFM split_merge reached 100 iterations...<<<<<<<<<< ")
+
     vbParam, suffStat, L = merge_move(maskedData, vbParam, suffStat, param, L,
-                                      1)
+                                     1)
 
     return vbParam
 
