@@ -280,7 +280,7 @@ def run_neural_network(standarized_path, standarized_params,
                                      CONFIG.channel_index)
         NNT = NeuralNetTriage.load(triage_fname, triage_th,
                                    input_tensor=NND.waveform_tf)
-        NNAE = AutoEncoder(ae_fname, input_tensor=NND.waveform_tf)
+        NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
         rotation = NNAE.load_rotation()
