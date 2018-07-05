@@ -1,7 +1,7 @@
 import logging
 
 
-from yass.augment.make import make_training_data
+from yass.augment import make
 from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
 
 
@@ -38,7 +38,7 @@ def train(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
     logger.info('Generating training data...')
     (x_detect, y_detect,
      x_triage, y_triage,
-     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+     x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
                                       min_amp, nspikes,
                                       data_folder=data_folder)
 
