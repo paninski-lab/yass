@@ -12,8 +12,8 @@ from yass.templates.util import get_templates
 
 
 def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
-                       nspikes, data_folder, noise_ratio=10, collision_ratio=1,
-                       misalign_ratio=1, misalign_ratio2=1,
+                       n_spikes, data_folder, noise_ratio=10,
+                       collision_ratio=1, misalign_ratio=1, misalign_ratio2=1,
                        multi_channel=True):
     """Makes training sets for detector, triage and autoencoder
 
@@ -29,7 +29,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     min_amp: float
         Minimum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
-    nspikes: int
+    n_spikes: int
         Number of isolated spikes to generate. This is different from the
         total number of x_detect
     data_folder: str
@@ -131,8 +131,9 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
                                          CONFIG.neigh_channels,
                                          CONFIG.geom)
 
-    logger.debug('Templates shape after crop and align %s', templates.shape)
+    _, _, n_neigh = templates.shape
 
+    logger.debug('Templates shape after crop and align %s', templates.shape)
 
     # make training data set
     R = CONFIG.spike_size
@@ -141,9 +142,8 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     logger.debug('Output will be of size %s', 2 * R + 1)
 
     # make clean augmented spikes
-    nk = int(np.ceil(nspikes/K))
-    max_amp = np.max(amps)*1.5
-    nneigh = templates.shape[2]
+    nk = int(np.ceil(n_spikes/K))
+    max_amp = np.max(amps) * 1.5
     max_shift = 2*R
 
     # make clean spikes
@@ -151,7 +151,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
     # make collided spikes
     x_collision = make_collided(x_clean, collision_ratio, templates,
-                                R, multi_channel, nneigh)
+                                R, multi_channel, n_neigh)
 
     # make misaligned spikes
     (x_temporally_misaligned,
@@ -160,7 +160,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
                                                misalign_ratio,
                                                misalign_ratio2,
                                                multi_channel,
-                                               nneigh)
+                                               n_neigh)
 
     # determine noise covariance structure
     spatial_SIG, temporal_SIG = noise_cov(path_to_data,
