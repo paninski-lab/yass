@@ -8,7 +8,7 @@ import numpy as np
 import yass
 from yass.augment import make_training_data
 from yass.templates.util import get_templates
-from yass.augment.crop import crop_and_align_templates
+from yass.templates.crop import crop_and_align_templates
 from yass.augment.noise import noise_cov
 from yass.augment.util import (make_clean, make_collided,
                                make_misaligned, make_noise)
@@ -37,6 +37,7 @@ def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
                        data_folder=path_to_sample_pipeline_folder)
 
 
+# FIXME: move this test to test_templates
 def test_can_crop_and_align_templates(path_to_tests, path_to_standarized_data):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
