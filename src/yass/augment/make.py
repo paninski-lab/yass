@@ -1,14 +1,13 @@
 import os
+
 import numpy as np
 import logging
 
-
-from yass.templates.choose import choose_templates
 from yass.templates.crop import crop_and_align_templates
+from yass.templates import preprocess
 from yass.augment.noise import noise_cov
 from yass.augment.util import (make_noisy, make_clean, make_collided,
                                make_misaligned, make_noise)
-from yass.templates.util import get_templates
 
 
 def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
@@ -80,60 +79,16 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
             * Positive examples: Clean spikes + noise
             * Negative examples: Collided spikes + noise
     """
-
     logger = logging.getLogger(__name__)
 
     path_to_data = os.path.join(data_folder, 'preprocess', 'standarized.bin')
 
-    n_spikes, _ = spike_train.shape
-
-    # make sure standarized data already exists
-    if not os.path.exists(path_to_data):
-        raise ValueError('Standarized data does not exist in: {}, this is '
-                         'needed to generate training data, run the '
-                         'preprocesor first to generate it'
-                         .format(path_to_data))
-
-    logger.info('Getting templates...')
-
-    # add weight of one to every spike
-    weighted_spike_train = np.hstack((spike_train,
-                                      np.ones((n_spikes, 1), 'int32')))
-
-    # get templates
-    templates_uncropped, _ = get_templates(weighted_spike_train,
-                                           path_to_data,
-                                           CONFIG.resources.max_memory,
-                                           4*CONFIG.spike_size)
-
-    templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
-
-    K, _, n_channels = templates_uncropped.shape
-
-    logger.debug('Uncropped templates  shape: {}'
-                 .format(templates_uncropped.shape))
-
-    # choose good templates (user selected and amplitude above threshold)
-    # TODO: maybe the minimum_amplitude parameter should be selected by the
-    # user
-    templates_uncropped = choose_templates(templates_uncropped,
-                                           chosen_templates_indexes,
-                                           minimum_amplitude=4)
-
-    if templates_uncropped.shape[0] == 0:
-        raise ValueError("Coulndt find any good templates...")
-
-    logger.debug('Uncropped templates shape after selection: {}'
-                 .format(templates_uncropped.shape))
-
-    templates = crop_and_align_templates(templates_uncropped,
-                                         CONFIG.spike_size,
-                                         CONFIG.neigh_channels,
-                                         CONFIG.geom)
+    templates, templates_uncropped = preprocess(CONFIG, spike_train,
+                                                path_to_data,
+                                                chosen_templates_indexes)
 
     _, _, n_neigh = templates.shape
-
-    logger.debug('Templates shape after crop and align %s', templates.shape)
+    K, _, n_channels = templates_uncropped.shape
 
     # make training data set
     R = CONFIG.spike_size
@@ -258,3 +213,25 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
     # FIXME: y_ae is no longer used, autoencoder was replaced by PCA
     return x_detect, y_detect, x_triage, y_triage, x_ae, y_ae
+
+
+def make_testing_data():
+    """Make data for testing neural network
+
+    Parameters
+    ----------
+    n_per_id: int
+        How many spikes to generate per ID
+
+    Returns
+    -------
+    x_clean: numpy.ndarray, (n_spikes, waveform_length, n_channels)
+        Clean isolated spikes
+    noise: numpy, (n_spikes, waveform_length, n_channels)
+        Noise
+    ids: numpy, ndarray, (n_spikes,)
+        IDs for in x_clean
+    ptp: numpy.ndarray, (n_ids)
+        Peak to peak measure for every ID
+    """
+    pass
