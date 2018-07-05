@@ -110,8 +110,8 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
     K, _, n_channels = templates_uncropped.shape
 
-    logger.info('Got templates ndarray of shape: {}'
-                .format(templates_uncropped.shape))
+    logger.debug('Uncropped templates  shape: {}'
+                 .format(templates_uncropped.shape))
 
     # choose good templates (user selected and amplitude above threshold)
     # TODO: maybe the minimum_amplitude parameter should be selected by the
@@ -123,17 +123,22 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     if templates_uncropped.shape[0] == 0:
         raise ValueError("Coulndt find any good templates...")
 
-    logger.info('Good looking templates of shape: {}'
-                .format(templates_uncropped.shape))
+    logger.debug('Uncropped templates shape after selection: {}'
+                 .format(templates_uncropped.shape))
 
     templates = crop_and_align_templates(templates_uncropped,
                                          CONFIG.spike_size,
                                          CONFIG.neigh_channels,
                                          CONFIG.geom)
 
+    logger.debug('Templates shape after crop and align %s', templates.shape)
+
+
     # make training data set
     R = CONFIG.spike_size
     amps = np.max(np.abs(templates), axis=1)
+
+    logger.debug('Output will be of size %s', 2 * R + 1)
 
     # make clean augmented spikes
     nk = int(np.ceil(nspikes/K))
