@@ -6,7 +6,7 @@ import os.path as path
 import numpy as np
 
 import yass
-from yass.augment import make_training_data
+from yass.augment import make
 from yass.templates.util import get_templates
 from yass.templates.crop import crop_and_align_templates
 from yass.augment.noise import noise_cov
@@ -32,7 +32,7 @@ def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
-    make_training_data(CONFIG, spike_train, chosen_templates,
+    make.training_data(CONFIG, spike_train, chosen_templates,
                        min_amplitude, n_spikes_to_make,
                        data_folder=path_to_sample_pipeline_folder)
 

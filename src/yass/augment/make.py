@@ -10,10 +10,10 @@ from yass.augment.util import (make_noisy, make_clean, make_collided,
                                make_misaligned, make_noise)
 
 
-def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
-                       n_isolated_spikes, data_folder, noise_ratio=10,
-                       collision_ratio=1, misalign_ratio=1, misalign_ratio2=1,
-                       multi_channel=True):
+def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
+                  n_isolated_spikes, data_folder, noise_ratio=10,
+                  collision_ratio=1, misalign_ratio=1, misalign_ratio2=1,
+                  multi_channel=True):
     """Makes training sets for detector, triage and autoencoder
 
     Parameters
@@ -215,18 +215,22 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     return x_detect, y_detect, x_triage, y_triage, x_ae, y_ae
 
 
-def make_testing_data():
-    """Make data for testing neural network
+def testing_data(CONFIG, spike_train, chosen_templates_indexes,
+                 path_to_data, n_per_id, ptp_scale):
+    """Make data for testing neural network detector
 
     Parameters
     ----------
     n_per_id: int
         How many spikes to generate per ID
+    ptp_scale: float
+        Scale parameter in the normal distribution (mean 1) where the
+        variations for the peak to peak values as drawn
 
     Returns
     -------
-    x_clean: numpy.ndarray, (n_spikes, waveform_length, n_channels)
-        Clean isolated spikes
+    x_clean_noisy: numpy.ndarray, (n_spikes, waveform_length, n_channels)
+        Clean isolated spikes with noise added
     noise: numpy, (n_spikes, waveform_length, n_channels)
         Noise
     ids: numpy, ndarray, (n_spikes,)
@@ -234,4 +238,56 @@ def make_testing_data():
     ptp: numpy.ndarray, (n_ids)
         Peak to peak measure for every ID
     """
-    pass
+    templates, _ = preprocess(CONFIG, spike_train,
+                              path_to_data,
+                              chosen_templates_indexes)
+
+    K, waveform_length, _ = templates.shape
+
+    spatial_SIG, temporal_SIG = noise_cov(path_to_data,
+                                          CONFIG.neigh_channels,
+                                          CONFIG.geom,
+                                          waveform_length)
+
+    # R = CONFIG.spike_size
+    # amps = np.max(np.abs(templates), axis=1)
+
+    # make clean augmented spikes
+    # nk = int(np.ceil(nspikes/K))
+    #  if max_amp == 0:
+    #     max_amp = np.max(amps)*1.5
+
+    # nneigh = templates.shape[2]
+
+    ################
+    # clean spikes #
+    ################
+
+    x_clean = np.zeros(
+        (n_per_id*K, templates.shape[1], templates.shape[2]))
+    ids = np.zeros(x_clean.shape[0], dtype=int)
+    ptp = np.zeros(K)
+
+    for i in range(K):
+        ptp[i] = np.ptp(templates[i, :, 0])
+
+    for k in range(K):
+
+        tt = templates[k]
+
+        ptp_range = (np.random.normal(1, ptp_scale, n_per_id))[
+            :, np.newaxis, np.newaxis]
+
+        x_clean[k*n_per_id:(k+1) *
+                n_per_id] = tt[np.newaxis, :, :]*ptp_range
+        ids[k*n_per_id:(k+1)*n_per_id] = k
+
+    noise = make_noise(x_clean,
+                       noise_ratio=1,
+                       templates=templates,
+                       spatial_SIG=spatial_SIG,
+                       temporal_SIG=temporal_SIG)
+
+    x_clean_noisy = x_clean + noise
+
+    return x_clean_noisy, noise, ids, ptp

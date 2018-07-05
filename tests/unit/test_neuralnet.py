@@ -12,7 +12,7 @@ from yass.batch import RecordingsReader, BatchProcessor
 from yass import neuralnetwork
 from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
 from yass.geometry import make_channel_index, n_steps_neigh_channels
-from yass.augment import make_training_data
+from yass.augment import make
 from yass.explore import RecordingExplorer
 
 
@@ -37,7 +37,7 @@ def test_can_train_detector(path_to_tests, path_to_sample_pipeline_folder,
 
     (x_detect, y_detect,
      x_triage, y_triage,
-     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+     x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
@@ -61,7 +61,7 @@ def test_can_train_triage(path_to_tests, path_to_sample_pipeline_folder,
 
     (x_detect, y_detect,
      x_triage, y_triage,
-     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+     x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
@@ -84,7 +84,7 @@ def test_can_train_autoencoder(path_to_tests, path_to_sample_pipeline_folder,
 
     (x_detect, y_detect,
      x_triage, y_triage,
-     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+     x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
@@ -103,7 +103,7 @@ def test_can_reload_detector(path_to_tests, path_to_sample_pipeline_folder,
 
     (x_detect, y_detect,
      x_triage, y_triage,
-     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+     x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
@@ -130,7 +130,7 @@ def test_can_reload_triage(path_to_tests, path_to_sample_pipeline_folder,
 
     (x_detect, y_detect,
      x_triage, y_triage,
-     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+     x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
@@ -155,7 +155,7 @@ def test_can_reload_autoencoder(path_to_tests, path_to_sample_pipeline_folder,
 
     (x_detect, y_detect,
      x_triage, y_triage,
-     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+     x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
@@ -178,7 +178,7 @@ def test_can_use_detector_triage_ae_after_fit(path_to_tests,
 
     (x_detect, y_detect,
      x_triage, y_triage,
-     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+     x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
@@ -224,7 +224,7 @@ def test_can_use_detect_triage_ae_after_reload(path_to_tests,
 
     (x_detect, y_detect,
      x_triage, y_triage,
-     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
+     x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
                                       min_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
