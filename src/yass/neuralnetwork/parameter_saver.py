@@ -78,12 +78,12 @@ def save_triage_network_params(filters_size, waveform_length, n_neighbors,
         yaml.dump(d, f, CustomYAMLDumper)
 
 
-def save_ae_network_params(n_input, n_features, output_path):
+def save_ae_network_params(waveform_length, n_features, output_path):
     """Generate yaml file with parameters for a ae network
 
     Parameters
     ----------
-    n_input: int
+    waveform_length: int
         Dimension of input
 
     n_features: int
@@ -92,7 +92,7 @@ def save_ae_network_params(n_input, n_features, output_path):
     output_path: str
         Where to save the file
     """
-    d = dict(n_input=n_input, n_features=n_features)
+    d = dict(waveform_length=waveform_length, n_features=n_features)
 
     with open(output_path, 'w') as f:
         yaml.dump(d, f, CustomYAMLDumper)

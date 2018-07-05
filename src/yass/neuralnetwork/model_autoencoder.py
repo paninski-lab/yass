@@ -5,9 +5,10 @@ from sklearn.decomposition import PCA
 
 from yass.util import load_yaml, change_extension
 from yass.neuralnetwork.parameter_saver import save_ae_network_params
+from yass.neuralnetwork.model import Model
 
 
-class AutoEncoder(object):
+class AutoEncoder(Model):
     """
     Class for training and running convolutional neural network detector
     for spike detection
@@ -27,7 +28,8 @@ class AutoEncoder(object):
         Instance of detector
     """
 
-    def __init__(self, path_to_model, input_tensor=None):
+    def __init__(self, path_to_model, waveform_length, n_features,
+                 input_tensor=None):
         """
         Initializes the attributes for the class NeuralNetDetector.
 
@@ -36,27 +38,32 @@ class AutoEncoder(object):
         path_to_model: str
             location of trained neural net autoencoder
         """
-        if not path_to_model.endswith('.ckpt'):
-            path_to_model = path_to_model+'.ckpt'
-
         self.path_to_model = path_to_model
+        self.waveform_length = waveform_length
+        self.n_features = n_features
 
-        # load parameter of autoencoder
-        path_to_filters_ae = change_extension(path_to_model, 'yaml')
-        self.ae_dict = load_yaml(path_to_filters_ae)
-        n_input = self.ae_dict['n_input']
-        n_features = self.ae_dict['n_features']
-
-        # initialize autoencoder weight
-        self.W_ae = tf.Variable(
-            tf.random_uniform((n_input, n_features), -1.0 / np.sqrt(n_input),
-                              1.0 / np.sqrt(n_input)))
-
-        # create saver variables
-        self.saver = tf.train.Saver({"W_ae": self.W_ae})
+        W_ae = tf.Variable(
+            tf.random_uniform((waveform_length, n_features),
+                              -1.0 / np.sqrt(waveform_length),
+                              1.0 / np.sqrt(waveform_length)))
+        self.vars_dict = {"W_ae": W_ae}
+        self.saver = tf.train.Saver(self.vars_dict)
 
         # make score tensorflow tensor from waveform
         self.score_tf = self._make_graph(input_tensor)
+
+    @classmethod
+    def load(cls, path_to_model, input_tensor=None):
+
+        if not path_to_model.endswith('.ckpt'):
+            path_to_model = path_to_model+'.ckpt'
+
+        # load parameter of autoencoder
+        path_to_params = change_extension(path_to_model, 'yaml')
+        params = load_yaml(path_to_params)
+
+        return cls(path_to_model, params['waveform_length'],
+                   params['n_features'], input_tensor)
 
     def _make_graph(self, input_tensor):
         """
@@ -74,19 +81,18 @@ class AutoEncoder(object):
         """
         # input tensor (waveforms)
         if input_tensor is None:
-            self.x_tf = tf.placeholder("float", [None, None, self.C])
+            self.x_tf = tf.placeholder("float", [None, self.waveform_length])
+            score_tf = tf.matmul(self.x_tf, self.vars_dict['W_ae'])
         else:
             self.x_tf = input_tensor
+            # transpose to the expected input and flatten
+            reshaped_wf = tf.reshape(tf.transpose(self.x_tf, [0, 2, 1]),
+                                     [-1, self.waveform_length])
+            n_neigh = tf.shape(self.x_tf)[2]
 
-        n_input = self.ae_dict['n_input']
-        n_features = self.ae_dict['n_features']
-        nneigh_tf = tf.shape(self.x_tf)[2]
-
-        reshaped_wf = tf.reshape(tf.transpose(self.x_tf, [0, 2, 1]),
-                                 [-1, n_input])
-        score_tf = tf.transpose(tf.reshape(tf.matmul(reshaped_wf, self.W_ae),
-                                           [-1, nneigh_tf, n_features]),
-                                [0, 2, 1])
+            mult = tf.matmul(reshaped_wf, self.vars_dict['W_ae'])
+            mult_reshaped = tf.reshape(mult, [-1, n_neigh, self.n_features])
+            score_tf = tf.transpose(mult_reshaped, [0, 2, 1])
 
         return score_tf
 
@@ -97,7 +103,7 @@ class AutoEncoder(object):
 
         with tf.Session() as sess:
             self.saver.restore(sess, self.path_to_model)
-            rotation = sess.run(self.W_ae)
+            rotation = sess.run(self.vars_dict['W_ae'])
 
         return rotation
 
@@ -109,6 +115,9 @@ class AutoEncoder(object):
     def predict(self, waveforms):
         """Apply autoencoder
         """
+        n_waveforms, waveform_length = waveforms.shape
+        self._validate_dimensions(waveform_length)
+
         with tf.Session() as sess:
             self.restore(sess)
 
@@ -117,9 +126,7 @@ class AutoEncoder(object):
 
         return scores
 
-    @classmethod
-    def train(cls, x_train, y_train, n_features, n_iter, n_batch,
-              train_step_size, path_to_model):
+    def fit(self, x_train):
         """
         Trains the autoencoder for feature extraction
 
@@ -134,21 +141,22 @@ class AutoEncoder(object):
         path_to_model: string
             name of the .ckpt to be saved.
         """
+        # FIXME: y_ae no longer used
+
         logger = logging.getLogger(__name__)
 
-        if not path_to_model.endswith('.ckpt'):
-            path_to_model = path_to_model+'.ckpt'
-
         # parameters
-        n_data, n_input = x_train.shape
+        n_data, waveform_length = x_train.shape
 
-        pca = PCA(n_components=n_features).fit(x_train)
+        self._validate_dimensions(waveform_length)
 
-        # encoding
-        W_ae = tf.Variable((pca.components_.T).astype('float32'))
+        pca = PCA(n_components=self.n_features).fit(x_train)
+
+        self.vars_dict['W_ae'] = (tf.Variable((pca.components_.T)
+                                              .astype('float32')))
 
         # saver
-        saver = tf.train.Saver({"W_ae": W_ae})
+        saver = tf.train.Saver(self.vars_dict)
 
         ############
         # training #
@@ -159,9 +167,9 @@ class AutoEncoder(object):
         with tf.Session() as sess:
             init_op = tf.global_variables_initializer()
             sess.run(init_op)
-            saver.save(sess, path_to_model)
+            saver.save(sess, self.path_to_model)
 
-        save_ae_network_params(n_input=x_train.shape[1],
-                               n_features=n_features,
-                               output_path=change_extension(path_to_model,
+        save_ae_network_params(waveform_length=self.waveform_length,
+                               n_features=self.n_features,
+                               output_path=change_extension(self.path_to_model,
                                                             'yaml'))

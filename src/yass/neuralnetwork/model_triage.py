@@ -1,6 +1,7 @@
 import warnings
 import logging
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 import numpy as np
 from tqdm import trange
 
@@ -8,9 +9,10 @@ from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID)
 from yass.util import load_yaml, change_extension
 from yass.neuralnetwork.parameter_saver import save_triage_network_params
+from yass.neuralnetwork.model import Model
 
 
-class NeuralNetTriage(object):
+class NeuralNetTriage(Model):
     """Convolutional Neural Network for spike detection
 
     Parameters
@@ -44,7 +46,15 @@ class NeuralNetTriage(object):
         Instance of detector
     threshold: int
         threshold for neural net triage
+    CLEAN: int
+        Label assigned to the clean spike class (1)
+    COLLIDED: int
+        Label assigned to the collided spike class (0)
+
     """
+
+    CLEAN = 1
+    COLLIDED = 0
 
     def __init__(self, path_to_model, filters_size,
                  waveform_length, n_neighbors, threshold,
@@ -166,6 +176,8 @@ class NeuralNetTriage(object):
     def restore(self, sess):
         """Restore tensor values
         """
+        self.logger.debug('Restoring tensorflow session from: %s',
+                          self.path_to_model)
         self.saver.restore(sess, self.path_to_model)
 
     def predict(self, waveforms):
@@ -183,7 +195,7 @@ class NeuralNetTriage(object):
 
         return idx_clean
 
-    def fit(self, x_train, y_train):
+    def fit(self, x_train, y_train, test_size=0.3):
         """Trains the triage network
 
         Parameters:
@@ -193,22 +205,31 @@ class NeuralNetTriage(object):
             for the triage network.
         y_train: np.array
             [number of data] training label for the triage network.
-        path_to_model: string
-            name of the .ckpt to be saved.
+        test_size: float, optional
+            Proportion of the training set to be used, data is shuffled before
+            splitting, defaults to 0.3
 
         Notes
         -----
         Size is determined but the second dimension in x_train
         """
+        #####################
+        # Splitting dataset #
+        #####################
+
+        (self.x_train, self.x_test,
+         self.y_train, self.y_test) = train_test_split(x_train, y_train,
+                                                       test_size=test_size)
+
         # get parameters
-        n_data, waveform_length_train, n_neighbors_train = x_train.shape
+        n_data, waveform_length_train, n_neighbors_train = self.x_train.shape
 
         self._validate_dimensions(waveform_length_train, n_neighbors_train)
 
         # x and y input tensors
-        x_tf = tf.placeholder("float", [self.n_batch, self.waveform_length,
+        x_tf = tf.placeholder("float", [None, self.waveform_length,
                                         self.n_neighbors])
-        y_tf = tf.placeholder("float", [self.n_batch])
+        y_tf = tf.placeholder("float", [None])
 
         o_layer, vars_dict = (NeuralNetTriage
                               ._make_network(x_tf,
@@ -256,24 +277,20 @@ class NeuralNetTriage(object):
                                              replace=False)
 
                 res = sess.run([train_step, regularized_loss],
-                               feed_dict={x_tf: x_train[idx_batch],
-                                          y_tf: y_train[idx_batch]})
+                               feed_dict={x_tf: self.x_train[idx_batch],
+                                          y_tf: self.y_train[idx_batch]})
 
                 if i % 100 == 0:
-                    pbar.set_description('Loss: %s' % res[1])
+                    # compute validation loss and metrics
+                    output = sess.run({'val loss': regularized_loss},
+                                      feed_dict={x_tf: self.x_test,
+                                                 y_tf: self.y_test})
+                    pbar.set_description('Tr loss: %s, '
+                                         'Val loss: %s' % (res[1],
+                                                           output['val loss']))
 
             self.logger.debug('Saving network: %s', self.path_to_model)
             saver.save(sess, self.path_to_model)
-
-            idx_batch = np.random.choice(n_data, self.n_batch, replace=False)
-            output = sess.run(o_layer, feed_dict={x_tf: x_train[idx_batch]})
-            y_test = y_train[idx_batch]
-            tp = np.mean(output[y_test == 1] > 0)
-            fp = np.mean(output[y_test == 0] > 0)
-
-            self.logger.debug('Approximate training true positive rate: '
-                              + str(tp) +
-                              ', false positive rate: ' + str(fp))
 
         path_to_params = change_extension(self.path_to_model, 'yaml')
         self.logger.debug('Saving network parameters: %s', path_to_params)
@@ -282,16 +299,3 @@ class NeuralNetTriage(object):
                                    waveform_length=self.waveform_length,
                                    n_neighbors=self.n_neighbors,
                                    output_path=path_to_params)
-
-    def _validate_dimensions(self, waveform_length, n_neighbors):
-        if self.waveform_length != waveform_length:
-            raise ValueError('waveform length from network ({}) does not '
-                             'match input data ({})'
-                             .format(self.waveform_length,
-                                     waveform_length))
-
-        if self.n_neighbors != n_neighbors:
-            raise ValueError('number of n_neighbors from network ({}) does '
-                             'not match input data ({})'
-                             .format(self.n_neighbors,
-                                     n_neighbors))
