@@ -101,35 +101,37 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
                                                 path_to_recordings,
                                                 output_directory, CONFIG)
    
+    # Cat: TODO: Templates probably won't be computed through this 
+    #      function any longer; for now disable the remainder of this function
+    if False:
+        # Cat: this seems to be broken right now, gives error for align_templates
+        # logger.info("Getting Templates....")
+        # templates, weights = get_templates(spike_train, path_to_recordings,
+        #                                   CONFIG.resources.max_memory,
+        #                                   2 * (spike_size + template_max_shift))
 
-    # Cat: this seems to be broken right now, gives error for align_templates
-    # logger.info("Getting Templates....")
-    # templates, weights = get_templates(spike_train, path_to_recordings,
-    #                                   CONFIG.resources.max_memory,
-    #                                   2 * (spike_size + template_max_shift))
+        # clean up bad templates
+        # logger.info("Cleaning Templates...")
+        # snr_threshold = 2
+        # spread_threshold = 100
+        #templates, weights, spike_train, idx_good_templates = clean_up_templates(
+            #templates, weights, spike_train, tmp_loc, geometry, neighbors,
+            #snr_threshold, spread_threshold)
 
-    # clean up bad templates
-    # logger.info("Cleaning Templates...")
-    # snr_threshold = 2
-    # spread_threshold = 100
-    #templates, weights, spike_train, idx_good_templates = clean_up_templates(
-        #templates, weights, spike_train, tmp_loc, geometry, neighbors,
-        #snr_threshold, spread_threshold)
+        logger.info("Aligning Templates...")
+        # align templates
+        templates, spike_train = align_templates(templates, spike_train,
+                                                 template_max_shift)
 
-    logger.info("Aligning Templates...")
-    # align templates
-    templates, spike_train = align_templates(templates, spike_train,
-                                             template_max_shift)
+        logger.info("Merging Templates...")
+        # merge templates
+        templates, spike_train, groups = merge_templates(
+            templates, weights, spike_train, neighbors, template_max_shift,
+            merge_threshold)
 
-    logger.info("Merging Templates...")
-    # merge templates
-    templates, spike_train, groups = merge_templates(
-        templates, weights, spike_train, neighbors, template_max_shift,
-        merge_threshold)
-
-    # remove the edge since it is bad
-    templates = templates[:, template_max_shift:(
-        template_max_shift + (4 * spike_size + 1))]
+        # remove the edge since it is bad
+        templates = templates[:, template_max_shift:(
+            template_max_shift + (4 * spike_size + 1))]
 
     Time['e'] += (datetime.datetime.now() - _b).total_seconds()
 
