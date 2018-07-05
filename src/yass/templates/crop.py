@@ -1,6 +1,40 @@
+import logging
+
 import numpy as np
 
 from yass.geometry import order_channels_by_distance
+
+
+def main_channels(templates):
+    """Find main channel for every template
+    """
+    abs_templates = np.abs(templates)
+
+    # get the maximum along the waveform to get the highest point in every
+    # channel
+    max_along_time = np.amax(abs_templates, axis=1)
+
+    # return the index maximum  value along the channels - this is the main
+    # channel
+    return np.argmax(max_along_time, axis=1)
+
+
+def amplitudes(templates):
+    """Find amplitudes
+    """
+    return np.amax(np.abs(templates), axis=(1, 2))
+
+
+def on_main_channel(templates):
+    """Get templates on its main and neighboring channels
+    """
+    pass
+
+
+def align(templates, crop=True):
+    """Align templates spatially
+    """
+    pass
 
 
 def crop_and_align_templates(big_templates, R, neighbors, geom):
@@ -12,25 +46,29 @@ def crop_and_align_templates(big_templates, R, neighbors, geom):
     Returns
     -------
     """
+    logger = logging.getLogger(__name__)
+
     # copy templates to avoid modifying the original ones
     big_templates = np.copy(big_templates)
 
-    K, _, _ = big_templates.shape
+    n_templates, _, _ = big_templates.shape
 
-    # main channel for each template and amplitudes
-    mainC = np.argmax(np.amax(np.abs(big_templates), axis=1), axis=1)
-    amps = np.amax(np.abs(big_templates), axis=(1, 2))
+    # main channels ad amplitudes for each template
+    main_ch = main_channels(big_templates)
+    amps = amplitudes(big_templates)
 
     # get a template on a main channel and align them
     K_big = np.argmax(amps)
-    templates_mainc = np.zeros((K, big_templates.shape[1]))
-    t_rec = big_templates[K_big, :, mainC[K_big]]
+    templates_mainc = np.zeros((n_templates, big_templates.shape[1]))
+    t_rec = big_templates[K_big, :, main_ch[K_big]]
     t_rec = t_rec/np.sqrt(np.sum(np.square(t_rec)))
 
-    for k in range(K):
-        t1 = big_templates[k, :, mainC[k]]
+    for k in range(n_templates):
+        t1 = big_templates[k, :, main_ch[k]]
         t1 = t1/np.sqrt(np.sum(np.square(t1)))
         shift = align_templates(t1, t_rec)
+
+        logger.debug('Template %i will be shifted by %i', k, shift)
 
         if shift > 0:
             templates_mainc[k, :(big_templates.shape[1]-shift)] = t1[shift:]
@@ -56,11 +94,11 @@ def crop_and_align_templates(big_templates, R, neighbors, geom):
     # spatially crop
     nneigh = np.max(np.sum(neighbors, 0))
 
-    small_templates = np.zeros((K, big_templates.shape[1], nneigh))
+    small_templates = np.zeros((n_templates, big_templates.shape[1], nneigh))
 
-    for k in range(K):
-        ch_idx = np.where(neighbors[mainC[k]])[0]
-        ch_idx, temp = order_channels_by_distance(mainC[k], ch_idx, geom)
+    for k in range(n_templates):
+        ch_idx = np.where(neighbors[main_ch[k]])[0]
+        ch_idx, temp = order_channels_by_distance(main_ch[k], ch_idx, geom)
         small_templates[k, :, :ch_idx.shape[0]] = big_templates[k][:, ch_idx]
 
     return small_templates
