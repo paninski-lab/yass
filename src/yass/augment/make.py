@@ -12,7 +12,7 @@ from yass.templates.util import get_templates
 
 
 def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
-                       n_spikes, data_folder, noise_ratio=10,
+                       n_isolated_spikes, data_folder, noise_ratio=10,
                        collision_ratio=1, misalign_ratio=1, misalign_ratio2=1,
                        multi_channel=True):
     """Makes training sets for detector, triage and autoencoder
@@ -142,7 +142,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     logger.debug('Output will be of size %s', 2 * R + 1)
 
     # make clean augmented spikes
-    nk = int(np.ceil(n_spikes/K))
+    nk = int(np.ceil(n_isolated_spikes/K))
     max_amp = np.max(amps) * 1.5
     max_shift = 2*R
 
