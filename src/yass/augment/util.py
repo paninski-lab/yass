@@ -12,7 +12,7 @@ def make_noisy(x, the_noise):
     return x + noise_sample
 
 
-def make_clean(templates, min_amp, max_amp, n):
+def make_clean(templates, min_amp, max_amp, nk):
     """Make clean spikes from templates
 
     Parameters
@@ -28,27 +28,29 @@ def make_clean(templates, min_amp, max_amp, n):
         Maximum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
 
-    n: int
-        (n_templates * n ) spikes will be produced
+    nk: int
+        (n_templates * nk ) spikes will be produced
 
     Returns
     -------
-    numpy.ndarray (n_templates * n, waveform_length, n_channels)
+    numpy.ndarray (n_templates * nk, waveform_length, n_channels)
         Clean spikes
     """
     n_templates, waveform_length, n_neighbors = templates.shape
 
-    x_clean = np.zeros((n * n_templates, waveform_length, n_neighbors))
+    x_clean = np.zeros((nk * n_templates, waveform_length, n_neighbors))
+
+    d = max_amp - min_amp
+    amps_range = (min_amp + np.arange(nk) * d/nk)[:, np.newaxis, np.newaxis]
 
     for k in range(n_templates):
 
         current = templates[k]
         amp = np.max(np.abs(current))
+        scaled = (current/amp)[np.newaxis, :, :]
 
-        amps_range = (np.arange(n)*(max_amp-min_amp)
-                      / n+min_amp)[:, np.newaxis, np.newaxis]
-
-        x_clean[k * n: (k+1) * n] = (current/amp)[np.newaxis, :, :]*amps_range
+        # create n clean spikes by scaling the template along the range
+        x_clean[k * nk: (k + 1) * nk] = scaled * amps_range
 
     return x_clean
 
