@@ -3,8 +3,8 @@ import numpy as np
 import logging
 
 
-from yass.augment.choose import choose_templates
-from yass.augment.crop import crop_and_align_templates
+from yass.templates.choose import choose_templates
+from yass.templates.crop import crop_and_align_templates
 from yass.augment.noise import noise_cov
 from yass.augment.util import (make_noisy, make_clean, make_collided,
                                make_misaligned, make_noise)
