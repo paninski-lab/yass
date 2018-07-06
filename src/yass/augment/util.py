@@ -107,7 +107,7 @@ def make_collided(x_clean, collision_ratio, templates, max_shift, multi,
 
         # get one clean spike within the bounds
         idx_candidate = np.where(np.logical_and(amps >= lower,
-                                                amps <= upper))
+                                                amps <= upper))[0]
 
         idx_match = idx_candidate[np.random.randint(
             idx_candidate.shape[0], size=1)[0]]
