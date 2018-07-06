@@ -111,10 +111,11 @@ def make_collided(x_clean, collision_ratio, templates, max_shift, multi,
         scale_factor = np.linspace(lower, upper, num=50)[random.randint(0, 49)]
         x_to_collide, i = sample_from_zero_axis(x_clean)
         x_to_collide = scale_factor * x_to_collide / amps[i]
-
+        # FIXME: remove this
+        x_to_collide = x_to_collide[0, :, :]
         if multi:
             shuffled_neighs = np.random.choice(nneigh, nneigh, replace=False)
-            x_to_collide = x_to_collide[:, :, shuffled_neighs]
+            x_to_collide = x_to_collide[:, shuffled_neighs]
 
         if shift > 0:
             x_collision[j, :(wf_length-shift)] += x_to_collide[shift:]
@@ -122,7 +123,7 @@ def make_collided(x_clean, collision_ratio, templates, max_shift, multi,
             x_collision[j, (-shift):] += x_to_collide[:(wf_length+shift)]
         else:
             x_collision[j] += x_to_collide
-
+    # FIXME: add a way to visualize the two spikes
     return x_collision
 
 
