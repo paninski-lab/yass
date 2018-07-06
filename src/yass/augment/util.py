@@ -1,5 +1,6 @@
 """Utility functions for augmenting data
 """
+import random
 import numpy as np
 
 
@@ -15,7 +16,14 @@ def make_noisy(x, the_noise):
 def sample_from_zero_axis(x, axis=0):
     """Sample from a certain axis
     """
-    return x[np.random.choice(x.shape[0], 1, replace=True)]
+    idx = np.random.choice(x.shape[0], 1, replace=True)
+    return x[idx], idx
+
+
+def amplitudes(x):
+    """Compute amplitudes
+    """
+    return np.max(np.abs(x), axis=(1, 2))
 
 
 def make_clean(templates, min_amp, max_amp, nk):
@@ -61,8 +69,8 @@ def make_clean(templates, min_amp, max_amp, nk):
     return x_clean
 
 
-def make_collided(x_clean, collision_ratio, templates, R, multi,
-                  nneigh):
+def make_collided(x_clean, collision_ratio, templates, max_shift, multi,
+                  nneigh, amp_tolerance=0.2):
     """Make collided spikes
 
     Parameters
@@ -70,54 +78,50 @@ def make_collided(x_clean, collision_ratio, templates, R, multi,
     x_clean
     collision_ratio
     templates
-    R
+    max_shift
     multi
     """
     n_clean, _, _ = x_clean.shape
-    _, waveform_length, n_neighbors = templates.shape
+    _, wf_length, n_neighbors = templates.shape
 
     x_collision = np.zeros((n_clean*int(collision_ratio),
-                            waveform_length,
+                            wf_length,
                             n_neighbors))
 
     n_collided, _, _ = x_collision.shape
 
-    max_shift = 2*R
-
-    # temporal shifts
-    tmp_shifts = np.random.randint(max_shift*2, size=n_collided) - max_shift
-
-    tmp_shifts[tmp_shifts < 0] = tmp_shifts[tmp_shifts < 0] - 5
-    tmp_shifts[tmp_shifts >= 0] = tmp_shifts[tmp_shifts >= 0] + 6
-
-    amp_per_data = np.max(x_clean[:, :, 0], axis=1)
+    amps = amplitudes(x_clean)
 
     for j in range(n_collided):
 
-        shift = tmp_shifts[j]
+        # random shifting
+        shift = random.randint(-max_shift, max_shift)
 
         # sample a clean spike
-        x_collision[j] = sample_from_zero_axis(x_clean)
+        x_collision[j], i = sample_from_zero_axis(x_clean)
 
-        # FIXME upper bound candidates
-        idx_candidate = np.where(
-            amp_per_data > np.max(x_collision[j, :, 0]) * 0.3)[0]
+        # get amplitude for sampled x_clean and compute bounds
+        amp = amps[i]
+        lower = amp * (1.0 - amp_tolerance)
+        upper = amp * (1.0 + amp_tolerance)
+
+        # get one clean spike within the bounds
+        idx_candidate = np.where(np.logical_and(amps >= lower,
+                                                amps <= upper))
 
         idx_match = idx_candidate[np.random.randint(
             idx_candidate.shape[0], size=1)[0]]
 
         if multi:
-            x_clean2 = np.copy(x_clean[idx_match][:, np.random.choice(
-                nneigh, nneigh, replace=False)])
+            x_clean2 = x_clean[idx_match][:, np.random.choice(
+                nneigh, nneigh, replace=False)]
         else:
-            x_clean2 = np.copy(x_clean[idx_match])
+            x_clean2 = x_clean[idx_match]
 
         if shift > 0:
-            x_collision[j, :(x_collision.shape[1]-shift)] += x_clean2[shift:]
-
+            x_collision[j, :(wf_length-shift)] += x_clean2[shift:]
         elif shift < 0:
-            x_collision[
-                j, (-shift):] += x_clean2[:(x_collision.shape[1]+shift)]
+            x_collision[j, (-shift):] += x_clean2[:(wf_length+shift)]
         else:
             x_collision[j] += x_clean2
 
