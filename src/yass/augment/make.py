@@ -242,7 +242,7 @@ def testing_data(CONFIG, spike_train, chosen_templates_indexes,
                               path_to_data,
                               chosen_templates_indexes)
 
-    K, waveform_length, _ = templates.shape
+    K, waveform_length, n_neigh = templates.shape
 
     spatial_SIG, temporal_SIG = noise_cov(path_to_data,
                                           CONFIG.neigh_channels,
@@ -257,14 +257,12 @@ def testing_data(CONFIG, spike_train, chosen_templates_indexes,
     #  if max_amp == 0:
     #     max_amp = np.max(amps)*1.5
 
-    # nneigh = templates.shape[2]
-
     ################
     # clean spikes #
     ################
 
-    x_clean = np.zeros(
-        (n_per_id*K, templates.shape[1], templates.shape[2]))
+    x_clean = np.zeros((n_per_id * K, waveform_length, n_neigh))
+
     ids = np.zeros(x_clean.shape[0], dtype=int)
     ptp = np.zeros(K)
 

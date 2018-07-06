@@ -12,6 +12,12 @@ def make_noisy(x, the_noise):
     return x + noise_sample
 
 
+def sample_from_zero_axis(x, axis=0):
+    """Sample from a certain axis
+    """
+    return x[np.random.choice(x.shape[0], 1, replace=True)]
+
+
 def make_clean(templates, min_amp, max_amp, nk):
     """Make clean spikes from templates
 
@@ -58,30 +64,48 @@ def make_clean(templates, min_amp, max_amp, nk):
 def make_collided(x_clean, collision_ratio, templates, R, multi,
                   nneigh):
     """Make collided spikes
+
+    Parameters
+    ----------
+    x_clean
+    collision_ratio
+    templates
+    R
+    multi
     """
-    x_collision = np.zeros(
-        (x_clean.shape[0]*int(collision_ratio), templates.shape[1],
-         templates.shape[2]))
+    n_clean, _, _ = x_clean.shape
+    _, waveform_length, n_neighbors = templates.shape
+
+    x_collision = np.zeros((n_clean*int(collision_ratio),
+                            waveform_length,
+                            n_neighbors))
+
+    n_collided, _, _ = x_collision.shape
+
     max_shift = 2*R
 
-    temporal_shifts = np.random.randint(
-        max_shift*2, size=x_collision.shape[0]) - max_shift
-    temporal_shifts[temporal_shifts < 0] = temporal_shifts[
-        temporal_shifts < 0]-5
-    temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
-        temporal_shifts >= 0]+6
+    # temporal shifts
+    tmp_shifts = np.random.randint(max_shift*2, size=n_collided) - max_shift
+
+    tmp_shifts[tmp_shifts < 0] = tmp_shifts[tmp_shifts < 0] - 5
+    tmp_shifts[tmp_shifts >= 0] = tmp_shifts[tmp_shifts >= 0] + 6
 
     amp_per_data = np.max(x_clean[:, :, 0], axis=1)
 
-    for j in range(x_collision.shape[0]):
-        shift = temporal_shifts[j]
+    for j in range(n_collided):
 
-        x_collision[j] = np.copy(x_clean[np.random.choice(
-            x_clean.shape[0], 1, replace=True)])
+        shift = tmp_shifts[j]
+
+        # sample a clean spike
+        x_collision[j] = sample_from_zero_axis(x_clean)
+
+        # FIXME upper bound candidates
         idx_candidate = np.where(
-            amp_per_data > np.max(x_collision[j, :, 0])*0.3)[0]
+            amp_per_data > np.max(x_collision[j, :, 0]) * 0.3)[0]
+
         idx_match = idx_candidate[np.random.randint(
             idx_candidate.shape[0], size=1)[0]]
+
         if multi:
             x_clean2 = np.copy(x_clean[idx_match][:, np.random.choice(
                 nneigh, nneigh, replace=False)])

@@ -37,7 +37,8 @@ def align(templates, crop=True):
     pass
 
 
-def crop_and_align_templates(big_templates, R, neighbors, geom):
+def crop_and_align_templates(big_templates, R, neighbors, geom,
+                             cropping_factor=3):
     """Crop (spatially) and align (temporally) templates
 
     Parameters
@@ -89,6 +90,8 @@ def crop_and_align_templates(big_templates, R, neighbors, geom):
     R2 = int(R/2)
     center = np.argmax(np.convolve(
         np.sum(np.square(templates_mainc), 0), np.ones(2*R2+1), 'valid')) + R2
+
+    # crop templates, now they are from 4*R to 3*R
     big_templates = big_templates[:, (center-3*R):(center+3*R+1)]
 
     # spatially crop

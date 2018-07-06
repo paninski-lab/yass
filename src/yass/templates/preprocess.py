@@ -28,7 +28,7 @@ def preprocess(CONFIG, spike_train, path_to_data, chosen_templates_indexes):
     weighted_spike_train = np.hstack((spike_train,
                                       np.ones((n_spikes, 1), 'int32')))
 
-    # get templates
+    # get templates (four times spike size)
     templates_uncropped, _ = get_templates(weighted_spike_train,
                                            path_to_data,
                                            CONFIG.resources.max_memory,
@@ -41,7 +41,7 @@ def preprocess(CONFIG, spike_train, path_to_data, chosen_templates_indexes):
 
     # choose good templates (user selected and amplitude above threshold)
     # TODO: maybe the minimum_amplitude parameter should be selected by the
-    # user
+    # user, or maybe we should remove this from here
     templates_uncropped = choose_templates(templates_uncropped,
                                            chosen_templates_indexes,
                                            minimum_amplitude=4)
