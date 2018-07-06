@@ -81,6 +81,8 @@ def make_collided(x_clean, collision_ratio, templates, max_shift, multi,
     max_shift
     multi
     """
+    # FIXME: nneigh can be removed
+
     n_clean, _, _ = x_clean.shape
     _, wf_length, n_neighbors = templates.shape
 
@@ -105,25 +107,21 @@ def make_collided(x_clean, collision_ratio, templates, max_shift, multi,
         lower = amp * (1.0 - amp_tolerance)
         upper = amp * (1.0 + amp_tolerance)
 
-        # get one clean spike within the bounds
-        idx_candidate = np.where(np.logical_and(amps >= lower,
-                                                amps <= upper))[0]
-
-        idx_match = idx_candidate[np.random.randint(
-            idx_candidate.shape[0], size=1)[0]]
+        # draw another clean spike
+        scale_factor = np.linspace(lower, upper, num=50)[random.randint(0, 49)]
+        x_to_collide, i = sample_from_zero_axis(x_clean)
+        x_to_collide = scale_factor * x_to_collide / amps[i]
 
         if multi:
-            x_clean2 = x_clean[idx_match][:, np.random.choice(
-                nneigh, nneigh, replace=False)]
-        else:
-            x_clean2 = x_clean[idx_match]
+            shuffled_neighs = np.random.choice(nneigh, nneigh, replace=False)
+            x_to_collide = x_to_collide[:, shuffled_neighs]
 
         if shift > 0:
-            x_collision[j, :(wf_length-shift)] += x_clean2[shift:]
+            x_collision[j, :(wf_length-shift)] += x_to_collide[shift:]
         elif shift < 0:
-            x_collision[j, (-shift):] += x_clean2[:(wf_length+shift)]
+            x_collision[j, (-shift):] += x_to_collide[:(wf_length+shift)]
         else:
-            x_collision[j] += x_clean2
+            x_collision[j] += x_to_collide
 
     return x_collision
 
