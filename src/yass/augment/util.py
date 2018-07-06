@@ -114,7 +114,7 @@ def make_collided(x_clean, collision_ratio, templates, max_shift, multi,
 
         if multi:
             shuffled_neighs = np.random.choice(nneigh, nneigh, replace=False)
-            x_to_collide = x_to_collide[:, shuffled_neighs]
+            x_to_collide = x_to_collide[:, :, shuffled_neighs]
 
         if shift > 0:
             x_collision[j, :(wf_length-shift)] += x_to_collide[shift:]
