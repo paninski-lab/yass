@@ -187,6 +187,7 @@ cluster:
     method: location
     max_n_spikes: 10000
     min_spikes: 0
+    merge_threshold: 0.90
     prior:
       beta: 1
       a: 1
@@ -240,7 +241,13 @@ cluster:
     min_spikes:
         type: integer
         default: 0        
-
+    # the cluster is killed
+    
+    # merge_threshold for merging templates based on cos similarity matrix
+    merge_threshold:
+        type: float
+        default: 0.90   
+        
     prior:
       type: dict
       default:

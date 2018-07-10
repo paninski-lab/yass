@@ -173,6 +173,8 @@ def run(spike_index_all,
 
     idx_list = np.int64(np.vstack(idx_list))
     proc_indexes = np.arange(len(idx_list))
+    #print (idx_list)
+    #print (proc_indexes)
     print("# of chunks for deconvolution: ", len(idx_list), " verbose mode: ",
           CONFIG.deconvolution.verbose)
 
@@ -180,7 +182,7 @@ def run(spike_index_all,
     if CONFIG.resources.multi_processing:
         spike_train = parmap.map(
             deconvolve_new_allcores_updated,
-            zip(idx_list, proc_indexes),
+            list(zip(idx_list, proc_indexes)),
             output_directory,
             TMP_FOLDER,
             filename_bin,

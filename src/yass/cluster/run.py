@@ -92,17 +92,13 @@ def run(scores,
     if CONFIG.cluster.method == 'voltage_features': 
 
         fname = os.path.join(CONFIG.data.root_folder, 
-                              output_directory, 'spike_train_clustered.npy')
+                              output_directory, 'spike_train_cluster.npy')
         
-        if os.path.exists(fname):
-            spike_train = np.load(fname)
-        
-        else: 
+        if os.path.exists(fname)==False:
+
             spike_index_clear = spike_index
 
             # option to select highest variance points on a channel
-            #select_variances = False
-            #n_variance_pts = 3
             n_dim_pca = 3
             wf_start = 0
             wf_end = int(CONFIG.recordings.spike_size_ms*
@@ -111,14 +107,10 @@ def run(scores,
             n_max_chans = 5
             mfm_threshold = 0.90
             upsample_factor = 5
-            nshifts = 7
+            nshifts = 1
 
-            #spike_train, tmp_loc = run_cluster_features_2(spike_index_clear, 
-            #                        n_dim_pca, wf_start, wf_end, n_mad_chans, 
-            #                        n_max_chans, CONFIG, output_directory,
-            #                        mfm_threshold, upsample_factor, nshifts)
-
-            spike_train, tmp_loc = run_cluster_features_2_parallel(spike_index_clear, 
+            spike_train, tmp_loc, templates = run_cluster_features_2_parallel(
+                                    spike_index_clear, 
                                     n_dim_pca, wf_start, wf_end, n_mad_chans, 
                                     n_max_chans, CONFIG, output_directory,
                                     mfm_threshold, upsample_factor, nshifts)
@@ -128,7 +120,20 @@ def run(scores,
             np.save(fname,spike_train)
             np.save(os.path.join(CONFIG.data.root_folder, 
                               output_directory,'tmp_loc.npy'), tmp_loc)
+            np.save(os.path.join(CONFIG.data.root_folder, 
+                              output_directory,'templates.npy'), templates)
+                              
+            print (templates.shape)
+
+        else:
             
+            spike_train = np.load(fname)
+            tmp_loc = np.load(os.path.join(CONFIG.data.root_folder, 
+                              output_directory,'tmp_loc.npy'))
+            templates = np.load(os.path.join(CONFIG.data.root_folder, 
+                              output_directory,'templates.npy'))
+        
+                                          
     ## Cat: 2 previous methods for featurization
     ## eventually need to comment out / delete
     ## 3 AE + 2 location features based clustering
@@ -203,4 +208,4 @@ def run(scores,
     logger.info("\tmasking:\t{0} seconds".format(Time['m']))
     logger.info("\tclustering:\t{0} seconds".format(Time['s']))
 
-    return spike_train, tmp_loc #, vbParam
+    return spike_train, tmp_loc, templates #, vbParam

@@ -127,36 +127,38 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # cluster
     start=time.time()
     path_to_spike_train_cluster = path.join(TMP_FOLDER, 'spike_train_cluster.npy')
+    #if os.path.exists(path_to_spike_train_cluster):
     if os.path.exists(path_to_spike_train_cluster):
         spike_train_clear = np.load(path_to_spike_train_cluster)
         tmp_loc = np.load(os.path.join(TMP_FOLDER,'tmp_loc.npy'))
+        templates = np.load(os.path.join(TMP_FOLDER,'templates.npy'))    
     else:
-        spike_train_clear, tmp_loc = cluster.run(score, spike_index_clear)
-        logging.info('Saving clear spike train in {}'.format(path_to_spike_train_cluster))
-        np.save(path_to_spike_train_cluster, spike_train_clear)
-    time_cluster = time.time() - start
+        spike_train_clear, tmp_loc, templates = cluster.run(score, spike_index_clear)
+        #logging.info('Saving clear spike train in {}'.format(path_to_spike_train_cluster))
+    time_cluster = time.time()-start
+    print (spike_train_clear.shape)
+    print (templates.shape)
 
-    # get templates
-    start=time.time()
-    path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
-    path_to_clear_spike_train_after_merge = path.join(TMP_FOLDER, 'spike_train_cluster_after_merge.npy')
-    if os.path.exists(path_to_clear_spike_train_after_merge):
-        templates = np.load(path_to_templates)
-        spike_train_clear = np.load(path_to_clear_spike_train_after_merge)
-    else:
-        templates, spike_train_clear = get_templates.run(spike_train_clear,
-                                                         tmp_loc)
-        logging.info('Saving templates in {}'.format(path_to_templates))
-        np.save(path_to_templates, templates)
-        np.save(path_to_clear_spike_train_after_merge, spike_train_clear)
-    time_templates = time.time() - start
+    # get templates; 
+    # Cat:  NO LONGER USED, TEMPLATES SAVED DIRECTLY FROM CLUSTERING STEPS
+    #start=time.time()
+    #path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
+    #path_to_clear_spike_train_after_merge = path.join(TMP_FOLDER, 'spike_train_cluster.npy')
+    #if os.path.exists(path_to_templates):
+        #templates = np.load(path_to_templates)
+        #spike_train_clear = np.load(path_to_clear_spike_train_after_merge)
+    #else:
+        #templates, spike_train_clear = get_templates.run(spike_train_clear,
+                                                         #tmp_loc)
+        #logging.info('Saving templates in {}'.format(path_to_templates))
+        #np.save(path_to_templates, templates)
+        #np.save(path_to_clear_spike_train_after_merge, spike_train_clear)
+    #time_templates = time.time() - start
 
     # compare templates to ks and gold standard
     # print ("checking templates against saved sorts ")
     # compare_templates(templates, spike_train_clear)
-    
 
-    print (templates.shape, spike_train_clear.shape)
     # run deconvolution
     start=time.time()
     spike_train, templates = deconvolute.run(spike_index_all, templates,
@@ -258,7 +260,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                     .format(path_to_waveforms))
 
     logger.info('Finished YASS execution. Timing summary:')
-    total = (time_preprocess + time_detect + time_cluster + time_templates
+    total = (time_preprocess + time_detect + time_cluster
              + time_deconvolution)
     logger.info('\t Preprocess: %s (%.2f %%)',
                 human_readable_time(time_preprocess),
@@ -269,9 +271,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     logger.info('\t Clustering: %s (%.2f %%)',
                 human_readable_time(time_cluster),
                 time_cluster/total*100)
-    logger.info('\t Templates: %s (%.2f %%)',
-                human_readable_time(time_templates),
-                time_templates/total*100)
     logger.info('\t Deconvolution: %s (%.2f %%)',
                 human_readable_time(time_deconvolution),
                 time_deconvolution/total*100)

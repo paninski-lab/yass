@@ -49,7 +49,7 @@ def deconvolve_new_allcores_updated(
     # Load spike_train clear after templates;
     # Cat: eventually change from hardcoded filename
     spike_train_clear_fname = os.path.join(
-        TMP_FOLDER, output_directory, 'spike_train_clear_after_templates.npy')
+        TMP_FOLDER, output_directory, 'spike_train_cluster.npy')
     spike_train_clear = np.load(spike_train_clear_fname)
 
     with open(filename_bin, "rb") as fin:
@@ -147,11 +147,13 @@ def deconvolve_new_allcores_updated(
         clear_spiketimes_unique = clear_spiketimes
 
     clear_spiketimes_unique = np.int32(clear_spiketimes_unique)
-
+    
     # ***** REMOVING CLEAR SPIKES *********
     window = 20
     recordings_copy = recordings.copy()
 
+    # this loop finds best match for each spike; 
+    # Cat TODO: Inefficient; convert to pythonic
     for p in range(len(clear_spiketimes_unique)):
         # Load correct templates_shifted - but only chunk in centre
         #print shifted_templates.shape
