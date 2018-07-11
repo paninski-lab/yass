@@ -593,3 +593,8 @@ def running_on_gpu():
         return False
 
     return True if gpus else False
+
+
+def dict2yaml(output_path, **kwargs):
+    with open(output_path, 'w') as f:
+        yaml.dump(kwargs, f)
