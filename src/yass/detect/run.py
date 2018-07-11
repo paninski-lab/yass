@@ -65,7 +65,7 @@ def run(standarized_path, standarized_params, whiten_filter,
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
 
-    spike_index_call: numpy.ndarray (n_collided_spikes, 2)
+    spike_index_all: numpy.ndarray (n_collided_spikes, 2)
         2D array with indexes for all spikes, first column contains the
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
@@ -280,7 +280,7 @@ def run_neural_network(standarized_path, standarized_params,
                                      CONFIG.channel_index)
         NNT = NeuralNetTriage.load(triage_fname, triage_th,
                                    input_tensor=NND.waveform_tf)
-        NNAE = AutoEncoder(ae_fname, input_tensor=NND.waveform_tf)
+        NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
         rotation = NNAE.load_rotation()

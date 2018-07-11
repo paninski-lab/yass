@@ -6,6 +6,8 @@ Changelog
 * Colored logs
 * Improved testing coverage
 * Neural network code was simplified considerably
+* Added features to Neural networks objects
+* Added neural networks to documentation
 * Option to create all tensorflow sessions with a specific configuration
 * Shortcut in command line to limit GPU memory in all tensorflow sessions (through gpu_options.per_process_gpu_memory_fraction)
 
