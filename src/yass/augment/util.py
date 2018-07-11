@@ -2,6 +2,7 @@
 """
 import random
 import numpy as np
+import logging
 from yass import DEBUG_MODE
 
 
@@ -82,8 +83,9 @@ def make_collided(x_clean, collision_ratio, templates, max_shift,
     max_shift
     multi_channel
     """
-    # FIXME: nneigh can be removed
+    logger = logging.getLogger(__name__)
 
+    # FIXME: nneigh can be removed
     n_clean, _, _ = x_clean.shape
     _, wf_length, n_neighbors = templates.shape
 
@@ -92,6 +94,7 @@ def make_collided(x_clean, collision_ratio, templates, max_shift,
                             n_neighbors))
 
     if DEBUG_MODE:
+        logger.info('Running in debug mode...')
         x_to_collide_all = np.zeros(x_collision.shape)
 
     n_collided, _, _ = x_collision.shape
