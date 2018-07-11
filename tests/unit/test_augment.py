@@ -97,10 +97,8 @@ def test_can_make_collided(path_to_tests, path_to_standarized_data):
     x_clean = make_clean(templates_uncropped, min_amp=2, max_amp=10, nk=100)
 
     make_collided(x_clean, collision_ratio=1,
-                  templates=templates_uncropped,
-                  R=CONFIG.spike_size,
-                  multi=True,
-                  nneigh=templates_uncropped.shape[2])
+                  multi_channel=True,
+                  max_shift=CONFIG.spike_size)
 
 
 def test_can_make_misaligned(path_to_tests, path_to_standarized_data):

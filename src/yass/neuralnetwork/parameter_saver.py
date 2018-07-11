@@ -96,3 +96,8 @@ def save_ae_network_params(waveform_length, n_features, output_path):
 
     with open(output_path, 'w') as f:
         yaml.dump(d, f, CustomYAMLDumper)
+
+
+def save_params(output_path, **kwargs):
+    with open(output_path, 'w') as f:
+        yaml.dump(kwargs, f, CustomYAMLDumper)
