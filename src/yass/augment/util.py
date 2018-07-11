@@ -2,6 +2,7 @@
 """
 import random
 import numpy as np
+from yass import DEBUG_MODE
 
 
 def make_noisy(x, the_noise):
@@ -69,8 +70,8 @@ def make_clean(templates, min_amp, max_amp, nk):
     return x_clean
 
 
-def make_collided(x_clean, collision_ratio, templates, max_shift, multi,
-                  nneigh, amp_tolerance=0.2):
+def make_collided(x_clean, collision_ratio, templates, max_shift,
+                  multi_channel, nneigh, amp_tolerance=0.2):
     """Make collided spikes
 
     Parameters
@@ -79,7 +80,7 @@ def make_collided(x_clean, collision_ratio, templates, max_shift, multi,
     collision_ratio
     templates
     max_shift
-    multi
+    multi_channel
     """
     # FIXME: nneigh can be removed
 
@@ -89,6 +90,9 @@ def make_collided(x_clean, collision_ratio, templates, max_shift, multi,
     x_collision = np.zeros((n_clean*int(collision_ratio),
                             wf_length,
                             n_neighbors))
+
+    if DEBUG_MODE:
+        x_to_collide_all = np.zeros(x_collision.shape)
 
     n_collided, _, _ = x_collision.shape
 
@@ -113,18 +117,24 @@ def make_collided(x_clean, collision_ratio, templates, max_shift, multi,
         x_to_collide = scale_factor * x_to_collide / amps[i]
         # FIXME: remove this
         x_to_collide = x_to_collide[0, :, :]
-        if multi:
+
+        if multi_channel:
             shuffled_neighs = np.random.choice(nneigh, nneigh, replace=False)
             x_to_collide = x_to_collide[:, shuffled_neighs]
 
-        if shift > 0:
-            x_collision[j, :(wf_length-shift)] += x_to_collide[shift:]
-        elif shift < 0:
-            x_collision[j, (-shift):] += x_to_collide[:(wf_length+shift)]
+        if DEBUG_MODE:
+            to_add = x_to_collide_all
         else:
-            x_collision[j] += x_to_collide
-    # FIXME: add a way to visualize the two spikes
-    return x_collision
+            to_add = x_collision
+
+        if shift > 0:
+            to_add[j, :(wf_length-shift)] += x_to_collide[shift:]
+        elif shift < 0:
+            to_add[j, (-shift):] += x_to_collide[:(wf_length+shift)]
+        else:
+            to_add[j] += x_to_collide
+
+    return x_collision if not DEBUG_MODE else x_collision, x_to_collide
 
 
 def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
