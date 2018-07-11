@@ -13,7 +13,7 @@ except ImportError:
 import numpy as np
 import tensorflow as tf
 
-from yass import read_config, GPU_ENABLED
+from yass import read_config, running_on_gpu
 from yass.batch import BatchProcessor
 from yass.threshold.detect import threshold
 from yass.threshold import detect
@@ -257,7 +257,7 @@ def run_neural_network(standarized_path, standarized_params,
     if (if_file_exists == 'overwrite' or
         if_file_exists == 'abort' and not any(exists)
             or if_file_exists == 'skip' and not all(exists)):
-        max_memory = (CONFIG.resources.max_memory_gpu if GPU_ENABLED else
+        max_memory = (CONFIG.resources.max_memory_gpu if running_on_gpu() else
                       CONFIG.resources.max_memory)
 
         # instantiate batch processor
