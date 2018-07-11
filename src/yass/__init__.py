@@ -110,6 +110,10 @@ def set_tensorflow_config(config):
     sess.close()
 
 
-def _enable_debug_mode():
+def _enable_debug_mode(state=True):
     global DEBUG_MODE
-    DEBUG_MODE = True
+    DEBUG_MODE = state
+
+
+def _get_debug_mode():
+    return DEBUG_MODE

@@ -3,7 +3,7 @@
 import random
 import numpy as np
 import logging
-from yass import DEBUG_MODE
+from yass import _get_debug_mode
 
 
 def make_noisy(x, the_noise):
@@ -71,29 +71,33 @@ def make_clean(templates, min_amp, max_amp, nk):
     return x_clean
 
 
-def make_collided(x_clean, collision_ratio, templates, max_shift,
-                  multi_channel, nneigh, amp_tolerance=0.2):
+def make_collided(x_clean, collision_ratio, multi_channel, nneigh,
+                  amp_tolerance=0.2, max_shift='auto'):
     """Make collided spikes
 
     Parameters
     ----------
     x_clean
     collision_ratio
-    templates
     max_shift
     multi_channel
     """
     logger = logging.getLogger(__name__)
 
     # FIXME: nneigh can be removed
-    n_clean, _, _ = x_clean.shape
-    _, wf_length, n_neighbors = templates.shape
+    n_clean, wf_length, n_neighbors = x_clean.shape
+
+    if max_shift == 'auto':
+        max_shift = int((wf_length - 1) / 2)
+
+    logger.debug('Making collided spikes with max shift: %i, clean spikes '
+                 'with shape: %s', max_shift, x_clean.shape)
 
     x_collision = np.zeros((n_clean*int(collision_ratio),
                             wf_length,
                             n_neighbors))
 
-    if DEBUG_MODE:
+    if _get_debug_mode():
         logger.info('Running in debug mode...')
         x_to_collide_all = np.zeros(x_collision.shape)
 
@@ -125,7 +129,7 @@ def make_collided(x_clean, collision_ratio, templates, max_shift,
             shuffled_neighs = np.random.choice(nneigh, nneigh, replace=False)
             x_to_collide = x_to_collide[:, shuffled_neighs]
 
-        if DEBUG_MODE:
+        if _get_debug_mode():
             to_add = x_to_collide_all
         else:
             to_add = x_collision
@@ -137,7 +141,7 @@ def make_collided(x_clean, collision_ratio, templates, max_shift,
         else:
             to_add[j] += x_to_collide
 
-    if DEBUG_MODE:
+    if _get_debug_mode():
         return x_collision, x_to_collide_all
     else:
         return x_collision

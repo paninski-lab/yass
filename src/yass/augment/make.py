@@ -105,8 +105,8 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     x_clean = make_clean(templates, min_amp, max_amp, nk)
 
     # make collided spikes
-    x_collision = make_collided(x_clean, collision_ratio, templates,
-                                R, multi_channel, n_neigh)
+    x_collision = make_collided(x_clean, collision_ratio, multi_channel,
+                                n_neigh)
 
     # make misaligned spikes
     (x_temporally_misaligned,
