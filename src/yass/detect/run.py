@@ -13,7 +13,7 @@ except ImportError:
 import numpy as np
 import tensorflow as tf
 
-from yass import read_config, running_on_gpu
+from yass import read_config
 from yass.batch import BatchProcessor
 from yass.threshold.detect import threshold
 from yass.threshold import detect
@@ -22,7 +22,7 @@ from yass import neuralnetwork
 from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
 from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
-from yass.util import file_loader, save_numpy_object
+from yass.util import file_loader, save_numpy_object, running_on_gpu
 
 
 def run(standarized_path, standarized_params, whiten_filter,
