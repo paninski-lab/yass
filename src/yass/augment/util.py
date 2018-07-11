@@ -71,20 +71,24 @@ def make_clean(templates, min_amp, max_amp, nk):
     return x_clean
 
 
-def make_collided(x_clean, collision_ratio, multi_channel, nneigh,
-                  amp_tolerance=0.2, max_shift='auto'):
+def make_collided(x_clean, collision_ratio, multi_channel, amp_tolerance=0.2,
+                  max_shift='auto'):
     """Make collided spikes
 
     Parameters
     ----------
     x_clean
     collision_ratio
-    max_shift
     multi_channel
+    amp_tolerance: float, optional
+        Maximum relative difference in amplitude between the collided spikes,
+        defaults to 0.2
+    max_shift: int or string, optional
+        Maximum amount of shift for the collided spike. If 'auto', it sets
+        to half the waveform length in x_clean
     """
     logger = logging.getLogger(__name__)
 
-    # FIXME: nneigh can be removed
     n_clean, wf_length, n_neighbors = x_clean.shape
 
     if max_shift == 'auto':
@@ -126,7 +130,8 @@ def make_collided(x_clean, collision_ratio, multi_channel, nneigh,
         x_to_collide = x_to_collide[0, :, :]
 
         if multi_channel:
-            shuffled_neighs = np.random.choice(nneigh, nneigh, replace=False)
+            shuffled_neighs = np.random.choice(n_neighbors, n_neighbors,
+                                               replace=False)
             x_to_collide = x_to_collide[:, shuffled_neighs]
 
         if _get_debug_mode():
