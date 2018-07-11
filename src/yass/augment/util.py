@@ -134,7 +134,7 @@ def make_collided(x_clean, collision_ratio, templates, max_shift,
         else:
             to_add[j] += x_to_collide
 
-    return x_collision if not DEBUG_MODE else x_collision, x_to_collide
+    return x_collision if not DEBUG_MODE else x_collision, x_to_collide_all
 
 
 def make_misaligned(x_clean, templates, max_shift, misalign_ratio,

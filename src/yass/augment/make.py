@@ -28,7 +28,7 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     min_amp: float
         Minimum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
-    n_spikes: int
+    n_isolated_spikes: int
         Number of isolated spikes to generate. This is different from the
         total number of x_detect
     data_folder: str
