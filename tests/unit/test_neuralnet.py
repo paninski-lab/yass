@@ -155,11 +155,7 @@ def test_can_reload_autoencoder(path_to_tests, path_to_sample_pipeline_folder,
 
     (x_detect, y_detect,
      x_triage, y_triage,
-<<<<<<< HEAD
      x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
-=======
-     x_ae, y_ae) = make_training_data(CONFIG, spike_train, chosen_templates,
->>>>>>> master
                                       min_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 

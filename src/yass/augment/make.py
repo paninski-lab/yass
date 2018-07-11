@@ -104,9 +104,10 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     # make clean spikes
     x_clean = make_clean(templates, min_amp, max_amp, nk)
 
-    # make collided spikes
+    # make collided spikes - max shift is set to R since 2 * R + 1 will be
+    # the final dimension for the spikes
     x_collision = make_collided(x_clean, collision_ratio, multi_channel,
-                                n_neigh)
+                                max_shift=R)
 
     # make misaligned spikes
     (x_temporally_misaligned,
