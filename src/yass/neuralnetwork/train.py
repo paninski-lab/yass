@@ -22,6 +22,7 @@ def train(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
 
     chosen_templates = CONFIG_TRAIN['templates']['ids']
     min_amp = CONFIG_TRAIN['templates']['minimum_amplitude']
+    max_amp = CONFIG_TRAIN['templates']['maximum_amplitude']
     nspikes = CONFIG_TRAIN['training']['n_spikes']
     n_filters_detect = CONFIG_TRAIN['network_detector']['n_filters']
     n_iter = CONFIG_TRAIN['training']['n_iterations']
@@ -39,7 +40,7 @@ def train(CONFIG, CONFIG_TRAIN, spike_train, data_folder):
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
-                                      min_amp, nspikes,
+                                      min_amp, max_amp, nspikes,
                                       data_folder=data_folder)
 
     # train detector

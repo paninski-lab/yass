@@ -11,7 +11,7 @@ from yass.augment.util import (make_noisy, make_clean, make_collided,
 
 
 def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
-                  n_isolated_spikes, data_folder, noise_ratio=10,
+                  max_amp, n_isolated_spikes, data_folder, noise_ratio=10,
                   collision_ratio=1, misalign_ratio=1, misalign_ratio2=1,
                   multi_channel=True):
     """Makes training sets for detector, triage and autoencoder
@@ -25,9 +25,17 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
         spike time, second column is the spike id
     chosen_templates_indexes: list
         List of chosen templates' id's
+
     min_amp: float
         Minimum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
+    max_amp: float
+        Maximum value allowed for the maximum absolute amplitude of the
+        isolated spike on its main channel. Set it to a small value relative
+        to the template with maximum amplitude, since large spikes are easy to
+        detect we do not need to include too many large spikes. Doing this
+        increases accuracy in small spikes
+
     n_isolated_spikes: int
         Number of isolated spikes to generate. This is different from the
         total number of x_detect
@@ -98,7 +106,6 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
     # make clean augmented spikes
     nk = int(np.ceil(n_isolated_spikes/K))
-    max_amp = np.max(amps) * 1.5
     max_shift = 2*R
 
     # make clean spikes

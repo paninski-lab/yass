@@ -25,6 +25,7 @@ spike_train = np.array([100, 0,
 
 chosen_templates = [0, 1, 2]
 min_amplitude = 2
+max_amplitude = 10
 n_spikes = 500
 
 filters = [8, 4]
@@ -38,7 +39,7 @@ def test_can_train_detector(path_to_tests, path_to_sample_pipeline_folder,
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
-                                      min_amplitude, n_spikes,
+                                      min_amplitude, max_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
     _, waveform_length, n_neighbors = x_detect.shape
@@ -62,7 +63,7 @@ def test_can_train_triage(path_to_tests, path_to_sample_pipeline_folder,
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
-                                      min_amplitude, n_spikes,
+                                      min_amplitude, max_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
     _, waveform_length, n_neighbors = x_triage.shape
@@ -85,7 +86,7 @@ def test_can_train_autoencoder(path_to_tests, path_to_sample_pipeline_folder,
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
-                                      min_amplitude, n_spikes,
+                                      min_amplitude, max_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
     _, waveform_length = x_ae.shape
@@ -104,7 +105,7 @@ def test_can_reload_detector(path_to_tests, path_to_sample_pipeline_folder,
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
-                                      min_amplitude, n_spikes,
+                                      min_amplitude, max_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
     _, waveform_length, n_neighbors = x_detect.shape
@@ -131,7 +132,7 @@ def test_can_reload_triage(path_to_tests, path_to_sample_pipeline_folder,
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
-                                      min_amplitude, n_spikes,
+                                      min_amplitude, max_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
     _, waveform_length, n_neighbors = x_triage.shape
@@ -156,7 +157,7 @@ def test_can_reload_autoencoder(path_to_tests, path_to_sample_pipeline_folder,
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
-                                      min_amplitude, n_spikes,
+                                      min_amplitude, max_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
     _, waveform_length = x_ae.shape
@@ -179,7 +180,7 @@ def test_can_use_detector_triage_ae_after_fit(path_to_tests,
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
-                                      min_amplitude, n_spikes,
+                                      min_amplitude, max_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
     _, waveform_length, n_neighbors = x_detect.shape
@@ -225,7 +226,7 @@ def test_can_use_detect_triage_ae_after_reload(path_to_tests,
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
-                                      min_amplitude, n_spikes,
+                                      min_amplitude, max_amplitude, n_spikes,
                                       path_to_sample_pipeline_folder)
 
     _, waveform_length, n_neighbors = x_detect.shape
