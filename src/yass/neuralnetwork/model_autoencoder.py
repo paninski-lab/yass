@@ -3,7 +3,7 @@ import numpy as np
 import tensorflow as tf
 from sklearn.decomposition import PCA
 
-from yass.util import load_yaml, change_extension, dict2yaml
+from yass.util import load_yaml, change_extension
 from yass.neuralnetwork.model import Model
 
 
