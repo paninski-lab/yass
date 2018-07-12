@@ -1,6 +1,9 @@
 """Utility functions for augmenting data
 """
+import random
 import numpy as np
+import logging
+from yass import _get_debug_mode
 
 
 def make_noisy(x, the_noise):
@@ -15,10 +18,17 @@ def make_noisy(x, the_noise):
 def sample_from_zero_axis(x, axis=0):
     """Sample from a certain axis
     """
-    return x[np.random.choice(x.shape[0], 1, replace=True)]
+    idx = np.random.choice(x.shape[0], 1, replace=True)
+    return x[idx], idx
 
 
-def make_clean(templates, min_amp, max_amp, nk):
+def amplitudes(x):
+    """Compute amplitudes
+    """
+    return np.max(np.abs(x), axis=(1, 2))
+
+
+def make_clean(templates, min_amplitude, max_amplitude, nk):
     """Make clean spikes from templates
 
     Parameters
@@ -26,11 +36,11 @@ def make_clean(templates, min_amp, max_amp, nk):
     templates: numpy.ndarray, (n_templates, waveform_length, n_channels)
         Templates
 
-    min_amp: float
+    min_amplitude: float
         Minimum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
 
-    max_amp: float
+    max_amplitude: float
         Maximum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
 
@@ -42,15 +52,24 @@ def make_clean(templates, min_amp, max_amp, nk):
     numpy.ndarray (n_templates * nk, waveform_length, n_channels)
         Clean spikes
     """
+    logger = logging.getLogger(__name__)
+
+    logger.debug('templates shape: %s, min amplitude: %s, '
+                 'max_amplitude: %s', templates.shape, min_amplitude,
+                 max_amplitude)
+
     n_templates, waveform_length, n_neighbors = templates.shape
 
     x_clean = np.zeros((nk * n_templates, waveform_length, n_neighbors))
 
-    d = max_amp - min_amp
-    amps_range = (min_amp + np.arange(nk) * d/nk)[:, np.newaxis, np.newaxis]
+    d = max_amplitude - min_amplitude
+    amps_range = (min_amplitude + np.arange(nk) * d/nk)
+    amps_range = amps_range[:, np.newaxis, np.newaxis]
 
+    # go over every template
     for k in range(n_templates):
 
+        # get current template and scale it
         current = templates[k]
         amp = np.max(np.abs(current))
         scaled = (current/amp)[np.newaxis, :, :]
@@ -61,67 +80,87 @@ def make_clean(templates, min_amp, max_amp, nk):
     return x_clean
 
 
-def make_collided(x_clean, collision_ratio, templates, R, multi,
-                  nneigh):
+def make_collided(x_clean, collision_ratio, multi_channel, amp_tolerance=0.2,
+                  max_shift='auto'):
     """Make collided spikes
 
     Parameters
     ----------
     x_clean
     collision_ratio
-    templates
-    R
-    multi
+    multi_channel
+    amp_tolerance: float, optional
+        Maximum relative difference in amplitude between the collided spikes,
+        defaults to 0.2
+    max_shift: int or string, optional
+        Maximum amount of shift for the collided spike. If 'auto', it sets
+        to half the waveform length in x_clean
     """
-    n_clean, _, _ = x_clean.shape
-    _, waveform_length, n_neighbors = templates.shape
+    logger = logging.getLogger(__name__)
+
+    n_clean, wf_length, n_neighbors = x_clean.shape
+
+    if max_shift == 'auto':
+        max_shift = int((wf_length - 1) / 2)
+
+    logger.debug('Making collided spikes with collision_ratio: %s max shift: '
+                 '%s, multi_channel: %s, amp_tolerance: %s, clean spikes with'
+                 ' shape: %s', collision_ratio, max_shift, multi_channel,
+                 amp_tolerance, x_clean.shape)
 
     x_collision = np.zeros((n_clean*int(collision_ratio),
-                            waveform_length,
+                            wf_length,
                             n_neighbors))
+
+    if _get_debug_mode():
+        logger.info('Running in debug mode...')
+        x_to_collide_all = np.zeros(x_collision.shape)
 
     n_collided, _, _ = x_collision.shape
 
-    max_shift = 2*R
-
-    # temporal shifts
-    tmp_shifts = np.random.randint(max_shift*2, size=n_collided) - max_shift
-
-    tmp_shifts[tmp_shifts < 0] = tmp_shifts[tmp_shifts < 0] - 5
-    tmp_shifts[tmp_shifts >= 0] = tmp_shifts[tmp_shifts >= 0] + 6
-
-    amp_per_data = np.max(x_clean[:, :, 0], axis=1)
+    amps = amplitudes(x_clean)
 
     for j in range(n_collided):
 
-        shift = tmp_shifts[j]
+        # random shifting
+        shift = random.randint(-max_shift, max_shift)
 
         # sample a clean spike
-        x_collision[j] = sample_from_zero_axis(x_clean)
+        x_collision[j], i = sample_from_zero_axis(x_clean)
 
-        # FIXME upper bound candidates
-        idx_candidate = np.where(
-            amp_per_data > np.max(x_collision[j, :, 0]) * 0.3)[0]
+        # get amplitude for sampled x_clean and compute bounds
+        amp = amps[i]
+        lower = amp * (1.0 - amp_tolerance)
+        upper = amp * (1.0 + amp_tolerance)
 
-        idx_match = idx_candidate[np.random.randint(
-            idx_candidate.shape[0], size=1)[0]]
+        # draw another clean spike
+        scale_factor = np.linspace(lower, upper, num=50)[random.randint(0, 49)]
+        x_to_collide, i = sample_from_zero_axis(x_clean)
+        x_to_collide = scale_factor * x_to_collide / amps[i]
+        # FIXME: remove this
+        x_to_collide = x_to_collide[0, :, :]
 
-        if multi:
-            x_clean2 = np.copy(x_clean[idx_match][:, np.random.choice(
-                nneigh, nneigh, replace=False)])
+        if multi_channel:
+            shuffled_neighs = np.random.choice(n_neighbors, n_neighbors,
+                                               replace=False)
+            x_to_collide = x_to_collide[:, shuffled_neighs]
+
+        if _get_debug_mode():
+            to_add = x_to_collide_all
         else:
-            x_clean2 = np.copy(x_clean[idx_match])
+            to_add = x_collision
 
         if shift > 0:
-            x_collision[j, :(x_collision.shape[1]-shift)] += x_clean2[shift:]
-
+            to_add[j, :(wf_length-shift)] += x_to_collide[shift:]
         elif shift < 0:
-            x_collision[
-                j, (-shift):] += x_clean2[:(x_collision.shape[1]+shift)]
+            to_add[j, (-shift):] += x_to_collide[:(wf_length+shift)]
         else:
-            x_collision[j] += x_clean2
+            to_add[j] += x_to_collide
 
-    return x_collision
+    if _get_debug_mode():
+        return x_collision, x_to_collide_all
+    else:
+        return x_collision
 
 
 def make_misaligned(x_clean, templates, max_shift, misalign_ratio,

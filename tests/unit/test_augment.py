@@ -23,6 +23,7 @@ spike_train = np.array([100, 0,
 
 chosen_templates = [0, 1, 2]
 min_amplitude = 2
+max_amplitude = 10
 n_spikes_to_make = 500
 
 filters = [8, 4]
@@ -33,7 +34,7 @@ def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
     CONFIG = yass.read_config()
 
     make.training_data(CONFIG, spike_train, chosen_templates,
-                       min_amplitude, n_spikes_to_make,
+                       min_amplitude, max_amplitude, n_spikes_to_make,
                        data_folder=path_to_sample_pipeline_folder)
 
 
@@ -75,7 +76,7 @@ def test_can_make_clean(path_to_tests, path_to_standarized_data):
 
     templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
 
-    make_clean(templates_uncropped, min_amp=2, max_amp=10, nk=100)
+    make_clean(templates_uncropped, min_amplitude=2, max_amplitude=10, nk=100)
 
 
 def test_can_make_collided(path_to_tests, path_to_standarized_data):
@@ -94,13 +95,13 @@ def test_can_make_collided(path_to_tests, path_to_standarized_data):
 
     templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
 
-    x_clean = make_clean(templates_uncropped, min_amp=2, max_amp=10, nk=100)
+    x_clean = make_clean(templates_uncropped, min_amplitude=2,
+                         max_amplitude=10,
+                         nk=100)
 
     make_collided(x_clean, collision_ratio=1,
-                  templates=templates_uncropped,
-                  R=CONFIG.spike_size,
-                  multi=True,
-                  nneigh=templates_uncropped.shape[2])
+                  multi_channel=True,
+                  max_shift=CONFIG.spike_size)
 
 
 def test_can_make_misaligned(path_to_tests, path_to_standarized_data):
@@ -119,7 +120,8 @@ def test_can_make_misaligned(path_to_tests, path_to_standarized_data):
 
     templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
 
-    x_clean = make_clean(templates_uncropped, min_amp=2, max_amp=10, nk=100)
+    x_clean = make_clean(templates_uncropped, min_amplitude=2,
+                         max_amplitude=10, nk=100)
 
     make_misaligned(x_clean,
                     templates_uncropped,
@@ -178,7 +180,7 @@ def test_can_make_noise(path_to_tests, path_to_standarized_data):
                                           CONFIG.geom,
                                           templates.shape[1])
 
-    x_clean = make_clean(templates, min_amp=2, max_amp=10, nk=100)
+    x_clean = make_clean(templates, min_amplitude=2, max_amplitude=10, nk=100)
 
     make_noise(x_clean, noise_ratio=10, templates=templates,
                spatial_SIG=spatial_SIG, temporal_SIG=temporal_SIG)
