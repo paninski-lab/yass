@@ -170,8 +170,7 @@ class AutoEncoder(Model):
 
         path_to_params = change_extension(self.path_to_model, 'yaml')
 
-        params = dict(filters_size=self.filters_size,
-                      waveform_length=self.waveform_length,
+        params = dict(waveform_length=self.waveform_length,
                       n_features=self.n_features)
 
         self._save_params(path=path_to_params, params=params)
