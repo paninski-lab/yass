@@ -20,10 +20,11 @@ def batch_runner(element, function, reader, pass_batch_info, cast_dtype,
     else:
         _reader = reader
 
-    # read chunk and run function
-    logger.debug('Applying function in batch {}...'.format(i))
-
     subset, idx_local = _reader[idx]
+
+    # read chunk and run function
+    logger.debug('Applying function in batch %s with size %s',
+                 i, subset.shape)
 
     kwargs_other = dict()
 

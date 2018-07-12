@@ -1,3 +1,6 @@
+from yass.util import dict2yaml, get_version
+
+
 class Model:
     """Neural Network model inherit from this class
     """
@@ -14,3 +17,9 @@ class Model:
                                  'does not match input data ({})'
                                  .format(self.n_neighbors,
                                          n_neighbors))
+
+    def _save_params(self, path, params):
+        metadata = dict(yass_version=get_version)
+        params['metadata'] = metadata
+
+        dict2yaml(output_path=path, **params)

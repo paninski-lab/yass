@@ -1,20 +1,19 @@
 import os
+
 import numpy as np
 import logging
 
-
-from yass.augment.choose import choose_templates
-from yass.augment.crop import crop_and_align_templates
+from yass.templates.crop import crop_and_align_templates
+from yass.templates import preprocess
 from yass.augment.noise import noise_cov
 from yass.augment.util import (make_noisy, make_clean, make_collided,
-                               make_misaligned, make_noise)
-from yass.templates.util import get_templates
+                               make_misaligned, make_noise, amplitudes)
 
 
-def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
-                       nspikes, data_folder, noise_ratio=10, collision_ratio=1,
-                       misalign_ratio=1, misalign_ratio2=1,
-                       multi_channel=True):
+def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
+                  max_amp, n_isolated_spikes, data_folder, noise_ratio=10,
+                  collision_ratio=1, misalign_ratio=1, misalign_ratio2=1,
+                  multi_channel=True):
     """Makes training sets for detector, triage and autoencoder
 
     Parameters
@@ -26,10 +25,14 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
         spike time, second column is the spike id
     chosen_templates_indexes: list
         List of chosen templates' id's
+
     min_amp: float
         Minimum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
-    nspikes: int
+    max_amp: float
+        Maximum value allowed for the maximum absolute amplitude of the
+        isolated spike on its main channel
+    n_isolated_spikes: int
         Number of isolated spikes to generate. This is different from the
         total number of x_detect
     data_folder: str
@@ -80,73 +83,33 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
             * Positive examples: Clean spikes + noise
             * Negative examples: Collided spikes + noise
     """
-
     logger = logging.getLogger(__name__)
 
     path_to_data = os.path.join(data_folder, 'preprocess', 'standarized.bin')
 
-    n_spikes, _ = spike_train.shape
+    templates, templates_uncropped = preprocess(CONFIG, spike_train,
+                                                path_to_data,
+                                                chosen_templates_indexes)
 
-    # make sure standarized data already exists
-    if not os.path.exists(path_to_data):
-        raise ValueError('Standarized data does not exist in: {}, this is '
-                         'needed to generate training data, run the '
-                         'preprocesor first to generate it'
-                         .format(path_to_data))
-
-    logger.info('Getting templates...')
-
-    # add weight of one to every spike
-    weighted_spike_train = np.hstack((spike_train,
-                                      np.ones((n_spikes, 1), 'int32')))
-
-    # get templates
-    templates_uncropped, _ = get_templates(weighted_spike_train,
-                                           path_to_data,
-                                           CONFIG.resources.max_memory,
-                                           4*CONFIG.spike_size)
-
-    templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
-
+    _, _, n_neigh = templates.shape
     K, _, n_channels = templates_uncropped.shape
-
-    logger.info('Got templates ndarray of shape: {}'
-                .format(templates_uncropped.shape))
-
-    # choose good templates (user selected and amplitude above threshold)
-    # TODO: maybe the minimum_amplitude parameter should be selected by the
-    # user
-    templates_uncropped = choose_templates(templates_uncropped,
-                                           chosen_templates_indexes,
-                                           minimum_amplitude=4)
-
-    if templates_uncropped.shape[0] == 0:
-        raise ValueError("Coulndt find any good templates...")
-
-    logger.info('Good looking templates of shape: {}'
-                .format(templates_uncropped.shape))
-
-    templates = crop_and_align_templates(templates_uncropped,
-                                         CONFIG.spike_size,
-                                         CONFIG.neigh_channels,
-                                         CONFIG.geom)
 
     # make training data set
     R = CONFIG.spike_size
-    amps = np.max(np.abs(templates), axis=1)
+
+    logger.debug('Output will be of size %s', 2 * R + 1)
 
     # make clean augmented spikes
-    nk = int(np.ceil(nspikes/K))
-    max_amp = np.max(amps)*1.5
-    nneigh = templates.shape[2]
+    nk = int(np.ceil(n_isolated_spikes/K))
     max_shift = 2*R
 
     # make clean spikes
     x_clean = make_clean(templates, min_amp, max_amp, nk)
 
-    # make collided spikes
-    x_collision = make_collided(x_clean, collision_ratio, templates,
-                                R, multi_channel, nneigh)
+    # make collided spikes - max shift is set to R since 2 * R + 1 will be
+    # the final dimension for the spikes
+    x_collision = make_collided(x_clean, collision_ratio, multi_channel,
+                                max_shift=R)
 
     # make misaligned spikes
     (x_temporally_misaligned,
@@ -155,7 +118,7 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
                                                misalign_ratio,
                                                misalign_ratio2,
                                                multi_channel,
-                                               nneigh)
+                                               n_neigh)
 
     # determine noise covariance structure
     spatial_SIG, temporal_SIG = noise_cov(path_to_data,
@@ -253,3 +216,44 @@ def make_training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
     # FIXME: y_ae is no longer used, autoencoder was replaced by PCA
     return x_detect, y_detect, x_triage, y_triage, x_ae, y_ae
+
+
+def testing_data(CONFIG, spike_train, chosen_templates_indexes,
+                 min_amplitude, max_amplitude, path_to_data, nk):
+    """Make data for testing neural network detector
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    x_clean_noisy: numpy.ndarray, (n_spikes, waveform_length, n_channels)
+        Clean isolated spikes with noise added
+    noise: numpy, (n_spikes, waveform_length, n_channels)
+        Noise
+    """
+    templates, _ = preprocess(CONFIG, spike_train,
+                              path_to_data,
+                              chosen_templates_indexes)
+
+    K, waveform_length, n_neigh = templates.shape
+
+    spatial_SIG, temporal_SIG = noise_cov(path_to_data,
+                                          CONFIG.neigh_channels,
+                                          CONFIG.geom,
+                                          waveform_length)
+
+    x_clean = make_clean(templates, min_amplitude, max_amplitude, nk)
+
+    # TODO: refactor make_noise, no need to send x_clean, and it will be
+    # better to remove noise_ratio and directly send the number of elements
+    # to get
+    noise = make_noise(x_clean,
+                       noise_ratio=1,
+                       templates=templates,
+                       spatial_SIG=spatial_SIG,
+                       temporal_SIG=temporal_SIG)
+
+    x_clean_noisy = x_clean + noise
+
+    return x_clean_noisy, amplitudes(x_clean_noisy), noise

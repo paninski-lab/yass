@@ -8,7 +8,6 @@ from tqdm import trange
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID)
 from yass.util import load_yaml, change_extension
-from yass.neuralnetwork.parameter_saver import save_triage_network_params
 from yass.neuralnetwork.model import Model
 
 
@@ -295,7 +294,8 @@ class NeuralNetTriage(Model):
         path_to_params = change_extension(self.path_to_model, 'yaml')
         self.logger.debug('Saving network parameters: %s', path_to_params)
 
-        save_triage_network_params(filters_size=self.filters_size,
-                                   waveform_length=self.waveform_length,
-                                   n_neighbors=self.n_neighbors,
-                                   output_path=path_to_params)
+        params = dict(filters_size=self.filters_size,
+                      waveform_length=self.waveform_length,
+                      n_neighbors=self.n_neighbors)
+
+        self._save_params(path=path_to_params, params=params)

@@ -4,7 +4,6 @@ import tensorflow as tf
 from sklearn.decomposition import PCA
 
 from yass.util import load_yaml, change_extension
-from yass.neuralnetwork.parameter_saver import save_ae_network_params
 from yass.neuralnetwork.model import Model
 
 
@@ -169,7 +168,9 @@ class AutoEncoder(Model):
             sess.run(init_op)
             saver.save(sess, self.path_to_model)
 
-        save_ae_network_params(waveform_length=self.waveform_length,
-                               n_features=self.n_features,
-                               output_path=change_extension(self.path_to_model,
-                                                            'yaml'))
+        path_to_params = change_extension(self.path_to_model, 'yaml')
+
+        params = dict(waveform_length=self.waveform_length,
+                      n_features=self.n_features)
+
+        self._save_params(path=path_to_params, params=params)

@@ -21,13 +21,13 @@ import yass
 from yass import pipeline
 from yass import geometry
 from yass.export import generate
-from yass.util import load_yaml
+from yass.util import load_yaml, get_version
 from yass import neuralnetwork
 from yass.config import Config
 
 
 @click.group()
-@click.version_option()
+@click.version_option(version=get_version())
 def cli():
     """Command line group
     """
