@@ -28,7 +28,7 @@ def amplitudes(x):
     return np.max(np.abs(x), axis=(1, 2))
 
 
-def make_clean(templates, min_amp, max_amp, nk):
+def make_clean(templates, min_amplitude, max_amplitude, nk):
     """Make clean spikes from templates
 
     Parameters
@@ -36,11 +36,11 @@ def make_clean(templates, min_amp, max_amp, nk):
     templates: numpy.ndarray, (n_templates, waveform_length, n_channels)
         Templates
 
-    min_amp: float
+    min_amplitude: float
         Minimum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
 
-    max_amp: float
+    max_amplitude: float
         Maximum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
 
@@ -52,12 +52,19 @@ def make_clean(templates, min_amp, max_amp, nk):
     numpy.ndarray (n_templates * nk, waveform_length, n_channels)
         Clean spikes
     """
+    logger = logging.getLogger(__name__)
+
+    logger.debug('templates shape: %s, min amplitude: %s, '
+                 'max_amplitude: %s'.format(templates.shape, min_amplitude,
+                                            max_amplitude))
+
     n_templates, waveform_length, n_neighbors = templates.shape
 
     x_clean = np.zeros((nk * n_templates, waveform_length, n_neighbors))
 
-    d = max_amp - min_amp
-    amps_range = (min_amp + np.arange(nk) * d/nk)[:, np.newaxis, np.newaxis]
+    d = max_amplitude - min_amplitude
+    amps_range = (min_amplitude + np.arange(nk) * d/nk)
+    amps_range = amps_range[:, np.newaxis, np.newaxis]
 
     for k in range(n_templates):
 
@@ -94,8 +101,10 @@ def make_collided(x_clean, collision_ratio, multi_channel, amp_tolerance=0.2,
     if max_shift == 'auto':
         max_shift = int((wf_length - 1) / 2)
 
-    logger.debug('Making collided spikes with max shift: %i, clean spikes '
-                 'with shape: %s', max_shift, x_clean.shape)
+    logger.debug('Making collided spikes with collision_ratio: %s max shift: '
+                 '%s, multi_channel: %s, amp_tolerance: %s, clean spikes with'
+                 ' shape: %s', collision_ratio, max_shift, multi_channel,
+                 amp_tolerance, x_clean.shape)
 
     x_collision = np.zeros((n_clean*int(collision_ratio),
                             wf_length,
