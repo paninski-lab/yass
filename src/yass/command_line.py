@@ -14,8 +14,10 @@ import shutil
 
 import click
 import numpy as np
+import tensorflow as tf
 
 
+import yass
 from yass import pipeline
 from yass import geometry
 from yass.export import generate
@@ -51,10 +53,21 @@ def cli():
 @click.option('-z', '--zero_seed',
               help='Sets numpy random seed to zero before running',
               is_flag=True, default=False)
-def sort(config, logger_level, clean, output_dir, complete, zero_seed):
+@click.option('-g', '--global_gpu_memory',
+              help='Limit the maximum portion of gpu memory that a tensorflow '
+              'session can allocate, no limit by default',
+              default=1.0, type=float)
+def sort(config, logger_level, clean, output_dir, complete, zero_seed,
+         global_gpu_memory):
     """
     Sort recordings using a configuration file located in CONFIG
     """
+    if global_gpu_memory != 1.0:
+        tf_config = tf.ConfigProto()
+        (tf_config.
+         gpu_options.per_process_gpu_memory_fraction) = global_gpu_memory
+        yass.set_tensorflow_config(config=tf_config)
+
     return pipeline.run(config, logger_level=logger_level, clean=clean,
                         output_dir=output_dir, complete=complete,
                         set_zero_seed=zero_seed)

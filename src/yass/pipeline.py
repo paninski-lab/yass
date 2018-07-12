@@ -1,9 +1,9 @@
 """
 Built-in pipeline
 """
+import logging
 import time
 import coloredlogs
-import logging
 import logging.config
 import shutil
 import os
@@ -97,7 +97,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # instantiate logger and start coloredlogs
     logger = logging.getLogger(__name__)
-    coloredlogs.install(logger=logger)
+    coloredlogs.install(level=logger_level, logger=logger)
 
     if set_zero_seed:
         logger.warning('Set numpy seed to zero')
