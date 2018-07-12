@@ -100,7 +100,6 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
     # make training data set
     R = CONFIG.spike_size
-    amps = np.max(np.abs(templates), axis=1)
 
     logger.debug('Output will be of size %s', 2 * R + 1)
 
