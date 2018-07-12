@@ -18,7 +18,14 @@ except ImportError:
 import yass
 import sys
 import logging
-from shlex import quote
+
+try:
+    # py3
+    from shlex import quote
+except ImportError:
+    # py2
+    from pipes import quote
+
 import subprocess
 import pickle
 import datetime
