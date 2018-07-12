@@ -66,8 +66,10 @@ def make_clean(templates, min_amplitude, max_amplitude, nk):
     amps_range = (min_amplitude + np.arange(nk) * d/nk)
     amps_range = amps_range[:, np.newaxis, np.newaxis]
 
+    # go over every template
     for k in range(n_templates):
 
+        # get current template and scale it
         current = templates[k]
         amp = np.max(np.abs(current))
         scaled = (current/amp)[np.newaxis, :, :]

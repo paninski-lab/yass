@@ -7,7 +7,7 @@ from yass.templates.crop import crop_and_align_templates
 from yass.templates import preprocess
 from yass.augment.noise import noise_cov
 from yass.augment.util import (make_noisy, make_clean, make_collided,
-                               make_misaligned, make_noise)
+                               make_misaligned, make_noise, amplitudes)
 
 
 def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
@@ -219,16 +219,11 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
 
 def testing_data(CONFIG, spike_train, chosen_templates_indexes,
-                 path_to_data, n_per_id, ptp_scale):
+                 min_amplitude, max_amplitude, path_to_data, nk):
     """Make data for testing neural network detector
 
     Parameters
     ----------
-    n_per_id: int
-        How many spikes to generate per ID
-    ptp_scale: float
-        Scale parameter in the normal distribution (mean 1) where the
-        variations for the peak to peak values as drawn
 
     Returns
     -------
@@ -236,10 +231,6 @@ def testing_data(CONFIG, spike_train, chosen_templates_indexes,
         Clean isolated spikes with noise added
     noise: numpy, (n_spikes, waveform_length, n_channels)
         Noise
-    ids: numpy, ndarray, (n_spikes,)
-        IDs for in x_clean
-    ptp: numpy.ndarray, (n_ids)
-        Peak to peak measure for every ID
     """
     templates, _ = preprocess(CONFIG, spike_train,
                               path_to_data,
@@ -252,37 +243,11 @@ def testing_data(CONFIG, spike_train, chosen_templates_indexes,
                                           CONFIG.geom,
                                           waveform_length)
 
-    # R = CONFIG.spike_size
-    # amps = np.max(np.abs(templates), axis=1)
+    x_clean = make_clean(templates, min_amplitude, max_amplitude, nk)
 
-    # make clean augmented spikes
-    # nk = int(np.ceil(nspikes/K))
-    #  if max_amp == 0:
-    #     max_amp = np.max(amps)*1.5
-
-    ################
-    # clean spikes #
-    ################
-
-    x_clean = np.zeros((n_per_id * K, waveform_length, n_neigh))
-
-    ids = np.zeros(x_clean.shape[0], dtype=int)
-    ptp = np.zeros(K)
-
-    for i in range(K):
-        ptp[i] = np.ptp(templates[i, :, 0])
-
-    for k in range(K):
-
-        tt = templates[k]
-
-        ptp_range = (np.random.normal(1, ptp_scale, n_per_id))[
-            :, np.newaxis, np.newaxis]
-
-        x_clean[k*n_per_id:(k+1) *
-                n_per_id] = tt[np.newaxis, :, :]*ptp_range
-        ids[k*n_per_id:(k+1)*n_per_id] = k
-
+    # TODO: refactor make_noise, no need to send x_clean, and it will be
+    # better to remove noise_ratio and directly send the number of elements
+    # to get
     noise = make_noise(x_clean,
                        noise_ratio=1,
                        templates=templates,
@@ -291,4 +256,4 @@ def testing_data(CONFIG, spike_train, chosen_templates_indexes,
 
     x_clean_noisy = x_clean + noise
 
-    return x_clean_noisy, noise, ids, ptp
+    return x_clean_noisy, amplitudes(x_clean_noisy), noise
