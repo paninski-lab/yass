@@ -55,8 +55,8 @@ def make_clean(templates, min_amplitude, max_amplitude, nk):
     logger = logging.getLogger(__name__)
 
     logger.debug('templates shape: %s, min amplitude: %s, '
-                 'max_amplitude: %s'.format(templates.shape, min_amplitude,
-                                            max_amplitude))
+                 'max_amplitude: %s', templates.shape, min_amplitude,
+                 max_amplitude)
 
     n_templates, waveform_length, n_neighbors = templates.shape
 
