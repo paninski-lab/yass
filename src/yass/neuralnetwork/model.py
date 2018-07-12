@@ -18,7 +18,7 @@ class Model:
                                  .format(self.n_neighbors,
                                          n_neighbors))
 
-    def _save_params(path, params):
+    def _save_params(self, path, params):
         metadata = dict(yass_version=get_version)
         params['metadata'] = metadata
 
