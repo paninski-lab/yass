@@ -168,7 +168,10 @@ class AutoEncoder(Model):
             sess.run(init_op)
             saver.save(sess, self.path_to_model)
 
-        dict2yaml(output_path=change_extension(self.path_to_model,
-                                               'yaml'),
-                  waveform_length=self.waveform_length,
-                  n_features=self.n_features)
+        path_to_params = change_extension(self.path_to_model, 'yaml')
+
+        params = dict(filters_size=self.filters_size,
+                      waveform_length=self.waveform_length,
+                      n_features=self.n_features)
+
+        self._save_params(path=path_to_params, params=params)

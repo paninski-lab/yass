@@ -6,7 +6,7 @@ import logging
 
 from yass.neuralnetwork.utils import (weight_variable, bias_variable, conv2d,
                                       conv2d_VALID, max_pool)
-from yass.util import load_yaml, change_extension, dict2yaml
+from yass.util import load_yaml, change_extension
 from yass.neuralnetwork.model import Model
 
 
@@ -531,7 +531,9 @@ class NeuralNetDetector(Model):
         path_to_params = change_extension(self.path_to_model, 'yaml')
 
         logger.debug('Saving network parameters: %s', path_to_params)
-        dict2yaml(output_path=path_to_params,
-                  filters_size=self.filters_size,
-                  waveform_length=self.waveform_length,
-                  n_neighbors=self.n_neighbors)
+
+        params = dict(filters_size=self.filters_size,
+                      waveform_length=self.waveform_length,
+                      n_neighbors=self.n_neighbors)
+
+        self._save_params(path=path_to_params, params=params)
