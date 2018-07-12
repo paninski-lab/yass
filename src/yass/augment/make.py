@@ -31,11 +31,7 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
         isolated spike on its main channel
     max_amp: float
         Maximum value allowed for the maximum absolute amplitude of the
-        isolated spike on its main channel. Set it to a small value relative
-        to the template with maximum amplitude, since large spikes are easy to
-        detect we do not need to include too many large spikes. Doing this
-        increases accuracy in small spikes
-
+        isolated spike on its main channel
     n_isolated_spikes: int
         Number of isolated spikes to generate. This is different from the
         total number of x_detect
