@@ -161,20 +161,24 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # run deconvolution
     start=time.time()
-    spike_train, templates = deconvolute.run(spike_index_all, templates,
+    spike_train = deconvolute.run2(spike_index_all, templates,
                                              output_directory=output_dir)
     time_deconvolution = time.time() - start
 
+    # save spike train
+    path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
+    np.save(path_to_spike_train, spike_train)
+    logger.info('Spike train saved in: {}'.format(path_to_spike_train))
+    
     # save templates
-    path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
-    logging.info('Saving templates in {}'.format(path_to_templates))
-    np.save(path_to_templates, templates)
+    #path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
+    #logging.info('Saving templates in {}'.format(path_to_templates))
+    #np.save(path_to_templates, templates)
     
     # save metadata in tmp
     path_to_metadata = path.join(TMP_FOLDER, 'metadata.yaml')
     logging.info('Saving metadata in {}'.format(path_to_metadata))
     save_metadata(path_to_metadata)
-
 
     # save metadata in tmp
     path_to_metadata = path.join(TMP_FOLDER, 'metadata.yaml')
@@ -193,15 +197,12 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     logging.info('Saving copy of config: {} in {}'.format(config,
                                                           path_to_config_copy))
 
-    # save templates
-    # TODO: templates.run has now an option to save them, remove this...
-    path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
-    logging.info('Saving templates in {}'.format(path_to_templates))
-    np.save(path_to_templates, templates)
+    ## save templates
+    ## TODO: templates.run has now an option to save them, remove this...
+    #path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
+    #logging.info('Saving templates in {}'.format(path_to_templates))
+    #np.save(path_to_templates, templates)
 
-    path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
-    np.save(path_to_spike_train, spike_train)
-    logger.info('Spike train saved in: {}'.format(path_to_spike_train))
 
     # this part loads waveforms for all spikes in the spike train and scores
     # them, this data is needed to later generate phy files

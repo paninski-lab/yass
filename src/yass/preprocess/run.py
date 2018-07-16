@@ -168,7 +168,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     if multi_processing:
         parmap.map(
             filter_standardize,
-            zip(idx_list, proc_indexes),
+            list(zip(idx_list, proc_indexes)),
             low_frequency,
             high_factor,
             order,
