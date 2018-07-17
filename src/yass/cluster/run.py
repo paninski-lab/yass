@@ -102,13 +102,20 @@ def run(scores,
             n_dim_pca = 3
             wf_start = 0
             wf_end = int(CONFIG.recordings.spike_size_ms*
-                     CONFIG.recordings.sampling_rate//1000)
+                         CONFIG.recordings.sampling_rate//1000)
             n_mad_chans = 5
             n_max_chans = 5
             mfm_threshold = 0.90
             upsample_factor = 5
             nshifts = 1
+            
+            # check to see if 'result/' folder exists otherwise make it
+            result_dir = os.path.join(CONFIG.data.root_folder,
+                                      'result')
+            if not os.path.isdir(result_dir):
+                os.makedirs(result_dir)
 
+            # run new voltage features-based clustering
             spike_train, tmp_loc, templates = run_cluster_features_2_parallel(
                                     spike_index_clear, 
                                     n_dim_pca, wf_start, wf_end, n_mad_chans, 

@@ -919,15 +919,23 @@ def split_merge(maskedData, param):
     return vbParam
 
 
+#def cluster_triage(vbParam, score, threshold):
+
+#    maha = calc_mahalonobis(vbParam, score)
+
+#    cluster_id = np.argmin(maha, axis=1)
+#    idx = np.all(maha >= threshold, axis=1)
+#    cluster_id[idx] = -1
+#    return cluster_id
+
+
 def cluster_triage(vbParam, score, threshold):
-
-    maha = calc_mahalonobis(vbParam, score)
-
-    cluster_id = np.argmin(maha, axis=1)
-    idx = np.any(np.all(maha >= threshold, axis=1), axis=1)
-    cluster_id[idx] = -1
-    return cluster_id
-
+	maha = calc_mahalonobis(vbParam, score)
+	cluster_id = np.argmax(vbParam.rhat, axis=1)
+	idx = np.all(maha >= threshold, axis=1)
+	cluster_id[idx] = -1
+	return cluster_id
+    
 
 def get_core_data(vbParam, score, n_max, threshold):
 
