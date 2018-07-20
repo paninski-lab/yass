@@ -59,23 +59,29 @@ class MatchPursuit(object):
         self.threshold = threshold
         self.approx_rank = conv_approx_rank
         self.implicit_subtraction = implicit_subtraction
+        
         # Computing SVD for each template.
         self.temporal, self.singular, self.spatial = np.linalg.svd(
             np.transpose(np.flipud(temps), (2, 0, 1)))
         self.obj_len = self.data_len + self.n_time - 1
         self.dot = np.zeros([self.n_unit, self.obj_len])
+        
         # Compute pairwise convolution of filters
         self.pairwise_filter_conv()
+        
         # compute norm of templates
         self.norm = np.zeros([self.n_unit, 1])
         for i in range(self.n_unit):
             self.norm[i] = np.sum(np.square(self.temps[:, :, i]))
+        
         # Compute v_sqaured if it is included in the objective.
         self.obj_energy = obj_energy
         if obj_energy:
             self.update_v_squared()
+        
         # Indicator for computation of the objective.
         self.obj_computed = False
+        
         # Resulting recovered spike train.
         self.dec_spike_train = np.zeros([0, 2], dtype=np.int32)
         self.dist_metric = np.array([])
@@ -109,11 +115,14 @@ class MatchPursuit(object):
         """Computes the objective given current state of recording."""
         if self.obj_computed and self.implicit_subtraction:
             return self.obj
+            
         for i in range(self.n_unit):
             self.dot[i, :] = self.approx_conv_filter(i)
         self.obj = 2 * self.dot - self.norm
+        
         if self.obj_energy:
             self.obj -= self.v_squared
+        
         # Enforce refrac period
         radius = self.n_time // 2
         window = np.arange(- radius, radius)
@@ -121,6 +130,7 @@ class MatchPursuit(object):
             unit_sp = self.dec_spike_train[self.dec_spike_train[:, 1] == i, 0]
             refrac_idx = unit_sp[:, np.newaxis] + window
             self.obj[i, refrac_idx] = - np.inf
+            
         # Set indicator to true so that it no longer is run
         # for future iterations in case subtractions are done
         # implicitly.
@@ -133,6 +143,7 @@ class MatchPursuit(object):
         spike_times = scipy.signal.argrelmax(max_across_temp, order=refrac_period)[0]
         spike_times = spike_times[max_across_temp[spike_times] > self.threshold]
         dist_metric = max_across_temp[spike_times]
+        
         # TODO(hooshmand): this requires a check of the last element(s)
         # of spike_times only not of all of them since spike_times
         # is sorted already.

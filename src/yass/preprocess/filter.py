@@ -5,7 +5,7 @@ import os
 import numpy as np
 import os.path
 
-from scipy.signal import butter, lfilter
+from scipy.signal import butter, lfilter, filtfilt
 
 from yass.batch import BatchProcessor
 from yass.util import check_for_files, ExpandPath, LoadFile
@@ -356,14 +356,24 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
         output = lfilter(b, a, ts)
 
     else:
+        #T, C = ts.shape
+        #low = float(low_frequency) / sampling_frequency * 2
+        #high = float(high_factor) * 2
+        #b, a = butter(order, [low, high], btype='band')
+
+        #output = np.zeros((T, C), 'float32')
+        #for c in range(C):
+            #output[:, c] = lfilter(b, a, ts[:, c])
+
         T, C = ts.shape
+        
         low = float(low_frequency) / sampling_frequency * 2
         high = float(high_factor) * 2
-        b, a = butter(order, [low, high], btype='band')
+        b, a = butter(order, low, btype='high', analog=False)
 
         output = np.zeros((T, C), 'float32')
         for c in range(C):
-            output[:, c] = lfilter(b, a, ts[:, c])
+            output[:, c] = filtfilt(b, a, ts[:, c])
 
     # Fix indexes function
     res = output[buffer_size:data_end - data_start + buffer_size]
@@ -377,6 +387,7 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
                      "filtered_files/standardized_" + str(chunk_idx).zfill(6)),
         standardized)
 
+    return standardized.shape
 
 def merge_filtered_files(root_folder, output_directory):
 

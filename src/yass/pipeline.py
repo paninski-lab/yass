@@ -113,9 +113,10 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     time_preprocess = time.time() - start
 
     # detect
+    # Cat: This code now runs with open tensorflow calls
     start = time.time()
     (score, spike_index_clear,
-     spike_index_all) = detect.run(standarized_path,
+     spike_index_all) = detect.run2(standarized_path,
                                    standarized_params,
                                    channel_index,
                                    whiten_filter,
@@ -127,37 +128,15 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # cluster
     start=time.time()
     path_to_spike_train_cluster = path.join(TMP_FOLDER, 'spike_train_cluster.npy')
-    #if os.path.exists(path_to_spike_train_cluster):
     if os.path.exists(path_to_spike_train_cluster):
         spike_train_clear = np.load(path_to_spike_train_cluster)
         tmp_loc = np.load(os.path.join(TMP_FOLDER,'tmp_loc.npy'))
         templates = np.load(os.path.join(TMP_FOLDER,'templates.npy'))    
     else:
         spike_train_clear, tmp_loc, templates = cluster.run(score, spike_index_clear)
-        #logging.info('Saving clear spike train in {}'.format(path_to_spike_train_cluster))
     time_cluster = time.time()-start
-    print (spike_train_clear.shape)
-    print (templates.shape)
-
-    # get templates; 
-    # Cat:  NO LONGER USED, TEMPLATES SAVED DIRECTLY FROM CLUSTERING STEPS
-    #start=time.time()
-    #path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
-    #path_to_clear_spike_train_after_merge = path.join(TMP_FOLDER, 'spike_train_cluster.npy')
-    #if os.path.exists(path_to_templates):
-        #templates = np.load(path_to_templates)
-        #spike_train_clear = np.load(path_to_clear_spike_train_after_merge)
-    #else:
-        #templates, spike_train_clear = get_templates.run(spike_train_clear,
-                                                         #tmp_loc)
-        #logging.info('Saving templates in {}'.format(path_to_templates))
-        #np.save(path_to_templates, templates)
-        #np.save(path_to_clear_spike_train_after_merge, spike_train_clear)
-    #time_templates = time.time() - start
-
-    # compare templates to ks and gold standard
-    # print ("checking templates against saved sorts ")
-    # compare_templates(templates, spike_train_clear)
+    print ("Spike train clear: ", spike_train_clear.shape, " templates: ",
+           templates.shape)
 
     # run deconvolution
     start=time.time()
@@ -169,11 +148,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
     np.save(path_to_spike_train, spike_train)
     logger.info('Spike train saved in: {}'.format(path_to_spike_train))
-    
-    # save templates
-    #path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
-    #logging.info('Saving templates in {}'.format(path_to_templates))
-    #np.save(path_to_templates, templates)
     
     # save metadata in tmp
     path_to_metadata = path.join(TMP_FOLDER, 'metadata.yaml')
@@ -196,13 +170,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     logging.info('Saving copy of config: {} in {}'.format(config,
                                                           path_to_config_copy))
-
-    ## save templates
-    ## TODO: templates.run has now an option to save them, remove this...
-    #path_to_templates = path.join(TMP_FOLDER, 'templates.npy')
-    #logging.info('Saving templates in {}'.format(path_to_templates))
-    #np.save(path_to_templates, templates)
-
 
     # this part loads waveforms for all spikes in the spike train and scores
     # them, this data is needed to later generate phy files

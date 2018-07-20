@@ -580,3 +580,18 @@ def running_on_gpu():
         return False
 
     return True if gpus else False
+
+
+def get_version():
+    """Get package version
+    """
+    installation_path = sys.modules['yass'].__file__
+
+    NON_EDITABLE = True if 'site-packages/' in installation_path else False
+
+    if NON_EDITABLE:
+        return yass.__version__
+    else:
+        parent = str(Path(installation_path).parent)
+
+        return one_line_git_summary(parent)

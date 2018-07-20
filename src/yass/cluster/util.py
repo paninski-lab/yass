@@ -828,7 +828,7 @@ def upsample_parallel(wf, upsample_factor):
 def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag, 
          alignflag, plotting, chans, n_mad_chans, n_max_chans, n_dim_pca, 
          wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor, nshifts, 
-         assignment_global, spike_index):
+         assignment_global, spike_index, scale):
     
     # ************* CHECK SMALL CLUSTERS *************
     # Exit clusters that are too small
@@ -934,8 +934,8 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
         spike_index.append(sic[idx_recovered])
 
         if plotting:
-            plot_clustering_template(fig, grid, wf, idx_recovered, CONFIG, colors,
-                                     feat_chans, N)
+            plot_clustering_template(fig, grid, gen, N, wf, idx_recovered, 
+                                     CONFIG, colors, feat_chans, scale)
         
     # if multiple clusters
     else:
@@ -960,7 +960,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
                  sic[idx_keep][idx], gen+1, 
                  fig, grid, False, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
                  n_dim_pca, wf_start, wf_end, mfm_threshold,  CONFIG, 
-                 upsample_factor, nshifts, assignment_global, spike_index)
+                 upsample_factor, nshifts, assignment_global, spike_index, scale)
 
         # if all clusters are unstable: try annealing, or triaging
         if np.all(stability<=mfm_threshold):
@@ -973,7 +973,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
                  sic[idx_keep][idx_recovered], gen+1, fig, grid, 
                  True, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
                  n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor,
-                 nshifts, assignment_global, spike_index)
+                 nshifts, assignment_global, spike_index, scale)
         
         else:
             # run mfm on remaining data
@@ -986,23 +986,26 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
                     gen+1, fig, grid, False, alignflag, plotting, chans, 
                     n_mad_chans, n_max_chans, n_dim_pca, wf_start, wf_end, 
                     mfm_threshold, CONFIG, upsample_factor, nshifts, 
-                    assignment_global, spike_index)
+                    assignment_global, spike_index, scale)
 
 
-def plot_clustering_template(fig, grid, wf, idx_recovered, CONFIG, colors, 
-                                                            feat_chans, N):
+def plot_clustering_template(fig, grid, gen, N, wf, idx_recovered, CONFIG, colors, 
+                                                            feat_chans, scale):
         # plot templates 
         ax = fig.add_subplot(grid[14:, 6:])
         wf_mean = wf[idx_recovered].mean(0)
-        scale = 10
+        
+        # plot template
         plt.plot(CONFIG.geom[:,0]+
                 np.arange(-wf_mean.shape[0],0)[:,np.newaxis]/3., 
                 CONFIG.geom[:,1] + wf_mean[:,:]*scale, c=colors[N%100])
 
+        # plot feature channels
         for i in feat_chans:
-             plt.scatter(CONFIG.geom[i,0], CONFIG.geom[i,1], s = 750, 
-                                                      color = 'orange')
-
+             plt.scatter(CONFIG.geom[i,0]+gen, CONFIG.geom[i,1]+N, 
+                                                    s = 30, 
+                                                    color = colors[N%100],
+                                                    alpha=1)
 
 def plot_clustering_scatter(fig, grid, x, gen, vbParam,  
                             assignment2, colors, pca_wf, channel,
@@ -1547,6 +1550,7 @@ def cluster_channels(channel, CONFIG, spike_index_clear, n_dim_pca,
 
     # starting params
     chans = [] 
+    scale = 10 
     triageflag = False
     alignflag = True
     plotting = True
@@ -1580,33 +1584,31 @@ def cluster_channels(channel, CONFIG, spike_index_clear, n_dim_pca,
             grid = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
         
         wf = load_waveforms_parallel(spike_index_clear[indexes], CONFIG, out_dir)
-    
-        # subsample for clustering step
-        #indexes_subsampled = np.random.choice(np.arange(indexes.shape[0]), 
-        #                     size=min(indexes.shape[0],subsample_nspikes),replace=False)
         
         # legacy code fix
         indexes_subsampled = np.arange(indexes.shape[0])
         
         # cluster
-        #RRR3_noregress(channel, wf[indexes_subsampled], 
-        #     spike_index_clear[indexes][indexes_subsampled], gen, fig, grid, 
-        #     triageflag, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
-        #     n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
-        #     upsample_factor, nshifts, assignment_global, spike_index)
-        
-
         RRR3_noregress_recovery(channel, wf[indexes_subsampled], 
              spike_index_clear[indexes][indexes_subsampled], gen, fig, grid, 
              triageflag, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
              n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
-             upsample_factor, nshifts, assignment_global, spike_index)
+             upsample_factor, nshifts, assignment_global, spike_index, scale)
 
         # finish plotting 
         if plotting: 
             ax = fig.add_subplot(grid[14:, 6:])
             for i in range(CONFIG.recordings.n_channels):
                 plt.text(CONFIG.geom[i,0], CONFIG.geom[i,1], str(i), alpha=0.4, fontsize=30)
+                
+                # fill bewteen 2SUs on each channel
+                ax.fill_between(CONFIG.geom[i,0] + np.arange(-61,0,1)/3.,
+                    -scale + CONFIG.geom[i,1], scale + CONFIG.geom[i,1], color='black', 
+                    alpha=0.05)
+                
+            # plot max chan with big red dot                
+            plt.scatter(CONFIG.geom[channel,0], CONFIG.geom[channel,1], s = 2000, 
+                                                    color = 'red')
             
             # if at least 1 cluster is found:
             if len(spike_index)>0: 
@@ -1684,9 +1686,11 @@ def cluster_channels(channel, CONFIG, spike_index_clear, n_dim_pca,
                          #spike_index_clear[indexes], indexes_subsampled, 
                          #spike_index, upsample_factor, nshifts, CONFIG)
 
+    print ("************************************************************")
     print ("****** Channel "+str(channel)+ 
            ", total clusters "+str(len(spike_index))+ 
            " *****")
+    print ("************************************************************")
     print ("")
     print ("")
     print ("")

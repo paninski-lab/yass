@@ -122,7 +122,7 @@ def deconvolve_match_pursuit(
               #len(clear_spiketimes_unique), " Total: ", len(final_spikes),
               #"  # threshold loops: ", threshold_ctr)
 
-    print (final_spikes.shape)
+    #print (final_spikes.shape)
     return final_spikes #, dist_metric
     
 

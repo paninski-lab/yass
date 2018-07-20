@@ -53,6 +53,8 @@ def run_detect_triage_featurize(recordings, x_tf, output_tf,
         score, spike_index, idx_clean = sess.run(
             output_tf, feed_dict={x_tf: recordings})
 
+        #print ("clean spikes: ", idx_clean.sum())
+
         rot = NNAE.load_rotation()
         energy = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
 

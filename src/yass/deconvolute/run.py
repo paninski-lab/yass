@@ -104,11 +104,11 @@ def run2(spike_index_all,
 
     idx_list = np.int64(np.vstack(idx_list)) #[:2]
     proc_indexes = np.arange(len(idx_list))
-    print (idx_list)
+    
     print("# of chunks for deconvolution: ", len(idx_list), " verbose mode: ",
           CONFIG.deconvolution.verbose)
             
-            
+    # need to transpose axes for match_pursuit 
     templates = np.swapaxes(templates,0,1)
     templates = np.swapaxes(templates,1,2)
     

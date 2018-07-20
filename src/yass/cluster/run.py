@@ -105,7 +105,7 @@ def run(scores,
                          CONFIG.recordings.sampling_rate//1000)
             n_mad_chans = 5
             n_max_chans = 5
-            mfm_threshold = 0.90
+            mfm_threshold = 0.85
             upsample_factor = 5
             nshifts = 1
             
