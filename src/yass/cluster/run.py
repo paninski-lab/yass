@@ -25,8 +25,7 @@ from yass.mfm import get_core_data
     relative_to='output_directory',
     auto_save=True,
     prepend_root_folder=True)
-def run(scores,
-        spike_index,
+def run(spike_index,
         output_directory='tmp/',
         if_file_exists='skip',
         save_results=False):
@@ -34,10 +33,6 @@ def run(scores,
 
     Parameters
     ----------
-    scores: numpy.ndarray (n_spikes, n_features, n_channels), str or Path
-        3D array with the scores for the clear spikes, first simension is
-        the number of spikes, second is the nymber of features and third the
-        number of channels. Or path to a npy file
 
     spike_index: numpy.ndarray (n_clear_spikes, 2), str or Path
         2D array with indexes for spikes, first column contains the
@@ -71,7 +66,6 @@ def run(scores,
 
     """
     # load files in case they are strings or Path objects
-    scores = file_loader(scores)
     spike_index = file_loader(spike_index)
 
     CONFIG = read_config()
@@ -82,7 +76,6 @@ def run(scores,
 
     logger = logging.getLogger(__name__)
 
-    scores_all = np.copy(scores)
     spike_index_all = np.copy(spike_index)  # this is only spike_index clear
 
     # start timer
@@ -103,15 +96,17 @@ def run(scores,
             wf_start = 0
             wf_end = int(CONFIG.recordings.spike_size_ms*
                          CONFIG.recordings.sampling_rate//1000)
+                       
+                         
             n_mad_chans = 5
             n_max_chans = 5
             mfm_threshold = 0.85
             upsample_factor = 5
-            nshifts = 1
+            nshifts = 15
             
             # check to see if 'result/' folder exists otherwise make it
             result_dir = os.path.join(CONFIG.data.root_folder,
-                                      'result')
+                                      'tmp/cluster')
             if not os.path.isdir(result_dir):
                 os.makedirs(result_dir)
 

@@ -115,7 +115,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # detect
     # Cat: This code now runs with open tensorflow calls
     start = time.time()
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run2(standarized_path,
                                    standarized_params,
                                    channel_index,
@@ -133,7 +133,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         tmp_loc = np.load(os.path.join(TMP_FOLDER,'tmp_loc.npy'))
         templates = np.load(os.path.join(TMP_FOLDER,'templates.npy'))    
     else:
-        spike_train_clear, tmp_loc, templates = cluster.run(score, spike_index_clear)
+        spike_train_clear, tmp_loc, templates = cluster.run(spike_index_clear)
     time_cluster = time.time()-start
     print ("Spike train clear: ", spike_train_clear.shape, " templates: ",
            templates.shape)
