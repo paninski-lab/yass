@@ -302,8 +302,7 @@ def run_neural_network2(standarized_path, standarized_params, channel_index,
         TC_list = []
         offset_list = []
         for ctr, idx in enumerate(idx_list): 
-            data = np.load('/media/cat/1TB/liam/49channels/'+
-               'data1_set1/yass/tmp/detect/detect_'+str(ctr).zfill(5)+'.npz')
+            data = np.load(fname_detection+'detect_'+str(ctr).zfill(5)+'.npz')
             spike_index_list.extend(data['spike_index_list'])
             idx_clean_list.extend(data['idx_clean_list'])
             energy_list.extend(data['energy_list'])

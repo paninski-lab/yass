@@ -836,7 +836,7 @@ def upsample_parallel(wf, upsample_factor):
 
 
 def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag, 
-         alignflag, plotting, chans, n_mad_chans, n_max_chans, n_dim_pca, 
+         alignflag, plotting, n_mad_chans, n_max_chans, n_dim_pca, 
          wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor, nshifts, 
          assignment_global, spike_index, scale):
     
@@ -986,7 +986,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
                     str(wf[idx_keep][idx].shape))
             RRR3_noregress_recovery(channel, wf[idx_keep][idx], 
                  sic[idx_keep][idx], gen+1, 
-                 fig, grid, False, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
+                 fig, grid, False, alignflag, plotting, n_mad_chans, n_max_chans, 
                  n_dim_pca, wf_start, wf_end, mfm_threshold,  CONFIG, 
                  upsample_factor, nshifts, assignment_global, spike_index, scale)
 
@@ -999,7 +999,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
 
             RRR3_noregress_recovery(channel, wf[idx_keep][idx_recovered], 
                  sic[idx_keep][idx_recovered], gen+1, fig, grid, 
-                 True, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
+                 True, alignflag, plotting, n_mad_chans, n_max_chans, 
                  n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor,
                  nshifts, assignment_global, spike_index, scale)
         
@@ -1011,7 +1011,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
                                             str(wf[idx_keep][idx].shape))
                 RRR3_noregress_recovery(channel, wf[idx_keep][idx],
                     sic[idx_keep][idx], 
-                    gen+1, fig, grid, False, alignflag, plotting, chans, 
+                    gen+1, fig, grid, False, alignflag, plotting, 
                     n_mad_chans, n_max_chans, n_dim_pca, wf_start, wf_end, 
                     mfm_threshold, CONFIG, upsample_factor, nshifts, 
                     assignment_global, spike_index, scale)
@@ -1145,222 +1145,6 @@ def clustering_annealing():
                  #n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor,
                  #nshifts, assignment_global, spike_index)
                  
-                 
-#def RRR3_noregress(channel, wf, sic, gen, fig, grid, triageflag, alignflag, plotting, 
-         #chans, n_mad_chans, n_max_chans, n_dim_pca, wf_start, wf_end, 
-         #mfm_threshold, CONFIG, upsample_factor, nshifts, assignment_global, 
-         #spike_index):
-    
-    #min_cluster_spikes = 100
-    
-    #if wf.shape[0] < 30:
-        ##print ("exiting too few spikes<<<FIX THIS")
-        #return
-
-    #alignflag=True
-
-    #print ("")
-    #print("***Channel "+str(channel) + ' generation: '+str(gen)+ ' # spikes: '+ str(wf.shape[0]))
-        
-    ## select feature chans 
-    #feat_chans, max_chans = get_feat_channels(wf.mean(0), wf, n_max_chans, n_mad_chans)  
-    #print("chan "+str(channel) + ", feat chans: "+str(feat_chans) + ", max_chan: "+ str(max_chans[0]))
-    
-    ## save max_channel relative to feat_chans location
-    #mc = np.where(feat_chans==max_chans[0])[0][0]
-    ##print ("MAX CHAN: ", mc) 
-    
-    ## align, note: aligning all channels to max chan; 
-    ## note: max chan is first from feat_chans above, ensure order is preserved
-    #if alignflag:
-        #print ("chan "+str(channel)+ " - aligning")
-        #wf_align = align_mc(wf[:,:,feat_chans], mc, CONFIG, 
-                            #upsample_factor, nshifts, ref = None)
-    #else:
-        ##print ("skip - aligning")
-        #wf_align = wf[:,:,feat_chans]
-        
-    ## run pca
-    #data_in = wf_align[:,0:40].swapaxes(1,2).reshape(wf.shape[0],-1)
-
-    #pca_wf, _ = PCA(data_in, 3)
-    #if triageflag:
-        #idx_keep = triage(mfm_threshold*100, pca_wf)
-        #print("chan "+str(channel) + " triaged, remaining spikes "+str(idx_keep.sum()))
-        #pca_wf,_ = PCA(data_in[idx_keep],3)
-    #else:
-        #idx_keep = np.ones(pca_wf.shape[0],dtype = bool)
-
-    ## clustering
-    #print("chan "+ str(channel)+" - clustering ")
-    #vbParam, assignment = run_mfm3(pca_wf, CONFIG)
-    
-    ## if > 1 cluster plot the results. 
-    #if vbParam.rhat.shape[1] != 1:
-        #if plotting:
-            #if np.all(x[gen]<=20) and gen <20:
-                #mask = vbParam.rhat>0
-                #stability = np.average(mask * vbParam.rhat, axis = 0, weights = mask)
-                #labels = []
-                #clusters, sizes = np.unique(assignment, return_counts=True)
-
-                #fig.add_subplot(grid[gen, x[gen]])
-                #x[gen] += 1
-                #for clust in clusters:
-                    #patch_j = mpatches.Patch(color = colors[clust%100], 
-                      #label = "size = {}, stability = {}".format(sizes[clust], 
-                      #stability[clust]))
-                    #labels.append(patch_j)
-                #plt.scatter(pca_wf[:,0], pca_wf[:,1], 
-                  #c = colors[assignment%100], edgecolor = 'k')
-                #plt.legend(handles = labels)
-                #plt.title(str(sizes.sum()))
-                #plt.suptitle("Channel: "+str(channel), fontsize=25)
-    
-    ## if single cluster found
-    #if vbParam.rhat.shape[1] == 1:
-        #N= len(assignment_global)            
-        #print("chan "+str(channel) + " >>>>>>>>>> cluster "+str(N) + 
-        #" saved, size: " + str(wf[idx_keep].shape)+ "<<<<<<<<<<<<<")
-        
-        #assignment_global.append(N * np.ones(assignment.shape[0]))
-        #spike_index.append(sic[idx_keep])
-
-        #if plotting:
-            ## plot distributions as generations
-            #if np.all(x[gen]<=20) and gen <20:
-                #mask = vbParam.rhat>0
-                #stability = np.average(mask * vbParam.rhat, axis = 0, weights = mask)
-                #labels = []
-                #clusters, sizes = np.unique(assignment, return_counts=True)
-
-                #ax = fig.add_subplot(grid[gen, x[gen]])
-                #x[gen] += 1
-                #for clust in clusters:
-                    #patch_j = mpatches.Patch(color = colors[clust%100], label = "size = {}, stability = {}".format(sizes[clust], stability[clust]))
-                    #labels.append(patch_j)
-                #plt.scatter(pca_wf[:,0], pca_wf[:,1], c = colors[assignment%100], edgecolor = 'k')
-                #if clusters.size == 1:
-                    #ax.scatter(pca_wf[:,0].mean(), pca_wf[:,1].mean(), c= 'r', s = 2000)
-                #ax.legend(handles = labels)
-                #plt.title(str(sizes.sum()))
-                #plt.suptitle("Channel: "+str(channel), fontsize=25)
-
-            ## plot templates 
-            #ax = fig.add_subplot(grid[14:, 6:])
-            #wf_mean = wf[idx_keep].mean(0)
-            #scale = 10
-            #plt.plot(CONFIG.geom[:,0] + np.arange(-wf_mean.shape[0],0)[:,np.newaxis]/3., CONFIG.geom[:,1] + wf_mean[:,:]*scale, c=colors[N%100])
-
-            #for i in feat_chans:
-                 #plt.scatter(CONFIG.geom[i,0], CONFIG.geom[i,1], s = 750, color = 'orange')
-                
-    ## if > 1 cluster
-    #else:
-        #mask = vbParam.rhat>0
-        ##                             vbParam 10k spikes NOT recovered ids....
-        #stability = np.average(mask * vbParam.rhat, axis = 0, weights = mask)
-        #clusters, sizes = np.unique(assignment, return_counts = True)
-        #print("chan "+str(channel) + 
-              #" multiple clusters, stability " + str(stability) + 
-              #" size: "+str(sizes))
-
-        ## remove stable clusters 
-        #for clust in np.where(stability>mfm_threshold)[0]:
-            #idx = assignment == clust
-            #if wf[idx_keep][idx].shape[0]<min_cluster_spikes: 
-                ##print ("skiping cluster, too small...")
-                #continue
-            #print("chan " + str(channel) + " reclustering "+ str(wf[idx_keep][idx].shape))
-            #RRR3_noregress(channel, wf[idx_keep][idx], sic[idx_keep][idx], gen+1, 
-                 #fig, grid, False, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
-                 #n_dim_pca, wf_start, wf_end, mfm_threshold,  CONFIG, 
-                 #upsample_factor, nshifts, assignment_global, spike_index)
-
-        ## if all clusters are unstable: try annealing, or triaging
-        #if np.all(stability<=mfm_threshold):
-            
-            ##print("annealing")
-            ##annealing_thresholds = np.arange(0.0, 1.01, 0.01)  # set threshold for annealing clusters together
-            ##network_threshold = 0.0 # set very low threshold for assigning spikes to a particular unit
-            
-            ###for network_threshold in network_thresholds:
-            ##network = np.zeros((vbParam.rhat.shape[1],vbParam.rhat.shape[1]),'float32')
-
-            ### use compute 
-            ##for k in range(vbParam.rhat.shape[1]):
-                ##indexes = np.where(vbParam.rhat[:,k]>network_threshold)[0]
-
-                ##temp = vbParam.rhat.copy()
-                ##matches = np.average(temp[indexes], axis=0)
-
-                ##network[k]=matches
-            
-            ### add 1 to ensure 
-            ##network+=1  
-            ##network_pd = pd.DataFrame(network)
-
-            ### search for minimum annealing threshold that genrates 2 groups
-            ##for ctr, threshold in enumerate(annealing_thresholds):
-                ### Cat: add 1.0 to correlation matrix ranging -1.0 .. +1.0
-                ### TODO: this may be problematic; find more robust metric of overlap
-                ##corr = network_pd.corr() 
-                ##links = corr.stack().reset_index()
-                ##links.columns = ['var1', 'var2','value']
-
-                ##links_filtered=links.loc[ (links['value'] >= threshold) & (links['var1'] != links['var2']) ]
-
-                ##G=nx.from_pandas_dataframe(links_filtered, 'var1', 'var2')
-
-                ### find groups
-                ##l = list(G.edges())
-                ##taken=[False]*len(l)
-                ##l=map(set,l)
-
-                ##groups = merge_all(l, taken)
-                
-                ### compute # of groups by considering total grouped units vs. all units
-                ### try to find pairing where all units are in 2 gruops, and no isolated clusters
-                ##flattened = np.int32([val for sublist in groups for val in sublist])
-                ##n_groups = len(groups)+np.max(assignment)+1-len(flattened)
-            
-                ##if n_groups==2:
-                    ##print ("found 2 groups, exiting")
-                    ##break
-
-            ##if n_groups==2:
-                ### loop over 2 groups and recluster
-                ##lengths = []
-                ##for group in groups: 
-                    ##lengths.append(np.where(np.in1d(assignment, np.int32(group)))[0].shape[0])
-                ##print ("groups: ", lengths)
-                
-                ##for group in groups: 
-                    ##idx = np.where(np.in1d(assignment, np.int32(group)))[0]
-                
-                    ##print("reclustering annealed group ", wf[idx_keep][idx].shape, group)
-                    ##RRR3_noregress(channel, wf[idx_keep][idx], sic[idx_keep][idx], gen+1, fig, grid, 
-                         ##False, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
-                         ##n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor,
-                         ##nshifts, assignment_global, spike_index)
-            ##else:                                             
-            
-            #print("chan "+str(channel) + " no stable clusters, triaging " + str(wf[idx_keep].shape))
-            #RRR3_noregress(channel, wf[idx_keep], sic[idx_keep], gen+1, fig, grid, 
-                 #True, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
-                 #n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor,
-                 #nshifts, assignment_global, spike_index)
-        
-        #else:
-            ## run mfm on remaining data
-            #idx = np.in1d(assignment, np.where(stability<=mfm_threshold)[0])
-            #if idx.sum()>min_cluster_spikes:
-                #print("chan "+str(channel) + " reclustering residuals "+str(wf[idx_keep][idx].shape))
-                #RRR3_noregress(channel, wf[idx_keep][idx], sic[idx_keep][idx], gen+1, fig, grid, 
-                     #False, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
-                     #n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor,
-                     #nshifts, assignment_global, spike_index)
-
 
 def regress(wf, mc):
     template = wf.mean(0)
@@ -1371,102 +1155,6 @@ def regress(wf, mc):
                   ,np.linalg.inv(np.matmul(wf_x.T, wf_x)))
     residual = wf_y - np.matmul(A, wf_x.T).transpose([2,1,0])
     return residual
-
-
-def run_cluster_features_2(spike_index_clear, n_dim_pca, wf_start, wf_end, 
-                         n_mad_chans, n_max_chans, CONFIG, out_dir,
-                         mfm_threshold, upsample_factor, nshifts):
-    
-    ''' New voltage feature based clustering
-    ''' 
-    
-    # loop over channels 
-    # hold spike times and chans in two arrays passed in and out
-    all_assignments = []
-    spike_times = []
-    chans = [] 
-    channels = np.arange(CONFIG.recordings.n_channels)
-    triageflag = True
-    alignflag = True
-    plotting = True
-
-    gen = 0     #Set default generation for starting clustering stpe
-    assignment_global = []
-    spike_index = []
-    for channel in channels: 
-    #for channel in np.arange(30,49,1): 
-
-        print("***********Channel {}**********************".format(channel))
-        
-        # plotting parameters
-        global x
-        x = np.zeros(100, dtype = int)
-        fig = plt.figure(figsize =(100,100))
-        grid = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
-        
-        # read waveforms
-        indexes = np.where(spike_index_clear[:,1]==channel)[0]
-        # Cat: TEMP LIMIT TO 10000 spikes
-        indexes = np.random.choice(indexes, size=min(indexes.shape[0],10000),replace=False)
-        wf = load_waveforms_parallel(spike_index_clear[indexes], 
-                                          CONFIG, out_dir)
-  
-        # cluster
-        RRR3_noregress(channel, wf, spike_index_clear[indexes], gen, fig, grid, 
-             triageflag, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
-             n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
-             upsample_factor, nshifts, assignment_global, spike_index)
-
-        ax = fig.add_subplot(grid[15:, 5:])
-        
-        sic_temp = np.concatenate(spike_index, axis = 0)
-        assignment_temp = np.concatenate(assignment_global, axis = 0)
-        idx = sic_temp[:,1] == channel
-        clusters, sizes = np.unique(assignment_temp[idx], return_counts= True)
-        clusters = clusters.astype(int)
-
-        chans.extend(channel*np.ones(clusters.size))
-
-        labels=[]
-        for i, clust in enumerate(clusters):
-            patch_j = mpatches.Patch(color = colors[clust%100], label = "size = {}".format(sizes[i]))
-            labels.append(patch_j)
-        plt.legend(handles = labels, fontsize=30)
-        
-        
-        plt.savefig("/media/cat/12TB/Dropbox/Dropbox/data_temp/liam/clusters/june_30/channel_{}.png".format(channel))
-        plt.close('all')
-        print("****** Channel {},  total clusters *****".format(channel))
-        print ("")
-        print ("")
-        print ("")
-        
-                
-    # add channels of templates to be saved as tmp_loc
-    tmp_loc = np.int32(chans)
-
-    #assignment_global = np.int32(assignment_global)
-    #spike_index = np.int32(spike_index)
-    #print assignment_global
-    #print spike_index
-    
-    #spike_train_clustered = np.zeros((spike_index.shape[0],2),'int32')
-    #spike_train_clustered[:,0]=spike_index
-    #spike_train_clustered[:,1]=assignment_global
-    
-    print (sic_temp.shape)
-    print (assignment_temp.shape)
-    
-    spike_train_clustered = np.zeros((sic_temp.shape[0], 3), 'int32')
-    spike_train_clustered[:,0] = sic_temp[:,0]
-    spike_train_clustered[:,2] = sic_temp[:,1]
-    spike_train_clustered[:,1] = assignment_temp
-    
-    # sort by time
-    indexes = np.argsort(spike_train_clustered[:,0])
-    spike_train_clustered = spike_train_clustered[indexes]
-    
-    return spike_train_clustered, tmp_loc
 
 
 
@@ -1491,7 +1179,9 @@ def make_CONFIG2(CONFIG):
     
     CONFIG2.resources.n_processors = CONFIG.resources.n_processors
     CONFIG2.resources.multi_processing = CONFIG.resources.multi_processing
-    
+    CONFIG2.resources.n_sec_chunk = CONFIG.resources.n_sec_chunk
+
+
     CONFIG2.data.root_folder = CONFIG.data.root_folder
     CONFIG2.geom = CONFIG.geom
     
@@ -1509,6 +1199,99 @@ def make_CONFIG2(CONFIG):
 
 
     return CONFIG2
+
+def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end, 
+                         n_mad_chans, n_max_chans, CONFIG, out_dir,
+                         mfm_threshold, upsample_factor, nshifts):
+    
+    ''' New voltage feature based clustering; parallel version
+    ''' 
+    
+    # Cat: TODO: Edu said the CONFIG file can be passed as a dictionary
+    CONFIG2 = make_CONFIG2(CONFIG)
+    
+    # loop over chunks 
+
+    gen = 0     #Set default generation for starting clustering stpe
+    assignment_global = []
+    spike_index = []
+    
+    # parallelize over chunks of data
+    res_file = CONFIG.data.root_folder+'tmp/cluster/res.npy'
+    if os.path.exists(res_file)==False: 
+    
+        # Cat: TODO: link spike_size in CONFIG param
+        spike_size = int(CONFIG.recordings.spike_size_ms*
+                         CONFIG.recordings.sampling_rate//1000)
+        n_processors = CONFIG.resources.n_processors
+        n_channels = CONFIG.recordings.n_channels
+        sampling_rate = CONFIG.recordings.sampling_rate
+
+        # select length of recording to chunk data for processing;
+        n_sec_chunk = 60 
+
+        # determine length of processing chunk based on lenght of rec
+        standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
+                                             'standarized.bin')
+        fp = np.memmap(standardized_filename, dtype='float32', mode='r')
+        fp_len = fp.shape[0]
+
+        # make index list for chunk/parallel processing
+        # Cat: TODO: read buffer size 
+        buffer_size = 200
+        indexes = np.arange(0, fp_len / n_channels, sampling_rate * n_sec_chunk)
+        if indexes[-1] != fp_len / n_channels:
+            indexes = np.hstack((indexes, fp_len / n_channels))
+
+        idx_list = []
+        for k in range(len(indexes) - 1):
+            idx_list.append([
+                indexes[k], indexes[k + 1], buffer_size,
+                indexes[k + 1] - indexes[k] + buffer_size
+            ])
+
+        idx_list = np.int64(np.vstack(idx_list))
+        proc_indexes = np.arange(len(idx_list))
+
+        #if CONFIG.resources.multi_processing:
+        # or avoid warning and only use in single processor mode
+        if CONFIG.resources.multi_processing:
+            res = parmap.map(
+                cluster_chunks,
+                list(zip(idx_list,proc_indexes)),
+                CONFIG2, 
+                spike_index_clear, n_dim_pca, wf_start, wf_end, 
+                n_mad_chans, n_max_chans, out_dir, mfm_threshold, 
+                upsample_factor, nshifts, 
+                processes=CONFIG.resources.n_processors, 
+                pm_pbar=True)
+        else:
+            res = []
+            for idx,proc_index in zip(idx_list,proc_indexes):
+                temp = cluster_chunks((idx,proc_index),
+                    CONFIG2, 
+                    spike_index_clear, n_dim_pca, wf_start, wf_end, 
+                    n_mad_chans, n_max_chans, out_dir, mfm_threshold, 
+                    upsample_factor, nshifts)                    
+                
+                res.append(temp)
+
+        print ("res: ", len(res), " res[0]: ", len(res[0]))
+        
+        np.save(res_file, res)
+    else:
+        res = np.load(res_file, encoding='latin1')
+
+
+    # run inter-channel global template merge; loads all data from disk
+    spike_train_merged, tmp_loc, templates = global_merge(channels, CONFIG2)
+   
+    # sort by time
+    indexes = np.argsort(spike_train_merged[:,0])
+    final_spike_train = spike_train_merged[indexes]
+
+    return final_spike_train, np.int32(tmp_loc), templates
+    
 
 def run_cluster_features_2_parallel(spike_index_clear, n_dim_pca, wf_start, wf_end, 
                          n_mad_chans, n_max_chans, CONFIG, out_dir,
@@ -1569,6 +1352,222 @@ def run_cluster_features_2_parallel(spike_index_clear, n_dim_pca, wf_start, wf_e
 
     return final_spike_train, np.int32(tmp_loc), templates
     
+def cluster_chunks(data_in, CONFIG, spike_index_clear, n_dim_pca, 
+                     wf_start, wf_end, n_mad_chans, n_max_chans, 
+                     out_dir, mfm_threshold, upsample_factor, nshifts):
+
+    ''' Clustering wrapper function run in parallel for each channel
+    '''
+
+    idx_list = data_in[0]
+    proc_index = data_in[1]
+
+    data_start = idx_list[0]
+    data_end = idx_list[1]
+    offset = idx_list[2]
+    
+    print ("Proc - index: ", proc_index, idx_list)
+    
+    # save chunk in own directory to enable cumulative recovery 
+    chunk_dir = CONFIG.data.root_folder+"tmp/cluster/chunk_"+ \
+                                                str(proc_index).zfill(6)
+    
+    if not os.path.isdir(chunk_dir):
+        os.makedirs(chunk_dir)
+    
+    # read chunk of data
+    buffer_size = 200
+    standardized_filename = os.path.join(CONFIG.data.root_folder,'tmp',
+                                                    'standarized.bin')
+    n_channels = CONFIG.recordings.n_channels
+    root_folder = CONFIG.data.root_folder
+    recording = binary_reader(idx_list, buffer_size, standardized_filename,
+                              n_channels, root_folder)
+    print (recording.shape)
+    
+    # select spikes from spike_index that fall in the train
+    temp_idx = np.where(np.logical_and(spike_index_clear[:,0]>=data_start, 
+                            spike_index_clear[:,0]<data_end))[0]
+    print (temp_idx.shape)
+    spike_indexes_chunk = spike_index_clear[temp_idx]
+    print (spike_indexes_chunk)
+    
+    
+    # loop over all channels - subselecting 
+    # starting params
+    scale = 10 
+    spike_size = int(CONFIG.recordings.spike_size_ms*
+                     CONFIG.recordings.sampling_rate//1000)
+    triageflag = False
+    alignflag = True
+    plotting = True
+    subsample_nspikes = CONFIG.cluster.max_n_spikes
+
+    channels = np.arange(49)    
+    for channel in channels: 
+    
+        gen = 0     #Set default generation for starting clustering stpe
+        assignment_global = []
+        spike_index = []
+        feat_chans_cumulative = []
+        shifts = []
+        aligned_wfs_cumulative = []
+        
+        # Cat: TODO: Is this index search expensive for hundreds of chans and many 
+        #       millions of spikes?  Might want to do once rather than repeat
+        indexes = np.where(spike_indexes_chunk[:,1]==channel)[0]
+        print ('Starting channel: '+str(channel)+ ', events: '+str(indexes.shape[0]))
+
+        # read waveforms from recording chunk in memory
+        spike_train = spike_indexes_chunk[indexes]
+        wf = load_waveforms_from_memory(recording, data_start, offset, 
+                                        spike_train, spike_size)
+                                    
+        # legacy code fix
+        # Cat: TODO: remove this
+        indexes_subsampled = np.arange(indexes.shape[0])[:1000]
+
+        # plotting parameters
+        if plotting:
+            # Cat: TODO: this global x is not necessary, should make it local
+            global x
+            x = np.zeros(100, dtype = int)
+            fig = plt.figure(figsize =(100,100))
+            grid = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
+
+        # cluster
+        RRR3_noregress_recovery(channel, wf[indexes_subsampled], 
+             spike_train[indexes_subsampled], gen, fig, grid, 
+             triageflag, alignflag, plotting, n_mad_chans, n_max_chans, 
+             n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
+             upsample_factor, nshifts, assignment_global, spike_index, scale)
+
+        # finish plotting 
+        if plotting: 
+            ax = fig.add_subplot(grid[14:, 6:])
+            for i in range(CONFIG.recordings.n_channels):
+                plt.text(CONFIG.geom[i,0], CONFIG.geom[i,1], str(i), alpha=0.4, fontsize=30)
+                
+                # fill bewteen 2SUs on each channel
+                ax.fill_between(CONFIG.geom[i,0] + np.arange(-61,0,1)/3.,
+                    -scale + CONFIG.geom[i,1], scale + CONFIG.geom[i,1], color='black', 
+                    alpha=0.05)
+                
+            # plot max chan with big red dot                
+            plt.scatter(CONFIG.geom[channel,0], CONFIG.geom[channel,1], s = 2000, 
+                                                    color = 'red')
+            
+            # if at least 1 cluster is found:
+            if len(spike_index)>0: 
+                sic_temp = np.concatenate(spike_index, axis = 0)
+                assignment_temp = np.concatenate(assignment_global, axis = 0)
+                idx = sic_temp[:,1] == channel
+                clusters, sizes = np.unique(assignment_temp[idx], return_counts= True)
+                clusters = clusters.astype(int)
+
+                #chans.extend(channel*np.ones(clusters.size))
+
+                labels=[]
+                for i, clust in enumerate(clusters):
+                    patch_j = mpatches.Patch(color = colors[clust%100], label = "size = {}".format(sizes[i]))
+                    labels.append(patch_j)
+                plt.legend(handles = labels, fontsize=30)
+
+            plt.savefig(chunk_dir+"/channel_{}.png".format(channel))
+            plt.close('all')
+
+        # temporary save of data fore debugging; 
+        np.savez(spike_index_postclustering, spike_index=spike_index, indexes_subsampled=indexes_subsampled)
+
+
+        # save weighted templates for channel 
+        filename_weighted_templates = chunk_dir +'/channel_'+ \
+                                       str(channel)+'_weighted_templates.npz'
+                            
+        if os.path.exists(filename_weighted_templates)==False: 
+            # if haven't loaded waveform, reload them here
+            if len(wf)==0:
+                wf = load_waveforms_parallel(spike_index_clear[indexes], CONFIG, out_dir)
+
+            # need to save weighted templates still
+            temp = np.zeros((len(spike_index),wf.shape[1],wf.shape[2]),'float32')
+            for k in range(len(spike_index)):
+                idx = np.in1d(spike_index_clear[indexes][:,0], spike_index[k][:,0])
+                temp[k] = np.mean(wf[idx],axis=0)
+
+        # don't save waveforms; too much RAM/Disk space
+        #np.save(CONFIG.data.root_folder+'result/channel_'+
+        #                                        str(channel)+'_clusters.npy', wf_array)
+
+            np.savez(filename_weighted_templates,
+                     templates=temp, 
+                     weights=np.asarray([sic.shape[0] for sic in spike_index]))
+
+        #if False:    
+            ## recover clear spikes
+            #spike_index = recover_clear_spikes_pcaspace(channel, wf, 
+                             #spike_index_clear[indexes], indexes_subsampled, 
+                             #spike_index, upsample_factor, nshifts, CONFIG)
+
+        print ("************************************************************")
+        print ("****** Channel "+str(channel)+ 
+               ", total clusters "+str(len(spike_index))+ 
+               " *****")
+        print ("************************************************************")
+        print ("")
+        print ("")
+        print ("")
+    
+    return spike_index
+
+   
+
+def binary_reader(idx_list, buffer_size, standardized_filename,
+                  n_channels, root_folder):
+
+    # prPurple("Processing chunk: "+str(chunk_idx))
+
+    # New indexes
+    idx_start = idx_list[0]
+    idx_stop = idx_list[1]
+    idx_local = idx_list[2]
+
+    data_start = idx_start
+    data_end = idx_stop
+    offset = idx_local
+
+    # ***** LOAD RAW RECORDING *****
+    with open(standardized_filename, "rb") as fin:
+        if data_start == 0:
+            # Seek position and read N bytes
+            recordings_1D = np.fromfile(
+                fin,
+                dtype='float32',
+                count=(data_end + buffer_size) * n_channels)
+            recordings_1D = np.hstack((np.zeros(
+                buffer_size * n_channels, dtype='float32'), recordings_1D))
+        else:
+            fin.seek((data_start - buffer_size) * 4 * n_channels, os.SEEK_SET)
+            recordings_1D = np.fromfile(
+                fin,
+                dtype='float32',
+                count=((data_end - data_start + buffer_size * 2) * n_channels))
+
+        if len(recordings_1D) != (
+              (data_end - data_start + buffer_size * 2) * n_channels):
+            recordings_1D = np.hstack((recordings_1D,
+                                       np.zeros(
+                                           buffer_size * n_channels,
+                                           dtype='float32')))
+
+    fin.close()
+
+    # Convert to 2D array
+    recording = recordings_1D.reshape(-1, n_channels)
+    
+    return recording
+    
+    
 def cluster_channels(channel, CONFIG, spike_index_clear, n_dim_pca, 
                      wf_start, wf_end, n_mad_chans, n_max_chans, 
                      out_dir, mfm_threshold, upsample_factor, nshifts):
@@ -1597,6 +1596,9 @@ def cluster_channels(channel, CONFIG, spike_index_clear, n_dim_pca,
     # Cat: TODO: loading all waveforms for long recordings takes up too much RAM
     #      Eg.g. 50-60GB for 8 core x 30 min recordings in retina
     #      Need alternative method; 
+    
+    # Cat: TODO: Is this index search expensive for hundreds of chans and many 
+    #       millions of spikes?  Might want to do once rather than repeat
     indexes = np.where(spike_index_clear[:,1]==channel)[0]
     wf=[]
     print ('Starting channel: '+str(channel)+ ', events: '+str(indexes.shape[0]))
@@ -1613,8 +1615,11 @@ def cluster_channels(channel, CONFIG, spike_index_clear, n_dim_pca,
             fig = plt.figure(figsize =(100,100))
             grid = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
         
+        
+        print ('Reading channel: '+str(channel))
         wf = load_waveforms_parallel(spike_index_clear[indexes], CONFIG, 
                                      out_dir)
+        print ('Done reading channel: '+str(channel))
         
         # legacy code fix
         indexes_subsampled = np.arange(indexes.shape[0])
@@ -2387,7 +2392,6 @@ def run_mfm_3(kk, CONFIG):
     return vbParam2
 
 
-
 def run_mfm3(kk, CONFIG):
     mask = np.ones((kk.shape[0], 1))
     group = np.arange(kk.shape[0])
@@ -2402,120 +2406,85 @@ def run_mfm3(kk, CONFIG):
     return vbParam2, assignment2
 
             
-def load_waveforms_parallel(spike_train, CONFIG, out_dir): 
+#def load_waveforms_parallel(spike_train, CONFIG, out_dir): 
     
-    # Cat: TODO: link spike_size in CONFIG param
-    spike_size = int(CONFIG.recordings.spike_size_ms*
-                     CONFIG.recordings.sampling_rate//1000)
-    n_processors = CONFIG.resources.n_processors
-    n_channels = CONFIG.recordings.n_channels
-    sampling_rate = CONFIG.recordings.sampling_rate
+    ## Cat: TODO: link spike_size in CONFIG param
+    #spike_size = int(CONFIG.recordings.spike_size_ms*
+                     #CONFIG.recordings.sampling_rate//1000)
+    #n_processors = CONFIG.resources.n_processors
+    #n_channels = CONFIG.recordings.n_channels
+    #sampling_rate = CONFIG.recordings.sampling_rate
 
-    # select length of recording to read at once and grab data
-    # currently fixed to 60 sec, but may wish to change
-    # n_sec_chunk = CONFIG.resources.n_sec_chunk
-    n_sec_chunk = 60
+    ## select length of recording to read at once and grab data
+    ## currently fixed to 60 sec, but may wish to change
+    #n_sec_chunk = CONFIG.resources.n_sec_chunk
+    ##n_sec_chunk = 10
 
-    # determine length of processing chunk based on lenght of rec
-    standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
-                                         'standarized.bin')
-    fp = np.memmap(standardized_filename, dtype='float32', mode='r')
-    fp_len = fp.shape[0]
+    ## determine length of processing chunk based on lenght of rec
+    #standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
+                                         #'standarized.bin')
+    #fp = np.memmap(standardized_filename, dtype='float32', mode='r')
+    #fp_len = fp.shape[0]
 
-    # make index list for chunk/parallel processing
-    buffer_size = 400
-    indexes = np.arange(0, fp_len / n_channels, sampling_rate * n_sec_chunk)
-    if indexes[-1] != fp_len / n_channels:
-        indexes = np.hstack((indexes, fp_len / n_channels))
+    ## make index list for chunk/parallel processing
+    ## Cat: TODO: read buffer size 
+    #buffer_size = 200
+    #indexes = np.arange(0, fp_len / n_channels, sampling_rate * n_sec_chunk)
+    #if indexes[-1] != fp_len / n_channels:
+        #indexes = np.hstack((indexes, fp_len / n_channels))
 
-    idx_list = []
-    for k in range(len(indexes) - 1):
-        idx_list.append([
-            indexes[k], indexes[k + 1], buffer_size,
-            indexes[k + 1] - indexes[k] + buffer_size
-        ])
+    #idx_list = []
+    #for k in range(len(indexes) - 1):
+        #idx_list.append([
+            #indexes[k], indexes[k + 1], buffer_size,
+            #indexes[k + 1] - indexes[k] + buffer_size
+        #])
 
-    idx_list = np.int64(np.vstack(idx_list))
-    proc_indexes = np.arange(len(idx_list))
+    #idx_list = np.int64(np.vstack(idx_list))
+    #proc_indexes = np.arange(len(idx_list))
 
-    if CONFIG.resources.multi_processing:
-        res = parmap.map(
-            load_waveforms_,
-            zip(idx_list, proc_indexes),
-            spike_train,
-            spike_size,
-            n_channels,
-            buffer_size,
-            standardized_filename,
-            processes=n_processors,
-            pm_pbar=False)
-    else:
-        res = []
-        for k in range(len(idx_list)):
-            temp = load_waveforms_(
-                [idx_list[k], k], spike_train, spike_size, 
-                n_channels, buffer_size, standardized_filename)
-            res.append(temp)
+    ##if CONFIG.resources.multi_processing:
+    ## or avoid warning and only use in single processor mode
+    #if CONFIG.resources.multi_processing==False:
+    ##if False:
+        #res = parmap.map(
+            #load_waveforms_,
+            #zip(idx_list, proc_indexes),
+            #spike_train,
+            #spike_size,
+            #n_channels,
+            #buffer_size,
+            #standardized_filename,
+            #processes=n_processors,
+            #pm_pbar=False)
+    #else:
+        #res = []
+        #for k in range(len(idx_list)):
+            #print ("loading chunk: ", k, " / ", len(idx_list))
+            #temp = load_waveforms_(
+                #[idx_list[k], k], spike_train, spike_size, 
+                #n_channels, buffer_size, standardized_filename)
+            #res.append(temp)
 
-    # Reconstruct templates from parallel proecessing
-    wfs = np.vstack(res)
-    #print wfs.shape
+    ## Reconstruct templates from parallel proecessing
+    #wfs = np.vstack(res)
+    ##print wfs.shape
     
-    return wfs
+    #return wfs
 
-def load_waveforms_(data_in, spike_train, spike_size,
-                    n_channels, buffer_size,
-                    standardized_filename):
+def load_waveforms_from_memory(recording, data_start, offset, spike_train, 
+                               spike_size):
+                                           
+    print (recording.shape)
+    print (data_start)
+    print (offset)
+    print (spike_size)
+    
+    # offset spike train to t=0 to properly index into data 
+    spike_train = spike_train-data_start
 
-    idx_list = data_in[0]
 
-    # New indexes
-    idx_start = idx_list[0]
-    idx_stop = idx_list[1]
-    idx_local = idx_list[2]
-
-    data_start = idx_start
-    data_end = idx_stop
-    offset = idx_local
-
-    # ***** LOAD RAW RECORDING *****
-    with open(standardized_filename, "rb") as fin:
-        if data_start == 0:
-            # Seek position and read N bytes
-            recordings_1D = np.fromfile(
-                fin,
-                dtype='float32',
-                count=(data_end + buffer_size) * n_channels)
-            
-            # pad data with zeros at the beginning
-            recordings_1D = np.hstack((np.zeros(
-                buffer_size * n_channels, dtype='float32'), recordings_1D))
-        else:
-            fin.seek((data_start - buffer_size) * 4 * n_channels, os.SEEK_SET)
-            recordings_1D = np.fromfile(
-                fin,
-                dtype='float32',
-                count=((data_end - data_start + buffer_size * 2) * n_channels))
-
-        # pad recording with zeros at end if not expected size
-        if len(recordings_1D) != (
-              (data_end - data_start + buffer_size * 2) * n_channels):
-            recordings_1D = np.hstack((recordings_1D,
-                                       np.zeros(
-                                           buffer_size * n_channels,
-                                           dtype='float32')))
-
-    fin.close()
-
-    # Convert to 2D array
-    recording = recordings_1D.reshape(-1, n_channels)
-                                    
-    # convert spike train back to 0-offset values for indexeing into recordings
-    indexes = np.where(np.logical_and(spike_train[:,0]>=data_start, 
-                                      spike_train[:,0]<data_end))[0]
-    spike_train = spike_train[indexes]-data_start 
-
-    # load all waveforms at once
+    # load all waveforms at once - use offset 
     waveforms = recording[spike_train[:, [0]].astype('int32')+offset
                   + np.arange(-spike_size, spike_size + 1)]
 
