@@ -840,20 +840,25 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
          wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor, nshifts, 
          assignment_global, spike_index, scale):
     
+    verbose=False
+    
     # ************* CHECK SMALL CLUSTERS *************
     # Exit clusters that are too small
     if wf.shape[0] < CONFIG.cluster.min_spikes:
         #print ("exiting too few spikes<<<FIX THIS")
         return
 
-    print("chan "+str(channel)+' gen: '+str(gen)+' # spikes: '+str(wf.shape[0]))
+    if verbose:
+        print("chan "+str(channel)+' gen: '+str(gen)+' # spikes: '+
+              str(wf.shape[0]))
         
         
     # ************ FIND FEATURE CHANNELS *************
     # select feature chans 
     feat_chans, max_chans = get_feat_channels(wf.mean(0), wf, n_max_chans, 
                                                               n_mad_chans)  
-    print("chan "+str(channel)+' gen: '+str(gen)+", feat chans: "+
+    if verbose:
+        print("chan "+str(channel)+' gen: '+str(gen)+", feat chans: "+
                   str(feat_chans) + ", max_chan: "+ str(max_chans[0]))
     
     # save max_channel relative to feat_chans location
@@ -864,7 +869,8 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
     # align, note: aligning all channels to max chan; 
     # note: max chan is first from feat_chans above, ensure order is preserved
     if alignflag:
-        print ("chan "+str(channel)+' gen: '+str(gen)+" - aligning")
+        if verbose:
+            print ("chan "+str(channel)+' gen: '+str(gen)+" - aligning")
         wf_align = align_mc(wf[:,:,feat_chans], mc, CONFIG, 
                             upsample_factor, nshifts, ref = None)
     else:
@@ -883,7 +889,8 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
     if triageflag:
         idx_keep = knn_triage(mfm_threshold*100, pca_wf)
         idx_keep = np.where(idx_keep==1)[0]
-        print("chan "+str(channel)+' gen: '+str(gen) + 
+        if verbose:
+            print("chan "+str(channel)+' gen: '+str(gen) + 
                 " triaged, remaining spikes "+ str(idx_keep.shape[0]))
 
         # rerun global compression on residual waveforms
@@ -906,7 +913,8 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
 
     # ************* CLUSTERING STEP ******************
     # clustering
-    print("chan "+ str(channel)+' gen: '+str(gen)+" - clustering ", 
+    if verbose:
+        print("chan "+ str(channel)+' gen: '+str(gen)+" - clustering ", 
                                                           pca_wf.shape)
     vbParam, assignment = run_mfm3(pca_wf, CONFIG)
     
@@ -921,8 +929,8 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
         vbParam2, assignment2 = vbParam, assignment
 
     idx_recovered = np.where(assignment2!=-1)[0]
-    #assignment2 = assignment2[idx_recovered]
-    print ("chan "+ str(channel)+' gen: '+str(gen)+" - recovered ",
+    if verbose:
+        print ("chan "+ str(channel)+' gen: '+str(gen)+" - recovered ",
                                             str(idx_recovered.shape[0]))
 
 
@@ -951,12 +959,14 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
             n_troughs=1
 
         if n_troughs> 1:
-            print ("chan ", str(channel), ' gen: ', str(gen), 
+            if verbose:
+                print ("chan ", str(channel), ' gen: ', str(gen), 
                    "N_TROUGHS: ", n_troughs, "SKIPPING TEMPLATE")
         else:
-            N= len(assignment_global)            
-            print("chan "+str(channel)+' gen: '+str(gen)+" >>> cluster "+str(N)+
-                  " saved, size: "+str(wf[idx_recovered].shape)+"<<<<<<")
+            N= len(assignment_global)
+            if verbose:
+                print("chan "+str(channel)+' gen: '+str(gen)+" >>> cluster "+
+                    str(N)+" saved, size: "+str(wf[idx_recovered].shape)+"<<<")
             
             assignment_global.append(N * np.ones(assignment2[idx_recovered].shape[0]))
             spike_index.append(sic[idx_recovered])
@@ -970,7 +980,9 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
         mask = vbParam.rhat>0
         stability = np.average(mask * vbParam.rhat, axis = 0, weights = mask)
         clusters, sizes = np.unique(assignment2[idx_recovered], return_counts = True)
-        print("chan "+str(channel)+' gen: '+str(gen) + 
+        
+        if verbose:
+            print("chan "+str(channel)+' gen: '+str(gen) + 
               " multiple clusters, stability " + str(np.round(stability,2)) + 
               " size: "+str(sizes))
 
@@ -980,8 +992,9 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
             
             if wf[idx_keep][idx].shape[0]<CONFIG.cluster.min_spikes: 
                 continue    # cluster too small
-                
-            print("chan "+str(channel)+' gen: '+str(gen)+
+            
+            if verbose:
+                print("chan "+str(channel)+' gen: '+str(gen)+
                     " reclustering stable cluster"+ 
                     str(wf[idx_keep][idx].shape))
             RRR3_noregress_recovery(channel, wf[idx_keep][idx], 
@@ -993,7 +1006,8 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
         # if all clusters are unstable: try annealing, or triaging
         if np.all(stability<=mfm_threshold):
             
-            print("chan "+str(channel)+' gen: '+str(gen)+ 
+            if verbose:
+                print("chan "+str(channel)+' gen: '+str(gen)+ 
                                 " no stable clusters, triaging "+
                                 str(wf[idx_keep][idx_recovered].shape))
 
@@ -1007,7 +1021,8 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
             # run mfm on remaining data
             idx = np.in1d(assignment2, np.where(stability<=mfm_threshold)[0])
             if idx.sum()>CONFIG.cluster.min_spikes:
-                print("chan "+str(channel)+" reclustering residuals "+
+                if verbose:
+                    print("chan "+str(channel)+" reclustering residuals "+
                                             str(wf[idx_keep][idx].shape))
                 RRR3_noregress_recovery(channel, wf[idx_keep][idx],
                     sic[idx_keep][idx], 
@@ -1228,7 +1243,7 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
         sampling_rate = CONFIG.recordings.sampling_rate
 
         # select length of recording to chunk data for processing;
-        n_sec_chunk = 60 
+        n_sec_chunk = 300 
 
         # determine length of processing chunk based on lenght of rec
         standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
@@ -1264,7 +1279,7 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
                 n_mad_chans, n_max_chans, out_dir, mfm_threshold, 
                 upsample_factor, nshifts, 
                 processes=CONFIG.resources.n_processors, 
-                pm_pbar=True)
+                pm_pbar=False)
         else:
             res = []
             for idx,proc_index in zip(idx_list,proc_indexes):
@@ -1366,8 +1381,6 @@ def cluster_chunks(data_in, CONFIG, spike_index_clear, n_dim_pca,
     data_end = idx_list[1]
     offset = idx_list[2]
     
-    print ("Proc - index: ", proc_index, idx_list)
-    
     # save chunk in own directory to enable cumulative recovery 
     chunk_dir = CONFIG.data.root_folder+"tmp/cluster/chunk_"+ \
                                                 str(proc_index).zfill(6)
@@ -1383,15 +1396,11 @@ def cluster_chunks(data_in, CONFIG, spike_index_clear, n_dim_pca,
     root_folder = CONFIG.data.root_folder
     recording = binary_reader(idx_list, buffer_size, standardized_filename,
                               n_channels, root_folder)
-    print (recording.shape)
-    
+   
     # select spikes from spike_index that fall in the train
     temp_idx = np.where(np.logical_and(spike_index_clear[:,0]>=data_start, 
                             spike_index_clear[:,0]<data_end))[0]
-    print (temp_idx.shape)
     spike_indexes_chunk = spike_index_clear[temp_idx]
-    print (spike_indexes_chunk)
-    
     
     # loop over all channels - subselecting 
     # starting params
@@ -1403,10 +1412,17 @@ def cluster_chunks(data_in, CONFIG, spike_index_clear, n_dim_pca,
     plotting = True
     subsample_nspikes = CONFIG.cluster.max_n_spikes
 
-    channels = np.arange(49)    
-    for channel in channels: 
-    
-        gen = 0     #Set default generation for starting clustering stpe
+    channels = CONFIG.recordings.n_channels
+    for channel in range(channels): 
+        
+        # check to see if channel already done
+        filename_spike_index_postcluster = (chunk_dir+'/channel_'+ 
+                        str(channel)+'_spike_index_postclustering.npz')
+        if os.path.exists(filename_spike_index_postcluster):
+            continue
+        
+        # set default parameters and initialize lists
+        gen = 0     
         assignment_global = []
         spike_index = []
         feat_chans_cumulative = []
@@ -1416,7 +1432,8 @@ def cluster_chunks(data_in, CONFIG, spike_index_clear, n_dim_pca,
         # Cat: TODO: Is this index search expensive for hundreds of chans and many 
         #       millions of spikes?  Might want to do once rather than repeat
         indexes = np.where(spike_indexes_chunk[:,1]==channel)[0]
-        print ('Starting channel: '+str(channel)+ ', events: '+str(indexes.shape[0]))
+        print ('Starting chunk: ' +str(proc_index) + ' channel: '+
+                        str(channel)+ ', events: '+str(indexes.shape[0]))
 
         # read waveforms from recording chunk in memory
         spike_train = spike_indexes_chunk[indexes]
@@ -1425,7 +1442,7 @@ def cluster_chunks(data_in, CONFIG, spike_index_clear, n_dim_pca,
                                     
         # legacy code fix
         # Cat: TODO: remove this
-        indexes_subsampled = np.arange(indexes.shape[0])[:1000]
+        indexes_subsampled = np.arange(indexes.shape[0])
 
         # plotting parameters
         if plotting:
@@ -1477,7 +1494,8 @@ def cluster_chunks(data_in, CONFIG, spike_index_clear, n_dim_pca,
             plt.close('all')
 
         # temporary save of data fore debugging; 
-        np.savez(spike_index_postclustering, spike_index=spike_index, indexes_subsampled=indexes_subsampled)
+        np.savez(filename_spike_index_postcluster, 
+                spike_index=spike_index, indexes_subsampled=indexes_subsampled)
 
 
         # save weighted templates for channel 
@@ -1495,25 +1513,15 @@ def cluster_chunks(data_in, CONFIG, spike_index_clear, n_dim_pca,
                 idx = np.in1d(spike_index_clear[indexes][:,0], spike_index[k][:,0])
                 temp[k] = np.mean(wf[idx],axis=0)
 
-        # don't save waveforms; too much RAM/Disk space
-        #np.save(CONFIG.data.root_folder+'result/channel_'+
-        #                                        str(channel)+'_clusters.npy', wf_array)
-
             np.savez(filename_weighted_templates,
                      templates=temp, 
                      weights=np.asarray([sic.shape[0] for sic in spike_index]))
 
-        #if False:    
-            ## recover clear spikes
-            #spike_index = recover_clear_spikes_pcaspace(channel, wf, 
-                             #spike_index_clear[indexes], indexes_subsampled, 
-                             #spike_index, upsample_factor, nshifts, CONFIG)
-
-        print ("************************************************************")
-        print ("****** Channel "+str(channel)+ 
-               ", total clusters "+str(len(spike_index))+ 
+        print ("**********************************************")
+        print ("******  Chunk: " +str(proc_index) + " channel: " +
+               str(channel)+ ", total clusters "+str(len(spike_index))+ 
                " *****")
-        print ("************************************************************")
+        print ("**********************************************")
         print ("")
         print ("")
         print ("")
@@ -2475,11 +2483,6 @@ def run_mfm3(kk, CONFIG):
 def load_waveforms_from_memory(recording, data_start, offset, spike_train, 
                                spike_size):
                                            
-    print (recording.shape)
-    print (data_start)
-    print (offset)
-    print (spike_size)
-    
     # offset spike train to t=0 to properly index into data 
     spike_train = spike_train-data_start
 
