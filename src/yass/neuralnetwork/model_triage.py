@@ -301,7 +301,8 @@ class NeuralNetTriage(Model):
 
         params = dict(filters_size=self.filters_size,
                       waveform_length=self.waveform_length,
-                      n_neighbors=self.n_neighbors)
+                      n_neighbors=self.n_neighbors,
+                      path=self.path_to_model)
 
         # compute metrics (print them and return them)
         metrics = self._evaluate()
