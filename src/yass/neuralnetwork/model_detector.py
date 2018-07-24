@@ -536,4 +536,10 @@ class NeuralNetDetector(Model):
                       waveform_length=self.waveform_length,
                       n_neighbors=self.n_neighbors)
 
+        # compute metrics (print them and return them)
+        metrics = self._evaluate()
+
+        params.extend(metrics)
+
+        # save parameters to disk
         self._save_params(path=path_to_params, params=params)

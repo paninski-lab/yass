@@ -1,4 +1,8 @@
+import logging
+
+
 from yass.util import dict2yaml, get_version
+from sklearn import metrics
 
 
 class Model:
@@ -23,3 +27,25 @@ class Model:
         params['metadata'] = metadata
 
         dict2yaml(output_path=path, **params)
+
+    def _evaluate(self):
+        y_pred = self.predict(self.x_test)
+
+        m = dict()
+
+        _ = metrics.confusion_matrix(self.y_test, y_pred)
+        cm = _ / _.sum(axis=1)
+        m['tn'], m['fp'], m['fn'], m['tp'] = cm.flatten()
+
+        m['acc'] = metrics.accuracy_score(self.y_test, y_pred)
+        m['prec'] = metrics.precision_score(self.y_test, y_pred)
+        m['rec'] = metrics.recall_score(self.y_test, y_pred)
+
+        logger = logging.getLogger(__name__)
+
+        logger.info('Test set metrics:\n\tTN: {tn}\n\tFP: {fp}\n\tFN: {fn}\n\t'
+                    'TP: {tp}\n\tAccuracy: {acc}\n\tPrecision: {prec}\n\t'
+                    'Recall: {rec}'
+                    .format(**m))
+
+        return m
