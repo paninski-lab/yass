@@ -1,3 +1,8 @@
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
+
 import warnings
 import logging
 import tensorflow as tf
@@ -72,6 +77,7 @@ class NeuralNetTriage(Model):
                                                     input_tensor.shape[2]))
 
         self.path_to_model = path_to_model
+        self.model_name = Path(path_to_model).name.replace('.ckpt', '')
 
         self.filters_size = filters_size
         self.n_neighbors = n_neighbors
@@ -302,7 +308,7 @@ class NeuralNetTriage(Model):
         params = dict(filters_size=self.filters_size,
                       waveform_length=self.waveform_length,
                       n_neighbors=self.n_neighbors,
-                      path=self.path_to_model)
+                      name=self.model_name)
 
         # compute metrics (print them and return them)
         metrics = self._evaluate()

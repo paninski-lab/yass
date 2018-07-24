@@ -1,3 +1,8 @@
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
+
 import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
@@ -66,6 +71,7 @@ class NeuralNetDetector(Model):
         self.logger = logging.getLogger(__name__)
 
         self.path_to_model = path_to_model
+        self.model_name = Path(path_to_model).name.replace('.ckpt', '')
 
         self.filters_size = filters_size
         self.n_neighbors = n_neighbors
@@ -540,7 +546,7 @@ class NeuralNetDetector(Model):
         params = dict(filters_size=self.filters_size,
                       waveform_length=self.waveform_length,
                       n_neighbors=self.n_neighbors,
-                      path=self.path_to_model)
+                      name=self.model_name)
 
         # compute metrics (print them and return them)
         metrics = self._evaluate()
