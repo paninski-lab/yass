@@ -1,6 +1,5 @@
 import logging
 
-
 from yass.util import dict2yaml, get_version
 from sklearn import metrics
 
