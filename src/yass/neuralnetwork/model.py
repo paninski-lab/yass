@@ -22,7 +22,7 @@ class Model:
                                          n_neighbors))
 
     def _save_params(self, path, params):
-        metadata = dict(yass_version=get_version)
+        metadata = dict(yass_version=get_version())
         params['metadata'] = metadata
 
         dict2yaml(output_path=path, **params)

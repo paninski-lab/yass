@@ -430,8 +430,8 @@ class NeuralNetDetector(Model):
         """
         Trains the neural network detector for spike detection
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         x_train: np.array
             [number of training data, temporal length, number of channels]
             augmented training data consisting of
@@ -443,6 +443,11 @@ class NeuralNetDetector(Model):
         test_size: float, optional
             Proportion of the training set to be used, data is shuffled before
             splitting, defaults to 0.3
+
+        Returns
+        -------
+        dict
+            Dictionary with network parameters and metrics
         """
         logger = logging.getLogger(__name__)
 
@@ -543,3 +548,5 @@ class NeuralNetDetector(Model):
 
         # save parameters to disk
         self._save_params(path=path_to_params, params=params)
+
+        return params

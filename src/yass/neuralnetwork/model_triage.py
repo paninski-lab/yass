@@ -197,8 +197,8 @@ class NeuralNetTriage(Model):
     def fit(self, x_train, y_train, test_size=0.3):
         """Trains the triage network
 
-        Parameters:
-        -----------
+        Parameters
+        ----------
         x_train: np.array
             [number of data, temporal length, number of channels] training data
             for the triage network.
@@ -207,6 +207,11 @@ class NeuralNetTriage(Model):
         test_size: float, optional
             Proportion of the training set to be used, data is shuffled before
             splitting, defaults to 0.3
+
+        Returns
+        -------
+        dict
+            Dictionary with network parameters and metrics
 
         Notes
         -----
@@ -305,3 +310,5 @@ class NeuralNetTriage(Model):
 
         # save parameters to disk
         self._save_params(path=path_to_params, params=params)
+
+        return params
