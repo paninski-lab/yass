@@ -539,7 +539,7 @@ class NeuralNetDetector(Model):
         # compute metrics (print them and return them)
         metrics = self._evaluate()
 
-        params.extend(metrics)
+        params.update(metrics)
 
         # save parameters to disk
         self._save_params(path=path_to_params, params=params)
