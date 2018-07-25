@@ -85,10 +85,11 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     """
     logger = logging.getLogger(__name__)
 
-    path_to_data = os.path.join(data_folder, 'preprocess', 'standarized.bin')
+    path_to_standarized = os.path.join(data_folder, 'preprocess',
+                                       'standarized.bin')
 
     templates, templates_uncropped = preprocess(CONFIG, spike_train,
-                                                path_to_data,
+                                                path_to_standarized,
                                                 chosen_templates_indexes)
 
     _, _, n_neigh = templates.shape
@@ -121,7 +122,7 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
                                                n_neigh)
 
     # determine noise covariance structure
-    spatial_SIG, temporal_SIG = noise_cov(path_to_data,
+    spatial_SIG, temporal_SIG = noise_cov(path_to_standarized,
                                           CONFIG.neigh_channels,
                                           CONFIG.geom,
                                           templates.shape[1])

@@ -38,7 +38,7 @@ def align(templates, crop=True):
 
 
 def crop_and_align_templates(big_templates, R, neighbors, geom,
-                             cropping_factor=3):
+                             crop_spatially=True):
     """Crop (spatially) and align (temporally) templates
 
     Parameters
@@ -94,17 +94,29 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
     # crop templates, now they are from 4*R to 3*R
     big_templates = big_templates[:, (center-3*R):(center+3*R+1)]
 
-    # spatially crop
-    nneigh = np.max(np.sum(neighbors, 0))
+    if not crop_spatially:
 
-    small_templates = np.zeros((n_templates, big_templates.shape[1], nneigh))
+        return big_templates
 
-    for k in range(n_templates):
-        ch_idx = np.where(neighbors[main_ch[k]])[0]
-        ch_idx, temp = order_channels_by_distance(main_ch[k], ch_idx, geom)
-        small_templates[k, :, :ch_idx.shape[0]] = big_templates[k][:, ch_idx]
+    else:
+        # spatially crop (only keep neighbors)
+        n_neigh_to_keep = np.max(np.sum(neighbors, 0))
+        small = np.zeros((n_templates, big_templates.shape[1],
+                          n_neigh_to_keep))
 
-    return small_templates
+        for k in range(n_templates):
+
+            # get neighbors for the main channel in the kth template
+            ch_idx = np.where(neighbors[main_ch[k]])[0]
+
+            # order channels
+            ch_idx, _ = order_channels_by_distance(main_ch[k], ch_idx, geom)
+
+            # new kth template is the old kth template by keeping only
+            # ordered neighboring channels
+            small[k, :, :ch_idx.shape[0]] = big_templates[k][:, ch_idx]
+
+        return small
 
 
 def align_templates(t1, t2):
