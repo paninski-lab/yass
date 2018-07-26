@@ -100,7 +100,7 @@ def test_can_make_collided(path_to_tests, path_to_standarized_data):
                                   max_amplitude=10,
                                   n_per_template=100)
 
-    make_collided(x_clean, collision_ratio=1,
+    make_collided(x_clean, n_per_spike=1,
                   multi_channel=True,
                   max_shift=CONFIG.spike_size)
 
