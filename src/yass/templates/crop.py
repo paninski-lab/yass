@@ -11,8 +11,10 @@ from yass.templates.util import main_channels, amplitudes
 def crop_and_align_templates(big_templates, R, neighbors, geom,
                              crop_spatially=True):
     """Crop (spatially) and align (temporally) templates
+
     Parameters
     ----------
+
     Returns
     -------
     """
@@ -36,7 +38,7 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
     for k in range(n_templates):
         t1 = big_templates[k, :, main_ch[k]]
         t1 = t1/np.sqrt(np.sum(np.square(t1)))
-        shift = compute_shift(t1, t_rec)
+        shift = align_templates(t1, t_rec)
 
         logger.debug('Template %i will be shifted by %i', k, shift)
 
@@ -88,10 +90,12 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
         return small
 
 
-def compute_shift(t1, t2):
+def align_templates(t1, t2):
     """Align templates
+
     Parameters
     ----------
+
     Returns
     -------
     """
