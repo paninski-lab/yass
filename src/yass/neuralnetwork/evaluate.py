@@ -70,7 +70,7 @@ def discretize(amplitudes, amplitude_units_per_bin):
     range_ = int(np.max(amplitudes) - np.min(amplitudes))
     bins = int(range_ / amplitude_units_per_bin)
 
-    discretized = pd.qcut(amplitudes, bins)
+    discretized = pd.qcut(amplitudes, bins, duplicates='drop')
 
     return [interval.right for interval in discretized]
 
