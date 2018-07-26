@@ -6,10 +6,12 @@ import numpy as np
 import logging
 from yass import _get_debug_mode
 
+
 logger = logging.getLogger(__name__)
 
 
-def make_noisy(x, the_noise):
+# TODO: remove
+def _make_noisy(x, the_noise):
     """Make a noisy version of x
     """
     noise_sample = the_noise[np.random.choice(the_noise.shape[0],
@@ -245,11 +247,10 @@ def make_temporally_misaligned(x_clean, n_per_spike, multi, max_shift='auto'):
     return x_temporally
 
 
-def make_noise(x_clean, n_per_spike, spatial_SIG, temporal_SIG):
+def make_noise(shape, spatial_SIG, temporal_SIG):
     """Make noise
     """
-    n_spikes, waveform_length, n_neigh = x_clean.shape
-    n_out = int(n_spikes * n_per_spike)
+    n_out, waveform_length, n_neigh = shape
 
     # get noise
     noise = np.random.normal(size=(n_out, waveform_length, n_neigh))

@@ -6,7 +6,7 @@ import logging
 from yass.templates.crop import crop_and_align_templates
 from yass.templates import preprocess
 from yass.augment.noise import noise_cov
-from yass.augment.util import (make_noisy, make_clean, make_collided,
+from yass.augment.util import (_make_noisy, make_clean, make_collided,
                                make_misaligned, make_noise, amplitudes)
 
 
@@ -128,7 +128,9 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
                                           templates.shape[1])
 
     # make noise
-    noise = make_noise(x_clean, noise_ratio, spatial_SIG, temporal_SIG)
+    noise_shape = (int(x_clean.shape[0] * noise_ratio),
+                   x_clean.shape[1], x_clean.shape[2])
+    noise = make_noise(noise_shape, spatial_SIG, temporal_SIG)
 
     # make labels
     y_clean_1 = np.ones((x_clean.shape[0]))
@@ -141,10 +143,11 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     mid_point = int((x_clean.shape[1]-1)/2)
     MID_POINT_IDX = slice(mid_point - R, mid_point + R + 1)
 
-    x_clean_noisy = make_noisy(x_clean, noise)
-    x_collision_noisy = make_noisy(x_collision, noise)
-    x_temporally_misaligned_noisy = make_noisy(x_temporally_misaligned,
-                                               noise)
+    # TODO: replace _make_noisy for new function
+    x_clean_noisy = _make_noisy(x_clean, noise)
+    x_collision_noisy = _make_noisy(x_collision, noise)
+    x_temporally_misaligned_noisy = _make_noisy(x_temporally_misaligned,
+                                                noise)
 
     #############
     # Detection #
