@@ -1,7 +1,6 @@
 """Utility functions for augmenting data
 """
 import random
-import logging
 import numpy as np
 import logging
 from yass import _get_debug_mode
@@ -249,6 +248,11 @@ def make_temporally_misaligned(x_clean, n_per_spike, multi, max_shift='auto'):
 
 def make_noise(shape, spatial_SIG, temporal_SIG):
     """Make noise
+
+    Returns
+    ------
+    numpy.ndarray
+        Noise array with the desired shape
     """
     n_out, waveform_length, n_neigh = shape
 
