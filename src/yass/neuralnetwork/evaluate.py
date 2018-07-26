@@ -53,16 +53,17 @@ class TestSet:
 def to_data_frame(array, amplitudes, slices, amplitude_units_per_bin=10):
     wfs = [a for a in array]
 
-    if amplitude_units_per_bin:
-        amplitudes = discretize(amplitudes, amplitude_units_per_bin)
-
     kinds = [[kind] * (slice_.stop - slice_.start) for
              kind, slice_ in slices.items()]
     kinds = [item for sublist in kinds for item in sublist]
 
-    df = pd.DataFrame(data={'waveform': wfs,
-                            'amplitude': amplitudes,
-                            'kind': kinds})
+    data = {'waveform': wfs, 'amplitude': amplitudes, 'kind': kinds}
+
+    if amplitude_units_per_bin:
+        amplitude_groups = discretize(amplitudes, amplitude_units_per_bin)
+        data['amplitude_group'] = amplitude_groups
+
+    df = pd.DataFrame(data=data)
     return df
 
 
