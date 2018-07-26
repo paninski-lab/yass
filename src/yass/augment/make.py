@@ -221,6 +221,7 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     return x_detect, y_detect, x_triage, y_triage, x_ae, y_ae
 
 
+# TODO: rename
 def testing_data(CONFIG, spike_train, template_indexes,
                  min_amplitude, max_amplitude, path_to_data, n_per_template,
                  make_spatially_misaligned=True,
@@ -241,7 +242,7 @@ def testing_data(CONFIG, spike_train, template_indexes,
     noise: numpy, (n_spikes, waveform_length, n_channels)
         Noise
     """
-    # TODO: add multi_channel parameter
+    # TODO: add multi_channel parameter and options for hardcoded parameter
 
     templates, _ = preprocess(CONFIG, spike_train,
                               path_to_data,
@@ -272,6 +273,7 @@ def testing_data(CONFIG, spike_train, template_indexes,
         keys.append('temporally misaligned')
 
     if make_collided:
+        # TODO: refactor this as it has redundant logic with misaligned
         x_collided = util.make_collided(x_templates, n_per_spike=1,
                                         multi_channel=True)
         x_all.append(x_collided)

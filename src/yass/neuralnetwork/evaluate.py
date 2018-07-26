@@ -13,10 +13,10 @@ class TestSet:
 
     def __init__(self, amplitude_units_per_bin, *args, **kwargs):
         # make test dataset
-        self.data, self.amplitudes, slices = testing_data(*args, **kwargs)
+        self.data, self.amplitudes, self.slices = testing_data(*args, **kwargs)
 
         # convert to data frame
-        self.df = to_data_frame(self.data, self.amplitudes,
+        self.df = to_data_frame(self.data, self.amplitudes, self.slices,
                                 amplitude_units_per_bin)
 
     @property
