@@ -1,9 +1,12 @@
 """Utility functions for augmenting data
 """
 import random
+import logging
 import numpy as np
 import logging
 from yass import _get_debug_mode
+
+logger = logging.getLogger(__name__)
 
 
 def make_noisy(x, the_noise):
@@ -201,22 +204,24 @@ def make_temporally_misaligned(x_clean, n_per_spike, multi, max_shift='auto'):
     """Make temporally shifted spikes from clean spikes
     """
     n_spikes, waveform_length, n_neigh = x_clean.shape
+    n_out = int(n_spikes * n_per_spike)
 
     if max_shift == 'auto':
         max_shift = int(waveform_length / 2)
 
-    x_temporally = np.zeros((int(n_spikes * n_per_spike),
-                             waveform_length, n_neigh))
+    x_temporally = np.zeros((n_out, waveform_length, n_neigh))
 
-    temporal_shifts = np.random.randint(-max_shift, max_shift,
-                                        size=x_temporally.shape[0])
+    logger.debug('Making spikes with max_shift: %i, output shape: %s',
+                 max_shift, x_temporally.shape)
+
+    temporal_shifts = np.random.randint(-max_shift, max_shift, size=n_out)
 
     temporal_shifts[temporal_shifts < 0] = temporal_shifts[
         temporal_shifts < 0]-5
     temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
         temporal_shifts >= 0]+6
 
-    for j in range(x_temporally.shape[0]):
+    for j in range(n_out):
         shift = temporal_shifts[j]
         if multi:
             x_clean2 = np.copy(x_clean[np.random.choice(
