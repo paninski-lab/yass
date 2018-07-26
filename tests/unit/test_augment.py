@@ -38,26 +38,26 @@ def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
                        data_folder=path_to_sample_pipeline_folder)
 
 
-# FIXME: move this test to test_templates
-def test_can_crop_and_align_templates(path_to_tests, path_to_standarized_data):
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
-    CONFIG = yass.read_config()
+# # FIXME: move this test to test_templates
+# def test_can_crop_and_align_templates(path_to_tests, path_to_standarized_data):
+#     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
+#     CONFIG = yass.read_config()
 
-    n_spikes, _ = spike_train.shape
+#     n_spikes, _ = spike_train.shape
 
-    weighted_spike_train = np.hstack((spike_train,
-                                      np.ones((n_spikes, 1), 'int32')))
+#     weighted_spike_train = np.hstack((spike_train,
+#                                       np.ones((n_spikes, 1), 'int32')))
 
-    templates_uncropped, _ = get_templates(weighted_spike_train,
-                                           path_to_standarized_data,
-                                           CONFIG.resources.max_memory,
-                                           4*CONFIG.spike_size)
+#     templates_uncropped, _ = get_templates(weighted_spike_train,
+#                                            path_to_standarized_data,
+#                                            CONFIG.resources.max_memory,
+#                                            4*CONFIG.spike_size)
 
-    templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
+#     templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
 
-    crop_and_align_templates(templates_uncropped,
-                             CONFIG.spike_size,
-                             CONFIG.neigh_channels, CONFIG.geom)
+#     crop_and_align_templates(templates_uncropped,
+#                              CONFIG.spike_size,
+#                              CONFIG.neigh_channels, CONFIG.geom)
 
 
 def test_can_make_clean(path_to_tests, path_to_standarized_data):

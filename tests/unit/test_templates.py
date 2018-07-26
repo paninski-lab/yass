@@ -116,3 +116,6 @@ def test_templates_returns_expected_results(path_to_threshold_config,
 def test_new_process_shows_error_if_empty_config():
     with pytest.raises(ValueError):
         cluster.run(None, None)
+
+
+# TODO: test template processor
