@@ -23,6 +23,9 @@ class TestSet:
     def kinds(self):
         return self.slices.keys()
 
+    def get_kind(self, kind):
+        return self.data[self.slices[kind]]
+
     def compute_per_group(function):
         pass
 

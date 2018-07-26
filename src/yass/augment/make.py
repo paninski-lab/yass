@@ -257,7 +257,7 @@ def testing_data(CONFIG, spike_train, template_indexes,
     n_spikes, _, _ = x_templates.shape
 
     x_all = [x_templates]
-    keys = ['templates']
+    keys = ['from templates']
 
     if make_spatially_misaligned:
         x_spatially = util.make_spatially_misaligned(x_templates,
