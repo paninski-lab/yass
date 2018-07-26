@@ -242,6 +242,11 @@ def testing_data(CONFIG, spike_train, template_indexes,
     noise: numpy, (n_spikes, waveform_length, n_channels)
         Noise
     """
+    # NOTE: is the order importante here, maybe it's better to first compute
+    # from templates, then take those and misalign spatially
+    # (all templates in all channels) then take those and misalign temporally
+    # and finally produce collided spikes
+
     # TODO: add multi_channel parameter and options for hardcoded parameter
 
     templates, _ = preprocess(CONFIG, spike_train,
@@ -291,7 +296,7 @@ def testing_data(CONFIG, spike_train, template_indexes,
                                           CONFIG.geom,
                                           waveform_length)
 
-    x_all = util.add_noise(x_all, spatial_SIG, temporal_SIG)
+    x_all_noisy = util.add_noise(x_all, spatial_SIG, temporal_SIG)
 
     # compute amplitudes
     the_amplitudes = util.amplitudes(x_all)
@@ -300,4 +305,4 @@ def testing_data(CONFIG, spike_train, template_indexes,
     slices = {k: slice(n_spikes * i, n_spikes * (i + 1)) for k, i
               in zip(keys, range(len(x_all)))}
 
-    return x_all, the_amplitudes, slices
+    return x_all, x_all_noisy, the_amplitudes, slices
