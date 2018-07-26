@@ -263,3 +263,10 @@ def make_noise(shape, spatial_SIG, temporal_SIG):
                            (n_out, waveform_length, n_neigh))
 
     return the_noise
+
+
+def add_noise(x_clean, spatial_SIG, temporal_SIG):
+    """Returns a noisy version of x_clean
+    """
+    noise = make_noise(x_clean.shape, spatial_SIG, temporal_SIG)
+    return x_clean + noise
