@@ -4,7 +4,6 @@ import numpy as np
 import logging
 
 from yass.templates.crop import crop_and_align_templates
-from yass.templates import preprocess
 from yass.templates import TemplatesProcessor
 from yass.augment.noise import noise_cov
 from yass.augment import util
