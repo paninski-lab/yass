@@ -12,6 +12,9 @@ def preprocess(CONFIG, spike_train, path_to_data, chosen_templates_indexes,
                minimum_amplitude=4, crop_spatially=True):
     """Read, choose, crop and align templates from a spike_train
 
+    Parameters
+    ----------
+
     Notes
     -----
     * Get templates (4x in length)

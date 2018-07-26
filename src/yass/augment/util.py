@@ -28,7 +28,7 @@ def amplitudes(x):
     return np.max(np.abs(x), axis=(1, 2))
 
 
-def make_clean(templates, min_amplitude, max_amplitude, nk):
+def make_clean(templates, min_amplitude, max_amplitude, n_per_template):
     """Make clean spikes from templates
 
     Parameters
@@ -44,12 +44,12 @@ def make_clean(templates, min_amplitude, max_amplitude, nk):
         Maximum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
 
-    nk: int
-        (n_templates * nk ) spikes will be produced
+    n_per_template: int
+        How many spikes to generate per template
 
     Returns
     -------
-    numpy.ndarray (n_templates * nk, waveform_length, n_channels)
+    numpy.ndarray (n_templates * n_per_template, waveform_length, n_channels)
         Clean spikes
     """
     logger = logging.getLogger(__name__)
@@ -60,10 +60,11 @@ def make_clean(templates, min_amplitude, max_amplitude, nk):
 
     n_templates, waveform_length, n_neighbors = templates.shape
 
-    x_clean = np.zeros((nk * n_templates, waveform_length, n_neighbors))
+    x_clean = np.zeros((n_per_template * n_templates,
+                        waveform_length, n_neighbors))
 
     d = max_amplitude - min_amplitude
-    amps_range = (min_amplitude + np.arange(nk) * d/nk)
+    amps_range = (min_amplitude + np.arange(n_per_template) * d/n_per_template)
     amps_range = amps_range[:, np.newaxis, np.newaxis]
 
     # go over every template
@@ -75,7 +76,8 @@ def make_clean(templates, min_amplitude, max_amplitude, nk):
         scaled = (current/amp)[np.newaxis, :, :]
 
         # create n clean spikes by scaling the template along the range
-        x_clean[k * nk: (k + 1) * nk] = scaled * amps_range
+        x_clean[k * n_per_template: (k + 1) * n_per_template] = (scaled
+                                                                 * amps_range)
 
     return x_clean
 
@@ -165,16 +167,44 @@ def make_collided(x_clean, collision_ratio, multi_channel, amp_tolerance=0.2,
 
 def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
                     multi, misalign_ratio2, nneigh):
-    """Make temporally and spatially misaligned spikes
+    """Make temporally and spatially misaligned spikes from clean templates
+
+    Parameters
+    ----------
     """
 
     ################################
     # temporally misaligned spikes #
     ################################
 
-    x_temporally = np.zeros(
-        (x_clean.shape[0]*int(misalign_ratio), templates.shape[1],
-            templates.shape[2]))
+    x_temporally = make_temporally_misaligned(x_clean, misalign_ratio,
+                                              max_shift, multi, nneigh)
+
+    ###############################
+    # spatially misaligned spikes #
+    ###############################
+
+    if multi:
+        x_spatially = np.zeros(
+            (x_clean.shape[0]*int(misalign_ratio2), templates.shape[1],
+                templates.shape[2]))
+
+        for j in range(x_spatially.shape[0]):
+            x_spatially[j] = np.copy(x_clean[np.random.choice(
+                x_clean.shape[0], 1, replace=True)][:, :, np.random.choice(
+                    nneigh, nneigh, replace=False)])
+
+    return x_temporally, x_spatially
+
+
+def make_temporally_misaligned(x_clean, n_per_spike, max_shift, multi,
+                               nneigh):
+    """Make temporally shifted spikes from clean spikes
+    """
+    n_spikes, waveform_length, n_channels = x_clean.shape
+
+    x_temporally = np.zeros(int(n_spikes * n_per_spike),
+                            waveform_length, n_channels)
 
     temporal_shifts = np.random.randint(
         max_shift*2, size=x_temporally.shape[0]) - max_shift
@@ -204,21 +234,7 @@ def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
         else:
             x_temporally[j] += x_clean2
 
-    ###############################
-    # spatially misaligned spikes #
-    ###############################
-
-    if multi:
-        x_spatially = np.zeros(
-            (x_clean.shape[0]*int(misalign_ratio2), templates.shape[1],
-                templates.shape[2]))
-
-        for j in range(x_spatially.shape[0]):
-            x_spatially[j] = np.copy(x_clean[np.random.choice(
-                x_clean.shape[0], 1, replace=True)][:, :, np.random.choice(
-                    nneigh, nneigh, replace=False)])
-
-    return x_temporally, x_spatially
+    return x_temporally
 
 
 def make_noise(x_clean, noise_ratio, templates, spatial_SIG, temporal_SIG):
