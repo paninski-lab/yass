@@ -6,7 +6,11 @@ import logging
 from yass import _get_debug_mode
 
 
-def make_noisy(x, the_noise):
+logger = logging.getLogger(__name__)
+
+
+# TODO: remove
+def _make_noisy(x, the_noise):
     """Make a noisy version of x
     """
     noise_sample = the_noise[np.random.choice(the_noise.shape[0],
@@ -28,7 +32,7 @@ def amplitudes(x):
     return np.max(np.abs(x), axis=(1, 2))
 
 
-def make_clean(templates, min_amplitude, max_amplitude, nk):
+def make_clean(templates, min_amplitude, max_amplitude, n_per_template):
     """Make clean spikes from templates
 
     Parameters
@@ -44,12 +48,12 @@ def make_clean(templates, min_amplitude, max_amplitude, nk):
         Maximum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
 
-    nk: int
-        (n_templates * nk ) spikes will be produced
+    n_per_template: int
+        How many spikes to generate per template
 
     Returns
     -------
-    numpy.ndarray (n_templates * nk, waveform_length, n_channels)
+    numpy.ndarray (n_templates * n_per_template, waveform_length, n_channels)
         Clean spikes
     """
     logger = logging.getLogger(__name__)
@@ -60,10 +64,11 @@ def make_clean(templates, min_amplitude, max_amplitude, nk):
 
     n_templates, waveform_length, n_neighbors = templates.shape
 
-    x_clean = np.zeros((nk * n_templates, waveform_length, n_neighbors))
+    x_clean = np.zeros((n_per_template * n_templates,
+                        waveform_length, n_neighbors))
 
     d = max_amplitude - min_amplitude
-    amps_range = (min_amplitude + np.arange(nk) * d/nk)
+    amps_range = (min_amplitude + np.arange(n_per_template) * d/n_per_template)
     amps_range = amps_range[:, np.newaxis, np.newaxis]
 
     # go over every template
@@ -75,7 +80,8 @@ def make_clean(templates, min_amplitude, max_amplitude, nk):
         scaled = (current/amp)[np.newaxis, :, :]
 
         # create n clean spikes by scaling the template along the range
-        x_clean[k * nk: (k + 1) * nk] = scaled * amps_range
+        x_clean[k * n_per_template: (k + 1) * n_per_template] = (scaled
+                                                                 * amps_range)
 
     return x_clean
 
@@ -165,44 +171,18 @@ def make_collided(x_clean, collision_ratio, multi_channel, amp_tolerance=0.2,
 
 def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
                     multi, misalign_ratio2, nneigh):
-    """Make temporally and spatially misaligned spikes
+    """Make temporally and spatially misaligned spikes from clean templates
+
+    Parameters
+    ----------
     """
 
     ################################
     # temporally misaligned spikes #
     ################################
 
-    x_temporally = np.zeros(
-        (x_clean.shape[0]*int(misalign_ratio), templates.shape[1],
-            templates.shape[2]))
-
-    temporal_shifts = np.random.randint(
-        max_shift*2, size=x_temporally.shape[0]) - max_shift
-    temporal_shifts[temporal_shifts < 0] = temporal_shifts[
-        temporal_shifts < 0]-5
-    temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
-        temporal_shifts >= 0]+6
-
-    for j in range(x_temporally.shape[0]):
-        shift = temporal_shifts[j]
-        if multi:
-            x_clean2 = np.copy(x_clean[np.random.choice(
-                x_clean.shape[0], 1, replace=True)][:, :, np.random.choice(
-                    nneigh, nneigh, replace=False)])
-            x_clean2 = np.squeeze(x_clean2)
-        else:
-            x_clean2 = np.copy(x_clean[np.random.choice(
-                x_clean.shape[0], 1, replace=True)])
-            x_clean2 = np.squeeze(x_clean2)
-
-        if shift > 0:
-            x_temporally[j, :(x_temporally.shape[1]-shift)] += x_clean2[shift:]
-
-        elif shift < 0:
-            x_temporally[
-                j, (-shift):] += x_clean2[:(x_temporally.shape[1]+shift)]
-        else:
-            x_temporally[j] += x_clean2
+    x_temporally = make_temporally_misaligned(x_clean, misalign_ratio,
+                                              multi, max_shift)
 
     ###############################
     # spatially misaligned spikes #
@@ -221,21 +201,76 @@ def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
     return x_temporally, x_spatially
 
 
-def make_noise(x_clean, noise_ratio, templates, spatial_SIG, temporal_SIG):
-    """Make noise
+def make_temporally_misaligned(x_clean, n_per_spike, multi, max_shift='auto'):
+    """Make temporally shifted spikes from clean spikes
     """
+    n_spikes, waveform_length, n_neigh = x_clean.shape
+    n_out = int(n_spikes * n_per_spike)
+
+    if max_shift == 'auto':
+        max_shift = int(waveform_length / 2)
+
+    x_temporally = np.zeros((n_out, waveform_length, n_neigh))
+
+    logger.debug('Making spikes with max_shift: %i, output shape: %s',
+                 max_shift, x_temporally.shape)
+
+    temporal_shifts = np.random.randint(-max_shift, max_shift, size=n_out)
+
+    temporal_shifts[temporal_shifts < 0] = temporal_shifts[
+        temporal_shifts < 0]-5
+    temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
+        temporal_shifts >= 0]+6
+
+    for j in range(n_out):
+        shift = temporal_shifts[j]
+        if multi:
+            x_clean2 = np.copy(x_clean[np.random.choice(
+                x_clean.shape[0], 1, replace=True)][:, :, np.random.choice(
+                    n_neigh, n_neigh, replace=False)])
+            x_clean2 = np.squeeze(x_clean2)
+        else:
+            x_clean2 = np.copy(x_clean[np.random.choice(
+                x_clean.shape[0], 1, replace=True)])
+            x_clean2 = np.squeeze(x_clean2)
+
+        if shift > 0:
+            x_temporally[j, :(x_temporally.shape[1]-shift)] += x_clean2[shift:]
+
+        elif shift < 0:
+            x_temporally[
+                j, (-shift):] += x_clean2[:(x_temporally.shape[1]+shift)]
+        else:
+            x_temporally[j] += x_clean2
+
+    return x_temporally
+
+
+def make_noise(shape, spatial_SIG, temporal_SIG):
+    """Make noise
+
+    Returns
+    ------
+    numpy.ndarray
+        Noise array with the desired shape
+    """
+    n_out, waveform_length, n_neigh = shape
 
     # get noise
-    noise = np.random.normal(
-        size=[x_clean.shape[0]*int(noise_ratio), templates.shape[1],
-              templates.shape[2]])
+    noise = np.random.normal(size=(n_out, waveform_length, n_neigh))
 
-    for c in range(noise.shape[2]):
+    for c in range(n_neigh):
         noise[:, :, c] = np.matmul(noise[:, :, c], temporal_SIG)
-        reshaped_noise = np.reshape(noise, (-1, noise.shape[2]))
+        reshaped_noise = np.reshape(noise, (-1, n_neigh))
 
     the_noise = np.reshape(np.matmul(reshaped_noise, spatial_SIG),
-                           [noise.shape[0],
-                            x_clean.shape[1], x_clean.shape[2]])
+                           (n_out, waveform_length, n_neigh))
 
     return the_noise
+
+
+def add_noise(x_clean, spatial_SIG, temporal_SIG):
+    """Returns a noisy version of x_clean
+    """
+    noise = make_noise(x_clean.shape, spatial_SIG, temporal_SIG)
+    return x_clean + noise

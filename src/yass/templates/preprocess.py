@@ -8,8 +8,19 @@ from yass.templates.choose import choose_templates
 from yass.templates.crop import crop_and_align_templates
 
 
-def preprocess(CONFIG, spike_train, path_to_data, chosen_templates_indexes):
+def preprocess(CONFIG, spike_train, path_to_data, chosen_templates_indexes,
+               minimum_amplitude=4, crop_spatially=True):
     """Read, choose, crop and align templates from a spike_train
+
+    Parameters
+    ----------
+
+    Notes
+    -----
+    * Get templates (4x in length)
+    * Choose templates based on user selection and minimum amplitude
+    * Align templates
+    * Crop templates (just keep neighboring channels)
     """
     logger = logging.getLogger(__name__)
 
@@ -44,7 +55,7 @@ def preprocess(CONFIG, spike_train, path_to_data, chosen_templates_indexes):
     # user, or maybe we should remove this from here
     templates_uncropped = choose_templates(templates_uncropped,
                                            chosen_templates_indexes,
-                                           minimum_amplitude=4)
+                                           minimum_amplitude=minimum_amplitude)
 
     if templates_uncropped.shape[0] == 0:
         raise ValueError("Coulndt find any good templates...")
@@ -55,7 +66,8 @@ def preprocess(CONFIG, spike_train, path_to_data, chosen_templates_indexes):
     templates = crop_and_align_templates(templates_uncropped,
                                          CONFIG.spike_size,
                                          CONFIG.neigh_channels,
-                                         CONFIG.geom)
+                                         CONFIG.geom,
+                                         crop_spatially=crop_spatially)
 
     logger.debug('Templates shape after crop and align %s', templates.shape)
 
