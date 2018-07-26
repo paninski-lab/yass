@@ -6,9 +6,7 @@ import logging
 from yass.templates.crop import crop_and_align_templates
 from yass.templates import preprocess
 from yass.augment.noise import noise_cov
-from yass.augment.util import (_make_noisy, make_from_templates, make_collided,
-                               make_misaligned, make_noise, amplitudes,
-                               add_noise)
+from yass.augment import util
 
 
 def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
@@ -108,20 +106,20 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     max_shift = 2*R
 
     # make spikes from templates
-    x_templates = make_from_templates(templates, min_amp, max_amp, nk)
+    x_templates = util.make_from_templates(templates, min_amp, max_amp, nk)
 
     # make collided spikes - max shift is set to R since 2 * R + 1 will be
     # the final dimension for the spikes
-    x_collision = make_collided(x_templates, collision_ratio, multi_channel,
-                                max_shift=R)
+    x_collision = util.make_collided(x_templates, collision_ratio,
+                                     multi_channel, max_shift=R)
 
     # make misaligned spikes
     (x_temporally_misaligned,
-     x_spatially_misaligned) = make_misaligned(x_templates,
-                                               max_shift,
-                                               misalign_ratio,
-                                               misalign_ratio2,
-                                               multi_channel)
+     x_spatially_misaligned) = util.make_misaligned(x_templates,
+                                                    max_shift,
+                                                    misalign_ratio,
+                                                    misalign_ratio2,
+                                                    multi_channel)
 
     # determine noise covariance structure
     spatial_SIG, temporal_SIG = noise_cov(path_to_standarized,
@@ -132,7 +130,7 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     # make noise
     noise_shape = (int(x_templates.shape[0] * noise_ratio),
                    x_templates.shape[1], x_templates.shape[2])
-    noise = make_noise(noise_shape, spatial_SIG, temporal_SIG)
+    noise = util.make_noise(noise_shape, spatial_SIG, temporal_SIG)
 
     # make labels
     y_clean_1 = np.ones((x_templates.shape[0]))
@@ -146,10 +144,10 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     MID_POINT_IDX = slice(mid_point - R, mid_point + R + 1)
 
     # TODO: replace _make_noisy for new function
-    x_templates_noisy = _make_noisy(x_templates, noise)
-    x_collision_noisy = _make_noisy(x_collision, noise)
-    x_temporally_misaligned_noisy = _make_noisy(x_temporally_misaligned,
-                                                noise)
+    x_templates_noisy = util._make_noisy(x_templates, noise)
+    x_collision_noisy = util._make_noisy(x_collision, noise)
+    x_temporally_misaligned_noisy = util._make_noisy(x_temporally_misaligned,
+                                                     noise)
 
     #############
     # Detection #
@@ -252,8 +250,8 @@ def testing_data(CONFIG, spike_train, template_indexes,
     _, waveform_length, _ = templates.shape
 
     # make spikes
-    x_templates = make_from_templates(templates, min_amplitude, max_amplitude,
-                                      n_per_template)
+    x_templates = util.make_from_templates(templates, min_amplitude,
+                                           max_amplitude, n_per_template)
 
     n_spikes, _, _ = x_templates.shape
 
@@ -285,10 +283,10 @@ def testing_data(CONFIG, spike_train, template_indexes,
                                           CONFIG.geom,
                                           waveform_length)
 
-    x_all = add_noise(x_all, spatial_SIG, temporal_SIG)
+    x_all = util.add_noise(x_all, spatial_SIG, temporal_SIG)
 
     # compute amplitudes
-    the_amplitudes = amplitudes(x_all)
+    the_amplitudes = util.amplitudes(x_all)
 
     # return a dictionary with slices for every type of spike generated
     slices = {k: slice(n_spikes * i, n_spikes * (i + 1)) for k, i
