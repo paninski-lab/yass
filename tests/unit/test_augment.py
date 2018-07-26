@@ -128,7 +128,7 @@ def test_can_make_misaligned(path_to_tests, path_to_standarized_data):
                     misalign_ratio=1,
                     misalign_ratio2=1,
                     max_shift=2 * CONFIG.spike_size,
-                    multi=True)
+                    multi_channel=True)
 
 
 def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):

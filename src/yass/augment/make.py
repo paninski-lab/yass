@@ -7,7 +7,8 @@ from yass.templates.crop import crop_and_align_templates
 from yass.templates import preprocess
 from yass.augment.noise import noise_cov
 from yass.augment.util import (_make_noisy, make_from_templates, make_collided,
-                               make_misaligned, make_noise, amplitudes)
+                               make_misaligned, make_noise, amplitudes,
+                               add_noise)
 
 
 def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
@@ -224,7 +225,9 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
 def testing_data(CONFIG, spike_train, template_indexes,
                  min_amplitude, max_amplitude, path_to_data, n_per_template,
-                 make_misaligned=True, make_collided=True):
+                 make_spatially_misaligned=True,
+                 make_temporally_misaligned=True,
+                 make_collided=True):
     """
     Make data for testing neural network detector, it creates several types
     of spikes (isolated, misaligned, collided) from templates with varying
@@ -240,18 +243,14 @@ def testing_data(CONFIG, spike_train, template_indexes,
     noise: numpy, (n_spikes, waveform_length, n_channels)
         Noise
     """
+    # TODO: add multi_channel parameter
     logger = logging.getLogger(__name__)
 
     templates, _ = preprocess(CONFIG, spike_train,
                               path_to_data,
                               template_indexes)
 
-    K, waveform_length, n_neigh = templates.shape
-
-    spatial_SIG, temporal_SIG = noise_cov(path_to_data,
-                                          CONFIG.neigh_channels,
-                                          CONFIG.geom,
-                                          waveform_length)
+    _, waveform_length, _ = templates.shape
 
     # make spikes
     x_templates = make_from_templates(templates, min_amplitude, max_amplitude,
@@ -259,17 +258,33 @@ def testing_data(CONFIG, spike_train, template_indexes,
 
     x_all = [x_templates]
 
-    if make_misaligned:
-        pass
+    if make_spatially_misaligned:
+        x_spatially = make_spatially_misaligned(x_templates, n_per_spike=1)
+        x_all.append(x_spatially)
+
+    if make_temporally_misaligned:
+        x_temporally = make_temporally_misaligned(x_templates, n_per_spike=1,
+                                                  multi_channel=True)
+        x_all.append(x_temporally)
 
     if make_collided:
-        pass
+        x_collided = make_collided(x_templates, n_per_spike=1,
+                                   multi_channel=True)
+        x_all.append(x_collided)
+
+    x_all = np.concatenate(x_all, axis=0)
 
     # add noise
+    spatial_SIG, temporal_SIG = noise_cov(path_to_data,
+                                          CONFIG.neigh_channels,
+                                          CONFIG.geom,
+                                          waveform_length)
+
+    x_all = add_noise(x_all, spatial_SIG, temporal_SIG)
 
     # compute amplitudes
     the_amplitudes = amplitudes(x_all)
 
     # return a dictionary with indexes for every type of spike generated
 
-    return x_all
+    return x_all, the_amplitudes
