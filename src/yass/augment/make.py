@@ -246,7 +246,8 @@ def testing_data(CONFIG, spike_train, template_indexes,
 
     templates, _ = preprocess(CONFIG, spike_train,
                               path_to_data,
-                              template_indexes)
+                              template_indexes,
+                              crop_spatially=False)
 
     _, waveform_length, _ = templates.shape
 
