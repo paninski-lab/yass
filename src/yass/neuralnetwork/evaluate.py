@@ -21,7 +21,7 @@ class TestSet:
         self.df_noisy = to_data_frame(self.data_noisy, self.amplitudes,
                                       self.slices, amplitude_units_per_bin)
 
-        self.df_noisy = to_data_frame(self.data_clean, self.amplitudes,
+        self.df_clean = to_data_frame(self.data_clean, self.amplitudes,
                                       self.slices, amplitude_units_per_bin)
 
     @property
