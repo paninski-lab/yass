@@ -8,12 +8,15 @@ from yass.templates.choose import choose_templates
 from yass.templates.crop import crop_and_align_templates
 
 
-def preprocess(CONFIG, spike_train, path_to_data, chosen_templates_indexes,
+def preprocess(CONFIG, half_waveform_length, spike_train, path_to_data,
+               chosen_templates_indexes,
                minimum_amplitude=4, crop_spatially=True):
     """Read, choose, crop and align templates from a spike_train
 
     Parameters
     ----------
+    half_waveform_length: int
+        Final templates will be of size 2 * half_waveform_length
 
     Notes
     -----
@@ -22,6 +25,8 @@ def preprocess(CONFIG, spike_train, path_to_data, chosen_templates_indexes,
     * Align templates
     * Crop templates (just keep neighboring channels)
     """
+    # TODO: remove config from here
+
     logger = logging.getLogger(__name__)
 
     # make sure standarized data already exists
@@ -43,7 +48,7 @@ def preprocess(CONFIG, spike_train, path_to_data, chosen_templates_indexes,
     templates_uncropped, _ = get_templates(weighted_spike_train,
                                            path_to_data,
                                            CONFIG.resources.max_memory,
-                                           4*CONFIG.spike_size)
+                                           4*half_waveform_length)
 
     templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
 
@@ -64,7 +69,7 @@ def preprocess(CONFIG, spike_train, path_to_data, chosen_templates_indexes,
                  .format(templates_uncropped.shape))
 
     templates = crop_and_align_templates(templates_uncropped,
-                                         CONFIG.spike_size,
+                                         half_waveform_length,
                                          CONFIG.neigh_channels,
                                          CONFIG.geom,
                                          crop_spatially=crop_spatially)

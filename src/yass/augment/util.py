@@ -103,6 +103,8 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
         Maximum amount of shift for the collided spike. If 'auto', it sets
         to half the waveform length in x
     """
+    # NOTE: i think this is generated collided spikes where one of them
+    # is always centered, this may not be the desired behavior sometimes
     # FIXME: maybe it's better to take x_misaligned as parameter, there is
     # redundant shifting logic here
 

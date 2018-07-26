@@ -87,7 +87,10 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     path_to_standarized = os.path.join(data_folder, 'preprocess',
                                        'standarized.bin')
 
-    templates, templates_uncropped = preprocess(CONFIG, spike_train,
+    # removed the hardcoded 4 * CONFIG.spike_size and 3 * CONFIG.spike_size
+    # from get_templates and crop_and_align_templatesp
+    templates, templates_uncropped = preprocess(CONFIG, 3 * CONFIG.spike_size,
+                                                spike_train,
                                                 path_to_standarized,
                                                 chosen_templates_indexes)
 

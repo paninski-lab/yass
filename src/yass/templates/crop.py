@@ -47,6 +47,8 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
     Returns
     -------
     """
+    # TODO: add tests for this function, seems like the centering does not
+    # always work
     logger = logging.getLogger(__name__)
 
     # copy templates to avoid modifying the original ones
@@ -92,16 +94,16 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
         np.sum(np.square(templates_mainc), 0), np.ones(2*R2+1), 'valid')) + R2
 
     # crop templates, now they are from 4*R to 3*R
-    big_templates = big_templates[:, (center-3*R):(center+3*R+1)]
+    templates = big_templates[:, (center-R):(center+R+1)]
 
     if not crop_spatially:
 
-        return big_templates
+        return templates
 
     else:
         # spatially crop (only keep neighbors)
         n_neigh_to_keep = np.max(np.sum(neighbors, 0))
-        small = np.zeros((n_templates, big_templates.shape[1],
+        small = np.zeros((n_templates, templates.shape[1],
                           n_neigh_to_keep))
 
         for k in range(n_templates):
@@ -114,7 +116,7 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
 
             # new kth template is the old kth template by keeping only
             # ordered neighboring channels
-            small[k, :, :ch_idx.shape[0]] = big_templates[k][:, ch_idx]
+            small[k, :, :ch_idx.shape[0]] = templates[k][:, ch_idx]
 
         return small
 
