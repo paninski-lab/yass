@@ -32,8 +32,8 @@ def amplitudes(x):
     return np.max(np.abs(x), axis=(1, 2))
 
 
-def make_clean(templates, min_amplitude, max_amplitude, n_per_template):
-    """Make clean spikes from templates
+def make(templates, min_amplitude, max_amplitude, n_per_template):
+    """Make spikes with varying amplitudes from templates
 
     Parameters
     ----------
@@ -64,8 +64,8 @@ def make_clean(templates, min_amplitude, max_amplitude, n_per_template):
 
     n_templates, waveform_length, n_neighbors = templates.shape
 
-    x_clean = np.zeros((n_per_template * n_templates,
-                        waveform_length, n_neighbors))
+    x = np.zeros((n_per_template * n_templates,
+                  waveform_length, n_neighbors))
 
     d = max_amplitude - min_amplitude
     amps_range = (min_amplitude + np.arange(n_per_template) * d/n_per_template)
@@ -80,19 +80,19 @@ def make_clean(templates, min_amplitude, max_amplitude, n_per_template):
         scaled = (current/amp)[np.newaxis, :, :]
 
         # create n clean spikes by scaling the template along the range
-        x_clean[k * n_per_template: (k + 1) * n_per_template] = (scaled
-                                                                 * amps_range)
+        x[k * n_per_template: (k + 1) * n_per_template] = (scaled
+                                                           * amps_range)
 
-    return x_clean
+    return x
 
 
-def make_collided(x_clean, collision_ratio, multi_channel, amp_tolerance=0.2,
+def make_collided(x, collision_ratio, multi_channel, amp_tolerance=0.2,
                   max_shift='auto'):
     """Make collided spikes
 
     Parameters
     ----------
-    x_clean
+    x
     collision_ratio
     multi_channel
     amp_tolerance: float, optional
@@ -100,11 +100,14 @@ def make_collided(x_clean, collision_ratio, multi_channel, amp_tolerance=0.2,
         defaults to 0.2
     max_shift: int or string, optional
         Maximum amount of shift for the collided spike. If 'auto', it sets
-        to half the waveform length in x_clean
+        to half the waveform length in x
     """
+    # FIXME: maybe it's better to take x_misaligned as parameter, there is
+    # redundant shifting logic here
+
     logger = logging.getLogger(__name__)
 
-    n_clean, wf_length, n_neighbors = x_clean.shape
+    n_clean, wf_length, n_neighbors = x.shape
 
     if max_shift == 'auto':
         max_shift = int((wf_length - 1) / 2)
@@ -112,7 +115,7 @@ def make_collided(x_clean, collision_ratio, multi_channel, amp_tolerance=0.2,
     logger.debug('Making collided spikes with collision_ratio: %s max shift: '
                  '%s, multi_channel: %s, amp_tolerance: %s, clean spikes with'
                  ' shape: %s', collision_ratio, max_shift, multi_channel,
-                 amp_tolerance, x_clean.shape)
+                 amp_tolerance, x.shape)
 
     x_collision = np.zeros((n_clean*int(collision_ratio),
                             wf_length,
@@ -124,7 +127,7 @@ def make_collided(x_clean, collision_ratio, multi_channel, amp_tolerance=0.2,
 
     n_collided, _, _ = x_collision.shape
 
-    amps = amplitudes(x_clean)
+    amps = amplitudes(x)
 
     for j in range(n_collided):
 
@@ -132,16 +135,16 @@ def make_collided(x_clean, collision_ratio, multi_channel, amp_tolerance=0.2,
         shift = random.randint(-max_shift, max_shift)
 
         # sample a clean spike
-        x_collision[j], i = sample_from_zero_axis(x_clean)
+        x_collision[j], i = sample_from_zero_axis(x)
 
-        # get amplitude for sampled x_clean and compute bounds
+        # get amplitude for sampled x and compute bounds
         amp = amps[i]
         lower = amp * (1.0 - amp_tolerance)
         upper = amp * (1.0 + amp_tolerance)
 
         # draw another clean spike
         scale_factor = np.linspace(lower, upper, num=50)[random.randint(0, 49)]
-        x_to_collide, i = sample_from_zero_axis(x_clean)
+        x_to_collide, i = sample_from_zero_axis(x)
         x_to_collide = scale_factor * x_to_collide / amps[i]
         # FIXME: remove this
         x_to_collide = x_to_collide[0, :, :]
@@ -169,7 +172,7 @@ def make_collided(x_clean, collision_ratio, multi_channel, amp_tolerance=0.2,
         return x_collision
 
 
-def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
+def make_misaligned(x, templates, max_shift, misalign_ratio,
                     multi, misalign_ratio2, nneigh):
     """Make temporally and spatially misaligned spikes from clean templates
 
@@ -181,7 +184,7 @@ def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
     # temporally misaligned spikes #
     ################################
 
-    x_temporally = make_temporally_misaligned(x_clean, misalign_ratio,
+    x_temporally = make_temporally_misaligned(x, misalign_ratio,
                                               multi, max_shift)
 
     ###############################
@@ -190,21 +193,21 @@ def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
 
     if multi:
         x_spatially = np.zeros(
-            (x_clean.shape[0]*int(misalign_ratio2), templates.shape[1],
+            (x.shape[0]*int(misalign_ratio2), templates.shape[1],
                 templates.shape[2]))
 
         for j in range(x_spatially.shape[0]):
-            x_spatially[j] = np.copy(x_clean[np.random.choice(
-                x_clean.shape[0], 1, replace=True)][:, :, np.random.choice(
+            x_spatially[j] = np.copy(x[np.random.choice(
+                x.shape[0], 1, replace=True)][:, :, np.random.choice(
                     nneigh, nneigh, replace=False)])
 
     return x_temporally, x_spatially
 
 
-def make_temporally_misaligned(x_clean, n_per_spike, multi, max_shift='auto'):
+def make_temporally_misaligned(x, n_per_spike, multi, max_shift='auto'):
     """Make temporally shifted spikes from clean spikes
     """
-    n_spikes, waveform_length, n_neigh = x_clean.shape
+    n_spikes, waveform_length, n_neigh = x.shape
     n_out = int(n_spikes * n_per_spike)
 
     if max_shift == 'auto':
@@ -225,23 +228,23 @@ def make_temporally_misaligned(x_clean, n_per_spike, multi, max_shift='auto'):
     for j in range(n_out):
         shift = temporal_shifts[j]
         if multi:
-            x_clean2 = np.copy(x_clean[np.random.choice(
-                x_clean.shape[0], 1, replace=True)][:, :, np.random.choice(
+            x2 = np.copy(x[np.random.choice(
+                x.shape[0], 1, replace=True)][:, :, np.random.choice(
                     n_neigh, n_neigh, replace=False)])
-            x_clean2 = np.squeeze(x_clean2)
+            x2 = np.squeeze(x2)
         else:
-            x_clean2 = np.copy(x_clean[np.random.choice(
-                x_clean.shape[0], 1, replace=True)])
-            x_clean2 = np.squeeze(x_clean2)
+            x2 = np.copy(x[np.random.choice(
+                x.shape[0], 1, replace=True)])
+            x2 = np.squeeze(x2)
 
         if shift > 0:
-            x_temporally[j, :(x_temporally.shape[1]-shift)] += x_clean2[shift:]
+            x_temporally[j, :(x_temporally.shape[1]-shift)] += x2[shift:]
 
         elif shift < 0:
             x_temporally[
-                j, (-shift):] += x_clean2[:(x_temporally.shape[1]+shift)]
+                j, (-shift):] += x2[:(x_temporally.shape[1]+shift)]
         else:
-            x_temporally[j] += x_clean2
+            x_temporally[j] += x2
 
     return x_temporally
 
@@ -269,8 +272,8 @@ def make_noise(shape, spatial_SIG, temporal_SIG):
     return the_noise
 
 
-def add_noise(x_clean, spatial_SIG, temporal_SIG):
-    """Returns a noisy version of x_clean
+def add_noise(x, spatial_SIG, temporal_SIG):
+    """Returns a noisy version of x
     """
-    noise = make_noise(x_clean.shape, spatial_SIG, temporal_SIG)
-    return x_clean + noise
+    noise = make_noise(x.shape, spatial_SIG, temporal_SIG)
+    return x + noise

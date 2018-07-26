@@ -6,7 +6,7 @@ import logging
 from yass.templates.crop import crop_and_align_templates
 from yass.templates import preprocess
 from yass.augment.noise import noise_cov
-from yass.augment.util import (_make_noisy, make_clean, make_collided,
+from yass.augment.util import (_make_noisy, make, make_collided,
                                make_misaligned, make_noise, amplitudes)
 
 
@@ -93,6 +93,8 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
                                                 chosen_templates_indexes)
 
     _, _, n_neigh = templates.shape
+
+    # TODO: remove, this data can be obtained from other variables
     K, _, n_channels = templates_uncropped.shape
 
     # make training data set
@@ -104,17 +106,17 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     nk = int(np.ceil(n_isolated_spikes/K))
     max_shift = 2*R
 
-    # make clean spikes
-    x_clean = make_clean(templates, min_amp, max_amp, nk)
+    # make spikes from templates
+    x_templates = make(templates, min_amp, max_amp, nk)
 
     # make collided spikes - max shift is set to R since 2 * R + 1 will be
     # the final dimension for the spikes
-    x_collision = make_collided(x_clean, collision_ratio, multi_channel,
+    x_collision = make_collided(x_templates, collision_ratio, multi_channel,
                                 max_shift=R)
 
     # make misaligned spikes
     (x_temporally_misaligned,
-     x_spatially_misaligned) = make_misaligned(x_clean,
+     x_spatially_misaligned) = make_misaligned(x_templates,
                                                templates, max_shift,
                                                misalign_ratio,
                                                misalign_ratio2,
@@ -128,23 +130,23 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
                                           templates.shape[1])
 
     # make noise
-    noise_shape = (int(x_clean.shape[0] * noise_ratio),
-                   x_clean.shape[1], x_clean.shape[2])
+    noise_shape = (int(x_templates.shape[0] * noise_ratio),
+                   x_templates.shape[1], x_templates.shape[2])
     noise = make_noise(noise_shape, spatial_SIG, temporal_SIG)
 
     # make labels
-    y_clean_1 = np.ones((x_clean.shape[0]))
+    y_clean_1 = np.ones((x_templates.shape[0]))
     y_collision_1 = np.ones((x_collision.shape[0]))
 
     y_misaligned_0 = np.zeros((x_temporally_misaligned.shape[0]))
     y_noise_0 = np.zeros((noise.shape[0]))
     y_collision_0 = np.zeros((x_collision.shape[0]))
 
-    mid_point = int((x_clean.shape[1]-1)/2)
+    mid_point = int((x_templates.shape[1]-1)/2)
     MID_POINT_IDX = slice(mid_point - R, mid_point + R + 1)
 
     # TODO: replace _make_noisy for new function
-    x_clean_noisy = _make_noisy(x_clean, noise)
+    x_templates_noisy = _make_noisy(x_templates, noise)
     x_collision_noisy = _make_noisy(x_collision, noise)
     x_temporally_misaligned_noisy = _make_noisy(x_temporally_misaligned,
                                                 noise)
@@ -154,14 +156,14 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     #############
 
     if multi_channel:
-        x = np.concatenate((x_clean_noisy, x_collision_noisy,
+        x = np.concatenate((x_templates_noisy, x_collision_noisy,
                             x_temporally_misaligned_noisy, noise))
         x_detect = x[:, MID_POINT_IDX, :]
 
         y_detect = np.concatenate((y_clean_1, y_collision_1,
                                    y_misaligned_0, y_noise_0))
     else:
-        x = np.concatenate((x_clean_noisy, x_temporally_misaligned_noisy,
+        x = np.concatenate((x_templates_noisy, x_temporally_misaligned_noisy,
                             noise))
         x_detect = x[:, MID_POINT_IDX, 0]
 
@@ -172,12 +174,12 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     ##########
 
     if multi_channel:
-        x = np.concatenate((x_clean_noisy, x_collision_noisy))
+        x = np.concatenate((x_templates_noisy, x_collision_noisy))
         x_triage = x[:, MID_POINT_IDX, :]
 
         y_triage = np.concatenate((y_clean_1, y_collision_0))
     else:
-        x = np.concatenate((x_clean_noisy, x_collision_noisy,))
+        x = np.concatenate((x_templates_noisy, x_collision_noisy,))
         x_triage = x[:, MID_POINT_IDX, 0]
 
         y_triage = np.concatenate((y_clean_1,
@@ -221,23 +223,29 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     return x_detect, y_detect, x_triage, y_triage, x_ae, y_ae
 
 
-def testing_data(CONFIG, spike_train, chosen_templates_indexes,
-                 min_amplitude, max_amplitude, path_to_data, nk):
-    """Make data for testing neural network detector
+def testing_data(CONFIG, spike_train, template_indexes,
+                 min_amplitude, max_amplitude, path_to_data, n_per_template,
+                 make_misaligned=True, make_collided=True):
+    """
+    Make data for testing neural network detector, it creates several types
+    of spikes (isolated, misaligned, collided) from templates with varying
+    amplitudes
 
     Parameters
     ----------
 
     Returns
     -------
-    x_clean_noisy: numpy.ndarray, (n_spikes, waveform_length, n_channels)
+    x_noisy: numpy.ndarray, (n_spikes, waveform_length, n_channels)
         Clean isolated spikes with noise added
     noise: numpy, (n_spikes, waveform_length, n_channels)
         Noise
     """
+    logger = logging.getLogger(__name__)
+
     templates, _ = preprocess(CONFIG, spike_train,
                               path_to_data,
-                              chosen_templates_indexes)
+                              template_indexes)
 
     K, waveform_length, n_neigh = templates.shape
 
@@ -246,17 +254,23 @@ def testing_data(CONFIG, spike_train, chosen_templates_indexes,
                                           CONFIG.geom,
                                           waveform_length)
 
-    x_clean = make_clean(templates, min_amplitude, max_amplitude, nk)
+    # make spikes
+    x_templates = make(templates, min_amplitude, max_amplitude,
+                       n_per_template)
 
-    # TODO: refactor make_noise, no need to send x_clean, and it will be
-    # better to remove noise_ratio and directly send the number of elements
-    # to get
-    noise = make_noise(x_clean,
-                       noise_ratio=1,
-                       templates=templates,
-                       spatial_SIG=spatial_SIG,
-                       temporal_SIG=temporal_SIG)
+    x_all = [x_templates]
 
-    x_clean_noisy = x_clean + noise
+    if make_misaligned:
+        pass
 
-    return x_clean_noisy, amplitudes(x_clean_noisy), noise
+    if make_collided:
+        pass
+
+    # add noise
+
+    # compute amplitudes
+    the_amplitudes = amplitudes(x_all)
+
+    # return a dictionary with indexes for every type of spike generated
+
+    return x_all
