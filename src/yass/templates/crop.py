@@ -31,21 +31,8 @@ def on_main_channel(templates):
     pass
 
 
-def align(templates, crop=True):
+def align(big_templates, R):
     """Align templates spatially
-    """
-    pass
-
-
-def crop_and_align_templates(big_templates, R, neighbors, geom,
-                             crop_spatially=True):
-    """Crop (spatially) and align (temporally) templates
-
-    Parameters
-    ----------
-
-    Returns
-    -------
     """
     # TODO: add tests for this function, seems like the centering does not
     # always work
@@ -69,7 +56,7 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
     for k in range(n_templates):
         t1 = big_templates[k, :, main_ch[k]]
         t1 = t1/np.sqrt(np.sum(np.square(t1)))
-        shift = align_templates(t1, t_rec)
+        shift = compute_shift(t1, t_rec)
 
         logger.debug('Template %i will be shifted by %i', k, shift)
 
@@ -93,8 +80,25 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
     center = np.argmax(np.convolve(
         np.sum(np.square(templates_mainc), 0), np.ones(2*R2+1), 'valid')) + R2
 
-    # crop templates, now they are from 4*R to 3*R
+    # crop templates
     templates = big_templates[:, (center-R):(center+R+1)]
+
+    return templates
+
+
+def crop_and_align_templates(big_templates, R, neighbors, geom,
+                             crop_spatially=True):
+    """Crop (spatially) and align (temporally) templates
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    templates = align(big_templates, R)
+    n_templates, _, _ = big_templates.shape
+    main_ch = main_channels(big_templates)
 
     if not crop_spatially:
 
@@ -121,7 +125,7 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
         return small
 
 
-def align_templates(t1, t2):
+def compute_shift(t1, t2):
     """Align templates
 
     Parameters

@@ -11,7 +11,7 @@ from yass.geometry import order_channels_by_distance
 
 
 # TODO: remove config
-class TemplateProcessor:
+class TemplatesProcessor:
 
     def __init__(self, CONFIG, half_waveform_length, spike_train,
                  path_to_data):
@@ -108,12 +108,13 @@ class TemplateProcessor:
         else:
             return new_templates
 
-    def crop_spatially(self, neighbors, geometry):
+    def crop_spatially(self, neighbors, geometry, inplace=False):
         n_templates, waveform_length, _ = self.templates.shape
 
         # spatially crop (only keep neighbors)
         n_neigh_to_keep = np.max(np.sum(neighbors, 0))
-        small = np.zeros((n_templates, waveform_length, n_neigh_to_keep))
+        new_templates = np.zeros((n_templates, waveform_length,
+                                  n_neigh_to_keep))
 
         for k in range(n_templates):
 
@@ -121,9 +122,15 @@ class TemplateProcessor:
             ch_idx = np.where(neighbors[self.main_channels[k]])[0]
 
             # order channels
-            ch_idx, _ = order_channels_by_distance(self.main_channels[k], ch_idx, geometry)
+            ch_idx, _ = order_channels_by_distance(self.main_channels[k],
+                                                   ch_idx, geometry)
 
             # new kth template is the old kth template by keeping only
             # ordered neighboring channels
-            small[k, :, :ch_idx.shape[0]] = self.templates[k][:, ch_idx]
+            new_templates[k, :,
+                          :ch_idx.shape[0]] = self.templates[k][:, ch_idx]
 
+        if inplace:
+            self._update_templates(new_templates)
+        else:
+            return new_templates
