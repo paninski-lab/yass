@@ -259,19 +259,21 @@ def testing_data(CONFIG, spike_train, template_indexes,
     keys = ['templates']
 
     if make_spatially_misaligned:
-        x_spatially = make_spatially_misaligned(x_templates, n_per_spike=1)
+        x_spatially = util.make_spatially_misaligned(x_templates,
+                                                     n_per_spike=1)
         x_all.append(x_spatially)
         keys.append('spatially misaligned')
 
     if make_temporally_misaligned:
-        x_temporally = make_temporally_misaligned(x_templates, n_per_spike=1,
-                                                  multi_channel=True)
+        x_temporally = util.make_temporally_misaligned(x_templates,
+                                                       n_per_spike=1,
+                                                       multi_channel=True)
         x_all.append(x_temporally)
         keys.append('temporally misaligned')
 
     if make_collided:
-        x_collided = make_collided(x_templates, n_per_spike=1,
-                                   multi_channel=True)
+        x_collided = util.make_collided(x_templates, n_per_spike=1,
+                                        multi_channel=True)
         x_all.append(x_collided)
         keys.append('collided')
 
