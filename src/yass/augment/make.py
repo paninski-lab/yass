@@ -244,7 +244,6 @@ def testing_data(CONFIG, spike_train, template_indexes,
         Noise
     """
     # TODO: add multi_channel parameter
-    logger = logging.getLogger(__name__)
 
     templates, _ = preprocess(CONFIG, spike_train,
                               path_to_data,
@@ -256,21 +255,27 @@ def testing_data(CONFIG, spike_train, template_indexes,
     x_templates = make_from_templates(templates, min_amplitude, max_amplitude,
                                       n_per_template)
 
+    n_spikes, _, _ = x_templates.shape
+
     x_all = [x_templates]
+    keys = ['templates']
 
     if make_spatially_misaligned:
         x_spatially = make_spatially_misaligned(x_templates, n_per_spike=1)
         x_all.append(x_spatially)
+        keys.append('spatially misaligned')
 
     if make_temporally_misaligned:
         x_temporally = make_temporally_misaligned(x_templates, n_per_spike=1,
                                                   multi_channel=True)
         x_all.append(x_temporally)
+        keys.append('temporally misaligned')
 
     if make_collided:
         x_collided = make_collided(x_templates, n_per_spike=1,
                                    multi_channel=True)
         x_all.append(x_collided)
+        keys.append('collided')
 
     x_all = np.concatenate(x_all, axis=0)
 
@@ -285,6 +290,8 @@ def testing_data(CONFIG, spike_train, template_indexes,
     # compute amplitudes
     the_amplitudes = amplitudes(x_all)
 
-    # return a dictionary with indexes for every type of spike generated
+    # return a dictionary with slices for every type of spike generated
+    slices = {k: slice(n_spikes * i, n_spikes * (i + 1)) for k, i
+              in zip(keys, range(len(x_all)))}
 
-    return x_all, the_amplitudes
+    return x_all, the_amplitudes, slices
