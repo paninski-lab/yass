@@ -6,7 +6,7 @@ import logging
 from yass.templates.crop import crop_and_align_templates
 from yass.templates import preprocess
 from yass.augment.noise import noise_cov
-from yass.augment.util import (_make_noisy, make, make_collided,
+from yass.augment.util import (_make_noisy, make_from_templates, make_collided,
                                make_misaligned, make_noise, amplitudes)
 
 
@@ -107,7 +107,7 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     max_shift = 2*R
 
     # make spikes from templates
-    x_templates = make(templates, min_amp, max_amp, nk)
+    x_templates = make_from_templates(templates, min_amp, max_amp, nk)
 
     # make collided spikes - max shift is set to R since 2 * R + 1 will be
     # the final dimension for the spikes
@@ -117,11 +117,10 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     # make misaligned spikes
     (x_temporally_misaligned,
      x_spatially_misaligned) = make_misaligned(x_templates,
-                                               templates, max_shift,
+                                               max_shift,
                                                misalign_ratio,
                                                misalign_ratio2,
-                                               multi_channel,
-                                               n_neigh)
+                                               multi_channel)
 
     # determine noise covariance structure
     spatial_SIG, temporal_SIG = noise_cov(path_to_standarized,
@@ -255,8 +254,8 @@ def testing_data(CONFIG, spike_train, template_indexes,
                                           waveform_length)
 
     # make spikes
-    x_templates = make(templates, min_amplitude, max_amplitude,
-                       n_per_template)
+    x_templates = make_from_templates(templates, min_amplitude, max_amplitude,
+                                      n_per_template)
 
     x_all = [x_templates]
 
