@@ -178,7 +178,7 @@ def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
     ################################
 
     x_temporally = make_temporally_misaligned(x_clean, misalign_ratio,
-                                              max_shift, multi)
+                                              multi, max_shift)
 
     ###############################
     # spatially misaligned spikes #
@@ -197,16 +197,20 @@ def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
     return x_temporally, x_spatially
 
 
-def make_temporally_misaligned(x_clean, n_per_spike, max_shift, multi):
+def make_temporally_misaligned(x_clean, n_per_spike, multi, max_shift='auto'):
     """Make temporally shifted spikes from clean spikes
     """
     n_spikes, waveform_length, n_neigh = x_clean.shape
 
+    if max_shift == 'auto':
+        max_shift = int(waveform_length / 2)
+
     x_temporally = np.zeros(int(n_spikes * n_per_spike),
                             waveform_length, n_neigh)
 
-    temporal_shifts = np.random.randint(
-        max_shift*2, size=x_temporally.shape[0]) - max_shift
+    temporal_shifts = np.random.randint(-max_shift, max_shift,
+                                        size=x_temporally.shape[0])
+
     temporal_shifts[temporal_shifts < 0] = temporal_shifts[
         temporal_shifts < 0]-5
     temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
