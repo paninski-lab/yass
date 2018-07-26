@@ -18,8 +18,8 @@ class TestSet:
          self.amplitudes, self.slices) = testing_data(*args, **kwargs)
 
         # convert to data frame
-        self.df = to_data_frame(self.data_noisy, self.amplitudes, self.slices,
-                                amplitude_units_per_bin)
+        # self.df = to_data_frame(self.data_noisy, self.amplitudes, self.slices,
+        #                         amplitude_units_per_bin)
 
     @property
     def kinds(self):
