@@ -178,7 +178,7 @@ def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
     ################################
 
     x_temporally = make_temporally_misaligned(x_clean, misalign_ratio,
-                                              max_shift, multi, nneigh)
+                                              max_shift, multi)
 
     ###############################
     # spatially misaligned spikes #
@@ -197,14 +197,13 @@ def make_misaligned(x_clean, templates, max_shift, misalign_ratio,
     return x_temporally, x_spatially
 
 
-def make_temporally_misaligned(x_clean, n_per_spike, max_shift, multi,
-                               nneigh):
+def make_temporally_misaligned(x_clean, n_per_spike, max_shift, multi):
     """Make temporally shifted spikes from clean spikes
     """
-    n_spikes, waveform_length, n_channels = x_clean.shape
+    n_spikes, waveform_length, n_neigh = x_clean.shape
 
     x_temporally = np.zeros(int(n_spikes * n_per_spike),
-                            waveform_length, n_channels)
+                            waveform_length, n_neigh)
 
     temporal_shifts = np.random.randint(
         max_shift*2, size=x_temporally.shape[0]) - max_shift
@@ -218,7 +217,7 @@ def make_temporally_misaligned(x_clean, n_per_spike, max_shift, multi,
         if multi:
             x_clean2 = np.copy(x_clean[np.random.choice(
                 x_clean.shape[0], 1, replace=True)][:, :, np.random.choice(
-                    nneigh, nneigh, replace=False)])
+                    n_neigh, n_neigh, replace=False)])
             x_clean2 = np.squeeze(x_clean2)
         else:
             x_clean2 = np.copy(x_clean[np.random.choice(
