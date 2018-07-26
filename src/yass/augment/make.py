@@ -251,6 +251,9 @@ def testing_data(CONFIG, spike_train, template_indexes,
 
     _, waveform_length, n_neigh = templates.shape
 
+    # TODO: remove this
+    neigh_channels = np.ones((n_neigh, n_neigh), dtype=bool)
+
     # make spikes
     x_templates = util.make_from_templates(templates, min_amplitude,
                                            max_amplitude, n_per_template)
@@ -284,7 +287,7 @@ def testing_data(CONFIG, spike_train, template_indexes,
 
     # add noise
     spatial_SIG, temporal_SIG = noise_cov(path_to_data,
-                                          n_neigh,
+                                          neigh_channels,
                                           CONFIG.geom,
                                           waveform_length)
 
