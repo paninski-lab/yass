@@ -205,8 +205,8 @@ def make_temporally_misaligned(x_clean, n_per_spike, multi, max_shift='auto'):
     if max_shift == 'auto':
         max_shift = int(waveform_length / 2)
 
-    x_temporally = np.zeros(int(n_spikes * n_per_spike),
-                            waveform_length, n_neigh)
+    x_temporally = np.zeros((int(n_spikes * n_per_spike),
+                             waveform_length, n_neigh))
 
     temporal_shifts = np.random.randint(-max_shift, max_shift,
                                         size=x_temporally.shape[0])
