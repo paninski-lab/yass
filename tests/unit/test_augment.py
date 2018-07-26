@@ -184,5 +184,4 @@ def test_can_make_noise(path_to_tests, path_to_standarized_data):
     x_clean = make_clean(templates, min_amplitude=2, max_amplitude=10,
                          n_per_template=100)
 
-    make_noise(x_clean, noise_ratio=10, templates=templates,
-               spatial_SIG=spatial_SIG, temporal_SIG=temporal_SIG)
+    make_noise(x_clean.shape, spatial_SIG, temporal_SIG)
