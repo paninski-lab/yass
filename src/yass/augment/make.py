@@ -227,7 +227,8 @@ def testing_data(CONFIG, spike_train, template_indexes,
                  min_amplitude, max_amplitude, path_to_data, n_per_template,
                  make_spatially_misaligned=True,
                  make_temporally_misaligned=True,
-                 make_collided=True):
+                 make_collided=True,
+                 make_zero_signal=True):
     """
     Make data for testing neural network detector, it creates several types
     of spikes (isolated, misaligned, collided) from templates with varying
@@ -288,6 +289,11 @@ def testing_data(CONFIG, spike_train, template_indexes,
                                         multi_channel=True)
         x_all.append(x_collided)
         keys.append('collided')
+
+    if make_zero_signal:
+        x_zero = np.zeros((n_spikes, waveform_length, n_neigh))
+        x_all.append(x_zero)
+        keys.append('zero')
 
     x_all = np.concatenate(x_all, axis=0)
 
