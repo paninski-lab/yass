@@ -223,14 +223,14 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
 # TODO: rename
 # FIXME: this should take templates already
-def testing_data(CONFIG, spike_train, template_indexes,
-                 min_amplitude, max_amplitude, path_to_data, n_per_template,
-                 make_spatially_misaligned=True,
-                 make_temporally_misaligned=True,
-                 make_collided=True,
-                 make_zero_signal=True):
+def spikes(templates, min_amplitude, max_amplitude, path_to_data,
+           n_per_template, geom,
+           make_spatially_misaligned=True,
+           make_temporally_misaligned=True,
+           make_collided=True,
+           make_zero_signal=True):
     """
-    Make data for testing neural network detector, it creates several types
+    Make spikes, it creates several types
     of spikes (isolated, misaligned, collided) from templates with varying
     amplitudes
 
@@ -250,11 +250,6 @@ def testing_data(CONFIG, spike_train, template_indexes,
     # and finally produce collided spikes
 
     # TODO: add multi_channel parameter and options for hardcoded parameter
-
-    templates, _ = preprocess(CONFIG, spike_train,
-                              path_to_data,
-                              template_indexes,
-                              crop_spatially=False)
 
     _, waveform_length, n_neigh = templates.shape
 
@@ -300,7 +295,7 @@ def testing_data(CONFIG, spike_train, template_indexes,
     # add noise
     spatial_SIG, temporal_SIG = noise_cov(path_to_data,
                                           neigh_channels,
-                                          CONFIG.geom,
+                                          geom,
                                           waveform_length)
 
     x_all_noisy = util.add_noise(x_all, spatial_SIG, temporal_SIG)

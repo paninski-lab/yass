@@ -4,7 +4,7 @@ Functions for evaluating models
 import pandas as pd
 import numpy as np
 
-from yass.augment.make import testing_data
+from yass.augment.make import spikes
 from yass.util import ensure_iterator
 
 
@@ -14,12 +14,15 @@ class TestSet:
 
     def __init__(self, amplitude_units_per_bin, *args, **kwargs):
         # make test dataset
-        (self.data, self.data_noisy,
-         self.amplitudes, self.slices) = testing_data(*args, **kwargs)
+        (self.data_clean, self.data_noisy,
+         self.amplitudes, self.slices) = spikes(*args, **kwargs)
 
         # convert to data frame
-        # self.df = to_data_frame(self.data_noisy, self.amplitudes, self.slices,
-        #                         amplitude_units_per_bin)
+        self.df_noisy = to_data_frame(self.data_noisy, self.amplitudes,
+                                      self.slices, amplitude_units_per_bin)
+
+        self.df_noisy = to_data_frame(self.data_clean, self.amplitudes,
+                                      self.slices, amplitude_units_per_bin)
 
     @property
     def kinds(self):
@@ -36,8 +39,12 @@ class TestSet:
         pass
 
     @ensure_iterator('kind')
-    def get_kind(self, kind):
-        return np.concatenate([self.data[self.slices[k]] for k in kind])
+    def get_kind_clean(self, kind):
+        return np.concatenate([self.data_clean[self.slices[k]] for k in kind])
+
+    @ensure_iterator('kind')
+    def get_kind_noisy(self, kind):
+        return np.concatenate([self.data_noisy[self.slices[k]] for k in kind])
 
     def compute_per_group(function):
         pass
