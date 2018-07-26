@@ -128,8 +128,7 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
                                           templates.shape[1])
 
     # make noise
-    noise = make_noise(x_clean, noise_ratio, templates, spatial_SIG,
-                       temporal_SIG)
+    noise = make_noise(x_clean, noise_ratio, spatial_SIG, temporal_SIG)
 
     # make labels
     y_clean_1 = np.ones((x_clean.shape[0]))

@@ -245,21 +245,20 @@ def make_temporally_misaligned(x_clean, n_per_spike, multi, max_shift='auto'):
     return x_temporally
 
 
-def make_noise(x_clean, noise_ratio, templates, spatial_SIG, temporal_SIG):
+def make_noise(x_clean, n_per_spike, spatial_SIG, temporal_SIG):
     """Make noise
     """
+    n_spikes, waveform_length, n_neigh = x_clean.shape
+    n_out = int(n_spikes * n_per_spike)
 
     # get noise
-    noise = np.random.normal(
-        size=[x_clean.shape[0]*int(noise_ratio), templates.shape[1],
-              templates.shape[2]])
+    noise = np.random.normal(size=(n_out, waveform_length, n_neigh))
 
-    for c in range(noise.shape[2]):
+    for c in range(n_neigh):
         noise[:, :, c] = np.matmul(noise[:, :, c], temporal_SIG)
-        reshaped_noise = np.reshape(noise, (-1, noise.shape[2]))
+        reshaped_noise = np.reshape(noise, (-1, n_neigh))
 
     the_noise = np.reshape(np.matmul(reshaped_noise, spatial_SIG),
-                           [noise.shape[0],
-                            x_clean.shape[1], x_clean.shape[2]])
+                           (n_out, waveform_length, n_neigh))
 
     return the_noise
