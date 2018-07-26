@@ -5,6 +5,7 @@ import logging
 
 from yass.templates.crop import crop_and_align_templates
 from yass.templates import preprocess
+from yass.templates import TemplatesProcessor
 from yass.augment.noise import noise_cov
 from yass.augment import util
 
@@ -87,14 +88,16 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     path_to_standarized = os.path.join(data_folder, 'preprocess',
                                        'standarized.bin')
 
-    # removed the hardcoded 4 * CONFIG.spike_size and 3 * CONFIG.spike_size
-    # from get_templates and crop_and_align_templatesp
-    templates, templates_uncropped = preprocess(CONFIG, 3 * CONFIG.spike_size,
-                                                spike_train,
-                                                path_to_standarized,
-                                                chosen_templates_indexes)
+    # load 4x templates
+    processor = TemplatesProcessor(CONFIG, 4 * CONFIG.spike_size,
+                                   spike_train, path_to_standarized)
 
-    _, _, n_neigh = templates.shape
+    processor.choose_with_indexes(chosen_templates_indexes, inplace=True)
+    # TODO: make this a parameter
+    processor.choose_with_minimum_amplitude(4, inplace=True)
+    processor.align(3 * CONFIG.spike_size, inplace=True)
+    templates_uncropped = processor.templates
+    templates = processor.crop_spatially(CONFIG.neigh_channels, CONFIG.geom)
 
     # TODO: remove, this data can be obtained from other variables
     K, _, n_channels = templates_uncropped.shape
