@@ -87,14 +87,14 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
     return x
 
 
-def make_collided(x, collision_ratio, multi_channel, amp_tolerance=0.2,
+def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
                   max_shift='auto'):
     """Make collided spikes
 
     Parameters
     ----------
     x
-    collision_ratio
+    n_per_spike
     multi_channel
     amp_tolerance: float, optional
         Maximum relative difference in amplitude between the collided spikes,
@@ -113,12 +113,12 @@ def make_collided(x, collision_ratio, multi_channel, amp_tolerance=0.2,
     if max_shift == 'auto':
         max_shift = int((wf_length - 1) / 2)
 
-    logger.debug('Making collided spikes with collision_ratio: %s max shift: '
+    logger.debug('Making collided spikes with n_per_spike: %s max shift: '
                  '%s, multi_channel: %s, amp_tolerance: %s, clean spikes with'
-                 ' shape: %s', collision_ratio, max_shift, multi_channel,
+                 ' shape: %s', n_per_spike, max_shift, multi_channel,
                  amp_tolerance, x.shape)
 
-    x_collision = np.zeros((n_clean*int(collision_ratio),
+    x_collision = np.zeros((n_clean*int(n_per_spike),
                             wf_length,
                             n_neighbors))
 
@@ -173,6 +173,7 @@ def make_collided(x, collision_ratio, multi_channel, amp_tolerance=0.2,
         return x_collision
 
 
+# TODO: remove this function and use separate functions instead
 def make_misaligned(x, max_shift, misalign_ratio, misalign_ratio2,
                     multi_channel):
     """Make temporally and spatially misaligned from spikes
@@ -182,7 +183,6 @@ def make_misaligned(x, max_shift, misalign_ratio, misalign_ratio2,
     multi_channel: bool
         Whether to return multi channel or single channel spikes
     """
-
     ################################
     # temporally misaligned spikes #
     ################################
@@ -220,7 +220,8 @@ def make_spatially_misaligned(x, n_per_spike):
     return x_spatially
 
 
-def make_temporally_misaligned(x, n_per_spike, multi, max_shift='auto'):
+def make_temporally_misaligned(x, n_per_spike, multi_channel,
+                               max_shift='auto'):
     """Make temporally shifted spikes from clean spikes
     """
     n_spikes, waveform_length, n_neigh = x.shape
@@ -243,7 +244,7 @@ def make_temporally_misaligned(x, n_per_spike, multi, max_shift='auto'):
 
     for j in range(n_out):
         shift = temporal_shifts[j]
-        if multi:
+        if multi_channel:
             x2 = np.copy(x[np.random.choice(
                 x.shape[0], 1, replace=True)][:, :, np.random.choice(
                     n_neigh, n_neigh, replace=False)])
