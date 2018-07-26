@@ -10,9 +10,6 @@ from yass.batch import BatchProcessor
 logger = logging.getLogger(__name__)
 
 
-# FIXME: verify that  functions defined here are still used
-
-
 # TODO: remove this function and use the explorer directly
 def get_templates(weighted_spike_train, path_to_recordings,
                   max_memory, spike_size, n_max=5000):
@@ -97,6 +94,103 @@ def compute_weighted_templates(recording, idx_local, idx, previous_batch,
 
     return weighted_templates, weights
 
+
+def main_channels(templates):
+    """Find main channel for every template
+    """
+    abs_templates = np.abs(templates)
+
+    # get the maximum along the waveform to get the highest point in every
+    # channel
+    max_along_time = np.amax(abs_templates, axis=1)
+
+    # return the index maximum  value along the channels - this is the main
+    # channel
+    return np.argmax(max_along_time, axis=1)
+
+
+def amplitudes(templates):
+    """Find amplitudes
+    """
+    return np.amax(np.abs(templates), axis=(1, 2))
+
+
+def on_main_channel(templates):
+    """Get templates on its main and neighboring channels
+    """
+    pass
+
+
+def align(big_templates, R):
+    """Align templates spatially
+    """
+    # TODO: add tests for this function, seems like the centering does not
+    # always work
+    logger = logging.getLogger(__name__)
+
+    # copy templates to avoid modifying the original ones
+    big_templates = np.copy(big_templates)
+
+    n_templates, _, _ = big_templates.shape
+
+    # main channels ad amplitudes for each template
+    main_ch = main_channels(big_templates)
+    amps = amplitudes(big_templates)
+
+    # get a template on a main channel and align them
+    K_big = np.argmax(amps)
+    templates_mainc = np.zeros((n_templates, big_templates.shape[1]))
+    t_rec = big_templates[K_big, :, main_ch[K_big]]
+    t_rec = t_rec/np.sqrt(np.sum(np.square(t_rec)))
+
+    for k in range(n_templates):
+        t1 = big_templates[k, :, main_ch[k]]
+        t1 = t1/np.sqrt(np.sum(np.square(t1)))
+        shift = compute_shift(t1, t_rec)
+
+        logger.debug('Template %i will be shifted by %i', k, shift)
+
+        if shift > 0:
+            templates_mainc[k, :(big_templates.shape[1]-shift)] = t1[shift:]
+            big_templates[k, :(big_templates.shape[1]-shift)
+                          ] = big_templates[k, shift:]
+
+        elif shift < 0:
+            templates_mainc[k, (-shift):] = t1[:(big_templates.shape[1]+shift)]
+            big_templates[k,
+                          (-shift):] = big_templates[k,
+                                                     :(big_templates.shape[1]
+                                                       + shift)]
+
+        else:
+            templates_mainc[k] = t1
+
+    # determin temporal center of templates and crop around it
+    R2 = int(R/2)
+    center = np.argmax(np.convolve(
+        np.sum(np.square(templates_mainc), 0), np.ones(2*R2+1), 'valid')) + R2
+
+    # crop templates
+    templates = big_templates[:, (center-R):(center+R+1)]
+
+    return templates
+
+
+def compute_shift(t1, t2):
+    """Align templates
+
+    Parameters
+    ----------
+
+    Returns
+    -------
+    """
+    temp = np.convolve(t1, np.flip(t2, 0), 'full')
+    shift = np.argmax(temp)
+    return shift - t1.shape[0] + 1
+
+
+# FIXME: verify that functions defined below are still used
 
 def random_sample_spike_train(spike_train, n_max):
 

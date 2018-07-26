@@ -3,15 +3,15 @@ import logging
 
 import numpy as np
 
-from yass.templates.util import get_templates
-from yass.templates.choose import choose_templates
-from yass.templates.crop import crop_and_align_templates, main_channels
-from yass.templates.crop import align as _align
+from yass.templates.util import get_templates, main_channels
+from yass.templates.util import align as _align
 from yass.geometry import order_channels_by_distance
 
 
 # TODO: remove config
 class TemplatesProcessor:
+    """Provides functions for manipulating templates
+    """
 
     def __init__(self, CONFIG, half_waveform_length, spike_train,
                  path_to_data):
