@@ -222,6 +222,7 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
 
 # TODO: rename
+# FIXME: this should take templates already
 def testing_data(CONFIG, spike_train, template_indexes,
                  min_amplitude, max_amplitude, path_to_data, n_per_template,
                  make_spatially_misaligned=True,

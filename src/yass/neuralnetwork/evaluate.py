@@ -26,6 +26,10 @@ class TestSet:
         return self.slices.keys()
 
     @property
+    def stats(self):
+        return {k: s.stop - s.start for k, s in self.slices.items()}
+
+    @property
     def counts(self):
         """Return counts per kinds
         """
@@ -33,7 +37,7 @@ class TestSet:
 
     @ensure_iterator('kind')
     def get_kind(self, kind):
-        return np.concatenate(self.data[self.slices[kind]])
+        return np.concatenate([self.data[self.slices[k]] for k in kind])
 
     def compute_per_group(function):
         pass
