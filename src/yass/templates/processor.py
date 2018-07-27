@@ -15,6 +15,7 @@ class TemplatesProcessor:
     def __init__(self, templates):
         self._update_templates(templates)
 
+    @classmethod
     def from_spike_train(cls, CONFIG, half_waveform_length, spike_train,
                          path_to_data):
 
