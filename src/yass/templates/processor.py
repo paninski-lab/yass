@@ -38,7 +38,7 @@ class TemplatesProcessor:
                                      CONFIG.resources.max_memory,
                                      half_waveform_length)
 
-        templates = np.transpose(self.templates, (2, 1, 0))
+        templates = np.transpose(templates, (2, 1, 0))
 
         self._update_templates(templates)
 
