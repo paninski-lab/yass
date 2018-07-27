@@ -58,7 +58,7 @@ class Dataset:
 
         data_clean = self.data_clean[slice_]
         data_noisy = self.data_noisy[slice_]
-        slices = [slice_]
+        slices = {kind: slice_}
 
         return Dataset(data_clean, data_noisy, slices,
                        self.amplitude_units_per_bin)
