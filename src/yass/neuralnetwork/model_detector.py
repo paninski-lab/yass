@@ -182,6 +182,7 @@ class NeuralNetDetector(Model):
         ######################
 
         # TODO: need to ask why we are sending different channel indexes
+        # instead of sending the complete channel_index which is larger
         # save neighbor channel index
         small_channel_index = channel_index[:, :n_neigh]
 

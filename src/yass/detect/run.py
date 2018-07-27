@@ -307,8 +307,10 @@ def run_neural_network(standarized_path, standarized_params,
                 rot=rotation,
                 neighbors=neighbors)
 
+        scores, clear, spikes_all = zip(*res)
+
         # get clear spikes
-        clear = np.concatenate([element[1] for element in res], axis=0)
+        clear = np.concatenate(clear, axis=0)
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
         clear, idx = detect.remove_incomplete_waveforms(
@@ -316,7 +318,7 @@ def run_neural_network(standarized_path, standarized_params,
             bp.reader._n_observations)
 
         # get all spikes
-        spikes_all = np.concatenate([element[2] for element in res], axis=0)
+        spikes_all = np.concatenate(spikes_all, axis=0)
         logger.info('Removing indexes outside the allowed range to '
                     'draw a complete waveform...')
         spikes_all, _ = detect.remove_incomplete_waveforms(
@@ -324,7 +326,7 @@ def run_neural_network(standarized_path, standarized_params,
             bp.reader._n_observations)
 
         # get scores
-        scores = np.concatenate([element[0] for element in res], axis=0)
+        scores = np.concatenate(scores, axis=0)
         logger.info(
             'Removing scores for indexes outside the allowed range to '
             'draw a complete waveform...')
