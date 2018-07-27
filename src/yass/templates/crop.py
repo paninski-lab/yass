@@ -68,8 +68,6 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
     logger.debug('6*R+1 %s', 6*R+1)
     big_templates = big_templates[:, (center-3*R):(center+3*R+1)]
 
-    logger.debug('crop and align output shape %s', big_templates.shape)
-
     if not crop_spatially:
 
         return big_templates
