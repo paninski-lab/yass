@@ -20,6 +20,11 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
     """
     logger = logging.getLogger(__name__)
 
+    from dstools.reproducibility import hash_array
+    logger.debug('hash %s', hash_array(big_templates))
+
+    logger.debug('crop and align input shape %s', big_templates.shape)
+
     # copy templates to avoid modifying the original ones
     big_templates = np.copy(big_templates)
 
@@ -63,7 +68,10 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
         np.sum(np.square(templates_mainc), 0), np.ones(2*R2+1), 'valid')) + R2
 
     # crop templates, now they are from 4*R to 3*R
+    logger.debug('6*R+1 %s', 6*R+1)
     big_templates = big_templates[:, (center-3*R):(center+3*R+1)]
+
+    logger.debug('crop and align output shape %s', big_templates.shape)
 
     if not crop_spatially:
 
