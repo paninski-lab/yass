@@ -232,27 +232,76 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     return x_detect, y_detect, x_triage, y_triage, x_ae, y_ae
 
 
-# TODO: rename
 def spikes(templates, min_amplitude, max_amplitude, path_to_data,
            n_per_template, geom,
+           make_from_templates=True,
            make_spatially_misaligned=True,
            make_temporally_misaligned=True,
            make_collided=True,
-           make_zero_signal=True):
+           make_noise=True):
     """
-    Make spikes, it creates several types
-    of spikes (isolated, misaligned, collided) from templates with varying
-    amplitudes
+    Make spikes, it creates several types of spikes from templates with a range
+    of amplitudes
 
     Parameters
     ----------
+    templates: numpy.ndarray, (n_templates, waveform_length, n_channels)
+        Templates used to generate the spikes
+
+    min_amplitude: float
+        Minimum amplitude for the spikes
+
+    max_amplitude: float
+        Maximum amplitude for the spikes
+
+    path_to_data: str
+        Path to the data used to generate the templates (used to estimate)
+        noise covariance
+
+    n_per_template: int
+        How many spikes to generate per template. This along with
+        min_amplitude and max_amplitude are used to generate spikes covering
+        the desired amplitude range
+
+    geom: numpy.ndarray
+        Geometry matrix
+
+    make_from_templates: bool
+        Whether to return spikes generated from the templates (these are
+        the same as the templates but with different amplitudes)
+
+    make_spatially_misaligned: bool
+        Whether to return spatially misaligned spikes (by shuffling channels)
+
+    make_temporally_misaligned: bool
+        Whether to return temporally misaligned spikes (by shifting along
+        the temporal axis)
+
+    make_collided: bool
+        Whether to return collided spikes
+
+    make_noise: bool
+        Whether to return pure noise
+
 
     Returns
     -------
-    x_noisy: numpy.ndarray, (n_spikes, waveform_length, n_channels)
-        Clean isolated spikes with noise added
-    noise: numpy, (n_spikes, waveform_length, n_channels)
-        Noise
+    x_all: numpy.ndarray, (n_templates * n_per_template, waveform_length,
+    n_channels)
+        All generated spikes
+
+    x_all_noisy: numpy.ndarray, (n_templates * n_per_template, waveform_length,
+    n_channels)
+        Noisy versions of all generated spikes
+
+    the_amplitudes: numpy.ndarray, (n_templates * n_per_template,)
+        Amplitudes for all generated spikes
+
+    slices: dictionary
+        Dictionary where the keys are the kind of spikes ('from templates',
+        'spatially misaligned', 'temporally misaligned', 'collided', noise')
+        and the values are slice objects with the location for each kind
+        of spike
     """
     # NOTE: is the order importante here, maybe it's better to first compute
     # from templates, then take those and misalign spatially
@@ -272,8 +321,11 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
 
     n_spikes, _, _ = x_templates.shape
 
-    x_all = [x_templates]
-    keys = ['from templates']
+    x_all, keys = [], []
+
+    if make_from_templates:
+        x_all.append(x_templates)
+        keys.append('from templates')
 
     if make_spatially_misaligned:
         x_spatially = util.make_spatially_misaligned(x_templates,
@@ -295,10 +347,10 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
         x_all.append(x_collided)
         keys.append('collided')
 
-    if make_zero_signal:
+    if make_noise:
         x_zero = np.zeros((n_spikes, waveform_length, n_neigh))
         x_all.append(x_zero)
-        keys.append('zero')
+        keys.append('noise')
 
     x_all = np.concatenate(x_all, axis=0)
 
