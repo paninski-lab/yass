@@ -63,7 +63,8 @@ class NeuralNetTriage(Model):
     def __init__(self, path_to_model, filters_size,
                  waveform_length, n_neighbors, threshold,
                  n_iter=50000, n_batch=512, l2_reg_scale=0.00000005,
-                 train_step_size=0.001, input_tensor=None):
+                 train_step_size=0.001, input_tensor=None,
+                 load_test_set=False):
 
         self.logger = logging.getLogger(__name__)
 
@@ -93,6 +94,9 @@ class NeuralNetTriage(Model):
                                           filters_size,
                                           waveform_length,
                                           n_neighbors)
+
+        if load_test_set:
+            self._load_test_set()
 
     @classmethod
     def load(cls, path_to_model, threshold, input_tensor=None):
@@ -200,7 +204,7 @@ class NeuralNetTriage(Model):
 
         return idx_clean
 
-    def fit(self, x_train, y_train, test_size=0.3):
+    def fit(self, x_train, y_train, test_size=0.3, save_test_set=False):
         """Trains the triage network
 
         Parameters
@@ -317,5 +321,8 @@ class NeuralNetTriage(Model):
 
         # save parameters to disk
         self._save_params(path=path_to_params, params=params)
+
+        if save_test_set:
+            self._save_test_set()
 
         return params

@@ -2,6 +2,7 @@ import logging
 
 from yass.util import dict2yaml, get_version
 from sklearn import metrics
+import numpy as np
 
 
 class Model:
@@ -48,3 +49,27 @@ class Model:
                     .format(**m))
 
         return m
+
+    def _save_test_set(self):
+        no_ext = self.path_to_model.replace('ckpt', '')
+        path_to_x_test = '{}-x-test.npy'.format(no_ext)
+        path_to_y_test = '{}-y-test.npy'.format(no_ext)
+
+        logger = logging.getLogger(__name__)
+        logger.info('Saving x_test at %s', path_to_x_test)
+        logger.info('Saving y_test at %s', path_to_y_test)
+
+        np.save(path_to_x_test, self.x_test)
+        np.save(path_to_y_test, self.y_test)
+
+    def _load_test_set(self):
+        no_ext = self.path_to_model.replace('ckpt', '')
+        path_to_x_test = '{}-x-test.npy'.format(no_ext)
+        path_to_y_test = '{}-y-test.npy'.format(no_ext)
+
+        logger = logging.getLogger(__name__)
+        logger.info('Loading x_test at %s', path_to_x_test)
+        logger.info('Loading y_test at %s', path_to_y_test)
+
+        self.x_test = np.load(path_to_x_test)
+        self.y_test = np.load(path_to_y_test)
