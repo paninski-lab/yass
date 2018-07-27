@@ -8,8 +8,8 @@ from yass.augment.make import spikes
 from yass.util import ensure_iterator
 
 
-class TestSet:
-    """Test set object
+class Dataset:
+    """Class for generating spikes
     """
 
     def __init__(self, amplitude_units_per_bin, *args, **kwargs):
