@@ -121,7 +121,7 @@ def on_main_channel(templates):
     pass
 
 
-def align(big_templates, R):
+def align(templates, R):
     """Align templates spatially
     """
     # TODO: add tests for this function, seems like the centering does not
@@ -129,38 +129,38 @@ def align(big_templates, R):
     logger = logging.getLogger(__name__)
 
     # copy templates to avoid modifying the original ones
-    big_templates = np.copy(big_templates)
+    templates = np.copy(templates)
 
-    n_templates, _, _ = big_templates.shape
+    n_templates, _, _ = templates.shape
 
     # main channels ad amplitudes for each template
-    main_ch = main_channels(big_templates)
-    amps = amplitudes(big_templates)
+    main_ch = main_channels(templates)
+    amps = amplitudes(templates)
 
     # get a template on a main channel and align them
     K_big = np.argmax(amps)
-    templates_mainc = np.zeros((n_templates, big_templates.shape[1]))
-    t_rec = big_templates[K_big, :, main_ch[K_big]]
+    templates_mainc = np.zeros((n_templates, templates.shape[1]))
+    t_rec = templates[K_big, :, main_ch[K_big]]
     t_rec = t_rec/np.sqrt(np.sum(np.square(t_rec)))
 
     for k in range(n_templates):
-        t1 = big_templates[k, :, main_ch[k]]
+        t1 = templates[k, :, main_ch[k]]
         t1 = t1/np.sqrt(np.sum(np.square(t1)))
         shift = compute_shift(t1, t_rec)
 
         logger.debug('Template %i will be shifted by %i', k, shift)
 
         if shift > 0:
-            templates_mainc[k, :(big_templates.shape[1]-shift)] = t1[shift:]
-            big_templates[k, :(big_templates.shape[1]-shift)
-                          ] = big_templates[k, shift:]
+            templates_mainc[k, :(templates.shape[1]-shift)] = t1[shift:]
+            templates[k, :(templates.shape[1]-shift)
+                      ] = templates[k, shift:]
 
         elif shift < 0:
-            templates_mainc[k, (-shift):] = t1[:(big_templates.shape[1]+shift)]
-            big_templates[k,
-                          (-shift):] = big_templates[k,
-                                                     :(big_templates.shape[1]
-                                                       + shift)]
+            templates_mainc[k, (-shift):] = t1[:(templates.shape[1]+shift)]
+            templates[k,
+                      (-shift):] = templates[k,
+                                             :(templates.shape[1]
+                                               + shift)]
 
         else:
             templates_mainc[k] = t1
@@ -170,10 +170,7 @@ def align(big_templates, R):
     center = np.argmax(np.convolve(
         np.sum(np.square(templates_mainc), 0), np.ones(2*R2+1), 'valid')) + R2
 
-    # crop templates
-    templates = big_templates[:, (center-3 * R):(center+3 * R+1)]
-
-    return templates
+    return templates[:, (center-3 * R):(center+3 * R+1)]
 
 
 def compute_shift(t1, t2):

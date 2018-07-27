@@ -1,5 +1,4 @@
 import os
-import logging
 
 import numpy as np
 
@@ -13,9 +12,11 @@ class TemplatesProcessor:
     """Provides functions for manipulating templates
     """
 
-    def __init__(self, CONFIG, half_waveform_length, spike_train,
-                 path_to_data):
-        logger = logging.getLogger(__name__)
+    def __init__(self, templates):
+        self._update_templates(templates)
+
+    def from_spike_train(cls, CONFIG, half_waveform_length, spike_train,
+                         path_to_data):
 
         # make sure standarized data already exists
         if not os.path.exists(path_to_data):
@@ -25,8 +26,6 @@ class TemplatesProcessor:
                              .format(path_to_data))
 
         n_spikes, _ = spike_train.shape
-
-        logger.info('Getting templates...')
 
         # add weight of one to every spike
         weighted_spike_train = np.hstack((spike_train,
@@ -40,9 +39,7 @@ class TemplatesProcessor:
 
         templates = np.transpose(templates, (2, 1, 0))
 
-        self._update_templates(templates)
-
-        logger.debug('templates  shape: {}'.format(self.templates.shape))
+        return cls(templates)
 
     def _update_templates(self, templates):
         self.templates = templates
@@ -75,7 +72,7 @@ class TemplatesProcessor:
         if inplace:
             self._update_templates(chosen_templates)
         else:
-            return chosen_templates
+            return TemplatesProcessor(chosen_templates)
 
     def choose_with_minimum_amplitude(self, minimum_amplitude, inplace=False):
         chosen_templates = self.templates[self.amplitudes > minimum_amplitude]
@@ -83,7 +80,7 @@ class TemplatesProcessor:
         if inplace:
             self._update_templates(chosen_templates)
         else:
-            return chosen_templates
+            return TemplatesProcessor(chosen_templates)
 
     def crop_temporally(self, half_waveform_length, inplace=False):
 
@@ -99,7 +96,7 @@ class TemplatesProcessor:
         if inplace:
             self._update_templates(new_templates)
         else:
-            return new_templates
+            return TemplatesProcessor(new_templates)
 
     def align(self, half_waveform_length, inplace=False):
         self._check_half_waveform_length(half_waveform_length)
@@ -108,7 +105,7 @@ class TemplatesProcessor:
         if inplace:
             self._update_templates(new_templates)
         else:
-            return new_templates
+            return TemplatesProcessor(new_templates)
 
     def crop_spatially(self, neighbors, geometry, inplace=False):
         n_templates, waveform_length, _ = self.templates.shape
@@ -135,4 +132,8 @@ class TemplatesProcessor:
         if inplace:
             self._update_templates(new_templates)
         else:
-            return new_templates
+            return TemplatesProcessor(new_templates)
+
+    @property
+    def values(self):
+        return self.templates

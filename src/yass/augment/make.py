@@ -88,8 +88,10 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
                                        'standarized.bin')
 
     # load 4x templates
-    processor = TemplatesProcessor(CONFIG, 4 * CONFIG.spike_size,
-                                   spike_train, path_to_standarized)
+    processor = TemplatesProcessor.from_spike_train(CONFIG,
+                                                    4 * CONFIG.spike_size,
+                                                    spike_train,
+                                                    path_to_standarized)
 
     processor.choose_with_indexes(chosen_templates_indexes, inplace=True)
     # TODO: make this a parameter
@@ -230,7 +232,6 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
 
 # TODO: rename
-# FIXME: this should take templates already
 def spikes(templates, min_amplitude, max_amplitude, path_to_data,
            n_per_template, geom,
            make_spatially_misaligned=True,
