@@ -22,6 +22,7 @@ class Dataset:
         self.data_noisy = data_noisy
         self.amplitudes = compute_amplitudes(data_clean)
         self.slices = slices
+        self.amplitude_units_per_bin = amplitude_units_per_bin
 
         # convert to data frame
         self.df_noisy = to_data_frame(self.data_noisy, self.amplitudes,
