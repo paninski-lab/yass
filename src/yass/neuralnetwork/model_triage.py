@@ -99,7 +99,8 @@ class NeuralNetTriage(Model):
             self._load_test_set()
 
     @classmethod
-    def load(cls, path_to_model, threshold, input_tensor=None):
+    def load(cls, path_to_model, threshold, input_tensor=None,
+             load_test_set=False):
         """Load a model from a file
         """
         if not path_to_model.endswith('.ckpt'):
@@ -112,7 +113,7 @@ class NeuralNetTriage(Model):
         return cls(path_to_model, params['filters_size'],
                    params['waveform_length'],
                    params['n_neighbors'], threshold,
-                   input_tensor=input_tensor)
+                   input_tensor=input_tensor, load_test_set=False)
 
     @classmethod
     def _make_network(cls, input_tensor, filters_size, waveform_length,

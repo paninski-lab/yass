@@ -51,7 +51,7 @@ class Model:
         return m
 
     def _save_test_set(self):
-        no_ext = self.path_to_model.replace('ckpt', '')
+        no_ext = self.path_to_model.replace('.ckpt', '')
         path_to_x_test = '{}-x-test.npy'.format(no_ext)
         path_to_y_test = '{}-y-test.npy'.format(no_ext)
 
@@ -63,7 +63,7 @@ class Model:
         np.save(path_to_y_test, self.y_test)
 
     def _load_test_set(self):
-        no_ext = self.path_to_model.replace('ckpt', '')
+        no_ext = self.path_to_model.replace('.ckpt', '')
         path_to_x_test = '{}-x-test.npy'.format(no_ext)
         path_to_y_test = '{}-y-test.npy'.format(no_ext)
 
