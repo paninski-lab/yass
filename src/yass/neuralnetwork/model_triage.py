@@ -110,10 +110,12 @@ class NeuralNetTriage(Model):
         path_to_params = change_extension(path_to_model, 'yaml')
         params = load_yaml(path_to_params)
 
-        return cls(path_to_model, params['filters_size'],
-                   params['waveform_length'],
-                   params['n_neighbors'], threshold,
-                   input_tensor=input_tensor, load_test_set=False)
+        return cls(path_to_model=path_to_model,
+                   filters_size=params['filters_size'],
+                   waveform_length=params['waveform_length'],
+                   n_neighbors=params['n_neighbors'],
+                   threshold=threshold,
+                   input_tensor=input_tensor, load_test_set=load_test_set)
 
     @classmethod
     def _make_network(cls, input_tensor, filters_size, waveform_length,
