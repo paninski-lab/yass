@@ -171,7 +171,7 @@ def align(big_templates, R):
         np.sum(np.square(templates_mainc), 0), np.ones(2*R2+1), 'valid')) + R2
 
     # crop templates
-    templates = big_templates[:, (center-R):(center+R+1)]
+    templates = big_templates[:, (center-3 * R):(center+3 * R+1)]
 
     return templates
 

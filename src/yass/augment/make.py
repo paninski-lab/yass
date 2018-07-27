@@ -94,8 +94,11 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     processor.choose_with_indexes(chosen_templates_indexes, inplace=True)
     # TODO: make this a parameter
     processor.choose_with_minimum_amplitude(4, inplace=True)
-    processor.align(3 * CONFIG.spike_size, inplace=True)
+
     templates_uncropped = processor.templates
+
+    # TODO: fix the 3 * spike_size
+    processor.align(CONFIG.spike_size, inplace=True)
     templates = processor.crop_spatially(CONFIG.neigh_channels, CONFIG.geom)
 
     # TODO: remove, this data can be obtained from other variables
