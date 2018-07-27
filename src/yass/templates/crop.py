@@ -20,9 +20,6 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
     """
     logger = logging.getLogger(__name__)
 
-    from dstools.reproducibility import hash_array
-    logger.debug('hash %s', hash_array(big_templates))
-
     logger.debug('crop and align input shape %s', big_templates.shape)
 
     # copy templates to avoid modifying the original ones
