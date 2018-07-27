@@ -60,6 +60,9 @@ class Dataset:
         data_noisy = self.data_noisy[slice_]
         slices = {kind: slice_}
 
+        # TODO: create another constructor that only takes the indices
+        # to create the new Dataset, to avoid redoing computations
+        # and to keep new columnds added to the dfs
         return Dataset(data_clean, data_noisy, slices,
                        self.amplitude_units_per_bin)
 
