@@ -101,7 +101,8 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
 
     # TODO: fix the 3 * spike_size
     processor.align(CONFIG.spike_size, inplace=True)
-    templates = processor.crop_spatially(CONFIG.neigh_channels, CONFIG.geom)
+    templates = (processor.crop_spatially(CONFIG.neigh_channels, CONFIG.geom)
+                 .values)
 
     # TODO: remove, this data can be obtained from other variables
     K, _, n_channels = templates_uncropped.shape
