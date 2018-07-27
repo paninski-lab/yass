@@ -33,12 +33,14 @@ class TemplatesProcessor:
                                           np.ones((n_spikes, 1), 'int32')))
 
         # get templates
-        self.templates, _ = get_templates(weighted_spike_train,
-                                          path_to_data,
-                                          CONFIG.resources.max_memory,
-                                          half_waveform_length)
+        templates, _ = get_templates(weighted_spike_train,
+                                     path_to_data,
+                                     CONFIG.resources.max_memory,
+                                     half_waveform_length)
 
-        self.templates = np.transpose(self.templates, (2, 1, 0))
+        templates = np.transpose(self.templates, (2, 1, 0))
+
+        self._update_templates(templates)
 
         logger.debug('templates  shape: {}'.format(self.templates.shape))
 
