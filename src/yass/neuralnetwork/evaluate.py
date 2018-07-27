@@ -6,16 +6,22 @@ import numpy as np
 
 from yass.augment.make import spikes
 from yass.util import ensure_iterator
+from yass.templates.util import amplitudes as compute_amplitudes
 
 
 class Dataset:
-    """Class for generating spikes
+    """
+    Class for manipulating spikes, it also provides a function
+    to make a dataset with simulated data
     """
 
-    def __init__(self, amplitude_units_per_bin, *args, **kwargs):
+    def __init__(self, data_clean, data_noisy, slices,
+                 amplitude_units_per_bin):
         # make test dataset
-        (self.data_clean, self.data_noisy,
-         self.amplitudes, self.slices) = spikes(*args, **kwargs)
+        self.data_clean = data_clean
+        self.data_noisy = data_noisy
+        self.amplitudes = compute_amplitudes(data_clean)
+        self.slices = slices
 
         # convert to data frame
         self.df_noisy = to_data_frame(self.data_noisy, self.amplitudes,
@@ -23,6 +29,14 @@ class Dataset:
 
         self.df_clean = to_data_frame(self.data_clean, self.amplitudes,
                                       self.slices, amplitude_units_per_bin)
+
+    @classmethod
+    def make(cls, amplitude_units_per_bin, *args, **kwargs):
+        # make test dataset
+        (data_clean, data_noisy,
+         amplitudes, slices) = spikes(*args, **kwargs)
+
+        return cls(data_clean, data_noisy, slices, amplitude_units_per_bin)
 
     @property
     def kinds(self):
@@ -38,13 +52,22 @@ class Dataset:
         """
         pass
 
-    @ensure_iterator('kind')
-    def get_kind_clean(self, kind):
-        return np.concatenate([self.data_clean[self.slices[k]] for k in kind])
+    def _make_from_kind(self, kind):
+        slice_ = self.slices[kind]
+
+        data_clean = self.data_clean[slice_]
+        data_noisy = self.data_noisy[slice_]
+        slices = [slice_]
+
+        return Dataset(data_clean, data_noisy, slices,
+                       self.amplitude_units_per_bin)
 
     @ensure_iterator('kind')
-    def get_kind_noisy(self, kind):
-        return np.concatenate([self.data_noisy[self.slices[k]] for k in kind])
+    def get_kind(self, kind):
+        if len(kind) == 1:
+            return self._make_from_kind(kind[0])
+        else:
+            return [self._make_from_kind[k] for k in kind]
 
     def compute_per_group(function):
         pass
