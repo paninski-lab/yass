@@ -239,7 +239,8 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
            make_spatially_misaligned=True,
            make_temporally_misaligned=True,
            make_collided=True,
-           make_noise=True):
+           make_noise=True,
+           return_metadata=True):
     """
     Make spikes, it creates several types of spikes from templates with a range
     of amplitudes
@@ -283,6 +284,9 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
 
     make_noise: bool
         Whether to return pure noise
+
+    return_metadata: bool, optional
+        Return metadata in the generated spikes
 
 
     Returns
@@ -344,7 +348,8 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
     if make_collided:
         # TODO: refactor this as it has redundant logic with misaligned
         x_collided = util.make_collided(x_templates, n_per_spike=1,
-                                        multi_channel=True)
+                                        multi_channel=True,
+                                        return_metadata=return_metadata)
         x_all.append(x_collided)
         keys.append('collided')
 
