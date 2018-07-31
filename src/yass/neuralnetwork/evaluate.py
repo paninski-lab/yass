@@ -119,3 +119,38 @@ def split(x, y, train_proportion=0.7):
     test_idx[~train_idx] = False
 
     return x[train_idx], y[train_idx], x[test_idx], y[test_idx]
+
+
+def _process_group(group_id, group, predict_function, metric_fn):
+    """Process a group in a grouped dataframe
+    """
+    # TODO: remove try-except when old module is removed
+
+    # get waveforms
+    wfs = np.stack(group.waveform.values, axis=0)
+
+    # make predictions
+    try:
+        # old module
+        preds = predict_function(wfs)
+    except Exception:
+        # keras
+        preds = np.squeeze(predict_function(wfs[:, :, :, np.newaxis]))
+
+    # compute metric
+    metric = metric_fn(preds, group)
+
+    return group_id, metric
+
+
+def compute_per_group(df, column, predict_function, metric_fn):
+    """Compute a metric over groups in a dataframe
+    """
+    # group and compute proportion of correct predictions
+    vals = [_process_group(group_id, group, predict_function, metric_fn)
+            for group_id, group
+            in df.groupby(column)]
+
+    group_ids, metric = list(zip(*vals))
+
+    return group_ids, metric
