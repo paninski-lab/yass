@@ -161,7 +161,7 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
 
         # if on debug mode, add the spikes and shift to the lists
         if return_metadata:
-            spikes_first.append(x_first[j])
+            spikes_first.append(np.copy(x_first[j]))
             spikes_second.append(x_second)
             shifts.append(shift)
 
