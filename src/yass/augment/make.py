@@ -307,6 +307,10 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
         'spatially misaligned', 'temporally misaligned', 'collided', noise')
         and the values are slice objects with the location for each kind
         of spike
+
+    spatial_SIG
+
+    temporal_SIG
     """
     # NOTE: is the order importante here, maybe it's better to first compute
     # from templates, then take those and misalign spatially
@@ -375,4 +379,5 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
     slices = {k: slice(n_spikes * i, n_spikes * (i + 1)) for k, i
               in zip(keys, range(len(x_all)))}
 
-    return x_all, x_all_noisy, the_amplitudes, slices
+    return (x_all, x_all_noisy, the_amplitudes, slices, spatial_SIG,
+            temporal_SIG)

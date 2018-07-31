@@ -16,13 +16,16 @@ class Dataset:
     """
 
     def __init__(self, data_clean, data_noisy, slices,
-                 amplitude_units_per_bin):
+                 amplitude_units_per_bin,
+                 spatial_sig=None, temporal_sig=None):
         # make test dataset
         self.data_clean = data_clean
         self.data_noisy = data_noisy
         self.amplitudes = compute_amplitudes(data_clean)
         self.slices = slices
         self.amplitude_units_per_bin = amplitude_units_per_bin
+        self.spatial_sig = spatial_sig
+        self.temporal_sig = temporal_sig
 
         # convert to data frame
         self.df_noisy = to_data_frame(self.data_noisy, self.amplitudes,
@@ -35,7 +38,9 @@ class Dataset:
     def make(cls, amplitude_units_per_bin, *args, **kwargs):
         # make test dataset
         (data_clean, data_noisy,
-         amplitudes, slices) = spikes(*args, **kwargs)
+         amplitudes, slices,
+         spatial_sig,
+         temporal_sig) = spikes(*args, **kwargs)
 
         return cls(data_clean, data_noisy, slices, amplitude_units_per_bin)
 
