@@ -42,7 +42,8 @@ class Dataset:
          spatial_sig,
          temporal_sig) = spikes(*args, **kwargs)
 
-        return cls(data_clean, data_noisy, slices, amplitude_units_per_bin)
+        return cls(data_clean, data_noisy, slices, amplitude_units_per_bin,
+                   spatial_sig, temporal_sig)
 
     @property
     def kinds(self):
