@@ -150,8 +150,11 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
         scale_factor = np.linspace(lower, upper, num=50)[random.randint(0, 49)]
         x_second, i = sample_from_zero_axis(x)
         x_second = scale_factor * x_second / amps[i]
+
         # FIXME: remove this
         x_second = x_second[0, :, :]
+
+        x_second = shift_waveform(x_second, shift)
 
         # if multi_channel, shuffle neighbors
         if multi_channel:
@@ -166,12 +169,7 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
             shifts.append(shift)
 
         # add the two spikes
-        if shift > 0:
-            x_first[j, :(wf_length-shift)] += x_second[shift:]
-        elif shift < 0:
-            x_first[j, (-shift):] += x_second[:(wf_length+shift)]
-        else:
-            x_first[j] += x_second
+        x_first[j] += x_second
 
     if return_metadata:
         spikes_first = np.stack(spikes_first)
@@ -181,6 +179,21 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
         return ArrayWithMetadata(x_first, metadata)
     else:
         return x_first
+
+
+def shift_waveform(x, shift):
+
+    wf_length, _, = x.shape
+    zeros = np.zeros(x.shape)
+
+    if shift > 0:
+        zeros[:(wf_length-shift)] += x[shift:]
+        return zeros
+    elif shift < 0:
+        zeros[(-shift):] += x[:(wf_length+shift)]
+        return zeros
+    else:
+        return x
 
 
 # TODO: remove this function and use separate functions instead
