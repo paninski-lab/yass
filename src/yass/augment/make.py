@@ -12,7 +12,7 @@ from yass.augment import util
 def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
                   max_amp, n_isolated_spikes, data_folder, noise_ratio=10,
                   collision_ratio=1, misalign_ratio=1, misalign_ratio2=1,
-                  multi_channel=True):
+                  multi_channel=True, return_metadata=False):
     """Makes training sets for detector, triage and autoencoder
 
     Parameters
@@ -122,7 +122,8 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     # make collided spikes - max shift is set to R since 2 * R + 1 will be
     # the final dimension for the spikes
     x_collision = util.make_collided(x_templates, collision_ratio,
-                                     multi_channel, max_shift=R)
+                                     multi_channel, max_shift=R,
+                                     return_metadata=return_metadata)
 
     # make misaligned spikes
     (x_temporally_misaligned,
