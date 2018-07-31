@@ -59,7 +59,7 @@ class Dataset:
         """
         pass
 
-    def _make_from_kind(self, kind):
+    def _make_from_kind(self, kind, amplitude_units_per_bin):
         slice_ = self.slices[kind]
 
         data_clean = self.data_clean[slice_]
@@ -70,17 +70,15 @@ class Dataset:
         # to create the new Dataset, to avoid redoing computations
         # and to keep new columnds added to the dfs
         return Dataset(data_clean, data_noisy, slices,
-                       self.amplitude_units_per_bin)
+                       amplitude_units_per_bin if amplitude_units_per_bin
+                       is not None else self.amplitude_units_per_bin)
 
     @ensure_iterator('kind')
-    def get_kind(self, kind):
+    def get_kind(self, kind, amplitude_units_per_bin=None):
         if len(kind) == 1:
-            return self._make_from_kind(kind[0])
+            return self._make_from_kind(kind[0], amplitude_units_per_bin)
         else:
-            return [self._make_from_kind[k] for k in kind]
-
-    def compute_per_group(function):
-        pass
+            return [self._make_from_kind(k) for k in kind]
 
 
 def to_data_frame(array, amplitudes, slices, amplitude_units_per_bin=10):
