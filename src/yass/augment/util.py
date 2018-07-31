@@ -3,7 +3,6 @@
 import random
 import numpy as np
 import logging
-from yass import _get_debug_mode
 
 
 logger = logging.getLogger(__name__)
@@ -88,7 +87,7 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
 
 
 def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
-                  max_shift='auto'):
+                  max_shift='auto', return_metadata=False):
     """Make collided spikes
 
     Parameters
@@ -102,6 +101,8 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
     max_shift: int or string, optional
         Maximum amount of shift for the collided spike. If 'auto', it sets
         to half the waveform length in x
+    return_metadata: bool, optional
+        Return data used to generate the collisions
     """
     # NOTE: i think this is generated collided spikes where one of them
     # is always centered, this may not be the desired behavior sometimes
@@ -120,59 +121,66 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
                  ' shape: %s', n_per_spike, max_shift, multi_channel,
                  amp_tolerance, x.shape)
 
-    x_collision = np.zeros((n_clean*int(n_per_spike),
-                            wf_length,
-                            n_neighbors))
+    x_first = np.zeros((n_clean*int(n_per_spike),
+                        wf_length,
+                        n_neighbors))
 
-    if _get_debug_mode():
-        logger.info('Running in debug mode...')
-        x_to_collide_all = np.zeros(x_collision.shape)
-
-    n_collided, _, _ = x_collision.shape
+    n_collided, _, _ = x_first.shape
 
     amps = amplitudes(x)
+
+    spikes_first = []
+    spikes_second = []
+    shifts = []
 
     for j in range(n_collided):
 
         # random shifting
         shift = random.randint(-max_shift, max_shift)
 
-        # sample a clean spike
-        x_collision[j], i = sample_from_zero_axis(x)
+        # sample a clean spike - first spike
+        x_first[j], i = sample_from_zero_axis(x)
 
         # get amplitude for sampled x and compute bounds
         amp = amps[i]
         lower = amp * (1.0 - amp_tolerance)
         upper = amp * (1.0 + amp_tolerance)
 
-        # draw another clean spike
+        # draw another clean spike and scale it to be within bounds
         scale_factor = np.linspace(lower, upper, num=50)[random.randint(0, 49)]
-        x_to_collide, i = sample_from_zero_axis(x)
-        x_to_collide = scale_factor * x_to_collide / amps[i]
+        x_second, i = sample_from_zero_axis(x)
+        x_second = scale_factor * x_second / amps[i]
         # FIXME: remove this
-        x_to_collide = x_to_collide[0, :, :]
+        x_second = x_second[0, :, :]
 
+        # if multi_channel, shuffle neighbors
         if multi_channel:
             shuffled_neighs = np.random.choice(n_neighbors, n_neighbors,
                                                replace=False)
-            x_to_collide = x_to_collide[:, shuffled_neighs]
+            x_second = x_second[:, shuffled_neighs]
 
-        if _get_debug_mode():
-            to_add = x_to_collide_all
-        else:
-            to_add = x_collision
+        # if on debug mode, add the spikes and shift to the lists
+        if return_metadata:
+            spikes_first.append(x_first[j])
+            spikes_second.append(x_second)
+            shifts.append(shift)
 
+        # add the two spikes
         if shift > 0:
-            to_add[j, :(wf_length-shift)] += x_to_collide[shift:]
+            x_first[j, :(wf_length-shift)] += x_second[shift:]
         elif shift < 0:
-            to_add[j, (-shift):] += x_to_collide[:(wf_length+shift)]
+            x_first[j, (-shift):] += x_second[:(wf_length+shift)]
         else:
-            to_add[j] += x_to_collide
+            x_first[j] += x_second
 
-    if _get_debug_mode():
-        return x_collision, x_to_collide_all
+    if return_metadata:
+        spikes_first = np.stack(spikes_first)
+        spikes_second = np.stack(spikes_second)
+        metadata = dict(first=spikes_first, second=spikes_second,
+                        shift=shifts)
+        return ArrayWithMetadata(x_first, metadata)
     else:
-        return x_collision
+        return x_first
 
 
 # TODO: remove this function and use separate functions instead
@@ -296,3 +304,22 @@ def add_noise(x, spatial_SIG, temporal_SIG):
     """
     noise = make_noise(x.shape, spatial_SIG, temporal_SIG)
     return x + noise
+
+
+class ArrayWithMetadata:
+    """Wrapper to store metadata in numpy.ndarray, see the metadata attribute
+    """
+
+    def __init__(self, array, metadata):
+        self.array = array
+        self._metadata = metadata
+
+    @property
+    def metadata(self):
+        return self._metadata
+
+    def __getattr__(self, name):
+        return getattr(self.array, name)
+
+    def __getitem__(self, key):
+        return self.array[key]

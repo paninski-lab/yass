@@ -35,10 +35,6 @@ __version__ = '0.10dev'
 
 CONFIG = None
 
-# when set to true, this changes the behavior of some functions, only intended
-# for devs use
-DEBUG_MODE = False
-
 
 # reduce tensorflow logger verbosity, ignore DEBUG and INFO
 tf.logging.set_verbosity(tf.logging.WARN)
@@ -108,12 +104,3 @@ def set_tensorflow_config(config):
     # sessions (that's how tensorflow works for now)
     sess = tf.Session(config=config)
     sess.close()
-
-
-def _enable_debug_mode(state=True):
-    global DEBUG_MODE
-    DEBUG_MODE = state
-
-
-def _get_debug_mode():
-    return DEBUG_MODE
