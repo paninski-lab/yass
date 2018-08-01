@@ -7,6 +7,7 @@ import numpy as np
 from yass.augment.make import spikes
 from yass.util import ensure_iterator
 from yass.templates.util import amplitudes as compute_amplitudes
+from yass.templates.util import ptps as compute_ptps
 
 
 class Dataset:
@@ -16,34 +17,39 @@ class Dataset:
     """
 
     def __init__(self, data_clean, data_noisy, slices,
-                 amplitude_units_per_bin,
+                 units_per_bin,
                  spatial_sig=None, temporal_sig=None):
         # make test dataset
         self.data_clean = data_clean
         self.data_noisy = data_noisy
+
         # maybe compute them separately
         self.amplitudes = compute_amplitudes(data_noisy)
+        self.ptps = compute_ptps(data_noisy)
+
         self.slices = slices
-        self.amplitude_units_per_bin = amplitude_units_per_bin
+        self.units_per_bin = units_per_bin
         self.spatial_sig = spatial_sig
         self.temporal_sig = temporal_sig
 
         # convert to data frame
         self.df_noisy = to_data_frame(self.data_noisy, self.amplitudes,
-                                      self.slices, amplitude_units_per_bin)
+                                      self.ptps, self.slices,
+                                      units_per_bin)
 
         self.df_clean = to_data_frame(self.data_clean, self.amplitudes,
-                                      self.slices, amplitude_units_per_bin)
+                                      self.ptps, self.slices,
+                                      units_per_bin)
 
     @classmethod
-    def make(cls, amplitude_units_per_bin, *args, **kwargs):
+    def make(cls, units_per_bin, *args, **kwargs):
         # make test dataset
         (data_clean, data_noisy,
          amplitudes, slices,
          spatial_sig,
          temporal_sig) = spikes(*args, **kwargs)
 
-        return cls(data_clean, data_noisy, slices, amplitude_units_per_bin,
+        return cls(data_clean, data_noisy, slices, units_per_bin,
                    spatial_sig, temporal_sig)
 
     @property
@@ -60,7 +66,7 @@ class Dataset:
         """
         pass
 
-    def _make_from_kind(self, kind, amplitude_units_per_bin):
+    def _make_from_kind(self, kind, units_per_bin):
         slice_ = self.slices[kind]
 
         data_clean = self.data_clean[slice_]
@@ -71,37 +77,41 @@ class Dataset:
         # to create the new Dataset, to avoid redoing computations
         # and to keep new columnds added to the dfs
         return Dataset(data_clean, data_noisy, slices,
-                       amplitude_units_per_bin if amplitude_units_per_bin
-                       is not None else self.amplitude_units_per_bin)
+                       units_per_bin if units_per_bin
+                       is not None else self.units_per_bin)
 
     @ensure_iterator('kind')
-    def get_kind(self, kind, amplitude_units_per_bin=None):
+    def get_kind(self, kind, units_per_bin=None):
         if len(kind) == 1:
-            return self._make_from_kind(kind[0], amplitude_units_per_bin)
+            return self._make_from_kind(kind[0], units_per_bin)
         else:
             return [self._make_from_kind(k) for k in kind]
 
 
-def to_data_frame(array, amplitudes, slices, amplitude_units_per_bin=10):
+def to_data_frame(array, amplitudes, ptps, slices,
+                  units_per_bin=10):
     wfs = [a for a in array]
 
     kinds = [[kind] * (slice_.stop - slice_.start) for
              kind, slice_ in slices.items()]
     kinds = [item for sublist in kinds for item in sublist]
 
-    data = {'waveform': wfs, 'amplitude': amplitudes, 'kind': kinds}
+    data = {'waveform': wfs, 'amplitude': amplitudes, 'kind': kinds,
+            'ptp': ptps}
 
-    if amplitude_units_per_bin is not None:
-        amplitude_groups = discretize(amplitudes, amplitude_units_per_bin)
+    if units_per_bin is not None:
+        amplitude_groups = discretize(amplitudes, units_per_bin)
+        ptp_groups = discretize(ptps, units_per_bin)
         data['amplitude_group'] = amplitude_groups
+        data['ptp_group'] = ptp_groups
 
     df = pd.DataFrame(data=data)
     return df
 
 
-def discretize(amplitudes, amplitude_units_per_bin):
-    range_ = int(np.max(amplitudes) - np.min(amplitudes))
-    bins = int(range_ / amplitude_units_per_bin)
+def discretize(amplitudes, units_per_bin):
+    range_ = float(np.max(amplitudes) - np.min(amplitudes))
+    bins = int(range_ / units_per_bin)
 
     discretized = pd.qcut(amplitudes, bins, duplicates='drop')
 
