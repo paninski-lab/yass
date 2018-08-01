@@ -118,7 +118,7 @@ def amplitudes(templates):
 def ptps(templates):
     """Find PTP
     """
-    return np.ptp(np.ptp(templates, axis=1), axis=1)
+    return np.max(np.ptp(templates, axis=1), axis=1)
 
 
 def on_main_channel(templates):
