@@ -21,7 +21,8 @@ class Dataset:
         # make test dataset
         self.data_clean = data_clean
         self.data_noisy = data_noisy
-        self.amplitudes = compute_amplitudes(data_clean)
+        # maybe compute them separately
+        self.amplitudes = compute_amplitudes(data_noisy)
         self.slices = slices
         self.amplitude_units_per_bin = amplitude_units_per_bin
         self.spatial_sig = spatial_sig
@@ -90,7 +91,7 @@ def to_data_frame(array, amplitudes, slices, amplitude_units_per_bin=10):
 
     data = {'waveform': wfs, 'amplitude': amplitudes, 'kind': kinds}
 
-    if amplitude_units_per_bin:
+    if amplitude_units_per_bin is not None:
         amplitude_groups = discretize(amplitudes, amplitude_units_per_bin)
         data['amplitude_group'] = amplitude_groups
 
