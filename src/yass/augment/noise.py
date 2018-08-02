@@ -36,10 +36,14 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size):
                  'temporal_size: {}'.format(neighbors.shape, geom.shape,
                                             temporal_size))
 
+    # reference channel: channel with max number of neighbors
     c_ref = np.argmax(np.sum(neighbors, 0))
+    # neighbors for the reference channel
     ch_idx = np.where(neighbors[c_ref])[0]
+    # ordered neighbors for reference channel
     ch_idx, temp = order_channels_by_distance(c_ref, ch_idx, geom)
 
+    # read the selected channels
     rec = RecordingsReader(path_to_data, loader='array')
     rec = rec[:, ch_idx]
 
@@ -47,6 +51,7 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size):
     idxNoise = np.zeros((T, C))
     R = int((temporal_size-1)/2)
 
+    # go through every neighboring channel
     for c in range(C):
 
         idx_temp = np.where(rec[:, c] > 3)[0]
