@@ -14,42 +14,76 @@ class Dataset:
     """
     Class for manipulating spikes, it also provides a function
     to make a dataset with simulated data
+
+    Parameters
+    ----------
+    data: numpy.ndarray (n_observations, waveform_length, n_channels)
+        The data
     """
 
-    def __init__(self, data_clean, data_noisy, slices,
-                 units_per_bin,
-                 spatial_sig=None, temporal_sig=None):
-        # make test dataset
+    def __init__(self, data, slices, units_per_bin,
+                 data_clean=None, spatial_sig=None, temporal_sig=None):
+        # datasets
+        self.data = data
         self.data_clean = data_clean
-        self.data_noisy = data_noisy
 
-        # maybe compute them separately
-        self.amplitudes = compute_amplitudes(data_noisy)
-        self.ptps = compute_ptps(data_noisy)
+        # These are computed on demand
+        self._amplitudes = None
+        self._ptps = None
+        self._df = None
+        self._df_clean = None
 
+        # other properties
         self.slices = slices
         self.units_per_bin = units_per_bin
         self.spatial_sig = spatial_sig
         self.temporal_sig = temporal_sig
 
-        # convert to data frame
-        self.df_noisy = to_data_frame(self.data_noisy, self.amplitudes,
-                                      self.ptps, self.slices,
-                                      units_per_bin)
+    @property
+    def amplitudes(self):
+        if self._amplitudes is None:
+            self._amplitudes = compute_amplitudes(self.data)
 
-        self.df_clean = to_data_frame(self.data_clean, self.amplitudes,
-                                      self.ptps, self.slices,
-                                      units_per_bin)
+        return self._amplitudes
+
+    @property
+    def ptps(self):
+        if self._ptps is None:
+            self._ptps = compute_ptps(self.data)
+
+        return self._ptps
+
+    @property
+    def df(self):
+        if self._df is None:
+            self._df = to_data_frame(self.data, self.amplitudes,
+                                     self.ptps, self.slices,
+                                     self.units_per_bin)
+        return self._df
+
+    @property
+    def df_clean(self):
+        if self.data_clean is None:
+            raise ValueError('Cannot access to clean data frame if no clean '
+                             'data was provided in the constructor')
+
+        if self._df_clean is None:
+            self._df_clean = to_data_frame(self.data_clean,
+                                           self.amplitudes,
+                                           self.ptps, self.slices,
+                                           self.units_per_bin)
+        return self._df_clean
 
     @classmethod
-    def make(cls, units_per_bin, *args, **kwargs):
+    def make(cls, units_per_bin, include_clean_data=False, *args, **kwargs):
         # make test dataset
         (data_clean, data_noisy,
          amplitudes, slices,
          spatial_sig,
          temporal_sig) = spikes(*args, **kwargs)
 
-        return cls(data_clean, data_noisy, slices, units_per_bin,
+        return cls(data_noisy, slices, units_per_bin,
+                   data_clean if include_clean_data else None,
                    spatial_sig, temporal_sig)
 
     @property
@@ -69,16 +103,18 @@ class Dataset:
     def _make_from_kind(self, kind, units_per_bin):
         slice_ = self.slices[kind]
 
-        data_clean = self.data_clean[slice_]
-        data_noisy = self.data_noisy[slice_]
+        data = self.data[slice_]
+        data_clean = (None if self.data_clean is None
+                      else self.data_clean[slice_])
         slices = {kind: slice_}
 
         # TODO: create another constructor that only takes the indices
         # to create the new Dataset, to avoid redoing computations
         # and to keep new columnds added to the dfs
-        return Dataset(data_clean, data_noisy, slices,
+        return Dataset(data, slices,
                        units_per_bin if units_per_bin
-                       is not None else self.units_per_bin)
+                       is not None else self.units_per_bin,
+                       data_clean)
 
     @ensure_iterator('kind')
     def get_kind(self, kind, units_per_bin=None):
