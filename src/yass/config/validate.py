@@ -32,6 +32,7 @@ def expand_asset_model(mapping, section, subsection, field):
 def validate(mapping):
     """Validate values in the input dictionary using a reference schema
     """
+    
     path_to_validator = resource_filename('yass',
                                           'assets/config/schema.yaml')
     with open(path_to_validator) as file:

@@ -673,6 +673,8 @@ def weightedKmeansplusplus(X, w, k):
     p = w ** 2 / np.sum(w ** 2)
     n = X.shape[1]
     ctr_outer = 0
+    # L is boolean assignment
+    # C is cluster centre (float)
     while np.unique(L).size != k:
         #print ("ctr_outer: ", ctr_outer, L, L1)
         ctr_outer+=1
@@ -681,28 +683,37 @@ def weightedKmeansplusplus(X, w, k):
         L = np.zeros([1, n]).astype(int)
         for i in range(1, k):
             D = X - C[:, L.ravel()]
-            D = np.sum(D * D, axis=0)
+            D = np.sum(D * D, axis=0) #L2 dist
             if np.max(D) == 0:
                 # C[:, i:k] = X[:, np.ones([1, k - i + 1]).astype(int)]
-                return L
+                return L    # single point
             D = D / np.sum(D)
             ii = np.random.choice(np.arange(n), size=1, replace=True, p=D)
             C = np.concatenate((C, X[:, ii]), axis=1)
             L = np.argmax(
                 2 * np.dot(C.T, X) - np.sum(C * C, axis=0)[:, np.newaxis],
                 axis=0)
+        
+        # compute until convergence, i.e. no changes in membership
         ctr_inner=0
         while np.any(L != L1):
+        #for m in range(10): #while np.any(L != L1):
             #print ("ctr_inner: ", ctr_inner)
             ctr_inner+=1
             L1 = L
             for i in range(k):
                 ll = L == i
+                
+                # recompute centres
                 if np.sum(ll) > 0:
                     C[:, i] = np.dot(X[:, ll], w[ll] / np.sum(w[ll]))
+            
+            # recompute boolean assignments
             L = np.argmax(
                 2 * np.dot(C.T, X) - np.sum(C * C, axis=0)[:, np.newaxis],
                 axis=0)
+        #if ctr_inner>10: print ("ctr_inner: ", ctr_inner)
+    #if ctr_outer>10: print ("ctr_outer: ", ctr_outer)
     return L
 
 
@@ -712,17 +723,28 @@ def birth_move(maskedData, vbParam, suffStat, param, L):
     collectionThreshold = 0.1
     # extraK = param.cluster.n_split
     extraK = 5
-
+    cluster_picked = np.ones(vbParam.rhat.shape[1], dtype = bool)
+    
     if np.any(np.sum(vbParam.rhat > collectionThreshold, 0) >= extraK):
         weight = (suffStat.Nhat) * L ** 2
         weight = weight / np.sum(weight)
         idx = np.zeros(1).astype(int)
 
+        # pick until have as many points as 
+        birth_move_ctr = 0
+        clusters = np.arange(Khat).astype(int)
         while np.sum(idx) < extraK:
-            kpicked = np.random.choice(np.arange(Khat).astype(int), p=weight)
+            kpicked = np.random.choice(clusters[cluster_picked], p=weight[cluster_picked])
+            cluster_picked[kpicked] = False
+            if np.sum(cluster_picked)>0:
+                weight = weight/np.sum(weight[cluster_picked])
+                 
             # kpicked = np.argmax(weight)
             #print(kpicked)
             idx = vbParam.rhat[:, kpicked] > collectionThreshold
+            birth_move_ctr+=1
+            
+        #print ("birth_move_ctr:", birth_move_ctr)
 
         idx = np.where(idx)[0]
         if idx.size > 10000:
@@ -781,7 +803,7 @@ def merge_move(maskedData, vbParam, suffStat, param, L, check_full):
         all_checked = 0
     else:
         all_checked = 1
-
+    ctr_merge_move_outer = 0
     while (not all_checked) and (K > 1):
         prec = np.transpose(
             vbParam.Vhat * vbParam.nuhat[
@@ -797,6 +819,7 @@ def merge_move(maskedData, vbParam, suffStat, param, L, check_full):
         maha[np.arange(K), np.arange(K)] = np.Inf
         merged = 0
         threshold = np.max(np.min(maha, 0))
+        ctr_merge_move_inner = 0
         while np.min(maha) < threshold and merged == 0:
             closeset_pair = np.where(maha == np.min(maha))
             ka = closeset_pair[0][0]
@@ -810,9 +833,18 @@ def merge_move(maskedData, vbParam, suffStat, param, L, check_full):
             if merged:
                 n_merged += 1
                 K -= 1
+            
+            ctr_merge_move_inner+=1
 
         if not merged:
             all_checked = 1
+        #if ctr_merge_move_inner>10: 
+        #    print ("ctr_merge_move_inner: ",ctr_merge_move_inner)
+        ctr_merge_move_outer+=1
+    
+    #if ctr_merge_move_outer>10:
+     #   print ("ctr_merge_move_outer: ",ctr_merge_move_outer)
+
     return vbParam, suffStat, L
 
 
@@ -995,45 +1027,45 @@ def calc_mahalonobis(vbParam, score):
     return maha[:, :, 0]
 
 
-def merge_move_quick(maskedData, vbParam, cluster_id, param):
+#def merge_move_quick(maskedData, vbParam, cluster_id, param):
 
-    n_merged = 0
-    n_features, n_clusters, n_channels = vbParam.muhat.shape
+    #n_merged = 0
+    #n_features, n_clusters, n_channels = vbParam.muhat.shape
 
-    n_data = cluster_id.shape[0]
-    cluster_id_list = make_list_by_id(cluster_id)
+    #n_data = cluster_id.shape[0]
+    #cluster_id_list = make_list_by_id(cluster_id)
 
-    if n_clusters > 1:
-        all_checked = 0
-    else:
-        all_checked = 1
+    #if n_clusters > 1:
+        #all_checked = 0
+    #else:
+        #all_checked = 1
 
-    while (not all_checked) and (n_clusters > 1):
-        m = np.transpose(vbParam.muhat, [1, 0, 2]).reshape(
-            [n_clusters, n_features * n_channels], order="F")
-        kdist = ss.distance_matrix(m, m)
-        kdist[np.tril_indices(n_clusters)] = np.inf
+    #while (not all_checked) and (n_clusters > 1):
+        #m = np.transpose(vbParam.muhat, [1, 0, 2]).reshape(
+            #[n_clusters, n_features * n_channels], order="F")
+        #kdist = ss.distance_matrix(m, m)
+        #kdist[np.tril_indices(n_clusters)] = np.inf
 
-        merged = 0
-        k_untested = np.ones(n_clusters)
-        while np.sum(k_untested) > 0 and merged == 0:
-            untested_k = np.argwhere(k_untested)
-            ka = untested_k[np.random.choice(len(untested_k), 1)].ravel()[0]
-            kb = np.argmin(kdist[ka, :]).ravel()[0]
-            k_untested[ka] = 0
-            if np.argmin(kdist[kb, :]).ravel()[0] == ka:
-                k_untested[kb] = 0
-            kdist[min(ka, kb), max(ka, kb)] = np.inf
+        #merged = 0
+        #k_untested = np.ones(n_clusters)
+        #while np.sum(k_untested) > 0 and merged == 0:
+            #untested_k = np.argwhere(k_untested)
+            #ka = untested_k[np.random.choice(len(untested_k), 1)].ravel()[0]
+            #kb = np.argmin(kdist[ka, :]).ravel()[0]
+            #k_untested[ka] = 0
+            #if np.argmin(kdist[kb, :]).ravel()[0] == ka:
+                #k_untested[kb] = 0
+            #kdist[min(ka, kb), max(ka, kb)] = np.inf
 
-            vbParam, cluster_id_list, merged = check_merge_quick(
-                maskedData, vbParam, cluster_id_list, ka, kb, param)
-            if merged:
-                n_merged += 1
-                n_clusters -= 1
-        if not merged:
-            all_checked = 1
+            #vbParam, cluster_id_list, merged = check_merge_quick(
+                #maskedData, vbParam, cluster_id_list, ka, kb, param)
+            #if merged:
+                #n_merged += 1
+                #n_clusters -= 1
+        #if not merged:
+            #all_checked = 1
 
-    return vbParam, make_id_array(cluster_id_list, n_data)
+    #return vbParam, make_id_array(cluster_id_list, n_data)
 
 
 def make_list_by_id(cluster_id):

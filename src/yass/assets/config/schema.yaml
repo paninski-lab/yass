@@ -48,7 +48,6 @@ resources:
       required: True
       default: 1
 
-
 recordings:
   type: dict
   required: True

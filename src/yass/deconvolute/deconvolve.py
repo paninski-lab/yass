@@ -3,14 +3,123 @@ from scipy.signal import argrelmax
 import os
 import time
 import os.path
-from .match_pursuit import MatchPursuit
+from .match_pursuit import MatchPursuit2
 
 
-def deconvolve_match_pursuit(
-        data_in, templates, output_directory, TMP_FOLDER, filename_bin, buffer_size,
-        n_channels, threshold_d, verbose):
+
+def binary_reader(idx_list, buffer_size, standardized_filename,
+                  n_channels):
+
+    # prPurple("Processing chunk: "+str(chunk_idx))
+
+    # New indexes
+    idx_start = idx_list[0]
+    idx_stop = idx_list[1]
+    idx_local = idx_list[2]
+
+    data_start = idx_start
+    data_end = idx_stop
+    offset = idx_local
+
+    # ***** LOAD RAW RECORDING *****
+    with open(standardized_filename, "rb") as fin:
+        if data_start == 0:
+            # Seek position and read N bytes
+            recordings_1D = np.fromfile(
+                fin,
+                dtype='float32',
+                count=(data_end + buffer_size) * n_channels)
+            recordings_1D = np.hstack((np.zeros(
+                buffer_size * n_channels, dtype='float32'), recordings_1D))
+        else:
+            fin.seek((data_start - buffer_size) * 4 * n_channels, os.SEEK_SET)
+            recordings_1D = np.fromfile(
+                fin,
+                dtype='float32',
+                count=((data_end - data_start + buffer_size * 2) * n_channels))
+
+        if len(recordings_1D) != (
+              (data_end - data_start + buffer_size * 2) * n_channels):
+            recordings_1D = np.hstack((recordings_1D,
+                                       np.zeros(
+                                           buffer_size * n_channels,
+                                           dtype='float32')))
+
+    fin.close()
+
+    # Convert to 2D array
+    recording = recordings_1D.reshape(-1, n_channels)
+    
+    return recording
+    
+    
+def deconvolve_match_pursuit_object(
+        data_in, templates, output_directory, TMP_FOLDER, filename_bin, 
+        buffer_size, n_channels, threshold_d, verbose):
             
            
+            
+    '''  Parallelized deconvolution function.
+
+         1. Loads raw data chunks (usually 1-10sec in duration)
+         2. Removes clear spikes from raw data
+         3. Generates objective function (d_matrix) from remaining raw
+         data and collission spikes
+         4. Iteratively removes energy in d_matrix threshold is reached
+    '''
+
+    # Load indexes from zipped data_in variable
+    # Convert indexes to required start/end indexes including buffering
+    idx_list, chunk_idx = data_in[0], data_in[1]
+    data_start = idx_list[0]
+    data_end = idx_list[1]
+    offset = idx_list[2]
+
+    recordings = binary_reader(idx_list, buffer_size, filename_bin,
+                  n_channels)
+                      
+   
+    # ******************************************************************
+    # ******************************************************************
+    # ********** STAGE 2: RUN DECONV MATCH PURSUIT *********************
+    # ******************************************************************
+    # ******************************************************************
+    
+
+    spike_train, dist_metric = mp.run(max_iter=150)
+    
+    #print (deconvd_sp.shape)
+    #print (deconvd_sp)
+
+
+    # ******************************************************************
+    # ******************************************************************
+    # ******************* STAGE 3: FIX SPIKE TIMES *********************
+    # ******************************************************************
+    # ******************************************************************
+    
+    
+     # Fix indexes explicitly carried out here
+    spike_times = spike_train[:, 0]
+
+    # get only observations outside the buffer
+    train_not_in_buffer = spike_train[np.logical_and(
+        spike_times >= offset, spike_times <= idx_local_end)]
+        
+    # offset spikes depending on the absolute location
+    train_not_in_buffer[:, 0] = (
+        train_not_in_buffer[:, 0] + data_start - buffer_size)
+
+    final_spikes = train_not_in_buffer
+
+
+    #print (final_spikes.shape)
+    return final_spikes #, dist_metric
+    
+
+def deconvolve_match_pursuit(data_in, templates, output_directory, 
+        TMP_FOLDER, filename_bin, buffer_size, n_channels, threshold_d, 
+        verbose):
             
     '''  Parallelized deconvolution function.
 
@@ -86,7 +195,7 @@ def deconvolve_match_pursuit(
     
     mp = MatchPursuit(recordings, templates, threshold=2, obj_energy=False)
 
-    spike_train, dist_metric = mp.run(max_iter=20)
+    spike_train, dist_metric = mp.run(max_iter=150)
     
     #print (deconvd_sp.shape)
     #print (deconvd_sp)

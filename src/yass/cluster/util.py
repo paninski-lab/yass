@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pandas as pd
 import networkx as nx
+import multiprocessing as mp
 
 colors = np.asarray(["#000000", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#006FA6", "#A30059",
         "#FFDBE5", "#7A4900", "#0000A6", "#63FFAC", "#B79762", "#004D43", "#8FB0FF", "#997D87",
@@ -56,6 +57,8 @@ colors = np.asarray(["#000000", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#00
         
         "#2F5D9B", "#6C5E46", "#D25B88", "#5B656C", "#00B57F", "#545C46", "#866097", "#365D25",
         "#252F99", "#00CCFF", "#674E60", "#FC009C", "#92896B"])
+        
+colors = np.concatenate([colors,colors])
         
         
 def calculate_sparse_rhat(vbParam, tmp_loc, scores,
@@ -686,10 +689,8 @@ def align_mc(wf, mc, CONFIG, upsample_factor = 20, nshifts = 7,
     # or loop over every channel and parallelize each channel:
     wf_up = []
     for k in range(wf.shape[2]): 
-        #print (" upsampling chan (parallel): ", k)
         wf_up.append(upsample_resample_parallel_channel(wf[:,:,k], upsample_factor, CONFIG))
     wf_up = np.array(wf_up).swapaxes(1,2).swapaxes(0,2)
-    #print ('wf_upsampled: ', wf_up.shape)
 
     wlen = wf_up.shape[1]
     wf_start = int(.2 * (wlen-1))
@@ -704,26 +705,18 @@ def align_mc(wf, mc, CONFIG, upsample_factor = 20, nshifts = 7,
         ref_upsampled = wf_up[:,:,mc].mean(0)
     
     ref_shifted = np.zeros([wf_trunc.shape[1], nshifts])
-    #print (ref_shifted.shape)
     
     for i,s in enumerate(range(-int((nshifts-1)/2), int((nshifts-1)/2+1))):
         ref_shifted[:,i] = ref_upsampled[s+ wf_start: s+ wf_end]
 
-    #plt.figure(figsize = (20,15))
-    #plt.plot(ref_shifted)
-    #plt.savefig(CONFIG.data.root_folder + '/ref_shifted.png')
-    
     bs_indices = np.matmul(wf_trunc[:,np.newaxis,:, mc], ref_shifted).squeeze(1).argmax(1)
     best_shifts = (np.arange(-int((nshifts-1)/2), int((nshifts-1)/2+1)))[bs_indices]
     wf_final = np.zeros([wf.shape[0],wlen_trunc, wf.shape[2]])
     for i,s in enumerate(best_shifts):
         wf_final[i] = wf_up[i,-s+ wf_start: -s+ wf_end][:, np.arange(wf.shape[2])]
     
-    #plt.figure(figsize = (20,15))
-    #plt.hist(best_shifts, bins = 50)
-    #plt.savefig(CONFIG.data.root_folder +'/shifts.png')
-    
     return wf_final[:,::upsample_factor]
+
 
 def align_mc_cumulative(wf, mc, CONFIG, upsample_factor = 20, nshifts = 7, 
              ref = None):
@@ -814,9 +807,9 @@ def upsample_resample_parallel(wf, upsample_factor):
 def upsample_resample_parallel_channel(wf, upsample_factor, CONFIG):
     n_spikes, _ = wf.shape
     
-    # don't parallelize < 500 spikes
-    #if n_spikes<1000:
-    if n_spikes<10000:
+    # dont' parallize alignment - unless seems ok otherwise
+    # Cat: TODO: can we parallize recursively and to this?
+    if n_spikes<1000000:
         wf_up = upsample_parallel(wf, upsample_factor)
     else: 
         wf_array = np.array_split(wf, CONFIG.resources.n_processors)
@@ -825,6 +818,7 @@ def upsample_resample_parallel_channel(wf, upsample_factor, CONFIG):
         wf_up = np.vstack(wf_up)
         
     return wf_up
+    
     
 def upsample_parallel(wf, upsample_factor):
     wf = wf.T
@@ -874,7 +868,6 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
         wf_align = align_mc(wf[:,:,feat_chans], mc, CONFIG, 
                             upsample_factor, nshifts, ref = None)
     else:
-        #print ("skip - aligning")
         wf_align = wf[:,:,feat_chans]
 
 
@@ -1032,20 +1025,20 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
                     assignment_global, spike_index, scale)
 
 
-def plot_clustering_template(fig, grid, gen, N, wf, idx_recovered, CONFIG, colors, 
-                                                            feat_chans, scale):
+def plot_clustering_template(fig, grid, gen, N, wf, idx_recovered, CONFIG, 
+                             colors, feat_chans, scale):
         # plot templates 
-        ax = fig.add_subplot(grid[14:, 6:])
+        #ax_t = fig.add_subplot(grid[13:, 6:])
         wf_mean = wf[idx_recovered].mean(0)
         
         # plot template
-        plt.plot(CONFIG.geom[:,0]+
+        ax_t.plot(CONFIG.geom[:,0]+
                 np.arange(-wf_mean.shape[0],0)[:,np.newaxis]/3., 
                 CONFIG.geom[:,1] + wf_mean[:,:]*scale, c=colors[N%100])
 
         # plot feature channels
         for i in feat_chans:
-             plt.scatter(CONFIG.geom[i,0]+gen, CONFIG.geom[i,1]+N, 
+             ax_t.scatter(CONFIG.geom[i,0]+gen, CONFIG.geom[i,1]+N, 
                                                     s = 30, 
                                                     color = colors[N%100],
                                                     alpha=1)
@@ -1053,7 +1046,7 @@ def plot_clustering_template(fig, grid, gen, N, wf, idx_recovered, CONFIG, color
 def plot_clustering_scatter(fig, grid, x, gen, vbParam,  
                             assignment2, colors, pca_wf, channel,
                             idx_recovered):
-    if np.all(x[gen]<=20) and gen <20:
+    if np.all(x[gen]<20) and gen <20:
         mask = vbParam.rhat>0
         stability = np.average(mask * vbParam.rhat, axis = 0, weights = mask)
         labels = []
@@ -1067,14 +1060,13 @@ def plot_clustering_scatter(fig, grid, x, gen, vbParam,
             label = "size = {}, stability = {}".format(sizes[clust], 
             stability[clust]))
             labels.append(patch_j)
-        plt.scatter(pca_wf[idx_recovered,0], pca_wf[idx_recovered,1], 
+        ax.scatter(pca_wf[idx_recovered,0], pca_wf[idx_recovered,1], 
             c = colors[assignment2[idx_recovered]%100], edgecolor = 'k')
         
         if clusters.size == 1:
             ax.scatter(pca_wf[:,0].mean(), pca_wf[:,1].mean(), c= 'r', s = 2000)
         ax.legend(handles = labels)
-        plt.title(str(sizes.sum()))
-        plt.suptitle("Channel: "+str(channel), fontsize=25)
+        ax.set_title(str(sizes.sum()))
 
 def recover_spikes(vbParam, pca, CONFIG):
     
@@ -1226,309 +1218,137 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
     CONFIG2 = make_CONFIG2(CONFIG)
     
     # loop over chunks 
-
     gen = 0     #Set default generation for starting clustering stpe
     assignment_global = []
     spike_index = []
     
     # parallelize over chunks of data
-    res_file = CONFIG.data.root_folder+'tmp/cluster/res.npy'
-    if os.path.exists(res_file)==False: 
+    #res_file = CONFIG.data.root_folder+'tmp/spike_train_cluster.npy'
+    #if os.path.exists(res_file)==False: 
     
-        # Cat: TODO: link spike_size in CONFIG param
-        spike_size = int(CONFIG.recordings.spike_size_ms*
-                         CONFIG.recordings.sampling_rate//1000)
-        n_processors = CONFIG.resources.n_processors
-        n_channels = CONFIG.recordings.n_channels
-        sampling_rate = CONFIG.recordings.sampling_rate
-
-        # select length of recording to chunk data for processing;
-        n_sec_chunk = 300 
-
-        # determine length of processing chunk based on lenght of rec
-        standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
-                                             'standarized.bin')
-        fp = np.memmap(standardized_filename, dtype='float32', mode='r')
-        fp_len = fp.shape[0]
-
-        # make index list for chunk/parallel processing
-        # Cat: TODO: read buffer size 
-        buffer_size = 200
-        indexes = np.arange(0, fp_len / n_channels, sampling_rate * n_sec_chunk)
-        if indexes[-1] != fp_len / n_channels:
-            indexes = np.hstack((indexes, fp_len / n_channels))
-
-        idx_list = []
-        for k in range(len(indexes) - 1):
-            idx_list.append([
-                indexes[k], indexes[k + 1], buffer_size,
-                indexes[k + 1] - indexes[k] + buffer_size
-            ])
-
-        idx_list = np.int64(np.vstack(idx_list))
-        proc_indexes = np.arange(len(idx_list))
-
-        #if CONFIG.resources.multi_processing:
-        # or avoid warning and only use in single processor mode
-        if CONFIG.resources.multi_processing:
-            res = parmap.map(
-                cluster_chunks,
-                list(zip(idx_list,proc_indexes)),
-                CONFIG2, 
-                spike_index_clear, n_dim_pca, wf_start, wf_end, 
-                n_mad_chans, n_max_chans, out_dir, mfm_threshold, 
-                upsample_factor, nshifts, 
-                processes=CONFIG.resources.n_processors, 
-                pm_pbar=False)
-        else:
-            res = []
-            for idx,proc_index in zip(idx_list,proc_indexes):
-                temp = cluster_chunks((idx,proc_index),
-                    CONFIG2, 
-                    spike_index_clear, n_dim_pca, wf_start, wf_end, 
-                    n_mad_chans, n_max_chans, out_dir, mfm_threshold, 
-                    upsample_factor, nshifts)                    
-                
-                res.append(temp)
-
-        print ("res: ", len(res), " res[0]: ", len(res[0]))
-        
-        np.save(res_file, res)
-    else:
-        res = np.load(res_file, encoding='latin1')
-
-
-    # run inter-channel global template merge; loads all data from disk
-    spike_train_merged, tmp_loc, templates = global_merge(channels, CONFIG2)
-   
-    # sort by time
-    indexes = np.argsort(spike_train_merged[:,0])
-    final_spike_train = spike_train_merged[indexes]
-
-    return final_spike_train, np.int32(tmp_loc), templates
-    
-
-def run_cluster_features_2_parallel(spike_index_clear, n_dim_pca, wf_start, wf_end, 
-                         n_mad_chans, n_max_chans, CONFIG, out_dir,
-                         mfm_threshold, upsample_factor, nshifts):
-    
-    ''' New voltage feature based clustering; parallel version
-    ''' 
-    
-    CONFIG2 = make_CONFIG2(CONFIG)
-    
-    # loop over channels 
-    # hold spike times and chans in two arrays passed in and out
-    all_assignments = []
-    spike_times = []
-    chans = [] 
-    triageflag = True
-    alignflag = True
-    plotting = True
-
-    gen = 0     #Set default generation for starting clustering stpe
-    assignment_global = []
-    spike_index = []
-    
-    # parallelize over channels: 
-    channels = np.arange(CONFIG.recordings.n_channels)
-    #channels = [21]
-    res_file = CONFIG.data.root_folder+'tmp/cluster/res.npy'
-    if os.path.exists(res_file)==False: 
-        if CONFIG.resources.multi_processing:
-            res = parmap.map(cluster_channels, channels, CONFIG2, 
-                             spike_index_clear, n_dim_pca, wf_start, wf_end, 
-                             n_mad_chans, n_max_chans, out_dir, mfm_threshold, 
-                             upsample_factor, nshifts, 
-                             processes=CONFIG.resources.n_processors, 
-                             pm_pbar=False)
-        else:
-            res = []
-            for channel in channels:
-                temp = cluster_channels(channel, CONFIG2, spike_index_clear, 
-                             n_dim_pca, wf_start, wf_end, n_mad_chans, 
-                             n_max_chans, out_dir, mfm_threshold, 
-                             upsample_factor, nshifts)                         
-                res.append(temp)
-
-        print ("res: ", len(res), " res[0]: ", len(res[0]))
-        
-        np.save(res_file, res)
-    else:
-        res = np.load(res_file, encoding='latin1')
-
-
-    # run inter-channel template merge   
-    spike_train_merged, tmp_loc, templates = global_merge(channels, CONFIG2)
-   
-    # sort by time
-    indexes = np.argsort(spike_train_merged[:,0])
-    final_spike_train = spike_train_merged[indexes]
-
-    return final_spike_train, np.int32(tmp_loc), templates
-    
-def cluster_chunks(data_in, CONFIG, spike_index_clear, n_dim_pca, 
-                     wf_start, wf_end, n_mad_chans, n_max_chans, 
-                     out_dir, mfm_threshold, upsample_factor, nshifts):
-
-    ''' Clustering wrapper function run in parallel for each channel
-    '''
-
-    idx_list = data_in[0]
-    proc_index = data_in[1]
-
-    data_start = idx_list[0]
-    data_end = idx_list[1]
-    offset = idx_list[2]
-    
-    # save chunk in own directory to enable cumulative recovery 
-    chunk_dir = CONFIG.data.root_folder+"tmp/cluster/chunk_"+ \
-                                                str(proc_index).zfill(6)
-    
-    if not os.path.isdir(chunk_dir):
-        os.makedirs(chunk_dir)
-    
-    # read chunk of data
-    buffer_size = 200
-    standardized_filename = os.path.join(CONFIG.data.root_folder,'tmp',
-                                                    'standarized.bin')
-    n_channels = CONFIG.recordings.n_channels
-    root_folder = CONFIG.data.root_folder
-    recording = binary_reader(idx_list, buffer_size, standardized_filename,
-                              n_channels, root_folder)
-   
-    # select spikes from spike_index that fall in the train
-    temp_idx = np.where(np.logical_and(spike_index_clear[:,0]>=data_start, 
-                            spike_index_clear[:,0]<data_end))[0]
-    spike_indexes_chunk = spike_index_clear[temp_idx]
-    
-    # loop over all channels - subselecting 
-    # starting params
-    scale = 10 
+    # Cat: TODO: link spike_size in CONFIG param
     spike_size = int(CONFIG.recordings.spike_size_ms*
                      CONFIG.recordings.sampling_rate//1000)
-    triageflag = False
-    alignflag = True
-    plotting = True
-    subsample_nspikes = CONFIG.cluster.max_n_spikes
+    n_processors = CONFIG.resources.n_processors
+    n_channels = CONFIG.recordings.n_channels
+    sampling_rate = CONFIG.recordings.sampling_rate
+    root_folder = CONFIG.data.root_folder
 
-    channels = CONFIG.recordings.n_channels
-    for channel in range(channels): 
-        
-        # check to see if channel already done
-        filename_spike_index_postcluster = (chunk_dir+'/channel_'+ 
-                        str(channel)+'_spike_index_postclustering.npz')
-        if os.path.exists(filename_spike_index_postcluster):
-            continue
-        
-        # set default parameters and initialize lists
-        gen = 0     
-        assignment_global = []
-        spike_index = []
-        feat_chans_cumulative = []
-        shifts = []
-        aligned_wfs_cumulative = []
-        
-        # Cat: TODO: Is this index search expensive for hundreds of chans and many 
-        #       millions of spikes?  Might want to do once rather than repeat
-        indexes = np.where(spike_indexes_chunk[:,1]==channel)[0]
-        print ('Starting chunk: ' +str(proc_index) + ' channel: '+
-                        str(channel)+ ', events: '+str(indexes.shape[0]))
-
-        # read waveforms from recording chunk in memory
-        spike_train = spike_indexes_chunk[indexes]
-        wf = load_waveforms_from_memory(recording, data_start, offset, 
-                                        spike_train, spike_size)
-                                    
-        # legacy code fix
-        # Cat: TODO: remove this
-        indexes_subsampled = np.arange(indexes.shape[0])
-
-        # plotting parameters
-        if plotting:
-            # Cat: TODO: this global x is not necessary, should make it local
-            global x
-            x = np.zeros(100, dtype = int)
-            fig = plt.figure(figsize =(100,100))
-            grid = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
-
-        # cluster
-        RRR3_noregress_recovery(channel, wf[indexes_subsampled], 
-             spike_train[indexes_subsampled], gen, fig, grid, 
-             triageflag, alignflag, plotting, n_mad_chans, n_max_chans, 
-             n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
-             upsample_factor, nshifts, assignment_global, spike_index, scale)
-
-        # finish plotting 
-        if plotting: 
-            ax = fig.add_subplot(grid[14:, 6:])
-            for i in range(CONFIG.recordings.n_channels):
-                plt.text(CONFIG.geom[i,0], CONFIG.geom[i,1], str(i), alpha=0.4, fontsize=30)
-                
-                # fill bewteen 2SUs on each channel
-                ax.fill_between(CONFIG.geom[i,0] + np.arange(-61,0,1)/3.,
-                    -scale + CONFIG.geom[i,1], scale + CONFIG.geom[i,1], color='black', 
-                    alpha=0.05)
-                
-            # plot max chan with big red dot                
-            plt.scatter(CONFIG.geom[channel,0], CONFIG.geom[channel,1], s = 2000, 
-                                                    color = 'red')
-            
-            # if at least 1 cluster is found:
-            if len(spike_index)>0: 
-                sic_temp = np.concatenate(spike_index, axis = 0)
-                assignment_temp = np.concatenate(assignment_global, axis = 0)
-                idx = sic_temp[:,1] == channel
-                clusters, sizes = np.unique(assignment_temp[idx], return_counts= True)
-                clusters = clusters.astype(int)
-
-                #chans.extend(channel*np.ones(clusters.size))
-
-                labels=[]
-                for i, clust in enumerate(clusters):
-                    patch_j = mpatches.Patch(color = colors[clust%100], label = "size = {}".format(sizes[i]))
-                    labels.append(patch_j)
-                plt.legend(handles = labels, fontsize=30)
-
-            plt.savefig(chunk_dir+"/channel_{}.png".format(channel))
-            plt.close('all')
-
-        # temporary save of data fore debugging; 
-        np.savez(filename_spike_index_postcluster, 
-                spike_index=spike_index, indexes_subsampled=indexes_subsampled)
-
-
-        # save weighted templates for channel 
-        filename_weighted_templates = chunk_dir +'/channel_'+ \
-                                       str(channel)+'_weighted_templates.npz'
-                            
-        if os.path.exists(filename_weighted_templates)==False: 
-            # if haven't loaded waveform, reload them here
-            if len(wf)==0:
-                wf = load_waveforms_parallel(spike_index_clear[indexes], CONFIG, out_dir)
-
-            # need to save weighted templates still
-            temp = np.zeros((len(spike_index),wf.shape[1],wf.shape[2]),'float32')
-            for k in range(len(spike_index)):
-                idx = np.in1d(spike_index_clear[indexes][:,0], spike_index[k][:,0])
-                temp[k] = np.mean(wf[idx],axis=0)
-
-            np.savez(filename_weighted_templates,
-                     templates=temp, 
-                     weights=np.asarray([sic.shape[0] for sic in spike_index]))
-
-        print ("**********************************************")
-        print ("******  Chunk: " +str(proc_index) + " channel: " +
-               str(channel)+ ", total clusters "+str(len(spike_index))+ 
-               " *****")
-        print ("**********************************************")
-        print ("")
-        print ("")
-        print ("")
+    # select length of recording to chunk data for processing;
+    # Cat: TODO: read this value from CONFIG
+    n_sec_chunk = 300
     
-    return spike_index
+    # determine length of processing chunk based on lenght of rec
+    standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
+                                         'standarized.bin')
+    fp = np.memmap(standardized_filename, dtype='float32', mode='r')
+    fp_len = fp.shape[0]
 
-   
+    # make index list for chunk/parallel processing
+    # Cat: TODO: read buffer size from CONFIG file
+    # Cat: TODO: ensure all data read including residuals (there are multiple
+    #                places to fix this)
+    buffer_size = 200
+    indexes = np.arange(0, fp_len / n_channels, sampling_rate * n_sec_chunk)
+    if indexes[-1] != fp_len / n_channels:
+        indexes = np.hstack((indexes, fp_len / n_channels))
+
+    idx_list = []
+    for k in range(len(indexes) - 1):
+        idx_list.append([
+            indexes[k], indexes[k + 1], buffer_size,
+            indexes[k + 1] - indexes[k] + buffer_size
+        ])
+
+    idx_list = np.int64(np.vstack(idx_list))
+    proc_indexes = np.arange(len(idx_list))
+
+    #if CONFIG.resources.multi_processing:
+    # or avoid warning and only use in single processor mode
+    chunk_dirs= []
+    for idx,proc_index in zip(idx_list,proc_indexes):
+        
+        # read chunk of data
+        print ("Reading (starting) chunk: ", proc_index+1, " / ", 
+                                                len(proc_indexes))
+
+        # make chunk directory if not available:
+        # save chunk in own directory to enable cumulative recovery 
+        chunk_dir = CONFIG.data.root_folder+"tmp/cluster/chunk_"+ \
+                                                    str(proc_index).zfill(6)
+        if not os.path.isdir(chunk_dir):
+            os.makedirs(chunk_dir)
+        
+        # save chunk-dirs for multi-chunk template merge below
+        chunk_dirs.append(chunk_dir)
+        
+        # check to see if chunk is done
+        if os.path.exists(chunk_dir+'/complete.npy')==False:
+       
+            # select only spike_index_clear that is in the chunk
+            indexes_chunk = np.where(
+                        np.logical_and(spike_index_clear[:,0]>=idx[0], 
+                        spike_index_clear[:,0]<idx[1]))[0]
+            
+            spike_index_chunk = spike_index_clear[indexes_chunk]      
+              
+            # read recording chunk and share as global variable
+            # Cat: TODO: recording_chunk should be a shared variable in 
+            #            multiprocessing module;
+            global recording_chunk
+            
+            buffer_size = 200
+            standardized_filename = os.path.join(CONFIG.data.root_folder,
+                                                'tmp', 'standarized.bin')
+            n_channels = CONFIG.recordings.n_channels
+            root_folder = CONFIG.data.root_folder
+            
+            recording_chunk = binary_reader(idx, buffer_size, 
+                        standardized_filename, n_channels, root_folder)
+
+            ## alternative processing
+            channels = np.arange(CONFIG.recordings.n_channels)
+
+            #if CONFIG.resources.multi_processing:
+            # Cat: TODO: this parallelization may not be optimally asynchronous
+            
+            # make arg list first
+            args_in = []
+            for channel in channels:
+                args_in.append([channel, idx, proc_index,CONFIG2, 
+                    spike_index_chunk, n_dim_pca, 
+                    wf_start, wf_end, n_mad_chans, n_max_chans, out_dir, 
+                    mfm_threshold, upsample_factor, nshifts])
+
+            # Cat: TODO: have single-core option also here            
+            p = mp.Pool(CONFIG.resources.n_processors)
+            res = p.map_async(cluster_channels_chunks_args, args_in).get(988895)
+            p.close()
+
+            ## save simple flag that chunk is done
+            ## Cat: TODO: fix this; or run chunk wise-global merge
+            np.save(chunk_dir+'/complete.npy',np.arange(10))
+
+        else:
+            print ("... clustering complete...")
+    
+        # test global merge
+        spike_train, tmp_loc, templates = global_merge_all_ks(chunk_dirs, CONFIG2)
+
+        #if os.path.exists(chunk_dir+'/channels_merged.npz')==False:
+            ## run inter-channel global template merge; loads all data from disk
+            #print ("Chunk: ", proc_index, " merging ")
+            #chunk_merge(chunk_dir, channels, CONFIG2)
+
+    spike_train, tmp_loc, templates = global_merge_all_ks(chunk_dirs, CONFIG2)
+
+    # sort by time
+    print ("Sorting spikes by time...")
+    indexes = np.argsort(spike_train[:,0])
+    final_spike_train = spike_train[indexes]
+
+    return final_spike_train, np.int32(tmp_loc), templates
+
 
 def binary_reader(idx_list, buffer_size, standardized_filename,
                   n_channels, root_folder):
@@ -1576,84 +1396,110 @@ def binary_reader(idx_list, buffer_size, standardized_filename,
     return recording
     
     
-def cluster_channels(channel, CONFIG, spike_index_clear, n_dim_pca, 
-                     wf_start, wf_end, n_mad_chans, n_max_chans, 
-                     out_dir, mfm_threshold, upsample_factor, nshifts):
+def cluster_channels_chunks_args(data_in):
 
-    ''' Clustering wrapper function run in parallel for each channel
+    ''' Clustering wrapper function run chunks in parallel for each channel
+    
+        spike_indexes_chunk:  only spikes in the current chunk
+                         Note; this is not offest to zero yet
     '''
+    #data_in = data_in.get() 
+    channel = data_in[0]
+    idx_list = data_in[1]
+    proc_index = data_in[2]
+    CONFIG = data_in[3]
+    spike_indexes_chunk = data_in[4]
+    n_dim_pca = data_in[5]
+    wf_start = data_in[6]
+    wf_end = data_in[7]
+    n_mad_chans = data_in[8]
+    n_max_chans = data_in[9]
+    out_dir = data_in[10]
+    mfm_threshold = data_in[11]
+    upsample_factor = data_in[12]
+    nshifts = data_in[13]
 
-    # starting params
-    chans = [] 
-    scale = 10 
-    spike_size = int(CONFIG.recordings.spike_size_ms*
-                     CONFIG.recordings.sampling_rate//1000)
-    triageflag = False
-    alignflag = True
-    plotting = True
-    subsample_nspikes = CONFIG.cluster.max_n_spikes
+    data_start = idx_list[0]
+    data_end = idx_list[1]
+    offset = idx_list[2]
+    
+    #print ("Proc - index: ", proc_index, idx_list)
+    
+    # save chunk in own directory to enable cumulative recovery 
+    chunk_dir = CONFIG.data.root_folder+"tmp/cluster/chunk_"+ \
+                                                str(proc_index).zfill(6)
+    if not os.path.isdir(chunk_dir):
+        os.makedirs(chunk_dir)
 
-    gen = 0     #Set default generation for starting clustering stpe
-    assignment_global = []
-    spike_index = []
-    feat_chans_cumulative = []
-    shifts = []
-    aligned_wfs_cumulative = []
-    
-    # load all indexes and waveforms
-    # Cat: TODO: loading all waveforms for long recordings takes up too much RAM
-    #      Eg.g. 50-60GB for 8 core x 30 min recordings in retina
-    #      Need alternative method; 
-    
-    # Cat: TODO: Is this index search expensive for hundreds of chans and many 
-    #       millions of spikes?  Might want to do once rather than repeat
-    indexes = np.where(spike_index_clear[:,1]==channel)[0]
-    wf=[]
-    print ('Starting channel: '+str(channel)+ ', events: '+str(indexes.shape[0]))
+    # check to see if chunk + channel already completed
+    filename_postclustering = (chunk_dir + "/channel_"+
+                                                    str(channel)+".npz")
+    if os.path.exists(filename_postclustering)==False: 
         
-    # save file to enable cumulative recovery 
-    spike_index_postclustering = CONFIG.data.root_folder+"tmp/cluster/channel_{}_spike_index_postclustering.npz".format(channel)
-    if os.path.exists(spike_index_postclustering)==False: 
+        # starting params
+        chans = [] 
+        scale = 10 
+        spike_size = int(CONFIG.recordings.spike_size_ms*
+                         CONFIG.recordings.sampling_rate//1000)
+        triageflag = False
+        alignflag = True
+        plotting = False
+        subsample_nspikes = CONFIG.cluster.max_n_spikes
 
+        gen = 0     #Set default generation for starting clustering stpe
+        assignment_global = []
+        spike_index = []
+        feat_chans_cumulative = []
+        shifts = []
+        aligned_wfs_cumulative = []
+        
+        # Cat: TODO: Is this index search expensive for hundreds of chans and many 
+        #       millions of spikes?  Might want to do once rather than repeat
+        indexes = np.where(spike_indexes_chunk[:,1]==channel)[0]
+        spike_train = spike_indexes_chunk[indexes]
+        print ('Starting channel: '+str(channel)+ ', events: '+str(spike_train.shape[0]))
+
+        # read waveforms from recording chunk in memory
+        spike_train = spike_indexes_chunk[indexes]
+        wf = load_waveforms_from_memory(recording_chunk, data_start, offset, 
+                                        spike_train, spike_size)
+                                        
         # plotting parameters
         if plotting:
             # Cat: TODO: this global x is not necessary, should make it local
-            global x
+            global x, ax_t
             x = np.zeros(100, dtype = int)
             fig = plt.figure(figsize =(100,100))
             grid = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
-        
-        
-        print ('Reading channel: '+str(channel))
-        wf = load_waveforms_parallel(spike_index_clear[indexes], CONFIG, 
-                                     out_dir)
-        print ('Done reading channel: '+str(channel))
+            ax_t = fig.add_subplot(grid[13:, 6:])
+        else:
+            fig = []
+            grid = []
         
         # legacy code fix
         indexes_subsampled = np.arange(indexes.shape[0])
         
         # cluster
         RRR3_noregress_recovery(channel, wf[indexes_subsampled], 
-             spike_index_clear[indexes][indexes_subsampled], gen, fig, grid, 
-             triageflag, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
+             spike_train[indexes_subsampled], gen, fig, grid, 
+             triageflag, alignflag, plotting, n_mad_chans, n_max_chans, 
              n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
              upsample_factor, nshifts, assignment_global, spike_index, scale)
 
         # finish plotting 
         if plotting: 
-            ax = fig.add_subplot(grid[14:, 6:])
+            #ax_t = fig.add_subplot(grid[13:, 6:])
             for i in range(CONFIG.recordings.n_channels):
-                plt.text(CONFIG.geom[i,0], CONFIG.geom[i,1], str(i), alpha=0.4, fontsize=30)
-                
+                ax_t.text(CONFIG.geom[i,0], CONFIG.geom[i,1], str(i), alpha=0.4, 
+                                                                fontsize=30)
                 # fill bewteen 2SUs on each channel
-                ax.fill_between(CONFIG.geom[i,0] + np.arange(-61,0,1)/3.,
-                    -scale + CONFIG.geom[i,1], scale + CONFIG.geom[i,1], color='black', 
-                    alpha=0.05)
+                ax_t.fill_between(CONFIG.geom[i,0] + np.arange(-61,0,1)/3.,
+                    -scale + CONFIG.geom[i,1], scale + CONFIG.geom[i,1], 
+                    color='black', alpha=0.05)
                 
             # plot max chan with big red dot                
-            plt.scatter(CONFIG.geom[channel,0], CONFIG.geom[channel,1], s = 2000, 
+            ax_t.scatter(CONFIG.geom[channel,0], CONFIG.geom[channel,1], s = 2000, 
                                                     color = 'red')
-            
             # if at least 1 cluster is found:
             if len(spike_index)>0: 
                 sic_temp = np.concatenate(spike_index, axis = 0)
@@ -1668,82 +1514,514 @@ def cluster_channels(channel, CONFIG, spike_index_clear, n_dim_pca,
                 for i, clust in enumerate(clusters):
                     patch_j = mpatches.Patch(color = colors[clust%100], label = "size = {}".format(sizes[i]))
                     labels.append(patch_j)
-                plt.legend(handles = labels, fontsize=30)
-        
-            plt.savefig(CONFIG.data.root_folder+"tmp/cluster/channel_{}.png".format(channel))
-            plt.close('all')
+                ax_t.legend(handles = labels, fontsize=30)
 
-        # temporary save of data fore debugging; 
-        np.savez(spike_index_postclustering, spike_index=spike_index, indexes_subsampled=indexes_subsampled)
+            # plto title
+            fig.suptitle("Channel: "+str(channel), fontsize=25)
+            fig.savefig(chunk_dir+"/channel_{}.png".format(channel))
+            plt.close(fig)
+
+        # Save weighted templates also:
+        temp = np.zeros((len(spike_index),wf.shape[1],wf.shape[2]),'float32')
+        temp_std = np.zeros((len(spike_index),wf.shape[1],wf.shape[2]),'float32')
+        for k in range(len(spike_index)):
+            idx = np.in1d(spike_train[:,0], spike_index[k][:,0])
+            temp[k] = np.mean(wf[idx],axis=0)
+            temp_std[k] = robust.mad(wf[idx],axis=0)
+
+        # save all clustered data
+        np.savez(filename_postclustering, spike_index=spike_index, 
+                        indexes_subsampled=indexes_subsampled,
+                        templates=temp,
+                        templates_std=temp_std,
+                        weights=np.asarray([sic.shape[0] for sic in spike_index]))
+
     else: 
-
-        # temporary load of data for debugging; 
-        data = np.load(spike_index_postclustering, encoding='latin1')
+        # 
+        data = np.load(filename_postclustering, encoding='latin1')
         spike_index = data['spike_index']
-        indexes_subsampled = data['indexes_subsampled']
-    
-        # Cat: TODO: reread wvaeforms just for clustered spikes - not all spikes
-        #      Need them for weighted template saving down below;
-        #      Make sure to change wf[idx] below once these changes are in
-        ## load just clustered spikes
-        #indexes = np.where(spike_index_clear[:,1]==channel)[0]
-        #wf = load_waveforms_parallel(spike_index_clear[indexes], CONFIG, out_dir)
-        
-    # turn off local merge
-    if False:
-        # merge tempaltes and return spike_index for merged 
-        spike_index_postmerge = CONFIG.data.root_folder+"tmp/cluster/channel_{}_spike_index_postmerge.npz".format(channel)
-        if os.path.exists(spike_index_postmerge)==False:
-            spike_index = local_merge(channel, spike_index, 
-                                  spike_index_clear[indexes], wf,
-                                  CONFIG)
-            np.save(spike_index, spike_index_local_merge)
-        else:
-            spike_index = np.load(spike_index_postmerge, encoding='latin1')
 
-    else:
-        filename_weighted_templates = CONFIG.data.root_folder+'tmp/cluster/channel_'+ \
-                                       str(channel)+'_weighted_templates.npz'
-                            
-        if os.path.exists(filename_weighted_templates)==False: 
-            # if haven't loaded waveform, reload them here
-            if len(wf)==0:
-                wf = load_waveforms_parallel(spike_index_clear[indexes], CONFIG, out_dir)
-
-            # need to save weighted templates still
-            temp = np.zeros((len(spike_index),wf.shape[1],wf.shape[2]),'float32')
-            for k in range(len(spike_index)):
-                idx = np.in1d(spike_index_clear[indexes][:,0], spike_index[k][:,0])
-                temp[k] = np.mean(wf[idx],axis=0)
-        
-        # don't save waveforms; too much RAM/Disk space
-        #np.save(CONFIG.data.root_folder+'result/channel_'+
-        #                                        str(channel)+'_clusters.npy', wf_array)
-
-            np.savez(filename_weighted_templates,
-                     templates=temp, 
-                     weights=np.asarray([sic.shape[0] for sic in spike_index]))
-
-    #if False:    
-        ## recover clear spikes
-        #spike_index = recover_clear_spikes_pcaspace(channel, wf, 
-                         #spike_index_clear[indexes], indexes_subsampled, 
-                         #spike_index, upsample_factor, nshifts, CONFIG)
-
-    print ("************************************************************")
-    print ("****** Channel "+str(channel)+ 
-           ", total clusters "+str(len(spike_index))+ 
-           " *****")
-    print ("************************************************************")
     print ("")
-    print ("")
+    print ("**********************************************************")
+    print ("**** Channel ", str(channel), " # clusters: ", len(spike_index))
+    print ("**********************************************************")
     print ("")
     
-    return spike_index
-
+    # overwrite this variable just in case multiprocessing doesn't destroy it
+    wf = None
+    
+    return channel
    
     
-def global_merge(channels, CONFIG):
+def cluster_channels_chunks(channel, idx_list, proc_index, CONFIG, 
+                spike_indexes_chunk, n_dim_pca, wf_start, wf_end, 
+                n_mad_chans, n_max_chans, out_dir, mfm_threshold, 
+                upsample_factor, nshifts):
+
+    ''' Clustering wrapper function run chunks in parallel for each channel
+    
+        spike_indexes_chunk:  only spikes in the current chunk
+                         Note; this is not offest to zero yet
+    '''
+
+    data_start = idx_list[0]
+    data_end = idx_list[1]
+    offset = idx_list[2]
+    
+    #print ("Proc - index: ", proc_index, idx_list)
+    
+    # save chunk in own directory to enable cumulative recovery 
+    chunk_dir = CONFIG.data.root_folder+"tmp/cluster/chunk_"+ \
+                                                str(proc_index).zfill(6)
+    if not os.path.isdir(chunk_dir):
+        os.makedirs(chunk_dir)
+
+    # check to see if chunk + channel already completed
+    filename_postclustering = (chunk_dir + "/channel_"+
+                                                    str(channel)+".npz")
+    if os.path.exists(filename_postclustering)==False: 
+        
+        # starting params
+        chans = [] 
+        scale = 10 
+        spike_size = int(CONFIG.recordings.spike_size_ms*
+                         CONFIG.recordings.sampling_rate//1000)
+        triageflag = False
+        alignflag = True
+        plotting = True
+        subsample_nspikes = CONFIG.cluster.max_n_spikes
+
+        gen = 0     #Set default generation for starting clustering stpe
+        assignment_global = []
+        spike_index = []
+        feat_chans_cumulative = []
+        shifts = []
+        aligned_wfs_cumulative = []
+        
+        # Cat: TODO: Is this index search expensive for hundreds of chans and many 
+        #       millions of spikes?  Might want to do once rather than repeat
+        indexes = np.where(spike_indexes_chunk[:,1]==channel)[0]
+        spike_train = spike_indexes_chunk[indexes]
+        print ('Starting channel: '+str(channel)+ ', events: '+str(spike_train.shape[0]))
+
+        # read waveforms from recording chunk in memory
+        spike_train = spike_indexes_chunk[indexes]
+        wf = load_waveforms_from_memory(recording_chunk, data_start, offset, 
+                                        spike_train, spike_size)
+                                        
+        # plotting parameters
+        if plotting:
+            # Cat: TODO: this global x is not necessary, should make it local
+            global x, ax_t
+            x = np.zeros(100, dtype = int)
+            fig = plt.figure(figsize =(100,100))
+            grid = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
+        
+        # legacy code fix
+        indexes_subsampled = np.arange(indexes.shape[0])
+        
+        # initialize plots:
+        if plotting: 
+            ax_t = fig.add_subplot(grid[13:, 6:])
+
+        # cluster
+        RRR3_noregress_recovery(channel, wf[indexes_subsampled], 
+             spike_train[indexes_subsampled], gen, fig, grid, 
+             triageflag, alignflag, plotting, n_mad_chans, n_max_chans, 
+             n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
+             upsample_factor, nshifts, assignment_global, spike_index, scale)
+
+        # finish plotting 
+        if plotting: 
+            #ax_t = fig.add_subplot(grid[13:, 6:])
+            for i in range(CONFIG.recordings.n_channels):
+                ax_t.text(CONFIG.geom[i,0], CONFIG.geom[i,1], str(i), alpha=0.4, 
+                                                                fontsize=30)
+                # fill bewteen 2SUs on each channel
+                ax_t.fill_between(CONFIG.geom[i,0] + np.arange(-61,0,1)/3.,
+                    -scale + CONFIG.geom[i,1], scale + CONFIG.geom[i,1], 
+                    color='black', alpha=0.05)
+                
+            # plot max chan with big red dot                
+            ax_t.scatter(CONFIG.geom[channel,0], CONFIG.geom[channel,1], s = 2000, 
+                                                    color = 'red')
+            # if at least 1 cluster is found:
+            if len(spike_index)>0: 
+                sic_temp = np.concatenate(spike_index, axis = 0)
+                assignment_temp = np.concatenate(assignment_global, axis = 0)
+                idx = sic_temp[:,1] == channel
+                clusters, sizes = np.unique(assignment_temp[idx], return_counts= True)
+                clusters = clusters.astype(int)
+
+                chans.extend(channel*np.ones(clusters.size))
+
+                labels=[]
+                for i, clust in enumerate(clusters):
+                    patch_j = mpatches.Patch(color = colors[clust%100], label = "size = {}".format(sizes[i]))
+                    labels.append(patch_j)
+                ax_t.legend(handles = labels, fontsize=30)
+
+            # plto title
+            fig.suptitle("Channel: "+str(channel), fontsize=25)
+            fig.savefig(chunk_dir+"/channel_{}.png".format(channel))
+            plt.close(fig)
+
+        # Save weighted templates also:
+        temp = np.zeros((len(spike_index),wf.shape[1],wf.shape[2]),'float32')
+        for k in range(len(spike_index)):
+            idx = np.in1d(spike_train[:,0], spike_index[k][:,0])
+            temp[k] = np.mean(wf[idx],axis=0)
+
+        # save all clustered data
+        np.savez(filename_postclustering, spike_index=spike_index, 
+                        indexes_subsampled=indexes_subsampled,
+                        templates=temp,
+                        weights=np.asarray([sic.shape[0] for sic in spike_index]))
+
+    else: 
+        # 
+        data = np.load(filename_postclustering, encoding='latin1')
+        spike_index = data['spike_index']
+
+    print ("")
+    print ("**********************************************************")
+    print ("**** Channel ", str(channel), " # clusters: ", len(spike_index))
+    print ("**********************************************************")
+    print ("")
+    
+   
+    
+def global_merge_all_ks(chunk_dirs, CONFIG):
+
+    ''' Function that cleans noisy templates and merges the rest    
+    '''
+    
+    n_channels = CONFIG.recordings.n_channels
+
+    # convert clusters to templates; keep track of weights
+    templates = []
+    templates_std = []
+    weights = []
+    spike_ids = []
+    spike_indexes = []
+    channels = np.arange(n_channels)
+    tmp_loc = []
+    
+    for chunk_dir in chunk_dirs:
+        print (chunk_dir)
+        # Cat: TODO: make sure this step is correct
+        for channel in range(CONFIG.recordings.n_channels):
+            data = np.load(chunk_dir+'/channel_{}.npz'.format(channel))
+            templates.append(data['templates'])
+            templates_std.append(data['templates_std'])
+            weights.append(data['weights'])
+           
+            #spike_index = data['spike_train_merged']
+            spike_indexes.append(data['spike_index'])
+    
+    spike_indexes = np.array(spike_indexes)        
+    templates = np.vstack(templates)
+    templates_std = np.vstack(templates_std)
+    weights = np.hstack(weights)
+    
+    # ************* DELETE TOO FEW SPIKES ************
+    #  delete clusters < 300 spikes
+    min_spikes = 100
+    idx_delete = []
+    for s in range(len(spike_indexes)):
+        if spike_indexes[s].shape[0]<min_spikes:
+            idx_delete.append(s)
+    templates = np.delete(templates,idx_delete,axis=0)
+    templates_std = np.delete(templates_std,idx_delete,axis=0)
+    weights = np.delete(weights,idx_delete,axis=0)
+    spike_indexes = np.delete(spike_indexes,idx_delete,axis=0)
+
+
+    # ************** GET SIM_MAT ****************
+    # initialize cos-similarty matrix and boolean version 
+    #sim_mat = np.zeros((templates.shape[0], templates.shape[0]), 'bool')    
+    
+    print(templates.shape)
+    
+    sim_temp = calc_sim_vector(templates, CONFIG)
+    sim_temp[np.diag_indices(sim_temp.shape[0])] = 0
+    sim_temp[np.tril_indices(sim_temp.shape[0])] = 0
+    run_KS_test(sim_temp, templates, templates_std, CONFIG, resampling = False, plotting = True)
+
+    quit()
+
+    global_merge_file = (CONFIG.data.root_folder+ '/tmp/global_merge_matrix.npz')
+    if os.path.exists(global_merge_file)==False:
+        print ("Computing global merge over templates: ", templates.shape)
+        if CONFIG.resources.multi_processing:
+            n_processors = CONFIG.resources.n_processors
+            indexes = np.array_split(np.arange(templates.shape[0]), 
+                                max(n_processors, templates.shape[0]/20))
+            res = parmap.map(
+                calc_global_merge_parallel,
+                indexes,
+                templates,
+                sim_mat,
+                sim_temp,
+                CONFIG,            
+                processes=n_processors,
+                pm_pbar=True)
+        else:
+            res = []
+            for k in range(len(templates)):
+                temp = calc_global_merge_parallel(
+                    [k], 
+                    templates,
+                    sim_mat,
+                    sim_temp,
+                    CONFIG)
+                res.append(temp)    
+        
+        # sum all matrices
+        sim_mat_sum = np.zeros(sim_mat.shape, 'bool')
+        sim_temp_sum = np.zeros(sim_temp.shape, 'float32')
+        for k in range(len(res)):
+            sim_mat_sum+=res[k][0]
+            sim_temp_sum+=res[k][1]
+
+        np.savez(global_merge_file, 
+                 sim_mat_sum = sim_mat_sum, 
+                 sim_temp_sum = sim_temp_sum)
+
+    else:
+        data = np.load(global_merge_file)
+        sim_mat_sum= data['sim_mat']
+        sim_temp_sum = data['sim_temp']
+                
+    # ********************************************************
+    # compute connected nodes and sum spikes over them
+    G = nx.from_numpy_array(sim_mat_sum)
+    final_spike_indexes = []
+    final_template_indexes = []
+    #print (nx.number_connected_components(G))
+    for i, cc in enumerate(nx.connected_components(G)):
+        final_template_indexes.append(list(cc))
+        sic = np.zeros(0, dtype = int)
+        for j in cc:
+            sic = np.concatenate([sic, spike_indexes[j]])
+        final_spike_indexes.append(np.concatenate([sic[:,np.newaxis], i*np.ones([sic.size,1],dtype = int)],axis = 1))
+
+    final_spike_train = np.vstack(final_spike_indexes)
+    
+    # recompute tmp_loc from weighted templates
+    tmp_loc = []
+    templates_final = []
+    weights_final = []
+    for t in final_template_indexes:
+        # compute average weighted template and find peak
+        idx = np.int32(t)
+
+        # compute weighted template
+        weighted_average = np.average(templates[idx],axis=0,weights=weights[idx])
+        templates_final.append(weighted_average)
+
+        max_chan = weighted_average.ptp(0).argmax(0)
+
+        tmp_loc.append(max_chan)
+    
+    # convert templates to : (n_channels, waveform_size, n_templates)
+    templates = np.float32(templates_final)
+    templates = np.swapaxes(templates, 2,0)
+     
+    return final_spike_train, tmp_loc, templates
+   
+def calc_sim_vector(templates, CONFIG):
+    mc = templates.ptp(1).argmax(1)
+    n_chan = CONFIG.recordings.n_channels
+    main_channels = np.unique(mc)
+    N_temp = mc.size
+    sim_temp = np.zeros([N_temp, N_temp])
+    chan_pairs = np.ones([n_chan,n_chan], dtype = bool)
+    for chan in main_channels:
+        channels = np.where(np.logical_and(chan_pairs[chan], CONFIG.neigh_channels[chan]))[0]
+        chan_pairs[channels[:,np.newaxis], channels] = False
+        idx = np.where(np.in1d(mc, channels))[0]
+        aligned_templates = align_mc(templates[idx], chan, CONFIG, upsample_factor = 5, nshifts = 15)
+        feat_channels = np.where(aligned_templates.mean(0).ptp(0)>2)[0]
+        sim = (aligned_templates[:, np.newaxis, :, feat_channels] * aligned_templates[:, :, feat_channels]).sum((2,3))
+        norm = np.sqrt((aligned_templates**2).sum((1,2)))
+        sim = sim/(norm[:,np.newaxis] * norm)
+        sim_temp[idx[:,np.newaxis],idx] = sim
+    
+    return sim_temp
+
+def calc_ks_dist(A, B, lin): 
+    cdf2 = np.zeros(lin.shape[0]) 
+    cdf = np.zeros(lin.shape[0])
+    for i,j in enumerate(lin):
+        cdf[i] = (A<j).sum()/A.size
+        cdf2[i] = (B<j).sum()/B.size
+    print(cdf.size)
+    return np.abs(cdf - cdf2).max()
+    
+    
+def run_KS_test(sim_temp, mean, std, CONFIG, resampling = True, plotting = False):
+    
+    cfg = CONFIG
+    path_fig = '/media/cat/1TB/liam/49channels/data1_allset/tmp/cluster/chunk_000000/'
+    size_resample = 500
+    n_chan = CONFIG.recordings.n_channels
+
+    row,column = np.where(sim_temp > 0.90)
+    print(row.size)
+    sim_mat = np.zeros(sim_temp.shape, dtype = bool)
+    Y = np.random.normal(size = 1500)
+    for i, pair in enumerate(zip(row, column)):
+        print('*********************', pair, "**************************")
+        if resampling:
+            to_align = np.concatenate([mean[[pair]], std[[pair]]], axis = 2)
+            aligned = align_mc(to_align, to_align[:,:,:49].mean(0).ptp(0).argmax(0), cfg, 20, 15)
+    
+            aligned_means = aligned[:,:,:n_chan]
+            aligned_stds = aligned[:,:,n_chan:]
+            wf1 = np.random.normal(loc = aligned_means[0:1].repeat(size_resample, axis = 0).ravel(),
+                         scale = aligned_stds[0:1].repeat(size_resample, axis = 0).ravel()).reshape([size_resample,aligned.shape[1],n_chan])
+            wf2 = np.random.normal(loc = aligned_means[1:2].repeat(size_resample, axis = 0).ravel(),
+                         scale = aligned_stds[1:2].repeat(size_resample, axis = 0).ravel()).reshape([size_resample,aligned.shape[1],n_chan])
+            align_wf = np.concatenate([wf1,wf2], axis = 0)
+            y_act = np.concatenate([np.zeros(size_resample), np.ones(size_resample)])
+            
+            feat_channels, max_chans, mad_chans = get_feat_channels_ks_test(aligned_means.mean(0), aligned_means, 3, 3)
+            print(feat_channels, max_chans, mad_chans)
+            wf_start = 0
+
+            wf_end = 31
+            data_in = align_wf[:, wf_start:wf_end][:,:,feat_channels].swapaxes(1,2).reshape(align_wf.shape[0],-1)
+            pca_wf, pca_reconstruct = PCA(data_in, 3)
+            lda = LDA(n_components = 1)
+            trans = lda.fit_transform(pca_wf, y_act)
+            trans = (trans - trans.mean())/ trans.std()
+            lin = np.arange(trans.mean(), trans.max(), 0.01)
+            ks_dist = calc_ks_dist(trans, Y, lin)
+            if ks_dist < 0.10:
+                print('^^^^^^^^^^^^^^ merged ^^^^^^^^^^^^^^^^^^')
+                sim_mat[pair[0], pair[1]] = sim_mat[pair[1], pair[0]]  = True
+        else:
+            idx = np.where(np.in1d(spike_train[:,1], pair))[0]
+            idx1 = np.where(spike_train[idx,1] == pair[0])[0]
+            idx2 = np.where(spike_train[idx,1] == pair[1])[0]
+            idx1 = np.random.choice(idx1, min(500, idx1.size))
+            idx2 = np.random.choice(idx2, min(500, idx2.size))
+            idx = np.concatenate([idx[idx1], idx[idx2]])
+            idx1 = np.where(spike_train[idx,1] == pair[0])[0]
+            idx2 = np.where(spike_train[idx,1] == pair[1])[0]
+            wf = re.read_waveforms(spike_train[idx,0])
+
+
+            align_wf, _ = align_mc(wf, wf.mean(0).ptp(0).argmax(), cfg, 20, 501)
+            to_get_feat = np.concatenate([align_wf[idx1].mean(0, keepdims =True), align_wf[idx2].mean(0, keepdims =True)], axis = 0)
+            feat_channels, max_chans, mad_chans = get_feat_channels(to_get_feat.mean(0), to_get_feat, 3, 3)
+            wf_start = 0
+            wf_end = 31
+            data_in = align_wf[:, wf_start:wf_end][:,:,feat_channels].swapaxes(1,2).reshape(wf.shape[0],-1)
+            pca_wf, pca_reconstruct, _ = PCA(data_in, 3)
+            idx_keep = triage(90, pca_wf)
+            data_in = data_in[idx_keep]
+            pca_wf, pca_reconstruct, _ = PCA(data_in, 3)
+            idx1 = spike_train[idx,1][idx_keep] == pair[0]
+            idx2 = spike_train[idx,1][idx_keep] == pair[1]
+        
+
+            lda = LDA(n_components = 1)
+            trans = lda.fit_transform(pca_wf, spike_train[idx,1][idx_keep])
+            trans = (trans - trans.mean())/ trans.std()
+            lin = np.arange(trans.mean(), trans.max(), 0.01)
+            ks_dist = calc_ks_dist(trans, Y, lin)
+            if ks_dist < 0.10:
+                print('^^^^^^^^^^^^^^ merged ^^^^^^^^^^^^^^^^^^')
+                sim_mat[pair[0], pair[1]] = sim_mat[pair[1], pair[0]]  = True
+            
+        if plotting:
+            if resampling:
+                plt.figure(figsize = (40,50))    
+                grid = plt.GridSpec(10,8, hspace =0.2, wspace = 0.2)
+                plt.subplot(grid[:3,:8])
+                plt.plot(data_in.T*10+30, 'k',alpha = 0.2)
+                plt.plot(data_in[:500].mean(0).T*10+30, 'b',alpha = 0.2)
+                plt.plot(data_in[500:].mean(0).T*10+30, 'r',alpha = 0.2)
+                plt.plot(pca_reconstruct.T*10, 'y', alpha = 0.2)
+                plt.plot(pca_reconstruct[:500].mean(0).T*10, 'b', alpha = 0.2)
+                plt.plot(pca_reconstruct[500:].mean(0).T*10, 'r', alpha = 0.2)
+                plt.subplot(grid[3:5,:2])
+                plt.scatter(pca_wf[:500,0], pca_wf[:500,1], c = colors[pair[0]], alpha = 0.5)
+                plt.scatter(pca_wf[500:,0], pca_wf[500:,1], c = colors[pair[1]], alpha = 0.5)
+                plt.xlabel('PCA 0')
+                plt.ylabel('PCA 1')
+                plt.subplot(grid[3:5,2:4])
+                plt.scatter(pca_wf[:500,0], pca_wf[:500,2], c = colors[pair[0]], alpha = 0.5)
+                plt.scatter(pca_wf[500:,0], pca_wf[500:,2], c = colors[pair[1]], alpha = 0.5)
+                plt.xlabel('PCA 0')
+                plt.ylabel('PCA 2')
+                plt.subplot(grid[3:5,4:6])
+                plt.scatter(pca_wf[:500,2], pca_wf[:500,1], c = colors[pair[0]], alpha = 0.5)
+                plt.scatter(pca_wf[500:,2], pca_wf[500:,1], c = colors[pair[1]], alpha = 0.5)
+                plt.xlabel('PCA 2')
+                plt.ylabel('PCA 1')
+                plt.subplot(grid[3:5,6:8])
+                plt.hist(trans[:500], bins = 100, color = colors[pair[0]])
+                plt.hist(trans[500:], bins = 100, color = colors[pair[1]])
+                plt.subplot(grid[5:,:8])
+
+                plt.plot(CONFIG.geom[:,0] + np.arange(31)[:,np.newaxis], align_wf[:500].mean(0)*10+CONFIG.geom[:,1], c = 'b')
+                plt.plot(CONFIG.geom[:,0] + np.arange(31)[:,np.newaxis], align_wf[500:].mean(0)*10+CONFIG.geom[:,1], c = 'r')
+                plt.scatter(CONFIG.geom[max_chans,0],CONFIG.geom[max_chans,1]+5,s = 200,c= 'green')
+                plt.scatter(CONFIG.geom[mad_chans,0]+5,CONFIG.geom[mad_chans,1]+5,s = 200,c= 'k')
+                if ks_dist > 0.1:
+                    plt.scatter(-800, 450, s = 500,c= 'r')
+                else:
+                    plt.scatter(-800, 450, s = 500,c= 'g')
+                for chan in range(49):
+                    plt.text(CONFIG.geom[chan,0], CONFIG.geom[chan,1]-5, '{}'.format(chan))
+                plt.title('Sampled, Cosine_distance = {}, ks_distance = {}'.format(sim_temp[pair[0], pair[1]], ks_dist), fontsize = 25)
+                plt.savefig(path_fig + 'cluster_{}_{}.png'.format(pair[0], pair[1]))
+            else:
+                plt.figure(figsize = (40,50))    
+                grid = plt.GridSpec(10,8, hspace =0.2, wspace = 0.2)
+                plt.subplot(grid[:3,:])
+                plt.plot(data_in.T*10+30, 'k',alpha = 0.2)
+                plt.plot(data_in[idx1].mean(0).T*10+30, 'b',alpha = 0.2)
+                plt.plot(data_in[idx2].mean(0).T*10+30, 'r',alpha = 0.2)
+                plt.plot(pca_reconstruct.T*10, 'y', alpha = 0.2)
+                plt.plot(pca_reconstruct[idx1].mean(0).T*10, 'b', alpha = 0.2)
+                plt.plot(pca_reconstruct[idx2].mean(0).T*10, 'r', alpha = 0.2)
+                plt.subplot(grid[3:5,:2])
+                plt.scatter(pca_wf[:,0], pca_wf[:,1], c = colors[spike_train[idx,1][idx_keep].astype(int)], alpha = 0.5)
+                plt.xlabel('PCA 0')
+                plt.ylabel('PCA 1')
+                plt.subplot(grid[3:5,2:4])
+                plt.scatter(pca_wf[:,0], pca_wf[:,2], c = colors[spike_train[idx,1][idx_keep].astype(int)], alpha = 0.5)
+                plt.xlabel('PCA 0')
+                plt.ylabel('PCA 2')
+                plt.subplot(grid[3:5,4:6])
+                plt.scatter(pca_wf[:,2], pca_wf[:,1], c = colors[spike_train[idx,1][idx_keep].astype(int)], alpha = 0.5)
+                plt.xlabel('PCA 2')
+                plt.ylabel('PCA 1')
+                plt.subplot(grid[3:5,6:8])
+                plt.hist(trans[idx1], bins = 100, color = colors[pair[0]])
+                plt.hist(trans[idx2], bins = 100, color = colors[pair[1]])
+                plt.subplot(grid[5:,:])
+                plt.plot(CONFIG.geom[:,0] + np.arange(51)[:,np.newaxis], align_wf[idx_keep][idx1].mean(0)*10+CONFIG.geom[:,1], c = 'b')
+                plt.plot(CONFIG.geom[:,0] + np.arange(51)[:,np.newaxis], align_wf[idx_keep][idx2].mean(0)*10+CONFIG.geom[:,1], c = 'r')
+                plt.scatter(CONFIG.geom[max_chans,0],CONFIG.geom[max_chans,1]+5,s = 200,c= 'green')
+                plt.scatter(CONFIG.geom[mad_chans,0]+5,CONFIG.geom[mad_chans,1]+5,s = 200,c= 'k')
+                if ks_dist > 0.1:
+                    plt.scatter(-800, 450, s = 500,c= 'r')
+                else:
+                    plt.scatter(-800, 450, s = 500,c= 'g')
+                for chan in range(49):
+                    plt.text(CONFIG.geom[chan,0], CONFIG.geom[chan,1]-5, '{}'.format(chan))
+                plt.title('Actual, Cosine_distance = {}, ks_distance = {}'.format(sim_temp[pair[0], pair[1]], ks_dist), fontsize = 25)
+                plt.show()
+    return sim_mat
+    
+    
+def global_merge_all_old(chunk_dirs, CONFIG):
+
     ''' Function that cleans noisy templates and merges the rest    
     '''
     
@@ -1757,15 +2035,144 @@ def global_merge(channels, CONFIG):
     channels = np.arange(n_channels)
     tmp_loc = []
     
+    for chunk_dir in chunk_dirs:
+        data = np.load(chunk_dir+'/channels_merged.npz')
+        templates.append(data['templates'].T)
+        #print (data['templates'].shape)
+        weights.append(data['weights'])
+       
+        spike_index = data['spike_train_merged']
+        for s in spike_index:
+            spike_indexes.append(s[:,0])
+    
+    spike_indexes = np.array(spike_indexes)        
+    templates = np.vstack(templates)
+    weights = np.hstack(weights)
+    
+    # delete clusters < 300 spikes
+    min_spikes = 300
+    idx_delete = []
+    for s in range(len(spike_indexes)):
+        if spike_indexes[s].shape[0]<min_spikes:
+            idx_delete.append(s)
+
+    templates = np.delete(templates,idx_delete,axis=0)
+    weights = np.delete(weights,idx_delete,axis=0)
+    spike_indexes = np.delete(spike_indexes,idx_delete,axis=0)
+
+    
+    # initialize cos-similarty matrix and boolean version 
+    sim_mat = np.zeros((templates.shape[0], templates.shape[0]), 'bool')    
+    sim_temp = np.zeros((templates.shape[0], templates.shape[0]), 'float32')
+
+    global_merge_file = (CONFIG.data.root_folder+ '/tmp/global_merge_matrix.npz')
+    if os.path.exists(global_merge_file)==False:
+        print ("Computing global merge over templates: ", templates.shape)
+        if CONFIG.resources.multi_processing:
+            n_processors = CONFIG.resources.n_processors
+            indexes = np.array_split(np.arange(templates.shape[0]), 
+                                max(n_processors, templates.shape[0]/20))
+            res = parmap.map(
+                calc_global_merge_parallel,
+                indexes,
+                templates,
+                sim_mat,
+                sim_temp,
+                CONFIG,            
+                processes=n_processors,
+                pm_pbar=True)
+        else:
+            res = []
+            for k in range(len(templates)):
+                temp = calc_global_merge_parallel(
+                    [k], 
+                    templates,
+                    sim_mat,
+                    sim_temp,
+                    CONFIG)
+                res.append(temp)    
+        
+        # sum all matrices
+        sim_mat_sum = np.zeros(sim_mat.shape, 'bool')
+        sim_temp_sum = np.zeros(sim_temp.shape, 'float32')
+        for k in range(len(res)):
+            sim_mat_sum+=res[k][0]
+            sim_temp_sum+=res[k][1]
+
+        np.savez(global_merge_file, 
+                 sim_mat_sum = sim_mat_sum, 
+                 sim_temp_sum = sim_temp_sum)
+
+    else:
+        data = np.load(global_merge_file)
+        sim_mat_sum= data['sim_mat']
+        sim_temp_sum = data['sim_temp']
+                
+    # ********************************************************
+    # compute connected nodes and sum spikes over them
+    G = nx.from_numpy_array(sim_mat_sum)
+    final_spike_indexes = []
+    final_template_indexes = []
+    #print (nx.number_connected_components(G))
+    for i, cc in enumerate(nx.connected_components(G)):
+        final_template_indexes.append(list(cc))
+        sic = np.zeros(0, dtype = int)
+        for j in cc:
+            sic = np.concatenate([sic, spike_indexes[j]])
+        final_spike_indexes.append(np.concatenate([sic[:,np.newaxis], i*np.ones([sic.size,1],dtype = int)],axis = 1))
+
+    final_spike_train = np.vstack(final_spike_indexes)
+    
+    # recompute tmp_loc from weighted templates
+    tmp_loc = []
+    templates_final = []
+    weights_final = []
+    for t in final_template_indexes:
+        # compute average weighted template and find peak
+        idx = np.int32(t)
+
+        # compute weighted template
+        weighted_average = np.average(templates[idx],axis=0,weights=weights[idx])
+        templates_final.append(weighted_average)
+
+        max_chan = weighted_average.ptp(0).argmax(0)
+
+        tmp_loc.append(max_chan)
+    
+    # convert templates to : (n_channels, waveform_size, n_templates)
+    templates = np.float32(templates_final)
+    templates = np.swapaxes(templates, 2,0)
+     
+    return final_spike_train, tmp_loc, templates
+   
+    
+def chunk_merge(chunk_dir, channels, CONFIG):
+    
+    ''' Function that cleans noisy templates and merges the rest    
+        
+        1. local merge step: looks only at tempaltes with same
+        max chan and tries to merge
+        
+        2. neighbour merge step: look at tempaltes on nearby chans
+        and tries to merge 
+    
+    '''
+    
+    n_channels = CONFIG.recordings.n_channels
+
+    # convert clusters to templates; keep track of weights
+    templates = []
+    weights = []
+    spike_ids = []
+    spike_indexes = []
+    channels = np.arange(n_channels)
+    tmp_loc = []
+    
     for channel in channels:
-        data = np.load(
-          CONFIG.data.root_folder+'tmp/cluster/channel_{}_weighted_templates.npz'.format(channel), encoding='latin1')
+        data = np.load(chunk_dir+'/channel_{}.npz'.format(channel), encoding='latin1')
         templates.append(data['templates'])
         weights.append(data['weights'])
         
-        tmp_loc.extend([channel]*len(data['weights']))
-        
-        data = np.load(CONFIG.data.root_folder+'tmp/cluster/channel_{}_spike_index_postclustering.npz'.format(channel), encoding='latin1')
         spike_index = data['spike_index']
         for s in spike_index:
             spike_indexes.append(s[:,0])
@@ -1775,38 +2182,24 @@ def global_merge(channels, CONFIG):
     weights = np.hstack(weights)
 
     # delete clusters < 300 spikes
+    # Cat: TODO: min_spikes should be re-read from CONFIG
+    min_spikes = 300
     idx_delete = []
     for s in range(len(spike_indexes)):
-        if spike_indexes[s].shape[0]<300:
+        if spike_indexes[s].shape[0]<min_spikes:
             idx_delete.append(s)
     
-    print ("deleting # templates: ", len(idx_delete))
-    
-    print ("templates before: ", templates.shape)
     templates = np.delete(templates,idx_delete,axis=0)
-    print ("templates after: ", templates.shape)
-
     weights = np.delete(weights,idx_delete,axis=0)
-    print ("weights after: ", weights.shape)
-    
     spike_indexes = np.delete(spike_indexes,idx_delete,axis=0)
-    print ("spike_indexes after: ", spike_indexes.shape)
-    
-    
 
-    # save pre-merge templates
-    np.save(CONFIG.data.root_folder+'tmp/cluster/preglobal_merge_templates.npy',
-                                     templates)    
-        
-    # compute global merge in parallel
-    #sim_mat, sim_temp = calc_global_merge(templates, templates, CONFIG)
-    
-    # initialize cos-similarty matrix and boolean version 
-    sim_mat = np.zeros((templates.shape[0], templates.shape[0]), 'bool')    
-    sim_temp = np.zeros((templates.shape[0], templates.shape[0]), 'float32')
-
-    global_merge_file = CONFIG.data.root_folder+'tmp/cluster/global_merge_matrix.npz'
+    # compute merge matrix
+    global_merge_file = (chunk_dir+ '/merge_matrix.npz')
     if os.path.exists(global_merge_file)==False:
+        # initialize cos-similarty matrix and boolean version 
+        sim_mat = np.zeros((templates.shape[0], templates.shape[0]), 'bool')    
+        sim_temp = np.zeros((templates.shape[0], templates.shape[0]), 'float32')
+        
         print ("Computing global merge over templates: ", templates.shape)
         if CONFIG.resources.multi_processing:
             n_processors = CONFIG.resources.n_processors
@@ -1851,7 +2244,6 @@ def global_merge(channels, CONFIG):
     G = nx.from_numpy_array(sim_mat_sum)
     final_spike_indexes = []
     final_template_indexes = []
-    print (nx.number_connected_components(G))
     for i, cc in enumerate(nx.connected_components(G)):
         final_template_indexes.append(list(cc))
         sic = np.zeros(0, dtype = int)
@@ -1859,32 +2251,175 @@ def global_merge(channels, CONFIG):
             sic = np.concatenate([sic, spike_indexes[j]])
         final_spike_indexes.append(np.concatenate([sic[:,np.newaxis], i*np.ones([sic.size,1],dtype = int)],axis = 1))
 
-    final_spike_train = np.vstack(final_spike_indexes)
+    # keep final spike train as stacked list, easier to parse on other end
+    final_spike_train = final_spike_indexes
     
     # recompute tmp_loc from weighted templates
     tmp_loc = []
     templates_final= []
+    weights_final = []
     for t in final_template_indexes:
         # compute average weighted template and find peak
         idx = np.int32(t)
-        print (t, idx, templates.shape, weights.shape)
         weighted_average = np.average(templates[idx],axis=0,weights=weights[idx])
-        max_chan = weighted_average.ptp(0).argmax(0)
-        
         templates_final.append(weighted_average)
+       
+        # find max chan and append
+        max_chan = weighted_average.ptp(0).argmax(0)
         tmp_loc.append(max_chan)
     
+        # add weights of all templates for merged template
+        weights_final.append(weights[idx].sum(0))
+
     # convert templates to : (n_channels, waveform_size, n_templates)
     templates = np.float32(templates_final)
-    print (templates.shape)
     templates = np.swapaxes(templates, 2,0)
-    
-    # save cluster assignment list
-    np.save(CONFIG.data.root_folder+'tmp/cluster/global_merge_assignments.npy',
-                                     final_template_indexes)
-    
-    return final_spike_train, tmp_loc, templates
 
+    # save chunk data
+    np.savez(chunk_dir+'/channels_merged.npz',
+             spike_train_merged = final_spike_train,
+             tmp_loc = tmp_loc,
+             templates = templates,
+             weights = weights_final)        
+    
+    
+def global_merge(chunk_dir, channels, CONFIG):
+    ''' Function that cleans noisy templates and merges the rest    
+    '''
+    
+    n_channels = CONFIG.recordings.n_channels
+
+    # convert clusters to templates; keep track of weights
+    templates = []
+    weights = []
+    spike_ids = []
+    spike_indexes = []
+    channels = np.arange(n_channels)
+    tmp_loc = []
+    
+    for channel in channels:
+        data = np.load(chunk_dir+'/channel_{}.npz'.format(channel), encoding='latin1')
+        templates.append(data['templates'])
+        weights.append(data['weights'])
+        
+        spike_index = data['spike_index']
+        for s in spike_index:
+            spike_indexes.append(s[:,0])
+    
+    spike_indexes = np.array(spike_indexes)        
+    templates = np.vstack(templates)
+    weights = np.hstack(weights)
+
+    # delete clusters < 300 spikes
+    # Cat: TODO: min_spikes should be re-read from CONFIG
+    min_spikes = 300
+    idx_delete = []
+    for s in range(len(spike_indexes)):
+        if spike_indexes[s].shape[0]<min_spikes:
+            idx_delete.append(s)
+    
+    templates = np.delete(templates,idx_delete,axis=0)
+    weights = np.delete(weights,idx_delete,axis=0)
+    spike_indexes = np.delete(spike_indexes,idx_delete,axis=0)
+
+
+    # compute local merge
+    
+    # make list of templates by channel
+    templates_list_channels = []
+    
+    # parallelize over channels
+    parmap(calc_local_merge_parallel)
+
+    # compute neighbour merge 
+    global_merge_file = (chunk_dir+ '/merge_matrix.npz')
+    if os.path.exists(global_merge_file)==False:
+        # initialize cos-similarty matrix and boolean version 
+        sim_mat = np.zeros((templates.shape[0], templates.shape[0]), 'bool')    
+        sim_temp = np.zeros((templates.shape[0], templates.shape[0]), 'float32')
+        
+        print ("Computing global merge over templates: ", templates.shape)
+        if CONFIG.resources.multi_processing:
+            n_processors = CONFIG.resources.n_processors
+            indexes = np.array_split(np.arange(templates.shape[0]), 
+                                max(n_processors, templates.shape[0]/20))
+            res = parmap.map(
+                calc_global_merge_parallel,
+                indexes,
+                templates,
+                sim_mat,
+                sim_temp,
+                CONFIG,            
+                processes=n_processors,
+                pm_pbar=True)
+        else:
+            res = []
+            for k in range(len(templates)):
+                temp = calc_global_merge_parallel(
+                    [k], 
+                    templates,
+                    sim_mat,
+                    sim_temp,
+                    CONFIG)
+                res.append(temp)    
+        
+        # sum all matrices
+        sim_mat_sum = np.zeros(sim_mat.shape, 'bool')
+        sim_temp_sum = np.zeros(sim_temp.shape, 'float32')
+        for k in range(len(res)):
+            sim_mat_sum+=res[k][0]
+            sim_temp_sum+=res[k][1]
+
+        np.savez(global_merge_file, sim_mat=sim_mat_sum, sim_temp = sim_temp_sum)
+
+    else:
+        data = np.load(global_merge_file, encoding='latin1')
+        sim_mat_sum = data['sim_mat']        
+        sim_mat_temp = data['sim_temp']        
+
+    # ********************************************************
+    # compute connected nodes and sum spikes over them
+    G = nx.from_numpy_array(sim_mat_sum)
+    final_spike_indexes = []
+    final_template_indexes = []
+    for i, cc in enumerate(nx.connected_components(G)):
+        final_template_indexes.append(list(cc))
+        sic = np.zeros(0, dtype = int)
+        for j in cc:
+            sic = np.concatenate([sic, spike_indexes[j]])
+        final_spike_indexes.append(np.concatenate([sic[:,np.newaxis], i*np.ones([sic.size,1],dtype = int)],axis = 1))
+
+    # keep final spike train as stacked list, easier to parse on other end
+    final_spike_train = final_spike_indexes
+    
+    # recompute tmp_loc from weighted templates
+    tmp_loc = []
+    templates_final= []
+    weights_final = []
+    for t in final_template_indexes:
+        # compute average weighted template and find peak
+        idx = np.int32(t)
+        weighted_average = np.average(templates[idx],axis=0,weights=weights[idx])
+        templates_final.append(weighted_average)
+       
+        # find max chan and append
+        max_chan = weighted_average.ptp(0).argmax(0)
+        tmp_loc.append(max_chan)
+    
+        # add weights of all templates for merged template
+        weights_final.append(weights[idx].sum(0))
+
+    # convert templates to : (n_channels, waveform_size, n_templates)
+    templates = np.float32(templates_final)
+    templates = np.swapaxes(templates, 2,0)
+
+    # save chunk data
+    np.savez(chunk_dir+'/channels_merged.npz',
+             spike_train_merged = final_spike_train,
+             tmp_loc = tmp_loc,
+             templates = templates,
+             weights = weights_final)        
+    
     
 def local_merge(channel, spike_index, sic, wf, CONFIG):
     ''' Function that cleans noisy templates and merges the rest    
@@ -2151,6 +2686,60 @@ def calc_sim_all_chan(channel, base_temp, com_temp, CONFIG, merge_threshold=0.8,
             #plt.close('all')
     return sim_mat, temp, feat_channels
 
+def calc_local_merge_parallel(template_indexes, base_temp, sim_mat, sim_temp, CONFIG):
+    
+    # base and comparison are the same
+    com_temp = base_temp
+    
+    nshifts = 15
+    upsample_factor = 20
+    merge_threshold = CONFIG.merge_threshold
+    feat_chans_threshold = 2
+   
+    # compute max channel for each template
+    mc_base = base_temp.ptp(1).argmax(1)
+    mc_com = com_temp.ptp(1).argmax(1)
+    
+    # keep track of finished pairs and don't compare them
+    finished_pairs = []
+
+    # loop only over indexes for the current proc_index
+    for i in template_indexes:
+        sim_mat[i,i] = True
+        
+        # compare templates only with those that have max_amplitude on a neighbouring channel
+        for j in np.where(np.in1d(mc_com, np.where(CONFIG.neigh_channels[mc_base[i]])[0]))[0]:
+            
+            if j == i or [min(i,j), max(i,j)] in finished_pairs:
+                continue
+            feat_channels = np.where(np.logical_or(base_temp[i].ptp(0)>feat_chans_threshold, 
+                                            com_temp[j].ptp(0)>feat_chans_threshold))[0]
+            
+            # find max chan of average of both templates
+            max_chan_index = (base_temp[i,:, feat_channels] + com_temp[j,:, feat_channels]).T.ptp(0).argmax(0)
+            chan = feat_channels[max_chan_index]
+            
+            # align together to average template shape max chan         
+            wfs_aligned = align_mc(np.vstack((base_temp[i:i+1,:,feat_channels],com_temp[j:j+1,:,feat_channels])), 
+                                            max_chan_index, CONFIG, upsample_factor, nshifts)
+            bt_aligned = wfs_aligned[0]
+            ct_aligned = wfs_aligned[1]
+            
+            temp = (bt_aligned*ct_aligned).sum()
+            
+            if (bt_aligned**2).sum() > (ct_aligned**2).sum():
+                temp = temp/ (bt_aligned**2).sum()
+            else:
+                temp = temp/ (ct_aligned**2).sum()
+            
+            if temp>merge_threshold:
+                sim_mat[i, j] = sim_mat[j, i] = True
+            
+            finished_pairs.append([min(i,j), max(i,j)])
+            sim_temp[i, j] = sim_temp[j, i] = temp
+
+    return sim_mat, sim_temp
+
 def calc_global_merge_parallel(template_indexes, base_temp, sim_mat, sim_temp, CONFIG):
     
     # base and comparison are the same
@@ -2165,19 +2754,16 @@ def calc_global_merge_parallel(template_indexes, base_temp, sim_mat, sim_temp, C
     mc_base = base_temp.ptp(1).argmax(1)
     mc_com = com_temp.ptp(1).argmax(1)
     
-    # don't initialize these, just pass them in
-    #sim_mat = np.zeros([mc_base.shape[0], mc_com.shape[0]], dtype = bool)    
-    #sim_temp = np.zeros([mc_base.shape[0], mc_com.shape[0]])
-    
     # keep track of finished pairs and don't compare them
     finished_pairs = []
 
-    # loop only over indexes for the mutiprocessing core
+    # loop only over indexes for the current proc_index
     for i in template_indexes:
         sim_mat[i,i] = True
+        
         # compare templates only with those that have max_amplitude on a neighbouring channel
         for j in np.where(np.in1d(mc_com, np.where(CONFIG.neigh_channels[mc_base[i]])[0]))[0]:
-               
+            
             if j == i or [min(i,j), max(i,j)] in finished_pairs:
                 continue
             feat_channels = np.where(np.logical_or(base_temp[i].ptp(0)>feat_chans_threshold, 
@@ -2263,64 +2849,86 @@ def calc_global_merge(base_temp, com_temp, CONFIG):
 
     return sim_mat, sim_temp
     
+
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+
+#def calc_ks_dist(templates, templates_std, N):
+    #Y = np.random.normal(size = 15000)
+    #wf_sampled1 = np.zeros([N, templates.shape[1], templates.shape[2]])
+    #wf_sampled2 = np.zeros([N, templates.shape[1], templates.shape[2]])
+    #for i in range(templates.shape[1]):
+        #for j in range(templates.shape[2]):
+            #wf_sampled1[:,i,j] = np.random.normal(loc = templates[0,j,k], scale = templates_std[0,j,k], size = N)
+            #wf_sampled2[:,i,j] = np.random.normal(loc = templates[1,j,k], scale = templates_std[1,j,k], size = N)
+            
+    #wf_sampled = np.concatenate([wf_sampled1, wf_sampled2], axis = 0)
+    #feat_channels = get_feat_channels(templates.mean(0), templates, 3, 3)
+    #wf_start = 0
+    #wf_end = int(0.8* wf_sampled.shape[1])
+    #data_in = wf_sampled[:,wf_start: wf_end][:,:,feat_channels].swapaxes(1,2).reshape(2*N, -1)
+    #pca_wf, _ = PCA(data_in, 3)
+    #y = np.concatenate([np.zeros(N), np.ones(N)]).astype(int)
+    #lda = LDA(n_component = 1)
+    #trans = lda.fit_transform(pca_wfm, y)
+    
+    #lin = np.arange(trans.min(), trans.max(), 0.001)
+    #cdf1 = np.zeros(lin.shape)
+    #cdf2 = np.zeros(lin.shape)
+    #for i, val in enumerate(lin):
+        #cdf1[i] = 1/Y.size * (Y<val).sum()
+        #cdf1[i] = 1/trans.size * (trans<val).sum()
+    
+    #return np.abs(cdf1 - cdf2).max()
+       
     
 
-def calc_local_merge(channel, base_temp, com_temp, CONFIG):
+#def calc_local_merge(channel, base_temp, com_temp, CONFIG):
+def calc_local_merge(channel, templates, template_stds, CONFIG):
     
     nshifts = 15
     upsample_factor = 20
     merge_threshold = CONFIG.cluster.merge_threshold
     feat_chans_threshold = 2
    
-    # compute max channel for each template
-    mc_base = base_temp.ptp(1).argmax(1)
-    mc_com = com_temp.ptp(1).argmax(1)
-    
     # initialize cos-similarty matrix and boolean version 
     sim_mat = np.zeros([mc_base.shape[0], mc_com.shape[0]], dtype = bool)    
     sim_temp = np.zeros([mc_base.shape[0], mc_com.shape[0]])
     
-    # keep track of finished pairs and don't compare them
-    finished_pairs = []
-    templates_aligned = np.zeros((base_temp.shape[0],base_temp.shape[0],2, 
-                            (base_temp.shape[1]-1)//2+1, base_temp.shape[2]), 'float32')
-    for i in range(mc_base.shape[0]):
-        sim_mat[i,i] = True
-        # compare templates only with those that have max_amplitude on a neighbouring channel
-        #for j in np.where(np.in1d(mc_com, np.where(CONFIG.neigh_channels[mc_base[i]])[0]))[0]:
-        for j in range(mc_com.shape[0]):
-            if j == i or [min(i,j), max(i,j)] in finished_pairs:
-                continue
-            feat_channels = np.where(np.logical_or(base_temp[i].ptp(0)>feat_chans_threshold, 
-                                            com_temp[j].ptp(0)>feat_chans_threshold))[0]
-            
-            # find max chan of average of both templates
-            max_chan_index = (base_temp[i,:, feat_channels] + com_temp[j,:, feat_channels]).T.ptp(0).argmax(0)
-            chan = feat_channels[max_chan_index]
-            
-            # align together to average template shape max chan         
-            wfs_aligned = align_mc(np.vstack((base_temp[i:i+1,:,:],com_temp[j:j+1,:,:])), 
-                                            max_chan_index, CONFIG, upsample_factor, nshifts)
-            bt_aligned = wfs_aligned[0,:,feat_channels]
-            ct_aligned = wfs_aligned[1,:,feat_channels]
-            
-            temp = (bt_aligned*ct_aligned).sum()
-            
-            if (bt_aligned**2).sum() > (ct_aligned**2).sum():
-                temp = temp/ (bt_aligned**2).sum()
-            else:
-                temp = temp/ (ct_aligned**2).sum()
-            
-            if temp>merge_threshold:
-                sim_mat[i, j] = sim_mat[j, i] = True
-            
-            finished_pairs.append([min(i,j), max(i,j)])
-            sim_temp[i, j] = sim_temp[j, i] = temp
-
-            templates_aligned[i,j] = wfs_aligned
-
-    return sim_mat, sim_temp, templates_aligned
     
+    #Concatenate templates and std and align together using the existing function
+    templates_and_std = np.concatenate([templates, templates_std], axis = 2)
+    
+    templates_and_std_aligned = align_mc(templates_and_std, channel, CONFIG, upsample_factor, nshifts)
+    templates_aligned = templates_and_std[:,:,:template.shape[2]]
+    std_aligned = templates_and_std[:,:,template.shape[2]:]
+        
+    for i in range(templates_aligned.shape[0]):
+        for j in range(i+1,templates_aligned.shape[0]):
+            feat_chan_2SU = np.where(templates_aligned[[i,j]].mean(0).ptp(0).argmax())[0]
+            temp = (templates_aligned[i, :, feat_chan_2SU] * templates_aligned[j, :, feat_chan_2SU]).sum(0)
+            
+            temp_i = (templates_aligned[i, :, feat_chan_2SU] * templates_aligned[i, :, feat_chan_2SU]).sum(0)
+            temp_j = (templates_aligned[j, :, feat_chan_2SU] * templates_aligned[j, :, feat_chan_2SU]).sum(0)
+                  
+            
+            for k,chan in enumerate(feat_chan_2SU):
+                if temp_i[k] > temp_j[k]:
+                    temp[k] = temp[k]/temp_i[k]
+                else:
+                    temp[k] = temp[k]/temp_j[k]
+                    
+            min_cos = temp.min()
+            sim_temp[i,j] = min_cos
+            if min_cos > merge_threshold_upper:
+                sim_mat[i,j] = True
+ 
+            elif min_cos>merge_threshold_lower and min_cos<merge_threshold_upper:
+                ks_dist = calc_ks_dist(templates_aligned[[i,j]], std_aligned[[i,j]], 500)
+                if ks_dist < 0.1:
+                    sim_mat[i,j] = True
+                
+    return sim_temp, sim_mat, templates_aligned
+
     
     
 # functions for finding groups
@@ -2341,7 +2949,7 @@ def merge_all(l, taken):
     
 def get_feat_channels(template, wf_data, n_max_chans, n_mad_chans):
 
-    rank_amp_chans = np.max(np.abs(template),axis=0)
+    rank_amp_chans = np.max(np.ptp(template, axis =0),axis=0)
     rank_indexes = np.argsort(rank_amp_chans)[::-1] 
     max_chans = rank_indexes[:n_max_chans]      # select top chans
     ptps = np.ptp(template,axis=0)
@@ -2352,6 +2960,20 @@ def get_feat_channels(template, wf_data, n_max_chans, n_mad_chans):
     feat_chans = np.union1d(max_chans, mad_chans)
     
     return feat_chans, max_chans
+    
+def get_feat_channels_ks_test(template, wf_data, n_max_chans, n_mad_chans):
+
+    rank_amp_chans = np.ptp(template, axis =0)
+    rank_indexes = np.argsort(rank_amp_chans)[::-1] 
+    max_chans = rank_indexes[:n_max_chans]      # select top chans
+    ptps = np.ptp(template,axis=0)
+    chan_indexes_2SU = np.where(ptps>2)[0]
+    rank_chans_max = np.max(robust.mad(wf_data[:,:,chan_indexes_2SU],axis=1),axis=1)
+    rank_indexes = np.argsort(rank_chans_max,axis=0)[::-1]
+    mad_chans = chan_indexes_2SU[rank_indexes][:n_mad_chans]      # select top chans
+    feat_chans = np.union1d(max_chans, mad_chans)
+    
+    return feat_chans, max_chans, mad_chans
 
 
 def align_wf(data_in, upsample_factor, n_steps):

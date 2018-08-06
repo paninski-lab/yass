@@ -134,9 +134,6 @@ def run(spike_index,
             templates = np.load(os.path.join(CONFIG.data.root_folder, 
                               output_directory,'templates.npy'))
         
-       
-          
-    
     # report timing
     currentTime = datetime.datetime.now()
     logger.info("Mainprocess done in {0} seconds.".format(

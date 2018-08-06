@@ -183,7 +183,10 @@ def run_neural_network2(standarized_path, standarized_params, channel_index,
         # compute batch indexes
         buffer_size = 200       # Cat: to set this in CONFIG file
         sampling_rate = CONFIG.recordings.sampling_rate
-        n_sec_chunk = CONFIG.resources.n_sec_chunk
+        #n_sec_chunk = CONFIG.resources.n_sec_chunk
+        
+        # Cat: TODO: Set a different size chunk for clustering vs. detection
+        n_sec_chunk = 60
         
         # take chunks
         indexes = np.arange(0, fp_len, sampling_rate * n_sec_chunk)
@@ -205,6 +208,8 @@ def run_neural_network2(standarized_path, standarized_params, channel_index,
         
         print("# of chunks: ", len(idx_list))
         
+        print (idx_list)
+        
         # run tensorflow 
         processing_ctr = 0
         #chunk_ctr = 0
@@ -217,7 +222,11 @@ def run_neural_network2(standarized_path, standarized_params, channel_index,
         fname_detection = os.path.join(CONFIG.data.root_folder,'tmp/detect/')
         if os.path.exists(fname_detection)==False:
             os.mkdir(fname_detection)
-            
+        
+        # set tensorflow verbosity level
+        tf.logging.set_verbosity(tf.logging.ERROR)
+
+        # open etsnrflow session
         with tf.Session() as sess:
             NND.saver.restore(sess, NND.path_to_detector_model)
             NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
@@ -228,7 +237,8 @@ def run_neural_network2(standarized_path, standarized_params, channel_index,
             # Cat: TODO: don't save to lists, might want to use numpy arrays directl
             #print (os.path.join(fname_detection,"detect_"+
             #                      str(chunk_ctr).zfill(5)+'.npz'))
-            #quit()
+
+            # loop over 10sec or 60 sec chunks
             for chunk_ctr, idx in enumerate(idx_list): 
                 if os.path.exists(os.path.join(fname_detection,"detect_"+
                                   str(chunk_ctr).zfill(5)+'.npz'))==True:
@@ -249,6 +259,7 @@ def run_neural_network2(standarized_path, standarized_params, channel_index,
                 # Cat: TODO: add last bit at end in case short
                 indexes = np.arange(0, standardized_recording.shape[0], sampling_rate)
 
+                # run tensorflow over 1sec chunks in general
                 for ctr, index in enumerate(indexes[:-1]): 
                     
                     # save absolute index of each subchunk
@@ -278,7 +289,6 @@ def run_neural_network2(standarized_path, standarized_params, channel_index,
             
                     processing_ctr+=1
             
-                
                 # save chunk of data in case crashes occur
                 #np.save(os.path.join(fname_detection,"score_"+
                 #                       str(idx[0]).zfill(5)),score_list)
@@ -292,7 +302,6 @@ def run_neural_network2(standarized_path, standarized_params, channel_index,
                 
                 # increase index for chunk
                 #chunk_ctr+=1
-
 
         # load all saved data;
         #score_list = []
