@@ -1274,7 +1274,7 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
 
         # make chunk directory if not available:
         # save chunk in own directory to enable cumulative recovery 
-        chunk_dir = CONFIG.data.root_folder+"tmp/cluster/chunk_"+ \
+        chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
                                                     str(proc_index).zfill(6)
         if not os.path.isdir(chunk_dir):
             os.makedirs(chunk_dir)
@@ -1426,7 +1426,7 @@ def cluster_channels_chunks_args(data_in):
     #print ("Proc - index: ", proc_index, idx_list)
     
     # save chunk in own directory to enable cumulative recovery 
-    chunk_dir = CONFIG.data.root_folder+"tmp/cluster/chunk_"+ \
+    chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
                                                 str(proc_index).zfill(6)
     if not os.path.isdir(chunk_dir):
         os.makedirs(chunk_dir)
@@ -1707,6 +1707,7 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
     channels = np.arange(n_channels)
     tmp_loc = []
     
+    #ctr_id = 0 
     for chunk_dir in chunk_dirs:
         print (chunk_dir)
         # Cat: TODO: make sure this step is correct
@@ -1717,12 +1718,16 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
             weights.append(data['weights'])
            
             #spike_index = data['spike_train_merged']
-            spike_indexes.append(data['spike_index'])
-    
-    spike_indexes = np.array(spike_indexes)        
+            temp = data['spike_index']
+            for s in range(len(temp)):
+                spike_times = temp[s][:,0]
+                spike_indexes.append(spike_times)
+
+    spike_indexes = np.array(spike_indexes)
     templates = np.vstack(templates)
     templates_std = np.vstack(templates_std)
     weights = np.hstack(weights)
+    #print (spike_indexes.shape)
     
     # ************* DELETE TOO FEW SPIKES ************
     #  delete clusters < 300 spikes
@@ -1731,71 +1736,43 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
     for s in range(len(spike_indexes)):
         if spike_indexes[s].shape[0]<min_spikes:
             idx_delete.append(s)
+            
     templates = np.delete(templates,idx_delete,axis=0)
     templates_std = np.delete(templates_std,idx_delete,axis=0)
     weights = np.delete(weights,idx_delete,axis=0)
     spike_indexes = np.delete(spike_indexes,idx_delete,axis=0)
-
+            
+    print(" # templates: ", templates.shape)
+    print(" spike_indexes: ", spike_indexes.shape)
+    ## rearange spike indees from id 0..N
+    #for k in range(spike_indexes.shape[0]):    
+        ##print (spike_indexes[k].shape)
+        #spike_indexes[k][:,1] = k
 
     # ************** GET SIM_MAT ****************
     # initialize cos-similarty matrix and boolean version 
     #sim_mat = np.zeros((templates.shape[0], templates.shape[0]), 'bool')    
     
-    print(templates.shape)
-    
-    sim_temp = calc_sim_vector(templates, CONFIG)
-    sim_temp[np.diag_indices(sim_temp.shape[0])] = 0
-    sim_temp[np.tril_indices(sim_temp.shape[0])] = 0
-    run_KS_test(sim_temp, templates, templates_std, CONFIG, resampling = False, plotting = True)
-
-    quit()
-
     global_merge_file = (CONFIG.data.root_folder+ '/tmp/global_merge_matrix.npz')
-    if os.path.exists(global_merge_file)==False:
-        print ("Computing global merge over templates: ", templates.shape)
-        if CONFIG.resources.multi_processing:
-            n_processors = CONFIG.resources.n_processors
-            indexes = np.array_split(np.arange(templates.shape[0]), 
-                                max(n_processors, templates.shape[0]/20))
-            res = parmap.map(
-                calc_global_merge_parallel,
-                indexes,
-                templates,
-                sim_mat,
-                sim_temp,
-                CONFIG,            
-                processes=n_processors,
-                pm_pbar=True)
-        else:
-            res = []
-            for k in range(len(templates)):
-                temp = calc_global_merge_parallel(
-                    [k], 
-                    templates,
-                    sim_mat,
-                    sim_temp,
-                    CONFIG)
-                res.append(temp)    
-        
-        # sum all matrices
-        sim_mat_sum = np.zeros(sim_mat.shape, 'bool')
-        sim_temp_sum = np.zeros(sim_temp.shape, 'float32')
-        for k in range(len(res)):
-            sim_mat_sum+=res[k][0]
-            sim_temp_sum+=res[k][1]
 
-        np.savez(global_merge_file, 
-                 sim_mat_sum = sim_mat_sum, 
-                 sim_temp_sum = sim_temp_sum)
+    if os.path.exists(global_merge_file)==False:
+
+        sim_temp = calc_sim_vector(templates, CONFIG)
+        sim_temp[np.diag_indices(sim_temp.shape[0])] = 0
+        sim_temp[np.tril_indices(sim_temp.shape[0])] = 0
+        sim_mat = run_KS_test(sim_temp, templates, templates_std, CONFIG, 
+                                        resampling = True, plotting = False)
+        
+        np.savez(global_merge_file, sim_mat = sim_mat)
 
     else:
         data = np.load(global_merge_file)
-        sim_mat_sum= data['sim_mat']
-        sim_temp_sum = data['sim_temp']
-                
+        sim_mat = data['sim_mat']
+                    
     # ********************************************************
     # compute connected nodes and sum spikes over them
-    G = nx.from_numpy_array(sim_mat_sum)
+    #G = nx.from_numpy_array(sim_mat_sum)
+    G = nx.from_numpy_array(sim_mat)
     final_spike_indexes = []
     final_template_indexes = []
     #print (nx.number_connected_components(G))
@@ -1863,7 +1840,7 @@ def calc_ks_dist(A, B, lin):
 def run_KS_test(sim_temp, mean, std, CONFIG, resampling = True, plotting = False):
     
     cfg = CONFIG
-    path_fig = '/media/cat/1TB/liam/49channels/data1_allset/tmp/cluster/chunk_000000/'
+    path_fig = '/media/cat/250GB/liam/49chans/tmp/cluster/chunk_000000/'
     size_resample = 500
     n_chan = CONFIG.recordings.n_channels
 
@@ -1901,6 +1878,8 @@ def run_KS_test(sim_temp, mean, std, CONFIG, resampling = True, plotting = False
             if ks_dist < 0.10:
                 print('^^^^^^^^^^^^^^ merged ^^^^^^^^^^^^^^^^^^')
                 sim_mat[pair[0], pair[1]] = sim_mat[pair[1], pair[0]]  = True
+        
+            
         else:
             idx = np.where(np.in1d(spike_train[:,1], pair))[0]
             idx1 = np.where(spike_train[idx,1] == pair[0])[0]
@@ -2017,6 +1996,7 @@ def run_KS_test(sim_temp, mean, std, CONFIG, resampling = True, plotting = False
                     plt.text(CONFIG.geom[chan,0], CONFIG.geom[chan,1]-5, '{}'.format(chan))
                 plt.title('Actual, Cosine_distance = {}, ks_distance = {}'.format(sim_temp[pair[0], pair[1]], ks_dist), fontsize = 25)
                 plt.show()
+    
     return sim_mat
     
     

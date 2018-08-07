@@ -82,7 +82,6 @@ def run2(spike_index_all,
 
     TMP_FOLDER = CONFIG.data.root_folder
     
-    
     # Cat: TODO: read from CONFIG file
     buffer_size = 200
 
@@ -171,9 +170,16 @@ def run2(spike_index_all,
         
         # initialize match pursuit 
         print ("Initialize match pursuit object chunk: ", chunk_ctr)
-        mp_object = MatchPursuit2(templates, deconv_dir, vis_chan, 
+        #mp_object = MatchPursuit2(templates, deconv_dir, vis_chan, 
+        #                          threshold=2, obj_energy=False)
+        mp_object = MatchPursuit3(templates, deconv_dir, vis_chan, 
                                   threshold=2, obj_energy=False)
                    
+                #(self, data, temps, threshold=10, conv_approx_rank=3,
+                 #implicit_subtraction=True, upsample=1, obj_energy=False,
+                 #vis_su=2., keep_iterations=False, sparse_subtraction=False,
+                 #broadcast_subtraction=False):
+       
         # make arg list first
         max_iter = 20
         args_in = []
