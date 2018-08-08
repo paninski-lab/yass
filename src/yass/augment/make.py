@@ -211,35 +211,38 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
     # Autoencoder #
     ###############
 
-    # TODO: need to abstract this part of the code, create a separate
-    # function and document it
-    neighbors_ae = np.ones((n_channels, n_channels), 'int32')
+    # # TODO: need to abstract this part of the code, create a separate
+    # # function and document it
+    # neighbors_ae = np.ones((n_channels, n_channels), 'int32')
 
-    templates_ae = crop_and_align_templates(templates_uncropped,
-                                            CONFIG.spike_size,
-                                            neighbors_ae,
-                                            CONFIG.geom)
+    # templates_ae = crop_and_align_templates(templates_uncropped,
+    #                                         CONFIG.spike_size,
+    #                                         neighbors_ae,
+    #                                         CONFIG.geom)
 
-    tt = templates_ae.transpose(1, 0, 2).reshape(templates_ae.shape[1], -1)
-    tt = tt[:, np.ptp(tt, axis=0) > 2]
-    max_amp = np.max(np.ptp(tt, axis=0))
+    # tt = templates_ae.transpose(1, 0, 2).reshape(templates_ae.shape[1], -1)
+    # tt = tt[:, np.ptp(tt, axis=0) > 2]
+    # max_amp = np.max(np.ptp(tt, axis=0))
 
-    y_ae = np.zeros((nk*tt.shape[1], tt.shape[0]))
+    # y_ae = np.zeros((nk*tt.shape[1], tt.shape[0]))
 
-    for k in range(tt.shape[1]):
-        amp_now = np.ptp(tt[:, k])
-        amps_range = (np.arange(nk)*(max_amp-min_amp)
-                      / nk+min_amp)[:, np.newaxis, np.newaxis]
+    # for k in range(tt.shape[1]):
+    #     amp_now = np.ptp(tt[:, k])
+    #     amps_range = (np.arange(nk)*(max_amp-min_amp)
+    #                   / nk+min_amp)[:, np.newaxis, np.newaxis]
 
-        y_ae[k*nk:(k+1)*nk] = ((tt[:, k]/amp_now)[np.newaxis, :]
-                               * amps_range[:, :, 0])
+    #     y_ae[k*nk:(k+1)*nk] = ((tt[:, k]/amp_now)[np.newaxis, :]
+    #                            * amps_range[:, :, 0])
 
-    noise_ae = np.random.normal(size=y_ae.shape)
-    noise_ae = np.matmul(noise_ae, temporal_SIG)
+    # noise_ae = np.random.normal(size=y_ae.shape)
+    # noise_ae = np.matmul(noise_ae, temporal_SIG)
 
-    x_ae = y_ae + noise_ae
-    x_ae = x_ae[:, MID_POINT_IDX]
-    y_ae = y_ae[:, MID_POINT_IDX]
+    # x_ae = y_ae + noise_ae
+    # x_ae = x_ae[:, MID_POINT_IDX]
+    # y_ae = y_ae[:, MID_POINT_IDX]
+
+    x_ae = None
+    y_ae = None
 
     # FIXME: y_ae is no longer used, autoencoder was replaced by PCA
     return x_detect, y_detect, x_triage, y_triage, x_ae, y_ae
