@@ -9,8 +9,41 @@ from yass.augment.noise import noise_cov
 from yass.augment import util
 
 
-def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
-                  max_amp, n_isolated_spikes, data_folder, noise_ratio=10,
+def load_templates(data_folder, spike_train, CONFIG, chosen_templates_indexes):
+    """
+    Parameters
+    ----------
+    data_folder: str
+        Folder storing the standarized data (if not exist, run preprocess to
+        automatically generate)
+    spike_train: numpy.ndarray
+        [number of spikes, 2] Ground truth for training. First column is the
+        spike time, second column is the spike id
+    chosen_templates_indexes: list
+        List of chosen templates' id's
+    """
+    path_to_standarized = os.path.join(data_folder, 'preprocess',
+                                       'standarized.bin')
+
+    # load 4x templates
+    processor = TemplatesProcessor.from_spike_train(CONFIG,
+                                                    4 * CONFIG.spike_size,
+                                                    spike_train,
+                                                    path_to_standarized)
+
+    processor.choose_with_indexes(chosen_templates_indexes, inplace=True)
+    # TODO: make this a parameter
+    processor.choose_with_minimum_amplitude(4, inplace=True)
+
+    # TODO: fix the 3 * spike_size
+    processor.align(CONFIG.spike_size, inplace=True)
+
+    return processor.templates
+
+
+def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
+                  n_isolated_spikes,
+                  path_to_standarized, noise_ratio=10,
                   collision_ratio=1, misalign_ratio=1, misalign_ratio2=1,
                   multi_channel=True, return_metadata=False):
     """Makes training sets for detector, triage and autoencoder
@@ -19,12 +52,6 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     ----------
     CONFIG: yaml file
         Configuration file
-    spike_train: numpy.ndarray
-        [number of spikes, 2] Ground truth for training. First column is the
-        spike time, second column is the spike id
-    chosen_templates_indexes: list
-        List of chosen templates' id's
-
     min_amp: float
         Minimum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
@@ -34,7 +61,7 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     n_isolated_spikes: int
         Number of isolated spikes to generate. This is different from the
         total number of x_detect
-    data_folder: str
+    path_to_standarized: str
         Folder storing the standarized data (if not exist, run preprocess to
         automatically generate)
     noise_ratio: int
@@ -84,23 +111,8 @@ def training_data(CONFIG, spike_train, chosen_templates_indexes, min_amp,
     """
     logger = logging.getLogger(__name__)
 
-    path_to_standarized = os.path.join(data_folder, 'preprocess',
-                                       'standarized.bin')
+    processor = TemplatesProcessor(templates_uncropped)
 
-    # load 4x templates
-    processor = TemplatesProcessor.from_spike_train(CONFIG,
-                                                    4 * CONFIG.spike_size,
-                                                    spike_train,
-                                                    path_to_standarized)
-
-    processor.choose_with_indexes(chosen_templates_indexes, inplace=True)
-    # TODO: make this a parameter
-    processor.choose_with_minimum_amplitude(4, inplace=True)
-
-    templates_uncropped = processor.templates
-
-    # TODO: fix the 3 * spike_size
-    processor.align(CONFIG.spike_size, inplace=True)
     templates = (processor.crop_spatially(CONFIG.neigh_channels, CONFIG.geom)
                  .values)
 
