@@ -1,3 +1,4 @@
+project.sublime-*
 tmp/
 .pytest_cache/
 *.mat
