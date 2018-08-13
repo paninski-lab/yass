@@ -1,7 +1,7 @@
 """
 YASS configuration
 """
-
+import pprint
 from os import path
 from collections import Mapping, MutableSequence
 import keyword
@@ -82,11 +82,18 @@ class FrozenJSON(object):
         return value
 
     def __repr__(self):
-        if self._path_to_file:
-            return ('YASS config file loaded from: {}'.format(
-                self._path_to_file))
+        s = '********** start of YASS configuration file **********'
 
-        return 'YASS config file loaded with: {}'.format(self._data)
+        if self._path_to_file is not None:
+            s += '\nLoaded from: '+self._path_to_file
+
+
+        if self._data is not None:
+            s += '\nContent: '+pprint.pformat(self._data, indent=4)
+
+        s += '\n********** end of YASS configuration file **********'
+
+        return s
 
 
 class Config(FrozenJSON):

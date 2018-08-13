@@ -103,6 +103,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         logger.warning('Set numpy seed to zero')
         np.random.seed(0)
 
+    # print configuration file contents
+    logger.info(CONFIG)
+
     # print yass version
     logger.info('YASS version: %s', yass.__version__)
 
