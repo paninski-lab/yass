@@ -3,6 +3,10 @@ Changelog
 
 0.9dev
 ------
+* This version incorporates Cat's branch changes
+* New deconvolution method
+* New clustering method
+* Implemented parallelization in several functions
 
 
 0.8 (2018-04-19)
