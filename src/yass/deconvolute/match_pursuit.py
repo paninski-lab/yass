@@ -301,8 +301,8 @@ class MatchPursuit3(object):
                 self.iter_spike_train.append(spt)
             self.dist_metric = np.append(self.dist_metric, dist_met)
             ctr += 1
-            print "Iteration {0} Found {1} spikes with {2:.2f} energy reduction.".format(
-                ctr, spt.shape[0], np.sum(dist_met))
+            print("Iteration {0} Found {1} spikes with {2:.2f} energy reduction.".format(
+                ctr, spt.shape[0], np.sum(dist_met)))
             if len(spt) == 0:
                 break
         return self.dec_spike_train, self.dist_metric
