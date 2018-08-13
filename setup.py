@@ -27,10 +27,11 @@ LICENSE = 'Apache'
 INSTALL_REQUIRES_DOCS = ['pathlib2', 'funcsigs', 'cerberus']
 
 # FIXME: matplotlib should not be a hard dependency and only be  required when
-# using some specific modules
+# using some specific modules. Also evaluate this situation for statsmodels
+# and networkx
 INSTALL_REQUIRES = [
     'numpy', 'scipy', 'scikit-learn', 'pyyaml', 'python-dateutil', 'click',
-    'tqdm', 'parmap', 'statsmodels', 'matplotlib'
+    'tqdm', 'parmap', 'statsmodels', 'matplotlib', 'networkx',
 ] + INSTALL_REQUIRES_DOCS
 
 # pass an empty INSTALL_REQUIRES if building the docs, to avoid breaking the
