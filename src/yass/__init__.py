@@ -26,6 +26,7 @@ except ImportError:
 
 
 from yass.config import Config
+from yass.util import running_on_gpu
 
 logging.getLogger(__name__).addHandler(NullHandler())
 
@@ -38,6 +39,14 @@ CONFIG = None
 # when set to true, this changes the behavior of some functions, only intended
 # for devs use
 DEBUG_MODE = False
+
+
+GPU_ENABLED = running_on_gpu()
+
+if GPU_ENABLED:
+    logger.debug('Tensorflow GPU configuration detected')
+else:
+    logger.debug('No Tensorflow GPU configuration detected')
 
 
 # reduce tensorflow logger verbosity, ignore DEBUG and INFO
@@ -89,9 +98,7 @@ def reset_config():
 
 
 def set_tensorflow_config(config):
-    """Mock tf.Session to always return a session with the given config,
-    make sure you run this before any other yass/tensorflow code since this
-    needs to run first to work
+    """Set tensorflow config for all sessions
 
     Examples
     --------
@@ -103,9 +110,12 @@ def set_tensorflow_config(config):
     config = tf.ConfigProto()
     config.gpu_options.per_process_gpu_memory_fraction = 0.4
     yass.set_tensorflow_config(config=config)
+
+    Notes
+    -----
+    create first session and pass config, this will set the config for all
+    sessions (that's how tensorflow works for now)
     """
-    # create first session and pass config, this will set the config for all
-    # sessions (that's how tensorflow works for now)
     sess = tf.Session(config=config)
     sess.close()
 
