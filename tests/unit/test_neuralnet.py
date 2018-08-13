@@ -36,11 +36,17 @@ def test_can_train_detector(path_to_tests, path_to_sample_pipeline_folder,
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
+    templates = make.load_templates(path_to_sample_pipeline_folder,
+                                    spike_train, CONFIG, chosen_templates)
+
+    path_to_standarized = path.join(path_to_sample_pipeline_folder,
+                                    'preprocess', 'standarized.bin')
+
     (x_detect, y_detect,
      x_triage, y_triage,
-     x_ae, y_ae) = make.training_data(CONFIG, spike_train, chosen_templates,
+     x_ae, y_ae) = make.training_data(CONFIG, templates,
                                       min_amplitude, max_amplitude, n_spikes,
-                                      path_to_sample_pipeline_folder)
+                                      path_to_standarized)
 
     _, waveform_length, n_neighbors = x_detect.shape
 
