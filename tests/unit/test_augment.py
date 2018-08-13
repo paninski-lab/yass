@@ -33,9 +33,18 @@ def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
-    make.training_data(CONFIG, spike_train, chosen_templates,
-                       min_amplitude, max_amplitude, n_spikes_to_make,
-                       data_folder=path_to_sample_pipeline_folder)
+    templates = make.load_templates(path_to_sample_pipeline_folder,
+                                    spike_train, CONFIG, chosen_templates)
+
+    path_to_standarized = path.join(path_to_sample_pipeline_folder,
+                                    'preprocess', 'standarized.bin')
+
+    (x_detect, y_detect,
+     x_triage, y_triage,
+     x_ae, y_ae) = make.training_data(CONFIG, templates,
+                                      min_amplitude, max_amplitude,
+                                      n_spikes_to_make,
+                                      path_to_standarized)
 
 
 def test_can_make_clean(path_to_tests, path_to_standarized_data):
