@@ -3,7 +3,7 @@ import os
 import pytest
 
 import yass
-from yass import preprocess, detect, cluster, templates, deconvolute
+from yass import preprocess, detect, cluster, deconvolute
 from util import clean_tmp
 
 
@@ -22,20 +22,14 @@ def test_decovnolution(path_to_config):
      channel_index,
      whiten_filter) = preprocess.run()
 
-    (score,
-     spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    channel_index,
                                    whiten_filter)
 
-    spike_train_clear, tmp_loc, vbParam = cluster.run(
-        score, spike_index_clear)
+    spike_train_clear, tmp_loc, templates = cluster.run(spike_index_clear)
 
-    (templates_, spike_train,
-     groups, idx_good_templates) = templates.run(
-        spike_train_clear, tmp_loc)
-
-    deconvolute.run(spike_index_all, templates_)
+    deconvolute.run(spike_index_all, templates)
 
     clean_tmp()
