@@ -18,7 +18,7 @@ from yass.mfm import get_core_data
     filenames=[
         LoadFile('spike_train_cluster.npy'),
         LoadFile('tmp_loc.npy'),
-        LoadFile('vbPar.pickle')
+        LoadFile('templates.npy')
     ],
     mode='values',
     relative_to='output_directory',

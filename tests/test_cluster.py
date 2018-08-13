@@ -40,7 +40,7 @@ def test_cluster(path_to_config):
                                    channel_index,
                                    whiten_filter)
 
-    cluster.run(score, spike_index_clear)
+    cluster.run(spike_index_clear)
 
     clean_tmp()
 
@@ -58,7 +58,7 @@ def test_cluster_save_results(path_to_config):
                                    channel_index,
                                    whiten_filter)
 
-    cluster.run(score, spike_index_clear, save_results=True)
+    cluster.run(spike_index_clear, save_results=True)
 
     clean_tmp()
 
@@ -77,12 +77,12 @@ def test_cluster_loads_from_disk_if_all_files_exist(caplog, path_to_config):
                                    whiten_filter)
 
     # save results
-    cluster.run(score, spike_index_clear, save_results=True)
+    cluster.run(spike_index_clear, save_results=True)
 
     assert cluster.run.executed
 
     # next time this should not run and just load from files
-    cluster.run(score, spike_index_clear, save_results=True)
+    cluster.run(spike_index_clear, save_results=True)
 
     assert not cluster.run.executed
 
