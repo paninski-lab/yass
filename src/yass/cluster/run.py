@@ -81,6 +81,8 @@ def run(spike_index,
     _b = datetime.datetime.now()
 
     # voltage space feature clustering
+    # FIXME: when CONFIG.cluster.method != voltage_features, this throws an
+    # error since spike_train is never declared, do we have more methods?
     if CONFIG.cluster.method == 'voltage_features': 
 
         fname = os.path.join(CONFIG.data.root_folder, 

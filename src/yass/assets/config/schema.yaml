@@ -183,7 +183,7 @@ cluster:
     if_file_exists: skip
     masking_threshold: [0.9, 0.5]
     n_split: 5
-    method: location
+    method: voltage_features
     max_n_spikes: 10000
     min_spikes: 0
     merge_threshold: 0.90

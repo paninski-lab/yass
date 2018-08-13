@@ -121,15 +121,8 @@ cluster:
   masking_threshold: [0.9, 0.5]
   # Num. of new clusters in split
   n_split: 5
-  # Choose 'location' for location (x and y : 2 features) + main channel 
-  # features (n_feature dimensional) as the feature space. Calculates the location 
-  # of the events using a weighted average of the power in the main_channel 
-  # and neighboring channels.
-  # Choose 'neigh_chan' for n_feature x neighboring_channels dimensional feature 
-  # space. The feature space is defined by feature summarization of the waveforms 
-  # into n_feature dimensional feature space for only the main_channel and the 
-  # neighboring channels (This key (clustering.clustering_method) is not optional)
-  method: location
+  # TODO: add description
+  method: voltage_features
   # maximum number of spikes per clustering group
   # if the total number of spikes per clustering group exceeds it,
   # it randomly subsample
