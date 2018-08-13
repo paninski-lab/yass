@@ -26,9 +26,11 @@ LICENSE = 'Apache'
 # pathlib2 and funcsigs are required to be compatible with python 2
 INSTALL_REQUIRES_DOCS = ['pathlib2', 'funcsigs', 'cerberus']
 
+# FIXME: matplotlib should not be a hard dependency and only be  required when
+# using some specific modules
 INSTALL_REQUIRES = [
     'numpy', 'scipy', 'scikit-learn', 'pyyaml', 'python-dateutil', 'click',
-    'tqdm', 'parmap', 'statsmodels'
+    'tqdm', 'parmap', 'statsmodels', 'matplotlib'
 ] + INSTALL_REQUIRES_DOCS
 
 # pass an empty INSTALL_REQUIRES if building the docs, to avoid breaking the
