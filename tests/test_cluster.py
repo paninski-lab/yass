@@ -34,7 +34,7 @@ def test_cluster(path_to_config):
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    channel_index,
@@ -52,7 +52,7 @@ def test_cluster_save_results(path_to_config):
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    channel_index,
@@ -70,7 +70,7 @@ def test_cluster_loads_from_disk_if_all_files_exist(caplog, path_to_config):
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    channel_index,
