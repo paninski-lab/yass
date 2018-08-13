@@ -35,7 +35,7 @@ def test_templates(path_to_config):
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    channel_index,
@@ -56,14 +56,13 @@ def test_templates_save_results(path_to_config):
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    channel_index,
                                    whiten_filter)
 
-    spike_train_clear, tmp_loc, vbParam = cluster.run(
-        score, spike_index_clear)
+    spike_train_clear, tmp_loc, vbParam = cluster.run(spike_index_clear)
 
     templates.run(spike_train_clear, tmp_loc, save_results=True)
 
@@ -77,14 +76,13 @@ def test_templates_loads_from_disk_if_all_files_exist(caplog, path_to_config):
     (standarized_path, standarized_params, channel_index,
      whiten_filter) = preprocess.run()
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    channel_index,
                                    whiten_filter)
 
-    spike_train_clear, tmp_loc, vbParam = cluster.run(
-        score, spike_index_clear)
+    spike_train_clear, tmp_loc, vbParam = cluster.run(spike_index_clear)
 
     # save results
     templates.run(spike_train_clear, tmp_loc, save_results=True)
