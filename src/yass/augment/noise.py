@@ -54,21 +54,36 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size):
     # go through every neighboring channel
     for c in range(C):
 
+        # get obserations where observation is above 3
         idx_temp = np.where(rec[:, c] > 3)[0]
 
+        # shift every index found
         for j in range(-R, R+1):
 
+            # shift
             idx_temp2 = idx_temp + j
+
+            # remove indexes outside range [0, T]
             idx_temp2 = idx_temp2[np.logical_and(idx_temp2 >= 0,
                                                  idx_temp2 < T)]
+
+            # set surviving indexes to nan
             rec[idx_temp2, c] = np.nan
 
+        # noise indexes are the ones that are not nan
+        # FIXME: compare to np.nan instead
         idxNoise_temp = (rec[:, c] == rec[:, c])
+
+        # standarize data, ignoring nans
         rec[:, c] = rec[:, c]/np.nanstd(rec[:, c])
 
+        # set non noise indexes to 0 in the recordings
         rec[~idxNoise_temp, c] = 0
+
+        # save noise indexes
         idxNoise[idxNoise_temp, c] = 1
 
+    # compute spatial covariance
     spatial_cov = np.divide(np.matmul(rec.T, rec),
                             np.matmul(idxNoise.T, idxNoise))
 
