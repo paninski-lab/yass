@@ -53,6 +53,14 @@ def run_detect_triage_featurize(recordings, sess, x_tf, output_tf,
     score, spike_index, idx_clean = sess.run(
         output_tf, feed_dict={x_tf: recordings})
 
+    (score_clear,
+     spike_index_clear) = post_processing(score, spike_index,
+                                          idx_clean, rot, neighbors)
+
+    return (score_clear, spike_index_clear, spike_index)
+
+
+def post_processing(score, spike_index, idx_clean, rot, neighbors):
     energy = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
 
     idx_survive = deduplicate(spike_index, energy, neighbors)
@@ -60,7 +68,7 @@ def run_detect_triage_featurize(recordings, sess, x_tf, output_tf,
     score_clear = score[idx_keep]
     spike_index_clear = spike_index[idx_keep]
 
-    return (score_clear, spike_index_clear, spike_index)
+    return score_clear, spike_index_clear
 
 
 def deduplicate(spike_index, energy, neighbors, w=5):

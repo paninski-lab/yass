@@ -281,16 +281,16 @@ def test_can_use_neural_network_detector(path_to_tests,
                                                               'waveform'))
     idx_clean = NNT.predict(wf)
     score = NNAE.predict(wf)
-
-    from yass.neuralnetwork.apply import deduplicate
-
+    rot = NNAE.load_rotation()
     neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-    energy = np.ptp(np.matmul(score[:, :, 0], NNAE.load_rotation().T), axis=1)
-    idx_survive = deduplicate(spike_index_new, energy, neighbors)
-    idx_keep = np.logical_and(idx_survive, idx_clean)
 
-    score_clear_new = score[idx_keep]
-    spike_index_clear_new = spike_index_new[idx_keep]
+    from yass.neuralnetwork.apply import post_processing
+
+    score_clear_new, spike_index_clear_new = post_processing(score,
+                                                             spike_index_new,
+                                                             idx_clean,
+                                                             rot,
+                                                             neighbors)
 
     with tf.Session() as sess:
         NND.restore(sess)
