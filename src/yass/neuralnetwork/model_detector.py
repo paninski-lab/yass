@@ -392,7 +392,8 @@ class NeuralNetDetector(Model):
                           self.path_to_model)
         self.saver.restore(sess, self.path_to_model)
 
-    def predict_recording(self, recording, output_names=('spike_index',)):
+    def predict_recording(self, recording, output_names=('spike_index',),
+                          sess=None):
         """Make predictions on recordings
 
         Parameters
@@ -409,9 +410,13 @@ class NeuralNetDetector(Model):
         """
         output_tensors = [getattr(self, name+'_tf') for name in output_names]
 
-        with tf.Session() as sess:
-            self.restore(sess)
+        if sess is None:
+            with tf.Session() as sess:
+                self.restore(sess)
 
+                output = sess.run(output_tensors,
+                                  feed_dict={self.x_tf: recording})
+        else:
             output = sess.run(output_tensors,
                               feed_dict={self.x_tf: recording})
 

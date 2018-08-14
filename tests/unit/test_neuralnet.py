@@ -11,6 +11,7 @@ import yass
 from yass.batch import RecordingsReader, BatchProcessor
 from yass import neuralnetwork
 from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
+from yass.neuralnetwork.apply import post_processing
 from yass.geometry import make_channel_index, n_steps_neigh_channels
 from yass.augment import make
 from yass.explore import RecordingExplorer
@@ -284,8 +285,6 @@ def test_can_use_neural_network_detector(path_to_tests,
     rot = NNAE.load_rotation()
     neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
 
-    from yass.neuralnetwork.apply import post_processing
-
     score_clear_new, spike_index_clear_new = post_processing(score,
                                                              spike_index_new,
                                                              idx_clean,
@@ -321,8 +320,6 @@ def test_splitting_in_batches_does_not_affect(path_to_tests,
 
     PATH_TO_DATA = path_to_standarized_data
 
-    data = RecordingsReader(PATH_TO_DATA, loader='array').data
-
     with open(path.join(path_to_sample_pipeline_folder, 'preprocess',
                         'standarized.yaml')) as f:
         PARAMS = yaml.load(f)
@@ -345,28 +342,38 @@ def test_splitting_in_batches_does_not_affect(path_to_tests,
 
     output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
 
-    # run all at once
-    with tf.Session() as sess:
-        # get values of above tensors
-        NND.restore(sess)
-        NNAE.restore(sess)
-        NNT.restore(sess)
-
-        rot = NNAE.load_rotation()
-        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-
-        (scores, clear,
-         collision) = neuralnetwork.run_detect_triage_featurize(data, sess,
-                                                                NND.x_tf,
-                                                                output_tf,
-                                                                neighbors,
-                                                                rot)
-
-    # run in batches - buffer size makes sure we can detect spikes if they
-    # appear at the end of any batch
     bp = BatchProcessor(PATH_TO_DATA, PARAMS['dtype'], PARAMS['n_channels'],
                         PARAMS['data_order'], '100KB',
                         buffer_size=CONFIG.spike_size)
+
+    out = ('spike_index', 'waveform')
+    fn = neuralnetwork.apply.fix_indexes_spike_index
+
+    # detector
+    with tf.Session() as sess:
+        # get values of above tensors
+        NND.restore(sess)
+
+        res = bp.multi_channel_apply(NND.predict_recording,
+                                     mode='memory',
+                                     sess=sess,
+                                     output_names=out,
+                                     cleanup_function=fn)
+
+    spike_index_new = np.concatenate([element[0] for element in res], axis=0)
+    wfs = np.concatenate([element[1] for element in res], axis=0)
+
+    idx_clean = NNT.predict(wfs)
+    score = NNAE.predict(wfs)
+    rot = NNAE.load_rotation()
+    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+
+    (score_clear_new,
+        spike_index_clear_new) = post_processing(score,
+                                                 spike_index_new,
+                                                 idx_clean,
+                                                 rot,
+                                                 neighbors)
 
     with tf.Session() as sess:
         # get values of above tensors
@@ -387,10 +394,12 @@ def test_splitting_in_batches_does_not_affect(path_to_tests,
             rot=rot,
             neighbors=neighbors)
 
-    scores_batch = np.concatenate([element[0] for element in res], axis=0)
-    clear_batch = np.concatenate([element[1] for element in res], axis=0)
-    collision_batch = np.concatenate([element[2] for element in res], axis=0)
+    score_clear_batch = np.concatenate([element[0] for element in res], axis=0)
+    spike_index_clear_batch = np.concatenate([element[1] for element in res],
+                                             axis=0)
+    spike_index_batch = np.concatenate([element[2] for element in res], axis=0)
 
-    np.testing.assert_array_equal(clear_batch, clear)
-    np.testing.assert_array_equal(collision_batch, collision)
-    np.testing.assert_array_equal(scores_batch, scores)
+    np.testing.assert_array_equal(score_clear_new, score_clear_batch)
+    np.testing.assert_array_equal(spike_index_clear_new,
+                                  spike_index_clear_batch)
+    np.testing.assert_array_equal(spike_index_new, spike_index_batch)
