@@ -197,7 +197,7 @@ class NeuralNetTriage(Model):
         """
         _, waveform_length, n_neighbors = waveforms.shape
 
-        self._validate_dimensions(waveform_length, n_neighbors)
+        # self._validate_dimensions(waveform_length, n_neighbors)
 
         with tf.Session() as sess:
             self.restore(sess)

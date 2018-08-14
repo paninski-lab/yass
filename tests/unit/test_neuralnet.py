@@ -275,6 +275,23 @@ def test_can_use_neural_network_detector(path_to_tests,
 
     output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
 
+    # detector
+    spike_index_new, wf = NND.predict_recording(data,
+                                                output_names=('spike_index',
+                                                              'waveform'))
+    idx_clean = NNT.predict(wf)
+    score = NNAE.predict(wf)
+
+    from yass.neuralnetwork.apply import deduplicate
+
+    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+    energy = np.ptp(np.matmul(score[:, :, 0], NNAE.load_rotation().T), axis=1)
+    idx_survive = deduplicate(spike_index_new, energy, neighbors)
+    idx_keep = np.logical_and(idx_survive, idx_clean)
+
+    score_clear_new = score[idx_keep]
+    spike_index_clear_new = spike_index_new[idx_keep]
+
     with tf.Session() as sess:
         NND.restore(sess)
         NNAE.restore(sess)
@@ -283,10 +300,17 @@ def test_can_use_neural_network_detector(path_to_tests,
         rot = NNAE.load_rotation()
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
 
-        neuralnetwork.run_detect_triage_featurize(data, sess, NND.x_tf,
-                                                  output_tf,
-                                                  neighbors,
-                                                  rot)
+        (score_clear,
+            spike_index_clear,
+            spike_index) = (neuralnetwork
+                            .run_detect_triage_featurize(data, sess, NND.x_tf,
+                                                         output_tf,
+                                                         neighbors,
+                                                         rot))
+
+    np.testing.assert_array_equal(spike_index_clear_new, spike_index_clear)
+    np.testing.assert_array_equal(score_clear, score_clear_new)
+    np.testing.assert_array_equal(spike_index_new, spike_index)
 
 
 def test_splitting_in_batches_does_not_affect(path_to_tests,
