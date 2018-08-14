@@ -1,3 +1,3 @@
-from yass.deconvolute.run import run, run2
+from yass.deconvolute.run import run2
 
 __all__ = ['run']

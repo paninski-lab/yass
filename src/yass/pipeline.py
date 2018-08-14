@@ -129,18 +129,18 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     start=time.time()
     path_to_spike_train_cluster = path.join(TMP_FOLDER, 'spike_train_cluster.npy')
     if os.path.exists(path_to_spike_train_cluster):
-        spike_train_clear = np.load(path_to_spike_train_cluster)
+        spike_train_cluster = np.load(path_to_spike_train_cluster)
         tmp_loc = np.load(os.path.join(TMP_FOLDER,'tmp_loc.npy'))
         templates = np.load(os.path.join(TMP_FOLDER,'templates.npy'))    
     else:
-        spike_train_clear, tmp_loc, templates = cluster.run(spike_index_clear)
+        spike_train_cluster, tmp_loc, templates = cluster.run(spike_index_clear)
     time_cluster = time.time()-start
-    print ("Spike train clear: ", spike_train_clear.shape, " templates: ",
-           templates.shape)
+    print ("Spike train clear: ", spike_index_clear.shape, "spike train cluster: ", 
+            spike_train_cluster.shape, " templates: ", templates.shape)
 
     # run deconvolution
     start=time.time()
-    spike_train = deconvolute.run2(spike_index_all, templates,
+    spike_train = deconvolute.run2(spike_train_cluster, templates,
                                              output_directory=output_dir)
     time_deconvolution = time.time() - start
 

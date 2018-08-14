@@ -4,45 +4,20 @@ import time, os
 
 import copy
 from tqdm import tqdm
+import time
+from yass.cluster.util import (binary_reader, load_waveforms_from_memory)
 
-# ******************* MATCH PURSUIT FUNCTION ****************
-def conv_filter(data, temp, approx_rank=None, mode='full'):
-    """Convolves multichannel filter with multichannel data.
-    Parameters:
-    -----------
-    data: numpy array of shape (T, C)
-        Where T is number of time samples and C number of channels.
-    temp: numpy array of shape (t, C)
-        Where t is number of time samples and C is the number of
-        channels.
-    Returns:
-    --------
-    numpy.array
-    result of convolving the filter with the recording.
-    """
-    n_chan = temp.shape[1]
-    conv_res = 0.
-    if approx_rank is None or approx_rank > n_chan:
-        for c in range(n_chan):
-            conv_res += np.convolve(data[:, c], temp[:, c], mode)
-    # Low rank approximation of convolution
-    else:
-        u, s, vh = np.linalg.svd(temp)
-        for i in range(approx_rank):
-            conv_res += np.convolve(
-                np.matmul(data, vh[i, :].T),
-                s[i] * u[:, i].flatten(), mode)
-    return conv_res
 
 # ********************************************************
-# Hooshmand's latest match pursuit code
+# ********************************************************
 # ********************************************************
 class MatchPursuit3(object):
     """Class for doing greedy matching pursuit deconvolution."""
 
-    def __init__(self, data, temps, threshold=10, conv_approx_rank=3,
-                 implicit_subtraction=True, upsample=1, obj_energy=False,
-                 vis_su=2., keep_iterations=False, sparse_subtraction=False,
+    def __init__(self, temps, deconv_chunk_dir, standardized_filename, 
+                 max_iter, upsample=1, threshold=10, conv_approx_rank=3,
+                 implicit_subtraction=True, obj_energy=False, vis_su=2., 
+                 keep_iterations=False, sparse_subtraction=True,
                  broadcast_subtraction=False):
         """Sets up the deconvolution object.
 
@@ -75,8 +50,16 @@ class MatchPursuit3(object):
             operations instead of loops. This mode of operation is
             not support sparse subtraction.
         """
+        
+        #global recording_chunk_raw
         self.n_time, self.n_chan, self.n_unit = temps.shape
         self.temps = temps.astype(np.float32)
+        print ("inside match pursuit: templates: ", self.temps.shape)
+        
+        self.deconv_dir = deconv_chunk_dir
+        self.standardized_filename = standardized_filename
+        self.max_iter = max_iter
+        
         # Upsample and downsample time shifted versions
         self.up_factor = upsample
         if self.up_factor > 1:
@@ -89,17 +72,20 @@ class MatchPursuit3(object):
         self.visible_chans()
         self.template_overlaps()
         self.spatially_mask_templates()
+        
         # Computing SVD for each template.
         self.temporal, self.singular, self.spatial = np.linalg.svd(
-            np.transpose(np.flipud(self.temps), (2, 0, 1)))
+            np.transpose(np.flipud(self.temps), (2, 0, 1)))        
+        
         # Compute pairwise convolution of filters
         self.pairwise_filter_conv()
+        
         # compute norm of templates
         self.norm = np.zeros([self.n_unit, 1], dtype=np.float32)
         for i in range(self.n_unit):
             self.norm[i] = np.sum(np.square(self.temps[:, self.vis_chan[:, i], i]))
 
-        # Setting up data properties
+        # Setting up data properties - but don't load data here
         self.keep_iterations = keep_iterations
         self.obj_energy = obj_energy
         self.dec_spike_train = np.zeros([0, 2], dtype=np.int32)
@@ -107,18 +93,18 @@ class MatchPursuit3(object):
         self.sparse_sub = sparse_subtraction
         self.broadcast_sub = broadcast_subtraction
 
-    def update_data(self, data):
-        """Updates the data for the deconv to be run on with same templates."""
-        self.data = data.astype(np.float32)
-        self.data_len = data.shape[0]
+    def update_data(self):
         # Computing SVD for each template.
         self.obj_len = self.data_len + self.n_time - 1
         self.dot = np.zeros([self.n_unit, self.obj_len], dtype=np.float32)
+
         # Compute v_sqaured if it is included in the objective.
         if self.obj_energy:
             self.update_v_squared()
+        
         # Indicator for computation of the objective.
         self.obj_computed = False
+        
         # Resulting recovered spike train.
         self.dec_spike_train = np.zeros([0, 2], dtype=np.int32)
         self.dist_metric = np.array([])
@@ -130,6 +116,7 @@ class MatchPursuit3(object):
             self.vis_chan = a > self.vis_su_threshold
         return self.vis_chan
 
+
     def template_overlaps(self):
         """Find pairwise units that have overlap between."""
         vis = self.vis_chan.T
@@ -137,37 +124,48 @@ class MatchPursuit3(object):
             np.logical_and(vis[:, None, :], vis[None, :, :]), axis=2)
         self.unit_overlap = self.unit_overlap > 0
 
+
     def spatially_mask_templates(self):
         """Spatially mask templates so that non visible channels are zero."""
         idx = np.logical_xor(np.ones(self.temps.shape, dtype=bool), self.vis_chan)
         self.temps[idx] = 0.
 
+
     def upsample_templates(self):
+        
         """Computes downsampled shifted upsampled of templates."""
         down_sample_idx = np.arange(0, self.n_time * self.up_factor, self.up_factor) + np.arange(0, self.up_factor)[:, None]
-        self.up_temps = scipy.signal.resample(self.temps, self.n_time * 3)[down_sample_idx, :, :]
+        self.up_temps = scipy.signal.resample(self.temps, self.n_time * self.up_factor)[down_sample_idx, :, :]
         self.up_temps = self.up_temps.transpose(
             [2, 3, 0, 1]).reshape([self.n_chan, -1, self.n_time]).transpose([2, 0, 1])
         self.temps = self.up_temps
         self.n_unit = self.n_unit * self.up_factor
 
+
     def pairwise_filter_conv(self):
         """Computes pairwise convolution of templates using SVD approximation."""
-        conv_res_len = self.n_time * 2 - 1
-        self.pairwise_conv = np.zeros([self.n_unit, self.n_unit, conv_res_len], dtype=np.float32)
-        for unit1 in range(self.n_unit):
-            u, s, vh = self.temporal[unit1], self.singular[unit1], self.spatial[unit1]
-            vis_chan_idx = self.vis_chan[:, unit1]
-            for unit2 in np.where(self.unit_overlap[unit1])[0]:
-                for i in range(self.approx_rank):
-                    self.pairwise_conv[unit2, unit1, :] += np.convolve(
-                        np.matmul(self.temps[:, vis_chan_idx, unit2], vh[i, vis_chan_idx].T),
-                        s[i] * u[:, i].flatten(), 'full')
+        
+        if os.path.exists(self.deconv_dir+"/pairwise_conv.npy") == False:
+            conv_res_len = self.n_time * 2 - 1
+            self.pairwise_conv = np.zeros([self.n_unit, self.n_unit, conv_res_len], dtype=np.float32)
+            for unit1 in range(self.n_unit):
+                u, s, vh = self.temporal[unit1], self.singular[unit1], self.spatial[unit1]
+                vis_chan_idx = self.vis_chan[:, unit1]
+                for unit2 in np.where(self.unit_overlap[unit1])[0]:
+                    for i in range(self.approx_rank):
+                        self.pairwise_conv[unit2, unit1, :] += np.convolve(
+                            np.matmul(self.temps[:, vis_chan_idx, unit2], vh[i, vis_chan_idx].T),
+                            s[i] * u[:, i].flatten(), 'full')
+
+            np.save(self.deconv_dir+"/pairwise_conv.npy", self.pairwise_conv)
+        else:
+            self.pairwise_conv = np.load(self.deconv_dir+"/pairwise_conv.npy")
+
 
     def update_v_squared(self):
         """Updates the energy of consecutive windows of data."""
         one_pad = np.ones([self.n_time, self.n_chan])
-        self.v_squared = conv_filter(np.square(self.data), one_pad, approx_rank=None)
+        self.v_squared = self.conv_filter(np.square(self.data), one_pad, approx_rank=None)
 
     def approx_conv_filter(self, unit):
         """Approximation of convolution of a template with the data.
@@ -186,19 +184,59 @@ class MatchPursuit3(object):
                 s[i] * u[:, i].flatten(), 'full')
         return conv_res
 
+    def conv_filter(data, temp, approx_rank=None, mode='full'):
+        """Convolves multichannel filter with multichannel data.
+        Parameters:
+        -----------
+        data: numpy array of shape (T, C)
+            Where T is number of time samples and C number of channels.
+        temp: numpy array of shape (t, C)
+            Where t is number of time samples and C is the number of
+            channels.
+        Returns:
+        --------
+        numpy.array
+        result of convolving the filter with the recording.
+        """
+        n_chan = temp.shape[1]
+        conv_res = 0.
+        if approx_rank is None or approx_rank > n_chan:
+            for c in range(n_chan):
+                conv_res += np.convolve(data[:, c], temp[:, c], mode)
+        # Low rank approximation of convolution
+        else:
+            u, s, vh = np.linalg.svd(temp)
+            for i in range(approx_rank):
+                conv_res += np.convolve(
+                    np.matmul(data, vh[i, :].T),
+                    s[i] * u[:, i].flatten(), mode)
+        return conv_res
+
+
     def compute_objective(self):
         """Computes the objective given current state of recording."""
-        if self.obj_computed and self.implicit_subtraction:
-            return self.obj
-        for i in range(self.n_unit):
-            self.dot[i, :] = self.approx_conv_filter(i)
-        self.obj = 2 * self.dot - self.norm
-        if self.obj_energy:
-            self.obj -= self.v_squared
+        
+        fname_out = (self.deconv_dir+"/seg_{}_obj_matrix.npy".format(
+                                            str(self.seg_ctr).zfill(6)))
+        if os.path.exists(fname_out)==False:
 
-        # Set indicator to true so that it no longer is run
-        # for future iterations in case subtractions are done
-        # implicitly.
+            if self.obj_computed and self.implicit_subtraction:
+                return self.obj
+            for i in range(self.n_unit):
+                self.dot[i, :] = self.approx_conv_filter(i)
+            self.obj = 2 * self.dot - self.norm
+            if self.obj_energy:
+                self.obj -= self.v_squared
+
+            # Set indicator to true so that it no longer is run
+            # for future iterations in case subtractions are done
+            # implicitly.
+            
+            # Cat: stop saving obj_matrix
+            #np.save(fname_out,self.obj)
+        else: 
+            self.obj = np.load(fname_out)
+
         self.obj_computed = True
         return self.obj
 
@@ -277,531 +315,171 @@ class MatchPursuit3(object):
                     self.obj[:, spt_idx] -= 2 * self.pairwise_conv[i, :, :][:, None, :]
             self.enforce_refractory(spt, present_units)
 
-    def get_iteration_spike_train(self):
-        return self.iter_spike_train
+        
+    def snr_main_chans(temps):
+        """Computes peak to peak SNR for given templates."""
+        chan_peaks = np.max(temps, axis=0)
+        chan_lows = np.min(temps, axis=0)
+        peak_to_peak = chan_peaks - chan_lows
+        return np.argsort(peak_to_peak, axis=0)
 
-    def run(self, max_iter, idx_list, buffer_size, n_channels):
-        ctr = 0
-        tot_max = np.inf
-        
-        # read raw data from disk
-        binary_reader(idx_list, buffer_size, n_channels)
-        
-        
-        # run inside run - function
-        self.update_data(data)
-        
-        
-        self.compute_objective()
-        while tot_max > self.threshold and ctr < max_iter:
-            spt, dist_met = self.find_peaks()
-            self.dec_spike_train = np.append(self.dec_spike_train, spt, axis=0)
-            self.subtract_spike_train(spt)
-            if self.keep_iterations:
-                self.iter_spike_train.append(spt)
-            self.dist_metric = np.append(self.dist_metric, dist_met)
-            ctr += 1
-            print("Iteration {0} Found {1} spikes with {2:.2f} energy reduction.".format(
-                ctr, spt.shape[0], np.sum(dist_met)))
-            if len(spt) == 0:
-                break
-        return self.dec_spike_train, self.dist_metric
 
-    def binary_reader(self, idx_list, buffer_size, n_channels):
+    def load_data_from_memory(self):
+        ''' Index into global variable recording_chunk and select required
+            data.
+        ''' 
+        print ("Loading from memoery...")
+        arr = np.frombuffer(self.toShare_new)
+        recording_chunk = arr.reshape(-1, self.n_chan)
         
-        # New indexes
-        data_start = idx_list[0]
-        data_end = idx_list[1]
-        offset = idx_list[2]
-
-        # ***** LOAD RAW RECORDING *****
-        with open(self.standardized_filename, "rb") as fin:
-            if data_start == 0:
-                # Seek position and read N bytes
-                recordings_1D = np.fromfile(
-                    fin,
-                    dtype='float32',
-                    count=(data_end + buffer_size) * n_channels)
-                recordings_1D = np.hstack((np.zeros(
-                    buffer_size * n_channels, dtype='float32'), recordings_1D))
-            else:
-                fin.seek((data_start - buffer_size) * 4 * n_channels, os.SEEK_SET)
-                recordings_1D = np.fromfile(
-                    fin,
-                    dtype='float32',
-                    count=((data_end - data_start + buffer_size * 2) * n_channels))
-
-            if len(recordings_1D) != (
-                  (data_end - data_start + buffer_size * 2) * n_channels):
-                recordings_1D = np.hstack((recordings_1D,
-                                           np.zeros(
-                                               buffer_size * n_channels,
-                                               dtype='float32')))
-        fin.close()
-
-        # Convert to 2D array
-        recording = recordings_1D.reshape(-1, n_channels)
+        #print (self.recording_chunk.shape)
+        start = self.idx_list[0]
+        end = self.idx_list[1]
+        buffer_ = self.idx_list[2]
         
-        return recording
+        # if first chunk, append buffer at beginning
+        if start<buffer_:
+            self.data = recording_chunk[start:end+buffer_,:]
+            temp_data = np.zeros((buffer_, recording_chunk.shape[1]), 
+                                    'float32')
+            self.data = np.concatenate((temp_data, self.data))
+
+        # if last chunk, append buffer at end
+        elif end > (recording_chunk.shape[0]-buffer_):
+            self.data = recording_chunk[start-buffer_:end,:]
+            temp_data = np.zeros((buffer_, recording_chunk.shape[1]), 
+                                    'float32')
+            self.data = np.concatenate((self.data, temp_data),'float32')            
+           
+        # mid chunks
+        else:
+            self.data = recording_chunk[start-buffer_:end+buffer_,:]
+       
+    def run(self, data_in):
+    #def run(self, data_in,
+    #        chunk_ctr,
+    #        buffer_size,
+    #        toShare_new):
+
+        start_time = time.time()
+
+        self.idx_list = data_in[0][0]
+        self.seg_ctr = data_in[0][1]
+        self.chunk_ctr = data_in[1]
+        self.buffer_size = data_in[2]
+        #self.root_folder = 
+        
+    
+        #self.idx_list = data_in[0]
+        #self.seg_ctr = data_in[1]
+        #self.chunk_ctr = chunk_ctr
+        #self.buffer_size = buffer_size
+        
+        # ********* run deconv ************
+        fname_out = (self.deconv_dir+"/seg_{}_deconv.npz".format(
+                                            str(self.seg_ctr).zfill(6)))
+        if os.path.exists(fname_out)==False:
+
+            # read raw data for segment using idx_list vals
+            #self.load_data_from_memory()
+            data = binary_reader(self.idx_list, self.buffer_size, 
+                                 self.standardized_filename,
+                                 self.n_chan)
+
+            self.data = data.astype(np.float32)
+            self.data_len = self.data.shape[0]
+            
+            # run inside run - function
+            self.update_data()
+            
+            # compute objective function
+            self.compute_objective()
+                
+            ctr = 0
+            tot_max = np.inf
+            while tot_max > self.threshold and ctr < self.max_iter:
+                spt, dist_met = self.find_peaks()
+                self.dec_spike_train = np.append(self.dec_spike_train, spt, axis=0)
+
+                self.subtract_spike_train(spt)
+
+                if self.keep_iterations:
+                    self.iter_spike_train.append(spt)
+                self.dist_metric = np.append(self.dist_metric, dist_met)
+                ctr += 1
+                #print ("Iteration {0} Found {1} spikes with {2:.2f} energy reduction, time: {3:.2f}".format(
+                #    ctr, spt.shape[0], np.sum(dist_met), time.time()-start_time))
+                if len(spt) == 0:
+                    break
+            
+            print ("finished chunk {0}, seg {1}, # iter: {2}, tot_time: {3:.2f}".format(
+                                self.chunk_ctr,self.seg_ctr, ctr, time.time()-start_time))
+
+            # ******** ADJUST SPIKE TIMES TO REMOVE BUFFER AND OFSETS *******
+            # order spike times
+            idx = np.argsort(self.dec_spike_train[:,0])
+            self.dec_spike_train = self.dec_spike_train[idx]
+
+            # find spikes inside data block, i.e. outside buffers
+            idx = np.where(np.logical_and(self.dec_spike_train[:,0]>=self.idx_list[2],
+                                          self.dec_spike_train[:,0]<self.idx_list[3]))[0]
+            self.dec_spike_train = self.dec_spike_train[idx]
+
+            # offset spikes to start of index
+            self.dec_spike_train[:,0]+= self.idx_list[0] - self.idx_list[2]
+            
+            np.savez(fname_out, spike_train = self.dec_spike_train, 
+                                dist_metric = self.dist_metric)
+
+        else:
+            print ("loading completed chunk {0}, seg {1}".format(
+                                            self.chunk_ctr,self.seg_ctr))
+            
+            data = np.load(fname_out)
+            self.dec_spike_train = data['spike_train']
+            self.dist_metric = data['dist_metric']
+
+        return self.dec_spike_train
     
     
-    
-        
-class MatchPursuit2(object):
-    """Class for doing greedy matching pursuit deconvolution."""
+# ********************************************************************
+# ********************* RESIDUAL FUNCTIONS ***************************
+# ********************************************************************
 
-    def __init__(self, temps, deconv_dir, vis_chan, 
-                 threshold=10, conv_approx_rank=3,
-                 implicit_subtraction=True, obj_energy=True):
-        """Sets up the deconvolution object.
-        Parameters:
-        -----------
-        temps: numpy array of shape (t, C, K)
-            Where t is number of time samples and C is the number of
-            channels and K is total number of units.
-        obj_energy: boolean
-            Whether to include ||V||^2 term in the objective.
+class MatchPursuitWaveforms(object):
+    
+    def __init__(self, data, temps, dec_spike_train, buffer_size):
+
+        """ Initialize by computing residuals
+            provide: raw data block, templates, and deconv spike train; 
         """
-        self.vis_chan = vis_chan
-        self.deconv_dir = deconv_dir
+        self.data = data
         self.n_time, self.n_chan, self.n_unit = temps.shape
         self.temps = temps
-        self.threshold = threshold
-        self.approx_rank = conv_approx_rank
-        self.implicit_subtraction = implicit_subtraction
-        #self.vis_chan = None
-        #self.visible_chans()
-        self.obj_energy=obj_energy
-        
-        self.up_factor = 1
-        if self.up_factor > 1:
-            self.upsample_templates()
-            
-        # compute norm of templates
-        print ("norm of templates")
-        self.norm = np.zeros([self.n_unit, 1])
-        for i in range(self.n_unit):
-            self.norm[i] = np.sum(np.square(self.temps[:, self.vis_chan[:, i], i]))
-        
-        # Resulting recovered spike train.
-        self.dec_spike_train = np.zeros([0, 2], dtype=np.int32)
-        self.dist_metric = np.array([])
-
-
-    def upsample_templates(self):
+        self.dec_spike_train = dec_spike_train
+    
+    def upsample_templates_wfs(self, up_factor):
         """Computes downsampled shifted upsampled of templates."""
+
+        self.up_factor = up_factor
+        self.n_unit = self.n_unit * self.up_factor
+        
         down_sample_idx = np.arange(0, self.n_time * self.up_factor, self.up_factor) + np.arange(0, self.up_factor)[:, None]
-        self.up_temps = scipy.signal.resample(self.temps, self.n_time * 3)[down_sample_idx, :, :]
+        self.up_temps = scipy.signal.resample(self.temps, self.n_time * self.up_factor)[down_sample_idx, :, :]
         self.up_temps = self.up_temps.transpose(
             [2, 3, 0, 1]).reshape([self.n_chan, -1, self.n_time]).transpose([2, 0, 1])
         self.temps = self.up_temps
-        self.n_unit = self.n_unit * self.up_factor
-        
-
-    def update_data(self, data):
-        """Updates the data for the deconv to be run on with same templates."""
-        self.n_time, self.n_chan, self.n_unit = temps.shape
-        self.data = data
-        self.data_len = data.shape[0]
-        # Computing SVD for each template.
-        self.obj_len = self.data_len + self.n_time - 1
-        self.dot = np.zeros([self.n_unit, self.obj_len])
-        # Compute v_sqaured if it is included in the objective.
-        if obj_energy:
-            self.update_v_squared()
-        # Indicator for computation of the objective.
-        self.obj_computed = False
-        # Resulting recovered spike train.
-        self.dec_spike_train = np.zeros([0, 2], dtype=np.int32)
-        self.dist_metric = np.array([])
-
-    #def visible_chans(self):
-        #if self.vis_chan is None:
-            #a = np.max(self.temps, axis=0) - np.min(self.temps, 0)
-            #self.vis_chan = a > 1
-        #return self.vis_chan
-
-    #def visible_chans_new(self):
-        #if self.vis_chan is None:
-            ##a = np.max(self.temps, axis=0) - np.min(self.temps, 0)
-            #max_chan_ptp = self.temps[self.temps.ptp(0).argmax(0)]
-            #a = self.temps.ptp(0)
-            #self.vis_chan = a > max_chan_ptp*0.5
-        #return self.vis_chan
-
-
-    #def pairwise_filter_conv(self):
-        #"""Computes pairwise convolution of templates using SVD approximation."""
-
-        #if os.path.exists(self.deconv_dir+"/parwise_conv.npy") == False:
-            #conv_res_len = self.n_time * 2 - 1
-            #self.pairwise_conv = np.zeros([self.n_unit, self.n_unit, conv_res_len])
-            #for unit1 in range(self.n_unit):
-                #u, s, vh = self.temporal[unit1], self.singular[unit1], self.spatial[unit1]
-                #vis_chan_idx = self.vis_chan[:, unit1]
-                #for unit2 in range(self.n_unit):
-                    #for i in range(self.approx_rank):
-                        #self.pairwise_conv[unit2, unit1, :] += np.convolve(
-                            #np.matmul(self.temps[:, vis_chan_idx, unit2], vh[i, vis_chan_idx].T),
-                            #s[i] * u[:, i].flatten(), 'full')
-
-            #np.save(self.deconv_dir+"/parwise_conv.npy", self.pairwise_conv)
-            
-        #else:
-            #self.pairwise_conv = np.load(self.deconv_dir+"/parwise_conv.npy")
-
-
-    def update_v_squared(self):
-        """Updates the energy of consecutive windows of data."""
-        one_pad = np.ones([self.n_time, self.n_chan])
-        self.v_squared = conv_filter(np.square(self.data), one_pad, approx_rank=None)
-
-
-
-    #def approx_conv_filter(self, unit):
-        #conv_res = 0.
-        #u, s, vh = self.temporal[unit], self.singular[unit], self.spatial[unit]
-        #for i in range(self.approx_rank):
-            #vis_chan_idx = self.vis_chan[:, unit]
-            #conv_res += np.convolve(
-                #np.matmul(self.data[:, vis_chan_idx], vh[i, vis_chan_idx].T),
-                                    #s[i] * u[:, i].flatten(), 'full')
-                                    
-            ##print (self.data[:, vis_chan_idx].shape)
-            ##print (vh[i, vis_chan_idx].T.shape)
-            ##print (np.matmul(self.data[:, vis_chan_idx], vh[i, vis_chan_idx].T).shape)
-            ##print ((s[i] * u[:, i].flatten()).shape)
-            ##quit()
-        #return conv_res
-
-    def approx_conv_filter(self, unit):
-        """Approximation of convolution of a template with the data.
-        Parameters:
-        -----------
-        unit: int
-            Id of the unit whose filter will be convolved with the data.
-        """
-        conv_res = 0.
-        u, s, vh = self.temporal[unit], self.singular[unit], self.spatial[unit]
-        for i in range(self.approx_rank):
-            vis_chan_idx = self.vis_chan[:, unit]
-            conv_res += np.convolve(
-                np.matmul(self.data[:, vis_chan_idx], vh[i, vis_chan_idx].T),
-                s[i] * u[:, i].flatten(), 'full')
-        return conv_res
-        
-
-    def compute_objective(self):
-        """Computes the objective given current state of recording."""
-        
-        # Cat: TODO: eventually don't want to save this to disk as it's 
-        #            ~500MB for 49 chans @ 10sec; and ~5GB for 512 chans
-        self.obj_chunk_file = (os.path.split(self.standardized_filename)[0]+
-                            "/deconv/chunk_"+ str(self.chunk_ctr).zfill(6)+
-                            "/objective_seg_"+str(self.proc_index).zfill(6)+".npy")
-        if os.path.exists(self.obj_chunk_file)==False:
-            if self.obj_computed and self.implicit_subtraction:
-                return self.obj
-            for i in range(self.n_unit):
-                self.dot[i, :] = self.approx_conv_filter(i)
-                    
-            self.obj = 2 * self.dot - self.norm
-            if self.obj_energy:
-                self.obj -= self.v_squared
-
-            # Enforce refrac period
-            radius = self.n_time // 2
-            window = np.arange(- radius, radius)
-            
-            for i in range(self.n_unit):
-                unit_sp = self.dec_spike_train[self.dec_spike_train[:, 1] == i, 0]
-                refrac_idx = unit_sp[:, np.newaxis] + window
-                self.obj[i, refrac_idx] = - np.inf
-
-            # Set indicator to true so that it no longer is run
-            # for future iterations in case subtractions are done
-            # implicitly.
-            
-            
-            np.save(self.obj_chunk_file, self.obj)
-        else:
-            self.obj = np.load(self.obj_chunk_file)
-            
-        self.obj_computed = True
-        return self.obj
-
-
-    #def find_peaks(self):
-        #refrac_period = self.n_time
-        #max_across_temp = np.max(self.obj, 0)
-        #spike_times = scipy.signal.argrelmax(max_across_temp, order=refrac_period)[0]
-        #spike_times = spike_times[max_across_temp[spike_times] > self.threshold]
-        #dist_metric = max_across_temp[spike_times]
-        ## TODO(hooshmand): this requires a check of the last element(s)
-        ## of spike_times only not of all of them since spike_times
-        ## is sorted already.
-        #valid_idx = spike_times < self.data_len - self.n_time
-        #dist_metric = dist_metric[valid_idx]
-        #spike_times = spike_times[valid_idx]
-        #spike_ids = np.argmax(self.obj[:, spike_times], axis=0)
-        #result = np.append(
-            #spike_times[:, np.newaxis] - self.n_time + 1,
-            #spike_ids[:, np.newaxis], axis=1)
-        #return result, dist_metric
-
-
-    def find_peaks(self):
-        """Finds peaks in subtraction differentials of spikes."""
-        refrac_period = self.n_time
-        max_across_temp = np.max(self.obj, 0)
-        spike_times = scipy.signal.argrelmax(max_across_temp, order=refrac_period)[0]
-        spike_times = spike_times[max_across_temp[spike_times] > self.threshold]
-        dist_metric = max_across_temp[spike_times]
-        # TODO(hooshmand): this requires a check of the last element(s)
-        # of spike_times only not of all of them since spike_times
-        # is sorted already.
-        valid_idx = spike_times < self.data_len - self.n_time
-        dist_metric = dist_metric[valid_idx]
-        spike_times = spike_times[valid_idx]
-        spike_ids = np.argmax(self.obj[:, spike_times], axis=0)
-        result = np.append(
-            spike_times[:, np.newaxis] - self.n_time + 1,
-            spike_ids[:, np.newaxis], axis=1)
-        return result, dist_metric
-        
-
-    def enforce_refractory(self, spike_train):
-        """Enforces refractory period for units."""
-        radius = self.n_time // 2
-        window = np.arange(- radius, radius)
-        for i in range(self.n_unit):
-            refrac_idx = []
-            for j in range(self.up_factor):
-                unit_sp = spike_train[spike_train[:, 1] == i * self.up_factor + j, 0]
-                refrac_idx.append(unit_sp[:, np.newaxis] + window)
-            for idx in refrac_idx:
-                self.obj[i:i + self.up_factor, idx] = - np.inf
-                
-                
-    #def subtract_spike_train(self, spt):
-        #"""Substracts a spike train from the original spike_train."""
-        #if not self.implicit_subtraction:
-            #for i in range(self.n_unit):
-                #unit_sp = spt[spt[:, 1] == i, :]
-                #self.data[np.arange(0, self.n_time) + unit_sp[:, :1], :] -= self.temps[:, :, i]
-            ## There is no need to update v_squared if it is not included in objective.
-            #if self.obj_energy:
-                #self.update_v_squared()
-        #else:
-            #for i in range(self.n_unit):
-                #conv_res_len = self.n_time * 2 - 1
-                #unit_sp = spt[spt[:, 1] == i, :]
-                #spt_idx = np.arange(0, conv_res_len) + unit_sp[:, :1]
-                #temp = 2 * self.pairwise_conv[i, :, :][:, None, :]
-                #self.obj[:, spt_idx] -= temp
-
-
-    def subtract_spike_train(self, spt):
-        """Substracts a spike train from the original spike_train."""
-        if not self.implicit_subtraction:
-            for i in range(self.n_unit):
-                unit_sp = spt[spt[:, 1] == i, :]
-                self.data[np.arange(0, self.n_time) + unit_sp[:, :1], :] -= self.temps[:, :, i]
-            # There is no need to update v_squared if it is not included in objective.
-            if self.obj_energy:
-                self.update_v_squared()
-            # recompute objective function
-            self.compute_objective()
-            # enforce refractory period for the current
-            # global spike train.
-            self.enforce_refractory(self.dec_spike_train)
-        else:
-            for i in range(self.n_unit):
-                conv_res_len = self.n_time * 2 - 1
-                unit_sp = spt[spt[:, 1] == i, :]
-                spt_idx = np.arange(0, conv_res_len) + unit_sp[:, :1]
-                self.obj[:, spt_idx] -= 2 * self.pairwise_conv[i, :, :][:, None, :]
-            self.enforce_refractory(spt)
-            
-            
-
-
-
-    def binary_reader(self, idx_list, buffer_size, n_channels):
-        
-        # New indexes
-        data_start = idx_list[0]
-        data_end = idx_list[1]
-        offset = idx_list[2]
-
-        # ***** LOAD RAW RECORDING *****
-        with open(self.standardized_filename, "rb") as fin:
-            if data_start == 0:
-                # Seek position and read N bytes
-                recordings_1D = np.fromfile(
-                    fin,
-                    dtype='float32',
-                    count=(data_end + buffer_size) * n_channels)
-                recordings_1D = np.hstack((np.zeros(
-                    buffer_size * n_channels, dtype='float32'), recordings_1D))
-            else:
-                fin.seek((data_start - buffer_size) * 4 * n_channels, os.SEEK_SET)
-                recordings_1D = np.fromfile(
-                    fin,
-                    dtype='float32',
-                    count=((data_end - data_start + buffer_size * 2) * n_channels))
-
-            if len(recordings_1D) != (
-                  (data_end - data_start + buffer_size * 2) * n_channels):
-                recordings_1D = np.hstack((recordings_1D,
-                                           np.zeros(
-                                               buffer_size * n_channels,
-                                               dtype='float32')))
-        fin.close()
-
-        # Convert to 2D array
-        recording = recordings_1D.reshape(-1, n_channels)
-        
-        return recording
     
-    
-    def get_iteration_spike_train(self):
-        return self.iter_spike_train
-    
-        
-    def run(self, data_temp):
-        
-        ''' data_in is a bunch of indexes (not raw data)
-        '''                    
+    def compute_residual(self):
+        for i in tqdm(range(self.n_unit), 'Computing Residual'):
+            unit_sp = self.dec_spike_train[self.dec_spike_train[:, 1] == i, :]
+            self.data[np.arange(0, self.n_time) + unit_sp[:, :1], :] -= self.temps[:, :, i]
 
-        data_in = data_temp[0]
-        chunk_ctr = data_temp[1]
-        max_iter = data_temp[2]
-        buffer_size = data_temp[3]
-        standardized_filename = data_temp[4]
-        n_channels = data_temp[5]
-               
-        self.chunk_ctr = chunk_ctr
-        self.standardized_filename = standardized_filename
-        self.n_channels = n_channels
-        
-        idx_list = data_in[0]
-        self.proc_index = data_in[1]
-        #print ("deconv chunk: ", self.proc_index)
-        
-        #self.chunk_dir = (os.path.split(self.standardized_filename)[0]+
-                            #"/deconv/chunk_"+ str(self.proc_index).zfill(6))
-        #if not os.path.isdir(self.chunk_dir):
-            #os.makedirs(self.chunk_dir)
-        
-        start_time = time.time()
-        data = self.binary_reader(idx_list, buffer_size,
-                                    n_channels)
-        print ("chunk: ", self.proc_index, "  file read time: ", 
-                    np.round(time.time()-start_time,3))
-        
-        # post-initializzation steps
-        # initialize dot product matrix
-        start_time = time.time()
-        self.data = data
-        self.data_len = data.shape[0]
-        self.obj_len = self.data_len + self.n_time - 1
-        self.dot = np.zeros([self.n_unit, self.obj_len])
-        #print ("initializing time: ", time.time()-start_time)
-                
-        # Compute v_sqaured if it is included in the objective.
-        start_time = time.time()
-        if self.obj_energy:
-            self.update_v_squared()
-        #print ("update_v_squared time: ", time.time()-start_time)
-        
-        # Indicator for computation of the objective.
-        self.obj_computed = False
-
-        thresh_list = []
-        ctr = 0
-        tot_max = np.inf
-        self.compute_objective()
-        while tot_max > self.threshold and ctr<5:
-            start_time = time.time()
-            spt, dist_met = self.find_peaks()
-
-            #start_time = time.time()
-            self.subtract_spike_train(spt)
-
-            self.dec_spike_train = np.append(self.dec_spike_train, spt, axis=0)
-            self.dist_metric = np.append(self.dist_metric, dist_met)
-            
-            tot_max = np.max(self.obj[:,300:-300])
-
-            ctr += 1
-            print (" chunk: ", str(chunk_ctr), "  segment: ", self.proc_index,
-                   " time: ", np.round(time.time()-start_time,3),
-                   "  Iteration ", ctr, " # spikes: ", spt.shape[0], 
-                   " max obj: ", tot_max)
-            thresh_list.append(spt.shape[0])
-
-
-        return self.dec_spike_train, self.dist_metric
-
-
-# **********************************************************
-
-
-def snr_main_chans(temps):
-    """Computes peak to peak SNR for given templates."""
-    chan_peaks = np.max(temps, axis=0)
-    chan_lows = np.min(temps, axis=0)
-    peak_to_peak = chan_peaks - chan_lows
-    return np.argsort(peak_to_peak, axis=0)
-
-
-class MatchPursuitAnalyze(object):
-    """Class for doing greedy matching pursuit deconvolution."""
-
-    def __init__(self, data, spike_train, temps, n_channels, n_features):
-        """Sets up the deconvolution object.
-        Parameters:
-        -----------
-        data: numpy.ndarray of shape (T, C)
-            Where T is number of time samples and C number of channels.
-        spike_train: numpy.ndarray of shape(T, 2)
-            First column represents spike times and second column
-            represents cluster ids.
-        temps: numpy array of shape (t, C, K)
-            Where t is number of time samples and C is the number of
-            channels and K is total number of units.
-        """
-        self.n_time, self.n_chan, self.n_unit = temps.shape
-        self.temps = temps
-        self.spike_train = spike_train
-        self.data = data
-        self.data_len = data.shape[0]
-        #
-        self.n_main_chan = n_channels
-        self.n_feat = n_features
-        #
-        self.features = None
-        self.cid = None
-        self.means = None
-        self.snrs = snr_main_chans(temps)
-        self.n_clusters = 0
-        #
-        self.residual = None
-        self.get_residual()
-
-    def get_residual(self):
-        """Returns the residual or computes it the first time."""
-        if self.residual is None:         
-            self.residual = copy.copy(self.data)
-            for i in tqdm(range(self.n_unit), 'Computing Residual'):
-                unit_sp = self.spike_train[self.spike_train[:, 1] == i, :]
-                self.residual[np.arange(0, self.n_time) + unit_sp[:, :1], :] -= self.temps[:, :, i]
-
-        return self.residual
-
-    def get_unit_spikes(self, unit):
+    def get_unit_spikes(self, unit, unit_sp):
         """Gets clean spikes for a given unit."""
-        unit_sp = self.spike_train[self.spike_train[:, 1] == unit, :]
+        #unit_sp = dec_spike_train[dec_spike_train[:, 1] == unit, :]
+        
         # Add the spikes of the current unit back to the residual
-        return self.residual[np.arange(0, self.n_time) + unit_sp[:, :1], :] + self.temps[:, :, unit]
+        temp = self.data[np.arange(0, self.n_time) + unit_sp[:, :1], :] + self.temps[:, :, unit]
+        return temp
+
