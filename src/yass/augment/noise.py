@@ -7,7 +7,8 @@ from yass.geometry import order_channels_by_distance
 from yass.batch import RecordingsReader
 
 
-def noise_cov(path_to_data, neighbors, geom, temporal_size):
+def noise_cov(path_to_data, neighbors, geom, temporal_size,
+              sample_size=1000):
     """Compute noise temporal and spatial covariance
 
     Parameters
@@ -83,28 +84,48 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size):
         # save noise indexes
         idxNoise[idxNoise_temp, c] = 1
 
-    # compute spatial covariance
+    # compute spatial covariance, output: (n_channels, n_channels)
     spatial_cov = np.divide(np.matmul(rec.T, rec),
                             np.matmul(idxNoise.T, idxNoise))
 
-    w, v = np.linalg.eig(spatial_cov)
-    spatial_SIG = np.matmul(np.matmul(v, np.diag(np.sqrt(w))), v.T)
+    # compute spatial sig
+    w_spatial, v_spatial = np.linalg.eig(spatial_cov)
+    spatial_SIG = np.matmul(np.matmul(v_spatial,
+                                      np.diag(np.sqrt(w_spatial))),
+                            v_spatial.T)
 
-    spatial_whitener = np.matmul(np.matmul(v, np.diag(1/np.sqrt(w))), v.T)
+    # apply spatial whitening to recordings
+    spatial_whitener = np.matmul(np.matmul(v_spatial,
+                                           np.diag(1/np.sqrt(w_spatial))),
+                                 v_spatial.T)
     rec = np.matmul(rec, spatial_whitener)
 
-    noise_wf = np.zeros((1000, temporal_size))
+    # generate noise waveform
+    noise_wf = np.zeros((sample_size, temporal_size))
     count = 0
 
-    while count < 1000:
+    # repeat until you get sample_size noise snippets
+    while count < sample_size:
 
-        tt = np.random.randint(T-temporal_size)
-        cc = np.random.randint(C)
-        temp = rec[tt:(tt+temporal_size), cc]
-        temp_idxnoise = idxNoise[tt:(tt+temporal_size), cc]
+        # random number for the start of the noise snippet
+        t_start = np.random.randint(T-temporal_size)
+        # random channel
+        ch = np.random.randint(C)
 
-        if np.sum(temp_idxnoise == 0) == 0:
-            noise_wf[count] = temp
+        t_slice = slice(t_start, t_start+temporal_size)
+
+        # get a snippet from the recordings and the noise flags for the same
+        # location
+        snippet = rec[t_slice, ch]
+        snipped_idx_noise = idxNoise[t_slice, ch]
+
+        # check if there is any signal observation in the snippet
+        signal_in_snippet = snipped_idx_noise.any()
+
+        # if all snippet is noise..
+        if not signal_in_snippet:
+            # add the snippet and increase count
+            noise_wf[count] = snippet
             count += 1
 
     w, v = np.linalg.eig(np.cov(noise_wf.T))
