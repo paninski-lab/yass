@@ -279,7 +279,7 @@ def run_neural_network(standarized_path, standarized_params,
         # instantiate neural networks
         NND = NeuralNetDetector.load(detection_fname, detection_th,
                                      CONFIG.channel_index)
-        NNT = load_model(triage_fname)
+        triage = load_model(triage_fname)
         NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
@@ -304,7 +304,8 @@ def run_neural_network(standarized_path, standarized_params,
         spikes_all = np.concatenate(spikes_all, axis=0)
         wfs = np.concatenate(wfs, axis=0)
 
-        idx_clean = np.squeeze(NNT.predict_proba(wfs[:, :, :, np.newaxis])
+        idx_clean = np.squeeze(triage
+                               .predict_proba(wfs[:, :, :, np.newaxis])
                                > triage_th)
 
         score = NNAE.predict(wfs)

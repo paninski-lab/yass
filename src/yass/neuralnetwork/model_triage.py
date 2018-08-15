@@ -1,3 +1,4 @@
+# FIXME: remove this
 try:
     from pathlib2 import Path
 except ImportError:
