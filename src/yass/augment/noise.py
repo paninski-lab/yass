@@ -8,7 +8,7 @@ from yass.batch import RecordingsReader
 
 
 def noise_cov(path_to_data, neighbors, geom, temporal_size,
-              sample_size=1000):
+              sample_size=1000, threshold=3.0):
     """Compute noise temporal and spatial covariance
 
     Parameters
@@ -25,6 +25,12 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size,
     temporal_size:
         Waveform size
 
+    sample_size: int
+        Number of noise snippets of temporal_size to search
+
+    threshold: float
+        Observations below this number are considered noise
+
     Returns
     -------
     spatial_SIG: numpy.ndarray
@@ -38,25 +44,29 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size,
                                             temporal_size))
 
     # reference channel: channel with max number of neighbors
-    c_ref = np.argmax(np.sum(neighbors, 0))
+    channel_ref = np.argmax(np.sum(neighbors, 0))
     # neighbors for the reference channel
-    ch_idx = np.where(neighbors[c_ref])[0]
+    channel_idx = np.where(neighbors[channel_ref])[0]
     # ordered neighbors for reference channel
-    ch_idx, temp = order_channels_by_distance(c_ref, ch_idx, geom)
+    channel_idx, temp = order_channels_by_distance(channel_ref, channel_idx,
+                                                   geom)
 
     # read the selected channels
     rec = RecordingsReader(path_to_data, loader='array')
-    rec = rec[:, ch_idx]
+    rec = rec[:, channel_idx]
 
     T, C = rec.shape
-    idxNoise = np.zeros((T, C))
     R = int((temporal_size-1)/2)
+
+    # this will hold a flag 1 (noise), 0 (signal) for every obseration in the
+    # recordings
+    is_noise_idx = np.zeros((T, C))
 
     # go through every neighboring channel
     for c in range(C):
 
-        # get obserations where observation is above 3
-        idx_temp = np.where(rec[:, c] > 3)[0]
+        # get obserations where observation is above threshold
+        idx_temp = np.where(rec[:, c] > threshold)[0]
 
         # shift every index found
         for j in range(-R, R+1):
@@ -73,20 +83,20 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size,
 
         # noise indexes are the ones that are not nan
         # FIXME: compare to np.nan instead
-        idxNoise_temp = (rec[:, c] == rec[:, c])
+        is_noise_idx_temp = (rec[:, c] == rec[:, c])
 
         # standarize data, ignoring nans
         rec[:, c] = rec[:, c]/np.nanstd(rec[:, c])
 
         # set non noise indexes to 0 in the recordings
-        rec[~idxNoise_temp, c] = 0
+        rec[~is_noise_idx_temp, c] = 0
 
         # save noise indexes
-        idxNoise[idxNoise_temp, c] = 1
+        is_noise_idx[is_noise_idx_temp, c] = 1
 
     # compute spatial covariance, output: (n_channels, n_channels)
     spatial_cov = np.divide(np.matmul(rec.T, rec),
-                            np.matmul(idxNoise.T, idxNoise))
+                            np.matmul(is_noise_idx.T, is_noise_idx))
 
     # compute spatial sig
     w_spatial, v_spatial = np.linalg.eig(spatial_cov)
@@ -117,7 +127,7 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size,
         # get a snippet from the recordings and the noise flags for the same
         # location
         snippet = rec[t_slice, ch]
-        snipped_idx_noise = idxNoise[t_slice, ch]
+        snipped_idx_noise = is_noise_idx[t_slice, ch]
 
         # check if there is any signal observation in the snippet
         signal_in_snippet = snipped_idx_noise.any()
