@@ -20,6 +20,7 @@ from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
 from yass import neuralnetwork
 from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
+from yass.neuralnetwork.apply import post_processing, fix_indexes_spike_index
 from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
 from yass.util import file_loader, save_numpy_object, running_on_gpu
@@ -285,32 +286,37 @@ def run_neural_network(standarized_path, standarized_params,
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
         rotation = NNAE.load_rotation()
 
-        # gather all output tensors
-        output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
+        fn = fix_indexes_spike_index
 
-        # run detection
+        # detector
         with tf.Session() as sess:
-
             # get values of above tensors
             NND.restore(sess)
-            NNAE.restore(sess)
-            NNT.restore(sess)
 
-            mc = bp.multi_channel_apply
-            res = mc(
-                neuralnetwork.run_detect_triage_featurize,
-                mode='memory',
-                cleanup_function=neuralnetwork.fix_indexes,
-                sess=sess,
-                x_tf=NND.x_tf,
-                output_tf=output_tf,
-                rot=rotation,
-                neighbors=neighbors)
+            res = bp.multi_channel_apply(NND.predict_recording,
+                                         mode='memory',
+                                         sess=sess,
+                                         output_names=('spike_index',
+                                                       'waveform'),
+                                         cleanup_function=fn)
 
-        scores, clear, spikes_all = zip(*res)
+        spikes_all, wfs = zip(*res)
+
+        spikes_all = np.concatenate(spikes_all, axis=0)
+        wfs = np.concatenate(wfs, axis=0)
+
+        idx_clean = NNT.predict(wfs)
+        score = NNAE.predict(wfs)
+        rot = NNAE.load_rotation()
+        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+
+        (scores, clear) = post_processing(score,
+                                          spikes_all,
+                                          idx_clean,
+                                          rot,
+                                          neighbors)
 
         # get clear spikes
-        clear = np.concatenate(clear, axis=0)
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
         clear, idx = detect.remove_incomplete_waveforms(
@@ -318,7 +324,6 @@ def run_neural_network(standarized_path, standarized_params,
             bp.reader._n_observations)
 
         # get all spikes
-        spikes_all = np.concatenate(spikes_all, axis=0)
         logger.info('Removing indexes outside the allowed range to '
                     'draw a complete waveform...')
         spikes_all, _ = detect.remove_incomplete_waveforms(
@@ -326,7 +331,6 @@ def run_neural_network(standarized_path, standarized_params,
             bp.reader._n_observations)
 
         # get scores
-        scores = np.concatenate(scores, axis=0)
         logger.info(
             'Removing scores for indexes outside the allowed range to '
             'draw a complete waveform...')
