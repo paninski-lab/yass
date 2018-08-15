@@ -32,7 +32,7 @@ neural_network_detector:
   threshold_spike: 0.5
 
 neural_network_triage:
-  filename: triage_nn1.ckpt
+  filename: triage-21wf7ch-14-Aug-2018@23-10-42.h5
   threshold_collision: 0.9
 
 neural_network_autoencoder:

@@ -12,13 +12,13 @@ except ImportError:
 
 import numpy as np
 import tensorflow as tf
+from keras.models import load_model
 
 from yass import read_config
 from yass.batch import BatchProcessor
 from yass.threshold.detect import threshold
 from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
-from yass import neuralnetwork
 from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
 from yass.neuralnetwork.apply import post_processing, fix_indexes_spike_index
 from yass.preprocess import whiten
@@ -279,8 +279,7 @@ def run_neural_network(standarized_path, standarized_params,
         # instantiate neural networks
         NND = NeuralNetDetector.load(detection_fname, detection_th,
                                      CONFIG.channel_index)
-        NNT = NeuralNetTriage.load(triage_fname, triage_th,
-                                   input_tensor=NND.waveform_tf)
+        NNT = load_model(triage_fname)
         NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
@@ -305,7 +304,9 @@ def run_neural_network(standarized_path, standarized_params,
         spikes_all = np.concatenate(spikes_all, axis=0)
         wfs = np.concatenate(wfs, axis=0)
 
-        idx_clean = NNT.predict(wfs)
+        idx_clean = np.squeeze(NNT.predict_proba(wfs[:, :, :, np.newaxis])
+                               > triage_th)
+
         score = NNAE.predict(wfs)
         rot = NNAE.load_rotation()
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
