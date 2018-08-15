@@ -87,7 +87,6 @@ class FrozenJSON(object):
         if self._path_to_file is not None:
             s += '\nLoaded from: '+self._path_to_file
 
-
         if self._data is not None:
             s += '\nContent: '+pprint.pformat(self._data, indent=4)
 

@@ -33,17 +33,23 @@ retinal_sub.tofile(str(Path(OUTPUT_FOLDER, 'retinal.bin')))
 # load data and sample
 
 
-# CHANNELS = 30
-# ch = np.load(path.join(PATH_TO_DATA, 'channel_positions.npy'))
-# n_ch, _ = ch.shape
+CHANNELS = 7
+NEURO_SIZE = 10000
+PATH_TO_NEURO = Path(DATA_FOLDER, 'neuro')
 
-# d = np.fromfile(path.join(PATH_TO_DATA, 'rawDataSample.bin'), dtype='int16')
-# d = d.reshape((385, 1800000))
+ch = np.load(str(Path(PATH_TO_NEURO, 'channel_positions.npy')))
+n_ch, _ = ch.shape
 
-# sample = d[:CHANNELS, :SIZE].T
-# sample.tofile('examples/data/neuropixel.bin')
+d = np.fromfile(str(Path(PATH_TO_NEURO, 'rawDataSample.bin')), dtype='int16')
+d = d.reshape((385, 1800000))
 
-# np.save('examples/data/neuropixel_channels.npy', ch[:CHANNELS, :])
+sample = d[:CHANNELS, :NEURO_SIZE].T
+
+sample.tofile('examples/data/neuropixel.bin')
+sample.tofile('tests/data/neuropixel.bin')
+
+np.save('examples/data/neuropixel_channels.npy', ch[:CHANNELS, :])
+np.save('tests/data/neuropixel_channels.npy', ch[:CHANNELS, :])
 
 
 # preprocess.butterworth('examples/data/neuropixel.bin',
