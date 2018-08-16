@@ -15,7 +15,8 @@ class MatchPursuit3(object):
     """Class for doing greedy matching pursuit deconvolution."""
 
     def __init__(self, temps, deconv_chunk_dir, standardized_filename, 
-                 max_iter, upsample=1, threshold=10, conv_approx_rank=3,
+                 max_iter, dynamic_templates, upsample=1, threshold=10, 
+                 conv_approx_rank=3,
                  implicit_subtraction=True, obj_energy=False, vis_su=2., 
                  keep_iterations=False, sparse_subtraction=True,
                  broadcast_subtraction=False):
@@ -62,8 +63,10 @@ class MatchPursuit3(object):
         
         # Upsample and downsample time shifted versions
         self.up_factor = upsample
-        if self.up_factor > 1:
-            self.upsample_templates()
+        #if self.up_factor > 1:
+        if True:
+            #self.upsample_templates()
+            self.upsample_templates_dynamic()
         self.threshold = threshold
         self.approx_rank = conv_approx_rank
         self.implicit_subtraction = implicit_subtraction
@@ -132,14 +135,69 @@ class MatchPursuit3(object):
 
 
     def upsample_templates(self):
-        
         """Computes downsampled shifted upsampled of templates."""
         down_sample_idx = np.arange(0, self.n_time * self.up_factor, self.up_factor) + np.arange(0, self.up_factor)[:, None]
         self.up_temps = scipy.signal.resample(self.temps, self.n_time * self.up_factor)[down_sample_idx, :, :]
         self.up_temps = self.up_temps.transpose(
             [2, 3, 0, 1]).reshape([self.n_chan, -1, self.n_time]).transpose([2, 0, 1])
         self.temps = self.up_temps
+        
         self.n_unit = self.n_unit * self.up_factor
+    
+    def upsample_templates_dynamic(self):
+        
+        """Computes downsampled shifted upsampled of templates."""
+        
+        # compute ptp of templates; 10-20SU: 10 upsample; 30SU+ 20 upsample
+        ptps = self.temps.ptp(0).max(0)
+
+        # loop over templates and make multiple upsample + shifted versions
+        # of larger templates
+        ctr_temp = 0
+        up_temps = []
+        self.temps_ids = []
+        for t in range(ptps.shape[0]):
+            if ptps[t]<5:
+                up_factor = 1
+                ctr_temp+=up_factor
+                for k in range(up_factor): 
+                    self.temps_ids.append(t)
+            if (ptps[t]>=5) and (ptps[t]<10):
+                up_factor = 3
+                ctr_temp+=up_factor
+                for k in range(up_factor): 
+                    self.temps_ids.append(t)
+            elif (ptps[t]>=10) and (ptps[t]<20):
+                up_factor = 5
+                ctr_temp+=up_factor
+                for k in range(up_factor): 
+                    self.temps_ids.append(t)
+            elif (ptps[t]>=20) and (ptps[t]<60):
+                up_factor = 10
+                ctr_temp+=up_factor
+                for k in range(up_factor): 
+                    self.temps_ids.append(t)
+            elif (ptps[t]>=60):
+                up_factor = 15
+                ctr_temp+=up_factor
+                for k in range(up_factor): 
+                    self.temps_ids.append(t)
+    
+            down_sample_idx = np.arange(0, self.n_time * up_factor, up_factor) + np.arange(0, up_factor)[:, None]
+            temp_temp = scipy.signal.resample(self.temps[:,:, t], self.n_time * up_factor)[down_sample_idx, :]
+            up_temps.append(temp_temp) 
+
+            #print (t, ptps[t], temp_temp.shape)
+
+        self.temps_ids = np.int32(self.temps_ids)
+        self.temps = np.vstack(up_temps)
+        self.temps = self.temps.transpose([1,2,0])
+
+        self.n_unit = ctr_temp
+
+        np.savez(self.deconv_dir+'/templates_upsampled.npz', 
+                 temps = self.temps,
+                 temps_ids = self.temps_ids)
 
 
     def pairwise_filter_conv(self):
@@ -215,7 +273,6 @@ class MatchPursuit3(object):
 
     def compute_objective(self):
         """Computes the objective given current state of recording."""
-        
         fname_out = (self.deconv_dir+"/seg_{}_obj_matrix.npy".format(
                                             str(self.seg_ctr).zfill(6)))
         if os.path.exists(fname_out)==False:
@@ -457,18 +514,6 @@ class MatchPursuitWaveforms(object):
         self.n_time, self.n_chan, self.n_unit = temps.shape
         self.temps = temps
         self.dec_spike_train = dec_spike_train
-    
-    def upsample_templates_wfs(self, up_factor):
-        """Computes downsampled shifted upsampled of templates."""
-
-        self.up_factor = up_factor
-        self.n_unit = self.n_unit * self.up_factor
-        
-        down_sample_idx = np.arange(0, self.n_time * self.up_factor, self.up_factor) + np.arange(0, self.up_factor)[:, None]
-        self.up_temps = scipy.signal.resample(self.temps, self.n_time * self.up_factor)[down_sample_idx, :, :]
-        self.up_temps = self.up_temps.transpose(
-            [2, 3, 0, 1]).reshape([self.n_chan, -1, self.n_time]).transpose([2, 0, 1])
-        self.temps = self.up_temps
     
     def compute_residual(self):
         for i in tqdm(range(self.n_unit), 'Computing Residual'):
