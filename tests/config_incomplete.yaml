@@ -1,6 +1,6 @@
 data:
-  root_folder: tests/data
-  recordings: neuropixel.bin
+  root_folder: tests/data/neuropixel/
+  recordings: data.bin
 
 recordings:
   dtype: int16

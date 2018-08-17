@@ -61,12 +61,12 @@ def tmp_folder():
 
 @pytest.fixture(scope='session')
 def path_to_data():
-    return os.path.join(PATH_TO_TESTS, 'data/neuropixel.bin')
+    return os.path.join(PATH_TO_TESTS, 'data/neuropixel/data.bin')
 
 
 @pytest.fixture(scope='session')
 def path_to_geometry():
-    return os.path.join(PATH_TO_TESTS, 'data/neuropixel_channels.npy')
+    return os.path.join(PATH_TO_TESTS, 'data/neuropixel/geometry.npy')
 
 
 @pytest.fixture(scope='session')
@@ -122,4 +122,4 @@ def path_to_txt_geometry(scope='session'):
 
 @pytest.fixture
 def path_to_npy_geometry(scope='session'):
-    return os.path.join(PATH_TO_TESTS, 'data/neuropixel_channels.npy')
+    return os.path.join(PATH_TO_TESTS, 'data/neuropixel/geometry.npy')

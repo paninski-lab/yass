@@ -2,9 +2,9 @@
 # geometry file has only 10 lines
 
 data:
-  root_folder: tests/data
-  recordings: neuropixel.bin
-  geometry: neuropixel_channels.npy
+  root_folder: tests/data/neuropixel/
+  recordings: data.bin
+  geometry: geometry.npy
 
 resources:
   max_memory: 200MB
