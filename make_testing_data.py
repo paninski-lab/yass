@@ -31,7 +31,7 @@ retinal_sub = retinal[:SIZE, :]
 retinal_sub.tofile(str(Path(OUTPUT_FOLDER, 'retinal.bin')))
 
 # Dataset 2: neuropixel
-seconds = 1
+seconds = 5
 channels = 10
 output_name_data = 'neuropixel.bin'
 output_name_geometry = 'neuropixel_channels.npy'
@@ -65,11 +65,12 @@ np.save(str(Path(path_to_tests_data, output_name_geometry)),
         sample_geometry)
 
 
-butterworth('tests/data/neuropixel.bin', dtype=dtype,
+butterworth(str(Path(path_to_tests_data, output_name_data)),
+            dtype=dtype,
             n_channels=channels, data_order=data_order,
             order=3, low_frequency=300, high_factor=0.1,
             sampling_frequency=sampling_frequency, max_memory='1GB',
-            output_path=path_to_tests_data,
+            output_path=str(path_to_tests_data),
             standarize=True,
             output_filename='standarized.bin',
             if_file_exists='overwrite',
