@@ -6,6 +6,10 @@ tmp/
 *.ipynb
 *.orig
 
+# do not include data
+tests/data/
+examples/data/
+
 # sublime text files
 *.sublime*
 
