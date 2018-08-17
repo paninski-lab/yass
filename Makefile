@@ -41,10 +41,7 @@ docs: ## Build docs
 	make -C doc html
 
 download-test-data: ## Download data for running tests
-	curl $YASS_TESTING_DATA_URL -o yass-testing-data.zip
-	rm -rf test/data
-	unzip yass-testing-data.zip
-	mv yass-testing-data/ tests/data/
+	./scripts/download_test_data
 
 # self-documenting makefile as described in http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 help: ## Show this documentation
