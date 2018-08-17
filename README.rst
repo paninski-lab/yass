@@ -82,6 +82,17 @@ Documentation hosted at `https://yass.readthedocs.io`_
 Running tests
 -------------
 
+Before running the tests, download the testing data:
+
+
+.. code-block:: shell
+
+    export YASS_TESTING_DATA_URL=[URL-TO-TESTING-DATA]
+
+    make download-test-data
+
+    make test
+
 To run tests and flake8 checks (from the root folder):
 
 .. code-block:: shell
