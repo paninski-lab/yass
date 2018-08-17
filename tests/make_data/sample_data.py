@@ -78,7 +78,7 @@ sample_geometry = geometry[:channels, :]
 
 # save data and geometry
 sample_data.tofile(str(Path(path_to_output_folder_neuro, 'data.bin')))
-np.save(str(Path(path_to_output_folder_neuro, 'geometry.bin')),
+np.save(str(Path(path_to_output_folder_neuro, 'geometry.npy')),
         sample_geometry)
 
 
