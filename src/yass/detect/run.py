@@ -135,7 +135,11 @@ def run_threshold(standarized_path, standarized_params,
 
     CONFIG = read_config()
 
-    folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+    if os.path.isabs(output_directory):
+        folder = Path(output_directory)
+    else:
+        folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+
     folder.mkdir(exist_ok=True)
 
     # Set TMP_FOLDER to None if not save_results, this will disable
@@ -239,7 +243,11 @@ def run_neural_network(standarized_path, standarized_params,
 
     CONFIG = read_config()
 
-    folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+    if os.path.isabs(output_directory):
+        folder = Path(output_directory)
+    else:
+        folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+
     folder.mkdir(exist_ok=True)
 
     TMP_FOLDER = str(folder)

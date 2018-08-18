@@ -1,10 +1,12 @@
 import logging
 import numpy as np
 from collections import defaultdict
+from yass.util import deprecated
 
 from yass.templates.util import strongly_connected_components_iterative
 
 
+@deprecated('see detect.run')
 def run_detect_triage_featurize(recordings, sess, x_tf, output_tf,
                                 neighbors, rot):
     """Detect spikes using a neural network
@@ -125,6 +127,7 @@ def deduplicate(spike_index, energy, neighbors, w=5):
     return idx_survive
 
 
+@deprecated('see detect.run')
 def fix_indexes(res, idx_local, idx, buffer_size):
     """Fixes indexes from detected spikes in batches
 

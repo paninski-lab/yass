@@ -11,47 +11,48 @@ import yass
 from yass import preprocess
 from yass import detect
 from yass import cluster
-from yass import reset_config
 
-from util import clean_tmp
 from util import ReferenceTesting
 
 
-def teardown_function(function):
-    reset_config()
-    clean_tmp()
-
-
-def test_cluster(path_to_threshold_config):
+def test_cluster(path_to_threshold_config, make_tmp_folder):
     yass.set_config(path_to_threshold_config)
 
-    (standarized_path, standarized_params, whiten_filter) = preprocess.run()
+    (standarized_path,
+     standarized_params,
+     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
     (score, spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter)
+                                   whiten_filter,
+                                   output_directory=make_tmp_folder)
 
-    cluster.run(score, spike_index_clear)
-
-    clean_tmp()
+    cluster.run(score, spike_index_clear, output_directory=make_tmp_folder)
 
 
 @pytest.mark.xfail
 def test_cluster_returns_expected_results(path_to_threshold_config,
-                                          path_to_data_folder):
+                                          path_to_data_folder,
+                                          make_tmp_folder):
     np.random.seed(0)
 
     yass.set_config(path_to_threshold_config)
 
-    (standarized_path, standarized_params, whiten_filter) = preprocess.run()
+    (standarized_path,
+     standarized_params,
+     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
     (score, spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter)
+                                   whiten_filter,
+                                   output_directory=make_tmp_folder)
 
-    spike_train, tmp_loc, vbParam = cluster.run(score, spike_index_clear)
+    # save results
+    (spike_train, tmp_loc,
+     vbParam) = cluster.run(score, spike_index_clear,
+                            output_directory=make_tmp_folder)
 
     path_to_spike_train = path.join(path_to_data_folder,
                                     'output_reference',
@@ -63,44 +64,50 @@ def test_cluster_returns_expected_results(path_to_threshold_config,
     ReferenceTesting.assert_array_equal(spike_train, path_to_spike_train)
     ReferenceTesting.assert_array_equal(tmp_loc, path_to_tmp_loc)
 
-    clean_tmp()
 
-
-def test_cluster_save_results(path_to_threshold_config):
+def test_cluster_save_results(path_to_threshold_config, make_tmp_folder):
 
     yass.set_config(path_to_threshold_config)
 
-    (standarized_path, standarized_params, whiten_filter) = preprocess.run()
+    (standarized_path,
+     standarized_params,
+     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
     (score, spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter)
+                                   whiten_filter,
+                                   output_directory=make_tmp_folder)
 
-    cluster.run(score, spike_index_clear, save_results=True)
-
-    clean_tmp()
+    cluster.run(score, spike_index_clear, save_results=True,
+                output_directory=make_tmp_folder)
 
 
 def test_cluster_loads_from_disk_if_all_files_exist(caplog,
-                                                    path_to_threshold_config):
+                                                    path_to_threshold_config,
+                                                    make_tmp_folder):
 
     yass.set_config(path_to_threshold_config)
 
-    (standarized_path, standarized_params, whiten_filter) = preprocess.run()
+    (standarized_path,
+     standarized_params,
+     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
     (score, spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter)
+                                   whiten_filter,
+                                   output_directory=make_tmp_folder)
 
     # save results
-    cluster.run(score, spike_index_clear, save_results=True)
+    cluster.run(score, spike_index_clear, save_results=True,
+                output_directory=make_tmp_folder)
 
     assert cluster.run.executed
 
     # next time this should not run and just load from files
-    cluster.run(score, spike_index_clear, save_results=True)
+    cluster.run(score, spike_index_clear, save_results=True,
+                output_directory=make_tmp_folder)
 
     assert not cluster.run.executed
 
@@ -109,6 +116,8 @@ def test_cluster_runs_if_overwrite_is_on(path_to_threshold_config):
     pass
 
 
-def test_new_process_shows_error_if_empty_config():
+def test_cluster_shows_error_if_empty_config():
+    yass.reset_config()
+
     with pytest.raises(ValueError):
-        cluster.run(None, None)
+        cluster.run(None, None, None)

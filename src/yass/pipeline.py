@@ -47,8 +47,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         Delete CONFIG.data.root_folder/output_dir/ before running
 
     output_dir: str, optional
-        Output directory (relative to CONFIG.data.root_folder to store the
-        output data, defaults to tmp/
+        Output directory to store the output data, defaults to tmp/. Paths
+        are relative to CONFIG.data.root_folder
 
     complete: bool, optional
         Generates extra files (needed to generate phy files)
@@ -76,7 +76,11 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     set_config(config)
     CONFIG = read_config()
     ROOT_FOLDER = CONFIG.data.root_folder
-    TMP_FOLDER = path.join(ROOT_FOLDER, output_dir)
+
+    if os.path.isabs(output_dir):
+        TMP_FOLDER = output_dir
+    else:
+        TMP_FOLDER = path.join(ROOT_FOLDER, output_dir)
 
     # remove tmp folder if needed
     if os.path.exists(TMP_FOLDER) and clean:

@@ -11,6 +11,7 @@ tmp/
 yass-testing-data/
 tests/data/
 examples/data/
+tests/output_reference/
 
 # sublime text files
 *.sublime*

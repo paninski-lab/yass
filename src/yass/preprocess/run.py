@@ -76,8 +76,11 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     logger.info('Output dtype for transformed data will be {}'
                 .format(OUTPUT_DTYPE))
 
-    TMP = Path(CONFIG.data.root_folder, output_directory,
-               'preprocess/')
+    if os.path.isabs(output_directory):
+        TMP = Path(output_directory, 'preprocess/')
+    else:
+        TMP = Path(CONFIG.data.root_folder, output_directory, 'preprocess/')
+
     TMP.mkdir(parents=True, exist_ok=True)
     TMP = str(TMP)
 

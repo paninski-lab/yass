@@ -4,4 +4,5 @@ curl $YASS_TESTING_DATA_URL -o yass-testing-data.zip
 rm -rf test/data
 unzip yass-testing-data.zip
 rm -f yass-testing-data.zip
-mv yass-testing-data/ tests/data/
+cp yass-testing-data/ tests/data/
+mv yass-testing-data/ examples/data/

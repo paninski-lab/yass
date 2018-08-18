@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+export YASS_SAVE_OUTPUT_REFERENCE=1
+
+pytest tests/unit/
+
+unset YASS_SAVE_OUTPUT_REFERENCE

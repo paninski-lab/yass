@@ -14,24 +14,16 @@ from yass.augment.util import (make_from_templates, make_collided,
                                make_misaligned, make_noise)
 
 
-spike_train = np.array([100, 0,
-                        150, 0,
-                        200, 1,
-                        250, 1,
-                        300, 2,
-                        350, 2]).reshape(-1, 2)
-
-chosen_templates = [0, 1, 2]
-min_amplitude = 2
-max_amplitude = 10
-n_spikes_to_make = 500
-
-filters = [8, 4]
-
-
 def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
+
+    spike_train = np.load(path.join(path_to_sample_pipeline_folder,
+                                    'spike_train.npy'))
+    chosen_templates = np.unique(spike_train[:, 1])
+    min_amplitude = 4
+    max_amplitude = 60
+    n_spikes_to_make = 10
 
     templates = make.load_templates(path_to_sample_pipeline_folder,
                                     spike_train, CONFIG, chosen_templates)
@@ -47,9 +39,13 @@ def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
                                       path_to_standarized)
 
 
-def test_can_make_clean(path_to_tests, path_to_standarized_data):
+def test_can_make_clean(path_to_tests, path_to_standarized_data,
+                        path_to_sample_pipeline_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
+
+    spike_train = np.load(path.join(path_to_sample_pipeline_folder,
+                                    'spike_train.npy'))
 
     n_spikes, _ = spike_train.shape
 
@@ -67,9 +63,13 @@ def test_can_make_clean(path_to_tests, path_to_standarized_data):
                         n_per_template=100)
 
 
-def test_can_make_collided(path_to_tests, path_to_standarized_data):
+def test_can_make_collided(path_to_tests, path_to_standarized_data,
+                           path_to_sample_pipeline_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
+
+    spike_train = np.load(path.join(path_to_sample_pipeline_folder,
+                                    'spike_train.npy'))
 
     n_spikes, _ = spike_train.shape
 
@@ -92,9 +92,13 @@ def test_can_make_collided(path_to_tests, path_to_standarized_data):
                   max_shift=CONFIG.spike_size)
 
 
-def test_can_make_misaligned(path_to_tests, path_to_standarized_data):
+def test_can_make_misaligned(path_to_tests, path_to_standarized_data,
+                             path_to_sample_pipeline_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
+
+    spike_train = np.load(path.join(path_to_sample_pipeline_folder,
+                                    'spike_train.npy'))
 
     n_spikes, _ = spike_train.shape
 
@@ -118,9 +122,13 @@ def test_can_make_misaligned(path_to_tests, path_to_standarized_data):
                     multi_channel=True)
 
 
-def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):
+def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data,
+                               path_to_sample_pipeline_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
+
+    spike_train = np.load(path.join(path_to_sample_pipeline_folder,
+                                    'spike_train.npy'))
 
     n_spikes, _ = spike_train.shape
 
@@ -140,9 +148,13 @@ def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):
               templates_uncropped.shape[1])
 
 
-def test_can_make_noise(path_to_tests, path_to_standarized_data):
+def test_can_make_noise(path_to_tests, path_to_standarized_data,
+                        path_to_sample_pipeline_folder):
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
+
+    spike_train = np.load(path.join(path_to_sample_pipeline_folder,
+                                    'spike_train.npy'))
 
     n_spikes, _ = spike_train.shape
 
