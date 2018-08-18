@@ -46,6 +46,10 @@ def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
 
 def test_can_make_clean(path_to_tests, path_to_standarized_data,
                         path_to_sample_pipeline_folder):
+
+    np.random.seed(0)
+    random.seed(0)
+
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -70,6 +74,10 @@ def test_can_make_clean(path_to_tests, path_to_standarized_data,
 
 def test_can_make_collided(path_to_tests, path_to_standarized_data,
                            path_to_sample_pipeline_folder):
+
+    np.random.seed(0)
+    random.seed(0)
+
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -99,6 +107,10 @@ def test_can_make_collided(path_to_tests, path_to_standarized_data,
 
 def test_can_make_misaligned(path_to_tests, path_to_standarized_data,
                              path_to_sample_pipeline_folder):
+
+    np.random.seed(0)
+    random.seed(0)
+
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -129,6 +141,10 @@ def test_can_make_misaligned(path_to_tests, path_to_standarized_data,
 
 def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data,
                                path_to_sample_pipeline_folder):
+
+    np.random.seed(0)
+    random.seed(0)
+
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -155,6 +171,10 @@ def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data,
 
 def test_can_make_noise(path_to_tests, path_to_standarized_data,
                         path_to_sample_pipeline_folder):
+
+    np.random.seed(0)
+    random.seed(0)
+
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
