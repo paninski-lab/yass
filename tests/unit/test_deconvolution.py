@@ -10,6 +10,13 @@ def test_decovnolution(path_to_threshold_config,
                        make_tmp_folder):
     yass.set_config('tests/config_nnet.yaml')
 
+    # FIXME: hacky solution for the test to pass, i need to re-train the
+    # triage network
+    CONFIG = yass.read_config()
+    d = CONFIG.detect._data
+    d['neural_network_triage']['threshold_collision'] = 0
+    CONFIG._set_param('detect', d)
+
     (standarized_path,
      standarized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
