@@ -791,6 +791,11 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
     #print ("Max chan: ", mc)
     
     
+    np.savez('/media/cat/1TB/liam/49channels/data1_allset/tmp/cluster/wfs.npz',
+             wf = wf,
+             feat_chans = feat_chans,
+             max_chans = max_chans)
+    
     # ************ ALIGN FEATURE CHANNELS ************
     # align, note: aligning all channels to max chan; 
     # note: max chan is first from feat_chans above, ensure order is preserved
@@ -1172,8 +1177,8 @@ def plot_clustering_template(fig, grid, ax_t, gen, N, wf, idx_recovered, CONFIG,
         
         # plot template
         ax_t.plot(CONFIG.geom[:,0]+
-                np.arange(-wf_mean.shape[0],0)[:,np.newaxis]/3., 
-                CONFIG.geom[:,1] + wf_mean[:,:]*scale, c=colors[N%100])
+                  np.arange(-wf_mean.shape[0],0)[:,np.newaxis]/3., 
+                  CONFIG.geom[:,1] + wf_mean[:,:]*scale, c=colors[N%100])
 
         # plot feature channels
         for i in feat_chans:
@@ -1451,13 +1456,12 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
             # Cat: TODO: this parallelization may not be optimally asynchronous
             # make arg list first
             args_in = []
-            for channel in channels:
-            #for channel in [6]:
+            #for channel in channels:
+            for channel in [6]:
                 args_in.append([channel, idx, proc_index,CONFIG2, 
                     spike_index_chunk, n_dim_pca, 
                     wf_start, wf_end, n_mad_chans, n_max_chans, out_dir, 
                     mfm_threshold, upsample_factor, nshifts])
-
 
             # Cat: TODO: have single-core option also here     
             if CONFIG.resources.multi_processing:       
