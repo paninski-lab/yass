@@ -43,7 +43,8 @@ docs: ## Build docs
 download-test-data: ## Download data for running tests
 	./scripts/download_test_data
 
-generate-output-reference: ## Generate files that are used as reference in some tests to check that the output is still the same
+generate-testing-data: ## Generates testing data and files that are used as reference in some tests to check that the output is still the same
+	./scripts/make_sample_data
 	./scripts/generate_output_reference
 
 # self-documenting makefile as described in http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html

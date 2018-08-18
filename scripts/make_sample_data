@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Sample data for testing
 """
@@ -24,7 +25,7 @@ path_to_retina_data = Path(path_to_retina_folder, 'ej49_data1_set1.bin')
 path_to_retina_geom = Path(path_to_retina_folder, 'ej49_geometry1.txt')
 
 
-path_to_output_folder = Path(path_to_data_storage, 'yass-testing-data')
+path_to_output_folder = Path(path_to_data_storage, 'yass-testing-data', 'data')
 path_to_output_folder_neuro = Path(path_to_output_folder, 'neuropixel')
 path_to_output_folder_retina = Path(path_to_output_folder, 'retina')
 
@@ -33,7 +34,7 @@ if path_to_output_folder.exists():
     shutil.rmtree(str(path_to_output_folder))
 
 
-path_to_output_folder.mkdir()
+path_to_output_folder.mkdir(parents=True)
 # path_to_output_folder_neuro.mkdir()
 path_to_output_folder_retina.mkdir()
 
