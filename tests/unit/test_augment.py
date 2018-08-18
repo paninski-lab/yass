@@ -2,6 +2,7 @@
 Tests for functions that create training data for the neural networks
 """
 import os.path as path
+import random
 
 import numpy as np
 
@@ -15,6 +16,10 @@ from yass.augment.util import (make_from_templates, make_collided,
 
 
 def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
+
+    np.random.seed(0)
+    random.seed(0)
+
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
