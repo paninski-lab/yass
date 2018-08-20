@@ -44,8 +44,10 @@ def load_templates(data_folder, spike_train, CONFIG, chosen_templates_indexes):
 
 
 def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
-                         n_clean_per_template, n_collided_per_spike,
-                         max_shift, spatial_SIG, temporal_SIG,
+                         n_clean_per_template,
+                         n_collided_per_spike,
+                         max_shift, min_shift,
+                         spatial_SIG, temporal_SIG,
                          return_metadata=False):
     """Make training data for triage network
     """
@@ -61,6 +63,7 @@ def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
     x_collision = util.make_collided(x_templates, n_collided_per_spike,
                                      multi_channel=True,
                                      max_shift=max_shift,
+                                     min_shift=min_shift,
                                      return_metadata=return_metadata)
 
     # make labels

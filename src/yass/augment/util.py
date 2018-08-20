@@ -89,7 +89,7 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
 
 
 def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
-                  max_shift='auto', return_metadata=False):
+                  max_shift='auto', min_shift=0.25, return_metadata=False):
     """Make collided spikes
 
     Parameters
@@ -103,6 +103,8 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
     max_shift: int or string, optional
         Maximum amount of shift for the collided spike. If 'auto', it sets
         to half the waveform length in x
+    min_shift: float, [0, 1]
+        Minimum shift as proportion of the waveform length
     return_metadata: bool, optional
         Return data used to generate the collisions
     """
@@ -114,6 +116,8 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
     logger = logging.getLogger(__name__)
 
     n_clean, wf_length, n_neighbors = x.shape
+
+    min_shift = int(wf_length * min_shift)
 
     if max_shift == 'auto':
         max_shift = int((wf_length - 1) / 2)
@@ -138,7 +142,7 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
     for j in range(n_collided):
 
         # random shifting
-        shift = random.randint(-max_shift, max_shift)
+        shift = random.choice([-1, 1]) * random.randint(min_shift, max_shift)
 
         # sample a clean spike - first spike
         x_first[j], i = sample_from_zero_axis(x)
