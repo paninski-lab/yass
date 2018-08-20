@@ -335,4 +335,4 @@ class ArrayWithMetadata:
         return getattr(self.array, name)
 
     def __getitem__(self, key):
-        return self.array[key]
+        return ArrayWithMetadata(self.array[key], self._metadata)
