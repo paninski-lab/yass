@@ -1409,7 +1409,7 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
     #if CONFIG.resources.multi_processing:
     # or avoid warning and only use in single processor mode
     chunk_dirs= []
-    for idx,proc_index in zip(idx_list,proc_indexes):
+    for idx, proc_index in zip(idx_list,proc_indexes):
         
         # read chunk of data
         print ("Reading (starting) chunk: ", proc_index+1, " / ", 
@@ -1456,8 +1456,8 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
             # Cat: TODO: this parallelization may not be optimally asynchronous
             # make arg list first
             args_in = []
-            #for channel in channels:
-            for channel in [6]:
+            for channel in channels:
+            #for channel in [6]:
                 args_in.append([channel, idx, proc_index,CONFIG2, 
                     spike_index_chunk, n_dim_pca, 
                     wf_start, wf_end, n_mad_chans, n_max_chans, out_dir, 
@@ -1482,6 +1482,9 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
             print ("... clustering complete...")
     
         # test global merge
+        
+        # Cat: TODO: remove this loop to hav correct code
+        break
         spike_train, tmp_loc, templates = global_merge_all_ks(chunk_dirs, CONFIG2)
 
     spike_train, tmp_loc, templates = global_merge_all_ks(chunk_dirs, CONFIG2)
@@ -1914,7 +1917,7 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
 
     if os.path.exists(global_merge_file)==False:
 
-        sim_temp = calc_sim_vector(templates, CONFIG)
+        sim_temp = calc_cos_sim_vector(templates, CONFIG)
         sim_temp[np.diag_indices(sim_temp.shape[0])] = 0
         sim_temp[np.tril_indices(sim_temp.shape[0])] = 0
         sim_mat = run_KS_test(sim_temp, templates, templates_std, CONFIG, 
@@ -2001,7 +2004,7 @@ def global_merge_all_ks_deconv(deconv_chunk_dir, units, CONFIG):
     templates_std = np.vstack(templates_std)
     weights = np.hstack(weights)
     #print (spike_indexes.shape)
-    print(" total # templates post deconv: ", templates.shape)
+    print("  total # templates post deconv: ", templates.shape)
     #np.save(CONFIG.data.root_folder+'/tmp/templates_before_merge.npy', templates)
     #np.save(CONFIG.data.root_folder+'/tmp/spike_indexes_before_merge.npy', spike_indexes)
     
@@ -2019,14 +2022,13 @@ def global_merge_all_ks_deconv(deconv_chunk_dir, units, CONFIG):
         weights = np.delete(weights,idx_delete,axis=0)
         spike_indexes = np.delete(spike_indexes,idx_delete,axis=0)
                 
-        print(" # templates after 300 spike cutoff: ", templates.shape)
-        print(" spike_indexes: ", spike_indexes.shape)
+        print("   # templates after 300 spike cutoff: ", templates.shape)
 
 
     # ************** GET SIM_MAT ****************
     global_merge_file = (CONFIG.data.root_folder+ '/tmp/global_merge_matrix_deconv.npz')
     if os.path.exists(global_merge_file)==False:
-        sim_temp = calc_sim_vector(templates, CONFIG)
+        sim_temp = calc_cos_sim_vector(templates, CONFIG)
         sim_temp[np.diag_indices(sim_temp.shape[0])] = 0
         sim_temp[np.tril_indices(sim_temp.shape[0])] = 0
         sim_mat = run_KS_test(sim_temp, templates, templates_std, CONFIG, 
@@ -2076,7 +2078,7 @@ def global_merge_all_ks_deconv(deconv_chunk_dir, units, CONFIG):
    
    
    
-def calc_sim_vector(templates, CONFIG):
+def calc_cos_sim_vector(templates, CONFIG):
     mc = templates.ptp(1).argmax(1)
     n_chan = CONFIG.recordings.n_channels
     main_channels = np.unique(mc)
@@ -2145,7 +2147,7 @@ def run_KS_test(sim_temp, mean, std, CONFIG, resampling = True, plotting = False
             lda = LDA(n_components = 1)
             trans = lda.fit_transform(pca_wf, y_act)
             trans = (trans - trans.mean())/ trans.std()
-            lin = np.arange(trans.mean(), trans.max(), 0.01)
+            lin = np.arange(trans.min(), trans.max(), 0.01)
             ks_dist = calc_ks_dist(trans, Y, lin)
             if ks_dist < 0.10:
                 print('^^^^^^^^^^^^^^ merged ^^^^^^^^^^^^^^^^^^')

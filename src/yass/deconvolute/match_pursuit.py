@@ -55,7 +55,7 @@ class MatchPursuit3(object):
         #global recording_chunk_raw
         self.n_time, self.n_chan, self.n_unit = temps.shape
         self.temps = temps.astype(np.float32)
-        print ("inside match pursuit: templates: ", self.temps.shape)
+        print ("  inside match pursuit: templates: ", self.temps.shape)
         
         self.deconv_dir = deconv_chunk_dir
         self.standardized_filename = standardized_filename
@@ -67,6 +67,7 @@ class MatchPursuit3(object):
         if True:
             #self.upsample_templates()
             self.upsample_templates_dynamic()
+            print ("  upsample tempaltes: ", self.temps.shape)
         self.threshold = threshold
         self.approx_rank = conv_approx_rank
         self.implicit_subtraction = implicit_subtraction
@@ -81,6 +82,7 @@ class MatchPursuit3(object):
             np.transpose(np.flipud(self.temps), (2, 0, 1)))        
         
         # Compute pairwise convolution of filters
+        print ("  computing pairwise filter (TODO: Parallelize)")
         self.pairwise_filter_conv()
         
         # compute norm of templates
@@ -200,6 +202,7 @@ class MatchPursuit3(object):
                  temps_ids = self.temps_ids)
 
 
+    # Cat: TODO: Parallelize this function
     def pairwise_filter_conv(self):
         """Computes pairwise convolution of templates using SVD approximation."""
         
@@ -219,6 +222,7 @@ class MatchPursuit3(object):
         else:
             self.pairwise_conv = np.load(self.deconv_dir+"/pairwise_conv.npy")
 
+        self.pairwise_conv = None
 
     def update_v_squared(self):
         """Updates the energy of consecutive windows of data."""
@@ -237,9 +241,20 @@ class MatchPursuit3(object):
         u, s, vh = self.temporal[unit], self.singular[unit], self.spatial[unit]
         for i in range(self.approx_rank):
             vis_chan_idx = self.vis_chan[:, unit]
+            
             conv_res += np.convolve(
                 np.matmul(self.data[:, vis_chan_idx], vh[i, vis_chan_idx].T),
                 s[i] * u[:, i].flatten(), 'full')
+                
+            #print (self.data[:, vis_chan_idx].shape)
+            #print (vh[i, vis_chan_idx].T.shape)
+            #print (np.matmul(self.data[:, vis_chan_idx], vh[i, vis_chan_idx].T).shape)
+            #print (s[i])
+            #print (u[:, i].flatten().shape)
+            #print ((s[i] * u[:, i].flatten()).shape)
+        
+            #quit()
+
         return conv_res
 
     def conv_filter(data, temp, approx_rank=None, mode='full'):
@@ -289,7 +304,7 @@ class MatchPursuit3(object):
             # for future iterations in case subtractions are done
             # implicitly.
             
-            # Cat: stop saving obj_matrix
+            # Cat: stop saving obj_matrix, data is too large over time;
             #np.save(fname_out,self.obj)
         else: 
             self.obj = np.load(fname_out)
@@ -413,10 +428,6 @@ class MatchPursuit3(object):
             self.data = recording_chunk[start-buffer_:end+buffer_,:]
        
     def run(self, data_in):
-    #def run(self, data_in,
-    #        chunk_ctr,
-    #        buffer_size,
-    #        toShare_new):
 
         start_time = time.time()
 
@@ -424,79 +435,66 @@ class MatchPursuit3(object):
         self.seg_ctr = data_in[0][1]
         self.chunk_ctr = data_in[1]
         self.buffer_size = data_in[2]
-        #self.root_folder = 
-        
-    
-        #self.idx_list = data_in[0]
-        #self.seg_ctr = data_in[1]
-        #self.chunk_ctr = chunk_ctr
-        #self.buffer_size = buffer_size
         
         # ********* run deconv ************
         fname_out = (self.deconv_dir+"/seg_{}_deconv.npz".format(
                                             str(self.seg_ctr).zfill(6)))
-        if os.path.exists(fname_out)==False:
 
-            # read raw data for segment using idx_list vals
-            #self.load_data_from_memory()
-            data = binary_reader(self.idx_list, self.buffer_size, 
-                                 self.standardized_filename,
-                                 self.n_chan)
+        # read raw data for segment using idx_list vals
+        #self.load_data_from_memory()
+        data = binary_reader(self.idx_list, self.buffer_size, 
+                             self.standardized_filename,
+                             self.n_chan)
 
-            self.data = data.astype(np.float32)
-            self.data_len = self.data.shape[0]
+        self.data = data.astype(np.float32)
+        self.data_len = self.data.shape[0]
+        
+        # load pairwise conv filter
+        self.pairwise_conv = np.load(self.deconv_dir+"/pairwise_conv.npy")
+
+        # run inside run - function
+        self.update_data()
+        
+        # compute objective function
+        self.compute_objective()
             
-            # run inside run - function
-            self.update_data()
-            
-            # compute objective function
-            self.compute_objective()
-                
-            ctr = 0
-            tot_max = np.inf
-            while tot_max > self.threshold and ctr < self.max_iter:
-                spt, dist_met = self.find_peaks()
-                self.dec_spike_train = np.append(self.dec_spike_train, spt, axis=0)
+        ctr = 0
+        tot_max = np.inf
+        while tot_max > self.threshold and ctr < self.max_iter:
+            spt, dist_met = self.find_peaks()
+            self.dec_spike_train = np.append(self.dec_spike_train, spt, axis=0)
 
-                self.subtract_spike_train(spt)
+            self.subtract_spike_train(spt)
 
-                if self.keep_iterations:
-                    self.iter_spike_train.append(spt)
-                self.dist_metric = np.append(self.dist_metric, dist_met)
-                ctr += 1
-                #print ("Iteration {0} Found {1} spikes with {2:.2f} energy reduction, time: {3:.2f}".format(
-                #    ctr, spt.shape[0], np.sum(dist_met), time.time()-start_time))
-                if len(spt) == 0:
-                    break
-            
-            print ("finished chunk {0}, seg {1}, # iter: {2}, tot_time: {3:.2f}".format(
-                                self.chunk_ctr,self.seg_ctr, ctr, time.time()-start_time))
+            if self.keep_iterations:
+                self.iter_spike_train.append(spt)
+            self.dist_metric = np.append(self.dist_metric, dist_met)
+            ctr += 1
+            #print ("Iteration {0} Found {1} spikes with {2:.2f} energy reduction, time: {3:.2f}".format(
+            #    ctr, spt.shape[0], np.sum(dist_met), time.time()-start_time))
+            if len(spt) == 0:
+                break
+        
+        print ("  finished chunk {0}, seg {1}, # iter: {2}, tot_time: {3:.2f}".format(
+                            self.chunk_ctr,self.seg_ctr, ctr, time.time()-start_time))
 
-            # ******** ADJUST SPIKE TIMES TO REMOVE BUFFER AND OFSETS *******
-            # order spike times
-            idx = np.argsort(self.dec_spike_train[:,0])
-            self.dec_spike_train = self.dec_spike_train[idx]
+        # ******** ADJUST SPIKE TIMES TO REMOVE BUFFER AND OFSETS *******
+        # order spike times
+        idx = np.argsort(self.dec_spike_train[:,0])
+        self.dec_spike_train = self.dec_spike_train[idx]
 
-            # find spikes inside data block, i.e. outside buffers
-            idx = np.where(np.logical_and(self.dec_spike_train[:,0]>=self.idx_list[2],
-                                          self.dec_spike_train[:,0]<self.idx_list[3]))[0]
-            self.dec_spike_train = self.dec_spike_train[idx]
+        # find spikes inside data block, i.e. outside buffers
+        idx = np.where(np.logical_and(self.dec_spike_train[:,0]>=self.idx_list[2],
+                                      self.dec_spike_train[:,0]<self.idx_list[3]))[0]
+        self.dec_spike_train = self.dec_spike_train[idx]
 
-            # offset spikes to start of index
-            self.dec_spike_train[:,0]+= self.idx_list[0] - self.idx_list[2]
-            
-            np.savez(fname_out, spike_train = self.dec_spike_train, 
-                                dist_metric = self.dist_metric)
+        # offset spikes to start of index
+        self.dec_spike_train[:,0]+= self.idx_list[0] - self.idx_list[2]
+        
+        np.savez(fname_out, spike_train = self.dec_spike_train, 
+                            dist_metric = self.dist_metric)
 
-        else:
-            print ("loading completed chunk {0}, seg {1}".format(
-                                            self.chunk_ctr,self.seg_ctr))
-            
-            data = np.load(fname_out)
-            self.dec_spike_train = data['spike_train']
-            self.dist_metric = data['dist_metric']
-
-        return self.dec_spike_train
+        #return self.dec_spike_train
     
     
 # ********************************************************************
