@@ -319,20 +319,27 @@ def add_noise(x, spatial_SIG, temporal_SIG):
     return x + noise
 
 
-class ArrayWithMetadata:
-    """Wrapper to store metadata in numpy.ndarray, see the metadata attribute
+class ArrayWithMetadata(np.ndarray):
+    """
+    Notes
+    -----
+    https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
     """
 
-    def __init__(self, array, metadata):
-        self.array = array
-        self._metadata = metadata
+    def __new__(cls, input_array, metadata=None):
+        # Input array is an already formed ndarray instance
+        # We first cast to be our class type
+        obj = np.asarray(input_array).view(cls)
 
-    @property
-    def metadata(self):
-        return self._metadata
+        # add the new attribute to the created instance
+        obj.metadata = metadata
 
-    def __getattr__(self, name):
-        return getattr(self.array, name)
+        # Finally, we must return the newly created object:
+        return obj
 
-    def __getitem__(self, key):
-        return ArrayWithMetadata(self.array[key], self._metadata)
+    def __array_finalize__(self, obj):
+        # see InfoArray.__array_finalize__ for comments
+        if obj is None:
+            return
+
+        self.metadata = getattr(obj, 'metadata', None)
