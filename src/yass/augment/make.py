@@ -43,6 +43,39 @@ def load_templates(data_folder, spike_train, CONFIG, chosen_templates_indexes):
     return processor.templates
 
 
+def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
+                         n_clean_per_template, n_collided_per_spike,
+                         max_shift, spatial_SIG, temporal_SIG,
+                         return_metadata=False):
+    """Make training data for triage network
+    """
+    K, _, n_channels = templates.shape
+
+    # make spikes from templates
+    x_templates = util.make_from_templates(templates, minimum_amplitude,
+                                           maximum_amplitude,
+                                           n_clean_per_template)
+
+    # make collided spikes - max shift is set to R since 2 * R + 1 will be
+    # the final dimension for the spikes
+    x_collision = util.make_collided(x_templates, n_collided_per_spike,
+                                     multi_channel=True,
+                                     max_shift=max_shift,
+                                     return_metadata=return_metadata)
+
+    # make labels
+    ones = np.ones((x_templates.shape[0]))
+    zeros = np.zeros((x_collision.shape[0]))
+
+    x_templates_noisy = util.add_noise(x_templates, spatial_SIG)
+    x_collision_noisy = util._make_noisy(x_collision, temporal_SIG)
+
+    x_triage = yarr.concatenate((x_templates_noisy, x_collision_noisy))
+    y_triage = yarr.concatenate((ones, zeros))
+
+    return x_triage, y_triage
+
+
 def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
                   n_isolated_spikes,
                   path_to_standarized, noise_ratio=10,
