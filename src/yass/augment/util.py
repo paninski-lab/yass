@@ -4,6 +4,8 @@ import random
 import numpy as np
 import logging
 
+import yass.array as yarr
+
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +178,7 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
         spikes_second = np.stack(spikes_second)
         metadata = dict(first=spikes_first, second=spikes_second,
                         shift=shifts)
-        return ArrayWithMetadata(x_first, metadata)
+        return yarr.ArrayWithMetadata(x_first, metadata)
     else:
         return x_first
 
@@ -317,29 +319,3 @@ def add_noise(x, spatial_SIG, temporal_SIG):
     """
     noise = make_noise(x.shape, spatial_SIG, temporal_SIG)
     return x + noise
-
-
-class ArrayWithMetadata(np.ndarray):
-    """
-    Notes
-    -----
-    https://docs.scipy.org/doc/numpy-1.13.0/user/basics.subclassing.html
-    """
-
-    def __new__(cls, input_array, metadata=None):
-        # Input array is an already formed ndarray instance
-        # We first cast to be our class type
-        obj = np.asarray(input_array).view(cls)
-
-        # add the new attribute to the created instance
-        obj.metadata = metadata
-
-        # Finally, we must return the newly created object:
-        return obj
-
-    def __array_finalize__(self, obj):
-        # see InfoArray.__array_finalize__ for comments
-        if obj is None:
-            return
-
-        self.metadata = getattr(obj, 'metadata', None)

@@ -8,6 +8,7 @@ from yass.templates.crop import crop_and_align_templates
 from yass.templates import TemplatesProcessor
 from yass.augment.noise import noise_cov
 from yass.augment import util
+import yass.array as yarr
 
 
 def load_templates(data_folder, spike_train, CONFIG, chosen_templates_indexes):
@@ -179,8 +180,8 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
     #############
 
     if multi_channel:
-        x = np.concatenate((x_templates_noisy, x_collision_noisy,
-                            x_temporally_misaligned_noisy, noise))
+        x = yarr.concatenate((x_templates_noisy, x_collision_noisy,
+                              x_temporally_misaligned_noisy, noise))
         x_detect = x[:, MID_POINT_IDX, :]
 
         y_detect = np.concatenate((y_clean_1, y_collision_1,
