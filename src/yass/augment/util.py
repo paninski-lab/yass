@@ -5,6 +5,7 @@ import numpy as np
 import logging
 
 import yass.array as yarr
+from yass import util
 
 
 logger = logging.getLogger(__name__)
@@ -103,8 +104,8 @@ def make_collided(x, n_per_spike, multi_channel, min_shift,
     max_shift: int or string, optional
         Maximum amount of shift for the collided spike. If 'auto', it sets
         to half the waveform length in x
-    min_shift: float, [0, 1]
-        Minimum shift as proportion of the waveform length
+    min_shift: float, int
+        Minimum shift
     return_metadata: bool, optional
         Return data used to generate the collisions
     """
@@ -179,8 +180,19 @@ def make_collided(x, n_per_spike, multi_channel, min_shift,
     if return_metadata:
         spikes_first = np.stack(spikes_first)
         spikes_second = np.stack(spikes_second)
-        metadata = dict(first=spikes_first, second=spikes_second,
-                        shift=shifts)
+
+        params = dict(n_per_spike=n_per_spike,
+                      multi_channel=multi_channel,
+                      min_shift=min_shift,
+                      max_shift=max_shift,
+                      amp_tolerance=amp_tolerance,
+                      yass_version=util.get_version())
+
+        metadata = dict(first=spikes_first,
+                        second=spikes_second,
+                        shift=shifts,
+                        params=params)
+
         return yarr.ArrayWithMetadata(x_first, metadata)
     else:
         return x_first
