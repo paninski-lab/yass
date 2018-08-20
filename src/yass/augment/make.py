@@ -200,13 +200,12 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
         x = yarr.concatenate((x_templates_noisy, x_collision_noisy))
         x_triage = x[:, MID_POINT_IDX, :]
 
-        y_triage = yarr.concatenate.concatenate((y_clean_1, y_collision_0))
+        y_triage = yarr.concatenate((y_clean_1, y_collision_0))
     else:
-        x = yarr.concatenate.concatenate((x_templates_noisy,
-                                          x_collision_noisy,))
+        x = yarr.concatenate((x_templates_noisy, x_collision_noisy,))
         x_triage = x[:, MID_POINT_IDX, 0]
 
-        y_triage = yarr.concatenate.concatenate((y_clean_1, y_collision_0))
+        y_triage = yarr.concatenate((y_clean_1, y_collision_0))
 
     ###############
     # Autoencoder #
