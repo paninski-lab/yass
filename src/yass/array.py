@@ -39,9 +39,9 @@ def concatenate(arrs, axis=0, out=None, **unused_kwargs):
         else:
             metadata_all.append(None)
 
-    res = np.concatenate(arrs, axis=axis, out=out, **unused_kwargs)
+    result = np.concatenate(arrs, axis=axis, out=out, **unused_kwargs)
 
     if any(metadata_all):
-        ArrayWithMetadata(res, metadata_all)
+        return ArrayWithMetadata(result, metadata_all)
     else:
-        res
+        return result
