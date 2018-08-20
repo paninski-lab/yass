@@ -88,8 +88,8 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
     return x
 
 
-def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
-                  max_shift='auto', min_shift=0.25, return_metadata=False):
+def make_collided(x, n_per_spike, multi_channel, min_shift,
+                  amp_tolerance=0.2, max_shift='auto', return_metadata=False):
     """Make collided spikes
 
     Parameters
@@ -116,8 +116,6 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
     logger = logging.getLogger(__name__)
 
     n_clean, wf_length, n_neighbors = x.shape
-
-    min_shift = int(wf_length * min_shift)
 
     if max_shift == 'auto':
         max_shift = int((wf_length - 1) / 2)
