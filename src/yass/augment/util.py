@@ -21,10 +21,10 @@ def _make_noisy(x, the_noise):
     return x + noise_sample
 
 
-def sample_from_zero_axis(x, axis=0):
+def sample_from_zero_axis(x):
     """Sample from a certain axis
     """
-    idx = np.random.choice(x.shape[0], 1, replace=True)
+    idx = np.random.choice(x.shape[0], 1, replace=True)[0]
     return x[idx], idx
 
 
@@ -156,9 +156,6 @@ def make_collided(x, n_per_spike, multi_channel, min_shift,
 
         x_second, i = sample_from_zero_axis(x)
         x_second = scale_factor * x_second / amps[i]
-
-        # FIXME: remove this
-        x_second = x_second[0, :, :]
 
         x_second = shift_waveform(x_second, shift)
 
