@@ -68,8 +68,7 @@ def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
     zeros = np.zeros((x_collision.shape[0]))
 
     x_templates_noisy = util.add_noise(x_templates, spatial_SIG, temporal_SIG)
-    x_collision_noisy = util._make_noisy(x_collision, spatial_SIG,
-                                         temporal_SIG)
+    x_collision_noisy = util.add_noise(x_collision, spatial_SIG, temporal_SIG)
 
     x_triage = yarr.concatenate((x_templates_noisy, x_collision_noisy))
     y_triage = yarr.concatenate((ones, zeros))
