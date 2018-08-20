@@ -65,7 +65,6 @@ def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
                                      max_shift=max_shift,
                                      min_shift=min_shift,
                                      return_metadata=return_metadata)
-
     # make labels
     ones = np.ones((x_templates.shape[0]))
     zeros = np.zeros((x_collision.shape[0]))

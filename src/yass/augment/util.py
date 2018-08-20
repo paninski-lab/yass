@@ -151,8 +151,8 @@ def make_collided(x, n_per_spike, multi_channel, min_shift,
         lower = amp * (1.0 - amp_tolerance)
         upper = amp * (1.0 + amp_tolerance)
 
-        # generate 50 possible scaling values and select one of them
-        scale_factor = np.linspace(lower, upper, num=50)[random.randint(0, 49)]
+        # generate 100 possible scaling values and select one of them
+        scale_factor = np.random.uniform(lower, upper)
 
         x_second, i = sample_from_zero_axis(x)
         x_second = scale_factor * x_second / amps[i]
