@@ -187,27 +187,26 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
         y_detect = np.concatenate((y_clean_1, y_collision_1,
                                    y_misaligned_0, y_noise_0))
     else:
-        x = np.concatenate((x_templates_noisy, x_temporally_misaligned_noisy,
-                            noise))
+        x = yarr.concatenate((x_templates_noisy, x_temporally_misaligned_noisy,
+                              noise))
         x_detect = x[:, MID_POINT_IDX, 0]
 
-        y_detect = np.concatenate((y_clean_1,
-                                   y_misaligned_0, y_noise_0))
+        y_detect = yarr.concatenate((y_clean_1, y_misaligned_0, y_noise_0))
     ##########
     # Triage #
     ##########
 
     if multi_channel:
-        x = np.concatenate((x_templates_noisy, x_collision_noisy))
+        x = yarr.concatenate((x_templates_noisy, x_collision_noisy))
         x_triage = x[:, MID_POINT_IDX, :]
 
-        y_triage = np.concatenate((y_clean_1, y_collision_0))
+        y_triage = yarr.concatenate.concatenate((y_clean_1, y_collision_0))
     else:
-        x = np.concatenate((x_templates_noisy, x_collision_noisy,))
+        x = yarr.concatenate.concatenate((x_templates_noisy,
+                                          x_collision_noisy,))
         x_triage = x[:, MID_POINT_IDX, 0]
 
-        y_triage = np.concatenate((y_clean_1,
-                                   y_collision_0))
+        y_triage = yarr.concatenate.concatenate((y_clean_1, y_collision_0))
 
     ###############
     # Autoencoder #
