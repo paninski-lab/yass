@@ -1,10 +1,12 @@
 import logging
 import numpy as np
 from collections import defaultdict
+from yass.util import deprecated
 
 from yass.templates.util import strongly_connected_components_iterative
 
 
+@deprecated('see detect.run')
 def run_detect_triage_featurize(recordings, sess, x_tf, output_tf,
                                 neighbors, rot):
     """Detect spikes using a neural network
@@ -53,6 +55,14 @@ def run_detect_triage_featurize(recordings, sess, x_tf, output_tf,
     score, spike_index, idx_clean = sess.run(
         output_tf, feed_dict={x_tf: recordings})
 
+    (score_clear,
+     spike_index_clear) = post_processing(score, spike_index,
+                                          idx_clean, rot, neighbors)
+
+    return (score_clear, spike_index_clear, spike_index)
+
+
+def post_processing(score, spike_index, idx_clean, rot, neighbors):
     energy = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
 
     idx_survive = deduplicate(spike_index, energy, neighbors)
@@ -60,11 +70,10 @@ def run_detect_triage_featurize(recordings, sess, x_tf, output_tf,
     score_clear = score[idx_keep]
     spike_index_clear = spike_index[idx_keep]
 
-    return (score_clear, spike_index_clear, spike_index)
+    return score_clear, spike_index_clear
 
 
 def deduplicate(spike_index, energy, neighbors, w=5):
-
     # number of data points
     n_data = spike_index.shape[0]
 
@@ -118,6 +127,7 @@ def deduplicate(spike_index, energy, neighbors, w=5):
     return idx_survive
 
 
+@deprecated('see detect.run')
 def fix_indexes(res, idx_local, idx, buffer_size):
     """Fixes indexes from detected spikes in batches
 
@@ -161,3 +171,39 @@ def fix_indexes(res, idx_local, idx, buffer_size):
     col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset - buffer_size
 
     return score_not_in_buffer, clear_not_in_buffer, col_not_in_buffer
+
+
+def fix_indexes_spike_index(res, idx_local, idx, buffer_size):
+    """Fixes indexes from detected spikes in batches
+
+    Parameters
+    ----------
+    res: tuple
+        A tuple with the results from the nnet detector
+    idx_local: slice
+        A slice object indicating the indices for the data (excluding buffer)
+    idx: slice
+        A slice object indicating the absolute location of the data
+    buffer_size: int
+        Buffer size
+    """
+    spike_idx, wfs = res
+
+    # get limits for the data (exlude indexes that have buffer data)
+    data_start = idx_local[0].start
+    data_end = idx_local[0].stop
+    # get offset that will be applied
+    offset = idx[0].start
+
+    # fix clear spikes
+    times = spike_idx[:, 0]
+    # get only observations outside the buffer
+    idx_not_in_buffer = np.logical_and(times >= data_start,
+                                       times <= data_end)
+    clear_not_in_buffer = spike_idx[idx_not_in_buffer]
+
+    # offset spikes depending on the absolute location
+    clear_not_in_buffer[:, 0] = (clear_not_in_buffer[:, 0] + offset
+                                 - buffer_size)
+
+    return clear_not_in_buffer, wfs[idx_not_in_buffer]

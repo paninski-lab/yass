@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+# Download test data and put it in the appropriate directories
+curl $YASS_TESTING_DATA_URL -o yass-testing-data.zip
+
+unzip -q yass-testing-data.zip
+rm -f yass-testing-data.zip
+
+rm -rf tests/data tests/output_reference examples/data
+
+cp -r yass-testing-data/data tests/data/
+cp -r yass-testing-data/data examples/data/
+cp -r yass-testing-data/output_reference tests/output_reference
+rm -rf yass-testing-data/

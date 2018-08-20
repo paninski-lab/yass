@@ -40,6 +40,13 @@ integration-test: ## Run Integration Tests
 docs: ## Build docs
 	make -C doc html
 
+download-test-data: ## Download data for running tests
+	./scripts/download_test_data
+
+generate-testing-data: ## Generates testing data and files that are used as reference in some tests to check that the output is still the same
+	./scripts/make_sample_data
+	./scripts/generate_output_reference
+
 # self-documenting makefile as described in http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 help: ## Show this documentation
 	echo "\nYass build/test tools:\n"

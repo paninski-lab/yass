@@ -87,7 +87,6 @@ class FrozenJSON(object):
         if self._path_to_file is not None:
             s += '\nLoaded from: '+self._path_to_file
 
-
         if self._data is not None:
             s += '\nContent: '+pprint.pformat(self._data, indent=4)
 
@@ -135,6 +134,7 @@ class Config(FrozenJSON):
 
         # GEOMETRY PARAMETERS
         path_to_geom = path.join(self.data.root_folder, self.data.geometry)
+
         self._set_param('geom',
                         geom.parse(path_to_geom, self.recordings.n_channels))
 

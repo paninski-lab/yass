@@ -59,7 +59,7 @@ class NeuralNetDetector(Model):
     def __init__(self, path_to_model, filters_size, waveform_length,
                  n_neighbors, threshold, channel_index, n_iter=50000,
                  n_batch=512, l2_reg_scale=0.00000005,
-                 train_step_size=0.001):
+                 train_step_size=0.001, load_test_set=False):
         """
         Initializes the attributes for the class NeuralNetDetector.
 
@@ -120,8 +120,12 @@ class NeuralNetDetector(Model):
         # create saver variables
         self.saver = tf.train.Saver(self.vars_dict)
 
+        if load_test_set:
+            self._load_test_set()
+
     @classmethod
-    def load(cls, path_to_model, threshold, channel_index):
+    def load(cls, path_to_model, threshold, channel_index,
+             load_test_set=False):
 
         if not path_to_model.endswith('.ckpt'):
             path_to_model = path_to_model+'.ckpt'
@@ -132,7 +136,7 @@ class NeuralNetDetector(Model):
 
         return cls(path_to_model, params['filters_size'],
                    params['waveform_length'], params['n_neighbors'],
-                   threshold, channel_index)
+                   threshold, channel_index, load_test_set=load_test_set)
 
     @classmethod
     def _make_network(cls, input_layer, vars_dict, padding):
@@ -182,6 +186,7 @@ class NeuralNetDetector(Model):
         ######################
 
         # TODO: need to ask why we are sending different channel indexes
+        # instead of sending the complete channel_index which is larger
         # save neighbor channel index
         small_channel_index = channel_index[:, :n_neigh]
 
@@ -387,7 +392,8 @@ class NeuralNetDetector(Model):
                           self.path_to_model)
         self.saver.restore(sess, self.path_to_model)
 
-    def predict_recording(self, recording, output_names=('spike_index',)):
+    def predict_recording(self, recording, output_names=('spike_index',),
+                          sess=None):
         """Make predictions on recordings
 
         Parameters
@@ -404,9 +410,13 @@ class NeuralNetDetector(Model):
         """
         output_tensors = [getattr(self, name+'_tf') for name in output_names]
 
-        with tf.Session() as sess:
-            self.restore(sess)
+        if sess is None:
+            with tf.Session() as sess:
+                self.restore(sess)
 
+                output = sess.run(output_tensors,
+                                  feed_dict={self.x_tf: recording})
+        else:
             output = sess.run(output_tensors,
                               feed_dict={self.x_tf: recording})
 
@@ -432,7 +442,7 @@ class NeuralNetDetector(Model):
         probas = self.predict_proba(waveforms)
         return (probas > self.threshold).astype('int')
 
-    def fit(self, x_train, y_train, test_size=0.3):
+    def fit(self, x_train, y_train, test_size=0.3, save_test_set=False):
         """
         Trains the neural network detector for spike detection
 
@@ -555,5 +565,8 @@ class NeuralNetDetector(Model):
 
         # save parameters to disk
         self._save_params(path=path_to_params, params=params)
+
+        if save_test_set:
+            self._save_test_set()
 
         return params

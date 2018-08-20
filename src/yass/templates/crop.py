@@ -1,40 +1,11 @@
 import logging
-
 import numpy as np
-
 from yass.geometry import order_channels_by_distance
+from yass.templates.util import main_channels, amplitudes
 
-
-def main_channels(templates):
-    """Find main channel for every template
-    """
-    abs_templates = np.abs(templates)
-
-    # get the maximum along the waveform to get the highest point in every
-    # channel
-    max_along_time = np.amax(abs_templates, axis=1)
-
-    # return the index maximum  value along the channels - this is the main
-    # channel
-    return np.argmax(max_along_time, axis=1)
-
-
-def amplitudes(templates):
-    """Find amplitudes
-    """
-    return np.amax(np.abs(templates), axis=(1, 2))
-
-
-def on_main_channel(templates):
-    """Get templates on its main and neighboring channels
-    """
-    pass
-
-
-def align(templates, crop=True):
-    """Align templates spatially
-    """
-    pass
+# FIXME: keeping this just because make_training data is still using it
+# use template processor instead, remove as soon as make_training_data
+# is refactored
 
 
 def crop_and_align_templates(big_templates, R, neighbors, geom,
@@ -48,6 +19,8 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
     -------
     """
     logger = logging.getLogger(__name__)
+
+    logger.debug('crop and align input shape %s', big_templates.shape)
 
     # copy templates to avoid modifying the original ones
     big_templates = np.copy(big_templates)
@@ -92,6 +65,7 @@ def crop_and_align_templates(big_templates, R, neighbors, geom,
         np.sum(np.square(templates_mainc), 0), np.ones(2*R2+1), 'valid')) + R2
 
     # crop templates, now they are from 4*R to 3*R
+    logger.debug('6*R+1 %s', 6*R+1)
     big_templates = big_templates[:, (center-3*R):(center+3*R+1)]
 
     if not crop_spatially:

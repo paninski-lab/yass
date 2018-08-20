@@ -36,10 +36,6 @@ __version__ = '0.10dev'
 
 CONFIG = None
 
-# when set to true, this changes the behavior of some functions, only intended
-# for devs use
-DEBUG_MODE = False
-
 
 GPU_ENABLED = running_on_gpu()
 
@@ -118,12 +114,3 @@ def set_tensorflow_config(config):
     """
     sess = tf.Session(config=config)
     sess.close()
-
-
-def _enable_debug_mode(state=True):
-    global DEBUG_MODE
-    DEBUG_MODE = state
-
-
-def _get_debug_mode():
-    return DEBUG_MODE

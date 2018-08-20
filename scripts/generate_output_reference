@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+# Run yass uni tests with a special flag, some tests will save their output
+# so we can use it as reference
+export YASS_SAVE_OUTPUT_REFERENCE=1
+pytest tests/unit/
+unset YASS_SAVE_OUTPUT_REFERENCE
+
+mv tests/output_reference/ ~/data/yass-testing-data/output_reference

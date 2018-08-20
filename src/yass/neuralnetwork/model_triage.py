@@ -1,3 +1,4 @@
+# FIXME: remove this
 try:
     from pathlib2 import Path
 except ImportError:
@@ -63,7 +64,8 @@ class NeuralNetTriage(Model):
     def __init__(self, path_to_model, filters_size,
                  waveform_length, n_neighbors, threshold,
                  n_iter=50000, n_batch=512, l2_reg_scale=0.00000005,
-                 train_step_size=0.001, input_tensor=None):
+                 train_step_size=0.001, input_tensor=None,
+                 load_test_set=False):
 
         self.logger = logging.getLogger(__name__)
 
@@ -94,8 +96,12 @@ class NeuralNetTriage(Model):
                                           waveform_length,
                                           n_neighbors)
 
+        if load_test_set:
+            self._load_test_set()
+
     @classmethod
-    def load(cls, path_to_model, threshold, input_tensor=None):
+    def load(cls, path_to_model, threshold, input_tensor=None,
+             load_test_set=False):
         """Load a model from a file
         """
         if not path_to_model.endswith('.ckpt'):
@@ -105,10 +111,12 @@ class NeuralNetTriage(Model):
         path_to_params = change_extension(path_to_model, 'yaml')
         params = load_yaml(path_to_params)
 
-        return cls(path_to_model, params['filters_size'],
-                   params['waveform_length'],
-                   params['n_neighbors'], threshold,
-                   input_tensor=input_tensor)
+        return cls(path_to_model=path_to_model,
+                   filters_size=params['filters_size'],
+                   waveform_length=params['waveform_length'],
+                   n_neighbors=params['n_neighbors'],
+                   threshold=threshold,
+                   input_tensor=input_tensor, load_test_set=load_test_set)
 
     @classmethod
     def _make_network(cls, input_tensor, filters_size, waveform_length,
@@ -190,7 +198,7 @@ class NeuralNetTriage(Model):
         """
         _, waveform_length, n_neighbors = waveforms.shape
 
-        self._validate_dimensions(waveform_length, n_neighbors)
+        # self._validate_dimensions(waveform_length, n_neighbors)
 
         with tf.Session() as sess:
             self.restore(sess)
@@ -200,7 +208,7 @@ class NeuralNetTriage(Model):
 
         return idx_clean
 
-    def fit(self, x_train, y_train, test_size=0.3):
+    def fit(self, x_train, y_train, test_size=0.3, save_test_set=False):
         """Trains the triage network
 
         Parameters
@@ -317,5 +325,8 @@ class NeuralNetTriage(Model):
 
         # save parameters to disk
         self._save_params(path=path_to_params, params=params)
+
+        if save_test_set:
+            self._save_test_set()
 
         return params

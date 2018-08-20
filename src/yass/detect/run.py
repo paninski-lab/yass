@@ -18,8 +18,8 @@ from yass.batch import BatchProcessor
 from yass.threshold.detect import threshold
 from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
-from yass import neuralnetwork
-from yass.neuralnetwork import NeuralNetDetector, NeuralNetTriage, AutoEncoder
+from yass.neuralnetwork import (NeuralNetDetector, AutoEncoder, KerasModel)
+from yass.neuralnetwork.apply import post_processing, fix_indexes_spike_index
 from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
 from yass.util import file_loader, save_numpy_object, running_on_gpu
@@ -135,7 +135,11 @@ def run_threshold(standarized_path, standarized_params,
 
     CONFIG = read_config()
 
-    folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+    if os.path.isabs(output_directory):
+        folder = Path(output_directory)
+    else:
+        folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+
     folder.mkdir(exist_ok=True)
 
     # Set TMP_FOLDER to None if not save_results, this will disable
@@ -239,7 +243,11 @@ def run_neural_network(standarized_path, standarized_params,
 
     CONFIG = read_config()
 
-    folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+    if os.path.isabs(output_directory):
+        folder = Path(output_directory)
+    else:
+        folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+
     folder.mkdir(exist_ok=True)
 
     TMP_FOLDER = str(folder)
@@ -278,37 +286,47 @@ def run_neural_network(standarized_path, standarized_params,
         # instantiate neural networks
         NND = NeuralNetDetector.load(detection_fname, detection_th,
                                      CONFIG.channel_index)
-        NNT = NeuralNetTriage.load(triage_fname, triage_th,
-                                   input_tensor=NND.waveform_tf)
+        triage = KerasModel(triage_fname,
+                            allow_longer_waveform_length=True,
+                            allow_more_channels=True)
         NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
         rotation = NNAE.load_rotation()
 
-        # gather all output tensors
-        output_tf = (NNAE.score_tf, NND.spike_index_tf, NNT.idx_clean)
+        fn = fix_indexes_spike_index
 
-        # run detection
+        # detector
         with tf.Session() as sess:
-
             # get values of above tensors
             NND.restore(sess)
-            NNAE.restore(sess)
-            NNT.restore(sess)
 
-            mc = bp.multi_channel_apply
-            res = mc(
-                neuralnetwork.run_detect_triage_featurize,
-                mode='memory',
-                cleanup_function=neuralnetwork.fix_indexes,
-                sess=sess,
-                x_tf=NND.x_tf,
-                output_tf=output_tf,
-                rot=rotation,
-                neighbors=neighbors)
+            res = bp.multi_channel_apply(NND.predict_recording,
+                                         mode='memory',
+                                         sess=sess,
+                                         output_names=('spike_index',
+                                                       'waveform'),
+                                         cleanup_function=fn)
+
+        spikes_all, wfs = zip(*res)
+
+        spikes_all = np.concatenate(spikes_all, axis=0)
+        wfs = np.concatenate(wfs, axis=0)
+
+        idx_clean = triage.predict_with_threshold(x=wfs,
+                                                  threshold=triage_th)
+
+        score = NNAE.predict(wfs)
+        rot = NNAE.load_rotation()
+        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+
+        (scores, clear) = post_processing(score,
+                                          spikes_all,
+                                          idx_clean,
+                                          rot,
+                                          neighbors)
 
         # get clear spikes
-        clear = np.concatenate([element[1] for element in res], axis=0)
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
         clear, idx = detect.remove_incomplete_waveforms(
@@ -316,7 +334,6 @@ def run_neural_network(standarized_path, standarized_params,
             bp.reader._n_observations)
 
         # get all spikes
-        spikes_all = np.concatenate([element[2] for element in res], axis=0)
         logger.info('Removing indexes outside the allowed range to '
                     'draw a complete waveform...')
         spikes_all, _ = detect.remove_incomplete_waveforms(
@@ -324,7 +341,6 @@ def run_neural_network(standarized_path, standarized_params,
             bp.reader._n_observations)
 
         # get scores
-        scores = np.concatenate([element[0] for element in res], axis=0)
         logger.info(
             'Removing scores for indexes outside the allowed range to '
             'draw a complete waveform...')

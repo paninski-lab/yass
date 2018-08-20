@@ -80,7 +80,9 @@ class AutoEncoder(Model):
         """
         # input tensor (waveforms)
         if input_tensor is None:
-            self.x_tf = tf.placeholder("float", [None, self.waveform_length])
+            self.x_tf = tf.placeholder("float",
+                                       [None, self.waveform_length,
+                                        None])
             score_tf = tf.matmul(self.x_tf, self.vars_dict['W_ae'])
         else:
             self.x_tf = input_tensor
@@ -114,7 +116,7 @@ class AutoEncoder(Model):
     def predict(self, waveforms):
         """Apply autoencoder
         """
-        n_waveforms, waveform_length = waveforms.shape
+        n_waveforms, waveform_length, n_neigh = waveforms.shape
         self._validate_dimensions(waveform_length)
 
         with tf.Session() as sess:

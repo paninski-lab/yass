@@ -13,6 +13,7 @@ install:
 
 script:
   - pip install tensorflow
+  - make download-test-data
   - make test
   - make integration-test
   - make docs

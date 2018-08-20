@@ -28,7 +28,7 @@ INSTALL_REQUIRES_DOCS = ['pathlib2', 'funcsigs', 'cerberus']
 
 INSTALL_REQUIRES = [
     'numpy', 'scipy', 'scikit-learn', 'pyyaml', 'python-dateutil', 'click',
-    'tqdm', 'multiprocess', 'coloredlogs'
+    'tqdm', 'multiprocess', 'coloredlogs', 'keras',
 ] + INSTALL_REQUIRES_DOCS
 
 # pass an empty INSTALL_REQUIRES if building the docs, to avoid breaking the
