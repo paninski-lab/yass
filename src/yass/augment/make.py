@@ -287,12 +287,14 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
 
 def spikes(templates, min_amplitude, max_amplitude, path_to_data,
            n_per_template, geom,
+           min_shift,
            make_from_templates=True,
            make_spatially_misaligned=True,
            make_temporally_misaligned=True,
            make_collided=True,
            make_noise=True,
-           return_metadata=True):
+           return_metadata=True,
+           collided_kwargs=None):
     """
     Make spikes, it creates several types of spikes from templates with a range
     of amplitudes
@@ -364,6 +366,10 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
 
     temporal_SIG
     """
+
+    if collided_kwargs is None:
+        collided_kwargs = dict()
+
     # NOTE: is the order importante here, maybe it's better to first compute
     # from templates, then take those and misalign spatially
     # (all templates in all channels) then take those and misalign temporally
@@ -403,9 +409,11 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
 
     if make_collided:
         # TODO: refactor this as it has redundant logic with misaligned
-        x_collided = util.make_collided(x_templates, n_per_spike=1,
+        x_collided = util.make_collided(x_templates,
+                                        n_per_spike=1,
                                         multi_channel=True,
-                                        return_metadata=return_metadata)
+                                        min_shift=min_shift,
+                                        **collided_kwargs)
         x_all.append(x_collided)
         keys.append('collided')
 
