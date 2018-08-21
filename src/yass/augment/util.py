@@ -34,8 +34,32 @@ def amplitudes(x):
     return np.max(np.abs(x), axis=(1, 2))
 
 
+def draw_with_group_probabilities(elements, probabilities):
+    """
+    Group elements in a 1D array and draw them depending on the probabilities
+    passed
+    """
+    n_groups = len(probabilities)
+    groups = np.array_split(elements, n_groups)
+
+    def draw_one():
+        group_idx = (np.random
+                       .choice(np
+                               .arange(n_groups), size=1, p=probabilities)[0])
+
+        element = np.random.choice(groups[group_idx], size=1)[0]
+        return element
+
+    elements_new = np.empty(elements.shape)
+
+    for i in range(len(elements)):
+        elements_new[i] = draw_one()
+
+    return elements_new
+
+
 def make_from_templates(templates, min_amplitude, max_amplitude,
-                        n_per_template):
+                        n_per_template, probabilities=None):
     """Make spikes with varying amplitudes from templates
 
     Parameters
@@ -53,6 +77,12 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
 
     n_per_template: int
         How many spikes to generate per template
+
+    probabilities: tuple
+        Tuple of probabilities for the amplitude range. When the linear
+        amplitude range is generated, equal number of spikes are generated
+        along the range, by passing probabolities, you can choose how this
+        distribution looks like
 
     Returns
     -------
@@ -72,6 +102,10 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
 
     d = max_amplitude - min_amplitude
     amps_range = (min_amplitude + np.arange(n_per_template) * d/n_per_template)
+
+    if probabilities is not None:
+        amps_range = draw_with_group_probabilities(amps_range, probabilities)
+
     amps_range = amps_range[:, np.newaxis, np.newaxis]
 
     # go over every template

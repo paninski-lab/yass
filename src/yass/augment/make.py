@@ -49,7 +49,8 @@ def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
                          n_collided_per_spike,
                          max_shift, min_shift,
                          spatial_SIG, temporal_SIG,
-                         return_metadata=False):
+                         from_templates_kwargs,
+                         collided_kwargs):
     """Make training data for triage network
     """
     K, _, n_channels = templates.shape
@@ -57,7 +58,8 @@ def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
     # make spikes from templates
     x_templates = util.make_from_templates(templates, minimum_amplitude,
                                            maximum_amplitude,
-                                           n_clean_per_template)
+                                           n_clean_per_template,
+                                           **from_templates_kwargs)
 
     # make collided spikes - max shift is set to R since 2 * R + 1 will be
     # the final dimension for the spikes
@@ -65,7 +67,7 @@ def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
                                      multi_channel=True,
                                      max_shift=max_shift,
                                      min_shift=min_shift,
-                                     return_metadata=return_metadata)
+                                     **collided_kwargs)
 
     # make labels
     ones = np.ones((x_templates.shape[0]))
