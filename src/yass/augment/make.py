@@ -2,6 +2,7 @@ import os
 
 import numpy as np
 import logging
+from sklearn.model_selection import train_test_split
 
 
 from yass.templates.crop import crop_and_align_templates
@@ -48,7 +49,8 @@ def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
                          n_collided_per_spike,
                          max_shift, min_shift,
                          spatial_SIG, temporal_SIG,
-                         return_metadata=False):
+                         return_metadata=False,
+                         test_size=0.33):
     """Make training data for triage network
     """
     K, _, n_channels = templates.shape
@@ -76,7 +78,10 @@ def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
     x_triage = yarr.concatenate((x_templates_noisy, x_collision_noisy))
     y_triage = yarr.concatenate((ones, zeros))
 
-    return x_triage, y_triage
+    X_train, X_test, y_train, y_test = train_test_split(x_triage, y_triage,
+                                                        test_size=test_size)
+
+    return X_train, X_test, y_train, y_test
 
 
 def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
