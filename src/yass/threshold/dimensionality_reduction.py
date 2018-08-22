@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
                             LoadFile('spike_index_clear_filename'),
                             LoadFile('rotation_matrix_filename')],
                  mode='extract', relative_to='output_path')
-def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
+def pca(path_to_data, dtype, n_channels, data_order, spike_index,
         spike_size, temporal_features, neighbors_matrix, channel_index,
         max_memory, output_path=None, scores_filename='scores.npy',
         rotation_matrix_filename='rotation.npy',
@@ -47,9 +47,6 @@ def pca(path_to_data, dtype, n_channels, data_order, recordings, spike_index,
         on. 'sample' means first j contiguous data are the first observations
         from all channels, then the second observations from all channels and
         so on
-
-    recordings: np.ndarray (n_observations, n_channels)
-        Multi-channel recordings
 
     spike_index: numpy.ndarray
         A 2D numpy array, first column is spike time, second column is main
