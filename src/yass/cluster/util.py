@@ -1,5 +1,4 @@
 import logging
-import warnings
 import numpy as np
 import logging
 import os
@@ -1584,6 +1583,8 @@ def cluster_channels_chunks_args(data_in):
     # check to see if chunk + channel already completed
     filename_postclustering = os.path.join(chunk_dir, "channel_"+str(channel)+".npz")
 
+    logger.info('Checking %s', filename_postclustering)
+
     if not os.path.exists(filename_postclustering): 
         
         # starting params
@@ -1874,11 +1875,15 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
     
     #ctr_id = 0 
     for chunk_dir in chunk_dirs:
-        logger.info (chunk_dir)
+
         # Cat: TODO: make sure this step is correct
-        for channel in range(CONFIG.recordings.n_channels):
-            path_to_file = os.path.join(chunk_dir, 'channel_{}.npz'.format(channel))
-            logger.info('loading %s ', path_to_file)
+        # Edu: iterationg over actual files instead of channels
+        filenames = [f for f in os.listdir(chunk_dir) if f.endswith('.npz')]
+
+        for filename in filenames:
+            path_to_file = os.path.join(chunk_dir, filename)
+
+            logger.info('loading %s', path_to_file)
             data = np.load(path_to_file)
 
             templates.append(data['templates'])
@@ -1905,7 +1910,7 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
     min_spikes = 300
     idx_delete = []
     for s in range(len(spike_indexes)):
-        if spike_indexes[s].shape[0]<min_spikes:
+        if spike_indexes[s].shape[0] < min_spikes:
             idx_delete.append(s)
             
     templates = np.delete(templates,idx_delete,axis=0)
@@ -1913,7 +1918,7 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
     weights = np.delete(weights,idx_delete,axis=0)
     spike_indexes = np.delete(spike_indexes,idx_delete,axis=0)
             
-    logger.info(" # templates after 300 spike cutoff: %s", templates.shape)
+    logger.info(" # templates after %s spike cutoff: %s", min_spikes, templates.shape)
     logger.info(" spike_indexes: %s", spike_indexes.shape)
     ## rearange spike indees from id 0..N
     #for k in range(spike_indexes.shape[0]):    
@@ -2126,8 +2131,6 @@ def run_KS_test(sim_temp, mean, std, CONFIG, resampling = True, plotting = False
 
 
     path_fig = os.path.join(CONFIG.path_to_output_directory, 'cluster', 'chunk_000000')
-    warnings.warn('This function is ignoring the output_directory variable'
-                  'and has tmp/ hardcoded, needs dix...')
 
     size_resample = 500
     n_chan = CONFIG.recordings.n_channels
