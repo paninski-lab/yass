@@ -9,7 +9,7 @@ from scipy.signal import butter, lfilter, filtfilt
 
 from yass.batch import BatchProcessor
 from yass.util import check_for_files, ExpandPath, LoadFile
-from yass.preprocess.standarize import standard_deviation
+from yass.preprocess.standarize import _standard_deviation
 
 
 # *** DEPRECATED ****
@@ -259,7 +259,7 @@ def filter_standardize_parallel(data_in, low_frequency, high_factor, order,
     res = output[buffer_size:data_end - data_start + buffer_size]
 
     # Standardize data
-    sd = standard_deviation(res, sampling_frequency)
+    sd = _standard_deviation(res, sampling_frequency)
     standardized = np.divide(res, sd)
 
     return standardized
@@ -378,7 +378,7 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
     res = output[buffer_size:data_end - data_start + buffer_size]
 
     # Standardize data
-    sd = standard_deviation(res, sampling_frequency)
+    sd = _standard_deviation(res, sampling_frequency)
     standardized = np.divide(res, sd)
 
     np.save(
