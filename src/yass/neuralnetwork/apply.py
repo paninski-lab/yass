@@ -221,3 +221,39 @@ def deduplicate(spike_index, energy, neighbors, w=5):
         idx_survive[idx[np.argmax(energy[idx])]] = 1
 
     return idx_survive
+
+
+def fix_indexes_spike_index(res, idx_local, idx, buffer_size):
+    """Fixes indexes from detected spikes in batches
+
+    Parameters
+    ----------
+    res: tuple
+        A tuple with the results from the nnet detector
+    idx_local: slice
+        A slice object indicating the indices for the data (excluding buffer)
+    idx: slice
+        A slice object indicating the absolute location of the data
+    buffer_size: int
+        Buffer size
+    """
+    spike_idx, wfs = res
+
+    # get limits for the data (exlude indexes that have buffer data)
+    data_start = idx_local[0].start
+    data_end = idx_local[0].stop
+    # get offset that will be applied
+    offset = idx[0].start
+
+    # fix clear spikes
+    times = spike_idx[:, 0]
+    # get only observations outside the buffer
+    idx_not_in_buffer = np.logical_and(times >= data_start,
+                                       times <= data_end)
+    clear_not_in_buffer = spike_idx[idx_not_in_buffer]
+
+    # offset spikes depending on the absolute location
+    clear_not_in_buffer[:, 0] = (clear_not_in_buffer[:, 0] + offset
+                                 - buffer_size)
+
+    return clear_not_in_buffer, wfs[idx_not_in_buffer]
