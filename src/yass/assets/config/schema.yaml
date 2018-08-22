@@ -171,7 +171,7 @@ detect:
       default:
         # same rules apply as in neural_network_detector.filename but the
         # yaml file should only contain size (not number)
-        filename: triage_nn1.ckpt
+        filename: triage-31wf7ch-15-Aug-2018@00-17-16.h5
         threshold_collision: 0.5
     neural_network_autoencoder:
       type: dict
