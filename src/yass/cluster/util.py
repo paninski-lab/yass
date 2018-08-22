@@ -1,5 +1,4 @@
 import warnings
-from os import path
 import numpy as np
 import logging
 import os
@@ -766,10 +765,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
          assignment_global, spike_index, scale):
 
     
-    out_folder = path.join(CONFIG.data.root_folder, 'tmp', 'cluster')
-    warnings.warn('This function is ignoring the output_directory variable'
-                  'and has tmp/ hardcoded, needs dix...')
-
+    out_folder = os.path.join(CONFIG.data.root_folder, out_dir, 'cluster')
     
     verbose=False
     
@@ -799,7 +795,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
     #print ("Max chan: ", mc)
     
     
-    np.savez(path.join(out_folder, 'wfs.npz'),
+    np.savez(os.path.join(out_folder, 'wfs.npz'),
              wf = wf,
              feat_chans = feat_chans,
              max_chans = max_chans)
@@ -1425,16 +1421,17 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
 
         # make chunk directory if not available:
         # save chunk in own directory to enable cumulative recovery 
-        chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
-                                                    str(proc_index).zfill(6)
+
+        chunk_dir = os.path.join(CONFIG.data.root_folder, out_dir, "cluster", "chunk_" + str(proc_index).zfill(6))
+
         if not os.path.isdir(chunk_dir):
             os.makedirs(chunk_dir)
         
         # save chunk-dirs for multi-chunk template merge below
         chunk_dirs.append(chunk_dir)
-        
+
         # check to see if chunk is done
-        if os.path.exists(chunk_dir+'/complete.npy')==False:
+        if not os.path.exists(os.path.join(chunk_dir, 'complete.npy')):
        
             # select only spike_index_clear that is in the chunk
             indexes_chunk = np.where(
@@ -1450,7 +1447,7 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
             
             buffer_size = 200
             standardized_filename = os.path.join(CONFIG.data.root_folder,
-                                                'tmp', 'standarized.bin')
+                                                out_dir, 'standarized.bin')
             n_channels = CONFIG.recordings.n_channels
             root_folder = CONFIG.data.root_folder
             
@@ -1484,7 +1481,7 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
 
             ## save simple flag that chunk is done
             ## Cat: TODO: fix this; or run chunk wise-global merge
-            np.save(chunk_dir+'/complete.npy',np.arange(10))
+            np.save(os.path.join(chunk_dir, 'complete.npy'), np.arange(10))
 
         else:
             print ("... clustering complete...")
@@ -1874,7 +1871,8 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
         print (chunk_dir)
         # Cat: TODO: make sure this step is correct
         for channel in range(CONFIG.recordings.n_channels):
-            data = np.load(chunk_dir+'/channel_{}.npz'.format(channel))
+            path_to_file = os.path.join(chunk_dir, 'channel_{}.npz'.format(channel))
+            data = np.load(path_to_file)
             templates.append(data['templates'])
             templates_std.append(data['templates_std'])
             weights.append(data['weights'])
@@ -1891,8 +1889,8 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
     weights = np.hstack(weights)
     #print (spike_indexes.shape)
     print(" total # templates: ", templates.shape)
-    np.save(CONFIG.data.root_folder+'/tmp/templates_before_merge.npy', templates)
-    np.save(CONFIG.data.root_folder+'/tmp/spike_indexes_before_merge.npy', spike_indexes)
+    np.save(os.path.join(CONFIG.data.root_folder, out_dir, 'templates_before_merge.npy'), templates)
+    np.save(os.path.join(CONFIG.data.root_folder, out_dir, 'spike_indexes_before_merge.npy'), spike_indexes)
     
     # ************* DELETE TOO FEW SPIKES ************
     #  delete clusters < 300 spikes
@@ -2119,7 +2117,7 @@ def run_KS_test(sim_temp, mean, std, CONFIG, resampling = True, plotting = False
     cfg = CONFIG
 
 
-    path_fig = path.join(CONFIG.data.root_folder, 'tmp', 'cluster', 'chunk_000000')
+    path_fig = os.path.join(CONFIG.data.root_folder, 'tmp', 'cluster', 'chunk_000000')
     warnings.warn('This function is ignoring the output_directory variable'
                   'and has tmp/ hardcoded, needs dix...')
 
@@ -2433,7 +2431,9 @@ def chunk_merge(chunk_dir, channels, CONFIG):
     tmp_loc = []
     
     for channel in channels:
-        data = np.load(chunk_dir+'/channel_{}.npz'.format(channel), encoding='latin1')
+        path_to_file = os.path.join(chunk_dir, 'channel_{}.npz'.format(channel), encoding='latin1')
+
+        data = np.load(path_to_file)
         templates.append(data['templates'])
         weights.append(data['weights'])
         
@@ -2748,13 +2748,14 @@ def local_merge(channel, spike_index, sic, wf, CONFIG):
         idx = np.in1d(sic[:,0], spike_index_new[k][:,0])
         wf_array.append(wf[idx])
         
-    np.save(CONFIG.data.root_folder+'tmp/cluster/channel_'+
-                                            str(channel)+'_clusters.npy', wf_array)
+    path_to_file = os.path.join(CONFIG.data.root_folder, 'tmp', 'cluster', 'channel_'+str(channel)+'_clusters.npy')
+    np.save(path_to_file, wf_array)
     
-    np.savez(CONFIG.data.root_folder+'tmp/cluster/channel_'+
-                            str(channel)+'_weighted_templates', 
-                            templates=temp, 
-                            weights=np.asarray([sic.shape[0] for sic in spike_index_new]))
+    path_to_file = os.path.join(CONFIG.data.root_folder, 'tmp', 'cluster', 'channel_'+ str(channel)+'_weighted_templates')
+    np.savez(path_to_file, templates=temp,  weights=np.asarray([sic.shape[0] for sic in spike_index_new]))
+
+    warnings.warn('This function is ignoring the output_directory variable'
+                  'and has tmp/ hardcoded, needs dix...')
     
         
     return spike_index_new
