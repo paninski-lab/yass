@@ -206,9 +206,9 @@ def run_neural_network2(standarized_path, standarized_params, channel_index,
 
         idx_list = idx_list
         
-        print("# of chunks: ", len(idx_list))
+        logger.info("# of chunks: ", len(idx_list))
         
-        print (idx_list)
+        logger.info (idx_list)
         
         # run tensorflow 
         processing_ctr = 0
