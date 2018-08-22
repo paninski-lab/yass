@@ -100,13 +100,15 @@ class TemplatesProcessor:
             return TemplatesProcessor(new_templates)
 
     def align(self, half_waveform_length, inplace=False):
-        self._check_half_waveform_length(half_waveform_length)
-        new_templates = _align(self.templates, half_waveform_length)
+        # deactivated, need to fix align function
+        pass
+        # self._check_half_waveform_length(half_waveform_length)
+        # new_templates = _align(self.templates, half_waveform_length)
 
-        if inplace:
-            self._update_templates(new_templates)
-        else:
-            return TemplatesProcessor(new_templates)
+        # if inplace:
+        #   self._update_templates(new_templates)
+        # else:
+        #   return TemplatesProcessor(new_templates)
 
     def crop_spatially(self, neighbors, geometry, inplace=False):
         n_templates, waveform_length, _ = self.templates.shape
