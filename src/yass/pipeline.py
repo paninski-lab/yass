@@ -22,7 +22,6 @@ import yass
 from yass import set_config
 from yass import preprocess, detect, cluster, deconvolute
 from yass import templates as get_templates
-from yass.templates.compare_templates import compare_templates
 from yass import read_config
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
