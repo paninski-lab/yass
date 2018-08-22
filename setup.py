@@ -31,7 +31,8 @@ INSTALL_REQUIRES_DOCS = ['pathlib2', 'funcsigs', 'cerberus']
 # and networkx
 INSTALL_REQUIRES = [
     'numpy', 'scipy', 'scikit-learn', 'pyyaml', 'python-dateutil', 'click',
-    'tqdm', 'parmap', 'statsmodels', 'matplotlib', 'networkx', 'keras'
+    'tqdm', 'parmap', 'statsmodels', 'matplotlib', 'networkx',
+    'multiprocess', 'coloredlogs', 'keras',
 ] + INSTALL_REQUIRES_DOCS
 
 # pass an empty INSTALL_REQUIRES if building the docs, to avoid breaking the
