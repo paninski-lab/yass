@@ -1,6 +1,10 @@
 """
 YASS configuration
 """
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
 import pprint
 from os import path
 from collections import Mapping, MutableSequence
@@ -18,22 +22,6 @@ class FrozenJSON(object):
     """A facade for navigating a JSON-like object
     using attribute notation. Based on FrozenJSON from 'Fluent Python'
     """
-
-    @classmethod
-    def from_yaml(cls, path_to_file):
-        # load config file
-        with open(path_to_file) as file:
-            mapping = yaml.load(file)
-
-        obj = cls(mapping)
-
-        # save path for reference, helps debugging
-        obj._path_to_file = path_to_file
-
-        logger = logging.getLogger(__name__)
-        logger.debug('Loaded from file: %s', obj._path_to_file)
-
-        return obj
 
     def __new__(cls, arg):
         if isinstance(arg, Mapping):
@@ -95,13 +83,24 @@ class FrozenJSON(object):
         return s
 
 
-class Config(FrozenJSON):
+class Config:
     """
     A configuration object for the package, it is a read-only FrozenJSON that
     inits from a yaml file with some caching capbilities to avoid
     redundant and common computations. It also computes some matrices that are
     used in several functions through the pipeline, see attributes section
     for more info
+
+    Parameters
+    ----------
+    mapping: collections.Mapping
+        Data
+    output_directory: str of pathlib.Path, optional
+        output directory for the project, this is optional and makes
+        Config.output_directory return
+        onfig.data.root_folder / output_directory, which is a common path
+        used through the pipeline
+
 
     Attributes
     ---------
@@ -116,17 +115,42 @@ class Config(FrozenJSON):
         An array whose whose ith row contains the ordered (by distance)
         neighbors for the ith channel
 
+    output_directory: str
+        Returhs path to config.data.root_folder / output_directory
+
     Notes
     -----
     After initialization, attributes cannot be changed
     """
 
-    def __init__(self, mapping):
+    @classmethod
+    def from_yaml(cls, path_to_file, output_directory=None):
+        # load config file
+        with open(path_to_file) as file:
+            mapping = yaml.load(file)
+
+        obj = cls(mapping, output_directory)
+
+        # save path for reference, helps debugging
+        obj._path_to_file = path_to_file
+
+        logger = logging.getLogger(__name__)
+        logger.debug('Loaded from file: %s', obj._path_to_file)
+
+        return obj
+
+    def __init__(self, mapping, output_directory=None):
+        self._logger = logging.getLogger(__name__)
+
         mapping = validate(mapping)
 
-        super(Config, self).__init__(mapping)
+        self._frozenjson = FrozenJSON(mapping)
 
-        self._logger = logging.getLogger(__name__)
+        if output_directory is not None:
+            self._path_to_output_directory = str(Path(self.data.root_folder,
+                                                 output_directory))
+        else:
+            self._path_to_output_directory = None
 
         # init the rest of the parameters, these parameters are used
         # througout the pipeline so we compute them once to avoid redudant
@@ -163,7 +187,16 @@ class Config(FrozenJSON):
 
         channel_index = geom.make_channel_index(self.neigh_channels,
                                                 self.geom, steps=2)
+
         self._set_param('channel_index', channel_index)
+
+    @property
+    def path_to_output_directory(self):
+        if self._path_to_output_directory is not None:
+            return self._path_to_output_directory
+        else:
+            raise ValueError('This is only available when output_directory'
+                             'is passed when setting the configuration')
 
     def __setattr__(self, name, value):
         if not name.startswith('_'):
@@ -172,9 +205,12 @@ class Config(FrozenJSON):
         else:
             self.__dict__[name] = value
 
+    def __getattr__(self, key):
+        return getattr(self._frozenjson, key)
+
     def _set_param(self, name, value):
         """
         Internal setattr method to set new parameters, only used to fill the
         parameters that need to be computed *right after* initialization
         """
-        self._data[name] = value
+        self._frozenjson._data[name] = value
