@@ -1,3 +1,5 @@
+import warnings
+from os import path
 import numpy as np
 import logging
 import os
@@ -762,6 +764,12 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
          alignflag, plotting, n_mad_chans, n_max_chans, n_dim_pca, 
          wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor, nshifts, 
          assignment_global, spike_index, scale):
+
+    
+    out_folder = path.join(CONFIG.data.root_folder, 'tmp', 'cluster')
+    warnings.warn('This function is ignoring the output_directory variable'
+                  'and has tmp/ hardcoded, needs dix...')
+
     
     verbose=False
     
@@ -791,7 +799,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
     #print ("Max chan: ", mc)
     
     
-    np.savez('/media/cat/1TB/liam/49channels/data1_allset/tmp/cluster/wfs.npz',
+    np.savez(path.join(out_folder, 'wfs.npz'),
              wf = wf,
              feat_chans = feat_chans,
              max_chans = max_chans)
@@ -2109,7 +2117,12 @@ def calc_ks_dist(A, B, lin):
 def run_KS_test(sim_temp, mean, std, CONFIG, resampling = True, plotting = False):
     
     cfg = CONFIG
-    path_fig = '/media/cat/1TB/liam/49channels/data1_allset/tmp/cluster/chunk_000000/'
+
+
+    path_fig = path.join(CONFIG.data.root_folder, 'tmp', 'cluster', 'chunk_000000')
+    warnings.warn('This function is ignoring the output_directory variable'
+                  'and has tmp/ hardcoded, needs dix...')
+
     size_resample = 500
     n_chan = CONFIG.recordings.n_channels
 
