@@ -188,10 +188,10 @@ def fix_indexes(res, idx_local, idx, buffer_size):
 
     return res[data_start:data_end]
 
+
 def filter_standardize_parallel(data_in, low_frequency, high_factor, order,
-                       sampling_frequency, buffer_size, filename_dat,
-                       n_channels):
-                           
+                                sampling_frequency, buffer_size, filename_dat,
+                                n_channels):
     """ Butterworth as explained above; TO FILL IN
     """
 
@@ -230,9 +230,9 @@ def filter_standardize_parallel(data_in, low_frequency, high_factor, order,
         # If at end of recording
         if len(recordings_1D) != ((data_end - data_start +
                                    buffer_size * 2) * n_channels):
-                recordings_1D = np.hstack((recordings_1D,
-                                           np.zeros(buffer_size * n_channels,
-                                                    dtype='int16')))
+            recordings_1D = np.hstack((recordings_1D,
+                                       np.zeros(buffer_size * n_channels,
+                                                dtype='int16')))
 
     fin.close()
 
@@ -245,7 +245,7 @@ def filter_standardize_parallel(data_in, low_frequency, high_factor, order,
     # *********** FILTER DATA ******************************************
     # ******************************************************************
     T, C = ts.shape
-    
+
     low = float(low_frequency) / sampling_frequency * 2
     high = float(high_factor) * 2
     #b, a = butter(order, [low, high], btype='band')
@@ -263,8 +263,7 @@ def filter_standardize_parallel(data_in, low_frequency, high_factor, order,
     standardized = np.divide(res, sd)
 
     return standardized
-    
-    
+
 
 def filter_standardize(data_in, low_frequency, high_factor, order,
                        sampling_frequency, buffer_size, filename_dat,
@@ -330,9 +329,9 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
         # If at end of recording
         if len(recordings_1D) != ((data_end - data_start +
                                    buffer_size * 2) * n_channels):
-                recordings_1D = np.hstack((recordings_1D,
-                                           np.zeros(buffer_size * n_channels,
-                                                    dtype='int16')))
+            recordings_1D = np.hstack((recordings_1D,
+                                       np.zeros(buffer_size * n_channels,
+                                                dtype='int16')))
 
     fin.close()
 
@@ -362,11 +361,11 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
         #b, a = butter(order, [low, high], btype='band')
 
         #output = np.zeros((T, C), 'float32')
-        #for c in range(C):
+        # for c in range(C):
             #output[:, c] = lfilter(b, a, ts[:, c])
 
         T, C = ts.shape
-        
+
         low = float(low_frequency) / sampling_frequency * 2
         high = float(high_factor) * 2
         b, a = butter(order, low, btype='high', analog=False)
@@ -388,6 +387,7 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
         standardized)
 
     return standardized.shape
+
 
 def merge_filtered_files(root_folder, output_directory):
 
