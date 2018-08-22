@@ -16,7 +16,17 @@ except ImportError:
     from funcsigs import _empty
 
 import yass
+import sys
 import logging
+
+try:
+    # py3
+    from shlex import quote
+except ImportError:
+    # py2
+    from pipes import quote
+
+import subprocess
 import pickle
 import datetime
 import os
@@ -157,8 +167,12 @@ def function_path(fn):
     Returns the name of the function along with the module containing it:
     module.submodule.name
     """
-    module = inspect.getmodule(fn).__name__
-    return '{}.{}'.format(module, fn.__name__)
+    module = inspect.getmodule(fn)
+
+    if module is not None:
+        return '{}.{}'.format(module.__name__, fn.__name__)
+    else:
+        return fn.__name__
 
 
 def map_parameters_in_fn_call(args, kwargs, func):
@@ -287,7 +301,7 @@ def human_readable_time(seconds):
     intervals = ['days', 'hours', 'minutes', 'seconds']
     delta = relativedelta(seconds=seconds)
     return (' '.join('{} {}'.format(getattr(delta, k), k) for k in intervals
-            if getattr(delta, k)))
+                     if getattr(delta, k)))
 
 
 def save_metadata(path):
@@ -494,8 +508,8 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
 
             # if not relative_path exists, just run the function
             if _kwargs.get(relative_to) is None:
-                logger.debug('No output path was passed, running the '
-                             'function without checking for files...')
+                logging.debug('No output path was passed, running the '
+                              'function without checking for files...')
                 return func(*args, **kwargs)
 
             if_file_exists = _kwargs['if_file_exists']
@@ -506,22 +520,30 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
             else:
                 names = filenames
 
-            if prepend_root_folder:
+            if prepend_root_folder and os.path.isabs(_kwargs[relative_to]):
                 CONFIG = yass.read_config()
                 root_path = Path(CONFIG.data.root_folder, _kwargs[relative_to])
             else:
                 root_path = Path(_kwargs[relative_to])
 
+            root_path.mkdir(parents=True, exist_ok=True)
+
+            # generate paths for files
             paths = [root_path / f.value for f in names]
+
+            # make sure parent folders exist
+            for p in paths:
+                p.parent.mkdir(parents=True, exist_ok=True)
+
             exists = [p.exists() for p in paths]
 
             if (if_file_exists == 'overwrite' or
-               if_file_exists == 'abort' and not any(exists)
-               or if_file_exists == 'skip' and not all(exists)):
+                if_file_exists == 'abort' and not any(exists)
+                    or if_file_exists == 'skip' and not all(exists)):
 
                 wrapper.executed = True
 
-                logger.debug('Running the function...')
+                logging.debug('Running the function...')
 
                 res = func(*args, **kwargs)
 
@@ -548,8 +570,9 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
 
                 wrapper.executed = False
 
-                logger.info('Skipped {} execution. All necessary files exist'
-                            ', loading them...'.format(function_path(func)))
+                logging.warning('Skipped {} execution. All output files '
+                                'exist, loading them...'
+                                .format(function_path(func)))
 
                 res = [f.expand(root_path) for f in names]
 
@@ -580,6 +603,33 @@ def running_on_gpu():
         return False
 
     return True if gpus else False
+
+
+def dict2yaml(output_path, **kwargs):
+    with open(output_path, 'w') as f:
+        yaml.dump(kwargs, f)
+
+
+def _run_command(path, command):
+    """Safely run command in certain path
+    """
+    if not Path(path).is_dir():
+        raise ValueError('{} is not a directory'.format(path))
+
+    command_ = 'cd {path} && {cmd}'.format(path=quote(path), cmd=command)
+
+    out = subprocess.check_output(command_, shell=True)
+    return out.decode('utf-8') .replace('\n', '')
+
+
+def one_line_git_summary(path):
+    """Get one line git summary"""
+    return _run_command(path, 'git show --oneline -s')
+
+
+def git_hash(path):
+    """Get git hash"""
+    return _run_command(path, 'git rev-parse HEAD')
 
 
 def get_version():
