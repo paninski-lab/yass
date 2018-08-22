@@ -45,6 +45,7 @@ def get_templates(spike_train, path_to_recordings,
 
     return templates, weights
 
+
 def random_sample_spike_train(spike_train, n_max):
 
     n_templates = int(np.max(spike_train[:, 1]) + 1)
@@ -65,7 +66,7 @@ def random_sample_spike_train(spike_train, n_max):
     spike_train_small = spike_train[idx_keep]
 
     return spike_train_small
-    
+
 
 # TODO: remove this function and use the explorer directly
 def get_templates_parallel(spike_train,
@@ -84,8 +85,9 @@ def get_templates_parallel(spike_train,
 
     # number of templates
     n_templates = int(np.max(spike_train[:, 1]) + 1)
-    spike_train_small = random_sample_spike_train_do(spike_train, n_max, CONFIG)
-    print (spike_train_small.shape, " spike train small")
+    spike_train_small = random_sample_spike_train_do(
+        spike_train, n_max, CONFIG)
+    print(spike_train_small.shape, " spike train small")
 
     # determine length of processing chunk based on lenght of rec
     standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
@@ -107,7 +109,7 @@ def get_templates_parallel(spike_train,
         ])
 
     idx_list = np.int64(np.vstack(idx_list))
-    print (idx_list)
+    print(idx_list)
     proc_indexes = np.arange(len(idx_list))
 
     print("...computing templates (fixed chunk to 100sec for efficiency)")
@@ -131,25 +133,25 @@ def get_templates_parallel(spike_train,
                 n_channels, buffer_size, standardized_filename)
             res.append(temp)
 
-    #print " res: ", res[0][0].shape
-    print (len(res))
-    
-    # reconstruct templates without weights; 
+    # print " res: ", res[0][0].shape
+    print(len(res))
+
+    # reconstruct templates without weights;
     print("... reconstructing templates")
     res0 = np.zeros(res[0][0].shape)
     res1 = np.zeros(res[0][1].shape)
     for k in range(len(res)):
-        #print res[k].shape
+        # print res[k].shape
         res0 += res[k][0]
         res1 += res[k][1]
 
     print("... dividing templates by weights")
     templates = res0
-    print (templates.shape)
+    print(templates.shape)
 
     weights = res1
     weights[weights == 0] = 1
-    
+
     templates = templates / weights[np.newaxis, np.newaxis, :]
 
     return templates, weights
@@ -279,8 +281,8 @@ def compute_weighted_templates_parallel(data_in, spike_train, spike_size,
 
 
 def compute_templates_parallel(data_in, spike_train, spike_size,
-                                        n_templates, n_channels, buffer_size,
-                                        standardized_filename):
+                               n_templates, n_channels, buffer_size,
+                               standardized_filename):
 
     idx_list = data_in[0]
 
@@ -343,7 +345,7 @@ def compute_templates_parallel(data_in, spike_train, spike_size,
                 recording[spt[:, [0]].astype('int32')
                           + np.arange(-spike_size, spike_size + 1)],
                 axis=0)
-                #weights=spt[:, 2])
+            # weights=spt[:, 2])
             #weights[k] = np.sum(spt[:, 2])
             #weighted_templates[k] *= weights[k]
 
@@ -351,7 +353,7 @@ def compute_templates_parallel(data_in, spike_train, spike_size,
 
     # print (weighted_templates.shape, weights.shape)
 
-    return templates #, weights
+    return templates  # , weights
 
 
 def random_sample_spike_train_parallel(data_in, chunk_len, n_templates,
@@ -431,6 +433,38 @@ def random_sample_spike_train_do(spike_train, n_max, CONFIG):
         spike_train_small = spike_train[idx_keep]
 
     return spike_train_small
+
+
+def main_channels(templates):
+    """Find main channel for every template
+    """
+    abs_templates = np.abs(templates)
+
+    # get the maximum along the waveform to get the highest point in every
+    # channel
+    max_along_time = np.amax(abs_templates, axis=1)
+
+    # return the index maximum  value along the channels - this is the main
+    # channel
+    return np.argmax(max_along_time, axis=1)
+
+
+def amplitudes(templates):
+    """Find amplitudes
+    """
+    return np.amax(np.abs(templates), axis=(1, 2))
+
+
+def ptps(templates):
+    """Find PTP
+    """
+    return np.max(np.ptp(templates, axis=1), axis=1)
+
+
+def on_main_channel(templates):
+    """Get templates on its main and neighboring channels
+    """
+    pass
 
 
 def align_templates(templates, spike_train, max_shift):
