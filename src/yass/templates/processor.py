@@ -3,7 +3,7 @@ import os
 import numpy as np
 
 from yass.templates.util import get_templates, main_channels
-from yass.templates.util import align as _align
+# from yass.templates.util import align as _align
 from yass.geometry import order_channels_by_distance
 
 

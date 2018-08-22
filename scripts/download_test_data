@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+if [ -z "${YASS_TESTING_DATA_URL}" ]; then
+    echo 'YASS_TESTING_DATA_URL variable is not set, aborting...'
+    exit 1
+fi
+
 # Download test data and put it in the appropriate directories
 curl $YASS_TESTING_DATA_URL -o yass-testing-data.zip
 
