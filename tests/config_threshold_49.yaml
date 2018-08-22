@@ -1,6 +1,10 @@
 data:
   root_folder: tests/data/retina/
   recordings: data.bin
+  geometry: geometry.npy
+
+resources:
+  max_memory: 100MB
 
 recordings:
   dtype: int16
@@ -12,6 +16,15 @@ recordings:
 
 preprocess:
   apply_filter: True
+  dtype: float32
 
 detect:
+  method: threshold
   temporal_features: 3
+  save_results: true
+
+cluster:
+  save_results: true
+
+templates:
+  save_results: true

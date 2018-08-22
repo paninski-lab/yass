@@ -1,17 +1,18 @@
 data:
-  root_folder: tests/data
-  recordings: neuropixel.bin
-  geometry: neuropixel_channels.npy
+  root_folder: tests/data/retina/
+  recordings: data.bin
+  geometry: geometry.npy
 
 resources:
   max_memory: 200MB
+  processes: 1
 
 recordings:
   dtype: int16
-  sampling_rate: 30000
-  n_channels: 10
+  sampling_rate: 20000
+  n_channels: 49
   spatial_radius: 70
-  spike_size_ms: 1
+  spike_size_ms: 1.5
   order: samples
 
 preprocess:

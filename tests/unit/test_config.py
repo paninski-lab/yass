@@ -1,4 +1,3 @@
-import os
 import pytest
 import yass
 
@@ -15,18 +14,9 @@ def test_can_initialize_config_sample(path_to_config_sample):
     yass.Config.from_yaml(path_to_config_sample)
 
 
-def test_can_initialize_config_examples_sample(path_to_examples):
-    old = os.getcwd()
-    os.chdir(path_to_examples)
-    yass.Config.from_yaml('config_sample.yaml')
-    os.chdir(old)
-
-
-def test_can_initialize_config_examples_sample_complete(path_to_examples):
-    old = os.getcwd()
-    os.chdir(path_to_examples)
-    yass.Config.from_yaml('config_sample_complete.yaml')
-    os.chdir(old)
+def test_throws_error_if_channels_mismatch(path_to_config_with_wrong_channels):
+    with pytest.raises(ValueError):
+        yass.Config.from_yaml(path_to_config_with_wrong_channels)
 
 
 def test_cannot_modify_once_initialized(path_to_threshold_config):

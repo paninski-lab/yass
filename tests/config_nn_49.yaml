@@ -1,11 +1,11 @@
 data:
-  root_folder: tests/data/retina/
-  recordings: data.bin
-  geometry: geometry.npy
+  root_folder: /home/Edu/data
+  recordings: ej49_data1_set1.bin
+  geometry: ej49_geometry1.txt
 
 resources:
-  max_memory: 200MB
-  processes: 1
+  max_memory: 100MB
+  max_memory_gpu: 20MB
 
 recordings:
   dtype: int16
@@ -22,3 +22,10 @@ preprocess:
 detect:
   method: nn
   temporal_features: 3
+  save_results: true
+
+cluster:
+  save_results: true
+
+templates:
+  save_results: true
