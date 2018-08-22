@@ -90,7 +90,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
         data_order=CONFIG.recordings.order)
 
     # Generate params:
-    standarized_path = TMP + "standarized.bin"
+    standarized_path = os.path.join(TMP, "standarized.bin")
     standarized_params = params
     standarized_params['dtype'] = 'float32'
 
