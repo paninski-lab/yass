@@ -3,24 +3,30 @@ Detection pipeline
 """
 import logging
 import os.path
+import os
 from functools import reduce
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
 
 import numpy as np
+import tensorflow as tf
 
-from yass import read_config, GPU_ENABLED
-from yass.batch import BatchProcessor, RecordingsReader
+from yass import read_config
+from yass.batch import BatchProcessor
 from yass.threshold.detect import threshold
 from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
-from yass import neuralnetwork
+from yass.neuralnetwork import (NeuralNetDetector, AutoEncoder, KerasModel)
+from yass.neuralnetwork.apply import post_processing, fix_indexes_spike_index
 from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
-from yass.util import file_loader, save_numpy_object
+from yass.util import file_loader, save_numpy_object, running_on_gpu
 
 
-def run(standarized_path, standarized_params,
-        channel_index, whiten_filter, output_directory='tmp/',
-        if_file_exists='skip', save_results=False):
+def run(standarized_path, standarized_params, whiten_filter,
+        output_directory='tmp/', if_file_exists='skip', save_results=False):
     """Execute detect step
 
     Parameters
@@ -30,9 +36,6 @@ def run(standarized_path, standarized_params,
 
     standarized_params: dict, str or pathlib.Path
         Dictionary with standarized data parameters or path to a yaml file
-
-    channel_index: numpy.ndarray, str or pathlib.Path
-        Channel index or path to a npy file
 
     whiten_filter: numpy.ndarray, str or pathlib.Path
         Whiten matrix or path to a npy file
@@ -62,7 +65,7 @@ def run(standarized_path, standarized_params,
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
 
-    spike_index_call: numpy.ndarray (n_collided_spikes, 2)
+    spike_index_all: numpy.ndarray (n_collided_spikes, 2)
         2D array with indexes for all spikes, first column contains the
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum)
@@ -90,14 +93,12 @@ def run(standarized_path, standarized_params,
 
     # load files in case they are strings or Path objects
     standarized_params = file_loader(standarized_params)
-    channel_index = file_loader(channel_index)
     whiten_filter = file_loader(whiten_filter)
 
     # run detection
     if CONFIG.detect.method == 'threshold':
         return run_threshold(standarized_path,
                              standarized_params,
-                             channel_index,
                              whiten_filter,
                              output_directory,
                              if_file_exists,
@@ -105,14 +106,13 @@ def run(standarized_path, standarized_params,
     elif CONFIG.detect.method == 'nn':
         return run_neural_network(standarized_path,
                                   standarized_params,
-                                  channel_index,
                                   whiten_filter,
                                   output_directory,
                                   if_file_exists,
                                   save_results)
 
 
-def run_threshold(standarized_path, standarized_params, channel_index,
+def run_threshold(standarized_path, standarized_params,
                   whiten_filter, output_directory, if_file_exists,
                   save_results):
     """Run threshold detector and dimensionality reduction using PCA
@@ -135,10 +135,16 @@ def run_threshold(standarized_path, standarized_params, channel_index,
 
     CONFIG = read_config()
 
+    if os.path.isabs(output_directory):
+        folder = Path(output_directory)
+    else:
+        folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+
+    folder.mkdir(exist_ok=True)
+
     # Set TMP_FOLDER to None if not save_results, this will disable
     # saving results in every function below
-    TMP_FOLDER = (os.path.join(CONFIG.data.root_folder, output_directory)
-                  if save_results else None)
+    TMP_FOLDER = (str(folder) if save_results else None)
 
     # files that will be saved if enable by the if_file_exists option
     filename_index_clear = 'spike_index_clear.npy'
@@ -169,20 +175,17 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     # PCA #
     #######
 
-    recordings = RecordingsReader(standarized_path)
-
     # run PCA, save rotation matrix and pca scores under TMP_FOLDER
     # TODO: remove clear as input for PCA and create an independent function
     pca_scores, clear, _ = pca(standarized_path,
                                standarized_params['dtype'],
                                standarized_params['n_channels'],
                                standarized_params['data_order'],
-                               recordings,
                                clear,
                                CONFIG.spike_size,
                                CONFIG.detect.temporal_features,
                                CONFIG.neigh_channels,
-                               channel_index,
+                               CONFIG.channel_index,
                                CONFIG.resources.max_memory,
                                TMP_FOLDER,
                                'scores_pca.npy',
@@ -195,12 +198,12 @@ def run_threshold(standarized_path, standarized_params, channel_index,
     #################
 
     # apply whitening to scores
-    scores_clear = whiten.score(pca_scores, clear[:, 1], whiten_filter)
+    scores = whiten.score(pca_scores, clear[:, 1], whiten_filter)
 
     if TMP_FOLDER is not None:
         # saves whiten scores
         path_to_scores = os.path.join(TMP_FOLDER, filename_scores_clear)
-        save_numpy_object(scores_clear, path_to_scores, if_file_exists,
+        save_numpy_object(scores, path_to_scores, if_file_exists,
                           name='scores')
 
         # save spike_index_all (same as spike_index_clear for threshold
@@ -210,11 +213,11 @@ def run_threshold(standarized_path, standarized_params, channel_index,
         save_numpy_object(clear, path_to_spike_index_all, if_file_exists,
                           name='Spike index all')
 
-    return clear, np.copy(clear)
+    return scores, clear, np.copy(clear)
 
 
 def run_neural_network(standarized_path, standarized_params,
-                       channel_index, whiten_filter, output_directory,
+                       whiten_filter, output_directory,
                        if_file_exists, save_results):
     """Run neural network detection and autoencoder dimensionality reduction
 
@@ -232,7 +235,15 @@ def run_neural_network(standarized_path, standarized_params,
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
-    TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
+
+    if os.path.isabs(output_directory):
+        folder = Path(output_directory)
+    else:
+        folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+
+    folder.mkdir(exist_ok=True)
+
+    TMP_FOLDER = str(folder)
 
     # check if all scores, clear and collision spikes exist..
     path_to_score = os.path.join(TMP_FOLDER, 'scores_clear.npy')
@@ -246,11 +257,11 @@ def run_neural_network(standarized_path, standarized_params,
 
     if (if_file_exists == 'overwrite' or
         if_file_exists == 'abort' and not any(exists)
-       or if_file_exists == 'skip' and not all(exists)):
-        max_memory = (CONFIG.resources.max_memory_gpu if GPU_ENABLED else
+            or if_file_exists == 'skip' and not all(exists)):
+        max_memory = (CONFIG.resources.max_memory_gpu if running_on_gpu() else
                       CONFIG.resources.max_memory)
 
-        # Batch processor
+        # instantiate batch processor
         bp = BatchProcessor(standarized_path,
                             standarized_params['dtype'],
                             standarized_params['n_channels'],
@@ -258,37 +269,57 @@ def run_neural_network(standarized_path, standarized_params,
                             max_memory,
                             buffer_size=CONFIG.spike_size)
 
-        # make tensorflow tensors and neural net classes
+        # load parameters
         detection_th = CONFIG.detect.neural_network_detector.threshold_spike
         triage_th = CONFIG.detect.neural_network_triage.threshold_collision
         detection_fname = CONFIG.detect.neural_network_detector.filename
         ae_fname = CONFIG.detect.neural_network_autoencoder.filename
         triage_fname = CONFIG.detect.neural_network_triage.filename
-        (x_tf, output_tf, NND,
-         NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
-                                               whiten_filter,
-                                               detection_th,
-                                               triage_th,
-                                               detection_fname,
-                                               ae_fname,
-                                               triage_fname)
 
-        # run nn preprocess batch-wsie
+        # instantiate neural networks
+        NND = NeuralNetDetector.load(detection_fname, detection_th,
+                                     CONFIG.channel_index)
+        triage = KerasModel(triage_fname,
+                            allow_longer_waveform_length=True,
+                            allow_more_channels=True)
+        NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
+
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-        mc = bp.multi_channel_apply
-        res = mc(
-            neuralnetwork.run_detect_triage_featurize,
-            mode='memory',
-            cleanup_function=neuralnetwork.fix_indexes,
-            x_tf=x_tf,
-            output_tf=output_tf,
-            NND=NND,
-            NNAE=NNAE,
-            NNT=NNT,
-            neighbors=neighbors)
+        rotation = NNAE.load_rotation()
+
+        fn = fix_indexes_spike_index
+
+        # detector
+        with tf.Session() as sess:
+            # get values of above tensors
+            NND.restore(sess)
+
+            res = bp.multi_channel_apply(NND.predict_recording,
+                                         mode='memory',
+                                         sess=sess,
+                                         output_names=('spike_index',
+                                                       'waveform'),
+                                         cleanup_function=fn)
+
+        spikes_all, wfs = zip(*res)
+
+        spikes_all = np.concatenate(spikes_all, axis=0)
+        wfs = np.concatenate(wfs, axis=0)
+
+        idx_clean = triage.predict_with_threshold(x=wfs,
+                                                  threshold=triage_th)
+
+        score = NNAE.predict(wfs)
+        rot = NNAE.load_rotation()
+        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+
+        (scores, clear) = post_processing(score,
+                                          spikes_all,
+                                          idx_clean,
+                                          rot,
+                                          neighbors)
 
         # get clear spikes
-        clear = np.concatenate([element[1] for element in res], axis=0)
         logger.info('Removing clear indexes outside the allowed range to '
                     'draw a complete waveform...')
         clear, idx = detect.remove_incomplete_waveforms(
@@ -296,7 +327,6 @@ def run_neural_network(standarized_path, standarized_params,
             bp.reader._n_observations)
 
         # get all spikes
-        spikes_all = np.concatenate([element[2] for element in res], axis=0)
         logger.info('Removing indexes outside the allowed range to '
                     'draw a complete waveform...')
         spikes_all, _ = detect.remove_incomplete_waveforms(
@@ -304,18 +334,13 @@ def run_neural_network(standarized_path, standarized_params,
             bp.reader._n_observations)
 
         # get scores
-        scores = np.concatenate([element[0] for element in res], axis=0)
         logger.info(
             'Removing scores for indexes outside the allowed range to '
             'draw a complete waveform...')
-
-        # FIXME: scores is no longer used here, features are computed
-        # directly in the cluster stage, remove references to "scores"
         scores = scores[idx]
 
         # transform scores to location + shape feature space
         # TODO: move this to another place
-        rotation = NNAE.load_rotation()
 
         # save partial results if required
         if save_results:
@@ -345,8 +370,8 @@ def run_neural_network(standarized_path, standarized_params,
                          'program halted since the following files '
                          'already exist: {}'.format(message))
     elif if_file_exists == 'skip' and all(exists):
-        logger.info('Skipped execution. All necessary files exist'
-                    ', loading them...')
+        logger.warning('Skipped execution. All output files exist'
+                       ', loading them...')
         scores = np.load(path_to_score)
         clear = np.load(path_to_spike_index_clear)
         spikes_all = np.load(path_to_spike_index_all)
@@ -356,4 +381,4 @@ def run_neural_network(standarized_path, standarized_params,
                          'must be one of overwrite, abort or skip'
                          .format(if_file_exists))
 
-    return clear, spikes_all
+    return scores, clear, spikes_all
