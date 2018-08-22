@@ -1,94 +1,338 @@
-import yaml
-from yaml import Dumper
+"""Utility functions for augmenting data
+"""
+import random
+import numpy as np
+import logging
 
 
-class map_data(dict):
-    pass
+logger = logging.getLogger(__name__)
 
 
-class CustomYAMLDumper(Dumper):
-    pass
+# TODO: remove
+def _make_noisy(x, the_noise):
+    """Make a noisy version of x
+    """
+    noise_sample = the_noise[np.random.choice(the_noise.shape[0],
+                                              x.shape[0],
+                                              replace=False)]
+    return x + noise_sample
 
 
-def map_rep(dumper, data):
-    return dumper.represent_mapping('tag:yaml.org,2002:map', data,
-                                    flow_style=False)
+def sample_from_zero_axis(x, axis=0):
+    """Sample from a certain axis
+    """
+    idx = np.random.choice(x.shape[0], 1, replace=True)
+    return x[idx], idx
 
 
-class seq_data(list):
-    pass
+def amplitudes(x):
+    """Compute amplitudes
+    """
+    return np.max(np.abs(x), axis=(1, 2))
 
 
-def seq_rep(dumper, data):
-    return dumper.represent_sequence('tag:yaml.org,2002:seq', data,
-                                     flow_style=True)
-
-
-CustomYAMLDumper.add_representer(map_data, map_data)
-CustomYAMLDumper.add_representer(seq_data, map_rep)
-
-
-def save_detect_network_params(filters, size, n_neighbors, output_path):
-    """Generate yaml file with parameters for a detect network
+def make_from_templates(templates, min_amplitude, max_amplitude,
+                        n_per_template):
+    """Make spikes with varying amplitudes from templates
 
     Parameters
     ----------
-    filters: list
-        List with number of filters in each layer
+    templates: numpy.ndarray, (n_templates, waveform_length, n_channels)
+        Templates
 
-    size: int
-        Temporal filter size
+    min_amplitude: float
+        Minimum value allowed for the maximum absolute amplitude of the
+        isolated spike on its main channel
 
-    n_neighbors: int
-        Number of neighboring channels
+    max_amplitude: float
+        Maximum value allowed for the maximum absolute amplitude of the
+        isolated spike on its main channel
 
-    output_path: str
-        Where to save the file
+    n_per_template: int
+        How many spikes to generate per template
+
+    Returns
+    -------
+    numpy.ndarray (n_templates * n_per_template, waveform_length, n_channels)
+        Clean spikes
     """
-    d = dict(filters=filters, size=size, n_neighbors=n_neighbors)
+    logger = logging.getLogger(__name__)
 
-    with open(output_path, 'w') as f:
-        yaml.dump(d, f, CustomYAMLDumper)
+    logger.debug('templates shape: %s, min amplitude: %s, '
+                 'max_amplitude: %s', templates.shape, min_amplitude,
+                 max_amplitude)
+
+    n_templates, waveform_length, n_neighbors = templates.shape
+
+    x = np.zeros((n_per_template * n_templates,
+                  waveform_length, n_neighbors))
+
+    d = max_amplitude - min_amplitude
+    amps_range = (min_amplitude + np.arange(n_per_template) * d/n_per_template)
+    amps_range = amps_range[:, np.newaxis, np.newaxis]
+
+    # go over every template
+    for k in range(n_templates):
+
+        # get current template and scale it
+        current = templates[k]
+        amp = np.max(np.abs(current))
+        scaled = (current/amp)[np.newaxis, :, :]
+
+        # create n clean spikes by scaling the template along the range
+        x[k * n_per_template: (k + 1) * n_per_template] = (scaled
+                                                           * amps_range)
+
+    return x
 
 
-def save_triage_network_params(filters, size, n_neighbors, output_path):
-    """Generate yaml file with parameters for a triage network
+def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
+                  max_shift='auto', return_metadata=False):
+    """Make collided spikes
 
     Parameters
     ----------
-    filters: list
-        List filters size
-
-    size: int
-        Temporal filter size
-
-    n_neighbors: int
-        Number of neighboring channels
-
-    output_path: str
-        Where to save the file
+    x
+    n_per_spike
+    multi_channel
+    amp_tolerance: float, optional
+        Maximum relative difference in amplitude between the collided spikes,
+        defaults to 0.2
+    max_shift: int or string, optional
+        Maximum amount of shift for the collided spike. If 'auto', it sets
+        to half the waveform length in x
+    return_metadata: bool, optional
+        Return data used to generate the collisions
     """
-    d = dict(filters=filters, size=size, n_neighbors=n_neighbors)
+    # NOTE: i think this is generated collided spikes where one of them
+    # is always centered, this may not be the desired behavior sometimes
+    # FIXME: maybe it's better to take x_misaligned as parameter, there is
+    # redundant shifting logic here
 
-    with open(output_path, 'w') as f:
-        yaml.dump(d, f, CustomYAMLDumper)
+    logger = logging.getLogger(__name__)
+
+    n_clean, wf_length, n_neighbors = x.shape
+
+    if max_shift == 'auto':
+        max_shift = int((wf_length - 1) / 2)
+
+    logger.debug('Making collided spikes with n_per_spike: %s max shift: '
+                 '%s, multi_channel: %s, amp_tolerance: %s, clean spikes with'
+                 ' shape: %s', n_per_spike, max_shift, multi_channel,
+                 amp_tolerance, x.shape)
+
+    x_first = np.zeros((n_clean*int(n_per_spike),
+                        wf_length,
+                        n_neighbors))
+
+    n_collided, _, _ = x_first.shape
+
+    amps = amplitudes(x)
+
+    spikes_first = []
+    spikes_second = []
+    shifts = []
+
+    for j in range(n_collided):
+
+        # random shifting
+        shift = random.randint(-max_shift, max_shift)
+
+        # sample a clean spike - first spike
+        x_first[j], i = sample_from_zero_axis(x)
+
+        # get amplitude for sampled x and compute bounds
+        amp = amps[i]
+        lower = amp * (1.0 - amp_tolerance)
+        upper = amp * (1.0 + amp_tolerance)
+
+        # draw another clean spike and scale it to be within bounds
+        scale_factor = np.linspace(lower, upper, num=50)[random.randint(0, 49)]
+        x_second, i = sample_from_zero_axis(x)
+        x_second = scale_factor * x_second / amps[i]
+
+        # FIXME: remove this
+        x_second = x_second[0, :, :]
+
+        x_second = shift_waveform(x_second, shift)
+
+        # if multi_channel, shuffle neighbors
+        if multi_channel:
+            shuffled_neighs = np.random.choice(n_neighbors, n_neighbors,
+                                               replace=False)
+            x_second = x_second[:, shuffled_neighs]
+
+        # if on debug mode, add the spikes and shift to the lists
+        if return_metadata:
+            spikes_first.append(np.copy(x_first[j]))
+            spikes_second.append(x_second)
+            shifts.append(shift)
+
+        # add the two spikes
+        x_first[j] += x_second
+
+    if return_metadata:
+        spikes_first = np.stack(spikes_first)
+        spikes_second = np.stack(spikes_second)
+        metadata = dict(first=spikes_first, second=spikes_second,
+                        shift=shifts)
+        return ArrayWithMetadata(x_first, metadata)
+    else:
+        return x_first
 
 
-def save_ae_network_params(n_input, n_features, output_path):
-    """Generate yaml file with parameters for a ae network
+def shift_waveform(x, shift):
+
+    wf_length, _, = x.shape
+    zeros = np.zeros(x.shape)
+
+    if shift > 0:
+        zeros[:(wf_length-shift)] += x[shift:]
+        return zeros
+    elif shift < 0:
+        zeros[(-shift):] += x[:(wf_length+shift)]
+        return zeros
+    else:
+        return x
+
+
+# TODO: remove this function and use separate functions instead
+def make_misaligned(x, max_shift, misalign_ratio, misalign_ratio2,
+                    multi_channel):
+    """Make temporally and spatially misaligned from spikes
 
     Parameters
     ----------
-    n_input: int
-        Dimension of input
-
-    n_features: int
-        Number of features
-
-    output_path: str
-        Where to save the file
+    multi_channel: bool
+        Whether to return multi channel or single channel spikes
     """
-    d = dict(n_input=n_input, n_features=n_features)
+    ################################
+    # temporally misaligned spikes #
+    ################################
 
-    with open(output_path, 'w') as f:
-        yaml.dump(d, f, CustomYAMLDumper)
+    x_temporally = make_temporally_misaligned(x, misalign_ratio,
+                                              multi_channel, max_shift)
+
+    ###############################
+    # spatially misaligned spikes #
+    ###############################
+
+    if multi_channel:
+        x_spatially = make_spatially_misaligned(x, misalign_ratio2)
+
+        return x_temporally, x_spatially
+
+    else:
+        return x_temporally
+
+
+def make_spatially_misaligned(x, n_per_spike):
+    """Make spatially misaligned spikes (main channel is not the first channel)
+    """
+
+    n_spikes, waveform_length, n_neigh = x.shape
+    n_out = int(n_spikes * n_per_spike)
+
+    x_spatially = np.zeros((n_out, waveform_length, n_neigh))
+
+    for j in range(n_out):
+        x_spatially[j] = np.copy(x[np.random.choice(
+            n_spikes, 1, replace=True)][:, :, np.random.choice(
+                n_neigh, n_neigh, replace=False)])
+
+    return x_spatially
+
+
+def make_temporally_misaligned(x, n_per_spike, multi_channel,
+                               max_shift='auto'):
+    """Make temporally shifted spikes from clean spikes
+    """
+    n_spikes, waveform_length, n_neigh = x.shape
+    n_out = int(n_spikes * n_per_spike)
+
+    if max_shift == 'auto':
+        max_shift = int(waveform_length / 2)
+
+    x_temporally = np.zeros((n_out, waveform_length, n_neigh))
+
+    logger.debug('Making spikes with max_shift: %i, output shape: %s',
+                 max_shift, x_temporally.shape)
+
+    temporal_shifts = np.random.randint(-max_shift, max_shift, size=n_out)
+
+    temporal_shifts[temporal_shifts < 0] = temporal_shifts[
+        temporal_shifts < 0]-5
+    temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
+        temporal_shifts >= 0]+6
+
+    for j in range(n_out):
+        shift = temporal_shifts[j]
+        if multi_channel:
+            x2 = np.copy(x[np.random.choice(
+                x.shape[0], 1, replace=True)][:, :, np.random.choice(
+                    n_neigh, n_neigh, replace=False)])
+            x2 = np.squeeze(x2)
+        else:
+            x2 = np.copy(x[np.random.choice(
+                x.shape[0], 1, replace=True)])
+            x2 = np.squeeze(x2)
+
+        if shift > 0:
+            x_temporally[j, :(x_temporally.shape[1]-shift)] += x2[shift:]
+
+        elif shift < 0:
+            x_temporally[
+                j, (-shift):] += x2[:(x_temporally.shape[1]+shift)]
+        else:
+            x_temporally[j] += x2
+
+    return x_temporally
+
+
+def make_noise(shape, spatial_SIG, temporal_SIG):
+    """Make noise
+
+    Returns
+    ------
+    numpy.ndarray
+        Noise array with the desired shape
+    """
+    n_out, waveform_length, n_neigh = shape
+
+    # get noise
+    noise = np.random.normal(size=(n_out, waveform_length, n_neigh))
+
+    for c in range(n_neigh):
+        noise[:, :, c] = np.matmul(noise[:, :, c], temporal_SIG)
+        reshaped_noise = np.reshape(noise, (-1, n_neigh))
+
+    the_noise = np.reshape(np.matmul(reshaped_noise, spatial_SIG),
+                           (n_out, waveform_length, n_neigh))
+
+    return the_noise
+
+
+def add_noise(x, spatial_SIG, temporal_SIG):
+    """Returns a noisy version of x
+    """
+    noise = make_noise(x.shape, spatial_SIG, temporal_SIG)
+    return x + noise
+
+
+class ArrayWithMetadata:
+    """Wrapper to store metadata in numpy.ndarray, see the metadata attribute
+    """
+
+    def __init__(self, array, metadata):
+        self.array = array
+        self._metadata = metadata
+
+    @property
+    def metadata(self):
+        return self._metadata
+
+    def __getattr__(self, name):
+        return getattr(self.array, name)
+
+    def __getitem__(self, key):
+        return self.array[key]
