@@ -29,7 +29,7 @@ def test_decovnolution(path_to_threshold_config,
                                    output_directory=make_tmp_folder)
 
     spike_train_clear, tmp_loc, vbParam = cluster.run(
-        score, spike_index_clear,
+        spike_index_clear,
         output_directory=make_tmp_folder)
 
     (templates_, spike_train,
@@ -61,7 +61,7 @@ def test_deconvolution_returns_expected_results(path_to_threshold_config,
 
     (spike_train_clear,
         tmp_loc,
-        vbParam) = cluster.run(score, spike_index_clear,
+        vbParam) = cluster.run(spike_index_clear,
                                output_directory=make_tmp_folder)
 
     (templates_, spike_train,
