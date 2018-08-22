@@ -118,8 +118,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
             path_to_channel_index = os.path.join(TMP, "channel_index.npy")
 
-            return (str(standarized_path), standarized_params, channel_index,
-                    whiten_filter)
+            return str(standarized_path), standarized_params, whiten_filter
 
     # read config params
     multi_processing = CONFIG.resources.multi_processing
@@ -233,5 +232,4 @@ def run(output_directory='tmp/', if_file_exists='skip'):
         if_file_exists=if_file_exists,
         name='Channel index')
 
-    return (str(standarized_path), standarized_params, channel_index,
-            whiten_filter)
+    return str(standarized_path), standarized_params, whiten_filter
