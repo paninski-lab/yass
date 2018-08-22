@@ -32,10 +32,9 @@ def test_decovnolution(path_to_nnet_config,
         spike_index_clear,
         output_directory=make_tmp_folder)
 
-    (templates_, spike_train,
-     groups, idx_good_templates) = templates.run(
-        spike_train_clear, tmp_loc,
-        output_directory=make_tmp_folder)
+    (templates_,
+     spike_train) = templates.run(spike_train_clear, tmp_loc,
+                                  output_directory=make_tmp_folder)
 
     deconvolute.run(spike_index_all, templates_,
                     output_directory=make_tmp_folder)

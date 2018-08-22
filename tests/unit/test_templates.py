@@ -114,11 +114,10 @@ def test_templates_returns_expected_results(path_to_threshold_config,
      vbParam) = cluster.run(spike_index_clear,
                             output_directory=make_tmp_folder)
 
-    (templates_, spike_train,
-     groups,
-     idx_good_templates) = templates.run(spike_train_clear, tmp_loc,
-                                         output_directory=make_tmp_folder,
-                                         save_results=True)
+    (templates_, spike_train,) = templates.run(
+        spike_train_clear, tmp_loc,
+        output_directory=make_tmp_folder,
+        save_results=True)
 
     path_to_templates = path.join(path_to_output_reference,
                                   'templates.npy')
