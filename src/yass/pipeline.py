@@ -143,8 +143,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # run deconvolution
     start = time.time()
-    spike_train = deconvolute.run2(spike_train_cluster, templates,
-                                   output_directory=output_dir)
+    spike_train = deconvolute.run(spike_train_cluster, templates,
+                                  output_directory=output_dir)
     time_deconvolution = time.time() - start
 
     # save spike train

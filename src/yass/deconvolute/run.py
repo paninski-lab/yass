@@ -60,7 +60,7 @@ colors = np.asarray(["#000000", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#00
         "#252F99", "#00CCFF", "#674E60", "#FC009C", "#92896B"])
         
 colors = np.concatenate([colors,colors])
-def run2(spike_train_cluster,
+def run(spike_train_cluster,
         templates,
         output_directory='tmp/',
         recordings_filename='standarized.bin'):
