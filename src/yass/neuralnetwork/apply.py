@@ -1,5 +1,10 @@
+from collections import defaultdict
+
 import tensorflow as tf
 import numpy as np
+
+from yass.templates.util import strongly_connected_components_iterative
+from yass.util import deprecated
 
 
 def run_detect_triage_featurize(recordings, x_tf, output_tf,
@@ -149,3 +154,70 @@ def fix_indexes(res, idx_local, idx, buffer_size):
     col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset - buffer_size
 
     return score_not_in_buffer, clear_not_in_buffer, col_not_in_buffer
+
+
+@deprecated('this is an old function from the master branch, will be removed')
+def post_processing(score, spike_index, idx_clean, rot, neighbors):
+    energy = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
+
+    idx_survive = deduplicate(spike_index, energy, neighbors)
+    idx_keep = np.logical_and(idx_survive, idx_clean)
+    score_clear = score[idx_keep]
+    spike_index_clear = spike_index[idx_keep]
+
+    return score_clear, spike_index_clear
+
+
+@deprecated('this is an old function from the master branch, will be removed')
+def deduplicate(spike_index, energy, neighbors, w=5):
+    # number of data points
+    n_data = spike_index.shape[0]
+
+    # separate time and channel info
+    TT = spike_index[:, 0]
+    CC = spike_index[:, 1]
+
+    # Index counting
+    # indices in index_counter[t-1]+1 to index_counter[t] have time t
+    T_max = np.max(TT)
+    T_min = np.min(TT)
+    index_counter = np.zeros(T_max + w + 1, 'int32')
+    t_now = T_min
+    for j in range(n_data):
+        if TT[j] > t_now:
+            index_counter[t_now:TT[j]] = j - 1
+            t_now = TT[j]
+    index_counter[T_max:] = n_data - 1
+
+    # connecting edges
+    j_now = 0
+    edges = defaultdict(list)
+    for t in range(T_min, T_max + 1):
+
+        # time of j_now to index_counter[t] is t
+        # j_now to index_counter[t+w] has all index from t to t+w
+        max_index = index_counter[t+w]
+        cc_temporal_neighs = CC[j_now:max_index+1]
+
+        for j in range(index_counter[t]-j_now+1):
+            # check if channels are also neighboring
+            idx_neighs = np.where(
+                neighbors[cc_temporal_neighs[j],
+                          cc_temporal_neighs[j+1:]])[0] + j + 1 + j_now
+
+            # connect edges to neighboring spikes
+            for j2 in idx_neighs:
+                edges[j2].append(j+j_now)
+                edges[j+j_now].append(j2)
+
+        # update j_now
+        j_now = index_counter[t]+1
+
+    # Using scc, build connected components from the graph
+    idx_survive = np.zeros(n_data, 'bool')
+    for scc in strongly_connected_components_iterative(np.arange(n_data),
+                                                       edges):
+        idx = list(scc)
+        idx_survive[idx[np.argmax(energy[idx])]] = 1
+
+    return idx_survive
