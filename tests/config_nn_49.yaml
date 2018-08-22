@@ -12,7 +12,7 @@ recordings:
   sampling_rate: 20000
   n_channels: 49
   spatial_radius: 70
-  spike_size_ms: 1
+  spike_size_ms: 1.5
   order: samples
 
 preprocess:

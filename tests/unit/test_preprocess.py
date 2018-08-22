@@ -10,12 +10,7 @@ from yass.util import load_yaml
 import yass
 from yass import preprocess
 
-from util import clean_tmp, make_tmp
 from util import ReferenceTesting
-
-
-def teardown_function(function):
-    clean_tmp()
 
 
 def test_can_apply_butterworth_filter(data):
@@ -34,17 +29,15 @@ def test_standard_deviation_returns_as_expected(path_to_output_reference,
 
 
 def test_filter_does_not_run_if_files_already_exist(path_to_data,
-                                                    path_to_tmp,
+                                                    make_tmp_folder,
                                                     data_info):
-
-    make_tmp()
 
     preprocess.butterworth(path_to_data, dtype='int16',
                            n_channels=data_info['n_channels'],
                            data_order='samples', low_frequency=300,
                            high_factor=0.1, order=3,
                            sampling_frequency=data_info['sampling_frequency'],
-                           max_memory='1GB', output_path=path_to_tmp,
+                           max_memory='1GB', output_path=make_tmp_folder,
                            output_dtype='float32', processes=1)
 
     assert preprocess.butterworth.executed
@@ -54,7 +47,7 @@ def test_filter_does_not_run_if_files_already_exist(path_to_data,
                            data_order='samples', low_frequency=300,
                            high_factor=0.1, order=3,
                            sampling_frequency=data_info['sampling_frequency'],
-                           max_memory='1GB', output_path=path_to_tmp,
+                           max_memory='1GB', output_path=make_tmp_folder,
                            output_dtype='float32', processes=1)
 
     assert not preprocess.butterworth.executed
@@ -62,20 +55,19 @@ def test_filter_does_not_run_if_files_already_exist(path_to_data,
 
 def test_standarize_does_not_run_if_files_already_exist(path_to_data,
                                                         data_info,
-                                                        path_to_tmp):
-    make_tmp()
+                                                        make_tmp_folder):
 
     preprocess.standarize(path_to_data, data_info['dtype'],
                           data_info['n_channels'], data_info['data_order'],
                           data_info['sampling_frequency'], max_memory='1GB',
-                          output_path=path_to_tmp, output_dtype='float32')
+                          output_path=make_tmp_folder, output_dtype='float32')
 
     assert preprocess.standarize.executed
 
     preprocess.standarize(path_to_data, data_info['dtype'],
                           data_info['n_channels'], data_info['data_order'],
                           data_info['sampling_frequency'], max_memory='1GB',
-                          output_path=path_to_tmp, output_dtype='float32')
+                          output_path=make_tmp_folder, output_dtype='float32')
 
     assert not preprocess.standarize.executed
 
@@ -112,8 +104,6 @@ def test_preprocess_returns_expected_results(path_to_threshold_config,
                                                path_to_standarized)
     ReferenceTesting.assert_array_almost_equal(whiten_filter,
                                                path_to_whiten_filter)
-
-    clean_tmp()
 
 
 def test_can_preprocess_without_filtering(path_to_threshold_config):
