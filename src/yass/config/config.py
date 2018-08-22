@@ -147,8 +147,11 @@ class Config:
         self._frozenjson = FrozenJSON(mapping)
 
         if output_directory is not None:
-            self._path_to_output_directory = str(Path(self.data.root_folder,
-                                                 output_directory))
+            if path.isabs(output_directory):
+                self._path_to_output_directory = output_directory
+            else:
+                _ = Path(self.data.root_folder, output_directory)
+                self._path_to_output_directory = str()
         else:
             self._path_to_output_directory = None
 
