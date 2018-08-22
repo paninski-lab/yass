@@ -20,8 +20,6 @@ from yass import pipeline
 from yass import geometry
 from yass.export import generate
 from yass.util import load_yaml
-from yass.augment import train_neural_networks
-from yass.config import Config
 
 
 @click.group()
@@ -64,37 +62,6 @@ def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
     and output path
     """
     pipeline.run(config, logger_level, clean, output_dir, complete)
-
-
-@cli.command()
-@click.argument('directory', type=click.Path(exists=True, file_okay=False))
-@click.argument('config_train', type=click.Path(exists=True, dir_okay=False))
-@click.option('-l', '--logger_level',
-              help='Python logger level, defaults to INFO',
-              default='INFO')
-def train(directory, config_train, logger_level):
-    """
-    Train neural networks, DIRECTORY must be a folder containing the
-    output of `yass sort`, CONFIG_TRAIN must be the location of a file with
-    the training parameters
-    """
-    logging.basicConfig(level=getattr(logging, logger_level))
-    logger = logging.getLogger(__name__)
-
-    path_to_spike_train = path.join(directory, 'spike_train.npy')
-    spike_train = np.load(path_to_spike_train)
-
-    logger.info('Loaded spike train with: {:,} spikes and {:,} different IDs'
-                .format(len(spike_train),
-                        len(np.unique(spike_train[:, 1]))))
-
-    path_to_config = path.join(directory, 'config.yaml')
-    CONFIG = Config.from_yaml(path_to_config)
-
-    CONFIG_TRAIN = load_yaml(config_train)
-
-    train_neural_networks(CONFIG, CONFIG_TRAIN, spike_train,
-                          data_folder=directory)
 
 
 @cli.command()
