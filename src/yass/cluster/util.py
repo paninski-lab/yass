@@ -1907,7 +1907,7 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
     
     # ************* DELETE TOO FEW SPIKES ************
     #  delete clusters < 300 spikes
-    min_spikes = 300
+    min_spikes = 0
     idx_delete = []
     for s in range(len(spike_indexes)):
         if spike_indexes[s].shape[0] < min_spikes:
