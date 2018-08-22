@@ -35,6 +35,7 @@ resources:
       type: [integer, string]
       required: False
       default: 1GB
+    # CAT NEW SCHEMA
     multi_processing: 
       type: [integer, string]
       required: True
@@ -47,6 +48,13 @@ resources:
       type: [integer, string]
       required: True
       default: 1
+    # END OF CAT NEW SCHEMA
+    # processes section added on master
+    processes:
+      type: [integer, string]
+      required: False
+      default: max
+
 
 recordings:
   type: dict
