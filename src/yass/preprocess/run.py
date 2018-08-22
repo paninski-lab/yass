@@ -154,12 +154,12 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     idx_list = np.int64(np.vstack(idx_list))
     proc_indexes = np.arange(len(idx_list))
 
-    print("# of chunks: ", len(idx_list))
+    logger.info("# of chunks: %i", len(idx_list))
 
     # Make directory to hold filtered batch files:
     filtered_location = os.path.join(CONFIG.data.root_folder, output_directory,
                                      "filtered_files")
-    print(filtered_location)
+    logger.info(filtered_location)
     if not os.path.exists(filtered_location):
         os.makedirs(filtered_location)
 
@@ -205,7 +205,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     # this when initializing the config object and then access it from there
     channel_index = make_channel_index(CONFIG.neigh_channels, CONFIG.geom, 2)
 
-    # print CONFIG.resources.max_memory
+    # logger.info CONFIG.resources.max_memory
     # quit()
     # Cat: TODO: need to make this much smaller in size, don't need such
     # large batches

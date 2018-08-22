@@ -1,3 +1,4 @@
+import logging
 import warnings
 import numpy as np
 import logging
@@ -61,7 +62,9 @@ colors = np.asarray(["#000000", "#1CE6FF", "#FF34FF", "#FF4A46", "#008941", "#00
         "#252F99", "#00CCFF", "#674E60", "#FC009C", "#92896B"])
         
 colors = np.concatenate([colors,colors])
-        
+
+logger = logging.getLogger(__name__)
+
         
 def calculate_sparse_rhat(vbParam, tmp_loc, scores,
                           spike_index, neighbors):
@@ -182,7 +185,7 @@ def merge_move_patches(cluster, neigh_clusters, scores, vbParam, maha, cfg):
                                          local_suffStat, 0, 1,
                                          cfg, L, ELBO)
         if merged:
-            print("merging {}, {}".format(cluster, i))
+            logger.info("merging {}, {}".format(cluster, i))
             vbParam.muhat = np.delete(vbParam.muhat, kb, 1)
             vbParam.muhat[:, ka] = local_vbParam.muhat[:, 0]
 
@@ -280,7 +283,7 @@ def try_merge(k1, k2, scores, vbParam, maha, cfg):
                                      local_suffStat, 0, 1,
                                      cfg, L, ELBO)
     if merged:
-        print("merging {}, {}".format(ka, kb))
+        logger.info("merging {}, {}".format(ka, kb))
 
         vbParam.muhat = np.delete(vbParam.muhat, kb, 1)
         vbParam.muhat[:, ka] = local_vbParam.muhat[:, 0]
@@ -776,7 +779,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
         return
 
     if verbose:
-        print("chan "+str(channel)+' gen: '+str(gen)+' # spikes: '+
+        logger.info("chan "+str(channel)+' gen: '+str(gen)+' # spikes: '+
               str(wf.shape[0]))
         
         
@@ -785,7 +788,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
     feat_chans, max_chans = get_feat_channels(wf.mean(0), wf, n_max_chans, 
                                                               n_mad_chans)  
     if verbose:
-        print("chan "+str(channel)+' gen: '+str(gen)+", feat chans: "+
+        logger.info("chan "+str(channel)+' gen: '+str(gen)+", feat chans: "+
                   str(feat_chans) + ", max_chan: "+ str(max_chans[0]))
     
     # save max_channel relative to feat_chans location
@@ -824,7 +827,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
         idx_keep = knn_triage(mfm_threshold*100, pca_wf)
         idx_keep = np.where(idx_keep==1)[0]
         if verbose:
-            print("chan "+str(channel)+' gen: '+str(gen) + 
+            logger.info("chan "+str(channel)+' gen: '+str(gen) + 
                 " triaged, remaining spikes "+ str(idx_keep.shape[0]))
 
         # rerun global compression on residual waveforms
@@ -848,7 +851,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
     # ************* CLUSTERING STEP ******************
     # clustering
     if verbose:
-        print("chan "+ str(channel)+' gen: '+str(gen)+" - clustering ", 
+        logger.info("chan "+ str(channel)+' gen: '+str(gen)+" - clustering ", 
                                                           pca_wf.shape)
     vbParam, assignment = run_mfm3(pca_wf, CONFIG)
     
@@ -900,7 +903,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
         else:
             N= len(assignment_global)
             if verbose:
-                print("chan "+str(channel)+' gen: '+str(gen)+" >>> cluster "+
+                logger.info("chan "+str(channel)+' gen: '+str(gen)+" >>> cluster "+
                     str(N)+" saved, size: "+str(wf[idx_recovered].shape)+"<<<")
             
             assignment_global.append(N * np.ones(assignment2[idx_recovered].shape[0]))
@@ -917,7 +920,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
         clusters, sizes = np.unique(assignment2[idx_recovered], return_counts = True)
         
         if verbose:
-            print("chan "+str(channel)+' gen: '+str(gen) + 
+            logger.info("chan "+str(channel)+' gen: '+str(gen) + 
               " multiple clusters, stability " + str(np.round(stability,2)) + 
               " size: "+str(sizes))
 
@@ -929,7 +932,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
                 continue    # cluster too small
             
             if verbose:
-                print("chan "+str(channel)+' gen: '+str(gen)+
+                logger.info("chan "+str(channel)+' gen: '+str(gen)+
                     " reclustering stable cluster"+ 
                     str(wf[idx_keep][idx].shape))
             RRR3_noregress_recovery(channel, wf[idx_keep][idx], 
@@ -942,7 +945,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
         if np.all(stability<=mfm_threshold):
             
             if verbose:
-                print("chan "+str(channel)+' gen: '+str(gen)+ 
+                logger.info("chan "+str(channel)+' gen: '+str(gen)+ 
                                 " no stable clusters, triaging "+
                                 str(wf[idx_keep][idx_recovered].shape))
 
@@ -957,7 +960,7 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, triageflag,
             idx = np.in1d(assignment2, np.where(stability<=mfm_threshold)[0])
             if idx.sum()>CONFIG.cluster.min_spikes:
                 if verbose:
-                    print("chan "+str(channel)+" reclustering residuals "+
+                    logger.info("chan "+str(channel)+" reclustering residuals "+
                                             str(wf[idx_keep][idx].shape))
                 RRR3_noregress_recovery(channel, wf[idx_keep][idx],
                     sic[idx_keep][idx], 
@@ -984,7 +987,7 @@ def RRR3_noregress_recovery_deconv(unit, wf, sic, gen, fig, grid, ax_t,
         return
 
     if verbose:
-        print("unit "+str(unit)+' gen: '+str(gen)+' # spikes: '+
+        logger.info("unit "+str(unit)+' gen: '+str(gen)+' # spikes: '+
               str(wf.shape[0]))
         
         
@@ -993,7 +996,7 @@ def RRR3_noregress_recovery_deconv(unit, wf, sic, gen, fig, grid, ax_t,
     feat_chans, max_chans = get_feat_channels(wf.mean(0), wf, n_max_chans, 
                                                               n_mad_chans)  
     if verbose:
-        print("unit "+str(unit)+' gen: '+str(gen)+", feat chans: "+
+        logger.info("unit "+str(unit)+' gen: '+str(gen)+", feat chans: "+
                   str(feat_chans) + ", max_chan: "+ str(max_chans[0]))
     
     # save max_channel relative to feat_chans location
@@ -1027,7 +1030,7 @@ def RRR3_noregress_recovery_deconv(unit, wf, sic, gen, fig, grid, ax_t,
         idx_keep = knn_triage(mfm_threshold*100, pca_wf)
         idx_keep = np.where(idx_keep==1)[0]
         if verbose:
-            print("unit "+str(unit)+' gen: '+str(gen) + 
+            logger.info("unit "+str(unit)+' gen: '+str(gen) + 
                 " triaged, remaining spikes "+ str(idx_keep.shape[0]))
 
         # rerun global compression on residual waveforms
@@ -1051,7 +1054,7 @@ def RRR3_noregress_recovery_deconv(unit, wf, sic, gen, fig, grid, ax_t,
     # ************* CLUSTERING STEP ******************
     # clustering
     if verbose:
-        print("unit "+ str(unit)+' gen: '+str(gen)+" - clustering ", 
+        logger.info("unit "+ str(unit)+' gen: '+str(gen)+" - clustering ", 
                                                           pca_wf.shape)
     vbParam, assignment = run_mfm3(pca_wf, CONFIG)
     
@@ -1105,7 +1108,7 @@ def RRR3_noregress_recovery_deconv(unit, wf, sic, gen, fig, grid, ax_t,
 
         N= len(assignment_global)
         if verbose:
-            print("unit "+str(unit)+' gen: '+str(gen)+" >>> cluster "+
+            logger.info("unit "+str(unit)+' gen: '+str(gen)+" >>> cluster "+
                 str(N)+" saved, size: "+str(wf[idx_recovered].shape)+"<<<")
         
         assignment_global.append(N * np.ones(assignment2[idx_recovered].shape[0]))
@@ -1122,7 +1125,7 @@ def RRR3_noregress_recovery_deconv(unit, wf, sic, gen, fig, grid, ax_t,
         clusters, sizes = np.unique(assignment2[idx_recovered], return_counts = True)
         
         if verbose:
-            print("unit "+str(unit)+' gen: '+str(gen) + 
+            logger.info("unit "+str(unit)+' gen: '+str(gen) + 
               " multiple clusters, stability " + str(np.round(stability,2)) + 
               " size: "+str(sizes))
 
@@ -1134,7 +1137,7 @@ def RRR3_noregress_recovery_deconv(unit, wf, sic, gen, fig, grid, ax_t,
                 continue    # cluster too small
             
             if verbose:
-                print("unit "+str(unit)+' gen: '+str(gen)+
+                logger.info("unit "+str(unit)+' gen: '+str(gen)+
                     " reclustering stable cluster"+ 
                     str(wf[idx_keep][idx].shape))
                     
@@ -1148,7 +1151,7 @@ def RRR3_noregress_recovery_deconv(unit, wf, sic, gen, fig, grid, ax_t,
         if np.all(stability<=mfm_threshold):
             
             if verbose:
-                print("unit "+str(unit)+' gen: '+str(gen)+ 
+                logger.info("unit "+str(unit)+' gen: '+str(gen)+ 
                                 " no stable clusters, triaging "+
                                 str(wf[idx_keep][idx_recovered].shape))
 
@@ -1163,7 +1166,7 @@ def RRR3_noregress_recovery_deconv(unit, wf, sic, gen, fig, grid, ax_t,
             idx = np.in1d(assignment2, np.where(stability<=mfm_threshold)[0])
             if idx.sum()>CONFIG.cluster.min_spikes:
                 if verbose:
-                    print("unit "+str(unit)+" reclustering residuals "+
+                    logger.info("unit "+str(unit)+" reclustering residuals "+
                                             str(wf[idx_keep][idx].shape))
                 RRR3_noregress_recovery_deconv(unit, wf[idx_keep][idx],
                     sic[idx_keep][idx], 
@@ -1236,7 +1239,7 @@ def clustering_annealing():
     ''' 
     
     pass
-    #print("annealing")
+    #logger.info("annealing")
     #annealing_thresholds = np.arange(0.0, 1.01, 0.01)  # set threshold for annealing clusters together
     #network_threshold = 0.0 # set very low threshold for assigning spikes to a particular unit
     
@@ -1294,7 +1297,7 @@ def clustering_annealing():
         #for group in groups: 
             #idx = np.where(np.in1d(assignment, np.int32(group)))[0]
         
-            #print("reclustering annealed group ", wf[idx_keep][idx].shape, group)
+            #logger.info("reclustering annealed group ", wf[idx_keep][idx].shape, group)
             #RRR3_noregress(channel, wf[idx_keep][idx], sic[idx_keep][idx], gen+1, fig, grid, 
                  #False, alignflag, plotting, chans, n_mad_chans, n_max_chans, 
                  #n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor,
@@ -1418,8 +1421,7 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
     for idx,proc_index in zip(idx_list,proc_indexes):
         
         # read chunk of data
-        print ("Reading (starting) chunk: ", proc_index+1, " / ", 
-                                                len(proc_indexes))
+        logger.info ("Reading (starting) chunk: %s / %s", proc_index+1,  len(proc_indexes))
 
         # make chunk directory if not available:
         # save chunk in own directory to enable cumulative recovery 
@@ -1605,7 +1607,7 @@ def cluster_channels_chunks_args(data_in):
         #       millions of spikes?  Might want to do once rather than repeat
         indexes = np.where(spike_indexes_chunk[:,1]==channel)[0]
         spike_train = spike_indexes_chunk[indexes]
-        print ('Starting channel: '+str(channel)+ ', events: '+
+        logger.info ('Starting channel: '+str(channel)+ ', events: '+
                                                     str(spike_train.shape[0]))
 
         # read waveforms from recording chunk in memory
@@ -1693,7 +1695,7 @@ def cluster_channels_chunks_args(data_in):
             temp_std[k] = robust.mad(wf[idx],axis=0)
 
         # save all clustered data
-        print('saving ', filename_postclustering)
+        logger.info('saving %s ', filename_postclustering)
         np.savez(filename_postclustering, spike_index=spike_index, 
                         indexes_subsampled=indexes_subsampled,
                         templates=temp,
@@ -1705,11 +1707,11 @@ def cluster_channels_chunks_args(data_in):
         data = np.load(filename_postclustering, encoding='latin1')
         spike_index = data['spike_index']
 
-    print ("")
-    print ("**********************************************************")
-    print ("**** Channel ", str(channel), " # clusters: ", len(spike_index))
-    print ("**********************************************************")
-    print ("")
+    logger.info ("")
+    logger.info ("**********************************************************")
+    logger.info ("**** Channel " + str(channel) + " # clusters: " + str(len(spike_index)))
+    logger.info ("**********************************************************")
+    logger.info ("")
     
     # overwrite this variable just in case multiprocessing doesn't destroy it
     wf = None
@@ -1764,7 +1766,7 @@ def cluster_channels_chunks(channel, idx_list, proc_index, CONFIG,
         #       millions of spikes?  Might want to do once rather than repeat
         indexes = np.where(spike_indexes_chunk[:,1]==channel)[0]
         spike_train = spike_indexes_chunk[indexes]
-        print ('Starting channel: '+str(channel)+ ', events: '+str(spike_train.shape[0]))
+        logger.info ('Starting channel: '+str(channel)+ ', events: '+str(spike_train.shape[0]))
 
         # read waveforms from recording chunk in memory
         spike_train = spike_indexes_chunk[indexes]
@@ -1872,11 +1874,11 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
     
     #ctr_id = 0 
     for chunk_dir in chunk_dirs:
-        print (chunk_dir)
+        logger.info (chunk_dir)
         # Cat: TODO: make sure this step is correct
         for channel in range(CONFIG.recordings.n_channels):
             path_to_file = os.path.join(chunk_dir, 'channel_{}.npz'.format(channel))
-            print('loading', path_to_file)
+            logger.info('loading %s ', path_to_file)
             data = np.load(path_to_file)
 
             templates.append(data['templates'])
@@ -1894,7 +1896,7 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
     templates_std = np.vstack(templates_std)
     weights = np.hstack(weights)
     #print (spike_indexes.shape)
-    print(" total # templates: ", templates.shape)
+    logger.info(" total # templates: %s", templates.shape)
     np.save(os.path.join(CONFIG.path_to_output_directory, 'templates_before_merge.npy'), templates)
     np.save(os.path.join(CONFIG.path_to_output_directory, 'spike_indexes_before_merge.npy'), spike_indexes)
     
@@ -1911,8 +1913,8 @@ def global_merge_all_ks(chunk_dirs, CONFIG):
     weights = np.delete(weights,idx_delete,axis=0)
     spike_indexes = np.delete(spike_indexes,idx_delete,axis=0)
             
-    print(" # templates after 300 spike cutoff: ", templates.shape)
-    print(" spike_indexes: ", spike_indexes.shape)
+    logger.info(" # templates after 300 spike cutoff: %s", templates.shape)
+    logger.info(" spike_indexes: %s", spike_indexes.shape)
     ## rearange spike indees from id 0..N
     #for k in range(spike_indexes.shape[0]):    
         ##print (spike_indexes[k].shape)
@@ -2013,7 +2015,7 @@ def global_merge_all_ks_deconv(deconv_chunk_dir, units, CONFIG):
     templates_std = np.vstack(templates_std)
     weights = np.hstack(weights)
     #print (spike_indexes.shape)
-    print(" total # templates post deconv: ", templates.shape)
+    logger.info(" total # templates post deconv: %s", templates.shape)
     #np.save(CONFIG.data.root_folder+'/tmp/templates_before_merge.npy', templates)
     #np.save(CONFIG.data.root_folder+'/tmp/spike_indexes_before_merge.npy', spike_indexes)
     
@@ -2031,8 +2033,8 @@ def global_merge_all_ks_deconv(deconv_chunk_dir, units, CONFIG):
         weights = np.delete(weights,idx_delete,axis=0)
         spike_indexes = np.delete(spike_indexes,idx_delete,axis=0)
                 
-        print(" # templates after 300 spike cutoff: ", templates.shape)
-        print(" spike_indexes: ", spike_indexes.shape)
+        logger.info(" # templates after 300 spike cutoff: %s", templates.shape)
+        logger.info(" spike_indexes: %s", spike_indexes.shape)
 
 
     # ************** GET SIM_MAT ****************
@@ -2114,7 +2116,7 @@ def calc_ks_dist(A, B, lin):
     for i,j in enumerate(lin):
         cdf[i] = (A<j).sum()/A.size
         cdf2[i] = (B<j).sum()/B.size
-    print(cdf.size)
+    logger.info(cdf.size)
     return np.abs(cdf - cdf2).max()
     
     
@@ -2131,11 +2133,11 @@ def run_KS_test(sim_temp, mean, std, CONFIG, resampling = True, plotting = False
     n_chan = CONFIG.recordings.n_channels
 
     row,column = np.where(sim_temp > 0.90)
-    print(row.size)
+    logger.info(row.size)
     sim_mat = np.zeros(sim_temp.shape, dtype = bool)
     Y = np.random.normal(size = 1500)
     for i, pair in enumerate(zip(row, column)):
-        print('*********************', pair, "**************************")
+        logger.info('*********************', pair, "**************************")
         if resampling:
             to_align = np.concatenate([mean[[pair]], std[[pair]]], axis = 2)
             
@@ -2152,7 +2154,7 @@ def run_KS_test(sim_temp, mean, std, CONFIG, resampling = True, plotting = False
             y_act = np.concatenate([np.zeros(size_resample), np.ones(size_resample)])
             
             feat_channels, max_chans, mad_chans = get_feat_channels_ks_test(aligned_means.mean(0), aligned_means, 3, 3)
-            print(feat_channels, max_chans, mad_chans)
+            logger.info('%s %s %s', feat_channels, max_chans, mad_chans)
             
             # 
             wf_start = 0
@@ -2165,7 +2167,7 @@ def run_KS_test(sim_temp, mean, std, CONFIG, resampling = True, plotting = False
             lin = np.arange(trans.mean(), trans.max(), 0.01)
             ks_dist = calc_ks_dist(trans, Y, lin)
             if ks_dist < 0.10:
-                print('^^^^^^^^^^^^^^ merged ^^^^^^^^^^^^^^^^^^')
+                logger.info('^^^^^^^^^^^^^^ merged ^^^^^^^^^^^^^^^^^^')
                 sim_mat[pair[0], pair[1]] = sim_mat[pair[1], pair[0]]  = True
         
         else:
@@ -2200,7 +2202,7 @@ def run_KS_test(sim_temp, mean, std, CONFIG, resampling = True, plotting = False
             lin = np.arange(trans.mean(), trans.max(), 0.01)
             ks_dist = calc_ks_dist(trans, Y, lin)
             if ks_dist < 0.10:
-                print('^^^^^^^^^^^^^^ merged ^^^^^^^^^^^^^^^^^^')
+                logger.info('^^^^^^^^^^^^^^ merged ^^^^^^^^^^^^^^^^^^')
                 sim_mat[pair[0], pair[1]] = sim_mat[pair[1], pair[0]]  = True
             
         if plotting:

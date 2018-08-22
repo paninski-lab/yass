@@ -1,6 +1,7 @@
 """
 Filtering functions
 """
+import logging
 from functools import partial
 import os
 import numpy as np
@@ -316,6 +317,7 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
     NotImplementedError
         If a multidmensional array is passed
     """
+    logger = logging.getLogger(__name__)
 
     # Load data from disk; buffer as required:
     idx_list, chunk_idx = data_in[0], data_in[1]
@@ -368,7 +370,7 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
     # ******************************************************************
 
     if ts.ndim == 1:
-        print("SINGLE CHANNEL FILTER NOTE AVAILABLE.... !")
+        logger.info("SINGLE CHANNEL FILTER NOTE AVAILABLE.... !")
         quit()
         (T, ) = ts.shape
         low = float(low_frequency) / sampling_frequency * 2
@@ -414,12 +416,14 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
 
 def merge_filtered_files(root_folder, output_directory):
 
+    logger = logging.getLogger(__name__)
+
     path = os.path.join(root_folder, output_directory, 'filtered_files/')
     filenames = os.listdir(path)
     filenames_sorted = sorted(filenames)
 
     f_out = os.path.join(root_folder, output_directory, "standarized.bin")
-    print('...saving standardized file: ', f_out)
+    logger.info('...saving standardized file: %s', f_out)
 
     f = open(f_out, 'wb')
     for fname in filenames_sorted:
