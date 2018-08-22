@@ -59,13 +59,19 @@ def read_config():
     return CONFIG
 
 
-def set_config(config):
+def set_config(config, output_directory=None):
     """Set configuration settings
 
     Parameters
     ----------
     config: str or mapping (such as dictionary)
         Path to a yaml file or mapping object
+
+    output_directory: str of pathlib.Path, optional
+        output directory for the project, this is optional and makes
+        Config.output_directory return
+        onfig.data.root_folder / output_directory, which is a common path
+        used through the pipeline
 
     Notes
     -----
@@ -81,11 +87,13 @@ def set_config(config):
     global CONFIG
 
     if isinstance(config, str):
-        CONFIG = Config.from_yaml(config)
+        CONFIG = Config.from_yaml(config, output_directory)
     else:
-        CONFIG = Config(config)
+        CONFIG = Config(config, output_directory)
 
     logger.debug('CONFIG set to: %s', CONFIG._data)
+
+    return CONFIG
 
 
 def reset_config():
