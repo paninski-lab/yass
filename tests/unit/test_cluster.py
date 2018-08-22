@@ -16,7 +16,7 @@ from util import ReferenceTesting
 
 
 def test_cluster(path_to_threshold_config, make_tmp_folder):
-    yass.set_config(path_to_threshold_config)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
@@ -37,7 +37,7 @@ def test_cluster_returns_expected_results(path_to_threshold_config,
                                           make_tmp_folder):
     np.random.seed(0)
 
-    yass.set_config(path_to_threshold_config)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
@@ -67,7 +67,7 @@ def test_cluster_returns_expected_results(path_to_threshold_config,
 
 def test_cluster_save_results(path_to_threshold_config, make_tmp_folder):
 
-    yass.set_config(path_to_threshold_config)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
@@ -87,7 +87,7 @@ def test_cluster_loads_from_disk_if_all_files_exist(caplog,
                                                     path_to_threshold_config,
                                                     make_tmp_folder):
 
-    yass.set_config(path_to_threshold_config)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
