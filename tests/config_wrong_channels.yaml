@@ -1,0 +1,28 @@
+# testing channels mismatch: declared 42 channels on this file but
+# geometry file has only 10 lines
+
+data:
+  root_folder: tests/data
+  recordings: neuropixel.bin
+  geometry: neuropixel_channels.npy
+
+resources:
+  max_memory: 200MB
+  processes: 1
+
+recordings:
+  dtype: int16
+  sampling_rate: 30000
+  n_channels: 42
+  spatial_radius: 70
+  spike_size_ms: 1
+  order: samples
+
+preprocess:
+  apply_filter: True
+  dtype: float32
+
+detect:
+  method: threshold
+  temporal_features: 3
+ 

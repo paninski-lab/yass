@@ -1,0 +1,31 @@
+data:
+  root_folder: /home/Edu/data
+  recordings: ej49_data1_set1.bin
+  geometry: ej49_geometry1.txt
+
+resources:
+  max_memory: 100MB
+  max_memory_gpu: 20MB
+
+recordings:
+  dtype: int16
+  sampling_rate: 20000
+  n_channels: 49
+  spatial_radius: 70
+  spike_size_ms: 1
+  order: samples
+
+preprocess:
+  apply_filter: True
+  dtype: float32
+
+detect:
+  method: nn
+  temporal_features: 3
+  save_results: true
+
+cluster:
+  save_results: true
+
+templates:
+  save_results: true

@@ -1,0 +1,30 @@
+# NOTE: this are not the right
+# parameters for the neuropixel data
+# but we are using them to avoid breaking
+# the nnet detection, will update
+# when we incorporate new models
+
+data:
+  root_folder: tests/data
+  recordings: neuropixel.bin
+  geometry: neuropixel_channels.npy
+
+resources:
+  max_memory: 200MB
+  processes: 1
+
+recordings:
+  dtype: int16
+  sampling_rate: 20000
+  n_channels: 10
+  spatial_radius: 50
+  spike_size_ms: 1.5
+  order: samples
+
+preprocess:
+  apply_filter: True
+  dtype: float32
+
+detect:
+  method: nn
+  temporal_features: 3
