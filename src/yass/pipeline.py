@@ -21,7 +21,6 @@ import yaml
 import yass
 from yass import set_config
 from yass import preprocess, detect, cluster, deconvolute
-from yass import templates as get_templates
 from yass import read_config
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
@@ -71,7 +70,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     numpy.ndarray
         Spike train
     """
-    
+
     # load yass configuration parameters
     set_config(config)
     CONFIG = read_config()
@@ -117,7 +116,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # Cat: This code now runs with open tensorflow calls
     start = time.time()
     (spike_index_clear,
-     spike_index_all) = detect.run2(standarized_path,
+     spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    channel_index,
                                    whiten_filter,
@@ -127,29 +126,32 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     time_detect = time.time() - start
 
     # cluster
-    start=time.time()
-    path_to_spike_train_cluster = path.join(TMP_FOLDER, 'spike_train_cluster.npy')
+    start = time.time()
+    path_to_spike_train_cluster = path.join(
+        TMP_FOLDER, 'spike_train_cluster.npy')
     if os.path.exists(path_to_spike_train_cluster):
         spike_train_cluster = np.load(path_to_spike_train_cluster)
-        tmp_loc = np.load(os.path.join(TMP_FOLDER,'tmp_loc.npy'))
-        templates = np.load(os.path.join(TMP_FOLDER,'templates.npy'))    
+        tmp_loc = np.load(os.path.join(TMP_FOLDER, 'tmp_loc.npy'))
+        templates = np.load(os.path.join(TMP_FOLDER, 'templates.npy'))
     else:
-        spike_train_cluster, tmp_loc, templates = cluster.run(spike_index_clear)
+        spike_train_cluster, tmp_loc, templates = cluster.run(
+            spike_index_clear)
     time_cluster = time.time()-start
-    print ("Spike train clear: ", spike_index_clear.shape, "spike train cluster: ", 
-            spike_train_cluster.shape, " templates: ", templates.shape)
+    logger.info("Spike train clear: %s spike train cluster: %s templates: ",
+                spike_index_clear.shape, spike_train_cluster.shape,
+                templates.shape)
 
     # run deconvolution
-    start=time.time()
+    start = time.time()
     spike_train = deconvolute.run2(spike_train_cluster, templates,
-                                             output_directory=output_dir)
+                                   output_directory=output_dir)
     time_deconvolution = time.time() - start
 
     # save spike train
     path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
     np.save(path_to_spike_train, spike_train)
     logger.info('Spike train saved in: {}'.format(path_to_spike_train))
-    
+
     # save metadata in tmp
     path_to_metadata = path.join(TMP_FOLDER, 'metadata.yaml')
     logging.info('Saving metadata in {}'.format(path_to_metadata))
