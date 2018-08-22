@@ -124,7 +124,7 @@ class Config:
     """
 
     @classmethod
-    def from_yaml(cls, path_to_file, output_directory):
+    def from_yaml(cls, path_to_file, output_directory=None):
         # load config file
         with open(path_to_file) as file:
             mapping = yaml.load(file)
