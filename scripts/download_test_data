@@ -1,14 +1,23 @@
 #!/usr/bin/env bash
 
+if [ -z "${YASS_TESTING_DATA_URL}" ]; then
+    echo 'YASS_TESTING_DATA_URL variable is not set, aborting...'
+    exit 1
+fi
+
 # Download test data and put it in the appropriate directories
+echo 'Downloading data...'
 curl $YASS_TESTING_DATA_URL -o yass-testing-data.zip
 
 unzip -q yass-testing-data.zip
 rm -f yass-testing-data.zip
 
+echo 'Removing contents of tests/data tests/output_reference and examples/data...'
 rm -rf tests/data tests/output_reference examples/data
 
+echo 'Copying data to tests/data tests/output_reference and examples/data...'
 cp -r yass-testing-data/data tests/data/
 cp -r yass-testing-data/data examples/data/
 cp -r yass-testing-data/output_reference tests/output_reference
+
 rm -rf yass-testing-data/
