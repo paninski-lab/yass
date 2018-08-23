@@ -11,3 +11,5 @@ API Reference
     api/deconvolute
     api/geometry
     api/batch
+    api/augment
+    api/neuralnetwork

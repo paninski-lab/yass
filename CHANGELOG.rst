@@ -1,12 +1,24 @@
 Changelog
 =========
 
-0.9dev
-------
-* This version incorporates Cat's branch changes
-* New deconvolution method
-* New clustering method
-* Implemented parallelization in several functions
+0.10dev
+-------
+* Colored logs
+* Improved testing coverage
+* Neural network code was simplified considerably
+* Added features to Neural networks objects
+* Added neural networks to documentation
+* Option to create all tensorflow sessions with a specific configuration
+* Shortcut in command line to limit GPU memory in all tensorflow sessions (through gpu_options.per_process_gpu_memory_fraction)
+* Refactored test suite
+* Integrats new triage network (using Keras)
+
+
+0.9 (2018-05-24)
+-----------------
+* Added parallelization to batch processor
+* Preprocess step now runs in parallel
+* Filtering and standarization running in one step to avoid I/O overhead
 
 
 0.8 (2018-04-19)
