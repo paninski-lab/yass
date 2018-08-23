@@ -1,6 +1,7 @@
 """
 Functions for parsing geometry data
 """
+import logging
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
 
@@ -217,6 +218,8 @@ def make_channel_index(neighbors, channel_geometry, steps=1):
     # max number of neighbors for all channels
     n_neighbors = np.max(np.sum(neighbors, 0))
 
+    # FIXME: we are using C as a dummy value which is confusing, it may
+    # be better to use something else, maybe np.nan
     # initialize channel index, initially with a dummy C value (a channel)
     # that does not exists
     channel_index = np.ones((C, n_neighbors), 'int32') * C
@@ -235,3 +238,27 @@ def make_channel_index(neighbors, channel_geometry, steps=1):
         channel_index[current, :ch_idx.shape[0]] = ch_idx
 
     return channel_index
+
+
+# def random_channel_with_max_neighbors(channel_index):
+#     logger = logging.getLogger(__name__)
+
+#     channel_n_neighbors = np.sum(neighbors, 0)
+#     max_neighbors = np.max(channel_n_neighbors)
+#     channels_with_max_neighbors = np.where(channel_n_neighbors
+#                                            == max_neighbors)[0]
+#     logger.debug('The following channels have %i neighbors: %s',
+#                  max_neighbors, channels_with_max_neighbors)
+
+#     # reference channel: channel with max number of neighbors
+#     channel_selected = np.random.choice(channels_with_max_neighbors)
+
+#     logger.debug('Selected channel %i', channel_selected)
+
+#     # neighbors for the reference channel
+#     channel_neighbors = np.where(neighbors[channel_selected])[0]
+
+#     # ordered neighbors for reference channel
+#     channel_idx, _ = order_channels_by_distance(channel_selected,
+#                                                 channel_neighbors,
+#                                                 geom)

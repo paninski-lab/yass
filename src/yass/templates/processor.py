@@ -110,7 +110,14 @@ class TemplatesProcessor:
         # else:
         #   return TemplatesProcessor(new_templates)
 
+    # FIXME: this needs a better name
+    # FIXME: should we order by ptp instead of amplitude?
     def crop_spatially(self, neighbors, geometry, inplace=False):
+        """
+        Swap channels so the first channel is the one with the largest
+        amplitude, the second one is the nearest neighbor, and so on. Keep
+        only n neighbors, determined by `neighbors`
+        """
         n_templates, waveform_length, _ = self.templates.shape
 
         # spatially crop (only keep neighbors)

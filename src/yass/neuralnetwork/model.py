@@ -38,11 +38,11 @@ class Model:
 
         _ = metrics.confusion_matrix(self.y_test, y_pred)
         cm = _ / _.sum(axis=1)
-        m['tn'], m['fp'], m['fn'], m['tp'] = cm.flatten()
+        m['tn'], m['fp'], m['fn'], m['tp'] = [float(_) for _ in cm.flatten()]
 
-        m['acc'] = metrics.accuracy_score(self.y_test, y_pred)
-        m['prec'] = metrics.precision_score(self.y_test, y_pred)
-        m['rec'] = metrics.recall_score(self.y_test, y_pred)
+        m['acc'] = float(metrics.accuracy_score(self.y_test, y_pred))
+        m['prec'] = float(metrics.precision_score(self.y_test, y_pred))
+        m['rec'] = float(metrics.recall_score(self.y_test, y_pred))
 
         logger = logging.getLogger(__name__)
 
