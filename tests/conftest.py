@@ -57,11 +57,6 @@ def path_to_data():
 
 
 @pytest.fixture(scope='session')
-def path_to_standarized():
-    return os.path.join(PATH_TO_TESTS, 'data/standarized.bin')
-
-
-@pytest.fixture(scope='session')
 def path_to_geometry():
     return os.path.join(PATH_TO_TESTS, 'data/retina/geometry.npy')
 
