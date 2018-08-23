@@ -5,6 +5,16 @@ tmp/
 .envrc
 *.ipynb
 *.orig
+*.zip
+
+# do not include data
+yass-testing-data/
+tests/data/
+examples/data/
+tests/output_reference/
+
+# sublime text files
+*.sublime*
 
 # documentation build
 doc/_build/
