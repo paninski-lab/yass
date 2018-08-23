@@ -62,8 +62,6 @@ def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
                                            n_clean_per_template,
                                            **from_templates_kwargs)
 
-    # make collided spikes - max shift is set to R since 2 * R + 1 will be
-    # the final dimension for the spikes
     x_collision = util.make_collided(x_templates, n_collided_per_spike,
                                      multi_channel=True,
                                      max_shift=max_shift,
@@ -81,6 +79,50 @@ def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
     y_triage = yarr.concatenate((ones, zeros))
 
     return x_triage, y_triage
+
+
+def training_data_detect(templates, minimum_amplitude, maximum_amplitude,
+                         n_clean_per_template, from_templates_kwargs,
+                         n_collided_per_spike, max_shift, min_shift,
+                         collided_kwargs, spatial_SIG, temporal_SIG):
+    """Make training data for detector network
+    """
+
+    # make spikes from templates
+    x_templates = util.make_from_templates(templates, minimum_amplitude,
+                                           maximum_amplitude,
+                                           n_clean_per_template,
+                                           **from_templates_kwargs)
+
+    x_collision = util.make_collided(x_templates, n_collided_per_spike,
+                                     multi_channel=True,
+                                     max_shift=max_shift,
+                                     min_shift=min_shift,
+                                     **collided_kwargs)
+
+    x_temporally_misaligned = (util
+                               .make_temporally_misaligned(x_templates,
+                                                           misalign_ratio,
+                                                           multi_channel,
+                                                           max_shift))
+
+    x_noise = util.make_noise(n_noise, spatial_SIG, temporal_SIG)
+
+    # make labels
+    ones = np.ones(len(x_templates) + len(x_collision))
+    zeros = np.zeros(len(x_temporally_misaligned) + len(x_noise))
+
+    x_templates_noisy = util.add_noise(x_templates, spatial_SIG, temporal_SIG)
+    x_collision_noisy = util.add_noise(x_collision, spatial_SIG, temporal_SIG)
+    x_temporally_misaligned_noisy = util.add_noise(x_temporally_misaligned,
+                                                   spatial_SIG, temporal_SIG)
+
+    X = yarr.concatenate((x_templates_noisy, x_collision_noisy,
+                          x_temporally_misaligned_noisy, x_noise))
+
+    y = np.concatenate((ones, zeros))
+
+    return X, y
 
 
 def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
