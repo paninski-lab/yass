@@ -72,7 +72,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     """
 
     # load yass configuration parameters
-    set_config(config)
+    set_config(config, output_dir)
     CONFIG = read_config()
     ROOT_FOLDER = CONFIG.data.root_folder
     TMP_FOLDER = path.join(ROOT_FOLDER, output_dir)
