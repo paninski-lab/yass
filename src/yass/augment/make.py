@@ -2,12 +2,14 @@ import os
 
 import numpy as np
 import logging
+from sklearn.model_selection import train_test_split
 
 
 from yass.templates.crop import crop_and_align_templates
 from yass.templates import TemplatesProcessor
 from yass.augment.noise import noise_cov
 from yass.augment import util
+import yass.array as yarr
 
 
 def load_templates(data_folder, spike_train, CONFIG, chosen_templates_indexes):
@@ -40,6 +42,44 @@ def load_templates(data_folder, spike_train, CONFIG, chosen_templates_indexes):
     processor.align(CONFIG.spike_size, inplace=True)
 
     return processor.templates
+
+
+def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
+                         n_clean_per_template,
+                         n_collided_per_spike,
+                         max_shift, min_shift,
+                         spatial_SIG, temporal_SIG,
+                         from_templates_kwargs,
+                         collided_kwargs):
+    """Make training data for triage network
+    """
+    K, _, n_channels = templates.shape
+
+    # make spikes from templates
+    x_templates = util.make_from_templates(templates, minimum_amplitude,
+                                           maximum_amplitude,
+                                           n_clean_per_template,
+                                           **from_templates_kwargs)
+
+    # make collided spikes - max shift is set to R since 2 * R + 1 will be
+    # the final dimension for the spikes
+    x_collision = util.make_collided(x_templates, n_collided_per_spike,
+                                     multi_channel=True,
+                                     max_shift=max_shift,
+                                     min_shift=min_shift,
+                                     **collided_kwargs)
+
+    # make labels
+    ones = np.ones((x_templates.shape[0]))
+    zeros = np.zeros((x_collision.shape[0]))
+
+    x_templates_noisy = util.add_noise(x_templates, spatial_SIG, temporal_SIG)
+    x_collision_noisy = util.add_noise(x_collision, spatial_SIG, temporal_SIG)
+
+    x_triage = yarr.concatenate((x_templates_noisy, x_collision_noisy))
+    y_triage = yarr.concatenate((ones, zeros))
+
+    return x_triage, y_triage
 
 
 def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
@@ -179,34 +219,32 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
     #############
 
     if multi_channel:
-        x = np.concatenate((x_templates_noisy, x_collision_noisy,
-                            x_temporally_misaligned_noisy, noise))
+        x = yarr.concatenate((x_templates_noisy, x_collision_noisy,
+                              x_temporally_misaligned_noisy, noise))
         x_detect = x[:, MID_POINT_IDX, :]
 
         y_detect = np.concatenate((y_clean_1, y_collision_1,
                                    y_misaligned_0, y_noise_0))
     else:
-        x = np.concatenate((x_templates_noisy, x_temporally_misaligned_noisy,
-                            noise))
+        x = yarr.concatenate((x_templates_noisy, x_temporally_misaligned_noisy,
+                              noise))
         x_detect = x[:, MID_POINT_IDX, 0]
 
-        y_detect = np.concatenate((y_clean_1,
-                                   y_misaligned_0, y_noise_0))
+        y_detect = yarr.concatenate((y_clean_1, y_misaligned_0, y_noise_0))
     ##########
     # Triage #
     ##########
 
     if multi_channel:
-        x = np.concatenate((x_templates_noisy, x_collision_noisy))
+        x = yarr.concatenate((x_templates_noisy, x_collision_noisy))
         x_triage = x[:, MID_POINT_IDX, :]
 
-        y_triage = np.concatenate((y_clean_1, y_collision_0))
+        y_triage = yarr.concatenate((y_clean_1, y_collision_0))
     else:
-        x = np.concatenate((x_templates_noisy, x_collision_noisy,))
+        x = yarr.concatenate((x_templates_noisy, x_collision_noisy,))
         x_triage = x[:, MID_POINT_IDX, 0]
 
-        y_triage = np.concatenate((y_clean_1,
-                                   y_collision_0))
+        y_triage = yarr.concatenate((y_clean_1, y_collision_0))
 
     ###############
     # Autoencoder #
@@ -251,12 +289,14 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
 
 def spikes(templates, min_amplitude, max_amplitude, path_to_data,
            n_per_template, geom,
+           min_shift,
            make_from_templates=True,
            make_spatially_misaligned=True,
            make_temporally_misaligned=True,
            make_collided=True,
            make_noise=True,
-           return_metadata=True):
+           return_metadata=True,
+           collided_kwargs=None):
     """
     Make spikes, it creates several types of spikes from templates with a range
     of amplitudes
@@ -328,6 +368,10 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
 
     temporal_SIG
     """
+
+    if collided_kwargs is None:
+        collided_kwargs = dict()
+
     # NOTE: is the order importante here, maybe it's better to first compute
     # from templates, then take those and misalign spatially
     # (all templates in all channels) then take those and misalign temporally
@@ -367,9 +411,11 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
 
     if make_collided:
         # TODO: refactor this as it has redundant logic with misaligned
-        x_collided = util.make_collided(x_templates, n_per_spike=1,
+        x_collided = util.make_collided(x_templates,
+                                        n_per_spike=1,
                                         multi_channel=True,
-                                        return_metadata=return_metadata)
+                                        min_shift=min_shift,
+                                        **collided_kwargs)
         x_all.append(x_collided)
         keys.append('collided')
 

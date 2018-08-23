@@ -10,6 +10,8 @@ Changelog
 * Added neural networks to documentation
 * Option to create all tensorflow sessions with a specific configuration
 * Shortcut in command line to limit GPU memory in all tensorflow sessions (through gpu_options.per_process_gpu_memory_fraction)
+* Refactored test suite
+* Integrats new triage network (using Keras)
 
 
 0.9 (2018-05-24)
