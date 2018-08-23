@@ -111,8 +111,14 @@ def training_data_detect(templates, minimum_amplitude, maximum_amplitude,
                                      **collided_kwargs)
 
     _ = util.make_temporally_misaligned
+
+    # create temporally misaligned spikes
     x_temporally_misaligned = _(x_templates, n_temporally_misaligned_per_spike,
                                 multi_channel=True, max_shift=max_shift)
+
+    # now spatially misalign those
+    x_misalign = util.make_spatially_misaligned(x_temporally_misaligned,
+                                                n_per_spike=1)
 
     x_noise = util.make_noise(n_noise, spatial_SIG, temporal_SIG)
 
@@ -122,11 +128,10 @@ def training_data_detect(templates, minimum_amplitude, maximum_amplitude,
 
     x_templates_noisy = util.add_noise(x_templates, spatial_SIG, temporal_SIG)
     x_collision_noisy = util.add_noise(x_collision, spatial_SIG, temporal_SIG)
-    x_temporally_misaligned_noisy = util.add_noise(x_temporally_misaligned,
-                                                   spatial_SIG, temporal_SIG)
+    x_misaligned_noisy = util.add_noise(x_misalign, spatial_SIG, temporal_SIG)
 
     X = yarr.concatenate((x_templates_noisy, x_collision_noisy,
-                          x_temporally_misaligned_noisy, x_noise))
+                          x_misaligned_noisy, x_noise))
 
     y = np.concatenate((ones, zeros))
 
