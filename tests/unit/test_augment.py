@@ -11,8 +11,7 @@ import yass
 from yass.augment import make
 from yass.templates.util import get_templates
 from yass.augment.noise import noise_cov
-from yass.augment.util import (make_from_templates, make_collided,
-                               make_misaligned, make_noise)
+from yass.augment.util import (make_from_templates, make_collided, make_noise)
 from yass.batch import RecordingsReader
 
 
@@ -117,6 +116,7 @@ def test_can_make_collided(path_to_tests, path_to_standarized_data,
                   max_shift=CONFIG.spike_size)
 
 
+# this function was removed, splitted in two new functions
 @pytest.mark.xfail
 def test_can_make_misaligned(path_to_tests, path_to_standarized_data,
                              path_to_sample_pipeline_folder):
@@ -145,11 +145,11 @@ def test_can_make_misaligned(path_to_tests, path_to_standarized_data,
     x_clean = make_from_templates(templates_uncropped, min_amplitude=2,
                                   max_amplitude=10, n_per_template=100)
 
-    make_misaligned(x_clean,
-                    misalign_ratio=1,
-                    misalign_ratio2=1,
-                    max_shift=2 * CONFIG.spike_size,
-                    multi_channel=True)
+    # make_misaligned(x_clean,
+    #                 misalign_ratio=1,
+    #                 misalign_ratio2=1,
+    #                 max_shift=2 * CONFIG.spike_size,
+    #                 multi_channel=True)
 
 
 def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):
