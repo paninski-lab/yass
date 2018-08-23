@@ -1,26 +1,77 @@
+import random
 import logging
 
 
 import numpy as np
 
-from yass.geometry import order_channels_by_distance
-from yass.batch import RecordingsReader
+
+def kill_signal(recordings, threshold, window_size):
+    """
+    Thresholds recordings, values above 'threshold' are considered signal
+    (set to 0), a window of size 'window_size' is drawn around the signal
+    points and those observations are also killed
+
+    Returns
+    -------
+    recordings: numpy.ndarray
+        The modified recordings with values above the threshold set to 0
+    is_noise_idx: numpy.ndarray
+        A boolean array with the same shap as 'recordings' indicating if the
+        observation is noise (1) or was killed (0).
+    """
+    recordings = np.copy(recordings)
+
+    T, C = recordings.shape
+    R = int((window_size-1)/2)
+
+    # this will hold a flag 1 (noise), 0 (signal) for every obseration in the
+    # recordings
+    is_noise_idx = np.zeros((T, C))
+
+    # go through every neighboring channel
+    for c in range(C):
+
+        # get obserations where observation is above threshold
+        idx_temp = np.where(recordings[:, c] > threshold)[0]
+
+        # shift every index found
+        for j in range(-R, R+1):
+
+            # shift
+            idx_temp2 = idx_temp + j
+
+            # remove indexes outside range [0, T]
+            idx_temp2 = idx_temp2[np.logical_and(idx_temp2 >= 0,
+                                                 idx_temp2 < T)]
+
+            # set surviving indexes to nan
+            recordings[idx_temp2, c] = np.nan
+
+        # noise indexes are the ones that are not nan
+        # FIXME: compare to np.nan instead
+        is_noise_idx_temp = (recordings[:, c] == recordings[:, c])
+
+        # standarize data, ignoring nans
+        recordings[:, c] = recordings[:, c]/np.nanstd(recordings[:, c])
+
+        # set non noise indexes to 0 in the recordings
+        recordings[~is_noise_idx_temp, c] = 0
+
+        # save noise indexes
+        is_noise_idx[is_noise_idx_temp, c] = 1
+
+    return recordings, is_noise_idx
 
 
-def noise_cov(path_to_data, neighbors, geom, temporal_size,
-              sample_size=1000, threshold=3.0):
+def noise_cov(recordings, temporal_size, window_size, sample_size=1000,
+              threshold=3.0, max_trials_per_sample=100,
+              allow_smaller_sample_size=False):
     """Compute noise temporal and spatial covariance
 
     Parameters
     ----------
-    path_to_data: str
-        Path to recordings data
-
-    neighbors: numpy.ndarray
-        Neighbors matrix
-
-    geom: numpy.ndarray
-        Cartesian coordinates for the channels
+    recordings: numpy.ndarray
+        Recordings
 
     temporal_size:
         Waveform size
@@ -39,60 +90,8 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size,
     """
     logger = logging.getLogger(__name__)
 
-    logger.debug('Computing noise_cov. Neighbors shape: {}, geom shape: {} '
-                 'temporal_size: {}'.format(neighbors.shape, geom.shape,
-                                            temporal_size))
-
-    # reference channel: channel with max number of neighbors
-    channel_ref = np.argmax(np.sum(neighbors, 0))
-    # neighbors for the reference channel
-    channel_idx = np.where(neighbors[channel_ref])[0]
-    # ordered neighbors for reference channel
-    channel_idx, temp = order_channels_by_distance(channel_ref, channel_idx,
-                                                   geom)
-
-    # read the selected channels
-    rec = RecordingsReader(path_to_data, loader='array')
-    rec = rec[:, channel_idx]
-
-    T, C = rec.shape
-    R = int((temporal_size-1)/2)
-
-    # this will hold a flag 1 (noise), 0 (signal) for every obseration in the
-    # recordings
-    is_noise_idx = np.zeros((T, C))
-
-    # go through every neighboring channel
-    for c in range(C):
-
-        # get obserations where observation is above threshold
-        idx_temp = np.where(rec[:, c] > threshold)[0]
-
-        # shift every index found
-        for j in range(-R, R+1):
-
-            # shift
-            idx_temp2 = idx_temp + j
-
-            # remove indexes outside range [0, T]
-            idx_temp2 = idx_temp2[np.logical_and(idx_temp2 >= 0,
-                                                 idx_temp2 < T)]
-
-            # set surviving indexes to nan
-            rec[idx_temp2, c] = np.nan
-
-        # noise indexes are the ones that are not nan
-        # FIXME: compare to np.nan instead
-        is_noise_idx_temp = (rec[:, c] == rec[:, c])
-
-        # standarize data, ignoring nans
-        rec[:, c] = rec[:, c]/np.nanstd(rec[:, c])
-
-        # set non noise indexes to 0 in the recordings
-        rec[~is_noise_idx_temp, c] = 0
-
-        # save noise indexes
-        is_noise_idx[is_noise_idx_temp, c] = 1
+    # kill signal above threshold in recordings
+    rec, is_noise_idx = kill_signal(recordings, threshold, window_size)
 
     # compute spatial covariance, output: (n_channels, n_channels)
     spatial_cov = np.divide(np.matmul(rec.T, rec),
@@ -110,39 +109,109 @@ def noise_cov(path_to_data, neighbors, geom, temporal_size,
                                  v_spatial.T)
     rec = np.matmul(rec, spatial_whitener)
 
-    # generate noise waveform
-    noise_wf = np.zeros((sample_size, temporal_size))
+    # search single noise channel snippets
+    noise_wf = search_noise_snippets(
+        rec, is_noise_idx, sample_size,
+        temporal_size,
+        channel_choices=None,
+        max_trials_per_sample=max_trials_per_sample,
+        allow_smaller_sample_size=allow_smaller_sample_size)
+
+    logger.debug('Computing temporal sig...')
+
+    w, v = np.linalg.eig(np.cov(noise_wf.T))
+
+    temporal_SIG = np.matmul(np.matmul(v, np.diag(np.sqrt(w))), v.T)
+
+    return spatial_SIG, temporal_SIG
+
+
+def search_noise_snippets(recordings, is_noise_idx, sample_size,
+                          temporal_size, channel_choices=None,
+                          max_trials_per_sample=100,
+                          allow_smaller_sample_size=False):
+    """
+    Randomly search noise snippets of 'temporal_size'
+
+    Parameters
+    ----------
+    channel_choices
+    max_trials_per_sample: int, optional
+        Maximum random trials per sample
+    allow_smaller_sample_size: bool, optional
+        If 'max_trials_per_sample' is reached and this is True, the noise
+        snippets found up to that time are returned
+
+    Raises
+    ------
+    ValueError
+        if after 'max_trials_per_sample' trials, no noise snippet has been
+        found this exception is raised
+
+    Notes
+    -----
+    Channels selected at random using the random module from the standard
+    library (not using np.random)
+    """
+    logger = logging.getLogger(__name__)
+
+    T, C = recordings.shape
+
+    if channel_choices is None:
+        noise_wf = np.zeros((sample_size, temporal_size))
+    else:
+        lenghts = set([len(ch) for ch in channel_choices])
+
+        if len(lenghts):
+            raise ValueError('All elements in channel_choices must have '
+                             'the same length, got {}'.format(lenghts))
+        n_channels = len(channel_choices[0])
+        noise_wf = np.zeros((sample_size, temporal_size, n_channels))
+
     count = 0
+
+    logger.debug('Starting to search noise snippets...')
+
+    trial = 0
 
     # repeat until you get sample_size noise snippets
     while count < sample_size:
 
         # random number for the start of the noise snippet
         t_start = np.random.randint(T-temporal_size)
-        # random channel
-        ch = np.random.randint(C)
+
+        if channel_choices is None:
+            # random channel
+            ch = random.randint(0, C - 1)
+        else:
+            ch = random.choice(channel_choices)
 
         t_slice = slice(t_start, t_start+temporal_size)
 
         # get a snippet from the recordings and the noise flags for the same
         # location
-        snippet = rec[t_slice, ch]
+        snippet = recordings[t_slice, ch]
         snipped_idx_noise = is_noise_idx[t_slice, ch]
 
-        # check if there is any signal observation in the snippet
-        signal_in_snippet = snipped_idx_noise.any()
-
-        # if all snippet is noise..
-        if not signal_in_snippet:
+        # check if all observations in snippet are noise
+        if snipped_idx_noise.all():
             # add the snippet and increase count
             noise_wf[count] = snippet
             count += 1
+            trial = 0
 
-    w, v = np.linalg.eig(np.cov(noise_wf.T))
+            logger.debug('Found %i/%i...', count, sample_size)
 
-    temporal_SIG = np.matmul(np.matmul(v, np.diag(np.sqrt(w))), v.T)
+        trial += 1
 
-    logger.debug('spatial_SIG shape: {} temporal_SIG shape: {}'
-                 .format(spatial_SIG.shape, temporal_SIG.shape))
+        if trial == max_trials_per_sample:
+            if allow_smaller_sample_size:
+                return noise_wf[:count]
+            else:
+                raise ValueError("Couldn't find snippet {} of size {} after "
+                                 "{} iterations (only {} found)"
+                                 .format(count + 1, temporal_size,
+                                         max_trials_per_sample,
+                                         count))
 
-    return spatial_SIG, temporal_SIG
+    return noise_wf

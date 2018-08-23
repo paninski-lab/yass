@@ -342,25 +342,31 @@ def make_temporally_misaligned(x, n_per_spike, multi_channel,
     return x_temporally
 
 
-def make_noise(shape, spatial_SIG, temporal_SIG):
+def make_noise(n, spatial_SIG, temporal_SIG):
     """Make noise
+
+    Parameters
+    ----------
+    n: int
+        Number of noise events to generate
 
     Returns
     ------
     numpy.ndarray
-        Noise array with the desired shape
+        Noise
     """
-    n_out, waveform_length, n_neigh = shape
+    n_neigh, _ = spatial_SIG.shape
+    waveform_length, _ = temporal_SIG.shape
 
     # get noise
-    noise = np.random.normal(size=(n_out, waveform_length, n_neigh))
+    noise = np.random.normal(size=(n, waveform_length, n_neigh))
 
     for c in range(n_neigh):
         noise[:, :, c] = np.matmul(noise[:, :, c], temporal_SIG)
         reshaped_noise = np.reshape(noise, (-1, n_neigh))
 
     the_noise = np.reshape(np.matmul(reshaped_noise, spatial_SIG),
-                           (n_out, waveform_length, n_neigh))
+                           (n, waveform_length, n_neigh))
 
     return the_noise
 
@@ -368,7 +374,7 @@ def make_noise(shape, spatial_SIG, temporal_SIG):
 def add_noise(x, spatial_SIG, temporal_SIG):
     """Returns a noisy version of x
     """
-    noise = make_noise(x.shape, spatial_SIG, temporal_SIG)
+    noise = make_noise(x.shape[0], spatial_SIG, temporal_SIG)
     return x + noise
 
 
