@@ -142,8 +142,8 @@ def test_can_make_misaligned(path_to_tests, path_to_standarized_data,
 
     templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
 
-    x_clean = make_from_templates(templates_uncropped, min_amplitude=2,
-                                  max_amplitude=10, n_per_template=100)
+    make_from_templates(templates_uncropped, min_amplitude=2,
+                        max_amplitude=10, n_per_template=100)
 
     # make_misaligned(x_clean,
     #                 misalign_ratio=1,
