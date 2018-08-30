@@ -435,8 +435,10 @@ class MatchPursuit_objectiveUpsample(object):
             if len(spt) == 0:
                 break
 
-        print ("  finished chunk {0}, seg {1}, # iter: {2}, tot_time: {3:.2f}".format(
-                            self.chunk_ctr,self.seg_ctr, ctr, time.time()-start_time))
+        print ('  deconv chunk {0}, seg {1}, # iter: {2}, tot_spikes: {3}, tot_time: {4:.2f}'.
+                format(
+                self.chunk_ctr,self.seg_ctr, ctr, self.dec_spike_train.shape[0],
+                time.time()-start_time))
 
         # ******** ADJUST SPIKE TIMES TO REMOVE BUFFER AND OFSETS *******
         # order spike times
@@ -991,7 +993,7 @@ class MatchPursuitWaveforms(object):
         self.dec_spike_train = dec_spike_train
     
     def compute_residual(self):
-        for i in tqdm(range(self.n_unit), ' computing residual postdeconv'):
+        for i in tqdm(range(self.n_unit), '  computing residual postdeconv'):
             unit_sp = self.dec_spike_train[self.dec_spike_train[:, 1] == i, :]
             self.data[np.arange(0, self.n_time) + unit_sp[:, :1], :] -= self.temps[:, :, i]
 

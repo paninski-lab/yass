@@ -127,7 +127,7 @@ def run2(spike_train_cluster,
     
     
     # Cat: TODO: to read from CONFIG
-    upsample = 10
+    upsample = 30
     
     TMP_FOLDER = CONFIG.data.root_folder
     
@@ -288,6 +288,10 @@ def run2(spike_train_cluster,
         res.append(data['spike_train'])
 
     dec_spike_train = np.vstack(res)
+        
+    #np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/deconv/dec_spike_train', dec_spike_train)
+    #quit()
+    #print ("unique: ", np.unique(dec_spike_train[:,1]))
     
     upsampled_templates = mp_object.get_reconstructed_upsampled_templates()
     print ("  match pursuit templates: ", upsampled_templates.shape)
@@ -297,7 +301,6 @@ def run2(spike_train_cluster,
     # *****************************************
     # ********** RESIDUAL COMP STEP ***********
     # *****************************************
-    
     '''
     # re-read entire block to get waveforms 
     # get indexes for entire chunk from local chunk list
@@ -329,17 +332,28 @@ def run2(spike_train_cluster,
         np.save(fname, wf_object.data)
     else:
         wf_object.data = np.load(fname)
+        
+        
+    # Cat: need to offset spike train as deconv outputs spike times at
+    #      beginning of waveform; do this after the residual computation step
+    #      which is based on beginning waveform residual computation
+    # Cat: TODO read from CONFIG file; make sure this is corrected
+    dec_spike_train[:,0]+= int(CONFIG.recordings.spike_size_ms*
+                                CONFIG.recordings.sampling_rate/1000.)
+    print ("  offseting deconv spike train (ms): ",
+                                int(CONFIG.recordings.spike_size_ms*
+                                CONFIG.recordings.sampling_rate/1000.))
     
     # recompute unit ids using the expanded templates above
     # (i.e. some templates were upsampled by 3 x or 5 x factor
     # so need to reset unit ids back to original templates
-    print ("  deduplicating shifted templates for deconv...")
+    print ("  deduplicating upsampled templates from deconv...")
     fname = (deconv_chunk_dir + "/dec_spike_train_precluster.npy")
-    
-    #print (mp_object.temps_ids)
     if os.path.exists(fname)==False:
         new_spike_train = []
+        #print (upsampled_templates.shape)
         for k in range(0, upsampled_templates.shape[2], upsample):
+            #print ("deduplicating: ", k, "->", int(k/upsample))
             idx_ids = np.arange(k,k+upsample, 1)
             idx_spikes = np.isin(dec_spike_train[:,1], idx_ids)
             dec_spike_train[idx_spikes,1]=k
@@ -394,13 +408,21 @@ def run2(spike_train_cluster,
             for unit in range(len(args_in)):
                 res = deconv_residual_recluster(args_in[unit])
     
+    dec_spike_train = np.vstack(res)
+    
+    upsampled_templates = mp_object.get_reconstructed_upsampled_templates()
+    print ("  match pursuit templates: ", upsampled_templates.shape)
+    print ("  orig temps: ", templates.shape)
+        
+    
     print ("  completed deconv chunk: ", chunk_ctr)
 
     # run template merge
+    min_spikes = 1200
     spike_train, tmp_loc, templates_first_chunk = global_merge_all_ks_deconv(
                                           deconv_chunk_dir, recording_chunk,
                                           units,
-                                          CONFIG2)
+                                          CONFIG2, min_spikes)
                                           
     np.savez(deconv_chunk_dir+"/deconv_results.npz", 
             spike_train=spike_train, 
@@ -501,8 +523,6 @@ def run2(spike_train_cluster,
         upsampled_templates = mp_object.get_reconstructed_upsampled_templates()
         print ("  match pursuit templates: ", upsampled_templates.shape)
         print ("  orig temps: ", templates.shape)
-        
-
 
         # recompute unit ids using the expanded templates above
         # (i.e. some templates were upsampled by 3 x or 5 x factor
@@ -531,7 +551,7 @@ def run2(spike_train_cluster,
             
                                               
         np.savez(deconv_chunk_dir+"/deconv_results.npz", 
-                spike_train=dec_spike_train, 
+                spike_train=dec_spike_train_offset, 
                 tmp_loc=tmp_loc, 
                 templates=templates)
 
@@ -554,7 +574,10 @@ def run2(spike_train_cluster,
                           'tmp/deconv/chunk_'+str(chunk_ctr).zfill(6))
 
         deconv_results = np.load(deconv_chunk_dir+'/deconv_results.npz')
-        spike_train = np.vstack((spike_train, deconv_results['spike_train']))
+        temp_train = deconv_results['spike_train']
+        idx = np.argsort(temp_train[:,0])
+        print (temp_train[idx])
+        spike_train = np.vstack((spike_train, temp_train))
     
     print (spike_train.shape)
 
@@ -596,6 +619,11 @@ def deconv_residual_recluster(data_in):
         wf = get_wfs_from_residual(unit_sp, template, deconv_chunk_dir,
                                             n_times)
         
+        #np.save()
+        # reset unit_spikes back without buffer
+        # Cat: TODO Make sure this buffer is read from CONFIG
+        unit_sp[:,0]-=200
+        
         # PCA denoise waveforms before processing
         wf_PCA = np.zeros(wf.shape)
         for ch in range(wf.shape[2]):
@@ -603,8 +631,7 @@ def deconv_residual_recluster(data_in):
             
             
         channel = wf.mean(0).ptp(0).argmax(0)
-        print ("unit: ", unit, wf.shape, "maxchan: ", channel, 
-                    unit_sp.shape[0], "unique: ", np.unique(unit_sp[:,0]).shape[0])
+        print ("unit: ", unit, wf.shape, "maxchan: ", channel)
 
         # run mfm
         scale = 10 
@@ -733,6 +760,7 @@ def deconv_residual_recluster(data_in):
 def get_wfs_from_residual(unit_sp, template, deconv_chunk_dir, n_times=61):
     """Gets clean spikes for a given unit."""
     
+    # Note: residual contains buffers
     data = np.load(deconv_chunk_dir+'/residual.npy')
 
     # Add the spikes of the current unit back to the residual

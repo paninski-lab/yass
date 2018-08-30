@@ -1420,6 +1420,7 @@ def make_CONFIG2(CONFIG):
 
 
     CONFIG2.data.root_folder = CONFIG.data.root_folder
+    CONFIG2.data.geometry = CONFIG.data.geometry
     CONFIG2.geom = CONFIG.geom
     
     CONFIG2.cluster.prior.a = CONFIG.cluster.prior.a
@@ -1467,6 +1468,7 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca_compression,
     # select length of recording to chunk data for processing;
     # Cat: TODO: read this value from CONFIG; use initial_batch_size
     n_sec_chunk = 300
+    min_spikes = 200
     
     # determine length of processing chunk based on lenght of rec
     standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
@@ -1566,6 +1568,7 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca_compression,
         print ("... clustering previously completed...")
 
     
+    # Cat: TODO: this logic isn't quite correct; should merge with above
     if os.path.exists(os.path.join(CONFIG.data.root_folder, 
                           'tmp/templates.npy'))==False: 
 
@@ -1581,8 +1584,9 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca_compression,
                         standardized_filename, n_channels)
                     
         # run global merge function
+        #min_spikes = 300
         spike_train, tmp_loc, templates = global_merge_all_ks(chunk_dir, 
-                                                recording_chunk, CONFIG2)
+                                        recording_chunk, CONFIG2, min_spikes)
     
         print (spike_train.shape)
         # sort by time
@@ -1977,7 +1981,7 @@ def cluster_channels_chunks(channel, idx_list, proc_index, CONFIG,
     
    
     
-def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG):
+def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG, min_spikes=300):
 
     ''' Function that cleans low spike count templates and merges the rest 
     '''
@@ -2019,7 +2023,7 @@ def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG):
     # ************* DELETE TOO FEW SPIKES ************
     # Cat: TODO: Read this threshold from CONFIG
     #            Maybe needs to be in fire rate (Hz) not absolute spike #s
-    min_spikes = 300
+    #min_spikes = 300
     idx_delete = []
     for s in range(len(spike_indexes)):
         if spike_indexes[s].shape[0]<min_spikes:
@@ -2111,7 +2115,8 @@ def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG):
     return final_spike_train, tmp_loc, templates
 
     
-def global_merge_all_ks_deconv(deconv_chunk_dir, recording_chunk, units, CONFIG):
+def global_merge_all_ks_deconv(deconv_chunk_dir, recording_chunk, units, 
+                                CONFIG, min_spikes):
 
     ''' Function that cleans noisy templates and merges the rest    
     '''
@@ -2154,7 +2159,7 @@ def global_merge_all_ks_deconv(deconv_chunk_dir, recording_chunk, units, CONFIG)
     # ************* DELETE TOO FEW SPIKES ************
     # Cat: TODO: Read this threshold from CONFIG
     #            Maybe needs to be in fire rate (Hz) not absolute spike #s
-    min_spikes = 300
+    min_spikes = 1200
     idx_delete = []
     for s in range(len(spike_indexes)):
         if spike_indexes[s].shape[0]<min_spikes:
@@ -2165,7 +2170,7 @@ def global_merge_all_ks_deconv(deconv_chunk_dir, recording_chunk, units, CONFIG)
     weights = np.delete(weights,idx_delete,axis=0)
     spike_indexes = np.delete(spike_indexes,idx_delete,axis=0)
             
-    print(" # templates after 300 spike cutoff: ", templates.shape)
+    print(" # templates after ", min_spikes, " spike cutoff: ", templates.shape)
     
     # rearange spike indees from id 0..N
     spike_train = np.zeros((0,2),'int32')
@@ -2299,7 +2304,6 @@ def calc_ks_dist(A, B, lin):
     
 
 def run_KS_test_new(sim_temp, spike_train, recording_chunk, CONFIG, 
-                     
                      plotting = False):
     """
         input:
@@ -2331,12 +2335,23 @@ def run_KS_test_new(sim_temp, spike_train, recording_chunk, CONFIG,
     knn_triage_threshold = 80
     dip_test_threshold = 0.95
     
+    #spike_train[:,0]+=200
     ## find every pair for which cos similarity is > some threshold
     row, column = np.where(sim_temp > cos_sim_threshold)
     
     ## initialize dip statistic and similarity matrix
     dip = np.zeros(row.size)
     sim_mat = np.zeros(sim_temp.shape, dtype = bool)
+    
+    from yass.explore.explorers import RecordingExplorer
+    re = RecordingExplorer(CONFIG.data.root_folder+'/tmp/standarized.bin', 
+                       path_to_geom = CONFIG.data.root_folder+CONFIG.data.geometry, 
+                       spike_size = 30, 
+                       neighbor_radius = 100, 
+                       dtype = 'float32',
+                       n_channels = CONFIG.recordings.n_channels, 
+                       data_order = 'samples')
+
     
     #for j in tqdm_notebook(range(row.size)):
     for j in range(row.size):
@@ -2362,16 +2377,20 @@ def run_KS_test_new(sim_temp, spike_train, recording_chunk, CONFIG,
         idx2 = np.where(spike_train[idx,1] == pair[1])[0]
         
         ## read waveforms
-        #wf = re.read_waveforms(spike_train[idx,0])
+        #offset = 200
+
+        wf = re.read_waveforms(spike_train[idx,0])
         
         # Cat: TODO: recording_chunk is a global variable; 
         #            this might cause problems eventually
-        data_start = 0
-        offset = 200
-        spike_size = 30
-        wf = load_waveforms_from_memory_merge(recording_chunk, data_start, 
-                                        offset, spike_train[idx,0], 
-                                        spike_size)
+        #data_start = 0
+        #spike_size = 30
+        #print (recording_chunk.shape)
+        #print (spike_train)
+        #wf = load_waveforms_from_memory_merge(recording_chunk, data_start, 
+        #                                offset, spike_train[idx,0], 
+        #                                spike_size)
+        
         ## align waveforms
         align_wf = align_mc(wf, wf.mean(0).ptp(0).argmax(), CONFIG, upsample_factor, nshifts)
         
@@ -2411,53 +2430,53 @@ def run_KS_test_new(sim_temp, spike_train, recording_chunk, CONFIG,
         if dip[j] > dip_test_threshold:
                 print('^^^^^^^^^^^^^^ merged ^^^^^^^^^^^^^^^^^^')
                 sim_mat[pair[0], pair[1]] = sim_mat[pair[1], pair[0]]  = True
-        ### plotting for diagnosis
-        #if plotting:
-            #plt.figure(figsize = (50,50))    
-            #grid = plt.GridSpec(10,10, hspace =0.2, wspace = 0.2)
-            #plt.subplot(grid[:3,:])
-            #plt.plot(data_in.T*10+30, 'k',alpha = 0.2)
-            #plt.plot(data_in[idx1].mean(0).T*10+30, 'b', lw = 5)
-            #plt.plot(data_in[idx2].mean(0).T*10+30, 'r', lw = 5)
-            #plt.plot(pca_reconstruct.T*10, 'y', alpha = 0.2)
-            #plt.plot(pca_reconstruct[idx1].mean(0).T*10, 'b', lw = 5)
-            #plt.plot(pca_reconstruct[idx2].mean(0).T*10, 'r', lw = 5)
-            #plt.subplot(grid[3:5,:2])
-            #plt.scatter(pca_wf[:,0], pca_wf[:,1], c = colors[spike_train_10min[idx,1][idx_keep].astype(int)], alpha = 0.5)
-            #plt.xlabel('PCA 0')
-            #plt.ylabel('PCA 1')
-            #plt.subplot(grid[3:5,2:4])
-            #plt.scatter(pca_wf[:,0], pca_wf[:,2], c = colors[spike_train_10min[idx,1][idx_keep].astype(int)], alpha = 0.5)
-            #plt.xlabel('PCA 0')
-            #plt.ylabel('PCA 2')
-            #plt.subplot(grid[3:5,4:6])
-            #plt.scatter(pca_wf[:,2], pca_wf[:,1], c = colors[spike_train_10min[idx,1][idx_keep].astype(int)], alpha = 0.5)
-            #plt.xlabel('PCA 2')
-            #plt.ylabel('PCA 1')
-            #plt.subplot(grid[3:5,6:8])
-            #plt.hist(trans[idx1], bins = 100, color = colors[pair[0]])
-            #plt.hist(trans[idx2], bins = 100, color = colors[pair[1]])
-            #plt.subplot(grid[3:5,8:10])
-            #plt.hist(trans, bins = 100, color = 'r')
-            #plt.subplot(grid[5:,:])
-            #plt.plot(CONFIG.geom[:,0] + np.arange(31)[:,np.newaxis], align_wf[idx_keep][idx1].mean(0)*10+CONFIG.geom[:,1], c = 'b')
-            #plt.plot(CONFIG.geom[:,0] + np.arange(31)[:,np.newaxis], align_wf[idx_keep][idx2].mean(0)*10+CONFIG.geom[:,1], c = 'r')
-            #plt.scatter(CONFIG.geom[max_chans,0],CONFIG.geom[max_chans,1]+5,s = 200,c= 'green')
-            #plt.scatter(CONFIG.geom[mad_chans,0]+5,CONFIG.geom[mad_chans,1]+5,s = 200,c= 'k')
-            #for chan in range(512):
-                #plt.text(CONFIG.geom[chan,0], CONFIG.geom[chan,1]-5, '{}'.format(chan))
-            #plt.title('Actual, Cosine_distance = {}, ks_distance = {}'.format(sim_temp[pair[0], pair[1]], dip[j]), fontsize = 25)
-            #plt.title('Actual, Cosine_distance = {}, ks_distance = {}'.format(sim_temp[pair[0], pair[1]], dip[j]), fontsize = 25)
-            #if dip[j] < dip_test_threshold:
-                #plt.scatter(-1000, 450, s = 500,c= 'r')
-                #plt.savefig('data/merge_union/no_merge_90/cluster_{}_{}_actual_512.png'.format(pair[0], pair[1]))
-            #elif dip[j] > dip_test_threshold:
-                #plt.scatter(-1000, 450, s = 500,c= 'g')
-                #plt.savefig('data/merge_union/merge_90/cluster_{}_{}_actual_512.png'.format(pair[0], pair[1]))
-
-
-
-            #plt.close('all')
+                
+        plotting = False
+        fdir = '/media/cat/1TB/liam/49channels/data1_allset/tmp/deconv/chunk_000000/'
+        ## plotting for diagnosis
+        if plotting:
+            plt.figure(figsize = (50,50))    
+            grid = plt.GridSpec(10,10, hspace =0.2, wspace = 0.2)
+            plt.subplot(grid[:3,:])
+            plt.plot(data_in.T*10+30, 'k',alpha = 0.2)
+            plt.plot(data_in[idx1].mean(0).T*10+30, 'b', lw = 5)
+            plt.plot(data_in[idx2].mean(0).T*10+30, 'r', lw = 5)
+            plt.plot(pca_reconstruct.T*10, 'y', alpha = 0.2)
+            plt.plot(pca_reconstruct[idx1].mean(0).T*10, 'b', lw = 5)
+            plt.plot(pca_reconstruct[idx2].mean(0).T*10, 'r', lw = 5)
+            plt.subplot(grid[3:5,:2])
+            plt.scatter(pca_wf[:,0], pca_wf[:,1], c = colors[spike_train[idx,1][idx_keep].astype(int)], alpha = 0.5)
+            plt.xlabel('PCA 0')
+            plt.ylabel('PCA 1')
+            plt.subplot(grid[3:5,2:4])
+            plt.scatter(pca_wf[:,0], pca_wf[:,2], c = colors[spike_train[idx,1][idx_keep].astype(int)], alpha = 0.5)
+            plt.xlabel('PCA 0')
+            plt.ylabel('PCA 2')
+            plt.subplot(grid[3:5,4:6])
+            plt.scatter(pca_wf[:,2], pca_wf[:,1], c = colors[spike_train[idx,1][idx_keep].astype(int)], alpha = 0.5)
+            plt.xlabel('PCA 2')
+            plt.ylabel('PCA 1')
+            plt.subplot(grid[3:5,6:8])
+            plt.hist(trans[idx1], bins = 100, color = colors[pair[0]])
+            plt.hist(trans[idx2], bins = 100, color = colors[pair[1]])
+            plt.subplot(grid[3:5,8:10])
+            plt.hist(trans, bins = 100, color = 'r')
+            plt.subplot(grid[5:,:])
+            plt.plot(CONFIG.geom[:,0] + np.arange(31)[:,np.newaxis], align_wf[idx_keep][idx1].mean(0)*10+CONFIG.geom[:,1], c = 'b')
+            plt.plot(CONFIG.geom[:,0] + np.arange(31)[:,np.newaxis], align_wf[idx_keep][idx2].mean(0)*10+CONFIG.geom[:,1], c = 'r')
+            plt.scatter(CONFIG.geom[max_chans,0],CONFIG.geom[max_chans,1]+5,s = 200,c= 'green')
+            plt.scatter(CONFIG.geom[mad_chans,0]+5,CONFIG.geom[mad_chans,1]+5,s = 200,c= 'k')
+            for chan in range(CONFIG.recordings.n_channels):
+                plt.text(CONFIG.geom[chan,0], CONFIG.geom[chan,1]-5, '{}'.format(chan))
+            plt.title('Actual, Cosine_distance = {}, ks_distance = {}'.format(sim_temp[pair[0], pair[1]], dip[j]), fontsize = 25)
+            plt.title('Actual, Cosine_distance = {}, ks_distance = {}'.format(sim_temp[pair[0], pair[1]], dip[j]), fontsize = 25)
+            if dip[j] < dip_test_threshold:
+                plt.scatter(-1000, 450, s = 500,c= 'r')
+                plt.savefig(fdir+'cluster_{}_{}.png'.format(pair[0], pair[1]))
+            elif dip[j] > dip_test_threshold:
+                plt.scatter(-1000, 450, s = 500,c= 'g')
+                plt.savefig(fdir+'/merge_cluster_{}_{}.png'.format(pair[0], pair[1]))
+            plt.close('all')
             
     return sim_mat, dip
 
