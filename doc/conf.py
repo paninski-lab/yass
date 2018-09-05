@@ -46,7 +46,8 @@ extensions = [
 # http://www.sphinx-doc.org/en/stable/ext/autodoc.html#confval-autodoc_mock_imports
 autodoc_mock_imports = ['numpy', 'scipy', 'sklearn', 'tensorflow', 'yaml',
                         'dateutil', 'click', 'progressbar', 'matplotlib',
-                        'tdqm']
+                        # pandas is imported by statsmodels
+                        'tdqm', 'keras', 'statsmodels', 'pandas']
 
 numpydoc_show_class_members = False
 
