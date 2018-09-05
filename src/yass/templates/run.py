@@ -12,9 +12,7 @@ from yass.util import check_for_files, LoadFile, file_loader
 
 
 @check_for_files(filenames=[LoadFile('templates.npy'),
-                            LoadFile('spike_train.npy'),
-                            LoadFile('groups.pickle'),
-                            LoadFile('idx_good_templates.npy')],
+                            LoadFile('spike_train.npy')],
                  mode='values', relative_to='output_directory',
                  auto_save=True, prepend_root_folder=True)
 def run(spike_train, tmp_loc, output_directory='tmp/',
@@ -148,5 +146,5 @@ def run(spike_train, tmp_loc, output_directory='tmp/',
 
     np.save(spike_train_clear_after_templates, spike_train)
 
-    #return templates, spike_train, groups, idx_good_templates
+    # return templates, spike_train, groups, idx_good_templates
     return templates, spike_train
