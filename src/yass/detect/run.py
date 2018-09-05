@@ -23,7 +23,6 @@ from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
 from yass import neuralnetwork
 from yass.neuralnetwork import NeuralNetDetector, AutoEncoder, KerasModel
-from yass.neuralnetwork.apply import post_processing
 from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
 from yass.util import file_loader, save_numpy_object
