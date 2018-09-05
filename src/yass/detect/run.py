@@ -23,9 +23,9 @@ from yass.geometry import n_steps_neigh_channels
 from yass.util import file_loader, save_numpy_object
 
 
-def run2(standarized_path, standarized_params,
-         whiten_filter, output_directory='tmp/',
-         if_file_exists='skip', save_results=False):
+def run(standarized_path, standarized_params,
+        whiten_filter, output_directory='tmp/',
+        if_file_exists='skip', save_results=False):
 
             
     """Execute detect step
