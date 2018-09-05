@@ -14,6 +14,8 @@ from yass import pipeline
 
 path_to_data_storage = Path('~', 'data').expanduser()
 
+print('Loading testing data from ', path_to_data_storage)
+
 path_to_neuro_folder = Path(path_to_data_storage, 'neuro')
 path_to_neuro_data = Path(path_to_neuro_folder, 'rawDataSample.bin')
 path_to_neuro_geom = Path(path_to_neuro_folder, 'channel_positions.npy')
@@ -26,6 +28,10 @@ path_to_retina_geom = Path(path_to_retina_folder, 'ej49_geometry1.txt')
 
 
 path_to_output_folder = Path(path_to_data_storage, 'yass-testing-data', 'data')
+
+
+print('Output will be at ', path_to_output_folder)
+
 path_to_output_folder_neuro = Path(path_to_output_folder, 'neuropixel')
 path_to_output_folder_retina = Path(path_to_output_folder, 'retina')
 
@@ -43,6 +49,10 @@ path_to_output_folder_retina.mkdir()
 seconds = 1
 channels_total = 49
 channels = 49
+
+
+print('Creating retina data: {} seconds, {} channels out of {}'
+      .format(seconds, channels, channels_total))
 
 CONFIG = {
     'data': {
@@ -97,10 +107,14 @@ sample_geometry = geometry[:channels, :channels]
 np.save(str(Path(path_to_output_folder_retina, 'geometry.npy')),
         sample_geometry)
 
+print('Standarizing data...')
+
 pipeline.run(CONFIG, clean=True,
              output_dir='sample_pipeline_output',
              set_zero_seed=True)
 
+
+print('Done')
 
 # # Dataset 2: neuropixel
 # seconds = 5

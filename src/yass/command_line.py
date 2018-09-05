@@ -14,16 +14,18 @@ import shutil
 
 import click
 import numpy as np
+import tensorflow as tf
 
 
+import yass
 from yass import pipeline
 from yass import geometry
 from yass.export import generate
-from yass.util import load_yaml
+from yass.util import load_yaml, get_version
 
 
 @click.group()
-@click.version_option()
+@click.version_option(version=get_version())
 def cli():
     """Command line group
     """
@@ -46,22 +48,27 @@ def cli():
 @click.option('-cm', '--complete',
               help='Generates extra files (needed to generate phy files)',
               is_flag=True, default=False)
-def sort(config, logger_level, clean, output_dir, complete):
+@click.option('-z', '--zero_seed',
+              help='Sets numpy random seed to zero before running',
+              is_flag=True, default=False)
+@click.option('-g', '--global_gpu_memory',
+              help='Limit the maximum portion of gpu memory that a tensorflow '
+              'session can allocate, no limit by default',
+              default=1.0, type=float)
+def sort(config, logger_level, clean, output_dir, complete, zero_seed,
+         global_gpu_memory):
     """
     Sort recordings using a configuration file located in CONFIG
     """
-    return _run_pipeline(config, output_file='spike_train.npy',
-                         logger_level=logger_level, clean=clean,
-                         output_dir=output_dir, complete=complete)
+    if global_gpu_memory != 1.0:
+        tf_config = tf.ConfigProto()
+        (tf_config.
+         gpu_options.per_process_gpu_memory_fraction) = global_gpu_memory
+        yass.set_tensorflow_config(config=tf_config)
 
-
-def _run_pipeline(config, output_file, logger_level='INFO', clean=True,
-                  output_dir='tmp/', complete=False):
-    """
-    Run the entire pipeline given a path to a config file
-    and output path
-    """
-    pipeline.run(config, logger_level, clean, output_dir, complete)
+    return pipeline.run(config, logger_level=logger_level, clean=clean,
+                        output_dir=output_dir, complete=complete,
+                        set_zero_seed=zero_seed)
 
 
 @cli.command()
@@ -175,7 +182,7 @@ def export(directory, output_dir):
     # template_features.npy
     templates_score = np.load(path.join(TMP_FOLDER, 'templates_score.npy'))
     templates_main_channel = np.load(path.join(TMP_FOLDER,
-                                     'templates_main_channel.npy'))
+                                               'templates_main_channel.npy'))
     waveforms_score = np.load(path.join(TMP_FOLDER, 'waveforms_score.npy'))
 
     path_to_template_features = path.join(PHY_FOLDER, 'template_features.npy')
