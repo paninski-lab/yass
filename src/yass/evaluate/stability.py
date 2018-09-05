@@ -49,7 +49,7 @@ class RecordingBatchIterator(object):
         batch_time_samples: int
             Number of time samples per each batch to be used.
         filter_std: bool
-            The iterator both filters and standardizes the recording (dividing
+            The iterator both filters and standarizes the recording (dividing
             by standard deviation.
         whiten: bool
             Spatially whiten the recording.
@@ -579,7 +579,7 @@ class SpikeSortingEvaluation(object):
             array2.
         """
         # In time samples
-        self.admissible_proximity = 5
+        self.admissible_proximity = 60
         m, n = len(array1), len(array2)
         i, j = 0, 0
         count = 0
