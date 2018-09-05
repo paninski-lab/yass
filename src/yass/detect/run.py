@@ -18,6 +18,8 @@ from yass.threshold.detect import threshold
 from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
 from yass import neuralnetwork
+from yass.neuralnetwork import NeuralNetDetector, AutoEncoder, KerasModel
+from yass.neuralnetwork.apply import post_processing
 from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
 from yass.util import file_loader, save_numpy_object
@@ -160,14 +162,12 @@ def run_neural_network2(standarized_path, standarized_params,
 
 
         # open tensorflow for every chunk
-        (x_tf, output_tf, NND,
-         NNAE, NNT) = neuralnetwork.prepare_nn(CONFIG.channel_index,
-                                           whiten_filter,
-                                           detection_th,
-                                           triage_th,
-                                           detection_fname,
-                                           ae_fname,
-                                           triage_fname)
+        NND = NeuralNetDetector.load(detection_fname, detection_th,
+                                     CONFIG.channel_index)
+        triage = KerasModel(triage_fname,
+                            allow_longer_waveform_length=True,
+                            allow_more_channels=True)
+        NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
         # run nn preprocess batch-wsie
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
@@ -226,9 +226,7 @@ def run_neural_network2(standarized_path, standarized_params,
 
         # open etsnrflow session
         with tf.Session() as sess:
-            NND.saver.restore(sess, NND.path_to_detector_model)
-            NNAE.saver_ae.restore(sess, NNAE.path_to_ae_model)
-            NNT.saver.restore(sess, NNT.path_to_triage_model)
+            NND.restore(sess)
 
             # read chunks of data first:
             # read chunk of raw standardized data
@@ -269,9 +267,28 @@ def run_neural_network2(standarized_path, standarized_params,
                     TC_list.append(data_temp.shape)
                     
                     # run detect nn
-                    score, spike_index, idx_clean = sess.run(
-                        output_tf, feed_dict={x_tf: data_temp})
-                    
+                    res = NND.predict_recording(sess=sess,
+                                                output_names=('spike_index',
+                                                              'waveform'))
+
+                    spike_index, wfs = zip(*res)
+
+                    spike_index = np.concatenate(spike_index, axis=0)
+                    wfs = np.concatenate(wfs, axis=0)
+
+                    idx_clean = (triage
+                                 .predict_with_threshold(x=wfs,
+                                                         threshold=triage_th))
+
+                    score_ = NNAE.predict(wfs)
+                    rot = NNAE.load_rotation()
+                    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels,
+                                                       2)
+
+                    (score, idx_clean) = post_processing(score_, spike_index,
+                                                         idx_clean, rot,
+                                                         neighbors)
+           
                     # idx_clean is the indexes of clear spikes in all_spikes
                     spike_index_list.append(spike_index)
                     idx_clean_list.append(idx_clean)
