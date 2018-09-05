@@ -285,7 +285,6 @@ def run_neural_network(standarized_path, standarized_params,
         NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-        rotation = NNAE.load_rotation()
 
         fn = fix_indexes_spike_index
 
@@ -352,7 +351,7 @@ def run_neural_network(standarized_path, standarized_params,
                         .format(path_to_spike_index_all))
 
             # save rotation
-            np.save(path_to_rotation, rotation)
+            np.save(path_to_rotation, rot)
             logger.info('Saved rotation matrix in {}...'
                         .format(path_to_rotation))
 
