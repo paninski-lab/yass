@@ -9,8 +9,7 @@ from yass.cluster.subsample import random_subsample
 from yass.cluster.triage import triage
 from yass.cluster.coreset import coreset
 from yass.cluster.mask import getmask
-from yass.cluster.util import (run_cluster, run_cluster_location,
-                               calculate_sparse_rhat)
+from yass.cluster.util import (run_cluster, calculate_sparse_rhat)
 from yass.mfm import get_core_data
 
 
@@ -91,50 +90,38 @@ def run(spike_index, output_directory='tmp/',
     logger.info("Triaging...")
     scores, spike_index = triage(scores, spike_index,
                                  CONFIG.cluster.triage.nearest_neighbors,
-                                 CONFIG.cluster.triage.percent,
-                                 CONFIG.cluster.method == 'location')
+                                 CONFIG.cluster.triage.percent)
     Time['t'] += (datetime.datetime.now()-_b).total_seconds()
 
-    if CONFIG.cluster.method == 'location':
-        ##############
-        # Clustering #
-        ##############
-        _b = datetime.datetime.now()
-        logger.info("Clustering...")
-        vbParam, tmp_loc, scores, spike_index = run_cluster_location(
-            scores, spike_index, CONFIG.cluster.min_spikes, CONFIG)
-        Time['s'] += (datetime.datetime.now()-_b).total_seconds()
+    ###########
+    # Coreset #
+    ###########
+    _b = datetime.datetime.now()
+    logger.info("Coresetting...")
+    groups = coreset(scores,
+                     spike_index,
+                     CONFIG.cluster.coreset.clusters,
+                     CONFIG.cluster.coreset.threshold)
+    Time['c'] += (datetime.datetime.now() - _b).total_seconds()
 
-    else:
-        ###########
-        # Coreset #
-        ###########
-        _b = datetime.datetime.now()
-        logger.info("Coresetting...")
-        groups = coreset(scores,
-                         spike_index,
-                         CONFIG.cluster.coreset.clusters,
-                         CONFIG.cluster.coreset.threshold)
-        Time['c'] += (datetime.datetime.now() - _b).total_seconds()
+    ###########
+    # Masking #
+    ###########
+    _b = datetime.datetime.now()
+    logger.info("Masking...")
+    masks = getmask(scores, spike_index, groups,
+                    CONFIG.cluster.masking_threshold)
+    Time['m'] += (datetime.datetime.now() - _b).total_seconds()
 
-        ###########
-        # Masking #
-        ###########
-        _b = datetime.datetime.now()
-        logger.info("Masking...")
-        masks = getmask(scores, spike_index, groups,
-                        CONFIG.cluster.masking_threshold)
-        Time['m'] += (datetime.datetime.now() - _b).total_seconds()
-
-        ##############
-        # Clustering #
-        ##############
-        _b = datetime.datetime.now()
-        logger.info("Clustering...")
-        vbParam, tmp_loc, scores, spike_index = run_cluster(
-            scores, masks, groups, spike_index,
-            CONFIG.cluster.min_spikes, CONFIG)
-        Time['s'] += (datetime.datetime.now()-_b).total_seconds()
+    ##############
+    # Clustering #
+    ##############
+    _b = datetime.datetime.now()
+    logger.info("Clustering...")
+    vbParam, tmp_loc, scores, spike_index = run_cluster(
+        scores, masks, groups, spike_index,
+        CONFIG.cluster.min_spikes, CONFIG)
+    Time['s'] += (datetime.datetime.now()-_b).total_seconds()
 
     vbParam.rhat = calculate_sparse_rhat(vbParam, tmp_loc, scores_all,
                                          spike_index_all,
