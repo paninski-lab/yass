@@ -185,9 +185,11 @@ class NeuralNetDetector(Model):
         # Loading parameters #
         ######################
 
-        # TODO: need to ask why we are sending different channel indexes
-        # instead of sending the complete channel_index which is larger
-        # save neighbor channel index
+        # FIXME: Eduardo: CONFIG.channel_index (which is the one passed here)
+        # has steps=2, so they are passing :n_neigh which is the same
+        # as steps=1, it is unclear why we are creating it with steps=2
+        # in the first place, we need to check if at any point in the
+        # pipeline we need it
         small_channel_index = channel_index[:, :n_neigh]
 
         # placeholder for input recording
