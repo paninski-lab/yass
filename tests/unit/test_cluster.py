@@ -83,33 +83,33 @@ def test_cluster_save_results(path_to_threshold_config, make_tmp_folder):
                 output_directory=make_tmp_folder)
 
 
-def test_cluster_loads_from_disk_if_all_files_exist(caplog,
-                                                    path_to_threshold_config,
-                                                    make_tmp_folder):
+# def test_cluster_loads_from_disk_if_all_files_exist(caplog,
+#                                                     path_to_threshold_config,
+#                                                     make_tmp_folder):
 
-    yass.set_config(path_to_threshold_config, make_tmp_folder)
+#     yass.set_config(path_to_threshold_config, make_tmp_folder)
 
-    (standarized_path,
-     standarized_params,
-     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
+#     (standarized_path,
+#      standarized_params,
+#      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    (spike_index_clear,
-     spike_index_all) = detect.run(standarized_path,
-                                   standarized_params,
-                                   whiten_filter,
-                                   output_directory=make_tmp_folder)
+#     (spike_index_clear,
+#      spike_index_all) = detect.run(standarized_path,
+#                                    standarized_params,
+#                                    whiten_filter,
+#                                    output_directory=make_tmp_folder)
 
-    # save results
-    cluster.run(spike_index_clear, save_results=True,
-                output_directory=make_tmp_folder)
+#     # save results
+#     cluster.run(spike_index_clear, save_results=True,
+#                 output_directory=make_tmp_folder)
 
-    assert cluster.run.executed
+#     assert cluster.run.executed
 
-    # next time this should not run and just load from files
-    cluster.run(spike_index_clear, save_results=True,
-                output_directory=make_tmp_folder)
+#     # next time this should not run and just load from files
+#     cluster.run(spike_index_clear, save_results=True,
+#                 output_directory=make_tmp_folder)
 
-    assert not cluster.run.executed
+#     assert not cluster.run.executed
 
 
 def test_cluster_runs_if_overwrite_is_on(path_to_threshold_config):
