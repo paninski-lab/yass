@@ -15,8 +15,25 @@ from yass import cluster
 from util import ReferenceTesting
 
 
-def test_cluster(path_to_threshold_config, make_tmp_folder):
+def test_cluster_threshold(path_to_threshold_config, make_tmp_folder):
     yass.set_config(path_to_threshold_config, make_tmp_folder)
+
+    (standarized_path,
+     standarized_params,
+     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
+
+    (score, spike_index_clear,
+     spike_index_all) = detect.run(standarized_path,
+                                   standarized_params,
+                                   whiten_filter,
+                                   output_directory=make_tmp_folder)
+
+    cluster.run(spike_index_clear, output_directory=make_tmp_folder)
+
+
+@pytest.mark.xfail
+def test_cluster_nnet(path_to_nnet_config, make_tmp_folder):
+    yass.set_config(path_to_nnet_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,

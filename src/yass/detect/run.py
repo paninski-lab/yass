@@ -3,6 +3,10 @@ Detection pipeline
 """
 import logging
 import os.path
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
 from functools import reduce
 import tensorflow as tf
 
@@ -105,17 +109,130 @@ def run(standarized_path, standarized_params,
     standarized_params = file_loader(standarized_params)
     whiten_filter = file_loader(whiten_filter)
 
+    # run detection
+    if CONFIG.detect.method == 'threshold':
+        return run_threshold(standarized_path,
+                             standarized_params,
+                             whiten_filter,
+                             output_directory,
+                             if_file_exists,
+                             save_results)
+    elif CONFIG.detect.method == 'nn':
+        return run_neural_network(standarized_path,
+                                  standarized_params,
+                                  whiten_filter,
+                                  output_directory,
+                                  if_file_exists,
+                                  save_results)
 
-    return run_neural_network2(standarized_path,
-                              standarized_params,
-                              whiten_filter,
-                              output_directory,
-                              if_file_exists,
-                              save_results)
 
-def run_neural_network2(standarized_path, standarized_params, 
-                        whiten_filter, output_directory, if_file_exists, 
-                        save_results):
+def run_threshold(standarized_path, standarized_params,
+                  whiten_filter, output_directory, if_file_exists,
+                  save_results):
+    """Run threshold detector and dimensionality reduction using PCA
+
+
+    Returns
+    -------
+    scores
+      Scores for all spikes
+
+    spike_index_clear
+      Spike indexes for clear spikes
+
+    spike_index_all
+      Spike indexes for all spikes
+    """
+    logger = logging.getLogger(__name__)
+
+    logger.debug('Running threshold detector...')
+
+    CONFIG = read_config()
+
+    if os.path.isabs(output_directory):
+        folder = Path(output_directory)
+    else:
+        folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+
+    folder.mkdir(exist_ok=True)
+
+    # Set TMP_FOLDER to None if not save_results, this will disable
+    # saving results in every function below
+    TMP_FOLDER = (str(folder) if save_results else None)
+
+    # files that will be saved if enable by the if_file_exists option
+    filename_index_clear = 'spike_index_clear.npy'
+    filename_index_clear_pca = 'spike_index_clear_pca.npy'
+    filename_scores_clear = 'scores_clear.npy'
+    filename_spike_index_all = 'spike_index_all.npy'
+    filename_rotation = 'rotation.npy'
+
+    ###################
+    # Spike detection #
+    ###################
+
+    # run threshold detection, save clear indexes in TMP/filename_index_clear
+    clear = threshold(standarized_path,
+                      standarized_params['dtype'],
+                      standarized_params['n_channels'],
+                      standarized_params['data_order'],
+                      CONFIG.resources.max_memory,
+                      CONFIG.neigh_channels,
+                      CONFIG.spike_size,
+                      CONFIG.spike_size + CONFIG.templates.max_shift,
+                      CONFIG.detect.threshold_detector.std_factor,
+                      TMP_FOLDER,
+                      spike_index_clear_filename=filename_index_clear,
+                      if_file_exists=if_file_exists)
+
+    #######
+    # PCA #
+    #######
+
+    # run PCA, save rotation matrix and pca scores under TMP_FOLDER
+    # TODO: remove clear as input for PCA and create an independent function
+    pca_scores, clear, _ = pca(standarized_path,
+                               standarized_params['dtype'],
+                               standarized_params['n_channels'],
+                               standarized_params['data_order'],
+                               clear,
+                               CONFIG.spike_size,
+                               CONFIG.detect.temporal_features,
+                               CONFIG.neigh_channels,
+                               CONFIG.channel_index,
+                               CONFIG.resources.max_memory,
+                               TMP_FOLDER,
+                               'scores_pca.npy',
+                               filename_rotation,
+                               filename_index_clear_pca,
+                               if_file_exists)
+
+    #################
+    # Whiten scores #
+    #################
+
+    # apply whitening to scores
+    scores = whiten.score(pca_scores, clear[:, 1], whiten_filter)
+
+    if TMP_FOLDER is not None:
+        # saves whiten scores
+        path_to_scores = os.path.join(TMP_FOLDER, filename_scores_clear)
+        save_numpy_object(scores, path_to_scores, if_file_exists,
+                          name='scores')
+
+        # save spike_index_all (same as spike_index_clear for threshold
+        # detector)
+        path_to_spike_index_all = os.path.join(TMP_FOLDER,
+                                               filename_spike_index_all)
+        save_numpy_object(clear, path_to_spike_index_all, if_file_exists,
+                          name='Spike index all')
+
+    return scores, clear, np.copy(clear)
+
+
+def run_neural_network(standarized_path, standarized_params,
+                       whiten_filter, output_directory, if_file_exists,
+                       save_results):
                            
     """Run neural network detection and autoencoder dimensionality reduction
 
