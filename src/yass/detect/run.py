@@ -267,14 +267,10 @@ def run_neural_network2(standarized_path, standarized_params,
                     TC_list.append(data_temp.shape)
                     
                     # run detect nn
-                    res = NND.predict_recording(sess=sess,
+                    res = NND.predict_recording(data_temp, sess=sess,
                                                 output_names=('spike_index',
                                                               'waveform'))
-
-                    spike_index, wfs = zip(*res)
-
-                    spike_index = np.concatenate(spike_index, axis=0)
-                    wfs = np.concatenate(wfs, axis=0)
+                    spike_index, wfs = res
 
                     idx_clean = (triage
                                  .predict_with_threshold(x=wfs,
