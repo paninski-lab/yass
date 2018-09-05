@@ -8,7 +8,7 @@ from util import ReferenceTesting
 
 
 def test_can_detect_with_threshold(path_to_threshold_config, make_tmp_folder):
-    yass.set_config(path_to_threshold_config)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
@@ -28,7 +28,7 @@ def test_threshold_detector_returns_expected_results(path_to_threshold_config,
                                                      make_tmp_folder):
     np.random.seed(0)
 
-    yass.set_config(path_to_threshold_config)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
@@ -53,7 +53,7 @@ def test_threshold_detector_returns_expected_results(path_to_threshold_config,
 
 
 def test_can_detect_with_nnet(path_to_nnet_config, make_tmp_folder):
-    yass.set_config(path_to_nnet_config)
+    yass.set_config(path_to_nnet_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
@@ -71,7 +71,7 @@ def test_nnet_detector_returns_expected_results(path_to_nnet_config,
                                                 make_tmp_folder):
     np.random.seed(0)
 
-    yass.set_config(path_to_nnet_config)
+    yass.set_config(path_to_nnet_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
