@@ -133,7 +133,7 @@ def run_neural_network2(standarized_path, standarized_params,
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
-    TMP_FOLDER = os.path.join(CONFIG.data.root_folder, output_directory)
+    TMP_FOLDER = CONFIG.path_to_output_directory
 
     # check if all scores, clear and collision spikes exist..
     path_to_score = os.path.join(TMP_FOLDER, 'scores_clear.npy')
@@ -202,7 +202,7 @@ def run_neural_network2(standarized_path, standarized_params,
 
         idx_list = idx_list
         
-        logger.info("# of chunks: ", len(idx_list))
+        logger.info("# of chunks: %i", len(idx_list))
         
         logger.info (idx_list)
         
@@ -215,8 +215,9 @@ def run_neural_network2(standarized_path, standarized_params,
 
         # keep tensorflow open
         # save iteratively
-        fname_detection = os.path.join(CONFIG.data.root_folder,'tmp/detect/')
-        if os.path.exists(fname_detection)==False:
+        fname_detection = os.path.join(CONFIG.path_to_output_directory,
+                                       'detect')
+        if not os.path.exists(fname_detection):
             os.mkdir(fname_detection)
         
         # set tensorflow verbosity level
@@ -240,7 +241,7 @@ def run_neural_network2(standarized_path, standarized_params,
             # loop over 10sec or 60 sec chunks
             for chunk_ctr, idx in enumerate(idx_list): 
                 if os.path.exists(os.path.join(fname_detection,"detect_"+
-                                  str(chunk_ctr).zfill(5)+'.npz'))==True:
+                                  str(chunk_ctr).zfill(5)+'.npz')):
                                            continue
 
                 # reset lists 
@@ -279,15 +280,11 @@ def run_neural_network2(standarized_path, standarized_params,
                                  .predict_with_threshold(x=wfs,
                                                          threshold=triage_th))
 
-                    score_ = NNAE.predict(wfs)
+                    score = NNAE.predict(wfs)
                     rot = NNAE.load_rotation()
                     neighbors = n_steps_neigh_channels(CONFIG.neigh_channels,
                                                        2)
 
-                    (score, idx_clean) = post_processing(score_, spike_index,
-                                                         idx_clean, rot,
-                                                         neighbors)
-           
                     # idx_clean is the indexes of clear spikes in all_spikes
                     spike_index_list.append(spike_index)
                     idx_clean_list.append(idx_clean)
@@ -325,7 +322,7 @@ def run_neural_network2(standarized_path, standarized_params,
         TC_list = []
         offset_list = []
         for ctr, idx in enumerate(idx_list): 
-            data = np.load(fname_detection+'detect_'+str(ctr).zfill(5)+'.npz')
+            data = np.load(os.path.join(fname_detection, 'detect_'+str(ctr).zfill(5)+'.npz'))
             spike_index_list.extend(data['spike_index_list'])
             idx_clean_list.extend(data['idx_clean_list'])
             energy_list.extend(data['energy_list'])
