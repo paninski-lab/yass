@@ -23,6 +23,7 @@ from yass.neuralnetwork.apply import post_processing
 from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
 from yass.util import file_loader, save_numpy_object
+from keras import backend as K
 
 
 def run(standarized_path, standarized_params,
@@ -164,9 +165,6 @@ def run_neural_network2(standarized_path, standarized_params,
         # open tensorflow for every chunk
         NND = NeuralNetDetector.load(detection_fname, detection_th,
                                      CONFIG.channel_index)
-        triage = KerasModel(triage_fname,
-                            allow_longer_waveform_length=True,
-                            allow_more_channels=True)
         NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
         # run nn preprocess batch-wsie
@@ -226,7 +224,12 @@ def run_neural_network2(standarized_path, standarized_params,
 
         # open etsnrflow session
         with tf.Session() as sess:
+            K.set_session(sess)
             NND.restore(sess)
+
+            triage = KerasModel(triage_fname,
+                                allow_longer_waveform_length=True,
+                                allow_more_channels=True)
 
             # read chunks of data first:
             # read chunk of raw standardized data
