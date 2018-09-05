@@ -24,8 +24,8 @@ from yass.util import file_loader, save_numpy_object
 
 
 def run2(standarized_path, standarized_params,
-        channel_index, whiten_filter, output_directory='tmp/',
-        if_file_exists='skip', save_results=False):
+         whiten_filter, output_directory='tmp/',
+         if_file_exists='skip', save_results=False):
 
             
     """Execute detect step
@@ -100,19 +100,17 @@ def run2(standarized_path, standarized_params,
 
     # load files in case they are strings or Path objects
     standarized_params = file_loader(standarized_params)
-    channel_index = file_loader(channel_index)
     whiten_filter = file_loader(whiten_filter)
 
 
     return run_neural_network2(standarized_path,
                               standarized_params,
-                              channel_index,
                               whiten_filter,
                               output_directory,
                               if_file_exists,
                               save_results)
 
-def run_neural_network2(standarized_path, standarized_params, channel_index, 
+def run_neural_network2(standarized_path, standarized_params, 
                         whiten_filter, output_directory, if_file_exists, 
                         save_results):
                            
@@ -163,7 +161,7 @@ def run_neural_network2(standarized_path, standarized_params, channel_index,
 
         # open tensorflow for every chunk
         (x_tf, output_tf, NND,
-         NNAE, NNT) = neuralnetwork.prepare_nn(channel_index,
+         NNAE, NNT) = neuralnetwork.prepare_nn(CONFIG.channel_index,
                                            whiten_filter,
                                            detection_th,
                                            triage_th,
