@@ -213,7 +213,7 @@ def run_threshold(standarized_path, standarized_params,
         save_numpy_object(clear, path_to_spike_index_all, if_file_exists,
                           name='Spike index all')
 
-    return scores, clear, np.copy(clear)
+    return clear, np.copy(clear)
 
 
 def run_neural_network(standarized_path, standarized_params,
@@ -377,4 +377,4 @@ def run_neural_network(standarized_path, standarized_params,
                          'must be one of overwrite, abort or skip'
                          .format(if_file_exists))
 
-    return scores, clear, spikes_all
+    return clear, spikes_all
