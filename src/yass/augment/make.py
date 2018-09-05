@@ -4,10 +4,11 @@ import numpy as np
 import logging
 
 
-from yass.templates.crop import crop_and_align_templates
 from yass.templates import TemplatesProcessor
 from yass.augment.noise import noise_cov
 from yass.augment import util
+import yass.array as yarr
+from yass.geometry import order_channels_by_distance
 
 
 def load_templates(data_folder, spike_train, CONFIG, chosen_templates_indexes):
@@ -40,6 +41,101 @@ def load_templates(data_folder, spike_train, CONFIG, chosen_templates_indexes):
     processor.align(CONFIG.spike_size, inplace=True)
 
     return processor.templates
+
+
+def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
+                         n_clean_per_template,
+                         n_collided_per_spike,
+                         max_shift, min_shift,
+                         spatial_SIG, temporal_SIG,
+                         from_templates_kwargs,
+                         collided_kwargs):
+    """Make training data for triage network
+
+
+    Notes
+    -----
+    """
+    K, _, n_channels = templates.shape
+
+    # make spikes from templates
+    x_templates = util.make_from_templates(templates, minimum_amplitude,
+                                           maximum_amplitude,
+                                           n_clean_per_template,
+                                           **from_templates_kwargs)
+
+    x_collision = util.make_collided(x_templates, n_collided_per_spike,
+                                     multi_channel=True,
+                                     max_shift=max_shift,
+                                     min_shift=min_shift,
+                                     **collided_kwargs)
+
+    # make labels
+    ones = np.ones((x_templates.shape[0]))
+    zeros = np.zeros((x_collision.shape[0]))
+
+    x_templates_noisy = util.add_noise(x_templates, spatial_SIG, temporal_SIG)
+    x_collision_noisy = util.add_noise(x_collision, spatial_SIG, temporal_SIG)
+
+    x_triage = yarr.concatenate((x_templates_noisy, x_collision_noisy))
+    y_triage = yarr.concatenate((ones, zeros))
+
+    return x_triage, y_triage
+
+
+def training_data_detect(templates, minimum_amplitude, maximum_amplitude,
+                         n_clean_per_template, from_templates_kwargs,
+                         n_collided_per_spike, max_shift, min_shift,
+                         collided_kwargs, spatial_SIG, temporal_SIG,
+                         n_noise, n_temporally_misaligned_per_spike):
+    """Make training data for detector network
+
+
+    Notes
+    -----
+    Recordings are passed through the detector network which identifies
+    spikes (clean and collided), it rejects noise and misaligned spikes
+    (temporally and spatially)
+    """
+
+    # make spikes from templates
+    x_templates = util.make_from_templates(templates, minimum_amplitude,
+                                           maximum_amplitude,
+                                           n_clean_per_template,
+                                           **from_templates_kwargs)
+
+    x_collision = util.make_collided(x_templates, n_collided_per_spike,
+                                     multi_channel=True,
+                                     max_shift=max_shift,
+                                     min_shift=min_shift,
+                                     **collided_kwargs)
+
+    _ = util.make_temporally_misaligned
+
+    # create temporally misaligned spikes
+    x_temporally_misaligned = _(x_templates, n_temporally_misaligned_per_spike,
+                                multi_channel=True, max_shift=max_shift)
+
+    # now spatially misalign those
+    x_misalign = util.make_spatially_misaligned(x_temporally_misaligned,
+                                                n_per_spike=1)
+
+    x_noise = util.make_noise(n_noise, spatial_SIG, temporal_SIG)
+
+    # make labels
+    ones = np.ones(len(x_templates) + len(x_collision))
+    zeros = np.zeros(len(x_temporally_misaligned) + len(x_noise))
+
+    x_templates_noisy = util.add_noise(x_templates, spatial_SIG, temporal_SIG)
+    x_collision_noisy = util.add_noise(x_collision, spatial_SIG, temporal_SIG)
+    x_misaligned_noisy = util.add_noise(x_misalign, spatial_SIG, temporal_SIG)
+
+    X = yarr.concatenate((x_templates_noisy, x_collision_noisy,
+                          x_misaligned_noisy, x_noise))
+
+    y = np.concatenate((ones, zeros))
+
+    return X, y
 
 
 def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
@@ -110,10 +206,49 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
             * Positive examples: Clean spikes + noise
             * Negative examples: Collided spikes + noise
     """
+    # FIXME: should we add collided spikes with the first spike non-centered
+    # tod the detection training set?
+
     logger = logging.getLogger(__name__)
+
+    # STEP1: Load recordings data, and select one channel and random (with the
+    # right number of neighbors, then swap the channels so the first one
+    # corresponds to the selected channel, then the nearest neighbor, then the
+    # second nearest and so on... this is only used for estimating noise
+    # structure
+
+    # ##### FIXME: this needs to be removed, the user should already
+    # pass data with the desired channels
+    rec = RecordingsReader(path_to_standarized, loader='array')
+    channel_n_neighbors = np.sum(CONFIG.neigh_channels, 0)
+    max_neighbors = np.max(channel_n_neighbors)
+    channels_with_max_neighbors = np.where(channel_n_neighbors
+                                           == max_neighbors)[0]
+    logger.debug('The following channels have %i neighbors: %s',
+                 max_neighbors, channels_with_max_neighbors)
+
+    # reference channel: channel with max number of neighbors
+    channel_selected = np.random.choice(channels_with_max_neighbors)
+
+    logger.debug('Selected channel %i', channel_selected)
+
+    # neighbors for the reference channel
+    channel_neighbors = np.where(CONFIG.neigh_channels[channel_selected])[0]
+
+    # ordered neighbors for reference channel
+    channel_idx, _ = order_channels_by_distance(channel_selected,
+                                                channel_neighbors,
+                                                CONFIG.geom)
+    # read the selected channels
+    rec = rec[:, channel_idx]
+    # ##### FIXME:end of section to be removed
+
+    # STEP 2: load templates
 
     processor = TemplatesProcessor(templates_uncropped)
 
+    # swap channels, first channel is main channel, then nearest neighbor
+    # and so on, only keep neigh_channels
     templates = (processor.crop_spatially(CONFIG.neigh_channels, CONFIG.geom)
                  .values)
 
@@ -133,12 +268,15 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
     x_templates = util.make_from_templates(templates, min_amp, max_amp, nk)
 
     # make collided spikes - max shift is set to R since 2 * R + 1 will be
-    # the final dimension for the spikes
+    # the final dimension for the spikes. one of the spikes is kept with the
+    # main channel, the other one is shifted and channels are changed
     x_collision = util.make_collided(x_templates, collision_ratio,
                                      multi_channel, max_shift=R,
                                      return_metadata=return_metadata)
 
     # make misaligned spikes
+    # spatially means first channel is not main channel
+    # temporally means waveform is not centered
     (x_temporally_misaligned,
      x_spatially_misaligned) = util.make_misaligned(x_templates,
                                                     max_shift,
@@ -147,15 +285,15 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
                                                     multi_channel)
 
     # determine noise covariance structure
-    spatial_SIG, temporal_SIG = noise_cov(path_to_standarized,
-                                          CONFIG.neigh_channels,
-                                          CONFIG.geom,
-                                          templates.shape[1])
+    spatial_SIG, temporal_SIG = noise_cov(rec,
+                                          temporal_size=templates.shape[1],
+                                          window_size=templates.shape[1],
+                                          sample_size=1000,
+                                          threshold=3.0)
 
     # make noise
-    noise_shape = (int(x_templates.shape[0] * noise_ratio),
-                   x_templates.shape[1], x_templates.shape[2])
-    noise = util.make_noise(noise_shape, spatial_SIG, temporal_SIG)
+    n_noise = int(x_templates.shape[0] * noise_ratio)
+    noise = util.make_noise(n_noise, spatial_SIG, temporal_SIG)
 
     # make labels
     y_clean_1 = np.ones((x_templates.shape[0]))
@@ -179,34 +317,32 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
     #############
 
     if multi_channel:
-        x = np.concatenate((x_templates_noisy, x_collision_noisy,
-                            x_temporally_misaligned_noisy, noise))
+        x = yarr.concatenate((x_templates_noisy, x_collision_noisy,
+                              x_temporally_misaligned_noisy, noise))
         x_detect = x[:, MID_POINT_IDX, :]
 
         y_detect = np.concatenate((y_clean_1, y_collision_1,
                                    y_misaligned_0, y_noise_0))
     else:
-        x = np.concatenate((x_templates_noisy, x_temporally_misaligned_noisy,
-                            noise))
+        x = yarr.concatenate((x_templates_noisy, x_temporally_misaligned_noisy,
+                              noise))
         x_detect = x[:, MID_POINT_IDX, 0]
 
-        y_detect = np.concatenate((y_clean_1,
-                                   y_misaligned_0, y_noise_0))
+        y_detect = yarr.concatenate((y_clean_1, y_misaligned_0, y_noise_0))
     ##########
     # Triage #
     ##########
 
     if multi_channel:
-        x = np.concatenate((x_templates_noisy, x_collision_noisy))
+        x = yarr.concatenate((x_templates_noisy, x_collision_noisy))
         x_triage = x[:, MID_POINT_IDX, :]
 
-        y_triage = np.concatenate((y_clean_1, y_collision_0))
+        y_triage = yarr.concatenate((y_clean_1, y_collision_0))
     else:
-        x = np.concatenate((x_templates_noisy, x_collision_noisy,))
+        x = yarr.concatenate((x_templates_noisy, x_collision_noisy,))
         x_triage = x[:, MID_POINT_IDX, 0]
 
-        y_triage = np.concatenate((y_clean_1,
-                                   y_collision_0))
+        y_triage = yarr.concatenate((y_clean_1, y_collision_0))
 
     ###############
     # Autoencoder #
@@ -249,14 +385,16 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
     return x_detect, y_detect, x_triage, y_triage, x_ae, y_ae
 
 
-def spikes(templates, min_amplitude, max_amplitude, path_to_data,
-           n_per_template, geom,
+def spikes(templates, min_amplitude, max_amplitude,
+           n_per_template, spatial_sig, temporal_sig,
+           min_shift,
            make_from_templates=True,
            make_spatially_misaligned=True,
            make_temporally_misaligned=True,
            make_collided=True,
            make_noise=True,
-           return_metadata=True):
+           return_metadata=True,
+           collided_kwargs=None):
     """
     Make spikes, it creates several types of spikes from templates with a range
     of amplitudes
@@ -272,17 +410,10 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
     max_amplitude: float
         Maximum amplitude for the spikes
 
-    path_to_data: str
-        Path to the data used to generate the templates (used to estimate)
-        noise covariance
-
     n_per_template: int
         How many spikes to generate per template. This along with
         min_amplitude and max_amplitude are used to generate spikes covering
         the desired amplitude range
-
-    geom: numpy.ndarray
-        Geometry matrix
 
     make_from_templates: bool
         Whether to return spikes generated from the templates (these are
@@ -328,17 +459,33 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
 
     temporal_SIG
     """
+
+    if collided_kwargs is None:
+        collided_kwargs = dict()
+
     # NOTE: is the order importante here, maybe it's better to first compute
     # from templates, then take those and misalign spatially
     # (all templates in all channels) then take those and misalign temporally
     # and finally produce collided spikes
 
     # TODO: add multi_channel parameter and options for hardcoded parameter
+    # FIXME: verify that the templates are in the right format, main channel
+    # nearest neighbor...
 
     _, waveform_length, n_neigh = templates.shape
 
-    # TODO: remove this
-    neigh_channels = np.ones((n_neigh, n_neigh), dtype=bool)
+    waveform_length_sig, _ = temporal_sig.shape
+    n_neigh_sig, _ = spatial_sig.shape
+
+    if waveform_length != waveform_length_sig:
+        raise ValueError("Templates waveform length ({}) doesnt match "
+                         "temporal sig dimension ({})"
+                         .format(waveform_length, waveform_length_sig))
+
+    if n_neigh != n_neigh_sig:
+        raise ValueError("Templates waveform length ({}) doesnt match "
+                         "temporal sig dimension ({})"
+                         .format(n_neigh, n_neigh_sig))
 
     # make spikes
     x_templates = util.make_from_templates(templates, min_amplitude,
@@ -367,9 +514,11 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
 
     if make_collided:
         # TODO: refactor this as it has redundant logic with misaligned
-        x_collided = util.make_collided(x_templates, n_per_spike=1,
+        x_collided = util.make_collided(x_templates,
+                                        n_per_spike=1,
                                         multi_channel=True,
-                                        return_metadata=return_metadata)
+                                        min_shift=min_shift,
+                                        **collided_kwargs)
         x_all.append(x_collided)
         keys.append('collided')
 
@@ -380,13 +529,7 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
 
     x_all = np.concatenate(x_all, axis=0)
 
-    # add noise
-    spatial_SIG, temporal_SIG = noise_cov(path_to_data,
-                                          neigh_channels,
-                                          geom,
-                                          waveform_length)
-
-    x_all_noisy = util.add_noise(x_all, spatial_SIG, temporal_SIG)
+    x_all_noisy = util.add_noise(x_all, spatial_sig, temporal_sig)
 
     # compute amplitudes
     the_amplitudes = util.amplitudes(x_all)
@@ -395,5 +538,6 @@ def spikes(templates, min_amplitude, max_amplitude, path_to_data,
     slices = {k: slice(n_spikes * i, n_spikes * (i + 1)) for k, i
               in zip(keys, range(len(x_all)))}
 
-    return (x_all, x_all_noisy, the_amplitudes, slices, spatial_SIG,
-            temporal_SIG)
+    # FIXME: shoudld not return sigs
+    return (x_all, x_all_noisy, the_amplitudes, slices, spatial_sig,
+            temporal_sig)

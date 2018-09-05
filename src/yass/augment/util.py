@@ -4,6 +4,9 @@ import random
 import numpy as np
 import logging
 
+import yass.array as yarr
+from yass import util
+
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +21,10 @@ def _make_noisy(x, the_noise):
     return x + noise_sample
 
 
-def sample_from_zero_axis(x, axis=0):
+def sample_from_zero_axis(x):
     """Sample from a certain axis
     """
-    idx = np.random.choice(x.shape[0], 1, replace=True)
+    idx = np.random.choice(x.shape[0], 1, replace=True)[0]
     return x[idx], idx
 
 
@@ -31,8 +34,32 @@ def amplitudes(x):
     return np.max(np.abs(x), axis=(1, 2))
 
 
+def draw_with_group_probabilities(elements, probabilities):
+    """
+    Group elements in a 1D array and draw them depending on the probabilities
+    passed
+    """
+    n_groups = len(probabilities)
+    groups = np.array_split(elements, n_groups)
+
+    def draw_one():
+        group_idx = (np.random
+                       .choice(np
+                               .arange(n_groups), size=1, p=probabilities)[0])
+
+        element = np.random.choice(groups[group_idx], size=1)[0]
+        return element
+
+    elements_new = np.empty(elements.shape)
+
+    for i in range(len(elements)):
+        elements_new[i] = draw_one()
+
+    return elements_new
+
+
 def make_from_templates(templates, min_amplitude, max_amplitude,
-                        n_per_template):
+                        n_per_template, probabilities=None):
     """Make spikes with varying amplitudes from templates
 
     Parameters
@@ -50,6 +77,12 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
 
     n_per_template: int
         How many spikes to generate per template
+
+    probabilities: tuple
+        Tuple of probabilities for the amplitude range. When the linear
+        amplitude range is generated, equal number of spikes are generated
+        along the range, by passing probabolities, you can choose how this
+        distribution looks like
 
     Returns
     -------
@@ -69,6 +102,10 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
 
     d = max_amplitude - min_amplitude
     amps_range = (min_amplitude + np.arange(n_per_template) * d/n_per_template)
+
+    if probabilities is not None:
+        amps_range = draw_with_group_probabilities(amps_range, probabilities)
+
     amps_range = amps_range[:, np.newaxis, np.newaxis]
 
     # go over every template
@@ -86,8 +123,8 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
     return x
 
 
-def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
-                  max_shift='auto', return_metadata=False):
+def make_collided(x, n_per_spike, multi_channel, min_shift,
+                  amp_tolerance=0.2, max_shift='auto', return_metadata=False):
     """Make collided spikes
 
     Parameters
@@ -101,6 +138,8 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
     max_shift: int or string, optional
         Maximum amount of shift for the collided spike. If 'auto', it sets
         to half the waveform length in x
+    min_shift: float, int
+        Minimum shift
     return_metadata: bool, optional
         Return data used to generate the collisions
     """
@@ -136,7 +175,7 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
     for j in range(n_collided):
 
         # random shifting
-        shift = random.randint(-max_shift, max_shift)
+        shift = random.choice([-1, 1]) * random.randint(min_shift, max_shift)
 
         # sample a clean spike - first spike
         x_first[j], i = sample_from_zero_axis(x)
@@ -145,6 +184,9 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
         amp = amps[i]
         lower = amp * (1.0 - amp_tolerance)
         upper = amp * (1.0 + amp_tolerance)
+
+        # generate 100 possible scaling values and select one of them
+        scale_factor = np.random.uniform(lower, upper)
 
         # draw another clean spike and scale it to be within bounds
         scale_factor = np.linspace(lower, upper, num=50)[random.randint(0, 49)]
@@ -174,9 +216,20 @@ def make_collided(x, n_per_spike, multi_channel, amp_tolerance=0.2,
     if return_metadata:
         spikes_first = np.stack(spikes_first)
         spikes_second = np.stack(spikes_second)
-        metadata = dict(first=spikes_first, second=spikes_second,
-                        shift=shifts)
-        return ArrayWithMetadata(x_first, metadata)
+
+        params = dict(n_per_spike=n_per_spike,
+                      multi_channel=multi_channel,
+                      min_shift=min_shift,
+                      max_shift=max_shift,
+                      amp_tolerance=amp_tolerance,
+                      yass_version=util.get_version())
+
+        metadata = dict(first=spikes_first,
+                        second=spikes_second,
+                        shift=shifts,
+                        params=params)
+
+        return yarr.ArrayWithMetadata(x_first, metadata)
     else:
         return x_first
 
@@ -194,36 +247,6 @@ def shift_waveform(x, shift):
         return zeros
     else:
         return x
-
-
-# TODO: remove this function and use separate functions instead
-def make_misaligned(x, max_shift, misalign_ratio, misalign_ratio2,
-                    multi_channel):
-    """Make temporally and spatially misaligned from spikes
-
-    Parameters
-    ----------
-    multi_channel: bool
-        Whether to return multi channel or single channel spikes
-    """
-    ################################
-    # temporally misaligned spikes #
-    ################################
-
-    x_temporally = make_temporally_misaligned(x, misalign_ratio,
-                                              multi_channel, max_shift)
-
-    ###############################
-    # spatially misaligned spikes #
-    ###############################
-
-    if multi_channel:
-        x_spatially = make_spatially_misaligned(x, misalign_ratio2)
-
-        return x_temporally, x_spatially
-
-    else:
-        return x_temporally
 
 
 def make_spatially_misaligned(x, n_per_spike):
@@ -289,25 +312,31 @@ def make_temporally_misaligned(x, n_per_spike, multi_channel,
     return x_temporally
 
 
-def make_noise(shape, spatial_SIG, temporal_SIG):
+def make_noise(n, spatial_SIG, temporal_SIG):
     """Make noise
+
+    Parameters
+    ----------
+    n: int
+        Number of noise events to generate
 
     Returns
     ------
     numpy.ndarray
-        Noise array with the desired shape
+        Noise
     """
-    n_out, waveform_length, n_neigh = shape
+    n_neigh, _ = spatial_SIG.shape
+    waveform_length, _ = temporal_SIG.shape
 
     # get noise
-    noise = np.random.normal(size=(n_out, waveform_length, n_neigh))
+    noise = np.random.normal(size=(n, waveform_length, n_neigh))
 
     for c in range(n_neigh):
         noise[:, :, c] = np.matmul(noise[:, :, c], temporal_SIG)
         reshaped_noise = np.reshape(noise, (-1, n_neigh))
 
     the_noise = np.reshape(np.matmul(reshaped_noise, spatial_SIG),
-                           (n_out, waveform_length, n_neigh))
+                           (n, waveform_length, n_neigh))
 
     return the_noise
 
@@ -315,7 +344,7 @@ def make_noise(shape, spatial_SIG, temporal_SIG):
 def add_noise(x, spatial_SIG, temporal_SIG):
     """Returns a noisy version of x
     """
-    noise = make_noise(x.shape, spatial_SIG, temporal_SIG)
+    noise = make_noise(x.shape[0], spatial_SIG, temporal_SIG)
     return x + noise
 
 
