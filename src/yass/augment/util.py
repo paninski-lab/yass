@@ -249,36 +249,6 @@ def shift_waveform(x, shift):
         return x
 
 
-# TODO: remove this function and use separate functions instead
-def make_misaligned(x, max_shift, misalign_ratio, misalign_ratio2,
-                    multi_channel):
-    """Make temporally and spatially misaligned from spikes
-
-    Parameters
-    ----------
-    multi_channel: bool
-        Whether to return multi channel or single channel spikes
-    """
-    ################################
-    # temporally misaligned spikes #
-    ################################
-
-    x_temporally = make_temporally_misaligned(x, misalign_ratio,
-                                              multi_channel, max_shift)
-
-    ###############################
-    # spatially misaligned spikes #
-    ###############################
-
-    if multi_channel:
-        x_spatially = make_spatially_misaligned(x, misalign_ratio2)
-
-        return x_temporally, x_spatially
-
-    else:
-        return x_temporally
-
-
 def make_spatially_misaligned(x, n_per_spike):
     """Make spatially misaligned spikes (main channel is not the first channel)
     """
