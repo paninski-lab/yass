@@ -10,10 +10,17 @@ import numpy as np
 import yass
 from yass.augment import make
 from yass.templates.util import get_templates
-from yass.templates.crop import crop_and_align_templates
 from yass.augment.noise import noise_cov
-from yass.augment.util import (make_from_templates, make_collided,
-                               make_misaligned, make_noise)
+from yass.augment.util import (make_from_templates, make_collided, make_noise)
+from yass.batch import RecordingsReader
+
+
+spike_train = np.array([100, 0,
+                        150, 0,
+                        200, 1,
+                        250, 1,
+                        300, 2,
+                        350, 2]).reshape(-1, 2)
 
 
 @pytest.mark.xfail
@@ -109,6 +116,7 @@ def test_can_make_collided(path_to_tests, path_to_standarized_data,
                   max_shift=CONFIG.spike_size)
 
 
+# this function was removed, splitted in two new functions
 @pytest.mark.xfail
 def test_can_make_misaligned(path_to_tests, path_to_standarized_data,
                              path_to_sample_pipeline_folder):
@@ -134,83 +142,35 @@ def test_can_make_misaligned(path_to_tests, path_to_standarized_data,
 
     templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
 
-    x_clean = make_from_templates(templates_uncropped, min_amplitude=2,
-                                  max_amplitude=10, n_per_template=100)
+    make_from_templates(templates_uncropped, min_amplitude=2,
+                        max_amplitude=10, n_per_template=100)
 
-    make_misaligned(x_clean,
-                    misalign_ratio=1,
-                    misalign_ratio2=1,
-                    max_shift=2 * CONFIG.spike_size,
-                    multi_channel=True)
-
-
-@pytest.mark.xfail
-def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data,
-                               path_to_sample_pipeline_folder):
-
-    np.random.seed(0)
-    random.seed(0)
-
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
-    CONFIG = yass.read_config()
-
-    spike_train = np.load(path.join(path_to_sample_pipeline_folder,
-                                    'spike_train.npy'))
-
-    n_spikes, _ = spike_train.shape
-
-    weighted_spike_train = np.hstack((spike_train,
-                                      np.ones((n_spikes, 1), 'int32')))
-
-    templates_uncropped, _ = get_templates(weighted_spike_train,
-                                           path_to_standarized_data,
-                                           CONFIG.resources.max_memory,
-                                           4*CONFIG.spike_size)
-
-    templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
-
-    noise_cov(path_to_standarized_data,
-              CONFIG.neigh_channels,
-              CONFIG.geom,
-              templates_uncropped.shape[1])
+    # make_misaligned(x_clean,
+    #                 misalign_ratio=1,
+    #                 misalign_ratio2=1,
+    #                 max_shift=2 * CONFIG.spike_size,
+    #                 multi_channel=True)
 
 
-@pytest.mark.xfail
-def test_can_make_noise(path_to_tests, path_to_standarized_data,
-                        path_to_sample_pipeline_folder):
+def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):
+    recordings = RecordingsReader(path_to_standarized_data,
+                                  loader='array')._data
 
-    np.random.seed(0)
-    random.seed(0)
+    spatial_SIG, temporal_SIG = noise_cov(recordings,
+                                          temporal_size=10,
+                                          sample_size=100,
+                                          threshold=3.0,
+                                          window_size=10)
 
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
-    CONFIG = yass.read_config()
 
-    spike_train = np.load(path.join(path_to_sample_pipeline_folder,
-                                    'spike_train.npy'))
+def test_can_make_noise(path_to_tests, path_to_standarized_data):
+    recordings = RecordingsReader(path_to_standarized_data,
+                                  loader='array')._data
 
-    n_spikes, _ = spike_train.shape
+    spatial_SIG, temporal_SIG = noise_cov(recordings,
+                                          temporal_size=10,
+                                          sample_size=100,
+                                          threshold=3.0,
+                                          window_size=10)
 
-    weighted_spike_train = np.hstack((spike_train,
-                                      np.ones((n_spikes, 1), 'int32')))
-
-    templates_uncropped, _ = get_templates(weighted_spike_train,
-                                           path_to_standarized_data,
-                                           CONFIG.resources.max_memory,
-                                           4*CONFIG.spike_size)
-
-    templates_uncropped = np.transpose(templates_uncropped, (2, 1, 0))
-
-    templates = crop_and_align_templates(templates_uncropped,
-                                         CONFIG.spike_size,
-                                         CONFIG.neigh_channels,
-                                         CONFIG.geom)
-
-    spatial_SIG, temporal_SIG = noise_cov(path_to_standarized_data,
-                                          CONFIG.neigh_channels,
-                                          CONFIG.geom,
-                                          templates.shape[1])
-
-    x_clean = make_from_templates(templates, min_amplitude=2, max_amplitude=10,
-                                  n_per_template=100)
-
-    make_noise(x_clean.shape, spatial_SIG, temporal_SIG)
+    make_noise(10, spatial_SIG, temporal_SIG)
