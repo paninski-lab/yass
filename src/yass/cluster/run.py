@@ -20,7 +20,7 @@ from yass.mfm import get_core_data
                             LoadFile(join('cluster', 'vbPar.pickle'))],
                  mode='values', relative_to='output_directory',
                  auto_save=True, prepend_root_folder=True)
-def run(scores, spike_index, output_directory='tmp/',
+def run(spike_index, output_directory='tmp/',
         if_file_exists='skip', save_results=False):
     """Spike clustering
 
@@ -62,11 +62,14 @@ def run(scores, spike_index, output_directory='tmp/',
     .. literalinclude:: ../../examples/pipeline/cluster.py
 
     """
-    # load files in case they are strings or Path objects
-    scores = file_loader(scores)
     spike_index = file_loader(spike_index)
 
     CONFIG = read_config()
+
+    # load files in case they are strings or Path objects
+    path_to_scores = join(CONFIG.path_to_output_directory,
+                          'detect', 'scores_clear.npy')
+    scores = np.load(path_to_scores)
 
     startTime = datetime.datetime.now()
 

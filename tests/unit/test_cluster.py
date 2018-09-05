@@ -16,19 +16,19 @@ from util import ReferenceTesting
 
 
 def test_cluster(path_to_threshold_config, make_tmp_folder):
-    yass.set_config(path_to_threshold_config)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
                                    output_directory=make_tmp_folder)
 
-    cluster.run(score, spike_index_clear, output_directory=make_tmp_folder)
+    cluster.run(spike_index_clear, output_directory=make_tmp_folder)
 
 
 @pytest.mark.xfail
@@ -37,13 +37,13 @@ def test_cluster_returns_expected_results(path_to_threshold_config,
                                           make_tmp_folder):
     np.random.seed(0)
 
-    yass.set_config(path_to_threshold_config)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
@@ -51,7 +51,7 @@ def test_cluster_returns_expected_results(path_to_threshold_config,
 
     # save results
     (spike_train, tmp_loc,
-     vbParam) = cluster.run(score, spike_index_clear,
+     vbParam) = cluster.run(spike_index_clear,
                             output_directory=make_tmp_folder)
 
     path_to_spike_train = path.join(path_to_data_folder,
@@ -67,19 +67,19 @@ def test_cluster_returns_expected_results(path_to_threshold_config,
 
 def test_cluster_save_results(path_to_threshold_config, make_tmp_folder):
 
-    yass.set_config(path_to_threshold_config)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
                                    output_directory=make_tmp_folder)
 
-    cluster.run(score, spike_index_clear, save_results=True,
+    cluster.run(spike_index_clear, save_results=True,
                 output_directory=make_tmp_folder)
 
 
@@ -87,26 +87,26 @@ def test_cluster_loads_from_disk_if_all_files_exist(caplog,
                                                     path_to_threshold_config,
                                                     make_tmp_folder):
 
-    yass.set_config(path_to_threshold_config)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
                                    output_directory=make_tmp_folder)
 
     # save results
-    cluster.run(score, spike_index_clear, save_results=True,
+    cluster.run(spike_index_clear, save_results=True,
                 output_directory=make_tmp_folder)
 
     assert cluster.run.executed
 
     # next time this should not run and just load from files
-    cluster.run(score, spike_index_clear, save_results=True,
+    cluster.run(spike_index_clear, save_results=True,
                 output_directory=make_tmp_folder)
 
     assert not cluster.run.executed
