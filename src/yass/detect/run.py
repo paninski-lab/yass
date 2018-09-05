@@ -406,7 +406,10 @@ def run_neural_network2(standarized_path, standarized_params,
 
     #quit()
 
-    return clear, spikes_all
+    # TODO: returning None, to avoid breaking compatibility with the
+    # detect.run function in the master branch, we need to update that function
+    # (and the tests) so that they only return clear spikes and all spikes
+    return None, clear, spikes_all
 
 def binary_reader(idx_list, buffer_size, standardized_filename,
                   n_channels, root_folder):
