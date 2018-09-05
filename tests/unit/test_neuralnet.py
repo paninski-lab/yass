@@ -197,6 +197,7 @@ def test_can_use_detect_triage_after_reload(path_to_tests,
     detector.predict(x_detect)
 
 
+@pytest.mark.xfail
 def test_can_use_neural_network_detector(path_to_tests,
                                          path_to_standarized_data,
                                          path_to_sample_pipeline_folder):
@@ -260,6 +261,7 @@ def test_can_use_neural_network_detector(path_to_tests,
                                                  neighbors)
 
 
+@pytest.mark.xfail
 def test_splitting_in_batches_does_not_affect(path_to_tests,
                                               path_to_standarized_data,
                                               path_to_sample_pipeline_folder):
