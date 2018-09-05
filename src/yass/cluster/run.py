@@ -69,6 +69,9 @@ def run(spike_index,
 
     CONFIG = read_config()
 
+    CLUSTER_OUTPUT_DIR = os.path.join(CONFIG.path_to_output_directory,
+                                      'cluster')
+
     startTime = datetime.datetime.now()
 
     Time = {'t': 0, 'c': 0, 'm': 0, 's': 0, 'e': 0}
@@ -85,8 +88,7 @@ def run(spike_index,
     # error since spike_train is never declared, do we have more methods?
     if CONFIG.cluster.method == 'voltage_features': 
 
-        fname = os.path.join(CONFIG.data.root_folder, 
-                              output_directory, 'spike_train_cluster.npy')
+        fname = os.path.join(CLUSTER_OUTPUT_DIR, 'spike_train_cluster.npy')
         
         if os.path.exists(fname)==False:
 
@@ -106,8 +108,7 @@ def run(spike_index,
             nshifts = 15
             
             # check to see if 'result/' folder exists otherwise make it
-            result_dir = os.path.join(CONFIG.data.root_folder,
-                                      'tmp/cluster')
+            result_dir = CLUSTER_OUTPUT_DIR
             if not os.path.isdir(result_dir):
                 os.makedirs(result_dir)
 
@@ -121,20 +122,16 @@ def run(spike_index,
             print ("Spike train clustered: ", spike_train.shape, " # clusters: ",
                         np.max(spike_train[:,1])+1)
             np.save(fname,spike_train)
-            np.save(os.path.join(CONFIG.data.root_folder, 
-                              output_directory,'tmp_loc.npy'), tmp_loc)
-            np.save(os.path.join(CONFIG.data.root_folder, 
-                              output_directory,'templates.npy'), templates)
+            np.save(os.path.join(CLUSTER_OUTPUT_DIR,'tmp_loc.npy'), tmp_loc)
+            np.save(os.path.join(CLUSTER_OUTPUT_DIR,'templates.npy'), templates)
                               
             print (templates.shape)
 
         else:
             
             spike_train = np.load(fname)
-            tmp_loc = np.load(os.path.join(CONFIG.data.root_folder, 
-                              output_directory,'tmp_loc.npy'))
-            templates = np.load(os.path.join(CONFIG.data.root_folder, 
-                              output_directory,'templates.npy'))
+            tmp_loc = np.load(os.path.join(CLUSTER_OUTPUT_DIR,'tmp_loc.npy'))
+            templates = np.load(os.path.join(CLUSTER_OUTPUT_DIR,'templates.npy'))
     
     # report timing
     currentTime = datetime.datetime.now()
