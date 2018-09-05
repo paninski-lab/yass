@@ -8,7 +8,7 @@ from util import ReferenceTesting
 
 def test_decovnolution(path_to_threshold_config,
                        make_tmp_folder):
-    yass.set_config('tests/config_nnet.yaml')
+    yass.set_config('tests/config_nnet.yaml', make_tmp_folder)
 
     # FIXME: hacky solution for the test to pass, i need to re-train the
     # triage network
@@ -21,15 +21,14 @@ def test_decovnolution(path_to_threshold_config,
      standarized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    (score,
-     spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
                                    output_directory=make_tmp_folder)
 
     spike_train_clear, tmp_loc, vbParam = cluster.run(
-        score, spike_index_clear,
+        spike_index_clear,
         output_directory=make_tmp_folder)
 
     (templates_, spike_train,
@@ -47,13 +46,13 @@ def test_deconvolution_returns_expected_results(path_to_threshold_config,
                                                 make_tmp_folder):
     np.random.seed(0)
 
-    yass.set_config(path_to_threshold_config)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
         standarized_params,
         whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
@@ -61,7 +60,7 @@ def test_deconvolution_returns_expected_results(path_to_threshold_config,
 
     (spike_train_clear,
         tmp_loc,
-        vbParam) = cluster.run(score, spike_index_clear,
+        vbParam) = cluster.run(spike_index_clear,
                                output_directory=make_tmp_folder)
 
     (templates_, spike_train,
