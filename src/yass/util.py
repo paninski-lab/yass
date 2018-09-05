@@ -520,7 +520,7 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
             else:
                 names = filenames
 
-            if prepend_root_folder and os.path.isabs(_kwargs[relative_to]):
+            if prepend_root_folder and not os.path.isabs(_kwargs[relative_to]):
                 CONFIG = yass.read_config()
                 root_path = Path(CONFIG.data.root_folder, _kwargs[relative_to])
             else:
