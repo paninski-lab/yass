@@ -13,11 +13,12 @@ from yass.cluster.util import (run_cluster, calculate_sparse_rhat)
 from yass.mfm import get_core_data
 
 
+# FIXME: remove output_directory, no longer used
 @check_for_files(filenames=[LoadFile(join('cluster',
                                           'spike_train_cluster.npy')),
                             LoadFile(join('cluster', 'tmp_loc.npy')),
                             LoadFile(join('cluster', 'vbPar.pickle'))],
-                 mode='values', relative_to='output_directory',
+                 mode='values', relative_to=None,
                  auto_save=True, prepend_root_folder=True)
 def run(spike_index, output_directory='tmp/',
         if_file_exists='skip', save_results=False):

@@ -506,12 +506,6 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
         def wrapper(*args, **kwargs):
             _kwargs = map_parameters_in_fn_call(args, kwargs, func)
 
-            # if not relative_path exists, just run the function
-            if _kwargs.get(relative_to) is None:
-                logging.debug('No output path was passed, running the '
-                              'function without checking for files...')
-                return func(*args, **kwargs)
-
             if_file_exists = _kwargs['if_file_exists']
 
             if mode == 'extract':
@@ -520,9 +514,13 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
             else:
                 names = filenames
 
-            CONFIG = yass.read_config()
-            root_path = Path(CONFIG.path_to_output_directory)
-            root_path.mkdir(parents=True, exist_ok=True)
+            if relative_to is None:
+                CONFIG = yass.read_config()
+                root_path = Path(CONFIG.path_to_output_directory)
+            else:
+                root_path = Path(_kwargs[relative_to])
+
+                root_path.mkdir(parents=True, exist_ok=True)
 
             # generate paths for files
             paths = [root_path / f.value for f in names]

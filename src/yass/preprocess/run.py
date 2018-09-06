@@ -14,6 +14,7 @@ from yass.preprocess.standarize import standarize
 from yass.preprocess import whiten
 
 
+# FIXME: remove output_directory, no longer used
 def run(output_directory='tmp/', if_file_exists='skip'):
     """Preprocess pipeline: filtering, standarization and whitening filter
 
@@ -23,10 +24,6 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     Parameters
     ----------
-    output_directory: str, optional
-        Location to store results, relative to CONFIG.data.root_folder,
-        defaults to tmp/. See list of files in Notes section below.
-
     if_file_exists: str, optional
         One of 'overwrite', 'abort', 'skip'. Control de behavior for every
         generated file. If 'overwrite' it replaces the files if any exist,
@@ -76,11 +73,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     logger.info('Output dtype for transformed data will be {}'
                 .format(OUTPUT_DTYPE))
 
-    if os.path.isabs(output_directory):
-        TMP = Path(output_directory, 'preprocess/')
-    else:
-        TMP = Path(CONFIG.data.root_folder, output_directory, 'preprocess/')
-
+    TMP = Path(CONFIG.path_to_output_directory, 'preprocess')
     TMP.mkdir(parents=True, exist_ok=True)
     TMP = str(TMP)
 
