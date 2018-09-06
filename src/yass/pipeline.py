@@ -104,8 +104,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     (standarized_path,
      standarized_params,
      whiten_filter) = (preprocess
-                       .run(output_directory=output_dir,
-                            if_file_exists=CONFIG.preprocess.if_file_exists))
+                       .run(if_file_exists=CONFIG.preprocess.if_file_exists))
 
     time_preprocess = time.time() - start
 
@@ -116,7 +115,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
-                                   output_directory=output_dir,
                                    if_file_exists=CONFIG.detect.if_file_exists,
                                    save_results=CONFIG.detect.save_results)
     time_detect = time.time() - start
@@ -139,8 +137,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # run deconvolution
     start = time.time()
-    spike_train = deconvolute.run(spike_train_cluster, templates,
-                                  output_directory=output_dir)
+    spike_train = deconvolute.run(spike_train_cluster, templates)
     time_deconvolution = time.time() - start
 
     # save spike train
