@@ -61,6 +61,8 @@ def seed(i):
 
 
 def dummy_predict_with_threshold(self, x, threshold, **kwargs):
-    ones = np.ones(int(ceil(x.shape[0]/2))).astype(bool)
-    zeros = np.zeros(int(floor(x.shape[0]/2))).astype(bool)
+    n = int(x.shape[0]/2)
+    r = int(n % 2)
+    ones = np.ones(n + r).astype(bool)
+    zeros = np.zeros(n).astype(bool)
     return np.concatenate((ones, zeros))
