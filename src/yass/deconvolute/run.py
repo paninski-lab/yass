@@ -114,6 +114,7 @@ def run(spike_train_cluster,
     # necessary parameters
     n_channels, n_temporal_big, n_templates = templates.shape
     templates = np.transpose(templates, (2, 1, 0))
+    print('templates shape ', templates.shape)
 
     sampling_rate = CONFIG.recordings.sampling_rate
     n_shifts = CONFIG.deconvolution.upsample_factor
@@ -163,8 +164,7 @@ def run(spike_train_cluster,
     templates = np.swapaxes(templates,1,2)
     
     # make deconv directory
-    deconv_dir = os.path.join(CONFIG.data.root_folder,
-                              'tmp/deconv')
+    deconv_dir = os.path.join(CONFIG.path_to_output_directory, 'deconv')
     if not os.path.isdir(deconv_dir):
         os.makedirs(deconv_dir)
 
@@ -184,8 +184,9 @@ def run(spike_train_cluster,
         idx_list_local = idx_list[c:c+chunk_length]
         
         # make deconv chunk directory
-        deconv_chunk_dir = os.path.join(CONFIG.data.root_folder,
-                          'tmp/deconv/chunk_'+str(chunk_ctr).zfill(6))
+        deconv_chunk_dir = os.path.join(CONFIG.path_to_output_directory,
+                                        'deconv',
+                                        'chunk_'+str(chunk_ctr).zfill(6))
         if not os.path.isdir(deconv_chunk_dir):
             os.makedirs(deconv_chunk_dir)
         
@@ -557,7 +558,7 @@ def deconv_residual_recluster(data_in):
 def get_unit_spikes_from_file(unit_sp, template, deconv_chunk_dir):
     """Gets clean spikes for a given unit."""
     
-    data = np.load(deconv_chunk_dir+'/residual.npy')
+    data = np.load(os.path.join(deconv_chunk_dir, 'residual.npy'))
     # Cat TODO: Need to load from CONFIG; careful as the templates are
     #           now being extended during cluster preamble using flexible val
     n_time = 61
