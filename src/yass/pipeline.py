@@ -119,7 +119,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # detect
     start = time.time()
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
@@ -131,7 +131,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # cluster
     start = time.time()
     spike_train_clear, tmp_loc, vbParam = cluster.run(
-        score,
         spike_index_clear,
         output_directory=output_dir,
         if_file_exists=CONFIG.cluster.if_file_exists,

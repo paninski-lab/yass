@@ -138,9 +138,7 @@ def run_threshold(standarized_path, standarized_params,
     folder = Path(CONFIG.path_to_output_directory, 'detect')
     folder.mkdir(exist_ok=True)
 
-    # Set TMP_FOLDER to None if not save_results, this will disable
-    # saving results in every function below
-    TMP_FOLDER = (str(folder) if save_results else None)
+    TMP_FOLDER = str(folder)
 
     # files that will be saved if enable by the if_file_exists option
     filename_index_clear = 'spike_index_clear.npy'
@@ -196,18 +194,22 @@ def run_threshold(standarized_path, standarized_params,
     # apply whitening to scores
     scores = whiten.score(pca_scores, clear[:, 1], whiten_filter)
 
-    if TMP_FOLDER is not None:
-        # saves whiten scores
-        path_to_scores = os.path.join(TMP_FOLDER, filename_scores_clear)
-        save_numpy_object(scores, path_to_scores, if_file_exists,
-                          name='scores')
-
+    if save_results:
         # save spike_index_all (same as spike_index_clear for threshold
         # detector)
         path_to_spike_index_all = os.path.join(TMP_FOLDER,
                                                filename_spike_index_all)
         save_numpy_object(clear, path_to_spike_index_all, if_file_exists,
                           name='Spike index all')
+
+    # FIXME: always saving scores since they are loaded by the clustering
+    # step, we need to find a better way to do this, since the current
+    # clustering code is going away soon this is a tmp solution
+    # saves scores
+    # saves whiten scores
+    path_to_scores = os.path.join(TMP_FOLDER, filename_scores_clear)
+    save_numpy_object(scores, path_to_scores, if_file_exists,
+                      name='scores')
 
     return clear, np.copy(clear)
 
@@ -346,9 +348,12 @@ def run_neural_network(standarized_path, standarized_params,
             logger.info('Saved rotation matrix in {}...'
                         .format(path_to_rotation))
 
-            # saves scores
-            np.save(path_to_score, scores)
-            logger.info('Saved spike scores in {}...'.format(path_to_score))
+        # FIXME: always saving scores since they are loaded by the clustering
+        # step, we need to find a better way to do this, since the current
+        # clustering code is going away soon this is a tmp solution
+        # saves scores
+        np.save(path_to_score, scores)
+        logger.info('Saved spike scores in {}...'.format(path_to_score))
 
     elif if_file_exists == 'abort' and any(exists):
         conflict = [p for p, e in zip(paths, exists) if e]
