@@ -1,3 +1,4 @@
+import yass
 import shutil
 import tempfile
 import numpy as np
@@ -6,12 +7,16 @@ import pytest
 from util import PATH_TO_TESTS, seed
 
 
-@pytest.fixture(autouse=True, scope='session')
+@pytest.fixture(autouse=True)
 def setup():
     seed(0)
 
+    yield
 
-@pytest.fixture(scope='session')
+    yass.reset_config()
+
+
+@pytest.fixture()
 def data_info():
     d = dict()
 
@@ -29,7 +34,7 @@ def data_info():
     return d
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def data():
     info = data_info()
 
@@ -39,12 +44,12 @@ def data():
     return d
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def path_to_tests():
     return PATH_TO_TESTS
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def path_to_performance():
     return os.path.join(PATH_TO_TESTS, 'performance/')
 
@@ -56,64 +61,64 @@ def make_tmp_folder():
     shutil.rmtree(temp)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def path_to_data():
     return os.path.join(PATH_TO_TESTS, 'data/retina/data.bin')
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def path_to_geometry():
     return os.path.join(PATH_TO_TESTS, 'data/retina/geometry.npy')
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def path_to_data_folder():
     return os.path.join(PATH_TO_TESTS, 'data/')
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def path_to_sample_pipeline_folder():
     return os.path.join(PATH_TO_TESTS, 'data', 'retina',
                         'sample_pipeline_output')
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def path_to_standarized_data():
     return os.path.join(PATH_TO_TESTS, 'data', 'retina',
                         'sample_pipeline_output', 'preprocess',
                         'standarized.bin')
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture()
 def path_to_output_reference():
     return os.path.join(PATH_TO_TESTS, 'output_reference')
 
 
 @pytest.fixture
-def path_to_nnet_config(scope='session'):
+def path_to_nnet_config():
     return os.path.join(PATH_TO_TESTS, 'config_nnet.yaml')
 
 
 @pytest.fixture
-def path_to_threshold_config(scope='session'):
+def path_to_threshold_config():
     return os.path.join(PATH_TO_TESTS, 'config_threshold.yaml')
 
 
 @pytest.fixture
-def path_to_config_sample(scope='session'):
+def path_to_config_sample():
     return os.path.join(PATH_TO_TESTS, 'config_sample.yaml')
 
 
 @pytest.fixture
-def path_to_config_with_wrong_channels(scope='session'):
+def path_to_config_with_wrong_channels():
     return os.path.join(PATH_TO_TESTS, 'config_wrong_channels.yaml')
 
 
 @pytest.fixture
-def path_to_txt_geometry(scope='session'):
+def path_to_txt_geometry():
     return os.path.join(PATH_TO_TESTS, 'test_files', 'geometry.txt')
 
 
 @pytest.fixture
-def path_to_npy_geometry(scope='session'):
+def path_to_npy_geometry():
     return os.path.join(PATH_TO_TESTS, 'test_files', 'geometry.npy')

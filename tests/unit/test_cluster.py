@@ -58,8 +58,7 @@ def test_cluster_save_results(path_to_threshold_config, make_tmp_folder):
                 output_directory=make_tmp_folder)
 
 
-def test_cluster_loads_from_disk_if_all_files_exist(caplog,
-                                                    path_to_threshold_config,
+def test_cluster_loads_from_disk_if_all_files_exist(path_to_threshold_config,
                                                     make_tmp_folder):
     yass.set_config(path_to_threshold_config, make_tmp_folder)
 
