@@ -73,14 +73,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         Spike train
     """
     # load yass configuration parameters
-    set_config(config)
+    set_config(config, output_dir)
     CONFIG = read_config()
-    ROOT_FOLDER = CONFIG.data.root_folder
-
-    if os.path.isabs(output_dir):
-        TMP_FOLDER = output_dir
-    else:
-        TMP_FOLDER = path.join(ROOT_FOLDER, output_dir)
+    TMP_FOLDER = CONFIG.path_to_output_directory
 
     # remove tmp folder if needed
     if os.path.exists(TMP_FOLDER) and clean:
