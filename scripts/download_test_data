@@ -17,7 +17,7 @@ echo 'Removing contents of tests/assets/recordings tests/assets/output_reference
 rm -rf tests/assets/recordings tests/assets/output_reference examples/data
 
 echo 'Copying data to tests/data tests/output_reference and examples/data...'
-mkdir tests/assets/
+mkdir -p tests/assets/
 cp -r yass-testing-data/recordings tests/assets/recordings/
 cp -r yass-testing-data/output_reference tests/assets/output_reference
 cp -r yass-testing-data/recordings examples/data/
