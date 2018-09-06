@@ -462,8 +462,7 @@ class ExpandPath:
         return '{}("{}")'.format(ExpandPath.__name__, self.value)
 
 
-def check_for_files(filenames, mode, relative_to, auto_save=False,
-                    prepend_root_folder=False):
+def check_for_files(filenames, mode, relative_to=None, auto_save=False):
     """
     Decorator to avoid running functions when all the results were already
     computed, looks for the value send in the `if_file_exists` parameter
@@ -492,10 +491,6 @@ def check_for_files(filenames, mode, relative_to, auto_save=False,
         If the function is run and this is True, paths will be expanded
         and results will be stored. It is assumed that the elements
         in filenames and the ones returned by the function match in order
-
-    prepend_root_folder: bool
-        Prepend CONFIG.data.root_folder to the paths
-
     """
     if mode not in ['extract', 'values']:
         raise ValueError('mode must be either extract or values')

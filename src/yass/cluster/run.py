@@ -21,9 +21,8 @@ from yass.mfm import get_core_data
                             LoadFile(join('cluster', 'tmp_loc.npy')),
                             LoadFile(join('cluster', 'vbPar.pickle'))],
                  mode='values', relative_to=None,
-                 auto_save=True, prepend_root_folder=True)
-def run(spike_index, output_directory='tmp/',
-        if_file_exists='skip', save_results=False):
+                 auto_save=True)
+def run(spike_index, if_file_exists='skip', save_results=False):
     """Spike clustering
 
     Parameters

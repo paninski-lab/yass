@@ -13,15 +13,14 @@ def test_cluster_threshold(path_to_threshold_config, make_tmp_folder):
 
     (standarized_path,
      standarized_params,
-     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
+     whiten_filter) = preprocess.run()
 
     (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter,
-                                   output_directory=make_tmp_folder)
+                                   whiten_filter)
 
-    cluster.run(spike_index_clear, output_directory=make_tmp_folder)
+    cluster.run(spike_index_clear)
 
 
 def test_cluster_nnet(path_to_nnet_config, make_tmp_folder):
@@ -29,15 +28,14 @@ def test_cluster_nnet(path_to_nnet_config, make_tmp_folder):
 
     (standarized_path,
      standarized_params,
-     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
+     whiten_filter) = preprocess.run()
 
     (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter,
-                                   output_directory=make_tmp_folder)
+                                   whiten_filter)
 
-    cluster.run(spike_index_clear, output_directory=make_tmp_folder)
+    cluster.run(spike_index_clear)
 
 
 def test_cluster_save_results(path_to_threshold_config, make_tmp_folder):
@@ -46,16 +44,14 @@ def test_cluster_save_results(path_to_threshold_config, make_tmp_folder):
 
     (standarized_path,
      standarized_params,
-     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
+     whiten_filter) = preprocess.run()
 
     (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter,
-                                   output_directory=make_tmp_folder)
+                                   whiten_filter)
 
-    cluster.run(spike_index_clear, save_results=True,
-                output_directory=make_tmp_folder)
+    cluster.run(spike_index_clear, save_results=True)
 
 
 def test_cluster_loads_from_disk_if_all_files_exist(path_to_threshold_config,
@@ -64,22 +60,19 @@ def test_cluster_loads_from_disk_if_all_files_exist(path_to_threshold_config,
 
     (standarized_path,
      standarized_params,
-     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
+     whiten_filter) = preprocess.run()
 
     (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter,
-                                   output_directory=make_tmp_folder)
+                                   whiten_filter)
 
     # save results
-    cluster.run(spike_index_clear, save_results=True,
-                output_directory=make_tmp_folder)
+    cluster.run(spike_index_clear, save_results=True)
 
     assert cluster.run.executed
 
     # next time this should not run and just load from files
-    cluster.run(spike_index_clear, save_results=True,
-                output_directory=make_tmp_folder)
+    cluster.run(spike_index_clear, save_results=True)
 
     assert not cluster.run.executed

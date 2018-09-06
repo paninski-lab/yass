@@ -14,8 +14,7 @@ from yass.preprocess.standarize import standarize
 from yass.preprocess import whiten
 
 
-# FIXME: remove output_directory, no longer used
-def run(output_directory='tmp/', if_file_exists='skip'):
+def run(if_file_exists='skip'):
     """Preprocess pipeline: filtering, standarization and whitening filter
 
     This step (optionally) performs filtering on the data, standarizes it
