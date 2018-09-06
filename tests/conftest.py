@@ -1,19 +1,22 @@
-import yass
 import shutil
 import tempfile
 import numpy as np
 import os
 import pytest
-from util import PATH_TO_TESTS, seed
+from util import PATH_TO_TESTS, seed, dummy_predict_with_threshold
 
 
 @pytest.fixture(autouse=True)
 def setup():
     seed(0)
 
-    yield
 
-    yass.reset_config()
+@pytest.fixture
+def patch_triage_network(monkeypatch):
+    to_patch = 'yass.neuralnetwork.model.KerasModel.predict_with_threshold'
+    monkeypatch.setattr(to_patch, dummy_predict_with_threshold)
+
+    yield
 
 
 @pytest.fixture()

@@ -26,7 +26,7 @@ from yass.util import file_loader, save_numpy_object, running_on_gpu
 
 
 def run(standarized_path, standarized_params, whiten_filter,
-        if_file_exists='skip', save_results=True):
+        if_file_exists='skip', save_results=False):
     """Execute detect step
 
     Parameters

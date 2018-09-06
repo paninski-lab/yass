@@ -1,12 +1,9 @@
-import util
 import yass
-from yass import preprocess, cluster, templates, deconvolute
+from yass import preprocess, cluster, templates, deconvolute, detect
 
 
-def test_deconvolution(monkeypatch, path_to_nnet_config, make_tmp_folder):
-    monkeypatch.setattr('yass.neuralnetwork.KerasModel', util.DummyKerasModel)
-    from yass import detect
-
+def test_deconvolution(patch_triage_network, path_to_nnet_config,
+                       make_tmp_folder):
     yass.set_config(path_to_nnet_config, make_tmp_folder)
 
     (standarized_path,

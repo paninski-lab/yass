@@ -23,7 +23,8 @@ def test_cluster_threshold(path_to_threshold_config, make_tmp_folder):
     cluster.run(spike_index_clear)
 
 
-def test_cluster_nnet(path_to_nnet_config, make_tmp_folder):
+def test_cluster_nnet(patch_triage_network, path_to_nnet_config,
+                      make_tmp_folder):
     yass.set_config(path_to_nnet_config, make_tmp_folder)
 
     (standarized_path,
