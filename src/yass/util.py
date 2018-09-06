@@ -38,6 +38,7 @@ from copy import copy
 from functools import wraps, reduce
 
 import numpy as np
+import tensorflow
 from tensorflow.python.client import device_lib
 from dateutil.relativedelta import relativedelta
 

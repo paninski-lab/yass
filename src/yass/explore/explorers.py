@@ -527,11 +527,12 @@ class RecordingExplorer(object):
         else:
             wf = self.reader[start:end, channels].astype(self.waveform_dtype)
 
-        if len(wf) != 2 * self.spike_size + 1:
-            raise ValueError('Cannot read waveform at time {}, there is not '
-                             'enough data to draw a complete waveform ({} '
-                             'observations are needed to the left and to the '
-                             'right)'.format(time, self.spike_size))
+        #if len(wf) != 2 * self.spike_size + 1:
+        #    raise ValueError('Cannot read waveform at time {}, there is not '
+        #                     'enough data to draw a complete waveform ({} '
+        #                     'observations are needed to the left and to the '
+        #                     'right)'.format(time, self.spike_size))
+            
 
         return wf
 
@@ -560,17 +561,25 @@ class RecordingExplorer(object):
             channels = range(self.n_channels)
 
         total = len(times)
-        wfs = np.empty((total, self.spike_size * 2 + 1, len(channels)),
-                       dtype=self.waveform_dtype)
-
+        #wfs = np.empty((total, self.spike_size * 2 + 1, len(channels)),
+        #               dtype=self.waveform_dtype)
+        wfs= []
         for i, t in enumerate(times):
-            wfs[i, :, :] = self.read_waveform(t, channels)
+            # Cat: TODO: implement this correctly;
+            #       Checks if waeform too short
+            temp = self.read_waveform(t, channels)
+            if len(temp) != 2 * self.spike_size + 1:
+                
+                continue
+            wfs.append(temp)
 
             if i % 10000 == 0 and i > 0:
                 self.logger.info('Loaded {:,}/{:,} waveforms...'
                                  .format(i, total))
 
-        self.logger.info('Loaded all {:,} waveforms...'.format(total))
+        #self.logger.info('Loaded all {:,} waveforms...'.format(total))
+    
+        wfs = np.array(wfs)
 
         if flatten:
             self.logger.debug('Flattening waveforms...')

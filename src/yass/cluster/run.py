@@ -82,62 +82,58 @@ def run(spike_index,
     _b = datetime.datetime.now()
 
     # voltage space feature clustering
-    # FIXME: when CONFIG.cluster.method != voltage_features, this throws an
-    # error since spike_train is never declared, do we have more methods?
-    if CONFIG.cluster.method == 'voltage_features': 
+    fname = os.path.join(CLUSTER_OUTPUT_DIR, 'spike_train_cluster.npy')
+    
+    if os.path.exists(fname)==False:
 
-        fname = os.path.join(CLUSTER_OUTPUT_DIR, 'spike_train_cluster.npy')
+        spike_index_clear = spike_index
+
+        # option to select highest variance points on a channel
+        # Cat: TODO: read all these values from CONFIG
+        n_dim_pca_compression =  5      # denoise level for raw waveforms
+        n_dim_pca = 3                   # compression level for clustering
+        wf_start = 0
+        wf_end = int(CONFIG.recordings.spike_size_ms*
+                     CONFIG.recordings.sampling_rate//1000)
+                     
+        #n_mad_chans = 5
+        #n_max_chans = 5
+        n_feat_chans = 5
+        mfm_threshold = 0.85
+        upsample_factor = 5
+        nshifts = 15
         
-        if os.path.exists(fname)==False:
+        # check to see if 'result/' folder exists otherwise make it
+        result_dir = CLUSTER_OUTPUT_DIR
+        if not os.path.isdir(result_dir):
+            os.makedirs(result_dir)
 
-            spike_index_clear = spike_index
+        # run new voltage features-based clustering - chunk the data
+        spike_train, tmp_loc, templates = run_cluster_features_chunks(
+                                spike_index_clear, n_dim_pca_compression,
+                                n_dim_pca, wf_start, wf_end, n_feat_chans, 
+                                CONFIG, CLUSTER_OUTPUT_DIR,
+                                mfm_threshold, upsample_factor, nshifts)
+      
+        print ("Spike train clustered: ", spike_train.shape, " # clusters: ",
+                    np.max(spike_train[:,1])+1)
 
-            # option to select highest variance points on a channel
-            n_dim_pca = 3
-            wf_start = 0
-            wf_end = int(CONFIG.recordings.spike_size_ms*
-                         CONFIG.recordings.sampling_rate//1000)
-                       
-                         
-            n_mad_chans = 5
-            n_max_chans = 5
-            mfm_threshold = 0.85
-            upsample_factor = 5
-            nshifts = 15
-            
-            # check to see if 'result/' folder exists otherwise make it
-            result_dir = CLUSTER_OUTPUT_DIR
-            if not os.path.isdir(result_dir):
-                os.makedirs(result_dir)
 
-            # run new voltage features-based clustering - chunk the data
-            spike_train, tmp_loc, templates = run_cluster_features_chunks(
-                                    spike_index_clear, 
-                                    n_dim_pca, wf_start, wf_end, n_mad_chans, 
-                                    n_max_chans, CONFIG, CONFIG.path_to_output_directory,
-                                    mfm_threshold, upsample_factor, nshifts)
-          
-            print ("Spike train clustered: ", spike_train.shape, " # clusters: ",
-                        np.max(spike_train[:,1])+1)
-            np.save(fname,spike_train)
-            np.save(os.path.join(CLUSTER_OUTPUT_DIR,'tmp_loc.npy'), tmp_loc)
-            np.save(os.path.join(CLUSTER_OUTPUT_DIR,'templates.npy'), templates)
-                              
-            print (templates.shape)
-
-        else:
-            
-            spike_train = np.load(fname)
-            tmp_loc = np.load(os.path.join(CLUSTER_OUTPUT_DIR,'tmp_loc.npy'))
-            templates = np.load(os.path.join(CLUSTER_OUTPUT_DIR,'templates.npy'))
+    else:
+        
+        spike_train = np.load(fname)
+        tmp_loc = np.load(os.path.join(CONFIG.data.root_folder, 
+                          CLUSTER_OUTPUT_DIR,'tmp_loc.npy'))
+        templates = np.load(os.path.join(CONFIG.data.root_folder, 
+                          CLUSTER_OUTPUT_DIR,'templates.npy'))
     
     # report timing
-    currentTime = datetime.datetime.now()
-    logger.info("Mainprocess done in {0} seconds.".format(
-        (currentTime - startTime).seconds))
-    logger.info("\ttriage:\t{0} seconds".format(Time['t']))
-    logger.info("\tcoreset:\t{0} seconds".format(Time['c']))
-    logger.info("\tmasking:\t{0} seconds".format(Time['m']))
-    logger.info("\tclustering:\t{0} seconds".format(Time['s']))
+    #currentTime = datetime.datetime.now()
+    #logger.info("Mainprocess done in {0} seconds.".format(
+        #(currentTime - startTime).seconds))
+    #logger.info("\ttriage:\t{0} seconds".format(Time['t']))
+    #logger.info("\tcoreset:\t{0} seconds".format(Time['c']))
+    #logger.info("\tmasking:\t{0} seconds".format(Time['m']))
+    #logger.info("\tclustering:\t{0} seconds".format(Time['s']))
 
     return spike_train, tmp_loc, templates #, vbParam
