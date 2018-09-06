@@ -7,7 +7,7 @@ from yass import preprocess
 logging.basicConfig(level=logging.INFO)
 
 # set yass configuration parameters
-yass.set_config('config_sample.yaml')
+yass.set_config('config_sample.yaml', 'preprocess-example')
 
 # run preprocessor
 standarized_path, standarized_params, whiten_filter = preprocess.run()

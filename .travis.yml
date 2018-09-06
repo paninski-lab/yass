@@ -15,7 +15,6 @@ script:
   - pip install tensorflow
   - make download-test-data
   - make test
-  # this is still broken se we are not running integration tests
   # - make integration-test
   - make docs
 
