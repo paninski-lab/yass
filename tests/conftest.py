@@ -3,7 +3,12 @@ import tempfile
 import numpy as np
 import os
 import pytest
-from util import PATH_TO_TESTS
+from util import PATH_TO_TESTS, seed
+
+
+@pytest.fixture(autouse=True, scope='session')
+def setup():
+    seed(0)
 
 
 @pytest.fixture(scope='session')

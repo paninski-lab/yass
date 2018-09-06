@@ -2,7 +2,6 @@
 process.run tests, checking that the pipeline finishes without errors for
 several configuration files
 """
-import util
 from os import path
 
 import pytest
@@ -17,7 +16,6 @@ from util import ReferenceTesting
 
 
 def test_templates(path_to_threshold_config, make_tmp_folder):
-    util.seed(0)
     yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
@@ -40,7 +38,6 @@ def test_templates(path_to_threshold_config, make_tmp_folder):
 
 
 def test_templates_save_results(path_to_threshold_config, make_tmp_folder):
-    util.seed(0)
     yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
@@ -65,7 +62,6 @@ def test_templates_save_results(path_to_threshold_config, make_tmp_folder):
 
 def test_templates_loads_from_disk_if_files_exist(make_tmp_folder,
                                                   path_to_threshold_config):
-    util.seed(0)
     yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
@@ -98,7 +94,6 @@ def test_templates_loads_from_disk_if_files_exist(make_tmp_folder,
 def test_templates_returns_expected_results(path_to_threshold_config,
                                             path_to_output_reference,
                                             make_tmp_folder):
-    util.seed(0)
 
     yass.set_config(path_to_threshold_config, make_tmp_folder)
 

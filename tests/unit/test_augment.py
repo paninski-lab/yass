@@ -2,7 +2,6 @@
 Tests for functions that create training data for the neural networks
 """
 import os.path as path
-import random
 
 import pytest
 import numpy as np
@@ -25,10 +24,6 @@ spike_train = np.array([100, 0,
 
 @pytest.mark.xfail
 def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
-
-    np.random.seed(0)
-    random.seed(0)
-
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -56,10 +51,6 @@ def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
 @pytest.mark.xfail
 def test_can_make_clean(path_to_tests, path_to_standarized_data,
                         path_to_sample_pipeline_folder):
-
-    np.random.seed(0)
-    random.seed(0)
-
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -85,10 +76,6 @@ def test_can_make_clean(path_to_tests, path_to_standarized_data,
 @pytest.mark.xfail
 def test_can_make_collided(path_to_tests, path_to_standarized_data,
                            path_to_sample_pipeline_folder):
-
-    np.random.seed(0)
-    random.seed(0)
-
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 
@@ -120,10 +107,6 @@ def test_can_make_collided(path_to_tests, path_to_standarized_data,
 @pytest.mark.xfail
 def test_can_make_misaligned(path_to_tests, path_to_standarized_data,
                              path_to_sample_pipeline_folder):
-
-    np.random.seed(0)
-    random.seed(0)
-
     yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
     CONFIG = yass.read_config()
 

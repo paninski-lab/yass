@@ -7,8 +7,6 @@ def test_deconvolution(monkeypatch, path_to_nnet_config, make_tmp_folder):
     monkeypatch.setattr('yass.neuralnetwork.KerasModel', util.DummyKerasModel)
     from yass import detect
 
-    util.seed(0)
-
     yass.set_config(path_to_nnet_config, make_tmp_folder)
 
     (standarized_path,
