@@ -956,10 +956,10 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, x, ax_t, triagefla
     # *********** REVIEW AND SAVE RESULTS ************
     #*************************************************        
     # always plot distribution
-    if plotting:
-        plot_clustering_scatter(fig, grid, x, gen, vbParam,  
-                                assignment2, colors, pca_wf_all, channel,
-                                idx_recovered)
+    # if plotting:
+    #     plot_clustering_scatter(fig, grid, x, gen, vbParam,  
+    #                             assignment2, colors, pca_wf_all, channel,
+    #                             idx_recovered)
                 
     # Case #1: single cluster found
     if vbParam.rhat.shape[1] == 1:
@@ -1447,8 +1447,9 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca_compression,
         #            multiprocessing module;
         
         buffer_size = 200
-        standardized_filename = os.path.join(CONFIG.data.root_folder,
-                                            'tmp', 'standarized.bin')
+        standardized_filename = os.path.join(CONFIG.path_to_output_directory,
+                                         'preprocess',
+                                         'standarized.bin')
         n_channels = CONFIG.recordings.n_channels
         root_folder = CONFIG.data.root_folder
         
@@ -1487,8 +1488,9 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca_compression,
 
     
     # Cat: TODO: this logic isn't quite correct; should merge with above
-    if os.path.exists(os.path.join(CONFIG.data.root_folder, 
-                          'tmp/templates.npy'))==False: 
+    path_to_templates = os.path.join(CONFIG.path_to_output_directory,
+                                     'template.npy')
+    if os.path.exists(path_to_templates)==False: 
 
         # reload recording chunk if not already in memory
         if recording_chunk is None: 
@@ -1509,21 +1511,21 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca_compression,
         
         tmp_loc = np.int32(tmp_loc)
 
-        np.save(os.path.join(CONFIG.data.root_folder, 
-                          'tmp/cluster/spike_train_post_clustering_post_merge_post_cutoff.npy'), final_spike_train)
-        np.save(os.path.join(CONFIG.data.root_folder, 
-                          'tmp/tmp_loc.npy'), tmp_loc)
-        np.save(os.path.join(CONFIG.data.root_folder, 
-                          'tmp/cluster/templates_post_clustering_post_merge_post_cutoff.npy'), templates)
+        np.save(os.path.join(CONFIG.path_to_output_directory, 
+                          'spike_train_post_clustering_post_merge_post_cutoff.npy'), final_spike_train)
+        np.save(os.path.join(CONFIG.path_to_output_directory, 
+                          'tmp_loc.npy'), tmp_loc)
+        np.save(os.path.join(CONFIG.path_to_output_directory, 
+                          'templates_post_clustering_post_merge_post_cutoff.npy'), templates)
                           
     else:
         
-        final_spike_train = np.load(os.path.join(CONFIG.data.root_folder, 
-                          'tmp/cluster/spike_train_post_clustering_post_merge_post_cutoff.npy'))
-        tmp_loc = np.load(os.path.join(CONFIG.data.root_folder, 
-                          'tmp/cluster/tmp_loc.npy'))
-        templates = np.load(os.path.join(CONFIG.data.root_folder, 
-                          'tmp/cluster/templates_post_clustering_post_merge_post_cutoff.npy'))
+        final_spike_train = np.load(os.path.join(CONFIG.path_to_output_directory, 
+                          'spike_train_post_clustering_post_merge_post_cutoff.npy'))
+        tmp_loc = np.load(os.path.join(CONFIG.path_to_output_directory, 
+                          'tmp_loc.npy'))
+        templates = np.load(os.path.join(CONFIG.path_to_output_directory, 
+                          'templates_post_clustering_post_merge_post_cutoff.npy'))
 
 
     return final_spike_train, tmp_loc, templates
@@ -2446,9 +2448,12 @@ def parallel_merge(data):
     
     ## read waveforms
     #offset = 200
-
-    re = RecordingExplorer(CONFIG.data.root_folder+'/tmp/standarized.bin', 
-                   path_to_geom = CONFIG.data.root_folder+CONFIG.data.geometry, 
+    standardized_filename = os.path.join(CONFIG.path_to_output_directory,
+                                         'preprocess',
+                                         'standarized.bin')
+    path_to_geom = os.path.join(CONFIG.data.root_folder, CONFIG.data.geometry)
+    re = RecordingExplorer(standardized_filename, 
+                   path_to_geom = path_to_geom, 
                    spike_size = 30, 
                    neighbor_radius = 100, 
                    dtype = 'float32',

@@ -10,8 +10,8 @@ def test_can_initialize_nnet_config(path_to_nnet_config):
     yass.Config.from_yaml(path_to_nnet_config)
 
 
-def test_can_initialize_config_sample(path_to_config_sample):
-    yass.Config.from_yaml(path_to_config_sample)
+def test_can_initialize_config_sample(path_to_threshold_config):
+    yass.Config.from_yaml(path_to_threshold_config)
 
 
 def test_throws_error_if_channels_mismatch(path_to_config_with_wrong_channels):
