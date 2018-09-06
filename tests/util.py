@@ -1,4 +1,5 @@
 import os
+import random
 try:
     from pathlib2 import Path
 except ImportError:
@@ -51,3 +52,8 @@ class ReferenceTesting(with_metaclass(TestingType, BaseClass)):
     in TestingType and run the tests once
     """
     pass
+
+
+def seed(i):
+    random.seed(i)
+    np.random.seed(i)
