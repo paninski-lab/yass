@@ -111,7 +111,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # detect
     # Cat: This code now runs with open tensorflow calls
     start = time.time()
-    (scores, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
