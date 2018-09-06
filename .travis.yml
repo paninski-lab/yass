@@ -12,7 +12,7 @@ install:
   - make install
 
 script:
-  - pip install tensorflow; pip install Cython; pip install git+https://github.com/paninski-lab/diptest@fix-import
+  - pip install tensorflow; pip install Cython; pip install git+https://github.com/paninski-lab/diptest@fix-import progressbar2
   - make download-test-data
   - make test
   # - make integration-test
