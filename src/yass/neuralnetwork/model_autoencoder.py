@@ -81,7 +81,7 @@ class AutoEncoder(Model):
         # input tensor (waveforms)
         if input_tensor is None:
             self.x_tf = tf.placeholder("float",
-                                       [None, self.waveform_length,
+                                       [self.waveform_length,
                                         None])
             score_tf = tf.matmul(self.x_tf, self.vars_dict['W_ae'])
         else:
