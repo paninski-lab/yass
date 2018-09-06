@@ -98,23 +98,18 @@ def path_to_output_reference():
 
 @pytest.fixture
 def path_to_nnet_config():
-    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'config_nnet.yaml')
+    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'nnet.yaml')
 
 
 @pytest.fixture
 def path_to_threshold_config():
-    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'config_threshold.yaml')
-
-
-@pytest.fixture
-def path_to_config_sample():
-    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'config_sample.yaml')
+    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'threshold.yaml')
 
 
 @pytest.fixture
 def path_to_config_with_wrong_channels():
     return os.path.join(PATH_TO_RETINA_CONFIG_DIR,
-                        'config_wrong_channels.yaml')
+                        'wrong_channels.yaml')
 
 
 @pytest.fixture

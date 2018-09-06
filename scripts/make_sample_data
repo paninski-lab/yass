@@ -2,9 +2,11 @@
 """
 Sample data for testing
 """
+from copy import deepcopy
 import shutil
 from pathlib import Path
 
+import yaml
 import numpy as np
 
 from yass.batch import RecordingsReader
@@ -27,13 +29,16 @@ path_to_retina_data = Path(path_to_retina_folder, 'ej49_data1_set1.bin')
 path_to_retina_geom = Path(path_to_retina_folder, 'ej49_geometry1.txt')
 
 
-path_to_output_folder = Path(path_to_data_storage, 'yass-testing-data', 'data')
+path_to_output_folder = Path(path_to_data_storage, 'yass-testing-data',
+                             'recordings')
 
 
 print('Output will be at ', path_to_output_folder)
 
 path_to_output_folder_neuro = Path(path_to_output_folder, 'neuropixel')
+
 path_to_output_folder_retina = Path(path_to_output_folder, 'retina')
+path_to_output_folder_retina_cfg = path_to_output_folder_retina / 'config'
 
 if path_to_output_folder.exists():
     print('Output Folder exists, removing contents....')
@@ -43,6 +48,7 @@ if path_to_output_folder.exists():
 path_to_output_folder.mkdir(parents=True)
 # path_to_output_folder_neuro.mkdir()
 path_to_output_folder_retina.mkdir()
+path_to_output_folder_retina_cfg.mkdir()
 
 
 # Dataset 1: retina
@@ -112,6 +118,28 @@ print('Standarizing data...')
 pipeline.run(CONFIG, clean=True,
              output_dir='sample_pipeline_output',
              set_zero_seed=True)
+
+
+# make config files
+nnet = deepcopy(CONFIG)
+nnet['detect'] = {'method': 'nn', 'temporal_features': 3}
+
+wrong_channels = deepcopy(CONFIG)
+_ = wrong_channels['recordings']
+_['n_channels'] = channels + 1
+wrong_channels['recordings'] = _
+
+with open(str(path_to_output_folder_retina_cfg / 'nnet.yaml'), 'w') as f:
+    yaml.dump(nnet, f)
+
+
+with open(str(path_to_output_folder_retina_cfg / 'threshold.yaml'), 'w') as f:
+    yaml.dump(CONFIG, f)
+
+
+with open(str(path_to_output_folder_retina_cfg /
+              'wrong_channels.yaml'), 'w')as f:
+    yaml.dump(wrong_channels, f)
 
 
 print('Done')
