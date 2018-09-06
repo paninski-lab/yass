@@ -291,7 +291,7 @@ def filter_standardize_parallel(data_in, low_frequency, high_factor, order,
 
 def filter_standardize(data_in, low_frequency, high_factor, order,
                        sampling_frequency, buffer_size, filename_dat,
-                       n_channels, root_folder, output_directory):
+                       n_channels, output_directory):
     """Butterworth filter for a one dimensional time series
 
     Parameters
@@ -407,26 +407,26 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
     standardized = np.divide(res, sd)
 
     np.save(
-        os.path.join(root_folder, output_directory,
+        os.path.join(output_directory,
                      "filtered_files/standardized_" + str(chunk_idx).zfill(6)),
         standardized)
 
     return standardized.shape
 
 
-def merge_filtered_files(root_folder, output_directory):
+def merge_filtered_files(output_directory):
 
     logger = logging.getLogger(__name__)
 
-    path = os.path.join(root_folder, output_directory, 'filtered_files/')
+    path = os.path.join(output_directory, 'filtered_files')
     filenames = os.listdir(path)
     filenames_sorted = sorted(filenames)
 
-    f_out = os.path.join(root_folder, output_directory, "standarized.bin")
+    f_out = os.path.join(output_directory, "standarized.bin")
     logger.info('...saving standardized file: %s', f_out)
 
     f = open(f_out, 'wb')
     for fname in filenames_sorted:
         res = np.load(os.path.join(path, fname))
         res.tofile(f)
-        os.remove(path + fname)
+        os.remove(os.path.join(path, fname))

@@ -151,13 +151,10 @@ def run_threshold(standarized_path, standarized_params,
     if os.path.isabs(output_directory):
         folder = Path(output_directory)
     else:
-        folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
+        folder = Path(CONFIG.path_to_output_directory, 'detect')
 
     folder.mkdir(exist_ok=True)
-
-    # Set TMP_FOLDER to None if not save_results, this will disable
-    # saving results in every function below
-    TMP_FOLDER = (str(folder) if save_results else None)
+    TMP_FOLDER = str(folder)
 
     # files that will be saved if enable by the if_file_exists option
     filename_index_clear = 'spike_index_clear.npy'
@@ -213,7 +210,7 @@ def run_threshold(standarized_path, standarized_params,
     # apply whitening to scores
     scores = whiten.score(pca_scores, clear[:, 1], whiten_filter)
 
-    if TMP_FOLDER is not None:
+    if TMP_FOLDER and save_results:
         # saves whiten scores
         path_to_scores = os.path.join(TMP_FOLDER, filename_scores_clear)
         save_numpy_object(scores, path_to_scores, if_file_exists,

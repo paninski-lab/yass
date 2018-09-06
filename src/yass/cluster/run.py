@@ -21,11 +21,9 @@ from yass.mfm import get_core_data
         LoadFile('templates.npy')
     ],
     mode='values',
-    relative_to='output_directory',
-    auto_save=True,
-    prepend_root_folder=True)
+    relative_to=None,
+    auto_save=True)
 def run(spike_index,
-        output_directory='tmp/',
         if_file_exists='skip',
         save_results=False):
     """Spike clustering
@@ -116,7 +114,7 @@ def run(spike_index,
             spike_train, tmp_loc, templates = run_cluster_features_chunks(
                                     spike_index_clear, 
                                     n_dim_pca, wf_start, wf_end, n_mad_chans, 
-                                    n_max_chans, CONFIG, output_directory,
+                                    n_max_chans, CONFIG, CONFIG.path_to_output_directory,
                                     mfm_threshold, upsample_factor, nshifts)
           
             print ("Spike train clustered: ", spike_train.shape, " # clusters: ",

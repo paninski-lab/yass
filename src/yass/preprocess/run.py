@@ -15,7 +15,7 @@ from yass.util import save_numpy_object
 from yass.preprocess import whiten
 
 
-def run(output_directory='tmp/', if_file_exists='skip'):
+def run(if_file_exists='skip'):
     """Preprocess pipeline: filtering, standarization and whitening filter
 
     This step (optionally) performs filtering on the data, standarizes it
@@ -24,10 +24,6 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     Parameters
     ----------
-    output_directory: str, optional
-        Location to store results, relative to CONFIG.data.root_folder,
-        defaults to tmp/. See list of files in Notes section below.
-
     if_file_exists: str, optional
         One of 'overwrite', 'abort', 'skip'. Control de behavior for every
         generated file. If 'overwrite' it replaces the files if any exist,
@@ -72,17 +68,18 @@ def run(output_directory='tmp/', if_file_exists='skip'):
 
     CONFIG = read_config()
     OUTPUT_DTYPE = CONFIG.preprocess.dtype
-    TMP = os.path.join(CONFIG.data.root_folder, output_directory)
+    TMP = os.path.join(CONFIG.path_to_output_directory)
+    output_directory = os.path.join(TMP, 'preprocess')
 
     logger.info('Output dtype for transformed data will be {}'
                 .format(OUTPUT_DTYPE))
 
-    if not os.path.exists(TMP):
-        logger.info('Creating temporary folder: {}'.format(TMP))
-        os.makedirs(TMP)
+    if not os.path.exists(output_directory):
+        logger.info('Creating temporary folder: {}'.format(output_directory))
+        os.makedirs(output_directory)
     else:
         logger.info('Temporary folder {} already exists, output will be '
-                    'stored there'.format(TMP))
+                    'stored there'.format(output_directory))
 
     params = dict(
         dtype=CONFIG.recordings.dtype,
@@ -90,14 +87,13 @@ def run(output_directory='tmp/', if_file_exists='skip'):
         data_order=CONFIG.recordings.order)
 
     # Generate params:
-    standarized_path = os.path.join(TMP, "standarized.bin")
+    standarized_path = os.path.join(output_directory, "standarized.bin")
     standarized_params = params
     standarized_params['dtype'] = 'float32'
 
     # Check if data already saved to disk and skip:
     if if_file_exists == 'skip':
-        f_out = os.path.join(CONFIG.data.root_folder, output_directory,
-                             "standarized.bin")
+        f_out = os.path.join(output_directory, "standarized.bin")
         if os.path.exists(f_out):
 
             channel_index = make_channel_index(CONFIG.neigh_channels,
@@ -112,11 +108,12 @@ def run(output_directory='tmp/', if_file_exists='skip'):
                 channel_index,
                 CONFIG.spike_size,
                 CONFIG.resources.max_memory,
-                TMP,
+                output_directory,
                 output_filename='whitening.npy',
                 if_file_exists=if_file_exists)
 
-            path_to_channel_index = os.path.join(TMP, "channel_index.npy")
+            path_to_channel_index = os.path.join(output_directory,
+                                                 "channel_index.npy")
 
             return str(standarized_path), standarized_params, whiten_filter
 
@@ -157,8 +154,7 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     logger.info("# of chunks: %i", len(idx_list))
 
     # Make directory to hold filtered batch files:
-    filtered_location = os.path.join(CONFIG.data.root_folder, output_directory,
-                                     "filtered_files")
+    filtered_location = os.path.join(output_directory, "filtered_files")
     logger.info(filtered_location)
     if not os.path.exists(filtered_location):
         os.makedirs(filtered_location)
@@ -175,7 +171,6 @@ def run(output_directory='tmp/', if_file_exists='skip'):
             buffer_size,
             filename_dat,
             n_channels,
-            CONFIG.data.root_folder,
             output_directory,
             processes=n_processors,
             pm_pbar=True)
@@ -183,11 +178,10 @@ def run(output_directory='tmp/', if_file_exists='skip'):
         for k in range(len(idx_list)):
             filter_standardize([idx_list[k], k], low_frequency, high_factor,
                                order, sampling_rate, buffer_size, filename_dat,
-                               n_channels, CONFIG.data.root_folder,
-                               output_directory)
+                               n_channels, output_directory)
 
     # Merge the chunk filtered files and delete the individual chunks
-    merge_filtered_files(CONFIG.data.root_folder, output_directory)
+    merge_filtered_files(output_directory)
 
     # save yaml file with params
     path_to_yaml = standarized_path.replace('.bin', '.yaml')
@@ -221,11 +215,11 @@ def run(output_directory='tmp/', if_file_exists='skip'):
         CONFIG.spike_size,
         # CONFIG.resources.max_memory,
         '50MB',
-        TMP,
+        output_directory,
         output_filename='whitening.npy',
         if_file_exists=if_file_exists)
 
-    path_to_channel_index = os.path.join(TMP, 'channel_index.npy')
+    path_to_channel_index = os.path.join(output_directory, 'channel_index.npy')
     save_numpy_object(
         channel_index,
         path_to_channel_index,

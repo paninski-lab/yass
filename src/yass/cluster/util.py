@@ -1390,6 +1390,7 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
     
     # determine length of processing chunk based on lenght of rec
     standardized_filename = os.path.join(CONFIG.path_to_output_directory,
+                                         'preprocess',
                                          'standarized.bin')
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
@@ -1449,7 +1450,7 @@ def run_cluster_features_chunks(spike_index_clear, n_dim_pca, wf_start, wf_end,
             global recording_chunk
             
             buffer_size = 200
-            standardized_filename = os.path.join(CONFIG.path_to_output_directory, 'standarized.bin')
+            standardized_filename = os.path.join(CONFIG.path_to_output_directory, 'preprocess', 'standarized.bin')
             n_channels = CONFIG.recordings.n_channels
             
             recording_chunk = binary_reader(idx, buffer_size, 

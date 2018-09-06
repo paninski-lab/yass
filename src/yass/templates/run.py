@@ -82,8 +82,8 @@ def run(spike_train, tmp_loc, recordings_filename='standarized.bin',
 
     logger.info("Getting Templates...")
 
-    path_to_recordings = os.path.join(CONFIG.data.root_folder,
-                                      output_directory,
+    path_to_recordings = os.path.join(CONFIG.path_to_output_directory,
+                                      'preprocess',
                                       recordings_filename)
 
     # relevant parameters
@@ -96,7 +96,7 @@ def run(spike_train, tmp_loc, recordings_filename='standarized.bin',
     # make templates using parallel code
     templates, weights = get_templates_parallel(spike_train,
                                                 path_to_recordings,
-                                                output_directory, CONFIG)
+                                                CONFIG)
    
     # Cat: TODO: Templates probably won't be computed through this 
     #      function any longer; for now disable the remainder of this function
@@ -137,10 +137,14 @@ def run(spike_train, tmp_loc, recordings_filename='standarized.bin',
     logger.info("Templates done in {0} seconds.".format(
         (currentTime - startTime).seconds))
 
+
+    templates_dir = os.path.join(CONFIG.path_to_output_directory, 'templates')
+
+    if not os.path.exists(templates_dir):
+        os.makedirs(templates_dir)
+
     # Save spike_train_clear_after_templates to be loaded by deconv
-    spike_train_clear_after_templates = os.path.join(
-                                CONFIG.data.root_folder,
-                                output_directory,
+    spike_train_clear_after_templates = os.path.join(templates_dir,
                                 'spike_train_clear_after_templates.npy')
 
     np.save(spike_train_clear_after_templates, spike_train)
