@@ -18,7 +18,7 @@ from yass.batch import BatchProcessor
 from yass.threshold.detect import threshold
 from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
-from yass.neuralnetwork import (NeuralNetDetector, AutoEncoder, KerasModel)
+from yass.neuralnetwork import NeuralNetDetector, AutoEncoder, KerasModel
 from yass.neuralnetwork.apply import post_processing, fix_indexes_spike_index
 from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
@@ -300,7 +300,6 @@ def run_neural_network(standarized_path, standarized_params,
 
         idx_clean = triage.predict_with_threshold(x=wfs,
                                                   threshold=triage_th)
-
         score = NNAE.predict(wfs)
         rot = NNAE.load_rotation()
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
