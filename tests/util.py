@@ -1,4 +1,5 @@
 import os
+import random
 try:
     from pathlib2 import Path
 except ImportError:
@@ -51,3 +52,16 @@ class ReferenceTesting(with_metaclass(TestingType, BaseClass)):
     in TestingType and run the tests once
     """
     pass
+
+
+def seed(i):
+    random.seed(i)
+    np.random.seed(i)
+
+
+def dummy_predict_with_threshold(self, x, threshold, **kwargs):
+    n = int(x.shape[0]/2)
+    r = int(n % 2)
+    ones = np.ones(n + r).astype(bool)
+    zeros = np.zeros(n).astype(bool)
+    return np.concatenate((ones, zeros))

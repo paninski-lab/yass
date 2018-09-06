@@ -1,6 +1,5 @@
 from os import path
 
-import pytest
 import numpy as np
 
 
@@ -73,24 +72,24 @@ def test_standarize_does_not_run_if_files_already_exist(path_to_data,
     assert not preprocess.standarize.executed
 
 
-def test_can_preprocess(path_to_threshold_config):
-    yass.set_config(path_to_threshold_config)
+def test_can_preprocess(path_to_threshold_config, make_tmp_folder):
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
     standarized_path, standarized_params, whiten_filter = preprocess.run()
 
 
-def test_can_preprocess_in_parallel(path_to_threshold_config):
+def test_can_preprocess_in_parallel(path_to_threshold_config, make_tmp_folder):
     CONFIG = load_yaml(path_to_threshold_config)
     CONFIG['resources']['processes'] = 'max'
 
-    yass.set_config(CONFIG)
+    yass.set_config(CONFIG, make_tmp_folder)
 
     standarized_path, standarized_params, whiten_filter = preprocess.run()
 
 
-@pytest.mark.xfail
 def test_preprocess_returns_expected_results(path_to_threshold_config,
-                                             path_to_output_reference):
-    yass.set_config(path_to_threshold_config)
+                                             path_to_output_reference,
+                                             make_tmp_folder):
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
     standarized_path, standarized_params, whiten_filter = preprocess.run()
 
     # load standarized data
@@ -108,10 +107,11 @@ def test_preprocess_returns_expected_results(path_to_threshold_config,
                                                path_to_whiten_filter)
 
 
-def test_can_preprocess_without_filtering(path_to_threshold_config):
+def test_can_preprocess_without_filtering(path_to_threshold_config,
+                                          make_tmp_folder):
     CONFIG = load_yaml(path_to_threshold_config)
     CONFIG['preprocess']['apply_filter'] = False
 
-    yass.set_config(CONFIG)
+    yass.set_config(CONFIG, make_tmp_folder)
 
     standarized_path, standarized_params, whiten_filter = preprocess.run()
