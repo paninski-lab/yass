@@ -102,6 +102,10 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # print yass version
     logger.info('YASS version: %s', yass.__version__)
 
+    ''' **********************************************
+        ************** PREPROCESS ********************
+        **********************************************
+    '''
     # preprocess
     start = time.time()
     (standarized_path,
@@ -112,6 +116,12 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                             if_file_exists=CONFIG.preprocess.if_file_exists))
     time_preprocess = time.time() - start
 
+
+
+    ''' **********************************************
+        ************** DETECT EVENTS *****************
+        **********************************************
+    '''
     # detect
     # Cat: This code now runs with open tensorflow calls
     start = time.time()
@@ -124,6 +134,12 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                                    if_file_exists=CONFIG.detect.if_file_exists,
                                    save_results=CONFIG.detect.save_results)
     time_detect = time.time() - start
+
+
+    ''' **********************************************
+        ***************** CLUSTER ********************
+        **********************************************
+    '''
 
     # cluster
     start=time.time()
@@ -138,17 +154,34 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     print ("Spike train clear: ", spike_index_clear.shape, "spike train cluster: ", 
             spike_train_cluster.shape, " templates: ", templates.shape)
 
+
+    ''' **********************************************
+        ************** DECONVOLUTION *****************
+        **********************************************
+    '''
+
     # run deconvolution
     start=time.time()
-    spike_train = deconvolute.run2(spike_train_cluster, templates,
+    spike_train, postdeconv_templates = deconvolute.run2(spike_train_cluster, templates,
                                              output_directory=output_dir)
     time_deconvolution = time.time() - start
 
     # save spike train
-    path_to_spike_train = path.join(TMP_FOLDER, 'spike_train.npy')
+    path_to_spike_train = path.join(TMP_FOLDER, 'spike_train_post_deconv_post_merge.npy')
     np.save(path_to_spike_train, spike_train)
     logger.info('Spike train saved in: {}'.format(path_to_spike_train))
     
+    # save template
+    path_to_templates = path.join(TMP_FOLDER, 'templates_post_deconv_post_merge.npy')
+    np.save(path_to_templates, postdeconv_templates)
+    logger.info('Templates saved in: {}'.format(path_to_templates))
+    
+    
+    ''' **********************************************
+        ************** POST PROCESSING****************
+        **********************************************
+    '''
+
     # save metadata in tmp
     path_to_metadata = path.join(TMP_FOLDER, 'metadata.yaml')
     logging.info('Saving metadata in {}'.format(path_to_metadata))

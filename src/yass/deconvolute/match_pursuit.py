@@ -16,11 +16,10 @@ class MatchPursuit_objectiveUpsample(object):
     """Class for doing greedy matching pursuit deconvolution."""
 
     def __init__(self, temps, deconv_chunk_dir, standardized_filename, 
-                 max_iter, upsample=1, threshold=10, 
+                 max_iter, refrac_period=20, upsample=1, threshold=10., 
                  conv_approx_rank=5,
-                 implicit_subtraction=True, obj_energy=False, vis_su=2., 
-                 keep_iterations=False, sparse_subtraction=True,
-                 broadcast_subtraction=False):
+                 vis_su=2., 
+                 keep_iterations=False):
         """Sets up the deconvolution object.
 
         Parameters:
@@ -36,31 +35,24 @@ class MatchPursuit_objectiveUpsample(object):
         threshold: float
             amount of energy differential that is admissible by each
             spike. The lower this threshold, more spikes are recovered.
-        obj_energy: boolean
-            Whether to include ||V||^2 term in the objective.
         vis_su: float
             threshold for visibility of template channel in terms
             of peak to peak standard unit.
         keep_iterations: boolean
             Keeps the spike train per iteration if True. Otherwise,
             does not keep the history.
-        sparse_subtraction: bool
-            Only units that have visible channel overlap affect
-            each other's computation in subtraction phase.
-        broadcast_subtraction: bool
-            If true, the subtraction step is done in linear algebraic
-            operations instead of loops. This mode of operation is
-            not support sparse subtraction.
         """
         
         self.deconv_dir = deconv_chunk_dir
         self.standardized_filename = standardized_filename
         self.max_iter = max_iter
 
+
         self.n_time, self.n_chan, self.n_unit = temps.shape
         self.temps = temps.astype(np.float32)
         self.orig_temps = temps.astype(np.float32)
         print ("  inside match pursuit: templates: ", self.temps.shape)
+        
         
         # Upsample and downsample time shifted versions
         self.up_factor = upsample
@@ -71,7 +63,6 @@ class MatchPursuit_objectiveUpsample(object):
         self.visible_chans()
         self.template_overlaps()
         self.spatially_mask_templates()
-        
         # Upsample the templates
         # Index of the original templates prior to
         # upsampling them.
@@ -79,20 +70,23 @@ class MatchPursuit_objectiveUpsample(object):
         self.n_unit = self.orig_n_unit * self.up_factor
         self.orig_template_idx = np.arange(0, self.n_unit, self.up_factor)
         print ("  # upsample tempaltes: ", self.n_unit)
-        
+
         # Computing SVD for each template.
         self.compress_templates()
         
         # Compute pairwise convolution of filters
+        print ("  computing temp_temp (todo: parallelize)")
         self.pairwise_filter_conv()
         
         # compute norm of templates
         self.norm = np.zeros([self.orig_n_unit, 1], dtype=np.float32)
         for i in range(self.orig_n_unit):
-            self.norm[i] = np.sum(np.square(self.temps[:, self.vis_chan[:, i], i]))
+            self.norm[i] = np.sum(
+                    np.square(self.temps[:, self.vis_chan[:, i], i]))
         
         # Setting up data properties
         self.keep_iterations = keep_iterations
+        #self.update_data(data)
         self.dec_spike_train = np.zeros([0, 2], dtype=np.int32)
         
         # Energey reduction for assigned spikes.
@@ -105,20 +99,26 @@ class MatchPursuit_objectiveUpsample(object):
         self.up_window = np.arange(-radius - 1, radius + 1)[:, None]
         self.up_window_len = len(self.up_window)
         off = (factor + 1) % 2
+        # Indices of single time window the window around peak after upsampling
+        self.zoom_index = (radius + 1) * factor + np.arange(-factor // 2, radius)
         peak_to_template_idx = np.append(
                 np.arange(radius + off, factor),
                 np.arange(radius + off))
         self.peak_to_template_idx = np.pad(
-                peak_to_template_idx,
-                (radius * (factor + 1) + off, radius * (factor - 1) - off),
-                'edge')
+                peak_to_template_idx, (1, 0), 'edge')
+        if off:
+            self.peak_to_template_idx[0] -= 1
         peak_time_jitter = np.array([1, 0]).repeat(radius)
         peak_time_jitter[radius - 1] = 0
-        self.peak_time_jitter = np.pad(
-                peak_time_jitter,
-                (radius * (factor + 1) + off, radius * (factor - 1) - off),
-                'edge')
-                
+        self.peak_time_jitter = np.pad(peak_time_jitter, (1, 0), 'edge')
+        # Refractory Perios Setup.
+        self.refrac_radius = refrac_period
+        # Account for upsampling window so that np.inf does not fall into the
+        # window around peak for valid spikes.
+        self.adjusted_refrac_radius = max(
+                1, self.refrac_radius - self.up_factor // 2)
+        # Stack for turning on invalud units for next iteration
+        self.turn_off_stack = []
         
     def update_data(self):
         """Updates the data for the deconv to be run on with same templates."""
@@ -304,32 +304,39 @@ class MatchPursuit_objectiveUpsample(object):
             to the original units.
         Returns:
         --------
-            tuple in the form of (numpy.array, numpy.array) respectively
-            the offset of shifted templates and a necessary time shift
-            to correct the spike time.
+            tuple in the form of (numpy.array, numpy.array, numpy.array)
+            respectively the offset of shifted templates and a necessary time
+            shift to correct the spike time, and the index of spike times that
+            do not violate refractory period.
         """
-       
         if self.up_factor == 1 or len(times) < 1:
-            return 0, 0
+            return 0, 0, range(len(times))
         idx = times + self.up_window
-        #snipit = scipy.signal.resample(
-        #    self.obj[unit_ids, idx], self.up_window_len * self.up_factor, axis=0)
-        # Cat: TODO: Fix this indexing into long energies issue
-        new_peak_idx = np.argmax(scipy.signal.resample(
-            self.obj[unit_ids, idx], self.up_window_len * self.up_factor, 
-                             axis=0)[:self.peak_to_template_idx.shape[0]],
-            axis=0)
-        
-        #np.savez('/media/cat/1TB/liam/49channels/data1_allset/tmp/deconv/chunk_000000/test.npy', snipit=snipit,obj_func=self.obj[unit_ids, idx])
-        #print (snipit.shape, new_peak_idx, self.peak_to_template_idx.shape, self.peak_time_jitter.shape)
-        return self.peak_to_template_idx[new_peak_idx], self.peak_time_jitter[new_peak_idx]
+        peak_window = self.obj[unit_ids, idx]
+        # Find times that the window around them do not inlucde np.inf.
+        # In other words do not violate refractory period.
+        invalid_idx = np.logical_or(
+            np.isinf(peak_window[0, :]), np.isinf(peak_window[-1, :]))
+        # Turn off the invlaid units for next iterations.
+        turn_off_idx = times[invalid_idx] + np.arange(
+                - self.refrac_radius, 1)[:, None]
+        self.obj[unit_ids[invalid_idx], turn_off_idx] = - np.inf
+        valid_idx = np.logical_not(invalid_idx)
+        peak_window = peak_window[:, valid_idx]
+        if peak_window.shape[1]  == 0:
+            return np.array([]), np.array([]), valid_idx 
+        high_resolution_peaks = scipy.signal.resample(
+                peak_window, self.up_window_len * self.up_factor, axis=0)
+        shift_idx = np.argmax(
+                high_resolution_peaks[self.zoom_index, :], axis=0)
+        return self.peak_to_template_idx[shift_idx], self.peak_time_jitter[shift_idx], valid_idx
         
         
     def find_peaks(self):
         """Finds peaks in subtraction differentials of spikes."""
-        refrac_period = self.n_time
         max_across_temp = np.max(self.obj, axis=0)
-        spike_times = scipy.signal.argrelmax(max_across_temp, order=refrac_period)[0]
+        spike_times = scipy.signal.argrelmax(
+                max_across_temp, order=self.refrac_radius)[0]
         spike_times = spike_times[max_across_temp[spike_times] > self.threshold]
         dist_metric = max_across_temp[spike_times]
         # TODO(hooshmand): this requires a check of the last element(s)
@@ -340,27 +347,33 @@ class MatchPursuit_objectiveUpsample(object):
         spike_times = spike_times[valid_idx]
         # Upsample the objective and find the best shift (upsampled)
         # template.
-        spike_ids = np.argmax(self.obj[:, spike_times], axis=0) 
-        upsampled_template_idx, time_shift = self.high_res_peak(spike_times, spike_ids)
-        spike_ids = spike_ids * self.up_factor + upsampled_template_idx
-        spike_times -= time_shift
+        spike_ids = np.argmax(self.obj[:, spike_times], axis=0)
+        upsampled_template_idx, time_shift, valid_idx = self.high_res_peak(
+                spike_times, spike_ids)
+        spike_ids = spike_ids[valid_idx] * self.up_factor + upsampled_template_idx
+        spike_times = spike_times[valid_idx] - time_shift
+        # Note that we shift the discovered spike times from convolution
+        # Space to actual raw voltate space by subtracting self.n_time
         result = np.append(
             spike_times[:, None] - self.n_time + 1,
             spike_ids[:, None], axis=1)
-        return result, dist_metric
         
+        return result, dist_metric[valid_idx]
+
         
     def enforce_refractory(self, spike_train):
         """Enforces refractory period for units."""
-        radius = self.n_time // 2
-        window = np.arange(- radius, radius)
+        window = np.arange(- self.adjusted_refrac_radius, self.adjusted_refrac_radius)
         n_spikes = spike_train.shape[0]
-
-        time_idx = spike_train[:, 0:1] + window
+        win_len = len(window)
+        # The offset self.n_time - 1 is necessary to revert the spike times
+        # back to objective function indices which is the result of convoultion
+        # operation.
+        time_idx = (spike_train[:, 0:1] + self.n_time - 1) + window
         # Re-adjust cluster id's so that they match
         # with the original templates
         unit_idx = spike_train[:, 1:2] // self.up_factor
-        self.obj[unit_idx, time_idx] = - np.inf
+        self.obj[unit_idx, time_idx[:, 1:-1]] = - np.inf
         
         
     def subtract_spike_train(self, spt):
@@ -418,6 +431,9 @@ class MatchPursuit_objectiveUpsample(object):
         while tot_max > self.threshold and ctr < self.max_iter:
             spt, dist_met = self.find_peaks()
             
+            if len(spt) == 0:
+                break
+            
             self.dec_spike_train = np.append(self.dec_spike_train, spt, axis=0)
             
             self.subtract_spike_train(spt)
@@ -425,15 +441,12 @@ class MatchPursuit_objectiveUpsample(object):
             if self.keep_iterations:
                 self.iter_spike_train.append(spt)
             self.dist_metric = np.append(self.dist_metric, dist_met)
-            
-            ctr += 1
-            
+                        
             if verbose: 
                 print ("Iteration {0} Found {1} spikes with {2:.2f} energy reduction.".format(
                 ctr, spt.shape[0], np.sum(dist_met)))
-            
-            if len(spt) == 0:
-                break
+
+            ctr += 1
 
         print ('  deconv chunk {0}, seg {1}, # iter: {2}, tot_spikes: {3}, tot_time: {4:.2f}'.
                 format(
