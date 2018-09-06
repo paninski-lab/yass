@@ -4,7 +4,7 @@ several configuration files
 """
 # from os import path
 
-# import numpy as np
+import numpy as np
 import pytest
 
 import yass
@@ -16,6 +16,8 @@ from yass import cluster
 
 
 def test_cluster(path_to_threshold_config, make_tmp_folder):
+    np.random.seed(0)
+
     yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
@@ -66,6 +68,7 @@ def test_cluster(path_to_threshold_config, make_tmp_folder):
 
 
 def test_cluster_save_results(path_to_threshold_config, make_tmp_folder):
+    np.random.seed(0)
 
     yass.set_config(path_to_threshold_config, make_tmp_folder)
 
