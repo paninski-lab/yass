@@ -5,6 +5,10 @@ import os
 import pytest
 from util import PATH_TO_TESTS, seed, dummy_predict_with_threshold
 
+PATH_TO_ASSETS = os.path.join(PATH_TO_TESTS, 'assets')
+PATH_TO_RETINA_DIR = os.path.join(PATH_TO_ASSETS,  'recordings', 'retina')
+PATH_TO_RETINA_CONFIG_DIR = os.path.join(PATH_TO_RETINA_DIR, 'config')
+
 
 @pytest.fixture(autouse=True)
 def setup():
@@ -41,7 +45,7 @@ def data_info():
 def data():
     info = data_info()
 
-    path = os.path.join(PATH_TO_TESTS, 'data/retina/data.bin')
+    path = os.path.join(PATH_TO_RETINA_DIR, 'data.bin')
     d = np.fromfile(path, dtype='int16')
     d = d.reshape(info['observations'], info['n_channels'])
     return d
@@ -66,62 +70,58 @@ def make_tmp_folder():
 
 @pytest.fixture()
 def path_to_data():
-    return os.path.join(PATH_TO_TESTS, 'data/retina/data.bin')
+    return os.path.join(PATH_TO_RETINA_DIR, 'data.bin')
 
 
 @pytest.fixture()
 def path_to_geometry():
-    return os.path.join(PATH_TO_TESTS, 'data/retina/geometry.npy')
-
-
-@pytest.fixture()
-def path_to_data_folder():
-    return os.path.join(PATH_TO_TESTS, 'data/')
+    return os.path.join(PATH_TO_RETINA_DIR, 'geometry.npy')
 
 
 @pytest.fixture()
 def path_to_sample_pipeline_folder():
-    return os.path.join(PATH_TO_TESTS, 'data', 'retina',
+    return os.path.join(PATH_TO_RETINA_DIR,
                         'sample_pipeline_output')
 
 
 @pytest.fixture()
 def path_to_standarized_data():
-    return os.path.join(PATH_TO_TESTS, 'data', 'retina',
+    return os.path.join(PATH_TO_RETINA_DIR,
                         'sample_pipeline_output', 'preprocess',
                         'standarized.bin')
 
 
 @pytest.fixture()
 def path_to_output_reference():
-    return os.path.join(PATH_TO_TESTS, 'output_reference')
+    return os.path.join(PATH_TO_ASSETS, 'output_reference')
 
 
 @pytest.fixture
 def path_to_nnet_config():
-    return os.path.join(PATH_TO_TESTS, 'config_nnet.yaml')
+    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'config_nnet.yaml')
 
 
 @pytest.fixture
 def path_to_threshold_config():
-    return os.path.join(PATH_TO_TESTS, 'config_threshold.yaml')
+    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'config_threshold.yaml')
 
 
 @pytest.fixture
 def path_to_config_sample():
-    return os.path.join(PATH_TO_TESTS, 'config_sample.yaml')
+    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'config_sample.yaml')
 
 
 @pytest.fixture
 def path_to_config_with_wrong_channels():
-    return os.path.join(PATH_TO_TESTS, 'config_wrong_channels.yaml')
+    return os.path.join(PATH_TO_RETINA_CONFIG_DIR,
+                        'config_wrong_channels.yaml')
 
 
 @pytest.fixture
 def path_to_txt_geometry():
-    return os.path.join(PATH_TO_TESTS, 'test_files', 'geometry.txt')
+    return os.path.join(PATH_TO_ASSETS, 'test_files', 'geometry.txt')
 
 
 @pytest.fixture
 def path_to_npy_geometry():
-    return os.path.join(PATH_TO_TESTS, 'test_files', 'geometry.npy')
+    return os.path.join(PATH_TO_ASSETS, 'test_files', 'geometry.npy')

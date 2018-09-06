@@ -16,8 +16,8 @@ echo 'Removing contents of tests/data tests/output_reference and examples/data..
 rm -rf tests/data tests/output_reference examples/data
 
 echo 'Copying data to tests/data tests/output_reference and examples/data...'
-cp -r yass-testing-data/data tests/data/
+cp -r yass-testing-data/data tests/assets/recordings/
 cp -r yass-testing-data/data examples/data/
-cp -r yass-testing-data/output_reference tests/output_reference
+cp -r yass-testing-data/output_reference tests/assets/output_reference
 
 rm -rf yass-testing-data/
