@@ -17,6 +17,7 @@ from util import ReferenceTesting
 
 
 def test_templates(path_to_threshold_config, make_tmp_folder):
+    np.random.seed(0)
     yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
@@ -39,6 +40,7 @@ def test_templates(path_to_threshold_config, make_tmp_folder):
 
 
 def test_templates_save_results(path_to_threshold_config, make_tmp_folder):
+    np.random.seed(0)
     yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
@@ -63,6 +65,7 @@ def test_templates_save_results(path_to_threshold_config, make_tmp_folder):
 
 def test_templates_loads_from_disk_if_files_exist(make_tmp_folder,
                                                   path_to_threshold_config):
+    np.random.seed(0)
     yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
