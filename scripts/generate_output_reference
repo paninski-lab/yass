@@ -6,4 +6,4 @@ export YASS_SAVE_OUTPUT_REFERENCE=1
 pytest tests/unit/
 unset YASS_SAVE_OUTPUT_REFERENCE
 
-mv tests/output_reference/ ~/data/yass-testing-data/output_reference
+mv tests/assets/output_reference/ ~/data/yass-testing-data/output_reference
