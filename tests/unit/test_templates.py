@@ -17,13 +17,14 @@ from util import ReferenceTesting
 
 
 def test_templates(path_to_threshold_config, make_tmp_folder):
-    yass.set_config(path_to_threshold_config)
+    np.random.seed(0)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
@@ -31,7 +32,7 @@ def test_templates(path_to_threshold_config, make_tmp_folder):
 
     (spike_train_clear,
      tmp_loc,
-     vbParam) = cluster.run(score, spike_index_clear,
+     vbParam) = cluster.run(spike_index_clear,
                             output_directory=make_tmp_folder)
 
     templates.run(spike_train_clear, tmp_loc,
@@ -39,13 +40,14 @@ def test_templates(path_to_threshold_config, make_tmp_folder):
 
 
 def test_templates_save_results(path_to_threshold_config, make_tmp_folder):
-    yass.set_config(path_to_threshold_config)
+    np.random.seed(0)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
@@ -53,7 +55,7 @@ def test_templates_save_results(path_to_threshold_config, make_tmp_folder):
 
     (spike_train_clear,
      tmp_loc,
-     vbParam) = cluster.run(score, spike_index_clear,
+     vbParam) = cluster.run(spike_index_clear,
                             output_directory=make_tmp_folder)
 
     templates.run(spike_train_clear, tmp_loc,
@@ -63,20 +65,21 @@ def test_templates_save_results(path_to_threshold_config, make_tmp_folder):
 
 def test_templates_loads_from_disk_if_files_exist(make_tmp_folder,
                                                   path_to_threshold_config):
-    yass.set_config(path_to_threshold_config)
+    np.random.seed(0)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
                                    output_directory=make_tmp_folder)
 
     spike_train_clear, tmp_loc, vbParam = cluster.run(
-        score, spike_index_clear, output_directory=make_tmp_folder)
+        spike_index_clear, output_directory=make_tmp_folder)
 
     # save results
     templates.run(spike_train_clear, tmp_loc, save_results=True,
@@ -97,13 +100,13 @@ def test_templates_returns_expected_results(path_to_threshold_config,
                                             make_tmp_folder):
     np.random.seed(0)
 
-    yass.set_config(path_to_threshold_config)
+    yass.set_config(path_to_threshold_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
@@ -111,7 +114,7 @@ def test_templates_returns_expected_results(path_to_threshold_config,
 
     (spike_train_clear,
      tmp_loc,
-     vbParam) = cluster.run(score, spike_index_clear,
+     vbParam) = cluster.run(spike_index_clear,
                             output_directory=make_tmp_folder)
 
     (templates_, spike_train,

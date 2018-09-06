@@ -26,7 +26,7 @@ from yass.util import file_loader, save_numpy_object, running_on_gpu
 
 
 def run(standarized_path, standarized_params, whiten_filter,
-        output_directory='tmp/', if_file_exists='skip', save_results=False):
+        output_directory='tmp/', if_file_exists='skip', save_results=True):
     """Execute detect step
 
     Parameters
@@ -135,16 +135,10 @@ def run_threshold(standarized_path, standarized_params,
 
     CONFIG = read_config()
 
-    if os.path.isabs(output_directory):
-        folder = Path(output_directory)
-    else:
-        folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
-
+    folder = Path(CONFIG.path_to_output_directory, 'detect')
     folder.mkdir(exist_ok=True)
 
-    # Set TMP_FOLDER to None if not save_results, this will disable
-    # saving results in every function below
-    TMP_FOLDER = (str(folder) if save_results else None)
+    TMP_FOLDER = str(folder)
 
     # files that will be saved if enable by the if_file_exists option
     filename_index_clear = 'spike_index_clear.npy'
@@ -198,21 +192,9 @@ def run_threshold(standarized_path, standarized_params,
     #################
 
     # apply whitening to scores
-    scores_clear = whiten.score(pca_scores, clear[:, 1], whiten_filter)
+    scores = whiten.score(pca_scores, clear[:, 1], whiten_filter)
 
-    # TODO: this shouldn't be here
-    # transform scores to location + shape feature space
-    if CONFIG.cluster.method == 'location':
-        scores = get_locations_features_threshold(scores_clear, clear[:, 1],
-                                                  CONFIG.channel_index,
-                                                  CONFIG.geom)
-
-    if TMP_FOLDER is not None:
-        # saves whiten scores
-        path_to_scores = os.path.join(TMP_FOLDER, filename_scores_clear)
-        save_numpy_object(scores, path_to_scores, if_file_exists,
-                          name='scores')
-
+    if save_results:
         # save spike_index_all (same as spike_index_clear for threshold
         # detector)
         path_to_spike_index_all = os.path.join(TMP_FOLDER,
@@ -220,7 +202,16 @@ def run_threshold(standarized_path, standarized_params,
         save_numpy_object(clear, path_to_spike_index_all, if_file_exists,
                           name='Spike index all')
 
-    return scores, clear, np.copy(clear)
+    # FIXME: always saving scores since they are loaded by the clustering
+    # step, we need to find a better way to do this, since the current
+    # clustering code is going away soon this is a tmp solution
+    # saves scores
+    # saves whiten scores
+    path_to_scores = os.path.join(TMP_FOLDER, filename_scores_clear)
+    save_numpy_object(scores, path_to_scores, if_file_exists,
+                      name='scores')
+
+    return clear, np.copy(clear)
 
 
 def run_neural_network(standarized_path, standarized_params,
@@ -243,13 +234,8 @@ def run_neural_network(standarized_path, standarized_params,
 
     CONFIG = read_config()
 
-    if os.path.isabs(output_directory):
-        folder = Path(output_directory)
-    else:
-        folder = Path(CONFIG.data.root_folder, output_directory, 'detect')
-
+    folder = Path(CONFIG.path_to_output_directory, 'detect')
     folder.mkdir(exist_ok=True)
-
     TMP_FOLDER = str(folder)
 
     # check if all scores, clear and collision spikes exist..
@@ -292,7 +278,6 @@ def run_neural_network(standarized_path, standarized_params,
         NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-        rotation = NNAE.load_rotation()
 
         fn = fix_indexes_spike_index
 
@@ -346,18 +331,6 @@ def run_neural_network(standarized_path, standarized_params,
             'draw a complete waveform...')
         scores = scores[idx]
 
-        # transform scores to location + shape feature space
-        # TODO: move this to another place
-
-        if CONFIG.cluster.method == 'location':
-            threshold = 2
-            scores = get_locations_features(scores, rotation, clear[:, 1],
-                                            CONFIG.channel_index, CONFIG.geom,
-                                            threshold)
-            idx_nan = np.where(np.isnan(np.sum(scores, axis=(1, 2))))[0]
-            scores = np.delete(scores, idx_nan, 0)
-            clear = np.delete(clear, idx_nan, 0)
-
         # save partial results if required
         if save_results:
             # save clear spikes
@@ -371,13 +344,16 @@ def run_neural_network(standarized_path, standarized_params,
                         .format(path_to_spike_index_all))
 
             # save rotation
-            np.save(path_to_rotation, rotation)
+            np.save(path_to_rotation, rot)
             logger.info('Saved rotation matrix in {}...'
                         .format(path_to_rotation))
 
-            # saves scores
-            np.save(path_to_score, scores)
-            logger.info('Saved spike scores in {}...'.format(path_to_score))
+        # FIXME: always saving scores since they are loaded by the clustering
+        # step, we need to find a better way to do this, since the current
+        # clustering code is going away soon this is a tmp solution
+        # saves scores
+        np.save(path_to_score, scores)
+        logger.info('Saved spike scores in {}...'.format(path_to_score))
 
     elif if_file_exists == 'abort' and any(exists):
         conflict = [p for p, e in zip(paths, exists) if e]
@@ -397,78 +373,4 @@ def run_neural_network(standarized_path, standarized_params,
                          'must be one of overwrite, abort or skip'
                          .format(if_file_exists))
 
-    return scores, clear, spikes_all
-
-
-def get_locations_features(scores, rotation, main_channel,
-                           channel_index, channel_geometry,
-                           threshold):
-
-    n_data, n_features, n_neigh = scores.shape
-
-    reshaped_score = np.reshape(np.transpose(scores, [0, 2, 1]),
-                                [n_data*n_neigh, n_features])
-    energy = np.reshape(np.ptp(np.matmul(
-        reshaped_score, rotation.T), 1), (n_data, n_neigh))
-
-    energy = np.piecewise(energy, [energy < threshold,
-                                   energy >= threshold],
-                          [0, lambda x:x-threshold])
-
-    channel_index_per_data = channel_index[main_channel, :]
-    channel_geometry = np.vstack((channel_geometry, np.zeros((1, 2), 'int32')))
-    channel_locations_all = channel_geometry[channel_index_per_data]
-
-    xy = np.divide(np.sum(np.multiply(energy[:, :, np.newaxis],
-                                      channel_locations_all), axis=1),
-                   np.sum(energy, axis=1, keepdims=True))
-    noise = np.random.randn(xy.shape[0], xy.shape[1])*(0.00001)
-    xy += noise
-
-    scores = np.concatenate((xy, scores[:, :, 0]), 1)
-
-    if scores.shape[0] != n_data:
-        raise ValueError('Number of clear spikes changed from {} to {}'
-                         .format(n_data, scores.shape[0]))
-
-    if scores.shape[1] != (n_features+channel_geometry.shape[1]):
-        raise ValueError('There are {} shape features and {} location features'
-                         'but {} features are created'.
-                         format(n_features,
-                                channel_geometry.shape[1],
-                                scores.shape[1]))
-
-    return scores[:, :, np.newaxis]
-
-
-def get_locations_features_threshold(scores, main_channel,
-                                     channel_index, channel_geometry):
-
-    n_data, n_features, n_neigh = scores.shape
-
-    energy = np.linalg.norm(scores, axis=1)
-
-    channel_index_per_data = channel_index[main_channel, :]
-
-    channel_geometry = np.vstack((channel_geometry, np.zeros((1, 2), 'int32')))
-    channel_locations_all = channel_geometry[channel_index_per_data]
-    xy = np.divide(np.sum(np.multiply(energy[:, :, np.newaxis],
-                                      channel_locations_all), axis=1),
-                   np.sum(energy, axis=1, keepdims=True))
-    scores = np.concatenate((xy, scores[:, :, 0]), 1)
-
-    if scores.shape[0] != n_data:
-        raise ValueError('Number of clear spikes changed from {} to {}'
-                         .format(n_data, scores.shape[0]))
-
-    if scores.shape[1] != (n_features+channel_geometry.shape[1]):
-        raise ValueError('There are {} shape features and {} location features'
-                         'but {} features are created'
-                         .format(n_features,
-                                 channel_geometry.shape[1],
-                                 scores.shape[1]))
-
-    scores = np.divide((scores - np.mean(scores, axis=0, keepdims=True)),
-                       np.std(scores, axis=0, keepdims=True))
-
-    return scores[:, :, np.newaxis]
+    return clear, spikes_all

@@ -73,14 +73,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         Spike train
     """
     # load yass configuration parameters
-    set_config(config)
+    set_config(config, output_dir)
     CONFIG = read_config()
-    ROOT_FOLDER = CONFIG.data.root_folder
-
-    if os.path.isabs(output_dir):
-        TMP_FOLDER = output_dir
-    else:
-        TMP_FOLDER = path.join(ROOT_FOLDER, output_dir)
+    TMP_FOLDER = CONFIG.path_to_output_directory
 
     # remove tmp folder if needed
     if os.path.exists(TMP_FOLDER) and clean:
@@ -124,7 +119,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # detect
     start = time.time()
-    (score, spike_index_clear,
+    (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
@@ -136,7 +131,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # cluster
     start = time.time()
     spike_train_clear, tmp_loc, vbParam = cluster.run(
-        score,
         spike_index_clear,
         output_directory=output_dir,
         if_file_exists=CONFIG.cluster.if_file_exists,
