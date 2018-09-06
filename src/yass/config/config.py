@@ -151,7 +151,7 @@ class Config:
                 self._path_to_output_directory = output_directory
             else:
                 _ = Path(self.data.root_folder, output_directory)
-                self._path_to_output_directory = str()
+                self._path_to_output_directory = str(_)
         else:
             self._path_to_output_directory = None
 
