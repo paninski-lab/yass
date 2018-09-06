@@ -9,6 +9,7 @@ from yass.augment.noise import noise_cov
 from yass.augment import util
 import yass.array as yarr
 from yass.geometry import order_channels_by_distance
+from yass.batch import RecordingsReader
 
 
 def load_templates(data_folder, spike_train, CONFIG, chosen_templates_indexes):
@@ -272,6 +273,7 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
     # main channel, the other one is shifted and channels are changed
     x_collision = util.make_collided(x_templates, collision_ratio,
                                      multi_channel, max_shift=R,
+                                     min_shift=5,
                                      return_metadata=return_metadata)
 
     # make misaligned spikes

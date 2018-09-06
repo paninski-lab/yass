@@ -22,36 +22,37 @@ spike_train = np.array([100, 0,
                         350, 2]).reshape(-1, 2)
 
 
-@pytest.mark.xfail
-def test_can_make_training_data(path_to_tests, path_to_sample_pipeline_folder):
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
-    CONFIG = yass.read_config()
+# def test_can_make_training_data(path_to_nnet_config,
+#                                 path_to_sample_pipeline_folder,
+#                                 make_tmp_folder):
+#     yass.set_config(path_to_nnet_config, make_tmp_folder)
+#     CONFIG = yass.read_config()
 
-    spike_train = np.load(path.join(path_to_sample_pipeline_folder,
-                                    'spike_train.npy'))
-    chosen_templates = np.unique(spike_train[:, 1])
-    min_amplitude = 4
-    max_amplitude = 60
-    n_spikes_to_make = 10
+#     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
+#                                     'spike_train.npy'))
+#     chosen_templates = np.unique(spike_train[:, 1])
+#     min_amplitude = 4
+#     max_amplitude = 60
+#     n_spikes_to_make = 10
 
-    templates = make.load_templates(path_to_sample_pipeline_folder,
-                                    spike_train, CONFIG, chosen_templates)
+#     templates = make.load_templates(path_to_sample_pipeline_folder,
+#                                     spike_train, CONFIG, chosen_templates)
 
-    path_to_standarized = path.join(path_to_sample_pipeline_folder,
-                                    'preprocess', 'standarized.bin')
+#     path_to_standarized = path.join(path_to_sample_pipeline_folder,
+#                                     'preprocess', 'standarized.bin')
 
-    (x_detect, y_detect,
-     x_triage, y_triage,
-     x_ae, y_ae) = make.training_data(CONFIG, templates,
-                                      min_amplitude, max_amplitude,
-                                      n_spikes_to_make,
-                                      path_to_standarized)
+#     (x_detect, y_detect,
+#      x_triage, y_triage,
+#      x_ae, y_ae) = make.training_data(CONFIG, templates,
+#                                       min_amplitude, max_amplitude,
+#                                       n_spikes_to_make,
+#                                       path_to_standarized)
 
 
-@pytest.mark.xfail
-def test_can_make_clean(path_to_tests, path_to_standarized_data,
-                        path_to_sample_pipeline_folder):
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
+def test_can_make_clean(path_to_nnet_config, path_to_standarized_data,
+                        path_to_sample_pipeline_folder,
+                        make_tmp_folder):
+    yass.set_config(path_to_nnet_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
@@ -73,10 +74,10 @@ def test_can_make_clean(path_to_tests, path_to_standarized_data,
                         n_per_template=100)
 
 
-@pytest.mark.xfail
-def test_can_make_collided(path_to_tests, path_to_standarized_data,
-                           path_to_sample_pipeline_folder):
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
+def test_can_make_collided(path_to_nnet_config, path_to_standarized_data,
+                           path_to_sample_pipeline_folder,
+                           make_tmp_folder):
+    yass.set_config(path_to_nnet_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
@@ -100,7 +101,8 @@ def test_can_make_collided(path_to_tests, path_to_standarized_data,
 
     make_collided(x_clean, n_per_spike=1,
                   multi_channel=True,
-                  max_shift=CONFIG.spike_size)
+                  max_shift=CONFIG.spike_size,
+                  min_shift=2)
 
 
 # this function was removed, splitted in two new functions
