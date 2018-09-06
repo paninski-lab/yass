@@ -9,6 +9,7 @@ from yass.augment.noise import noise_cov
 from yass.augment import util
 import yass.array as yarr
 from yass.geometry import order_channels_by_distance
+from yass.batch import RecordingsReader
 
 
 def load_templates(data_folder, spike_train, CONFIG, chosen_templates_indexes):
@@ -272,17 +273,18 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
     # main channel, the other one is shifted and channels are changed
     x_collision = util.make_collided(x_templates, collision_ratio,
                                      multi_channel, max_shift=R,
+                                     min_shift=5,
                                      return_metadata=return_metadata)
 
     # make misaligned spikes
-    # spatially means first channel is not main channel
-    # temporally means waveform is not centered
-    (x_temporally_misaligned,
-     x_spatially_misaligned) = util.make_misaligned(x_templates,
-                                                    max_shift,
-                                                    misalign_ratio,
-                                                    misalign_ratio2,
-                                                    multi_channel)
+    x_temporally_misaligned = util.make_temporally_misaligned(
+        x_templates, misalign_ratio,
+        multi_channel=multi_channel,
+        max_shift=max_shift)
+
+    # now spatially misalign those
+    x_misaligned = util.make_spatially_misaligned(x_temporally_misaligned,
+                                                  n_per_spike=misalign_ratio2)
 
     # determine noise covariance structure
     spatial_SIG, temporal_SIG = noise_cov(rec,
@@ -299,7 +301,7 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
     y_clean_1 = np.ones((x_templates.shape[0]))
     y_collision_1 = np.ones((x_collision.shape[0]))
 
-    y_misaligned_0 = np.zeros((x_temporally_misaligned.shape[0]))
+    y_misaligned_0 = np.zeros((x_misaligned.shape[0]))
     y_noise_0 = np.zeros((noise.shape[0]))
     y_collision_0 = np.zeros((x_collision.shape[0]))
 
@@ -309,8 +311,8 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
     # TODO: replace _make_noisy for new function
     x_templates_noisy = util._make_noisy(x_templates, noise)
     x_collision_noisy = util._make_noisy(x_collision, noise)
-    x_temporally_misaligned_noisy = util._make_noisy(x_temporally_misaligned,
-                                                     noise)
+    x_misaligned_noisy = util._make_noisy(x_misaligned,
+                                          noise)
 
     #############
     # Detection #
@@ -318,13 +320,13 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
 
     if multi_channel:
         x = yarr.concatenate((x_templates_noisy, x_collision_noisy,
-                              x_temporally_misaligned_noisy, noise))
+                              x_misaligned_noisy, noise))
         x_detect = x[:, MID_POINT_IDX, :]
 
         y_detect = np.concatenate((y_clean_1, y_collision_1,
                                    y_misaligned_0, y_noise_0))
     else:
-        x = yarr.concatenate((x_templates_noisy, x_temporally_misaligned_noisy,
+        x = yarr.concatenate((x_templates_noisy, x_misaligned_noisy,
                               noise))
         x_detect = x[:, MID_POINT_IDX, 0]
 
