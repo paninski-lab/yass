@@ -134,8 +134,8 @@ def run(spike_train_cluster,
     buffer_size = 200
 
     # Grab length of .dat file to compute chunk indexes below
-    standardized_filename = os.path.join(CONFIG.data.root_folder, 
-                                    output_directory, recordings_filename)
+    standardized_filename = os.path.join(CONFIG.path_to_output_directory, 
+                                    'preprocess', recordings_filename)
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
 
@@ -195,6 +195,7 @@ def run(spike_train_cluster,
         #            multiprocessing module;
         buffer_size = 200
         standardized_filename = os.path.join(CONFIG.path_to_output_directory,
+                                             'preprocess',
                                              'standarized.bin')
         n_channels = CONFIG.recordings.n_channels
         root_folder = CONFIG.data.root_folder

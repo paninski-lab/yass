@@ -149,5 +149,5 @@ def run(spike_train, tmp_loc, recordings_filename='standarized.bin',
 
     np.save(spike_train_clear_after_templates, spike_train)
 
-    # return templates, spike_train, groups, idx_good_templates
-    return templates, spike_train
+    # NOTE returning groups and None for test compatibility
+    return templates, spike_train, None, None
