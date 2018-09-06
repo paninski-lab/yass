@@ -15,7 +15,7 @@ script:
   - pip install tensorflow
   - make download-test-data
   - make test
-  - make integration-test
+  # - make integration-test
   - make docs
 
 after_success: coveralls
