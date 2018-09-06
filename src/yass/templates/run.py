@@ -13,10 +13,9 @@ from yass.util import check_for_files, LoadFile, file_loader
 
 @check_for_files(filenames=[LoadFile('templates.npy'),
                             LoadFile('spike_train.npy')],
-                 mode='values', relative_to='output_directory',
-                 auto_save=True, prepend_root_folder=True)
-def run(spike_train, tmp_loc, output_directory='tmp/',
-        recordings_filename='standarized.bin',
+                 mode='values', relative_to=None,
+                 auto_save=True)
+def run(spike_train, tmp_loc, recordings_filename='standarized.bin',
         if_file_exists='skip', save_results=False):
     """Compute templates
 

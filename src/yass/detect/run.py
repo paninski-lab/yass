@@ -258,7 +258,7 @@ def run_neural_network(standarized_path, standarized_params,
     path_to_spike_index_all = os.path.join(TMP_FOLDER, 'spike_index_all.npy')
     path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
 
-    path_to_standardized = os.path.join(TMP_FOLDER, 'standarized.bin')
+    path_to_standardized = os.path.join(TMP_FOLDER, 'preprocess', 'standarized.bin')
 
     paths = [path_to_score, path_to_spike_index_clear, path_to_spike_index_all]
     exists = [os.path.exists(p) for p in paths]
