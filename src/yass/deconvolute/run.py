@@ -9,8 +9,7 @@ from yass.batch import BatchProcessor
 from yass.util import file_loader, file_saver
 
 
-def run(spike_index, templates, output_directory='tmp/',
-        recordings_filename='standarized.bin'):
+def run(spike_index, templates, recordings_filename='standarized.bin'):
     """Deconvolute spikes
 
     Parameters
@@ -55,8 +54,7 @@ def run(spike_index, templates, output_directory='tmp/',
     CONFIG = read_config()
 
     # read recording
-    recording_path = os.path.join(CONFIG.data.root_folder,
-                                  output_directory,
+    recording_path = os.path.join(CONFIG.path_to_output_directory,
                                   'preprocess',
                                   recordings_filename)
     bp = BatchProcessor(recording_path,
@@ -94,8 +92,8 @@ def run(spike_index, templates, output_directory='tmp/',
     spike_train = spike_train[np.argsort(spike_train[:, 0])]
 
     # save spike train
-    path_to_spike_train = os.path.join(CONFIG.data.root_folder,
-                                       output_directory, 'spike_train.npy')
+    path_to_spike_train = os.path.join(CONFIG.path_to_output_directory,
+                                       'spike_train.npy')
     logger.info('Spike train saved in %s', path_to_spike_train)
     file_saver(spike_train, path_to_spike_train)
 

@@ -206,6 +206,10 @@ cluster:
     n_split:
       type: integer
       default: 5
+    # Choose 'location' for location (x and y : 2 features) + main channel 
+    # features (n_feature dimensional) as the feature space. Calculates the location 
+    # of the events using a weighted average of the power in the main_channel 
+    # and neighboring channels.
     # Choose 'neigh_chan' for n_feature x neighboring_channels dimensional feature 
     # space. The feature space is defined by feature summarization of the waveforms 
     # into n_feature dimensional feature space for only the main_channel and the 

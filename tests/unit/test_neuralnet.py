@@ -5,8 +5,8 @@ import os.path as path
 
 import numpy as np
 import tensorflow as tf
-import yaml
 import pytest
+import yaml
 
 import yass
 from yass.batch import BatchProcessor
@@ -19,9 +19,10 @@ from yass.explore import RecordingExplorer
 
 
 @pytest.mark.xfail
-def test_can_train_detector(path_to_tests, path_to_sample_pipeline_folder,
+def test_can_train_detector(path_to_nnet_config,
+                            path_to_sample_pipeline_folder,
                             make_tmp_folder):
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
+    yass.set_config(path_to_nnet_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
@@ -58,9 +59,10 @@ def test_can_train_detector(path_to_tests, path_to_sample_pipeline_folder,
 
 
 @pytest.mark.xfail
-def test_can_reload_detector(path_to_tests, path_to_sample_pipeline_folder,
+def test_can_reload_detector(path_to_nnet_config,
+                             path_to_sample_pipeline_folder,
                              make_tmp_folder):
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
+    yass.set_config(path_to_nnet_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
@@ -100,11 +102,11 @@ def test_can_reload_detector(path_to_tests, path_to_sample_pipeline_folder,
 
 
 @pytest.mark.xfail
-def test_can_use_detector_after_fit(path_to_tests,
+def test_can_use_detector_after_fit(path_to_nnet_config,
                                     path_to_sample_pipeline_folder,
                                     make_tmp_folder,
                                     path_to_standarized_data):
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
+    yass.set_config(path_to_nnet_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
@@ -148,61 +150,11 @@ def test_can_use_detector_after_fit(path_to_tests,
 
 
 @pytest.mark.xfail
-def test_can_use_detect_triage_after_reload(path_to_tests,
-                                            path_to_sample_pipeline_folder,
-                                            make_tmp_folder,
-                                            path_to_standarized_data):
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'))
-    CONFIG = yass.read_config()
-
-    spike_train = np.load(path.join(path_to_sample_pipeline_folder,
-                                    'spike_train.npy'))
-    chosen_templates = np.unique(spike_train[:, 1])
-    min_amplitude = 4
-    max_amplitude = 60
-    n_spikes_to_make = 100
-
-    templates = make.load_templates(path_to_sample_pipeline_folder,
-                                    spike_train, CONFIG, chosen_templates)
-
-    path_to_standarized = path.join(path_to_sample_pipeline_folder,
-                                    'preprocess', 'standarized.bin')
-
-    (x_detect, y_detect,
-     x_triage, y_triage,
-     x_ae, y_ae) = make.training_data(CONFIG, templates,
-                                      min_amplitude, max_amplitude,
-                                      n_spikes_to_make,
-                                      path_to_standarized)
-
-    _, waveform_length, n_neighbors = x_detect.shape
-
-    path_to_model = path.join(make_tmp_folder, 'detect-net.ckpt')
-    detector = NeuralNetDetector(path_to_model, [8, 4],
-                                 waveform_length, n_neighbors,
-                                 threshold=0.5,
-                                 channel_index=CONFIG.channel_index,
-                                 n_iter=10)
-    detector.fit(x_detect, y_detect)
-
-    detector = NeuralNetDetector.load(path_to_model, threshold=0.5,
-                                      channel_index=CONFIG.channel_index)
-
-    data = RecordingExplorer(path_to_standarized_data).reader.data
-
-    output_names = ('spike_index', 'waveform', 'probability')
-
-    (spike_index, waveform,
-        proba) = detector.predict_recording(data, output_names=output_names)
-    detector.predict(x_detect)
-
-
-def test_can_use_neural_network_detector(path_to_tests,
-                                         path_to_standarized_data,
+def test_can_use_neural_network_detector(path_to_nnet_config,
                                          path_to_sample_pipeline_folder,
-                                         make_tmp_folder):
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'),
-                    make_tmp_folder)
+                                         make_tmp_folder,
+                                         path_to_standarized_data):
+    yass.set_config(path_to_nnet_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     PATH_TO_DATA = path_to_standarized_data
@@ -262,12 +214,12 @@ def test_can_use_neural_network_detector(path_to_tests,
                                                  neighbors)
 
 
-def test_splitting_in_batches_does_not_affect(path_to_tests,
-                                              path_to_standarized_data,
+@pytest.mark.xfail
+def test_splitting_in_batches_does_not_affect(path_to_nnet_config,
                                               path_to_sample_pipeline_folder,
-                                              make_tmp_folder):
-    yass.set_config(path.join(path_to_tests, 'config_nnet.yaml'),
-                    make_tmp_folder)
+                                              make_tmp_folder,
+                                              path_to_standarized_data):
+    yass.set_config(path_to_nnet_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     PATH_TO_DATA = path_to_standarized_data

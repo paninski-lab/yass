@@ -193,9 +193,6 @@ def make_collided(x, n_per_spike, multi_channel, min_shift,
         x_second, i = sample_from_zero_axis(x)
         x_second = scale_factor * x_second / amps[i]
 
-        # FIXME: remove this
-        x_second = x_second[0, :, :]
-
         x_second = shift_waveform(x_second, shift)
 
         # if multi_channel, shuffle neighbors

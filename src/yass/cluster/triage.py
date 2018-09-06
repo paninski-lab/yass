@@ -3,7 +3,7 @@ from scipy.spatial import cKDTree
 
 
 def triage(scores, spike_index, triage_k,
-           triage_percent):
+           triage_percent, location_feature):
     """
     Triage based on KNN distance.
     It removes triage_percent*100% of data
@@ -44,16 +44,35 @@ def triage(scores, spike_index, triage_k,
         nc = scores_channel.shape[0]
 
         if nc > triage_k + 1:
-            n_neigh = scores_channel.shape[2]
-            th = (1 - triage_percent/n_neigh)*100
+            if location_feature:
+                scores_channel = scores_channel[:, :, 0]
+                th = (1 - triage_percent/2)*100
 
-            for c in range(n_neigh):
-                tree = cKDTree(scores_channel[:, :, c])
-                dist, ind = tree.query(scores_channel[:, :, c],
-                                       k=triage_k + 1)
+                # get distance to nearest neighbors
+                tree = cKDTree(scores_channel[:, :2])
+                dist, ind = tree.query(scores_channel[:, :2], k=triage_k + 1)
                 dist = np.sum(dist, 1)
                 # triage far ones
                 idx_triage[idx_data[dist > np.percentile(dist, th)]] = 1
+
+                # get distance to nearest neighbors
+                tree = cKDTree(scores_channel[:, 2:])
+                dist, ind = tree.query(scores_channel[:, 2:], k=triage_k + 1)
+                dist = np.sum(dist, 1)
+                # triage far ones
+                idx_triage[idx_data[dist > np.percentile(dist, th)]] = 1
+
+            else:
+                n_neigh = scores_channel.shape[2]
+                th = (1 - triage_percent/n_neigh)*100
+
+                for c in range(n_neigh):
+                    tree = cKDTree(scores_channel[:, :, c])
+                    dist, ind = tree.query(scores_channel[:, :, c],
+                                           k=triage_k + 1)
+                    dist = np.sum(dist, 1)
+                    # triage far ones
+                    idx_triage[idx_data[dist > np.percentile(dist, th)]] = 1
 
     idx_triage = np.where(idx_triage)[0]
     scores = np.delete(scores, idx_triage, 0)

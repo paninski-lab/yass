@@ -18,7 +18,7 @@ from yass.batch import BatchProcessor
 from yass.threshold.detect import threshold
 from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
-from yass.neuralnetwork import (NeuralNetDetector, AutoEncoder, KerasModel)
+from yass.neuralnetwork import NeuralNetDetector, AutoEncoder, KerasModel
 from yass.neuralnetwork.apply import post_processing, fix_indexes_spike_index
 from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
@@ -26,7 +26,7 @@ from yass.util import file_loader, save_numpy_object, running_on_gpu
 
 
 def run(standarized_path, standarized_params, whiten_filter,
-        output_directory='tmp/', if_file_exists='skip', save_results=True):
+        if_file_exists='skip', save_results=False):
     """Execute detect step
 
     Parameters
@@ -39,10 +39,6 @@ def run(standarized_path, standarized_params, whiten_filter,
 
     whiten_filter: numpy.ndarray, str or pathlib.Path
         Whiten matrix or path to a npy file
-
-    output_directory: str, optional
-      Location to store partial results, relative to CONFIG.data.root_folder,
-      defaults to tmp/
 
     if_file_exists: str, optional
       One of 'overwrite', 'abort', 'skip'. Control de behavior for every
@@ -100,20 +96,18 @@ def run(standarized_path, standarized_params, whiten_filter,
         return run_threshold(standarized_path,
                              standarized_params,
                              whiten_filter,
-                             output_directory,
                              if_file_exists,
                              save_results)
     elif CONFIG.detect.method == 'nn':
         return run_neural_network(standarized_path,
                                   standarized_params,
                                   whiten_filter,
-                                  output_directory,
                                   if_file_exists,
                                   save_results)
 
 
 def run_threshold(standarized_path, standarized_params,
-                  whiten_filter, output_directory, if_file_exists,
+                  whiten_filter, if_file_exists,
                   save_results):
     """Run threshold detector and dimensionality reduction using PCA
 
@@ -215,7 +209,7 @@ def run_threshold(standarized_path, standarized_params,
 
 
 def run_neural_network(standarized_path, standarized_params,
-                       whiten_filter, output_directory,
+                       whiten_filter,
                        if_file_exists, save_results):
     """Run neural network detection and autoencoder dimensionality reduction
 
@@ -300,7 +294,6 @@ def run_neural_network(standarized_path, standarized_params,
 
         idx_clean = triage.predict_with_threshold(x=wfs,
                                                   threshold=triage_th)
-
         score = NNAE.predict(wfs)
         rot = NNAE.load_rotation()
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
