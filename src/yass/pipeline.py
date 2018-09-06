@@ -113,8 +113,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     (standarized_path,
      standarized_params,
      whiten_filter) = (preprocess
-                       .run(output_directory=output_dir,
-                            if_file_exists=CONFIG.preprocess.if_file_exists))
+                       .run(if_file_exists=CONFIG.preprocess.if_file_exists))
     time_preprocess = time.time() - start
 
     # detect
@@ -123,7 +122,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
-                                   output_directory=output_dir,
                                    if_file_exists=CONFIG.detect.if_file_exists,
                                    save_results=CONFIG.detect.save_results)
     time_detect = time.time() - start
@@ -132,7 +130,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     start = time.time()
     spike_train_clear, tmp_loc, vbParam = cluster.run(
         spike_index_clear,
-        output_directory=output_dir,
         if_file_exists=CONFIG.cluster.if_file_exists,
         save_results=CONFIG.cluster.save_results)
     time_cluster = time.time() - start
@@ -144,15 +141,13 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
      groups,
      idx_good_templates) = get_templates.run(
         spike_train_clear, tmp_loc,
-        output_directory=output_dir,
         if_file_exists=CONFIG.templates.if_file_exists,
         save_results=CONFIG.templates.save_results)
     time_templates = time.time() - start
 
     # run deconvolution
     start = time.time()
-    spike_train = deconvolute.run(spike_index_all, templates,
-                                  output_directory=output_dir)
+    spike_train = deconvolute.run(spike_index_all, templates)
     time_deconvolution = time.time() - start
 
     # save metadata in tmp

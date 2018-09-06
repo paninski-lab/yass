@@ -20,21 +20,18 @@ def test_templates(path_to_threshold_config, make_tmp_folder):
 
     (standarized_path,
      standarized_params,
-     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
+     whiten_filter) = preprocess.run()
 
     (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter,
-                                   output_directory=make_tmp_folder)
+                                   whiten_filter)
 
     (spike_train_clear,
      tmp_loc,
-     vbParam) = cluster.run(spike_index_clear,
-                            output_directory=make_tmp_folder)
+     vbParam) = cluster.run(spike_index_clear)
 
-    templates.run(spike_train_clear, tmp_loc,
-                  output_directory=make_tmp_folder)
+    templates.run(spike_train_clear, tmp_loc)
 
 
 def test_templates_save_results(path_to_threshold_config, make_tmp_folder):
@@ -42,21 +39,18 @@ def test_templates_save_results(path_to_threshold_config, make_tmp_folder):
 
     (standarized_path,
      standarized_params,
-     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
+     whiten_filter) = preprocess.run()
 
     (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter,
-                                   output_directory=make_tmp_folder)
+                                   whiten_filter)
 
     (spike_train_clear,
      tmp_loc,
-     vbParam) = cluster.run(spike_index_clear,
-                            output_directory=make_tmp_folder)
+     vbParam) = cluster.run(spike_index_clear)
 
     templates.run(spike_train_clear, tmp_loc,
-                  output_directory=make_tmp_folder,
                   save_results=True)
 
 
@@ -66,26 +60,23 @@ def test_templates_loads_from_disk_if_files_exist(make_tmp_folder,
 
     (standarized_path,
      standarized_params,
-     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
+     whiten_filter) = preprocess.run()
 
     (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter,
-                                   output_directory=make_tmp_folder)
+                                   whiten_filter)
 
     spike_train_clear, tmp_loc, vbParam = cluster.run(
-        spike_index_clear, output_directory=make_tmp_folder)
+        spike_index_clear)
 
     # save results
-    templates.run(spike_train_clear, tmp_loc, save_results=True,
-                  output_directory=make_tmp_folder)
+    templates.run(spike_train_clear, tmp_loc, save_results=True)
 
     assert templates.run.executed
 
     # next time this should not run and just load from files
-    templates.run(spike_train_clear, tmp_loc, save_results=True,
-                  output_directory=make_tmp_folder)
+    templates.run(spike_train_clear, tmp_loc, save_results=True)
 
     assert not templates.run.executed
 
@@ -99,23 +90,20 @@ def test_templates_returns_expected_results(path_to_threshold_config,
 
     (standarized_path,
      standarized_params,
-     whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
+     whiten_filter) = preprocess.run()
 
     (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter,
-                                   output_directory=make_tmp_folder)
+                                   whiten_filter)
 
     (spike_train_clear,
      tmp_loc,
-     vbParam) = cluster.run(spike_index_clear,
-                            output_directory=make_tmp_folder)
+     vbParam) = cluster.run(spike_index_clear)
 
     (templates_, spike_train,
      groups,
      idx_good_templates) = templates.run(spike_train_clear, tmp_loc,
-                                         output_directory=make_tmp_folder,
                                          save_results=True)
 
     path_to_templates = path.join(path_to_output_reference,
