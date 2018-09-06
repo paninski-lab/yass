@@ -9,10 +9,10 @@ cd $DIR/../examples
 
 # run readme examples
 echo "Running config_sample.yaml example"
-yass sort config_sample.yaml
+yass sort config_sample.yaml --clean
 
 echo "Running config_sample_complete.yaml example"
-yass sort config_sample_complete.yaml
+yass sort config_sample_complete.yaml --clean
 
 
 # run examples in examples/pipeline
