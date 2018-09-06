@@ -15,7 +15,6 @@ from yass.neuralnetwork import AutoEncoder
 from yass.mfm import get_core_data
 
 
-# FIXME: remove output_directory, no longer used
 @check_for_files(filenames=[LoadFile(join('cluster',
                                           'spike_train_cluster.npy')),
                             LoadFile(join('cluster', 'tmp_loc.npy')),
