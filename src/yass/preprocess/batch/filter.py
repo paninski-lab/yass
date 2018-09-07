@@ -8,7 +8,7 @@ import multiprocess
 from scipy.signal import butter, filtfilt
 import numpy as np
 
-from yass.preprocess.standarize import standard_deviation
+from yass.preprocess.batch.standarize import standard_deviation
 from yass.batch import BatchProcessor
 from yass.util import check_for_files, ExpandPath, LoadFile
 

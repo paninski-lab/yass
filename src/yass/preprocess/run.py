@@ -1,20 +1,16 @@
 """
 Preprocess pipeline
 """
-import logging
-import os.path
 try:
     from pathlib2 import Path
 except ImportError:
     from pathlib import Path
 
 from yass import read_config
-from yass.preprocess.filter import butterworth
-from yass.preprocess.standarize import standarize
-from yass.preprocess import whiten
+from yass.preprocess.batch import batch
 
 
-def run(if_file_exists='skip'):
+def run(if_file_exists='skip', function=batch, **function_kwargs):
     """Preprocess pipeline: filtering, standarization and whitening filter
 
     This step (optionally) performs filtering on the data, standarizes it
@@ -62,70 +58,16 @@ def run(if_file_exists='skip'):
 
     .. literalinclude:: ../../examples/pipeline/preprocess.py
     """
-
-    logger = logging.getLogger(__name__)
-
     CONFIG = read_config()
-    OUTPUT_DTYPE = CONFIG.preprocess.dtype
-    PROCESSES = CONFIG.resources.processes
-
-    logger.info('Output dtype for transformed data will be {}'
-                .format(OUTPUT_DTYPE))
 
     TMP = Path(CONFIG.path_to_output_directory, 'preprocess')
     TMP.mkdir(parents=True, exist_ok=True)
     TMP = str(TMP)
 
-    path = os.path.join(CONFIG.data.root_folder, CONFIG.data.recordings)
-    params = dict(dtype=CONFIG.recordings.dtype,
-                  n_channels=CONFIG.recordings.n_channels,
-                  data_order=CONFIG.recordings.order)
+    (standarized_path,
+     standarized_params,
+     whiten_filter) = function(CONFIG,
+                               if_file_exists=if_file_exists,
+                               **function_kwargs)
 
-    # filter and standarize
-    if CONFIG.preprocess.apply_filter:
-        filter_params = CONFIG.preprocess.filter
-
-        (standarized_path,
-         standarized_params) = butterworth(path,
-                                           params['dtype'],
-                                           params['n_channels'],
-                                           params['data_order'],
-                                           filter_params.low_pass_freq,
-                                           filter_params.high_factor,
-                                           filter_params.order,
-                                           CONFIG.recordings.sampling_rate,
-                                           CONFIG.resources.max_memory,
-                                           TMP,
-                                           OUTPUT_DTYPE,
-                                           standarize=True,
-                                           output_filename='standarized.bin',
-                                           if_file_exists=if_file_exists,
-                                           processes=PROCESSES)
-    # just standarize
-    else:
-        (standarized_path,
-         standarized_params) = standarize(path,
-                                          params['dtype'],
-                                          params['n_channels'],
-                                          params['data_order'],
-                                          CONFIG.recordings.sampling_rate,
-                                          CONFIG.resources.max_memory,
-                                          TMP,
-                                          OUTPUT_DTYPE,
-                                          output_filename='standarized.bin',
-                                          if_file_exists=if_file_exists,
-                                          processes=PROCESSES)
-
-    # TODO: remove whiten_filter out of output argument
-    whiten_filter = whiten.matrix(standarized_path,
-                                  standarized_params['dtype'],
-                                  standarized_params['n_channels'],
-                                  standarized_params['data_order'],
-                                  CONFIG.channel_index,
-                                  CONFIG.spike_size,
-                                  CONFIG.resources.max_memory,
-                                  TMP,
-                                  output_filename='whitening.npy',
-                                  if_file_exists=if_file_exists)
-
-    return str(standarized_path), standarized_params, whiten_filter
+    return standarized_path, standarized_params, whiten_filter

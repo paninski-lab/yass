@@ -75,43 +75,6 @@ recordings:
       required: True
       allowed: [channels, samples]
 
-preprocess:
-  type: dict
-  schema:
-    if_file_exists:
-      type: string
-      allowed: [abort, overwrite, skip]
-      required: False
-      default: skip
-    # apply butterworth filter in the preprocessing step?
-    apply_filter:
-      type: boolean
-      default: True
-    # output dtype for transformed data
-    dtype:
-      type: string
-      default: float64
-    filter:
-      type: dict
-      default:
-        order: 3
-        low_pass_freq: 300
-        high_factor: 0.1
-      schema:
-        # Order of Butterworth filter
-        order:
-          type: integer
-          default: 3
-        # Low pass frequency (Hz)
-        low_pass_freq:
-          type: integer
-          default: 300
-        # High pass factor (proportion of sampling rate)
-        high_factor:
-          type: float
-          default: 0.1
-
-
 detect:
   type: dict
   schema:

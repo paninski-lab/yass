@@ -81,12 +81,6 @@ CONFIG = {
         'order': 'samples',
     },
 
-    'preprocess': {
-        'apply_filter': True,
-        'dtype': 'float32'
-
-    },
-
     'detect': {
         'method': 'threshold',
         'temporal_features': 3
