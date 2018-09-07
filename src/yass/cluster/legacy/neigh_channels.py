@@ -28,6 +28,38 @@ def neigh_channels(spike_index):
     """
     CONFIG = read_config()
 
+    # NOTE: this is not the right way to set defaults, the function should
+    # list all parameters needed and provide defaults for them, since the
+    # current code looks for parameters inside CONFIG, we are doing it like
+    # this, we will remove this clustering method so de are not refactoring
+    # this, new clustering methods should list all parameters in the function
+    # signature
+    defaults = {
+        'method': 'neigh_chan',
+        'save_results': False,
+        'masking_threshold': [0.9, 0.5],
+        'n_split': 5,
+        'max_n_spikes': 10000,
+        'min_spikes': 0,
+        'prior': {
+            'beta': 1,
+            'a': 1,
+            'lambda0': 0.01,
+            'nu': 5,
+            'V': 2,
+        },
+        'coreset': {
+            'clusters': 10,
+            'threshold': 0.95,
+        },
+        'triage': {
+            'nearest_neighbors': 20,
+            'percent': 0.1,
+        }
+    }
+
+    CONFIG._set_param('cluster', defaults)
+
     # load files in case they are strings or Path objects
     path_to_scores = join(CONFIG.path_to_output_directory,
                           'detect', 'scores_clear.npy')
