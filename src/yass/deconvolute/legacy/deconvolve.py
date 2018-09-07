@@ -1,9 +1,9 @@
 import numpy as np
 import logging
 
-from yass.deconvolute.util import upsample_templates, \
+from yass.deconvolute.legacy.util import upsample_templates, \
     make_spt_list, get_longer_spt_list
-from yass.deconvolute.match import make_tf_tensors, template_match
+from yass.deconvolute.legacy.match import make_tf_tensors, template_match
 
 
 def deconvolve(recording, idx_local, idx, templates, spike_index,
