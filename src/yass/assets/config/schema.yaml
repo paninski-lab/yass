@@ -190,33 +190,3 @@ templates:
       type: list
       required: False
       default: [0.85, 0.8]
-
-deconvolution:
-  type: dict
-  default:
-    n_rf: 1.5
-    threshold_a: 0.3
-    threshold_dd: 0
-    n_explore: 2 
-    upsample_factor: 5
-  schema:
-    # refractory period violation in time bins
-    n_rf:
-      type: float
-      default: 1.5
-    # threshold on template scale
-    threshold_a:
-      type: float
-      default: 0.3
-    # threshold on decrease in L2 difference
-    threshold_dd:
-      type: float
-      default: 0
-    # size of windows to look consider around spike time for deconv. 
-    n_explore:
-      type: integer
-      default: 2
-    # upsampling factor of templates
-    upsample_factor:
-      type: integer
-      default: 5

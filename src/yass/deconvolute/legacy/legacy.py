@@ -48,6 +48,22 @@ def legacy(spike_index, templates, recordings_filename='standarized.bin'):
     # read config file
     CONFIG = read_config()
 
+    # NOTE: this is not the right way to set defaults, the function should
+    # list all parameters needed and provide defaults for them, since the
+    # current code looks for parameters inside CONFIG, we are doing it like
+    # this, we will remove this deconv method so de are not refactoring
+    # this, new deconv methods should list all parameters in the function
+    # signature
+    defaults = {
+        'n_rf': 1.5,
+        'threshold_a': 0.3,
+        'threshold_dd': 0,
+        'n_explore': 2,
+        'upsample_factor': 5
+    }
+
+    CONFIG._set_param('deconvolution', defaults)
+
     # read recording
     recording_path = os.path.join(CONFIG.path_to_output_directory,
                                   'preprocess',
