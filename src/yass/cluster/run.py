@@ -122,10 +122,8 @@ def run(spike_index,
     else:
         
         spike_train = np.load(fname)
-        tmp_loc = np.load(os.path.join(CONFIG.data.root_folder, 
-                          CLUSTER_OUTPUT_DIR,'tmp_loc.npy'))
-        templates = np.load(os.path.join(CONFIG.data.root_folder, 
-                          CLUSTER_OUTPUT_DIR,'templates.npy'))
+        tmp_loc = np.load(os.path.join(CLUSTER_OUTPUT_DIR,'tmp_loc.npy'))
+        templates = np.load(os.path.join(CLUSTER_OUTPUT_DIR,'templates.npy'))
     
     # report timing
     #currentTime = datetime.datetime.now()
