@@ -1,0 +1,118 @@
+cluster:
+  type: dict
+  default:
+    save_results: False
+    if_file_exists: skip
+    masking_threshold: [0.9, 0.5]
+    n_split: 5
+    method: neigh_chan
+    max_n_spikes: 10000
+    min_spikes: 0
+    prior:
+      beta: 1
+      a: 1
+      lambda0: 0.01
+      nu: 5
+      V: 2
+    coreset:
+      clusters: 10
+      threshold: 0.95
+    triage:
+      nearest_neighbors: 20
+      percent: 0.1
+
+  schema:
+    if_file_exists:
+      type: string
+      allowed: [abort, overwrite, skip]
+      required: False
+      default: skip
+    save_results:
+      type: boolean
+      default: False
+      required: False
+    # Masking threshold
+    masking_threshold:
+      type: list
+      default: [0.9, 0.5]
+    # Num. of new clusters in split
+    n_split:
+      type: integer
+      default: 5
+    # Choose 'location' for location (x and y : 2 features) + main channel 
+    # features (n_feature dimensional) as the feature space. Calculates the location 
+    # of the events using a weighted average of the power in the main_channel 
+    # and neighboring channels.
+    # Choose 'neigh_chan' for n_feature x neighboring_channels dimensional feature 
+    # space. The feature space is defined by feature summarization of the waveforms 
+    # into n_feature dimensional feature space for only the main_channel and the 
+    method:
+      type: string
+      default: neigh_chan
+    # maximum number of spikes per clustering group
+    # if the total number of spikes per clustering group exceeds it,
+    # it randomly subsample
+    max_n_spikes:
+        type: integer
+        default: 10000
+    # minimum number of spikes per cluster
+    # if the total number of spikes per cluster is less than this,
+    # the cluster is killed
+    min_spikes:
+        type: integer
+        default: 0        
+
+    prior:
+      type: dict
+      default:
+        beta: 1
+        a: 1
+        lambda0: 0.01
+        nu: 5
+        V: 2
+      schema:
+        beta:
+          type: integer
+          default: 1
+        a:
+          type: integer
+          default: 1
+        lambda0:
+          type: float
+          default: 0.01
+        nu:
+          type: integer
+          default: 5
+        V:
+          type: float
+          default: 2
+
+    triage:
+      type: dict
+      default:
+        nearest_neighbors: 20
+        percent: 0.1
+      schema:
+        # number of nearest neighbors to consider
+        nearest_neighbors:
+          type: integer
+          default: 20
+        # percentage of data to be triaged
+        percent:
+          type: float
+          default: 0.1
+
+    coreset:
+      type: dict
+      default:
+        clusters: 10
+        threshold: 0.95
+      schema:
+        # Num. of clusters
+        clusters:
+          type: integer
+          default: 10
+        # distance threshold
+        threshold:
+          type: float
+          default: 0.95
