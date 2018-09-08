@@ -19,7 +19,7 @@ from yass.deconvolute.deconvolve import (deconvolve_new_allcores_updated,
 from yass.deconvolute.match_pursuit import (MatchPursuit_objectiveUpsample, 
                                             MatchPursuitWaveforms)
 from yass.cluster.util import (binary_reader, RRR3_noregress_recovery,
-                               global_merge_all_ks_deconv, PCA)
+                               global_merge_all_ks, PCA)
 from yass import read_config
 
 import multiprocessing as mp
@@ -161,9 +161,8 @@ def run2(spike_train_cluster,
     print("# of chunks for deconvolution: ", len(idx_list), " verbose mode: ",
           CONFIG.deconvolution.verbose)
             
-    # need to transpose axes for match_pursuit 
-    templates = np.swapaxes(templates,0,1)
-    templates = np.swapaxes(templates,1,2)
+    # need to transpose axes for analysis below
+    templates = templates.T
     
     # make deconv directory
     deconv_dir = os.path.join(CONFIG.data.root_folder,
@@ -185,6 +184,7 @@ def run2(spike_train_cluster,
     # Cat: TODO: read this from CONFIG
     template_threshold = 3
     ptps = templates.ptp(0).max(0)
+
     idx = np.where(ptps>template_threshold)[0]
     templates = templates[:,:,idx]
     
@@ -429,13 +429,14 @@ def run2(spike_train_cluster,
     # **************** MERGING ****************
     # *****************************************   
     '''
-        # run template merge
+    # run template merge
     min_spikes = int(max(initial_chunk*n_sec_chunk*0.25,310))
-    spike_train, tmp_loc, templates_first_chunk = global_merge_all_ks_deconv(
+    out_dir = 'deconv'
+    spike_train, tmp_loc, templates_first_chunk = global_merge_all_ks(
                                           deconv_chunk_dir, recording_chunk,
-                                          units,
-                                          CONFIG2, min_spikes)
-                                    
+                                          CONFIG2, min_spikes, out_dir, units)
+    
+    
     #print (templates_first_chunk.shape)
     np.savez(deconv_chunk_dir+"/deconv_results.npz", 
             spike_train=spike_train, 
@@ -458,7 +459,7 @@ def run2(spike_train_cluster,
     chunk_size = initial_chunk
     
     # need to transpose axes coming out of global merge
-    templates = np.swapaxes(templates_first_chunk,0,1)
+    templates = templates_first_chunk
     
     #for c in range(initial_chunk, len(idx_list), chunk_size):
     for c in range(0, len(idx_list), chunk_size):
@@ -632,11 +633,12 @@ def deconv_residual_recluster(data_in):
         # reset unit_spikes back without buffer
         # Cat: TODO Make sure this buffer is read from CONFIG
         unit_sp[:,0]-=200
+        print ("CHECK THIS SHIFT - for residual reclustinrg")
         
         # PCA denoise waveforms before processing
         wf_PCA = np.zeros(wf.shape)
         for ch in range(wf.shape[2]):
-            _, wf_PCA[:,:,ch] = PCA(wf[:,:,ch], n_dim_pca_compression)
+            _, wf_PCA[:,:,ch], _ = PCA(wf[:,:,ch], n_dim_pca_compression)
             
         channel = wf.mean(0).ptp(0).argmax(0)
         print ("unit: ", unit, wf.shape, "maxchan: ", channel)
@@ -680,11 +682,12 @@ def deconv_residual_recluster(data_in):
             ax_t = []
             x = []
             
+        deconv_flag = True
         RRR3_noregress_recovery(unit, wf_PCA, unit_sp, gen, fig, grid, x,
             ax_t, triageflag, alignflag, plotting, n_feat_chans, 
             n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
             upsample_factor, nshifts, assignment_global, spike_index, scale,
-            knn_triage_threshold)
+            knn_triage_threshold, deconv_flag)
 
 
         # finish plotting 
