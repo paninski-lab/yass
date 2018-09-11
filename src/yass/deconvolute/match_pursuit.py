@@ -1,11 +1,37 @@
 import numpy as np
 import scipy
 import time, os
-
+import parmap
 import copy
 from tqdm import tqdm
 import time
 from yass.cluster.util import (binary_reader, load_waveforms_from_memory)
+
+
+# ********************************************************
+# ********************************************************
+# ********************************************************
+
+def parallel_conv_filter(unit1, n_unit, temporal, temporal_up, singular, 
+                         spatial, vis_chan, unit_overlap, up_factor, 
+                         approx_rank, n_time):
+    
+    conv_res_len = n_time * 2 - 1
+    pairwise_conv = np.zeros([n_unit, conv_res_len], dtype=np.float32)
+    u, s, vh = temporal[unit1], singular[unit1], spatial[unit1]
+    vis_chan_idx = vis_chan[:, unit1]
+    for unit2 in np.where(unit_overlap[:, unit1])[0]:
+        orig_unit = unit2 // up_factor
+        masked_temp = np.flipud(np.matmul(
+                temporal_up[unit2] * singular[orig_unit],
+                spatial[orig_unit, :, vis_chan_idx].T))
+        for i in range(approx_rank):
+            pairwise_conv[unit2, :] += np.convolve(
+                np.matmul(masked_temp, vh[i, vis_chan_idx].T),
+                s[i] * u[:, i].flatten(), 'full')
+    
+    return pairwise_conv
+
 
 
 # ********************************************************
@@ -17,7 +43,7 @@ class MatchPursuit_objectiveUpsample(object):
 
     def __init__(self, temps, deconv_chunk_dir, standardized_filename, 
                  max_iter, refrac_period=20, upsample=1, threshold=10., 
-                 conv_approx_rank=5,
+                 conv_approx_rank=5, n_processors=1,multi_processing=False,
                  vis_su=2., 
                  keep_iterations=False):
         """Sets up the deconvolution object.
@@ -46,13 +72,13 @@ class MatchPursuit_objectiveUpsample(object):
         self.deconv_dir = deconv_chunk_dir
         self.standardized_filename = standardized_filename
         self.max_iter = max_iter
-
+        self.n_processors = n_processors
+        self.multi_processing = multi_processing
 
         self.n_time, self.n_chan, self.n_unit = temps.shape
         self.temps = temps.astype(np.float32)
         self.orig_temps = temps.astype(np.float32)
-        print ("  inside match pursuit: templates: ", self.temps.shape)
-        
+        print ("  inside match pursuit, templates shape: ", self.temps.shape)
         
         # Upsample and downsample time shifted versions
         self.up_factor = upsample
@@ -63,6 +89,7 @@ class MatchPursuit_objectiveUpsample(object):
         self.visible_chans()
         self.template_overlaps()
         self.spatially_mask_templates()
+        
         # Upsample the templates
         # Index of the original templates prior to
         # upsampling them.
@@ -75,7 +102,7 @@ class MatchPursuit_objectiveUpsample(object):
         self.compress_templates()
         
         # Compute pairwise convolution of filters
-        print ("  computing temp_temp (todo: parallelize)")
+        print ("  computing temp_temp")
         self.pairwise_filter_conv()
         
         # compute norm of templates
@@ -183,35 +210,57 @@ class MatchPursuit_objectiveUpsample(object):
 
 
     # Cat: TODO: Parallelize this function
+    def pairwise_filter_conv_parallel(self):
+    
+        units = range(self.orig_n_unit)
+        #units = range(10)
+        res = parmap.map(parallel_conv_filter, units, self.n_unit, 
+                         self.temporal, self.temporal_up, self.singular, 
+                         self.spatial, self.vis_chan,
+                         self.unit_overlap, self.up_factor, 
+                         self.approx_rank, self.n_time,
+                         processes=self.n_processors,
+                         pm_pbar=True)
+                                 
+        res = np.array(res)
+        res = res.swapaxes(0,1)
+
+        return res
+                               
+    
+    # Cat: TODO: Parallelize this function
     def pairwise_filter_conv(self):
         """Computes pairwise convolution of templates using SVD approximation."""
 
         if os.path.exists(self.deconv_dir+"/pairwise_conv.npy") == False:
 
-            conv_res_len = self.n_time * 2 - 1
-            self.pairwise_conv = np.zeros(
-                    [self.n_unit, self.orig_n_unit, conv_res_len], dtype=np.float32)
-            for unit1 in range(self.orig_n_unit):
-                u, s, vh = self.temporal[unit1], self.singular[unit1], self.spatial[unit1]
-                vis_chan_idx = self.vis_chan[:, unit1]
-                for unit2 in np.where(self.unit_overlap[:, unit1])[0]:
-                    orig_unit = unit2 // self.up_factor
-                    masked_temp = np.flipud(np.matmul(
-                            self.temporal_up[unit2] * self.singular[orig_unit],
-                            self.spatial[orig_unit, :, vis_chan_idx].T))
-                    for i in range(self.approx_rank):
-                        self.pairwise_conv[unit2, unit1, :] += np.convolve(
-                            np.matmul(masked_temp, vh[i, vis_chan_idx].T),
-                            s[i] * u[:, i].flatten(), 'full')
+            if self.multi_processing:
+                self.pairwise_conv=self.pairwise_filter_conv_parallel()
             
+            else:
+            
+                conv_res_len = self.n_time * 2 - 1
+                self.pairwise_conv = np.zeros(
+                        [self.n_unit, self.orig_n_unit, conv_res_len], dtype=np.float32)
+                for unit1 in range(self.orig_n_unit):
+                    u, s, vh = self.temporal[unit1], self.singular[unit1], self.spatial[unit1]
+                    vis_chan_idx = self.vis_chan[:, unit1]
+                    for unit2 in np.where(self.unit_overlap[:, unit1])[0]:
+                        orig_unit = unit2 // self.up_factor
+                        masked_temp = np.flipud(np.matmul(
+                                self.temporal_up[unit2] * self.singular[orig_unit],
+                                self.spatial[orig_unit, :, vis_chan_idx].T))
+                        for i in range(self.approx_rank):
+                            self.pairwise_conv[unit2, unit1, :] += np.convolve(
+                                np.matmul(masked_temp, vh[i, vis_chan_idx].T),
+                                s[i] * u[:, i].flatten(), 'full')
+                
             np.save(self.deconv_dir+"/pairwise_conv.npy", self.pairwise_conv)
-        else:
-            self.pairwise_conv = np.load(self.deconv_dir+"/pairwise_conv.npy")
-
-        # Cat: Set this to None as it is reloaded by each core separately, shoulnd't be
-        #       duplicated during the object parallelization step
-        self.pairwise_conv = None
-                               
+            
+            # zero out the data
+            self.pairwise_conv = None
+    
+    
     
     def get_reconstructed_upsampled_templates(self):
         """Get the reconstructed upsampled versions of the original templates.
@@ -233,6 +282,7 @@ class MatchPursuit_objectiveUpsample(object):
         up_temps = up_temps.transpose(
             [2, 3, 0, 1]).reshape([self.n_chan, -1, self.n_time]).transpose([2, 0, 1])
         self.n_unit = self.n_unit * self.up_factor
+        
         # Reordering the upsampling. This is done because we upsampled the time
         # reversed temporal components of the SVD reconstruction of the
         # templates. This means That the time-reveresed 10x upsampled indices
@@ -249,46 +299,71 @@ class MatchPursuit_objectiveUpsample(object):
         return up_temps[:, :, reorder_idx]
         
         
-    def correct_shift_deconv_spike_train(self):
+    def correct_shift_deconv_spike_train(self, dec_spike_train):
         """Get time shift corrected version of the deconvovled spike train.
         This corrected version only applies if you consider getting upsampled
         templates with get_upsampled_templates() method.
         """
-        correct_spt = copy.copy(self.dec_spike_train)
+        
+        #correct_spt = copy.copy(self.dec_spike_train)
+        correct_spt = copy.copy(dec_spike_train)
         correct_spt[correct_spt[:, 1] % self.up_factor > 0, 0] += 1
         return correct_spt
                      
 
-    def approx_conv_filter(self, unit):
-        """Approximation of convolution of a template with the data.
-        Parameters:
-        -----------
-        unit: int
-            Id of the unit whose filter will be convolved with the data.
-        """
-        conv_res = 0.
-        u, s, vh = self.temporal[unit], self.singular[unit], self.spatial[unit]
-        for i in range(self.approx_rank):
-            vis_chan_idx = self.vis_chan[:, unit]
-            conv_res += np.convolve(
-                np.matmul(self.data[:, vis_chan_idx], vh[i, vis_chan_idx].T),
-                s[i] * u[:, i].flatten(), 'full')
-        return conv_res
+    #def approx_conv_filter(self, unit):
+        #"""Approximation of convolution of a template with the data.
+        #Parameters:
+        #-----------
+        #unit: int
+            #Id of the unit whose filter will be convolved with the data.
+        #"""
+        #conv_res = 0.
+        #u, s, vh = self.temporal[unit], self.singular[unit], self.spatial[unit]
+        #for i in range(self.approx_rank):
+            #vis_chan_idx = self.vis_chan[:, unit]
+            #conv_res += np.convolve(
+                #np.matmul(self.data[:, vis_chan_idx], vh[i, vis_chan_idx].T),
+                #s[i] * u[:, i].flatten(), 'full')
+        #return conv_res
 
+
+    #def compute_objective(self):
+        #"""Computes the objective given current state of recording."""
+        #if self.obj_computed:
+            #return self.obj
+        #for i in range(self.orig_n_unit):
+            #self.dot[i, :] = self.approx_conv_filter(i)
+        #self.obj = 2 * self.dot - self.norm
+        ## Set indicator to true so that it no longer is run
+        ## for future iterations in case subtractions are done
+        ## implicitly.
+        #self.obj_computed = True
+        #return self.obj
 
     def compute_objective(self):
         """Computes the objective given current state of recording."""
         if self.obj_computed:
             return self.obj
-        for i in range(self.orig_n_unit):
-            self.dot[i, :] = self.approx_conv_filter(i)
-        self.obj = 2 * self.dot - self.norm
+        n_rows = self.orig_n_unit * self.approx_rank
+        matmul_result = np.matmul(
+                self.spatial.reshape([n_rows, -1]) * self.singular.reshape([-1, 1]),
+                self.data.T)
+        conv_result = np.zeros(
+                [n_rows, self.data_len + self.n_time - 1], dtype=np.float32)
+        filters = self.temporal.transpose([0, 2, 1]).reshape([n_rows, -1])
+        for i in range(n_rows):
+            conv_result[i, :] = np.convolve(
+                    matmul_result[i, :], filters[i, :], mode='full')
+        for i in range(1, self.approx_rank):
+            conv_result[np.arange(0, n_rows, self.approx_rank), :] +=\
+                    conv_result[np.arange(i, n_rows, self.approx_rank), :]
+        self.obj = 2 * conv_result[np.arange(0, n_rows, self.approx_rank), :] - self.norm
         # Set indicator to true so that it no longer is run
         # for future iterations in case subtractions are done
         # implicitly.
         self.obj_computed = True
         return self.obj
-        
         
     def high_res_peak(self, times, unit_ids):
         """Finds best matching high resolution template.
@@ -383,6 +458,7 @@ class MatchPursuit_objectiveUpsample(object):
             conv_res_len = self.n_time * 2 - 1
             unit_sp = spt[spt[:, 1] == i, :]
             spt_idx = np.arange(0, conv_res_len) + unit_sp[:, :1] 
+            
             # Grid idx of subset of channels and times
             unit_idx = self.unit_overlap[i]
             idx = np.ix_(unit_idx, spt_idx.ravel())
@@ -424,8 +500,11 @@ class MatchPursuit_objectiveUpsample(object):
         self.update_data()
         
         # compute objective function
+        start_time = time.time()
         self.compute_objective()
-            
+        print ('  deconv chunk {0}, seg {1}, objective matrix took: {2:.2f}'.
+                format(self.chunk_ctr,self.seg_ctr, time.time()-start_time))
+                
         ctr = 0
         tot_max = np.inf
         while tot_max > self.threshold and ctr < self.max_iter:
@@ -478,7 +557,8 @@ class MatchPursuit_objectiveUpsample(object):
 
 class MatchPursuitWaveforms(object):
     
-    def __init__(self, data, temps, dec_spike_train, buffer_size):
+    def __init__(self, data, temps, dec_spike_train, buffer_size, n_processors):
+        
         """ Initialize by computing residuals
             provide: raw data block, templates, and deconv spike train; 
         """
@@ -486,8 +566,10 @@ class MatchPursuitWaveforms(object):
         self.n_time, self.n_chan, self.n_unit = temps.shape
         self.temps = temps
         self.dec_spike_train = dec_spike_train
+        self.n_processors = n_processors
     
     def compute_residual(self):
+        print ("  computing residual (todo: parallelize)")
         for i in tqdm(range(self.n_unit), '  computing residual postdeconv'):
         #np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/pre_residual.npy', self.data)
         #print (self.temps.shape)
@@ -498,7 +580,8 @@ class MatchPursuitWaveforms(object):
             self.data[np.arange(0, self.n_time) + unit_sp[:, :1], :] -= self.temps[:, :, i]
         #np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/post_residual.npy', self.data)
         #quit()
-
+        
+        
     def get_unit_spikes(self, unit, unit_sp):
         """Gets clean spikes for a given unit."""
         #unit_sp = dec_spike_train[dec_spike_train[:, 1] == unit, :]
@@ -506,4 +589,120 @@ class MatchPursuitWaveforms(object):
         # Add the spikes of the current unit back to the residual
         temp = self.data[np.arange(0, self.n_time) + unit_sp[:, :1], :] + self.temps[:, :, unit]
         return temp
+        
+    def compute_residual_parallel(self):
+        ''' Function to subtract residuals using parallel CPU
+            How to: grab chunks of data with a buffer on each side (e.g. 200)
+                    and delete all spike tempaltes at location of spike times                   
+            
+            The problem: when subtracting waveforms from buffer areas
+                         it becomes tricky to add the residuals together
+                         from 2 neighbouring chunks because they will 
+                         add the residual from the other chunk's data back in
+                         essentially invaldiating the subtraction in the buffer
+            
+            The solution: keep track of energy subtracted in the buffer zone
+            
+            The pythonic solution: 
+                - make an np.zero() data_blank array and also
+                derasterize it at the same time as data array; 
+                - subtract the buffer bits of the data_blank array from residual array
+                (this essentially subtracts the data 2 x so that it can be added back
+                in by other chunk)
+                - concatenate the parallel chunks together by adding the residuals in the
+                buffer zones. 
+        '''
+        
+        print ("  compute residual in parallel, data shape: ", self.data.shape)
+
+        # take 10sec chunks with 200 buffer on each side
+        # Cat: TODO: read from CONFIG file
+        buffer_size = 200
+        len_chunks = 20000*10
+        
+        # split data stack into equal chunks with buffer (+end piece) 
+        data_stack = []
+        data_stack.append(self.data[0:len_chunks+2*buffer_size])
+        indexes=[]
+        indexes.append([0,len_chunks+2*buffer_size])
+
+        # split spikes for each chunk
+        spike_times=[]
+        idx_in_chunk = np.where(np.logical_and(
+                self.dec_spike_train[:,0]>=buffer_size,
+                self.dec_spike_train[:,0]<(buffer_size+len_chunks)))[0]
+        
+        spike_times.append(self.dec_spike_train[idx_in_chunk])
+        for ctr,k in enumerate(range(indexes[0][1], self.data.shape[0], len_chunks)):
+            start = k-buffer_size*2
+            end = k+len_chunks
+
+            # split data for each chunk
+            data_stack.append(self.data[start:end])
+
+            # temp debug variable
+            indexes.append([start,end])
+
+            # assign spikes in each chunk
+            idx_in_chunk = np.where(np.logical_and(
+                    self.dec_spike_train[:,0]>=(start+buffer_size),
+                    self.dec_spike_train[:,0]<(end-buffer_size)))[0]
+            spikes_in_chunk = self.dec_spike_train[idx_in_chunk]
+            spikes_in_chunk[:,0] -= start
+            spike_times.append(spikes_in_chunk)
+                
+        #for k in range(len(data_stack)):
+            #print (data_stack[k].shape, indexes[k])
+            #print (spike_times[k])
+            #print ('')
+
+
+        # Cat: TODO: read multiprocessing flag from CONFIG
+        if True:
+            res = parmap.map(subtract_parallel, list(zip(data_stack,spike_times)), 
+                         self.n_unit, self.n_time, 
+                         self.temps, buffer_size, 
+                         processes=self.n_processors,
+                         pm_pbar=True)
+        else:
+            res = []
+            for k in range(len(data_stack)):
+                res_temp = subtract_parallel([data_stack[k],spike_times[k]],
+                           self.n_unit, self.n_time,
+                           self.temps, buffer_size)
+                res.append(res_temp)
+        
+        # zero out original data matrix 
+        self.data*=0.
+
+        for k in range(len(indexes)):
+            print (indexes[k], 
+                   self.data[indexes[k][0]+buffer_size:indexes[k][1]-buffer_size].shape,
+                   res[k][buffer_size:-buffer_size].shape)
+            self.data[indexes[k][0]+buffer_size:indexes[k][1]-buffer_size]+= res[k][buffer_size:-buffer_size]
+        
+        #self.data = data_out
+        
+def subtract_parallel(data_in, n_unit, n_time, temps, buffer_size):
+    '''
+    
+    '''
+        
+    # note only derasterize up to last bit, don't remove spikes from 
+    # buffer_size.. end because those will be looked at by next chunk
+    data=data_in[0]
+    local_spike_train=data_in[1]
+    data_blank = np.zeros(data.shape)
+    for i in range(n_unit):
+        unit_sp = local_spike_train[local_spike_train[:, 1] == i, :]
+        data[np.arange(0, n_time) + unit_sp[:, :1], :] -= temps[:, :, i]
+        data_blank[np.arange(0, n_time) + unit_sp[:, :1], :] -= temps[:, :, i]
+
+    # remove the buffer contributions x 2 so they can be properly added in after
+    # note: this will make a small error in the first buffer and last buffer for
+    # entire dataset; can fix this with some conditional
+    data[:buffer_size]-=data_blank[:buffer_size]
+    data[-buffer_size:]-=data_blank[-buffer_size:]
+    
+    return data
 

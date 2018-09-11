@@ -1751,7 +1751,7 @@ def global_merge_max_dist(chunk_dir, recording_chunk, CONFIG, min_spikes,
 
 
     ''' ************************************************
-        ********** COMPUTE SIMILARITY MATRIX ***********
+        ********** COMPUTE SIMILARITY METRICS **********
         ************************************************
     '''
 
@@ -1764,7 +1764,7 @@ def global_merge_max_dist(chunk_dir, recording_chunk, CONFIG, min_spikes,
     _, temps_PCA, pca_object = PCA(temps_stack, n_pca)
 
     temps_PCA = temps_PCA.reshape(templates.shape[0],templates.shape[2],templates.shape[1])
-    temps_PCA = np.swapaxes(temps_PCA, 1,2)
+    temps_PCA = np.swapaxes(temps_PCA,1,2)
     print (temps_PCA.shape)
 
     # ************** GET SIM_MAT ****************
@@ -1825,36 +1825,36 @@ def global_merge_max_dist(chunk_dir, recording_chunk, CONFIG, min_spikes,
 
     print("  "+out_dir+" templates/spike train after merge, pre-spike cutoff: ", templates.shape, final_spike_train.shape)
 
-    ''' ************************************************
-        ************* DELETE TOO FEW SPIKES ************
-        ************************************************
-    '''
+    #''' ************************************************
+        #************* DELETE TOO FEW SPIKES ************
+        #************************************************
+    #'''
     
-    if False:
+    #if False:
 
-        # Cat: TODO: Read this threshold from CONFIG
-        #            Maybe needs to be in fire rate (Hz) not absolute spike #s
-        final_spike_train_cutoff = []
-        del_ctr = []
-        tmp_loc = []
-        final_templates_cutoff = []
-        print ("units: ", np.unique(final_spike_train[:,1]).shape[0])
-        ctr = 0
-        for unit in np.unique(final_spike_train[:,1]):
-            idx_temp = np.where(final_spike_train[:,1]==unit)[0]
-            if idx_temp.shape[0]>=min_spikes:
-                temp_train = final_spike_train[idx_temp]
-                temp_train[:,1]=ctr
-                final_spike_train_cutoff.append(temp_train)
-                final_templates_cutoff.append(templates[:,:,unit])
+        ## Cat: TODO: Read this threshold from CONFIG
+        ##            Maybe needs to be in fire rate (Hz) not absolute spike #s
+        #final_spike_train_cutoff = []
+        #del_ctr = []
+        #tmp_loc = []
+        #final_templates_cutoff = []
+        #print ("units: ", np.unique(final_spike_train[:,1]).shape[0])
+        #ctr = 0
+        #for unit in np.unique(final_spike_train[:,1]):
+            #idx_temp = np.where(final_spike_train[:,1]==unit)[0]
+            #if idx_temp.shape[0]>=min_spikes:
+                #temp_train = final_spike_train[idx_temp]
+                #temp_train[:,1]=ctr
+                #final_spike_train_cutoff.append(temp_train)
+                #final_templates_cutoff.append(templates[:,:,unit])
 
-                max_chan = templates[:,:,unit].ptp(1).argmax(0)
-                tmp_loc.append(max_chan)
+                #max_chan = templates[:,:,unit].ptp(1).argmax(0)
+                #tmp_loc.append(max_chan)
 
-                ctr+=1
+                #ctr+=1
                     
-        final_spike_train_cutoff = np.vstack(final_spike_train_cutoff)
-        final_templates_cutoff = np.array(final_templates_cutoff).T
+        #final_spike_train_cutoff = np.vstack(final_spike_train_cutoff)
+        #final_templates_cutoff = np.array(final_templates_cutoff).T
 
     final_spike_train_cutoff = final_spike_train
     final_templates_cutoff = templates
@@ -2293,16 +2293,10 @@ def parallel_merge(data):
     ## find all events belonging to pair[1]
     idx2 = np.where(spike_train[idx,1] == pair[1])[0]
     
+    
+    
     ## choose N events from pair; also ensure that we have sufficient
     #   spikes and no edge cases are occuring
-    idx1 = np.random.choice(idx1, min(N, idx1.size))
-    
-    ## choose N events from pair[1]
-    idx2 = np.random.choice(idx2, min(N, idx2.size))
-    idx = np.concatenate([idx[idx1], idx[idx2]])
-    idx1 = np.where(spike_train[idx,1] == pair[0])[0]
-    idx2 = np.where(spike_train[idx,1] == pair[1])[0]
-    
     ## read waveforms
     # Cat: TODO: spike_size must be read from CONFIG or will crash
     re = RecordingExplorer(CONFIG.data.root_folder+'/tmp/standarized.bin', 
@@ -2312,14 +2306,27 @@ def parallel_merge(data):
                    dtype = 'float32',
                    n_channels = CONFIG.recordings.n_channels, 
                    data_order = 'samples')
-    
-    wf = re.read_waveforms(spike_train[idx,0])
-    
-    # Cat: TODO: this will eventually crash; need to save blank sim_mat for pair
-    if wf.shape[0]<n_sample_spikes:
-        print (" insufficient spikes, skipping...")
-        return 
-        #continue
+                   
+    ctr=0
+    while True:
+        idx1 = np.random.choice(idx1, min(N, idx1.size))
+        idx2 = np.random.choice(idx2, min(N, idx2.size))
+        
+        idx = np.concatenate([idx[idx1], idx[idx2]])
+        idx1 = np.where(spike_train[idx,1] == pair[0])[0]
+        idx2 = np.where(spike_train[idx,1] == pair[1])[0]
+        
+        wf = re.read_waveforms(spike_train[idx,0])
+        
+        # Cat: TODO: this will eventually crash; need to save blank sim_mat for pair
+        if wf.shape[0]==(N*2):
+            break
+        else:
+            ctr+=1
+        
+        if ctr>5:
+            print ("pair: ",pair, " --->>> too few spikes in cluster... need to fix this...<<<---")
+            quit()
 
 
     # Cat: TODO: this routine can crash often whenever there are less than 2 x N spikes
