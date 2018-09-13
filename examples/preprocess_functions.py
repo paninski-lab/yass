@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from yass import preprocess
 from yass import geometry
 from yass.preprocess import pca
-from yass.preprocess import whiten
+from yass.preprocess.batch import whiten
 
 # path to neuropixel data
 root = os.path.expanduser('~/data/ucl-neuropixel')

@@ -3,7 +3,7 @@ from yass import geometry
 from yass.geometry import (parse, find_channel_neighbors,
                            n_steps_neigh_channels,
                            make_channel_index)
-from yass.preprocess import whiten
+from yass.preprocess.batch import whiten
 from yass.threshold import detect
 
 
