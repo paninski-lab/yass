@@ -2068,8 +2068,8 @@ def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG, min_spikes,
     templates = np.float32(templates_final)
     templates = np.swapaxes(templates, 2,0)
      
-    np.save(os.path.join(CONFIG.path_to_output_directory, out_dir, 'templates_post_'+deconv+'_post_merge_pre_cutoff.npy'), templates)
-    np.save(os.path.join(CONFIG.path_to_output_directory, out_dir, 'spike_train_post_'+deconv+'_post_merge_pre_cutoff.npy'), final_spike_train)
+    np.save(os.path.join(CONFIG.path_to_output_directory, out_dir, 'templates_post_'+out_dir+'_post_merge_pre_cutoff.npy'), templates)
+    np.save(os.path.join(CONFIG.path_to_output_directory, out_dir, 'spike_train_post_'+out_dir+'_post_merge_pre_cutoff.npy'), final_spike_train)
     print("  "+out_dir+" templates/spike train after merge, pre-spike cutoff: ", templates.shape, final_spike_train.shape)
 
     ''' ************************************************
