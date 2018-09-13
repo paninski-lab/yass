@@ -113,7 +113,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     (standarized_path,
      standarized_params,
      whiten_filter) = (preprocess
-                       .run(if_file_exists=CONFIG.preprocess.if_file_exists))
+                       .run(if_file_exists='skip'))
     time_preprocess = time.time() - start
 
     # detect
@@ -122,7 +122,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
-                                   if_file_exists=CONFIG.detect.if_file_exists,
+                                   if_file_exists='skip',
                                    save_results=True)
     time_detect = time.time() - start
 
