@@ -19,10 +19,10 @@ from yass.explore import RecordingExplorer
 
 
 @pytest.mark.xfail
-def test_can_train_detector(path_to_nnet_config,
+def test_can_train_detector(path_to_config,
                             path_to_sample_pipeline_folder,
                             make_tmp_folder):
-    yass.set_config(path_to_nnet_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
@@ -59,10 +59,10 @@ def test_can_train_detector(path_to_nnet_config,
 
 
 @pytest.mark.xfail
-def test_can_reload_detector(path_to_nnet_config,
+def test_can_reload_detector(path_to_config,
                              path_to_sample_pipeline_folder,
                              make_tmp_folder):
-    yass.set_config(path_to_nnet_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
@@ -102,11 +102,11 @@ def test_can_reload_detector(path_to_nnet_config,
 
 
 @pytest.mark.xfail
-def test_can_use_detector_after_fit(path_to_nnet_config,
+def test_can_use_detector_after_fit(path_to_config,
                                     path_to_sample_pipeline_folder,
                                     make_tmp_folder,
                                     path_to_standarized_data):
-    yass.set_config(path_to_nnet_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
@@ -150,11 +150,11 @@ def test_can_use_detector_after_fit(path_to_nnet_config,
 
 
 @pytest.mark.xfail
-def test_can_use_neural_network_detector(path_to_nnet_config,
+def test_can_use_neural_network_detector(path_to_config,
                                          path_to_sample_pipeline_folder,
                                          make_tmp_folder,
                                          path_to_standarized_data):
-    yass.set_config(path_to_nnet_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     PATH_TO_DATA = path_to_standarized_data
@@ -215,11 +215,11 @@ def test_can_use_neural_network_detector(path_to_nnet_config,
 
 
 @pytest.mark.xfail
-def test_splitting_in_batches_does_not_affect(path_to_nnet_config,
+def test_splitting_in_batches_does_not_affect(path_to_config,
                                               path_to_sample_pipeline_folder,
                                               make_tmp_folder,
                                               path_to_standarized_data):
-    yass.set_config(path_to_nnet_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     PATH_TO_DATA = path_to_standarized_data

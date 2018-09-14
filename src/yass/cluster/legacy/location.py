@@ -1,3 +1,4 @@
+import pkg_resources
 from os.path import join
 import logging
 import datetime
@@ -12,7 +13,8 @@ from yass.neuralnetwork import AutoEncoder
 from yass.mfm import get_core_data
 
 
-def location(spike_index):
+def location(spike_index, detect_method='threshold',
+             autoencoder='ae_nn1.ckpt'):
     """Spike clustering
 
     Parameters
@@ -26,6 +28,8 @@ def location(spike_index):
     -------
     spike_train
     """
+    autoencoder = expand_asset_model(autoencoder)
+
     CONFIG = read_config()
 
     # NOTE: this is not the right way to set defaults, the function should
@@ -67,13 +71,12 @@ def location(spike_index):
 
     startTime = datetime.datetime.now()
 
-    if CONFIG.detect.method == 'threshold':
+    if detect_method == 'threshold':
         scores = get_locations_features_threshold(scores, spike_index[:, 1],
                                                   CONFIG.channel_index,
                                                   CONFIG.geom)
     else:
-        ae_fname = CONFIG.detect.neural_network_autoencoder.filename
-        autoencoder = AutoEncoder.load(ae_fname)
+        autoencoder = AutoEncoder.load(autoencoder)
         rotation = autoencoder.load_rotation()
         threshold = 2
         scores = get_locations_features_nnet(scores, rotation,
@@ -203,3 +206,18 @@ def get_locations_features_threshold(scores, main_channel,
                        np.std(scores, axis=0, keepdims=True))
 
     return scores[:, :, np.newaxis]
+
+
+def expand_asset_model(value):
+    """Expand filenames
+    """
+    # if absolute path, just return the value
+    if value.startswith('/'):
+        new_value = value
+
+    # else, look into assets
+    else:
+        path = 'assets/models/{}'.format(value)
+        new_value = pkg_resources.resource_filename('yass', path)
+
+    return new_value

@@ -74,12 +74,12 @@ def test_standarize_does_not_run_if_files_already_exist(path_to_data,
     assert not standarize.executed
 
 
-def test_can_preprocess(path_to_threshold_config, make_tmp_folder):
-    yass.set_config(path_to_threshold_config, make_tmp_folder)
+def test_can_preprocess(path_to_config, make_tmp_folder):
+    yass.set_config(path_to_config, make_tmp_folder)
     standarized_path, standarized_params, whiten_filter = preprocess.run()
 
 
-def test_can_preprocess_in_parallel(path_to_threshold_config, make_tmp_folder):
+def test_can_preprocess_in_parallel(path_to_config, make_tmp_folder):
     CONFIG = load_yaml(path_to_threshold_config)
     CONFIG['resources']['processes'] = 'max'
 
@@ -88,10 +88,10 @@ def test_can_preprocess_in_parallel(path_to_threshold_config, make_tmp_folder):
     standarized_path, standarized_params, whiten_filter = preprocess.run()
 
 
-def test_preprocess_returns_expected_results(path_to_threshold_config,
+def test_preprocess_returns_expected_results(path_to_config,
                                              path_to_output_reference,
                                              make_tmp_folder):
-    yass.set_config(path_to_threshold_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
     (standarized_path,
      standarized_params,
      whiten_filter) = preprocess.run(output_dtype='float32')
@@ -111,9 +111,9 @@ def test_preprocess_returns_expected_results(path_to_threshold_config,
                                                path_to_whiten_filter)
 
 
-def test_can_preprocess_without_filtering(path_to_threshold_config,
+def test_can_preprocess_without_filtering(path_to_config,
                                           make_tmp_folder):
-    yass.set_config(path_to_threshold_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
 
     (standarized_path,
         standarized_params,
