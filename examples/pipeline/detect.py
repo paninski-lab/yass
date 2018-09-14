@@ -6,7 +6,6 @@ import logging
 import yass
 from yass import preprocess
 from yass import detect
-from yass.detect import nnet_experimental
 
 # configure logging module to get useful information
 logging.basicConfig(level=logging.INFO)
@@ -21,5 +20,4 @@ standarized_path, standarized_params, whiten_filter = preprocess.run()
 clear, collision = detect.run(standarized_path,
                               standarized_params,
                               whiten_filter,
-                              if_file_exists='overwrite',
-                              function=nnet_experimental.run)
+                              if_file_exists='overwrite')
