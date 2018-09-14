@@ -24,6 +24,7 @@ from yass import set_config
 from yass import preprocess, detect, cluster, deconvolute
 from yass import templates as get_templates
 from yass import read_config
+from yass.detect import nnet
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
                        human_readable_time)
@@ -32,7 +33,7 @@ from yass.threshold import dimensionality_reduction as dim_red
 
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
-        complete=False, set_zero_seed=False):
+        complete=False, set_zero_seed=False, detector=nnet.run):
     """Run YASS built-in pipeline
 
     Parameters
@@ -123,7 +124,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                                    standarized_params,
                                    whiten_filter,
                                    if_file_exists='skip',
-                                   save_results=True)
+                                   save_results=True,
+                                   function=detector)
     time_detect = time.time() - start
 
     # cluster
