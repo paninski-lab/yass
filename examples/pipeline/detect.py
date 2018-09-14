@@ -1,18 +1,18 @@
 """
 Detecting spikes
 """
-
 import logging
 
 import yass
 from yass import preprocess
 from yass import detect
+from yass.detect import nnet_experimental
 
 # configure logging module to get useful information
 logging.basicConfig(level=logging.INFO)
 
 # set yass configuration parameters
-yass.set_config('config_sample.yaml', 'detect-example')
+yass.set_config('config.yaml', 'example-detect')
 
 # run preprocessor
 standarized_path, standarized_params, whiten_filter = preprocess.run()
@@ -20,4 +20,6 @@ standarized_path, standarized_params, whiten_filter = preprocess.run()
 # run detection
 clear, collision = detect.run(standarized_path,
                               standarized_params,
-                              whiten_filter)
+                              whiten_filter,
+                              if_file_exists='overwrite',
+                              function=nnet_experimental.run)

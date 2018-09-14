@@ -11,6 +11,7 @@ from collections import Mapping, MutableSequence
 import keyword
 import logging
 
+import multiprocess
 import yaml
 import numpy as np
 
@@ -143,6 +144,11 @@ class Config:
         self._logger = logging.getLogger(__name__)
 
         mapping = validate(mapping)
+
+        _processes = mapping['resources']['processes']
+        mapping['resources']['processes'] = (multiprocess.cpu_count()
+                                             if _processes == 'max'
+                                             else _processes)
 
         self._frozenjson = FrozenJSON(mapping)
 
