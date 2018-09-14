@@ -1,15 +1,13 @@
 import os.path
 import logging
 
-import numpy as np
-
-from yass.deconvolute.deconvolve import deconvolve, fix_indexes
 from yass import read_config
-from yass.batch import BatchProcessor
 from yass.util import file_loader, file_saver
+from yass.deconvolute.legacy import legacy
 
 
-def run(spike_index, templates, recordings_filename='standarized.bin'):
+def run(spike_index, templates, recordings_filename='standarized.bin',
+        function=legacy):
     """Deconvolute spikes
 
     Parameters
@@ -53,43 +51,7 @@ def run(spike_index, templates, recordings_filename='standarized.bin'):
     # read config file
     CONFIG = read_config()
 
-    # read recording
-    recording_path = os.path.join(CONFIG.path_to_output_directory,
-                                  'preprocess',
-                                  recordings_filename)
-    bp = BatchProcessor(recording_path,
-                        buffer_size=templates.shape[1])
-
-    logging.debug('Starting deconvolution. templates.shape: {}, '
-                  'spike_index.shape: {}'
-                  .format(templates.shape, spike_index.shape))
-
-    # run deconvolution algorithm
-    n_rf = int(CONFIG.deconvolution.n_rf*CONFIG.recordings.sampling_rate/1000)
-
-    # run nn preprocess batch-wsie
-    mc = bp.multi_channel_apply
-    res = mc(
-        deconvolve,
-        mode='memory',
-        cleanup_function=fix_indexes,
-        pass_batch_info=True,
-        templates=templates,
-        spike_index=spike_index,
-        spike_size=CONFIG.spike_size,
-        n_explore=CONFIG.deconvolution.n_explore,
-        n_rf=n_rf,
-        upsample_factor=CONFIG.deconvolution.upsample_factor,
-        threshold_a=CONFIG.deconvolution.threshold_a,
-        threshold_dd=CONFIG.deconvolution.threshold_dd)
-
-    spike_train = np.concatenate([element for element in res], axis=0)
-
-    logger.debug('spike_train.shape: {}'
-                 .format(spike_train.shape))
-
-    # sort spikes by time
-    spike_train = spike_train[np.argsort(spike_train[:, 0])]
+    spike_train = function(spike_index, templates, recordings_filename)
 
     # save spike train
     path_to_spike_train = os.path.join(CONFIG.path_to_output_directory,

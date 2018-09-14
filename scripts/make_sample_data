@@ -80,18 +80,6 @@ CONFIG = {
         'spike_size_ms': 1.5,
         'order': 'samples',
     },
-
-    'preprocess': {
-        'apply_filter': True,
-        'dtype': 'float32'
-
-    },
-
-    'detect': {
-        'method': 'threshold',
-        'temporal_features': 3
-
-    }
 }
 
 
@@ -127,20 +115,14 @@ CONFIG_TEST['data'] = {
     'geometry': 'geometry.npy'
 }
 
-# make config files
-nnet = deepcopy(CONFIG_TEST)
-nnet['detect'] = {'method': 'nn', 'temporal_features': 3}
 
 wrong_channels = deepcopy(CONFIG_TEST)
 _ = wrong_channels['recordings']
 _['n_channels'] = channels + 1
 wrong_channels['recordings'] = _
 
-with open(str(path_to_output_folder_retina_cfg / 'nnet.yaml'), 'w') as f:
-    yaml.dump(nnet, f)
 
-
-with open(str(path_to_output_folder_retina_cfg / 'threshold.yaml'), 'w') as f:
+with open(str(path_to_output_folder_retina_cfg / 'config.yaml'), 'w') as f:
     yaml.dump(CONFIG_TEST, f)
 
 

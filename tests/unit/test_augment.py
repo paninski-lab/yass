@@ -16,7 +16,7 @@ from yass.batch import RecordingsReader
 
 
 @pytest.fixture()
-def templates_uncropped(path_to_nnet_config, make_tmp_folder,
+def templates_uncropped(path_to_config, make_tmp_folder,
                         path_to_sample_pipeline_folder,
                         path_to_standarized_data):
     spike_train = np.array([100, 0,
@@ -26,7 +26,7 @@ def templates_uncropped(path_to_nnet_config, make_tmp_folder,
                             300, 2,
                             350, 2]).reshape(-1, 2)
 
-    yass.set_config(path_to_nnet_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,

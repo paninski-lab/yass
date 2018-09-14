@@ -9,11 +9,11 @@ from yass import templates
 from util import ReferenceTesting
 
 
-def test_templates_returns_expected_results(path_to_threshold_config,
+def test_templates_returns_expected_results(path_to_config,
                                             path_to_output_reference,
                                             make_tmp_folder):
 
-    yass.set_config(path_to_threshold_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
 
     (standarized_path,
      standarized_params,

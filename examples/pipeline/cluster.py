@@ -21,5 +21,4 @@ standarized_path, standarized_params, whiten_filter = preprocess.run()
                                standarized_params,
                                whiten_filter)
 
-
 spike_train_clear, tmp_loc, vbParam = cluster.run(spike_index_clear)

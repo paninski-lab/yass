@@ -4,7 +4,7 @@ from yass.augment import noise
 from yass.batch import RecordingsReader
 
 
-def test_can_kill_signal(path_to_standarized_data, path_to_threshold_config):
+def test_can_kill_signal(path_to_standarized_data):
     recordings = RecordingsReader(path_to_standarized_data,
                                   loader='array')._data
 
@@ -13,8 +13,7 @@ def test_can_kill_signal(path_to_standarized_data, path_to_threshold_config):
                       window_size=10)
 
 
-def test_can_estimate_temporal_and_spatial_sig(path_to_standarized_data,
-                                               path_to_threshold_config):
+def test_can_estimate_temporal_and_spatial_sig(path_to_standarized_data):
 
     recordings = RecordingsReader(path_to_standarized_data,
                                   loader='array')._data

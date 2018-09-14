@@ -24,6 +24,7 @@ from yass import set_config
 from yass import preprocess, detect, cluster, deconvolute
 from yass import templates as get_templates
 from yass import read_config
+from yass.detect import nnet
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
                        human_readable_time)
@@ -32,7 +33,7 @@ from yass.threshold import dimensionality_reduction as dim_red
 
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
-        complete=False, set_zero_seed=False):
+        complete=False, set_zero_seed=False, detector=nnet.run):
     """Run YASS built-in pipeline
 
     Parameters
@@ -113,7 +114,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     (standarized_path,
      standarized_params,
      whiten_filter) = (preprocess
-                       .run(if_file_exists=CONFIG.preprocess.if_file_exists))
+                       .run(if_file_exists='skip'))
     time_preprocess = time.time() - start
 
     # detect
@@ -122,27 +123,23 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
-                                   if_file_exists=CONFIG.detect.if_file_exists,
-                                   save_results=CONFIG.detect.save_results)
+                                   if_file_exists='skip',
+                                   save_results=True,
+                                   function=detector)
     time_detect = time.time() - start
 
     # cluster
     start = time.time()
     spike_train_clear, tmp_loc, vbParam = cluster.run(
-        spike_index_clear,
-        if_file_exists=CONFIG.cluster.if_file_exists,
-        save_results=CONFIG.cluster.save_results)
+        spike_index_clear, save_results=True)
     time_cluster = time.time() - start
 
     # get templates
     start = time.time()
-    (templates,
-     spike_train_clear_after_templates,
-     groups,
-     idx_good_templates) = get_templates.run(
-        spike_train_clear, tmp_loc,
-        if_file_exists=CONFIG.templates.if_file_exists,
-        save_results=CONFIG.templates.save_results)
+    (templates, spike_train_clear_after_templates,
+     groups, idx_good_templates) = get_templates.run(spike_train_clear,
+                                                     tmp_loc,
+                                                     save_results=True)
     time_templates = time.time() - start
 
     # run deconvolution
@@ -167,63 +164,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     logging.info('Saving copy of config: {} in {}'.format(config,
                                                           path_to_config_copy))
 
-    # TODO: complete flag saves other files needed for integrating phy
-    # with yass, the integration hasn't been completed yet
-    # this part loads waveforms for all spikes in the spike train and scores
-    # them, this data is needed to later generate phy files
+    # generate files for phy integration
     if complete:
-        STANDARIZED_PATH = path.join(TMP_FOLDER, 'standarized.bin')
-        PARAMS = load_yaml(path.join(TMP_FOLDER, 'standarized.yaml'))
-
-        # load waveforms for all spikes in the spike train
-        logger.info('Loading waveforms from all spikes in the spike train...')
-        explorer = RecordingExplorer(STANDARIZED_PATH,
-                                     spike_size=CONFIG.spike_size,
-                                     dtype=PARAMS['dtype'],
-                                     n_channels=PARAMS['n_channels'],
-                                     data_order=PARAMS['data_order'])
-        waveforms = explorer.read_waveforms(spike_train[:, 0])
-
-        path_to_waveforms = path.join(TMP_FOLDER, 'spike_train_waveforms.npy')
-        np.save(path_to_waveforms, waveforms)
-        logger.info('Saved all waveforms from the spike train in {}...'
-                    .format(path_to_waveforms))
-
-        # score all waveforms
-        logger.info('Scoring waveforms from all spikes in the spike train...')
-        path_to_rotation = path.join(TMP_FOLDER, 'rotation.npy')
-        rotation = np.load(path_to_rotation)
-
-        main_channels = explorer.main_channel_for_waveforms(waveforms)
-        path_to_main_channels = path.join(TMP_FOLDER,
-                                          'waveforms_main_channel.npy')
-        np.save(path_to_main_channels, main_channels)
-        logger.info('Saved all waveforms main channels in {}...'
-                    .format(path_to_waveforms))
-
-        waveforms_score = dim_red.score(waveforms, rotation, main_channels,
-                                        CONFIG.neigh_channels, CONFIG.geom)
-        path_to_waveforms_score = path.join(TMP_FOLDER, 'waveforms_score.npy')
-        np.save(path_to_waveforms_score, waveforms_score)
-        logger.info('Saved all scores in {}...'.format(path_to_waveforms))
-
-        # score templates
-        # TODO: templates should be returned in the right shape to avoid .T
-        templates_ = templates.T
-        main_channels_tmpls = explorer.main_channel_for_waveforms(templates_)
-        path_to_templates_main_c = path.join(TMP_FOLDER,
-                                             'templates_main_channel.npy')
-        np.save(path_to_templates_main_c, main_channels_tmpls)
-        logger.info('Saved all templates main channels in {}...'
-                    .format(path_to_templates_main_c))
-
-        templates_score = dim_red.score(templates_, rotation,
-                                        main_channels_tmpls,
-                                        CONFIG.neigh_channels, CONFIG.geom)
-        path_to_templates_score = path.join(TMP_FOLDER, 'templates_score.npy')
-        np.save(path_to_templates_score, templates_score)
-        logger.info('Saved all templates scores in {}...'
-                    .format(path_to_waveforms))
+        generate_phy_files(TMP_FOLDER, CONFIG, spike_train, templates)
 
     logger.info('Finished YASS execution. Timing summary:')
     total = (time_preprocess + time_detect + time_cluster + time_templates
@@ -245,3 +188,66 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
                 time_deconvolution/total*100)
 
     return spike_train
+
+
+def generate_phy_files(TMP_FOLDER, CONFIG, spike_train, templates):
+    """Generate files for phy integration
+    """
+    # TODO: complete flag saves other files needed for integrating phy
+    # with yass, the integration hasn't been completed yet
+    # this part loads waveforms for all spikes in the spike train and scores
+    # them, this data is needed to later generate phy files
+    logger = logging.getLogger(__name__)
+
+    STANDARIZED_PATH = path.join(TMP_FOLDER, 'standarized.bin')
+    PARAMS = load_yaml(path.join(TMP_FOLDER, 'standarized.yaml'))
+
+    # load waveforms for all spikes in the spike train
+    logger.info('Loading waveforms from all spikes in the spike train...')
+    explorer = RecordingExplorer(STANDARIZED_PATH,
+                                 spike_size=CONFIG.spike_size,
+                                 dtype=PARAMS['dtype'],
+                                 n_channels=PARAMS['n_channels'],
+                                 data_order=PARAMS['data_order'])
+    waveforms = explorer.read_waveforms(spike_train[:, 0])
+
+    path_to_waveforms = path.join(TMP_FOLDER, 'spike_train_waveforms.npy')
+    np.save(path_to_waveforms, waveforms)
+    logger.info('Saved all waveforms from the spike train in {}...'
+                .format(path_to_waveforms))
+
+    # score all waveforms
+    logger.info('Scoring waveforms from all spikes in the spike train...')
+    path_to_rotation = path.join(TMP_FOLDER, 'rotation.npy')
+    rotation = np.load(path_to_rotation)
+
+    main_channels = explorer.main_channel_for_waveforms(waveforms)
+    path_to_main_channels = path.join(TMP_FOLDER,
+                                      'waveforms_main_channel.npy')
+    np.save(path_to_main_channels, main_channels)
+    logger.info('Saved all waveforms main channels in {}...'
+                .format(path_to_waveforms))
+
+    waveforms_score = dim_red.score(waveforms, rotation, main_channels,
+                                    CONFIG.neigh_channels, CONFIG.geom)
+    path_to_waveforms_score = path.join(TMP_FOLDER, 'waveforms_score.npy')
+    np.save(path_to_waveforms_score, waveforms_score)
+    logger.info('Saved all scores in {}...'.format(path_to_waveforms))
+
+    # score templates
+    # TODO: templates should be returned in the right shape to avoid .T
+    templates_ = templates.T
+    main_channels_tmpls = explorer.main_channel_for_waveforms(templates_)
+    path_to_templates_main_c = path.join(TMP_FOLDER,
+                                         'templates_main_channel.npy')
+    np.save(path_to_templates_main_c, main_channels_tmpls)
+    logger.info('Saved all templates main channels in {}...'
+                .format(path_to_templates_main_c))
+
+    templates_score = dim_red.score(templates_, rotation,
+                                    main_channels_tmpls,
+                                    CONFIG.neigh_channels, CONFIG.geom)
+    path_to_templates_score = path.join(TMP_FOLDER, 'templates_score.npy')
+    np.save(path_to_templates_score, templates_score)
+    logger.info('Saved all templates scores in {}...'
+                .format(path_to_waveforms))
