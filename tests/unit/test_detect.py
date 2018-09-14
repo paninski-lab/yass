@@ -1,6 +1,7 @@
 import yass
 from yass import preprocess
 from yass import detect
+from yass.detect import nnet, threshold
 
 
 def test_can_detect_with_threshold(path_to_config, make_tmp_folder):
@@ -13,7 +14,8 @@ def test_can_detect_with_threshold(path_to_config, make_tmp_folder):
     (spike_index_clear,
      spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
-                                   whiten_filter)
+                                   whiten_filter,
+                                   function=threshold.run)
 
 
 def test_can_detect_with_nnet(path_to_config, make_tmp_folder):
@@ -25,4 +27,5 @@ def test_can_detect_with_nnet(path_to_config, make_tmp_folder):
 
     detect.run(standarized_path,
                standarized_params,
-               whiten_filter)
+               whiten_filter,
+               function=nnet.run)
