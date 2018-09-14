@@ -9,8 +9,9 @@ tmp/
 
 # do not include data
 yass-testing-data/
-tests/assets/
+tests/data/
 examples/data/
+tests/output_reference/
 
 # sublime text files
 *.sublime*

@@ -59,7 +59,7 @@ def read_config():
     return CONFIG
 
 
-def set_config(config, output_directory=None):
+def set_config(config, output_directory):
     """Set configuration settings
 
     Parameters
@@ -67,8 +67,8 @@ def set_config(config, output_directory=None):
     config: str or mapping (such as dictionary)
         Path to a yaml file or mapping object
 
-    output_directory: str of pathlib.Path, optional
-        output directory for the project, this is optional and makes
+    output_directory: str of pathlib.Path
+        output directory for the project, this makes
         Config.output_directory return
         onfig.data.root_folder / output_directory, which is a common path
         used through the pipeline. If the path is absolute, it is not modified
