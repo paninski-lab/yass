@@ -80,7 +80,7 @@ def test_can_preprocess(path_to_config, make_tmp_folder):
 
 
 def test_can_preprocess_in_parallel(path_to_config, make_tmp_folder):
-    CONFIG = load_yaml(path_to_threshold_config)
+    CONFIG = load_yaml(path_to_config)
     CONFIG['resources']['processes'] = 'max'
 
     yass.set_config(CONFIG, make_tmp_folder)
