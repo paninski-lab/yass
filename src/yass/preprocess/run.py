@@ -7,10 +7,10 @@ except ImportError:
     from pathlib import Path
 
 from yass import read_config
-from yass.preprocess.batch import batch
+from yass.preprocess import batch
 
 
-def run(if_file_exists='skip', function=batch, **function_kwargs):
+def run(if_file_exists='skip', function=batch.run, **function_kwargs):
     """Preprocess pipeline: filtering, standarization and whitening filter
 
     This step (optionally) performs filtering on the data, standarizes it
