@@ -10,7 +10,7 @@ YASS configuration file
 
 YASS is configured using a YAML file, below is an example of such configuration:
 
-.. literalinclude:: ../examples/config_sample.yaml
+.. literalinclude:: ../examples/config.yaml
 
 
 If you want to use a Neural Network as detector, you need to provide your

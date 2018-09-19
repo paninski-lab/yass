@@ -13,9 +13,9 @@ from yass.preprocess.batch.standarize import standarize
 from yass.preprocess.batch import whiten
 
 
-def batch(CONFIG, if_file_exists='skip', output_dtype='float64',
-          apply_filter=True, filter_order=3, filter_low_pass_freq=300,
-          filter_high_factor=0.1):
+def run(CONFIG, if_file_exists='skip', output_dtype='float64',
+        apply_filter=True, filter_order=3, filter_low_pass_freq=300,
+        filter_high_factor=0.1):
     """Preprocess pipeline: filtering, standarization and whitening filter
 
     This step (optionally) performs filtering on the data, standarizes it

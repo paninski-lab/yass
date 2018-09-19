@@ -1,3 +1,3 @@
-from yass.preprocess.batch.batch import batch
+from yass.preprocess.batch.batch import run
 
-__all__ = ['batch']
+__all__ = ['run']
