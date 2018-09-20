@@ -263,7 +263,7 @@ def make_spatially_misaligned(x, n_per_spike):
     return x_spatially
 
 
-def make_temporally_misaligned(x, n_per_spike, multi_channel,
+def make_temporally_misaligned(x, n_per_spike=1, multi_channel=True,
                                max_shift='auto'):
     """Make temporally shifted spikes from clean spikes
     """

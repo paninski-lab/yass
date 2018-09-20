@@ -121,7 +121,7 @@ class Dataset:
         if len(kind) == 1:
             return self._make_from_kind(kind[0], units_per_bin)
         else:
-            return [self._make_from_kind(k) for k in kind]
+            return [self._make_from_kind(k, units_per_bin) for k in kind]
 
 
 def to_data_frame(array, amplitudes, ptps, slices,

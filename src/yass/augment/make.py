@@ -396,7 +396,8 @@ def spikes(templates, min_amplitude, max_amplitude,
            make_collided=True,
            make_noise=True,
            return_metadata=True,
-           collided_kwargs=None):
+           collided_kwargs=None,
+           temporally_misaligned_kwargs=None):
     """
     Make spikes, it creates several types of spikes from templates with a range
     of amplitudes
@@ -465,6 +466,9 @@ def spikes(templates, min_amplitude, max_amplitude,
     if collided_kwargs is None:
         collided_kwargs = dict()
 
+    if temporally_misaligned_kwargs is None:
+        temporally_misaligned_kwargs = dict()
+
     # NOTE: is the order importante here, maybe it's better to first compute
     # from templates, then take those and misalign spatially
     # (all templates in all channels) then take those and misalign temporally
@@ -508,9 +512,8 @@ def spikes(templates, min_amplitude, max_amplitude,
         keys.append('spatially misaligned')
 
     if make_temporally_misaligned:
-        x_temporally = util.make_temporally_misaligned(x_templates,
-                                                       n_per_spike=1,
-                                                       multi_channel=True)
+        _ = temporally_misaligned_kwargs
+        x_temporally = (util.make_temporally_misaligned(x_templates, **_))
         x_all.append(x_temporally)
         keys.append('temporally misaligned')
 
