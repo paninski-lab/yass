@@ -499,23 +499,26 @@ def spikes(templates, min_amplitude, max_amplitude,
 
     n_spikes, _, _ = x_templates.shape
 
-    x_all, keys = [], []
+    x_all, keys, lengths = [], [], []
 
     if make_from_templates:
         x_all.append(x_templates)
         keys.append('from templates')
+        lengths.append(len(x_templates))
 
     if make_spatially_misaligned:
         x_spatially = util.make_spatially_misaligned(x_templates,
                                                      n_per_spike=1)
         x_all.append(x_spatially)
         keys.append('spatially misaligned')
+        lengths.append(len(x_spatially))
 
     if make_temporally_misaligned:
         _ = temporally_misaligned_kwargs
         x_temporally = (util.make_temporally_misaligned(x_templates, **_))
         x_all.append(x_temporally)
         keys.append('temporally misaligned')
+        lengths.append(len(x_temporally))
 
     if make_collided:
         # TODO: refactor this as it has redundant logic with misaligned
@@ -526,11 +529,13 @@ def spikes(templates, min_amplitude, max_amplitude,
                                         **collided_kwargs)
         x_all.append(x_collided)
         keys.append('collided')
+        lengths.append(len(x_collided))
 
     if make_noise:
         x_zero = np.zeros((n_spikes, waveform_length, n_neigh))
         x_all.append(x_zero)
         keys.append('noise')
+        lengths.append(len(x_zero))
 
     x_all = np.concatenate(x_all, axis=0)
 
@@ -539,9 +544,19 @@ def spikes(templates, min_amplitude, max_amplitude,
     # compute amplitudes
     the_amplitudes = util.amplitudes(x_all)
 
+    def previous(lengths, i):
+        if i == 0:
+            return 0
+        else:
+            return sum(lengths[:i]) + 1
+
+    def following(lengths, i):
+        return previous(lengths, i) + lengths[i]
+
     # return a dictionary with slices for every type of spike generated
-    slices = {k: slice(n_spikes * i, n_spikes * (i + 1)) for k, i
-              in zip(keys, range(len(x_all)))}
+    slices = {k: slice(previous(lengths, i), following(lengths, i))
+              for k, i
+              in zip(keys, range(len(lengths)))}
 
     # FIXME: shoudld not return sigs
     return (x_all, x_all_noisy, the_amplitudes, slices, spatial_sig,
