@@ -389,7 +389,6 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
 
 def spikes(templates, min_amplitude, max_amplitude,
            n_per_template, spatial_sig, temporal_sig,
-           min_shift,
            make_from_templates=True,
            make_spatially_misaligned=True,
            make_temporally_misaligned=True,
@@ -519,7 +518,6 @@ def spikes(templates, min_amplitude, max_amplitude,
         # TODO: refactor this as it has redundant logic with misaligned
         x_collided = util.make_collided(x_templates,
                                         multi_channel=True,
-                                        min_shift=min_shift,
                                         **collided_kwargs)
         x_all.append(x_collided)
         keys.append('collided')
