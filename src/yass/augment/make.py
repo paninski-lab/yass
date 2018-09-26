@@ -523,7 +523,6 @@ def spikes(templates, min_amplitude, max_amplitude,
     if make_collided:
         # TODO: refactor this as it has redundant logic with misaligned
         x_collided = util.make_collided(x_templates,
-                                        n_per_spike=1,
                                         multi_channel=True,
                                         min_shift=min_shift,
                                         **collided_kwargs)
