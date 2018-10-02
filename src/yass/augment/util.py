@@ -59,7 +59,8 @@ def draw_with_group_probabilities(elements, probabilities):
 
 
 def make_from_templates(templates, min_amplitude, max_amplitude,
-                        n_per_template, probabilities=None):
+                        n_per_template, probabilities=None,
+                        return_metadata=False):
     """Make spikes with varying amplitudes from templates
 
     Parameters
@@ -120,7 +121,13 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
         x[k * n_per_template: (k + 1) * n_per_template] = (scaled
                                                            * amps_range)
 
-    return x
+    if return_metadata:
+        ids = [[k]*n_per_template for k in range(n_templates)]
+        ids = np.array([item for sublist in ids for item in sublist])
+        metadata = dict(ids=ids)
+        return yarr.ArrayWithMetadata(x, metadata)
+    else:
+        return x
 
 
 def make_collided(x, n_per_spike, multi_channel, min_shift,
