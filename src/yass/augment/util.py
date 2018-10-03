@@ -361,12 +361,12 @@ def add_noise(x, spatial_SIG, temporal_SIG, reject_cancelling_noise=False):
 
     if reject_cancelling_noise:
         min_amp = amplitudes(x).min()
-        noise = util.make_noise(x.shape[0], spatial_SIG, temporal_SIG)
+        noise = make_noise(x.shape[0], spatial_SIG, temporal_SIG)
         x_noise = x + noise
         amps_new = amplitudes(x_noise)
         return x_noise[amps_new >= min_amp]
     else:
-        noise = util.make_noise(x.shape[0], spatial_SIG, temporal_SIG)
+        noise = make_noise(x.shape[0], spatial_SIG, temporal_SIG)
         return x + noise
 
 
