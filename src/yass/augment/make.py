@@ -129,10 +129,6 @@ def training_data_detect(templates,
 
     x_noise = util.make_noise(n_noise, spatial_SIG, temporal_SIG)
 
-    # make labels
-    ones = np.ones(len(x_templates) + len(x_collision))
-    zeros = np.zeros(len(x_misalign) + len(x_noise))
-
     x_templates_noisy = util.add_noise(x_templates, spatial_SIG, temporal_SIG,
                                        **add_noise_kwargs)
 
@@ -143,6 +139,10 @@ def training_data_detect(templates,
 
     X = yarr.concatenate((x_templates_noisy, x_collision_noisy,
                           x_misaligned_noisy, x_noise))
+
+    # make labels
+    ones = np.ones(len(x_templates_noisy) + len(x_collision_noisy))
+    zeros = np.zeros(len(x_misaligned_noisy) + len(x_noise))
 
     y = np.concatenate((ones, zeros))
 
