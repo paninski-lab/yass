@@ -84,11 +84,15 @@ def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
     return x_triage, y_triage
 
 
-def training_data_detect(templates, minimum_amplitude, maximum_amplitude,
+def training_data_detect(templates,
+                         minimum_amplitude,
+                         maximum_amplitude,
                          n_clean_per_template,
                          n_collided_per_spike,
-                         spatial_SIG, temporal_SIG,
-                         n_noise, n_temporally_misaligned_per_spike,
+                         n_temporally_misaligned_per_spike,
+                         n_noise,
+                         spatial_SIG,
+                         temporal_SIG,
                          from_templates_kwargs={},
                          collided_kwargs={},
                          temporally_misaligned_kwargs={}):
@@ -518,7 +522,6 @@ def spikes(templates, min_amplitude, max_amplitude,
     if make_collided:
         # TODO: refactor this as it has redundant logic with misaligned
         x_collided = util.make_collided(x_templates,
-                                        multi_channel=True,
                                         **collided_kwargs)
         x_all.append(x_collided)
         keys.append('collided')
