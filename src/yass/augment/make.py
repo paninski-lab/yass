@@ -118,8 +118,10 @@ def training_data_detect(templates, minimum_amplitude, maximum_amplitude,
                                 multi_channel=True, max_shift=max_shift)
 
     # now spatially misalign those
-    x_misalign = util.make_spatially_misaligned(x_temporally_misaligned,
-                                                n_per_spike=1)
+    x_misalign = (util
+                  .make_spatially_misaligned(x_temporally_misaligned,
+                                             n_per_spike=1,
+                                             force_first_channel_shuffle=True))
 
     x_noise = util.make_noise(n_noise, spatial_SIG, temporal_SIG)
 

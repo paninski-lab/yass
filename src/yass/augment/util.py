@@ -132,7 +132,7 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
         return x
 
 
-def make_collided(x, n_per_spike, multi_channel, min_shift='auto',
+def make_collided(x, n_per_spike, min_shift='auto',
                   amp_tolerance=0.2, max_shift='auto', return_metadata=False):
     """Make collided spikes
 
@@ -140,7 +140,6 @@ def make_collided(x, n_per_spike, multi_channel, min_shift='auto',
     ----------
     x
     n_per_spike
-    multi_channel
     amp_tolerance: float, optional
         Maximum relative difference in amplitude between the collided spikes,
         defaults to 0.2
@@ -152,11 +151,6 @@ def make_collided(x, n_per_spike, multi_channel, min_shift='auto',
     return_metadata: bool, optional
         Return data used to generate the collisions
     """
-    # NOTE: i think this is generated collided spikes where one of them
-    # is always centered, this may not be the desired behavior sometimes
-    # FIXME: maybe it's better to take x_misaligned as parameter, there is
-    # redundant shifting logic here
-
     logger = logging.getLogger(__name__)
 
     n_clean, wf_length, n_neighbors = x.shape
@@ -168,8 +162,8 @@ def make_collided(x, n_per_spike, multi_channel, min_shift='auto',
         min_shift = int(0.1 * wf_length)
 
     logger.debug('Making collided spikes with n_per_spike: %s max shift: '
-                 '%s, multi_channel: %s, amp_tolerance: %s, clean spikes with'
-                 ' shape: %s', n_per_spike, max_shift, multi_channel,
+                 '%s, amp_tolerance: %s, clean spikes with'
+                 ' shape: %s', n_per_spike, max_shift,
                  amp_tolerance, x.shape)
 
     x_first = np.zeros((n_clean*int(n_per_spike),
@@ -207,12 +201,6 @@ def make_collided(x, n_per_spike, multi_channel, min_shift='auto',
 
         x_second = shift_waveform(x_second, shift)
 
-        # if multi_channel, shuffle neighbors
-        if multi_channel:
-            shuffled_neighs = np.random.choice(n_neighbors, n_neighbors,
-                                               replace=False)
-            x_second = x_second[:, shuffled_neighs]
-
         # if on debug mode, add the spikes and shift to the lists
         if return_metadata:
             spikes_first.append(np.copy(x_first[j]))
@@ -227,7 +215,6 @@ def make_collided(x, n_per_spike, multi_channel, min_shift='auto',
         spikes_second = np.stack(spikes_second)
 
         params = dict(n_per_spike=n_per_spike,
-                      multi_channel=multi_channel,
                       min_shift=min_shift,
                       max_shift=max_shift,
                       amp_tolerance=amp_tolerance,
