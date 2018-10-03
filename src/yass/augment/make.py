@@ -402,7 +402,9 @@ def spikes(templates, min_amplitude, max_amplitude,
            return_metadata=True,
            collided_kwargs=dict(n_per_spike=1, min_shift=5),
            temporally_misaligned_kwargs=dict(n_per_spike=1),
-           spatially_misaligned_kwargs=dict(n_per_spike=1)):
+           spatially_misaligned_kwargs=dict(n_per_spike=1,
+                                            force_first_channel_shuffle=True)
+           ):
     """
     Make spikes, it creates several types of spikes from templates with a range
     of amplitudes
@@ -495,6 +497,8 @@ def spikes(templates, min_amplitude, max_amplitude,
     # make spikes
     x_templates = util.make_from_templates(templates, min_amplitude,
                                            max_amplitude, n_per_template)
+    kwargs = spatially_misaligned_kwargs
+    x_spatially = (util.make_spatially_misaligned(x_templates, **kwargs))
 
     n_spikes, _, _ = x_templates.shape
 
@@ -506,22 +510,19 @@ def spikes(templates, min_amplitude, max_amplitude,
         lengths.append(len(x_templates))
 
     if make_spatially_misaligned:
-        kwargs = spatially_misaligned_kwargs
-        x_spatially = (util.make_spatially_misaligned(x_templates, **kwargs))
         x_all.append(x_spatially)
         keys.append('spatially misaligned')
         lengths.append(len(x_spatially))
 
     if make_temporally_misaligned:
         kwargs = temporally_misaligned_kwargs
-        x_temporally = (util.make_temporally_misaligned(x_templates, **kwargs))
+        x_temporally = (util.make_temporally_misaligned(x_spatially, **kwargs))
         x_all.append(x_temporally)
         keys.append('temporally misaligned')
         lengths.append(len(x_temporally))
 
     if make_collided:
-        # TODO: refactor this as it has redundant logic with misaligned
-        x_collided = util.make_collided(x_templates,
+        x_collided = util.make_collided(x_templates, x_spatially,
                                         **collided_kwargs)
         x_all.append(x_collided)
         keys.append('collided')
