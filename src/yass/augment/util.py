@@ -286,8 +286,8 @@ def make_spatially_misaligned(x, n_per_spike,
     return x_spatially
 
 
-def make_temporally_misaligned(x, n_per_spike=1, multi_channel=True,
-                               min_shift='auto', max_shift='auto'):
+def make_temporally_misaligned(x, n_per_spike=1, min_shift='auto',
+                               max_shift='auto'):
     """Make temporally shifted spikes from clean spikes
     """
     n_spikes, waveform_length, n_neigh = x.shape
@@ -308,24 +308,16 @@ def make_temporally_misaligned(x, n_per_spike=1, multi_channel=True,
 
         shift = random.choice([-1, 1]) * random.randint(min_shift, max_shift)
 
-        if multi_channel:
-            x2 = np.copy(x[np.random.choice(
-                x.shape[0], 1, replace=True)][:, :, np.random.choice(
-                    n_neigh, n_neigh, replace=False)])
-            x2 = np.squeeze(x2)
-        else:
-            x2 = np.copy(x[np.random.choice(
-                x.shape[0], 1, replace=True)])
-            x2 = np.squeeze(x2)
+        spike = np.copy(x[np.random.choice(x.shape[0], 1, replace=True)])
 
         if shift > 0:
-            x_temporally[j, :(x_temporally.shape[1]-shift)] += x2[shift:]
+            x_temporally[j, :(x_temporally.shape[1]-shift)] += spike[shift:]
 
         elif shift < 0:
             x_temporally[
-                j, (-shift):] += x2[:(x_temporally.shape[1]+shift)]
+                j, (-shift):] += spike[:(x_temporally.shape[1]+shift)]
         else:
-            x_temporally[j] += x2
+            x_temporally[j] += spike
 
     return x_temporally
 
