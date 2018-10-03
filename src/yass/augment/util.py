@@ -253,8 +253,9 @@ def shift_waveform(x, shift):
         return x
 
 
-def make_spatially_misaligned(x, n_per_spike):
-    """Make spatially misaligned spikes (main channel is not the first channel)
+def make_spatially_misaligned(x, n_per_spike,
+                              force_first_channel_shuffle=True):
+    """Make spatially misaligned spikes (shuffles channels)
     """
 
     n_spikes, waveform_length, n_neigh = x.shape
@@ -262,10 +263,23 @@ def make_spatially_misaligned(x, n_per_spike):
 
     x_spatially = np.zeros((n_out, waveform_length, n_neigh))
 
+    def shuffle():
+        if force_first_channel_shuffle:
+            success = False
+
+            while not success:
+                shuffled = np.random.choice(n_neigh, n_neigh, replace=False)
+                success = shuffled[0] != 0
+        else:
+            shuffled = np.random.choice(n_neigh, n_neigh, replace=False)
+
+        return shuffled
+
     for j in range(n_out):
-        x_spatially[j] = np.copy(x[np.random.choice(
-            n_spikes, 1, replace=True)][:, :, np.random.choice(
-                n_neigh, n_neigh, replace=False)])
+        shuffled = shuffle()
+
+        to_shuffle = x[np.random.choice(n_spikes, 1, replace=True)]
+        x_spatially[j] = to_shuffle[:, :, shuffled]
 
     return x_spatially
 
