@@ -132,13 +132,14 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
         return x
 
 
-def make_collided(x, n_per_spike, min_shift='auto',
+def make_collided(x1, x2, n_per_spike, min_shift='auto',
                   amp_tolerance=0.2, max_shift='auto', return_metadata=False):
     """Make collided spikes
 
     Parameters
     ----------
-    x
+    x1
+    x2
     n_per_spike
     amp_tolerance: float, optional
         Maximum relative difference in amplitude between the collided spikes,
@@ -153,7 +154,7 @@ def make_collided(x, n_per_spike, min_shift='auto',
     """
     logger = logging.getLogger(__name__)
 
-    n_clean, wf_length, n_neighbors = x.shape
+    n_clean, wf_length, n_neighbors = x1.shape
 
     if max_shift == 'auto':
         max_shift = int(0.5 * wf_length)
@@ -164,7 +165,7 @@ def make_collided(x, n_per_spike, min_shift='auto',
     logger.debug('Making collided spikes with n_per_spike: %s max shift: '
                  '%s, amp_tolerance: %s, clean spikes with'
                  ' shape: %s', n_per_spike, max_shift,
-                 amp_tolerance, x.shape)
+                 amp_tolerance, x1.shape)
 
     x_first = np.zeros((n_clean*int(n_per_spike),
                         wf_length,
@@ -172,7 +173,8 @@ def make_collided(x, n_per_spike, min_shift='auto',
 
     n_collided, _, _ = x_first.shape
 
-    amps = amplitudes(x)
+    amps1 = amplitudes(x1)
+    amps2 = amplitudes(x2)
 
     spikes_first = []
     spikes_second = []
@@ -184,10 +186,10 @@ def make_collided(x, n_per_spike, min_shift='auto',
         shift = random.choice([-1, 1]) * random.randint(min_shift, max_shift)
 
         # sample a clean spike - first spike
-        x_first[j], i = sample_from_zero_axis(x)
+        x_first[j], i = sample_from_zero_axis(x1)
 
         # get amplitude for sampled x and compute bounds
-        amp = amps[i]
+        amp = amps1[i]
         lower = amp * (1.0 - amp_tolerance)
         upper = amp * (1.0 + amp_tolerance)
 
@@ -196,8 +198,8 @@ def make_collided(x, n_per_spike, min_shift='auto',
 
         # draw another clean spike and scale it to be within bounds
         scale_factor = np.linspace(lower, upper, num=50)[random.randint(0, 49)]
-        x_second, i = sample_from_zero_axis(x)
-        x_second = scale_factor * x_second / amps[i]
+        x_second, i = sample_from_zero_axis(x2)
+        x_second = scale_factor * x_second / amps2[i]
 
         x_second = shift_waveform(x_second, shift)
 
