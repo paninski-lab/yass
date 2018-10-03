@@ -132,7 +132,7 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
         return x
 
 
-def make_collided(x, n_per_spike, multi_channel, min_shift,
+def make_collided(x, n_per_spike, multi_channel, min_shift='auto',
                   amp_tolerance=0.2, max_shift='auto', return_metadata=False):
     """Make collided spikes
 
@@ -162,7 +162,10 @@ def make_collided(x, n_per_spike, multi_channel, min_shift,
     n_clean, wf_length, n_neighbors = x.shape
 
     if max_shift == 'auto':
-        max_shift = int((wf_length - 1) / 2)
+        max_shift = int(0.5 * wf_length)
+
+    if min_shift == 'auto':
+        min_shift = int(0.1 * wf_length)
 
     logger.debug('Making collided spikes with n_per_spike: %s max shift: '
                  '%s, multi_channel: %s, amp_tolerance: %s, clean spikes with'
