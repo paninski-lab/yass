@@ -102,7 +102,9 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
                   waveform_length, n_neighbors))
 
     d = max_amplitude - min_amplitude
-    amps_range = (min_amplitude + np.arange(n_per_template) * d/n_per_template)
+
+    amps_range = (min_amplitude + np.arange(n_per_template)
+                  * d / (n_per_template - 1))
 
     if probabilities is not None:
         amps_range = draw_with_group_probabilities(amps_range, probabilities)
@@ -285,29 +287,27 @@ def make_spatially_misaligned(x, n_per_spike,
 
 
 def make_temporally_misaligned(x, n_per_spike=1, multi_channel=True,
-                               max_shift='auto'):
+                               min_shift='auto', max_shift='auto'):
     """Make temporally shifted spikes from clean spikes
     """
     n_spikes, waveform_length, n_neigh = x.shape
     n_out = int(n_spikes * n_per_spike)
 
     if max_shift == 'auto':
-        max_shift = int(waveform_length / 2)
+        max_shift = int(0.5 * waveform_length)
+
+    if min_shift == 'auto':
+        min_shift = int(0.1 * waveform_length)
 
     x_temporally = np.zeros((n_out, waveform_length, n_neigh))
 
     logger.debug('Making spikes with max_shift: %i, output shape: %s',
                  max_shift, x_temporally.shape)
 
-    temporal_shifts = np.random.randint(-max_shift, max_shift, size=n_out)
-
-    temporal_shifts[temporal_shifts < 0] = temporal_shifts[
-        temporal_shifts < 0]-5
-    temporal_shifts[temporal_shifts >= 0] = temporal_shifts[
-        temporal_shifts >= 0]+6
-
     for j in range(n_out):
-        shift = temporal_shifts[j]
+
+        shift = random.choice([-1, 1]) * random.randint(min_shift, max_shift)
+
         if multi_channel:
             x2 = np.copy(x[np.random.choice(
                 x.shape[0], 1, replace=True)][:, :, np.random.choice(
