@@ -308,7 +308,8 @@ def make_temporally_misaligned(x, n_per_spike=1, min_shift='auto',
 
         shift = random.choice([-1, 1]) * random.randint(min_shift, max_shift)
 
-        spike = np.copy(x[np.random.choice(x.shape[0], 1, replace=True)])
+        idx = np.random.choice(x.shape[0], 1, replace=True)[0]
+        spike = x[idx]
 
         if shift > 0:
             x_temporally[j, :(x_temporally.shape[1]-shift)] += spike[shift:]
