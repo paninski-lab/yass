@@ -344,11 +344,30 @@ def make_noise(n, spatial_SIG, temporal_SIG):
     return the_noise
 
 
-def add_noise(x, spatial_SIG, temporal_SIG):
+def add_noise(x, spatial_SIG, temporal_SIG, reject_cancelling_noise=False):
     """Returns a noisy version of x
+
+    Parameters
+    ----------
+    reject_cancelling: bool
+        Reject examples where the noise is canceling the signal
+        (it uses the following heuristic: reject noisy samples where
+        the amplitude is less than the minimum amplitude of the
+        clean samples)
     """
-    noise = make_noise(x.shape[0], spatial_SIG, temporal_SIG)
-    return x + noise
+    # in case x is empty
+    if not len(x):
+        return np.zeros(x.shape), np.zeros(x.shape)
+
+    if reject_cancelling_noise:
+        min_amp = amplitudes(x).min()
+        noise = util.make_noise(x.shape[0], spatial_SIG, temporal_SIG)
+        x_noise = x + noise
+        amps_new = amplitudes(x_noise)
+        return x_noise[amps_new >= min_amp]
+    else:
+        noise = util.make_noise(x.shape[0], spatial_SIG, temporal_SIG)
+        return x + noise
 
 
 class ArrayWithMetadata:

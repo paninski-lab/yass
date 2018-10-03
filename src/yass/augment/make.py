@@ -95,7 +95,8 @@ def training_data_detect(templates,
                          temporal_SIG,
                          from_templates_kwargs={},
                          collided_kwargs={},
-                         temporally_misaligned_kwargs={}):
+                         temporally_misaligned_kwargs={},
+                         add_noise_kwargs={'reject_cancelling_noise': False}):
     """Make training data for detector network
 
 
@@ -132,9 +133,13 @@ def training_data_detect(templates,
     ones = np.ones(len(x_templates) + len(x_collision))
     zeros = np.zeros(len(x_misalign) + len(x_noise))
 
-    x_templates_noisy = util.add_noise(x_templates, spatial_SIG, temporal_SIG)
-    x_collision_noisy = util.add_noise(x_collision, spatial_SIG, temporal_SIG)
-    x_misaligned_noisy = util.add_noise(x_misalign, spatial_SIG, temporal_SIG)
+    x_templates_noisy = util.add_noise(x_templates, spatial_SIG, temporal_SIG,
+                                       **add_noise_kwargs)
+
+    x_collision_noisy = util.add_noise(x_collision, spatial_SIG, temporal_SIG,
+                                       **add_noise_kwargs)
+    x_misaligned_noisy = util.add_noise(x_misalign, spatial_SIG, temporal_SIG,
+                                        **add_noise_kwargs)
 
     X = yarr.concatenate((x_templates_noisy, x_collision_noisy,
                           x_misaligned_noisy, x_noise))
