@@ -59,7 +59,7 @@ def test_can_make_collided(templates_uncropped):
                                   max_amplitude=10,
                                   n_per_template=100)
 
-    make_collided(x_clean, n_per_spike=1,
+    make_collided(x_clean, x_clean, n_per_spike=1,
                   max_shift=3,
                   min_shift=2)
 
