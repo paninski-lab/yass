@@ -550,7 +550,7 @@ def spikes(templates, min_amplitude, max_amplitude,
                                              temporal_sig,
                                              **add_noise_kwargs)
 
-    if good_idx:
+    if good_idx is not None:
         x_all = x_all[good_idx]
 
     # compute amplitudes
