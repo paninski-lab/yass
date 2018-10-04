@@ -353,19 +353,18 @@ def add_noise(x, spatial_SIG, temporal_SIG, reject_cancelling_noise=False,
     reject_cancelling: bool
         Reject examples where the noise is canceling the signal
         (it uses the following heuristic: reject noisy samples where
-        the amplitude is less than the minimum amplitude of the
-        clean samples)
+        the amplitude is less than their original version
     """
     # in case x is empty
     if not len(x):
         return np.zeros(x.shape)
 
     if reject_cancelling_noise:
-        min_amp = amplitudes(x).min()
+        amps = amplitudes(x)
         noise = make_noise(x.shape[0], spatial_SIG, temporal_SIG)
         x_noise = x + noise
         amps_new = amplitudes(x_noise)
-        good_idx = amps_new >= min_amp
+        good_idx = amps_new >= amps
         return x_noise[good_idx], good_idx
     else:
         noise = make_noise(x.shape[0], spatial_SIG, temporal_SIG)
