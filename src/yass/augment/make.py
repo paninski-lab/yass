@@ -90,7 +90,7 @@ def training_data_detect(templates,
                          n_clean_per_template,
                          n_collided_per_spike,
                          n_temporally_misaligned_per_spike,
-                         n_spatially_misaliged,
+                         n_spatially_misaliged_per_spike,
                          n_noise,
                          spatial_SIG,
                          temporal_SIG,
@@ -117,7 +117,7 @@ def training_data_detect(templates,
     # now spatially misalign (shuffle channels)
     fn = util.make_spatially_misaligned
 
-    x_spatially2 = fn(x_templates, n_per_spike=n_spatially_misaliged,
+    x_spatially2 = fn(x_templates, n_per_spike=n_spatially_misaliged_per_spike,
                       force_first_channel_shuffle=True)
 
     x_spatially = fn(x_templates, n_per_spike=1,
