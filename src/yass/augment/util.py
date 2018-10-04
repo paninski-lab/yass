@@ -365,10 +365,10 @@ def add_noise(x, spatial_SIG, temporal_SIG, reject_cancelling_noise=False,
         x_noise = x + noise
         amps_new = amplitudes(x_noise)
         good_idx = amps_new >= amps
-        return x_noise[good_idx], good_idx
+        return x_noise[good_idx], x[good_idx]
     else:
         noise = make_noise(x.shape[0], spatial_SIG, temporal_SIG)
-        return x + noise, None
+        return x + noise, x
 
 
 class ArrayWithMetadata:

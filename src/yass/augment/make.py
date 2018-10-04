@@ -511,47 +511,77 @@ def spikes(templates, min_amplitude, max_amplitude,
 
     n_spikes, _, _ = x_templates.shape
 
-    x_all, keys, lengths = [], [], []
+    x_all, x_all_noisy, keys, lengths = [], [], [], []
 
     if make_from_templates:
+        (x_templates_noisy,
+         x_templates) = util.add_noise(x_templates,
+                                       spatial_sig,
+                                       temporal_sig,
+                                       **add_noise_kwargs)
+
         x_all.append(x_templates)
+        x_all_noisy.append(x_templates_noisy)
         keys.append('from templates')
         lengths.append(len(x_templates))
 
     if make_spatially_misaligned:
+        (x_spatially_noisy,
+         x_spatially) = util.add_noise(x_spatially,
+                                       spatial_sig,
+                                       temporal_sig,
+                                       **add_noise_kwargs)
         x_all.append(x_spatially)
+        x_all_noisy.append(x_spatially_noisy)
         keys.append('spatially misaligned')
         lengths.append(len(x_spatially))
 
     if make_temporally_misaligned:
         kwargs = temporally_misaligned_kwargs
         x_temporally = (util.make_temporally_misaligned(x_spatially, **kwargs))
+
+        (x_temporally_noisy,
+         x_temporally) = util.add_noise(x_temporally,
+                                        spatial_sig,
+                                        temporal_sig,
+                                        **add_noise_kwargs)
+
         x_all.append(x_temporally)
+        x_all_noisy.append(x_temporally_noisy)
         keys.append('temporally misaligned')
         lengths.append(len(x_temporally))
 
     if make_collided:
         x_collided = util.make_collided(x_templates, x_spatially,
                                         **collided_kwargs)
+
+        (x_collided_noisy,
+         x_collided) = util.add_noise(x_collided,
+                                      spatial_sig,
+                                      temporal_sig,
+                                      **add_noise_kwargs)
+
         x_all.append(x_collided)
+        x_all_noisy.append(x_collided_noisy)
         keys.append('collided')
         lengths.append(len(x_collided))
 
     if make_noise:
         x_zero = np.zeros((n_spikes, waveform_length, n_neigh))
+
+        (x_zero_noisy,
+         x_zero) = util.add_noise(x_zero,
+                                  spatial_sig,
+                                  temporal_sig,
+                                  **add_noise_kwargs)
+
         x_all.append(x_zero)
+        x_all_noisy.append(x_zero_noisy)
         keys.append('noise')
         lengths.append(len(x_zero))
 
     x_all = np.concatenate(x_all, axis=0)
-
-    (x_all_noisy, good_idx) = util.add_noise(x_all,
-                                             spatial_sig,
-                                             temporal_sig,
-                                             **add_noise_kwargs)
-
-    if good_idx is not None:
-        x_all = x_all[good_idx]
+    x_all_noisy = np.concatenate(x_all_noisy, axis=0)
 
     # compute amplitudes
     the_amplitudes = util.amplitudes(x_all)
