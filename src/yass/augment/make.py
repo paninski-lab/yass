@@ -534,7 +534,7 @@ def spikes(templates, min_amplitude, max_amplitude,
         x_all.append(x_spatially_sub)
         x_all_noisy.append(x_spatially_noisy)
         keys.append('spatially misaligned')
-        lengths.append(len(x_spatially))
+        lengths.append(len(x_spatially_sub))
 
     if make_temporally_misaligned:
         kwargs = temporally_misaligned_kwargs
