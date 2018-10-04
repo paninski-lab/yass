@@ -357,7 +357,7 @@ def add_noise(x, spatial_SIG, temporal_SIG, reject_cancelling_noise=False,
     """
     # in case x is empty
     if not len(x):
-        return np.zeros(x.shape)
+        return np.zeros(x.shape), x
 
     if reject_cancelling_noise:
         amps = amplitudes(x)
