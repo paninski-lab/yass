@@ -515,23 +515,23 @@ def spikes(templates, min_amplitude, max_amplitude,
 
     if make_from_templates:
         (x_templates_noisy,
-         x_templates) = util.add_noise(x_templates,
-                                       spatial_sig,
-                                       temporal_sig,
-                                       **add_noise_kwargs)
+         x_templates_sub) = util.add_noise(x_templates,
+                                           spatial_sig,
+                                           temporal_sig,
+                                           **add_noise_kwargs)
 
-        x_all.append(x_templates)
+        x_all.append(x_templates_sub)
         x_all_noisy.append(x_templates_noisy)
         keys.append('from templates')
-        lengths.append(len(x_templates))
+        lengths.append(len(x_templates_sub))
 
     if make_spatially_misaligned:
         (x_spatially_noisy,
-         x_spatially) = util.add_noise(x_spatially,
-                                       spatial_sig,
-                                       temporal_sig,
-                                       **add_noise_kwargs)
-        x_all.append(x_spatially)
+         x_spatially_sub) = util.add_noise(x_spatially,
+                                           spatial_sig,
+                                           temporal_sig,
+                                           **add_noise_kwargs)
+        x_all.append(x_spatially_sub)
         x_all_noisy.append(x_spatially_noisy)
         keys.append('spatially misaligned')
         lengths.append(len(x_spatially))
