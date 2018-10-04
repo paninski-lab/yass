@@ -90,6 +90,7 @@ def training_data_detect(templates,
                          n_clean_per_template,
                          n_collided_per_spike,
                          n_temporally_misaligned_per_spike,
+                         n_spatially_misaliged,
                          n_noise,
                          spatial_SIG,
                          temporal_SIG,
@@ -115,6 +116,10 @@ def training_data_detect(templates,
 
     # now spatially misalign (shuffle channels)
     fn = util.make_spatially_misaligned
+
+    x_spatially2 = fn(x_templates, n_per_spike=n_spatially_misaliged,
+                      force_first_channel_shuffle=True)
+
     x_spatially = fn(x_templates, n_per_spike=1,
                      force_first_channel_shuffle=False)
 
@@ -140,12 +145,17 @@ def training_data_detect(templates,
                                            temporal_SIG,
                                            **add_noise_kwargs)
 
+    x_spatially2_noisy, _ = util.add_noise(x_spatially2, spatial_SIG,
+                                           temporal_SIG,
+                                           **add_noise_kwargs)
+
     X = yarr.concatenate((x_templates_noisy, x_collision_noisy,
-                          x_misaligned_noisy, x_noise))
+                          x_misaligned_noisy, x_noise, x_spatially2_noisy))
 
     # make labels
     ones = np.ones(len(x_templates_noisy) + len(x_collision_noisy))
-    zeros = np.zeros(len(x_misaligned_noisy) + len(x_noise))
+    zeros = np.zeros(len(x_misaligned_noisy) + len(x_noise) +
+                     len(x_spatially2_noisy))
 
     y = np.concatenate((ones, zeros))
 
