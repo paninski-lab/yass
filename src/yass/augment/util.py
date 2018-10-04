@@ -344,7 +344,8 @@ def make_noise(n, spatial_SIG, temporal_SIG):
     return the_noise
 
 
-def add_noise(x, spatial_SIG, temporal_SIG, reject_cancelling_noise=False):
+def add_noise(x, spatial_SIG, temporal_SIG, reject_cancelling_noise=False,
+              ):
     """Returns a noisy version of x
 
     Parameters
@@ -364,10 +365,11 @@ def add_noise(x, spatial_SIG, temporal_SIG, reject_cancelling_noise=False):
         noise = make_noise(x.shape[0], spatial_SIG, temporal_SIG)
         x_noise = x + noise
         amps_new = amplitudes(x_noise)
-        return x_noise[amps_new >= min_amp]
+        good_idx = amps_new >= min_amp
+        return x_noise[good_idx], good_idx
     else:
         noise = make_noise(x.shape[0], spatial_SIG, temporal_SIG)
-        return x + noise
+        return x + noise, None
 
 
 class ArrayWithMetadata:

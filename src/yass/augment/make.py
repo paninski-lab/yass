@@ -129,13 +129,16 @@ def training_data_detect(templates,
 
     x_noise = util.make_noise(n_noise, spatial_SIG, temporal_SIG)
 
-    x_templates_noisy = util.add_noise(x_templates, spatial_SIG, temporal_SIG,
-                                       **add_noise_kwargs)
+    x_templates_noisy, _ = util.add_noise(x_templates, spatial_SIG,
+                                          temporal_SIG,
+                                          **add_noise_kwargs)
 
-    x_collision_noisy = util.add_noise(x_collision, spatial_SIG, temporal_SIG,
-                                       **add_noise_kwargs)
-    x_misaligned_noisy = util.add_noise(x_misalign, spatial_SIG, temporal_SIG,
-                                        **add_noise_kwargs)
+    x_collision_noisy, _ = util.add_noise(x_collision, spatial_SIG,
+                                          temporal_SIG,
+                                          **add_noise_kwargs)
+    x_misaligned_noisy, _ = util.add_noise(x_misalign, spatial_SIG,
+                                           temporal_SIG,
+                                           **add_noise_kwargs)
 
     X = yarr.concatenate((x_templates_noisy, x_collision_noisy,
                           x_misaligned_noisy, x_noise))
@@ -540,10 +543,15 @@ def spikes(templates, min_amplitude, max_amplitude,
         keys.append('noise')
         lengths.append(len(x_zero))
 
+    (x_all_noisy, good_idx) = util.add_noise(x_all,
+                                             spatial_sig,
+                                             temporal_sig,
+                                             **add_noise_kwargs)
+
     x_all = np.concatenate(x_all, axis=0)
 
-    x_all_noisy = util.add_noise(x_all, spatial_sig, temporal_sig,
-                                 **add_noise_kwargs)
+    if good_idx:
+        x_all = x_all[good_idx]
 
     # compute amplitudes
     the_amplitudes = util.amplitudes(x_all)
