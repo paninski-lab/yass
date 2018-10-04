@@ -408,7 +408,8 @@ def spikes(templates, min_amplitude, max_amplitude,
            collided_kwargs=dict(n_per_spike=1, min_shift=5),
            temporally_misaligned_kwargs=dict(n_per_spike=1),
            spatially_misaligned_kwargs=dict(n_per_spike=1,
-                                            force_first_channel_shuffle=True)
+                                            force_first_channel_shuffle=True),
+           add_noise_kwargs={'reject_cancelling_noise': False},
            ):
     """
     Make spikes, it creates several types of spikes from templates with a range
@@ -541,7 +542,8 @@ def spikes(templates, min_amplitude, max_amplitude,
 
     x_all = np.concatenate(x_all, axis=0)
 
-    x_all_noisy = util.add_noise(x_all, spatial_sig, temporal_sig)
+    x_all_noisy = util.add_noise(x_all, spatial_sig, temporal_sig,
+                                 **add_noise_kwargs)
 
     # compute amplitudes
     the_amplitudes = util.amplitudes(x_all)
