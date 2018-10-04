@@ -60,7 +60,6 @@ def test_can_make_collided(templates_uncropped):
                                   n_per_template=100)
 
     make_collided(x_clean, n_per_spike=1,
-                  multi_channel=True,
                   max_shift=3,
                   min_shift=2)
 
@@ -79,7 +78,7 @@ def test_can_make_temporally_misaligned(templates_uncropped):
                                   max_amplitude=10,
                                   n_per_template=100)
 
-    make_temporally_misaligned(x_clean, n_per_spike=1, multi_channel=True)
+    make_temporally_misaligned(x_clean, n_per_spike=1)
 
 
 def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):
