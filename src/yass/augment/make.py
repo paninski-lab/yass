@@ -543,12 +543,12 @@ def spikes(templates, min_amplitude, max_amplitude,
         keys.append('noise')
         lengths.append(len(x_zero))
 
+    x_all = np.concatenate(x_all, axis=0)
+
     (x_all_noisy, good_idx) = util.add_noise(x_all,
                                              spatial_sig,
                                              temporal_sig,
                                              **add_noise_kwargs)
-
-    x_all = np.concatenate(x_all, axis=0)
 
     if good_idx:
         x_all = x_all[good_idx]
