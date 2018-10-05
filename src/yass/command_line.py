@@ -67,8 +67,8 @@ def sort(config, logger_level, clean, output_dir, complete, zero_seed,
         yass.set_tensorflow_config(config=tf_config)
 
     return pipeline.run(config, logger_level=logger_level, clean=clean,
-                        output_dir=output_dir, complete=complete,
-                        set_zero_seed=zero_seed)
+                        output_dir=output_dir, complete=complete)#,
+                        #set_zero_seed=zero_seed)
 
 
 @cli.command()

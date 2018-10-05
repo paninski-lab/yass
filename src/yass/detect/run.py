@@ -435,7 +435,7 @@ def run_neural_network(standarized_path, standarized_params,
         TC_list = []
         offset_list = []
         for ctr, idx in enumerate(idx_list): 
-            data = np.load(os.path.join(fname_detection, 'detect_'+str(ctr).zfill(5)+'.npz'))
+            data = np.load(fname_detection+'detect_'+str(ctr).zfill(5)+'.npz')
             spike_index_list.extend(data['spike_index_list'])
             idx_clean_list.extend(data['idx_clean_list'])
             energy_list.extend(data['energy_list'])
@@ -446,44 +446,43 @@ def run_neural_network(standarized_path, standarized_params,
         logger.info(' removing axons in parallel')
         multi_procesing = 1
         if CONFIG.resources.multi_processing:
-            killed = parmap.map(remove_axons_parallel,
-                                list(zip(spike_index_list, energy_list, TC_list,
+            keep = parmap.map(deduplicate,
+                                list(zip(spike_index_list, 
+                                energy_list, 
+                                TC_list,
                                 np.arange(len(energy_list)))),
                                 neighbors,
                                 processes=CONFIG.resources.n_processors,
                                 pm_pbar=True)
         else:
-            killed=[]
+            keep=[]
             for k in range(len(energy_list)):
-                killed.append(remove_axons_parallel((spike_index_list[k], 
+                keep.append(deduplicate((spike_index_list[k], 
                                                      energy_list[k], 
                                                      TC_list[k],k),
                                                      neighbors))
 
-        # Cat: TO DO - don't think there's a problem here
-        ## make list of parmap returning order in case gets shuffled
-        #killed_indexes = np.zeros(len(killed),'int32')
-        #for k in range(len(killed)):
-            #killed_indexes[k]=killed[k][1]
 
         # Cat: TODO Note that we're killing spike_index_all as well.
-
         # remove axons from clear spikes - keep only non-killed+clean events
         spike_index_all_postkill = []
         #score_clear_postkill = []
         spike_index_clear_postkill = []
         for k in range(len(idx_clean_list)):
-            idx_keep = np.logical_and(~killed[k][0], idx_clean_list[k])
+            idx_keep = np.logical_and(keep[k][0], idx_clean_list[k])
+            print (idx_keep.shape)
             #score_clear_postkill.append(score_list[k][idx_keep])
             spike_index_clear_postkill.append(spike_index_list[k][idx_keep])
-            spike_index_all_postkill.append(spike_index_list[k][~killed[k][0]])
+            spike_index_all_postkill.append(spike_index_list[k][keep[k][0]])
 
         # modified fix index file
         logger.info(' fixing indexes from batching')
         spike_index_clear, spike_index_all = fix_indexes_firstbatch_2(
-                spike_index_all_postkill, spike_index_clear_postkill, 
+                spike_index_all_postkill, 
+                spike_index_clear_postkill, 
                 offset_list,
-                buffer_size, sampling_rate)
+                buffer_size, 
+                sampling_rate)
                 
         # get clear spikes
         clear = spike_index_clear
@@ -494,9 +493,6 @@ def run_neural_network(standarized_path, standarized_params,
         clear, idx = detect.remove_incomplete_waveforms(
             clear, CONFIG.spike_size + CONFIG.templates.max_shift,
             _n_observations)
-
-        # get scores for clear spikes
-        #scores = score[idx]
 
         # get and clean all spikes
         spikes_all = spike_index_all 
@@ -566,6 +562,73 @@ def binary_reader(idx_list, buffer_size, standardized_filename,
     
     return recording
 
+                              
+def deduplicate(data_in, neighbors):
+    
+    # default window for deduplication in timesteps
+    # Cat: TODO: read from CONFIG file
+    w=5
+    
+    # print ("removing axons: ", data_in[0].shape)
+    (spike_index, energy, idx) = data_in[0], data_in[1], data_in[3]
+    #(T,C) = data_in[2][0], data_in[2][1]
+    #print (spike_index.shape)
+    
+            
+    # number of data points
+    n_data = spike_index.shape[0]
+
+    # separate time and channel info
+    TT = spike_index[:, 0]
+    CC = spike_index[:, 1]
+
+    # Index counting
+    # indices in index_counter[t-1]+1 to index_counter[t] have time t
+    T_max = np.max(TT)
+    T_min = np.min(TT)
+    index_counter = np.zeros(T_max + w + 1, 'int32')
+    t_now = T_min
+    for j in range(n_data):
+        if TT[j] > t_now:
+            index_counter[t_now:TT[j]] = j - 1
+            t_now = TT[j]
+    index_counter[T_max:] = n_data - 1
+
+    # connecting edges
+    j_now = 0
+    edges = defaultdict(list)
+    for t in range(T_min, T_max + 1):
+
+        # time of j_now to index_counter[t] is t
+        # j_now to index_counter[t+w] has all index from t to t+w
+        max_index = index_counter[t+w]
+        cc_temporal_neighs = CC[j_now:max_index+1]
+
+        for j in range(index_counter[t]-j_now+1):
+            # check if channels are also neighboring
+            idx_neighs = np.where(
+                neighbors[cc_temporal_neighs[j],
+                          cc_temporal_neighs[j+1:]])[0] + j + 1 + j_now
+
+            # connect edges to neighboring spikes
+            for j2 in idx_neighs:
+                edges[j2].append(j+j_now)
+                edges[j+j_now].append(j2)
+
+        # update j_now
+        j_now = index_counter[t]+1
+
+    # Using scc, build connected components from the graph
+    idx_survive = np.zeros(n_data, 'bool')
+    for scc in strongly_connected_components_iterative(np.arange(n_data),
+                                                       edges):
+        idx = list(scc)
+        idx_survive[idx[np.argmax(energy[idx])]] = 1
+
+    return (idx_survive, idx)
+    
+    
+    
 def remove_axons_parallel(data_in, neighbors):
 
     # print ("removing axons: ", data_in[0].shape)
