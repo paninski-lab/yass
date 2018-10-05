@@ -30,7 +30,7 @@ from yass.threshold import dimensionality_reduction as dim_red
 
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
-        complete=False):
+        complete=False, set_zero_seed=False):
     """Run YASS built-in pipeline
 
     Parameters
