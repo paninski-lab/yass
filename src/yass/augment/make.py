@@ -418,6 +418,7 @@ def spikes(templates, min_amplitude, max_amplitude,
            make_collided=True,
            make_noise=True,
            return_metadata=True,
+           templates_kwargs=dict(),
            collided_kwargs=dict(n_per_spike=1, min_shift=5),
            temporally_misaligned_kwargs=dict(n_per_spike=1),
            spatially_misaligned_kwargs=dict(n_per_spike=1,
@@ -515,7 +516,8 @@ def spikes(templates, min_amplitude, max_amplitude,
 
     # make spikes
     x_templates = util.make_from_templates(templates, min_amplitude,
-                                           max_amplitude, n_per_template)
+                                           max_amplitude, n_per_template,
+                                           **templates_kwargs)
     kwargs = spatially_misaligned_kwargs
     x_spatially = (util.make_spatially_misaligned(x_templates, **kwargs))
 

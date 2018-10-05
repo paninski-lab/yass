@@ -59,8 +59,9 @@ def draw_with_group_probabilities(elements, probabilities):
 
 
 def make_from_templates(templates, min_amplitude, max_amplitude,
-                        n_per_template, probabilities=None,
-                        return_metadata=False):
+                        n_per_amplitude_range, probabilities=None,
+                        return_metadata=False,
+                        n_repeat=1):
     """Make spikes with varying amplitudes from templates
 
     Parameters
@@ -76,8 +77,9 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
         Maximum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
 
-    n_per_template: int
-        How many spikes to generate per template
+    n_per_amplitude_range: int
+        How many scaled versions are created between min_amplitude and
+        max_amplitude
 
     probabilities: tuple
         Tuple of probabilities for the amplitude range. When the linear
@@ -85,9 +87,13 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
         along the range, by passing probabolities, you can choose how this
         distribution looks like
 
+    n_repeat: int
+        How many repeatitions create from the same spike
+
     Returns
     -------
-    numpy.ndarray (n_templates * n_per_template, waveform_length, n_channels)
+    numpy.ndarray (n_templates * n_per_amplitude_range,
+    waveform_length, n_channels)
         Clean spikes
     """
     logger = logging.getLogger(__name__)
@@ -98,13 +104,15 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
 
     n_templates, waveform_length, n_neighbors = templates.shape
 
+    n_per_template = n_per_amplitude_range * n_repeat
+
     x = np.zeros((n_per_template * n_templates,
                   waveform_length, n_neighbors))
 
     d = max_amplitude - min_amplitude
 
-    amps_range = (min_amplitude + np.arange(n_per_template)
-                  * d / (n_per_template - 1))
+    amps_range = (min_amplitude + np.arange(n_per_amplitude_range)
+                  * d / (n_per_amplitude_range - 1))
 
     if probabilities is not None:
         amps_range = draw_with_group_probabilities(amps_range, probabilities)
@@ -120,11 +128,18 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
         scaled = (current/amp)[np.newaxis, :, :]
 
         # create n clean spikes by scaling the template along the range
-        x[k * n_per_template: (k + 1) * n_per_template] = (scaled
-                                                           * amps_range)
+        spikes_in_range = scaled * amps_range
+
+        # repeat n times
+        spikes_in_range_repeated = np.repeat(spikes_in_range,
+                                             repeats=n_repeat,
+                                             axis=0)
+
+        x[k * n_per_template:
+          (k + 1) * n_per_template] = spikes_in_range_repeated
 
     if return_metadata:
-        ids = [[k]*n_per_template for k in range(n_templates)]
+        ids = [[k]*n_per_amplitude_range for k in range(n_templates)]
         ids = np.array([item for sublist in ids for item in sublist])
         metadata = dict(ids=ids)
         return yarr.ArrayWithMetadata(x, metadata)
