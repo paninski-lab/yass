@@ -480,6 +480,17 @@ def reclustering_function(CONFIG,
         else:
             for unit in range(len(args_in)):
                 res = deconv_residual_recluster(args_in[unit])
+
+
+    ''' ************************************************************
+        ******* RECOMPUTE TEMPLATES USING NEW SPIKETRAINS  *********
+        ************************************************************
+    '''
+    print ("  TODO:  RECOMPUTE TEMPLATES USING RAW DATA...")
+    quit()
+    
+    
+    
     
 
     ''' ************************************************************

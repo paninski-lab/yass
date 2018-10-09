@@ -100,8 +100,8 @@ class MatchPursuit_objectiveUpsample(object):
         self.n_time, self.n_chan, self.n_unit = temps.shape
         self.temps = temps.astype(np.float32)
         self.orig_temps = temps.astype(np.float32)
-        print ("  inside match pursuit, templates shape: ", self.temps.shape)
-
+        print ("  in match pursuit templates (n_time, n_chan, n_unit): ", self.temps.shape)
+                
         self.deconv_dir = deconv_chunk_dir
         self.standardized_filename = standardized_filename
         self.max_iter = max_iter
