@@ -27,6 +27,9 @@ from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
 from yass.util import file_loader, save_numpy_object
 from keras import backend as K
+from collections import defaultdict
+
+from yass.templates.util import strongly_connected_components_iterative
 
 
 def run(standarized_path, standarized_params,
@@ -435,7 +438,7 @@ def run_neural_network(standarized_path, standarized_params,
         TC_list = []
         offset_list = []
         for ctr, idx in enumerate(idx_list): 
-            data = np.load(fname_detection+'detect_'+str(ctr).zfill(5)+'.npz')
+            data = np.load(fname_detection+'/detect_'+str(ctr).zfill(5)+'.npz')
             spike_index_list.extend(data['spike_index_list'])
             idx_clean_list.extend(data['idx_clean_list'])
             energy_list.extend(data['energy_list'])
@@ -470,8 +473,6 @@ def run_neural_network(standarized_path, standarized_params,
         spike_index_clear_postkill = []
         for k in range(len(idx_clean_list)):
             idx_keep = np.logical_and(keep[k][0], idx_clean_list[k])
-            print (idx_keep.shape)
-            #score_clear_postkill.append(score_list[k][idx_keep])
             spike_index_clear_postkill.append(spike_index_list[k][idx_keep])
             spike_index_all_postkill.append(spike_index_list[k][keep[k][0]])
 

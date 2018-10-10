@@ -99,6 +99,17 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # print yass version
     logger.info('YASS version: %s', yass.__version__)
 
+
+
+    ''' **********************************************
+        ******** SET ENVIRONMENT VARIABLES ***********
+        **********************************************
+    '''
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["GIO_EXTRA_MODULES"] = "/usr/lib/x86_64-linux-gnu/gio/modules/"
+
+
     ''' **********************************************
         ************** PREPROCESS ********************
         **********************************************

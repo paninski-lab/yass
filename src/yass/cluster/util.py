@@ -4,6 +4,7 @@ import os
 import tqdm
 import parmap
 from scipy import signal
+from scipy import stats
 from scipy.spatial import cKDTree
 from copy import deepcopy
 import math
@@ -33,7 +34,7 @@ from matplotlib import colors as mcolors
 colors = dict(mcolors.BASE_COLORS, **mcolors.CSS4_COLORS)
 by_hsv = ((tuple(mcolors.rgb_to_hsv(mcolors.to_rgba(color)[:3])), name)
                  for name, color in colors.items())
-sorted_names = [name for hsv, name in by_hsv]
+sorted_colors = [name for hsv, name in by_hsv]
 
         
         
@@ -836,6 +837,7 @@ def align_get_shifts(wf, CONFIG, upsample_factor = 5, nshifts = 15):
         max_channel: is the last channel provided in wf 
         
         Returns: superresolution shifts required to align all waveforms
+                 - used downstream for linear interpolation alignment
     '''
     
     # convert nshifts from timesamples to  #of times in upsample_factor
@@ -1156,290 +1158,291 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, x, ax_t, triagefla
     # Cat: TODO read from CONFIG File
     verbose=True
     
-    # ************* CHECK SMALL CLUSTERS *************
-    # Exit clusters that are too small
-    if wf.shape[0] < CONFIG.cluster.min_spikes:
-        return
-    if verbose:
-        print("chan/unit "+str(channel)+' gen: '+str(gen)+' # spikes: '+
-              str(wf.shape[0]))
+    ## ************* CHECK SMALL CLUSTERS *************
+    ## Exit clusters that are too small
+    #if wf.shape[0] < CONFIG.cluster.min_spikes:
+        #return
+    #if verbose:
+        #print("chan/unit "+str(channel)+' gen: '+str(gen)+' # spikes: '+
+              #str(wf.shape[0]))
         
-    ''' ************************************************        
-        ************ FIND FEATURE CHANNELS *************
-        ************************************************
-    '''
+    #''' ************************************************        
+        #************ FIND FEATURE CHANNELS *************
+        #************************************************
+    #'''
     
-    if verbose:
-        print("chan/unit "+str(channel)+' gen: '+str(gen)+' getting feat chans')
+    #if verbose:
+        #print("chan/unit "+str(channel)+' gen: '+str(gen)+' getting feat chans')
 
 
-    # diptest chans 
-    if False:
-        feat_chans, mc = get_feat_channels_diptest(wf, n_feat_chans)
+    ## diptest chans 
+    #if False:
+        #feat_chans, mc = get_feat_channels_diptest(wf, n_feat_chans)
     
-    # mad chans
-    elif True:
-        feat_chans, mc = get_feat_channels_mad(wf, n_feat_chans)
-        if len(feat_chans)==0:
-            feat_chans = [mc]
+    ## mad chans
+    #elif True:
+        #feat_chans, mc = get_feat_channels_mad(wf, n_feat_chans)
+        #if len(feat_chans)==0:
+            #feat_chans = [mc]
             
-    # peak to peak chans
-    elif False:
-        ptps = wf.mean(0).ptp(0)
-        idx_ptp = np.where(ptps>0.25)[0]
-        max_chans_idx = ptps[idx_ptp].argsort(0)[::-1]
-        max_chans = idx_ptp[max_chans_idx]
+    ## peak to peak chans
+    #elif False:
+        #ptps = wf.mean(0).ptp(0)
+        #idx_ptp = np.where(ptps>0.25)[0]
+        #max_chans_idx = ptps[idx_ptp].argsort(0)[::-1]
+        #max_chans = idx_ptp[max_chans_idx]
         
-        if max_chans.shape[0]==0:
-            feat_chans = channel
-            mc = channel
-        else:
-            feat_chans = max_chans[:n_feat_chans]
-            mc = max_chans[0]
+        #if max_chans.shape[0]==0:
+            #feat_chans = channel
+            #mc = channel
+        #else:
+            #feat_chans = max_chans[:n_feat_chans]
+            #mc = max_chans[0]
         
-    # neighbour chans
-    elif False:
-        feat_chans = np.where(CONFIG.neigh_channels[channel])[0]
-        mc = channel
+    ## neighbour chans
+    #elif False:
+        #feat_chans = np.where(CONFIG.neigh_channels[channel])[0]
+        #mc = channel
     
-    # fixed chans
-    elif False:
-        feat_chans = np.array([37,23,15,11])
-        mc=15
+    ## fixed chans
+    #elif False:
+        #feat_chans = np.array([37,23,15,11])
+        #mc=15
         
-    if verbose:
-        print("chan "+str(channel)+' gen: '+str(gen)+", feat chans: "+
-                  str(feat_chans) + ", max_chan: "+ str(mc))
+    #if verbose:
+        #print("chan "+str(channel)+' gen: '+str(gen)+", feat chans: "+
+                  #str(feat_chans) + ", max_chan: "+ str(mc))
     
-    ''' ************************************************        
-        ************ ALIGN FEATURE CHANNELS ************
-        ************************************************
-    '''
-    # align, note: aligning all channels to max chan which is appended to the end
-    # note: max chan is first from feat_chans above, ensure order is preserved
+    #''' ************************************************        
+        #************ ALIGN FEATURE CHANNELS ************
+        #************************************************
+    #'''
+    ## align, note: aligning all channels to max chan which is appended to the end
+    ## note: max chan is first from feat_chans above, ensure order is preserved
     
-    if alignflag:
-        if verbose:
-            print ("chan "+str(channel)+' gen: '+str(gen)+" - aligning")
+    #if alignflag:
+        #if verbose:
+            #print ("chan "+str(channel)+' gen: '+str(gen)+" - aligning")
 
-        feat_chans_mc = np.append(feat_chans, [mc], axis=0)
-        #print ("feat_chans_mc: ", feat_chans_mc)
+        #feat_chans_mc = np.append(feat_chans, [mc], axis=0)
+        ##print ("feat_chans_mc: ", feat_chans_mc)
 
-        # align using upsample interpolation
-        if False:
-            wf_align = align_last_chan(wf[:,:,feat_chans_mc], 
-                                      CONFIG, 
-                                      upsample_factor, 
-                                      nshifts)
-        else:
-            best_shifts = align_get_shifts(wf[:,:,mc], CONFIG) 
-            wf_align = shift_chans(wf[:,:,feat_chans], best_shifts, CONFIG)
-    else:
-        wf_align = wf[:,:,feat_chans]
+        ## align using upsample interpolation
+        #if False:
+            #wf_align = align_last_chan(wf[:,:,feat_chans_mc], 
+                                      #CONFIG, 
+                                      #upsample_factor, 
+                                      #nshifts)
+        #else:
+            #best_shifts = align_get_shifts(wf[:,:,mc], CONFIG) 
+            #wf_align = shift_chans(wf[:,:,feat_chans], best_shifts, CONFIG)
+    #else:
+        #wf_align = wf[:,:,feat_chans]
 
 
-    ''' ************************************************        
-        *************** PCA STEP #1 ********************
-        ************************************************        
-    '''
-    # compress globally all waveforms on feature chans
-    # Cat: TODO: is this waveform clipping necessary here? align_ fucntion
-    #            already returns clipped waveforms
+    #''' ************************************************        
+        #*************** PCA STEP #1 ********************
+        #************************************************        
+    #'''
+    ## compress globally all waveforms on feature chans
+    ## Cat: TODO: is this waveform clipping necessary here? align_ fucntion
+    ##            already returns clipped waveforms
     
-    # old PCA approach using concateanted data over all chans
-    if True:
-        data_in = wf_align[:,wf_start:wf_end].swapaxes(1,2).reshape(wf.shape[0],-1)
+    ## old PCA approach using concateanted data over all chans
+    #if True:
+        #data_in = wf_align[:,wf_start:wf_end].swapaxes(1,2).reshape(wf.shape[0],-1)
 
-        print (data_in.shape)
+        #print (data_in.shape)
 
-        pca_wf, _, _ = PCA(data_in, 3)
+        #pca_wf, _, _ = PCA(data_in, 3)
     
-    # new PCA; first step compress on each channel 
-    else:
-        wf_PCA = np.zeros((wf_align.shape[0], n_dim_pca, n_feat_chans))
-        for ch in range(n_feat_chans):
-            wf_PCA[:,:,ch],_, _= PCA(wf_align[:,:,ch], n_dim_pca)
+    ## new PCA; first step compress on each channel 
+    #else:
+        #wf_PCA = np.zeros((wf_align.shape[0], n_dim_pca, n_feat_chans))
+        #for ch in range(n_feat_chans):
+            #wf_PCA[:,:,ch],_, _= PCA(wf_align[:,:,ch], n_dim_pca)
         
-        # second step concatenate all chans together;
-        data_in = wf_PCA.reshape(wf_PCA.shape[0], -1)
+        ## second step concatenate all chans together;
+        #data_in = wf_PCA.reshape(wf_PCA.shape[0], -1)
         
-        # third step recompress stacked features
-        pca_wf,_, _= PCA(data_in, n_dim_pca)
+        ## third step recompress stacked features
+        #pca_wf,_, _= PCA(data_in, n_dim_pca)
     
 
-    ''' ************************************************        
-        ******** KNN TRIAGE & PCA #2 *******************
-        ************************************************
-    '''
-    # knn triage outliars; e.g. remove 10%-20% of outliars
-    if triageflag:
-        idx_keep = knn_triage(knn_triage_threshold*100, pca_wf)
-        idx_keep = np.where(idx_keep==1)[0]
-        if verbose:
-            print("chan "+str(channel)+' gen: '+str(gen) + 
-                " triaged, remaining spikes "+ str(idx_keep.shape[0]))
+    #''' ************************************************        
+        #******** KNN TRIAGE & PCA #2 *******************
+        #************************************************
+    #'''
+    ## knn triage outliars; e.g. remove 10%-20% of outliars
+    #if triageflag:
+        #idx_keep = knn_triage(knn_triage_threshold*100, pca_wf)
+        #idx_keep = np.where(idx_keep==1)[0]
+        #if verbose:
+            #print("chan "+str(channel)+' gen: '+str(gen) + 
+                #" triaged, remaining spikes "+ str(idx_keep.shape[0]))
 
-        # rerun global compression on residual waveforms
-        pca_wf,_,_ = PCA(data_in[idx_keep],3)
-    else:
-        # keep all spikes
-        idx_keep = np.ones(pca_wf.shape[0],dtype = bool)
+        ## rerun global compression on residual waveforms
+        #pca_wf,_,_ = PCA(data_in[idx_keep],3)
+    #else:
+        ## keep all spikes
+        #idx_keep = np.ones(pca_wf.shape[0],dtype = bool)
         
-    # select only non-triaged spikes
-    pca_wf_all = pca_wf.copy() #[idx_keep]
+    ## select only non-triaged spikes
+    #pca_wf_all = pca_wf.copy() #[idx_keep]
     
     
-    ''' ************************************************        
-        ************** SUBSAMPLE STEP ****************** 
-        ************************************************
-    '''
-    # subsmaple 10,000 spikes 
-    if not deconv_flag and (pca_wf.shape[0]> CONFIG.cluster.max_n_spikes):
-        idx_subsampled = np.random.choice(np.arange(pca_wf.shape[0]),
-                         size=CONFIG.cluster.max_n_spikes,
-                         replace=False)
+    #''' ************************************************        
+        #************** SUBSAMPLE STEP ****************** 
+        #************************************************
+    #'''
+    ## subsmaple 10,000 spikes 
+    #if not deconv_flag and (pca_wf.shape[0]> CONFIG.cluster.max_n_spikes):
+        #idx_subsampled = np.random.choice(np.arange(pca_wf.shape[0]),
+                         #size=CONFIG.cluster.max_n_spikes,
+                         #replace=False)
     
-        pca_wf = pca_wf[idx_subsampled]
+        #pca_wf = pca_wf[idx_subsampled]
 
 
-    ''' ************************************************        
-        ************ CLUSTERING STEP *******************
-        ************************************************        
-    '''
-    # clustering
-    if verbose:
-        print("chan "+ str(channel)+' gen: '+str(gen)+" - clustering ", 
-                                                          pca_wf.shape)
-    vbParam, assignment = run_mfm3(pca_wf, CONFIG)
+    #''' ************************************************        
+        #************ CLUSTERING STEP *******************
+        #************************************************        
+    #'''
+    ## clustering
+    #if verbose:
+        #print("chan "+ str(channel)+' gen: '+str(gen)+" - clustering ", 
+                                                          #pca_wf.shape)
+    #vbParam, assignment = run_mfm3(pca_wf, CONFIG)
     
     
-    ''' *************************************************        
-        ************* RECOVER SPIKES ********************
-        *************************************************        
-    '''
-    # if we subsampled then recover soft-assignments using above:
-    # Note: for post-deconv reclustering, we can safely cluster only 10k spikes or less
-    if not deconv_flag and (pca_wf.shape[0] <= CONFIG.cluster.max_n_spikes):
-        vbParam2 = deepcopy(vbParam)
-        vbParam2, assignment2 = recover_spikes(vbParam2, pca_wf_all, 
-                                                            CONFIG)
-    else:
-        vbParam2, assignment2 = vbParam, assignment
+    #''' *************************************************        
+        #************* RECOVER SPIKES ********************
+        #*************************************************        
+    #'''
+    ## if we subsampled then recover soft-assignments using above:
+    ## Note: for post-deconv reclustering, we can safely cluster only 10k spikes or less
+    #if not deconv_flag and (pca_wf.shape[0] <= CONFIG.cluster.max_n_spikes):
+        #vbParam2 = deepcopy(vbParam)
+        #vbParam2, assignment2 = recover_spikes(vbParam2, pca_wf_all, 
+                                                            #CONFIG)
+    #else:
+        #vbParam2, assignment2 = vbParam, assignment
 
-    idx_recovered = np.where(assignment2!=-1)[0]
-    if verbose:
-        print ("chan "+ str(channel)+' gen: '+str(gen)+" - recovered ",
-                                            str(idx_recovered.shape[0]))
+    #idx_recovered = np.where(assignment2!=-1)[0]
+    #if verbose:
+        #print ("chan "+ str(channel)+' gen: '+str(gen)+" - recovered ",
+                                            #str(idx_recovered.shape[0]))
 
 
-    '''*************************************************        
-       *********** REVIEW AND SAVE RESULTS *************
-       *************************************************        
-    '''
+    #'''*************************************************        
+       #*********** REVIEW AND SAVE RESULTS *************
+       #*************************************************        
+    #'''
 
-    # always plot scatter distributions
-    if gen<20 and plotting:
-        plot_clustering_scatter(fig, grid, x, gen, vbParam,  
-                    assignment2, colors, pca_wf_all, channel,
-                    idx_recovered)
+    ## always plot scatter distributions
+    #if gen<20 and plotting:
+        #plot_clustering_scatter(fig, grid, x, gen, vbParam,  
+                    #assignment2, colors, pca_wf_all, channel,
+                    #idx_recovered)
                     
                                 
-    # First, check again that triage steps above didn't drop below min_spikes
-    if pca_wf.shape[0] < CONFIG.cluster.min_spikes:
-        return
+    ## First, check again that triage steps above didn't drop below min_spikes
+    #if pca_wf.shape[0] < CONFIG.cluster.min_spikes:
+        #return
     
-    # Case #1: single cluster found
-    if vbParam.rhat.shape[1] == 1:
+    ## Case #1: single cluster found
+    #if vbParam.rhat.shape[1] == 1:
         
-        # exclude units whose maximum channel is not on the current 
-        # clustered channel; but only during clustering, not during deconv
-        if mc != channel and (deconv_flag==False): 
-            #print ("  channel: ", channel, " template has maxchan: ", mc, 
-            #        " skipping ...")
-            return 
-        else:         
-            N= len(assignment_global)
-            if verbose:
-                print("chan "+str(channel)+' gen: '+str(gen)+" >>> cluster "+
-                    str(N)+" saved, size: "+str(wf[idx_recovered].shape)+"<<<")
+        ## exclude units whose maximum channel is not on the current 
+        ## clustered channel; but only during clustering, not during deconv
+        #if mc != channel and (deconv_flag==False): 
+            ##print ("  channel: ", channel, " template has maxchan: ", mc, 
+            ##        " skipping ...")
+            #return 
+        #else:         
+            #N= len(assignment_global)
+            #if verbose:
+                #print("chan "+str(channel)+' gen: '+str(gen)+" >>> cluster "+
+                    #str(N)+" saved, size: "+str(wf[idx_recovered].shape)+"<<<")
             
-            assignment_global.append(N * np.ones(assignment2[idx_recovered].shape[0]))
-            spike_index.append(sic[idx_recovered])
-            templates.append(wf[idx_recovered].mean(0))
+            #assignment_global.append(N * np.ones(assignment2[idx_recovered].shape[0]))
+            #spike_index.append(sic[idx_recovered])
+            #templates.append(wf[idx_recovered].mean(0))
 
-            # plot template if done
-            if plotting:
-                plot_clustering_template(fig, grid, ax_t, gen, N, wf, idx_recovered, 
-                                        CONFIG, colors, feat_chans, scale)
+            ## plot template if done
+            #if plotting:
+                #plot_clustering_template(fig, grid, ax_t, gen, N, wf, idx_recovered, 
+                                        #CONFIG, colors, feat_chans, scale)
         
-    # Case #2: multiple clusters
-    else:
-        mask = vbParam.rhat>0
-        stability = np.average(mask * vbParam.rhat, axis = 0, weights = mask)
-        clusters, sizes = np.unique(assignment2[idx_recovered], return_counts = True)
+    ## Case #2: multiple clusters
+    #else:
+        #mask = vbParam.rhat>0
+        #stability = np.average(mask * vbParam.rhat, axis = 0, weights = mask)
+        #clusters, sizes = np.unique(assignment2[idx_recovered], return_counts = True)
         
-        if verbose:
-            print("chan "+str(channel)+' gen: '+str(gen) + 
-              " multiple clusters, stability " + str(np.round(stability,2)) + 
-              " size: "+str(sizes))
+        #if verbose:
+            #print("chan "+str(channel)+' gen: '+str(gen) + 
+              #" multiple clusters, stability " + str(np.round(stability,2)) + 
+              #" size: "+str(sizes))
 
-        # remove stable clusters 
-        for clust in np.where(stability>mfm_threshold)[0]:
-            idx = np.where(assignment2==clust)[0]
+        ## remove stable clusters 
+        #for clust in np.where(stability>mfm_threshold)[0]:
+            #idx = np.where(assignment2==clust)[0]
             
-            if wf[idx_keep][idx].shape[0]<CONFIG.cluster.min_spikes: 
-                continue    # cluster too small
+            #if wf[idx_keep][idx].shape[0]<CONFIG.cluster.min_spikes: 
+                #continue    # cluster too small
             
-            if verbose:
-                print("chan "+str(channel)+' gen: '+str(gen)+
-                    " reclustering stable cluster"+ 
-                    str(wf[idx_keep][idx].shape))
+            #if verbose:
+                #print("chan "+str(channel)+' gen: '+str(gen)+
+                    #" reclustering stable cluster"+ 
+                    #str(wf[idx_keep][idx].shape))
             
-            triageflag = False
-            RRR3_noregress_recovery(channel, wf[idx_keep][idx], 
-                 sic[idx_keep][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
-                 plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
-                 mfm_threshold,  CONFIG, upsample_factor, nshifts, 
-                 assignment_global, spike_index, scale, knn_triage_threshold, 
-                 deconv_flag, templates)
+            #triageflag = False
+            #RRR3_noregress_recovery(channel, wf[idx_keep][idx], 
+                 #sic[idx_keep][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
+                 #plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
+                 #mfm_threshold,  CONFIG, upsample_factor, nshifts, 
+                 #assignment_global, spike_index, scale, knn_triage_threshold, 
+                 #deconv_flag, templates)
 
-        # if all clusters are unstable: triage (also annealing is an option)
-        if np.all(stability<=mfm_threshold):
+        ## if all clusters are unstable: triage (also annealing is an option)
+        #if np.all(stability<=mfm_threshold):
 
-            if verbose:
-                print("chan "+str(channel)+' gen: '+str(gen)+ 
-                                " no stable clusters, triaging "+
-                                str(wf[idx_keep][idx_recovered].shape))
+            #if verbose:
+                #print("chan "+str(channel)+' gen: '+str(gen)+ 
+                                #" no stable clusters, triaging "+
+                                #str(wf[idx_keep][idx_recovered].shape))
 
-            triageflag = True
-            RRR3_noregress_recovery(channel, wf[idx_keep][idx_recovered], 
-                 sic[idx_keep][idx_recovered], gen+1, fig, grid, x, ax_t, triageflag, 
-                 alignflag, plotting, n_feat_chans, n_dim_pca, wf_start, 
-                 wf_end, mfm_threshold, CONFIG, upsample_factor, nshifts, 
-                 assignment_global, spike_index, scale, knn_triage_threshold,
-                 deconv_flag, templates)
+            #triageflag = True
+            #RRR3_noregress_recovery(channel, wf[idx_keep][idx_recovered], 
+                 #sic[idx_keep][idx_recovered], gen+1, fig, grid, x, ax_t, triageflag, 
+                 #alignflag, plotting, n_feat_chans, n_dim_pca, wf_start, 
+                 #wf_end, mfm_threshold, CONFIG, upsample_factor, nshifts, 
+                 #assignment_global, spike_index, scale, knn_triage_threshold,
+                 #deconv_flag, templates)
         
-        else:
-            # run mfm on remaining data
-            idx = np.in1d(assignment2, np.where(stability<=mfm_threshold)[0])
-            if idx.sum()>CONFIG.cluster.min_spikes:
-                if verbose:
-                    print("chan "+str(channel)+" reclustering residuals "+
-                                            str(wf[idx_keep][idx].shape))
-                triageflag = False
-                RRR3_noregress_recovery(channel, wf[idx_keep][idx],
-                    sic[idx_keep][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
-                    plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
-                    mfm_threshold, CONFIG, upsample_factor, nshifts, 
-                    assignment_global, spike_index, scale, knn_triage_threshold,
-                    deconv_flag, templates)
+        #else:
+            ## run mfm on remaining data
+            #idx = np.in1d(assignment2, np.where(stability<=mfm_threshold)[0])
+            #if idx.sum()>CONFIG.cluster.min_spikes:
+                #if verbose:
+                    #print("chan "+str(channel)+" reclustering residuals "+
+                                            #str(wf[idx_keep][idx].shape))
+                #triageflag = False
+                #RRR3_noregress_recovery(channel, wf[idx_keep][idx],
+                    #sic[idx_keep][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
+                    #plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
+                    #mfm_threshold, CONFIG, upsample_factor, nshifts, 
+                    #assignment_global, spike_index, scale, knn_triage_threshold,
+                    #deconv_flag, templates)
 
 
 def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig, 
          grid, x, ax_t, triageflag, alignflag, plotting, n_feat_chans, 
          n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
          upsample_factor, nshifts, assignment_global, spike_index, 
-         scale, knn_triage_threshold, deconv_flag, templates):
+         scale, knn_triage_threshold, deconv_flag, templates, 
+         min_spikes_local):
     
     ''' Recursive clusteringn function
         channel: current channel being clusterd
@@ -1448,7 +1451,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
         gen = generation of cluster; increases with each clustering step        
     '''
 
-    wf = wf[:15000]
+   # wf = wf[:15000]
 
     # Cat: TODO read from CONFIG File
     verbose=True
@@ -1488,40 +1491,48 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
         print("chan/unit "+str(channel)+' gen: '+str(gen)+' getting feat chans')
 
     feat_chans, mc, robust_stds = get_feat_channels_mad2(wf_align, n_feat_chans)
-    print ("  FEat chans; ", feat_chans, "  mc: ", mc, " robust: ", robust_stds.shape)
+    #print ("  Feat chans; ", feat_chans, "  mc: ", mc, " robust: ", robust_stds.shape)
     
     idx_keep, pca_wf = featurize_residual_triage(wf_align[:,:,feat_chans], 
                                                  robust_stds[:,feat_chans])
-        
+    
     if verbose:
         print("chan "+str(channel)+' gen: '+str(gen)+", feat chans: "+
                   str(feat_chans) + ", max_chan: "+ str(mc))
 
-    # Cat: TODO: don't enforce limits on thi sdimensionality 
-    pca_wf = pca_wf[idx_keep][:,:2]
-    print (pca_wf.shape, idx_keep.shape)
+    # Cat: TODO: don't enforce limits on this dimensionality 
+    pca_wf = pca_wf[idx_keep][:,:3]
     
  
     ''' ************************************************        
         ******** KNN TRIAGE & PCA #2 *******************
         ************************************************
     '''
-    ## knn triage outliars; e.g. remove 10%-20% of outliars
-    #if triageflag:
-        #idx_keep = knn_triage(knn_triage_threshold*100, pca_wf)
-        #idx_keep = np.where(idx_keep==1)[0]
-        #if verbose:
-            #print("chan "+str(channel)+' gen: '+str(gen) + 
-                #" triaged, remaining spikes "+ str(idx_keep.shape[0]))
+    # Cat: TODO: this is hardwired now
+    ## knn triage outliars; e.g. remove 2%
+    if True:
+        idx_keep_triage = knn_triage(97, pca_wf)
+        idx_keep_triage = np.where(idx_keep_triage==1)[0]
+        if verbose:
+            print("chan "+str(channel)+' gen: '+str(gen) + 
+                  " triaged, remaining spikes "+ 
+                  str(idx_keep[idx_keep_triage].shape[0]))
 
-        ## rerun global compression on residual waveforms
-        #pca_wf,_,_ = PCA(data_in[idx_keep],3)
+        pca_wf = pca_wf[idx_keep_triage]
+        
+        idx_keep = idx_keep[idx_keep_triage]
+
+    # do another min spike check in case triage killed too many spikes
+    if wf.shape[0] < CONFIG.cluster.min_spikes:
+        return
+        
+        # rerun global compression on residual waveforms
+    #    pca_wf,_,_ = PCA(data_in[idx_keep],3)
     #else:
         ## keep all spikes
         #idx_keep = np.ones(pca_wf.shape[0],dtype = bool)
         
-    # select only non-triaged spikes
-    pca_wf_all = pca_wf.copy() #[idx_keep]
+    pca_wf_all = pca_wf.copy() 
     
     
     ''' ************************************************        
@@ -1572,15 +1583,16 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
        *********** REVIEW AND SAVE RESULTS *************
        *************************************************        
     '''
-
                                 
     # First, check again that triage steps above didn't drop below min_spikes
-    if pca_wf.shape[0] < CONFIG.cluster.min_spikes:
+    # Cat: TODO: 
+    if ((pca_wf.shape[0] < CONFIG.cluster.min_spikes) or
+                                (idx_recovered.shape[0]<min_spikes_local)):
         return
         
     # Case #1: single cluster found
     if vbParam.rhat.shape[1] == 1:
-        print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #1: converged cluster")
+        #print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #1: converged cluster")
         # exclude units whose maximum channel is not on the current 
         # clustered channel; but only during clustering, not during deconv
         if mc != channel and (deconv_flag==False): 
@@ -1595,11 +1607,11 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
             
             assignment_global.append(N * np.ones(assignment2[idx_recovered].shape[0]))
             spike_index.append(sic[idx_recovered])
-            templates.append(wf[idx_recovered].mean(0))
+            templates.append(wf_align[idx_recovered].mean(0))
 
             # plot template if done
             if plotting:
-                plot_clustering_template(fig, grid, ax_t, gen, N, wf, idx_recovered, 
+                plot_clustering_template(fig, grid, ax_t, gen, N, wf_align, idx_recovered, 
                                         CONFIG, colors, feat_chans, scale)
 
                 # always plot scatter distributions
@@ -1619,33 +1631,59 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
               " multiple clusters, stability " + str(np.round(stability,2)) + 
               " size: "+str(sizes))
 
-        # remove stable clusters 
-        for clust in np.where(stability>mfm_threshold)[0]:
+        # if at least one stable cluster
+        if np.any(stability>mfm_threshold):      
 
-            print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #2: thresholded cluster")
+            # always plot scatter distributions
+            if gen<20:
+                plot_clustering_scatter(fig, grid, x, gen, vbParam,  
+                            assignment2, colors, pca_wf_all, channel,
+                            idx_recovered)
 
-            idx = np.where(assignment2==clust)[0]
-            
-            if wf[idx_keep][idx].shape[0]<CONFIG.cluster.min_spikes: 
-                continue    # cluster too small
-            
-            if verbose:
-                print("chan "+str(channel)+' gen: '+str(gen)+
-                    " reclustering stable cluster"+ 
-                    str(wf[idx_keep][idx].shape))
-            
-            triageflag = False
-            RRR3_noregress_recovery_dynamic_features(channel, wf[idx_keep][idx], 
-                 sic[idx_keep][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
-                 plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
-                 mfm_threshold,  CONFIG, upsample_factor, nshifts, 
-                 assignment_global, spike_index, scale, knn_triage_threshold, 
-                 deconv_flag, templates)
+            # remove stable clusters 
+            for clust in np.where(stability>mfm_threshold)[0]:
+
+                #print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #2: thresholded cluster")
+
+                idx = np.where(assignment2==clust)[0]
+                
+                if wf[idx_keep][idx].shape[0]<CONFIG.cluster.min_spikes: 
+                    continue    # cluster too small
+                
+                if verbose:
+                    print("chan "+str(channel)+' gen: '+str(gen)+
+                        " reclustering stable cluster"+ 
+                        str(wf[idx_keep][idx].shape))
+                
+                triageflag = False
+                RRR3_noregress_recovery_dynamic_features(channel, wf[idx_keep][idx], 
+                     sic[idx_keep][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
+                     plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
+                     mfm_threshold,  CONFIG, upsample_factor, nshifts, 
+                     assignment_global, spike_index, scale, knn_triage_threshold, 
+                     deconv_flag, templates, min_spikes_local)
+
+            # run mfm on remaining data
+            idx = np.in1d(assignment2, np.where(stability<=mfm_threshold)[0])
+            if idx.sum()>CONFIG.cluster.min_spikes:
+                #print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #4: clustering residuals")
+                if verbose:
+                    print("chan "+str(channel)+" reclustering residuals "+
+                                            str(wf[idx_keep][idx].shape))
+                triageflag = False
+                RRR3_noregress_recovery_dynamic_features(channel, wf[idx_keep][idx],
+                    sic[idx_keep][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
+                    plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
+                    mfm_threshold, CONFIG, upsample_factor, nshifts, 
+                    assignment_global, spike_index, scale, knn_triage_threshold,
+                    deconv_flag, templates, min_spikes_local)
+
+
 
         # if all clusters are unstable: triage (also annealing is an option)
-        if np.all(stability<=mfm_threshold):
+        else:
 
-            print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #3: no cluster > threshold")
+            #print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #3: no cluster > threshold")
 
             # split distribution into 2 using kmeans
             if False:
@@ -1665,67 +1703,121 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                 labels = gmm.predict_proba(pca_wf_all[idx_recovered])
 
                 vbParam2.rhat = labels
-                assignment2 = np.zeros(labels.shape[0], 'int32')
+                assignment3 = np.zeros(labels.shape[0], 'int32')
                 idx = np.where(labels[:,1]>0.5)[0]
-                assignment2[idx]=1
-                
-            np.save('/home/cat/pca_'+str(gen)+'.npy', pca_wf_all[idx_recovered])
-            np.save('/home/cat/assignment_'+str(gen)+'.npy', assignment2)
-            np.save('/home/cat/labels_'+str(gen)+'.npy', labels)
+                assignment3[idx]=1
+
+            #np.save('/home/cat/pca_'+str(gen)+'.npy', pca_wf_all[idx_recovered])
+            #np.save('/home/cat/assignment_'+str(gen)+'.npy', assignment3)
+            #np.save('/home/cat/labels_'+str(gen)+'.npy', labels)
             
-            # plot KMEANS labeled data
-            if gen<20 and plotting:
-                plot_clustering_scatter(fig, grid, x, gen, vbParam2,  
-                            assignment2, colors, pca_wf_all[idx_recovered], channel,
-                            np.arange(assignment2.shape[0]))
-
-            if verbose:
-                print("chan "+str(channel)+' gen: '+str(gen)+ 
-                                " no stable clusters, binary split "+
-                                str(wf[idx_keep][idx_recovered].shape))
-
-            # loop over dual split
-            for clust in np.unique(assignment2): #np.where(stability>mfm_threshold)[0]:
-                idx = np.where(assignment2==clust)[0]
-                
-                if idx.shape[0]<CONFIG.cluster.min_spikes: 
-                    continue    # cluster too small
-                
+            # test EM for unimodality
+            dp = test_unimodality(pca_wf_all[idx_recovered], assignment3)
+            print (dp)
+            #quit()
+            
+            # Cat: TODO : read this from file
+            diptest_thresh = 0.98
+            norm_thresh = 1E-4
+            if (dp> diptest_thresh):
+            #if (dp> diptest_thresh) and (norm>norm_thresh):
+                assignment3[:]=0
+            
+                N= len(assignment_global)
                 if verbose:
-                    print("chan "+str(channel)+' gen: '+str(gen)+
-                        " reclustering cluster"+ 
-                        str(wf[idx_keep][idx].shape))
+                    print("chan "+str(channel)+' gen: '+str(gen)+" >>> cluster "+
+                        str(N)+" saved, size: "+str(wf[idx_recovered].shape)+"<<<")
                 
-                triageflag = False
-                RRR3_noregress_recovery_dynamic_features(channel, wf[idx_keep][idx_recovered][idx], 
-                     sic[idx_keep][idx_recovered][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
-                     plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
-                     mfm_threshold,  CONFIG, upsample_factor, nshifts, 
-                     assignment_global, spike_index, scale, knn_triage_threshold, 
-                     deconv_flag, templates)
+                assignment_global.append(N * np.ones(assignment3.shape[0]))
+                spike_index.append(sic[idx_recovered])
+                templates.append(wf_align[idx_recovered].mean(0))
+
+                # plot template if done
+                if plotting:
+                    plot_clustering_template(fig, grid, ax_t, gen, N, wf_align, idx_recovered, 
+                                            CONFIG, colors, feat_chans, scale)
+
+                    # always plot scatter distributions
+                    if gen<20:
+                        # hack to expand the assignments back out to size of original
+                        # data stream
+                        temp_assignment3 = np.zeros(pca_wf_all.shape[0],'int32')
+                        print (pca_wf_all.shape)
+                        plot_clustering_scatter(fig, grid, x, gen, vbParam2,  
+                                                temp_assignment3, colors, pca_wf_all, 
+                                                channel, idx_recovered)
+                                   
+            else:
+                # plot KMEANS labeled data
+                if gen<20 and plotting:
+                    plot_clustering_scatter(fig, grid, x, gen, vbParam2,  
+                                assignment3, colors, pca_wf_all[idx_recovered], channel,
+                                np.arange(assignment3.shape[0]))
+
+                if verbose:
+                    print("chan "+str(channel)+' gen: '+str(gen)+ 
+                                    " no stable clusters, binary split "+
+                                    str(wf[idx_keep][idx_recovered].shape))
+
+                # loop over dual split
+                for clust in np.unique(assignment3): #np.where(stability>mfm_threshold)[0]:
+                    idx = np.where(assignment3==clust)[0]
+                    
+                    if idx.shape[0]<CONFIG.cluster.min_spikes: 
+                        continue    # cluster too small
+                    
+                    if verbose:
+                        print("chan "+str(channel)+' gen: '+str(gen)+
+                            " reclustering cluster"+ 
+                            str(wf[idx_keep][idx].shape))
+                    
+                    triageflag = False
+                    RRR3_noregress_recovery_dynamic_features(channel, wf[idx_keep][idx_recovered][idx], 
+                         sic[idx_keep][idx_recovered][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
+                         plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
+                         mfm_threshold,  CONFIG, upsample_factor, nshifts, 
+                         assignment_global, spike_index, scale, knn_triage_threshold, 
+                         deconv_flag, templates, min_spikes_local)
 
         
-        else:
-            # always plot scatter distributions
-            if gen<20 and plotting:
-                plot_clustering_scatter(fig, grid, x, gen, vbParam,  
-                            assignment2, colors, pca_wf_all, channel,
-                            idx_recovered)
+                    
+                    
 
-            # run mfm on remaining data
-            idx = np.in1d(assignment2, np.where(stability<=mfm_threshold)[0])
-            if idx.sum()>CONFIG.cluster.min_spikes:
-                print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #4: clustering residuals")
-                if verbose:
-                    print("chan "+str(channel)+" reclustering residuals "+
-                                            str(wf[idx_keep][idx].shape))
-                triageflag = False
-                RRR3_noregress_recovery_dynamic_features(channel, wf[idx_keep][idx],
-                    sic[idx_keep][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
-                    plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
-                    mfm_threshold, CONFIG, upsample_factor, nshifts, 
-                    assignment_global, spike_index, scale, knn_triage_threshold,
-                    deconv_flag, templates)
+def test_unimodality(pca_wf, assignment, max_spikes = 10000):
+    
+    n_samples = np.max(np.unique(assignment, return_counts=True)[1])
+
+    # compute diptest metric on current assignment+LDA
+    lda = LDA(n_components = 1)
+    trans = lda.fit_transform(pca_wf[:max_spikes], assignment[:max_spikes])
+    diptest = dp(trans.ravel())
+    
+    
+    ## run PCA on triaged data
+    idx1 = np.where(assignment==0)[0]
+    idx2 = np.where(assignment==1)[0]
+    min_spikes = min(idx1.shape, idx2.shape)[0]
+
+    # limit size difference between clusters to maximum of 5 times
+    ratio = 5
+    idx1=idx1[:min_spikes*ratio][:max_spikes]
+    idx2=idx2[:min_spikes*ratio][:max_spikes]
+
+    idx_total = np.concatenate((idx1,idx2))
+
+    ## run LDA on remaining data
+    lda = LDA(n_components = 1)
+    trans = lda.fit_transform(pca_wf[idx_total], assignment[idx_total])
+    diptest = dp(trans.ravel())
+
+    ## also compute gaussanity of distributions
+    ## first pick the number of bins; this metric is somewhat sensitive to this
+    # Cat: TODO number of bins is dynamically set; need to work on this
+    #n_bins = int(np.log(n_samples)*3)
+    #y1 = np.histogram(trans, bins = n_bins)
+    #normtest = stats.normaltest(y1[0])
+
+    return diptest[1] #, normtest[1]
 
 
 def KMEANS(data, n_clusters):
@@ -1744,50 +1836,72 @@ def plot_clustering_template(fig, grid, ax_t, gen, N, wf, idx_recovered, CONFIG,
         # plot template
         temp_clrs = []
         #for k in assignment2[idx_recovered]:
-        #    temp_clrs.append(sorted_names[k])
+        #    temp_clrs.append(sorted_colors[k])
 
         ax_t.plot(CONFIG.geom[:,0]+
                   np.arange(-wf_mean.shape[0]//2,wf_mean.shape[0]//2,1)[:,np.newaxis]/3., 
-                  CONFIG.geom[:,1] + wf_mean[:,:]*scale, c=sorted_names[N%100], 
+                  CONFIG.geom[:,1] + wf_mean[:,:]*scale, c=sorted_colors[N%100], 
                   alpha=min(max(0.4, idx_recovered.shape[0]/1000.),1))
 
         # plot feature channels
         for i in feat_chans:
              ax_t.scatter(CONFIG.geom[i,0]+gen, CONFIG.geom[i,1]+N, 
                                                     s = 30, 
-                                                    color = sorted_names[N%100],
+                                                    color = sorted_colors[N%100],
                                                     alpha=1)
 
+
+#   if gen<20:
+#        plot_clustering_scatter(fig, grid, x, gen, vbParam,  
+#                    assignment3, colors, pca_wf_all, channel,
+#                    idx_recovered)
+                            
+                            
+                            
 def plot_clustering_scatter(fig, grid, x, gen, vbParam,  
                             assignment2, colors, pca_wf, channel,
                             idx_recovered):
 
     if np.all(x[gen]<20) and gen <20:
+
+        # add generation index
+        ax = fig.add_subplot(grid[gen, x[gen]])
+        x[gen] += 1
+
+        # compute cluster memberships
         mask = vbParam.rhat>0
         stability = np.average(mask * vbParam.rhat, axis = 0, weights = mask)
 
-        labels = []
         clusters, sizes = np.unique(assignment2[idx_recovered], 
                                             return_counts=True)
 
-        ax = fig.add_subplot(grid[gen, x[gen]])
-        x[gen] += 1
+        # make legend
+        labels = []
         for clust in clusters:
-            patch_j = mpatches.Patch(color = sorted_names[clust%100], 
+            patch_j = mpatches.Patch(color = sorted_colors[clust%100], 
                     label = "size = {}, stability = {}".format(sizes[clust], 
                     stability[clust]))
             
             labels.append(patch_j)
         
+        # make list of colors; this could be done simpler
         temp_clrs = []
         for k in assignment2[idx_recovered]:
-            temp_clrs.append(sorted_names[k])
-            
-        ax.scatter(pca_wf[idx_recovered,0], pca_wf[idx_recovered,1], 
-            c = temp_clrs, edgecolor = 'k',alpha=0.1)
+            temp_clrs.append(sorted_colors[k])
         
-        if clusters.size == 1:
-            ax.scatter(pca_wf[:,0].mean(), pca_wf[:,1].mean(), c= 'r', s = 2000)
+        # make scater plots
+        if pca_wf.shape[1]>1:
+            ax.scatter(pca_wf[idx_recovered,0], pca_wf[idx_recovered,1], 
+                c = temp_clrs, edgecolor = 'k',alpha=0.01)
+            
+            # add red dot for converged clusters
+            if clusters.size == 1:
+                ax.scatter(pca_wf[:,0].mean(), pca_wf[:,1].mean(), c= 'r', s = 2000)
+        else:
+            for clust in clusters:
+                ax.hist(pca_wf[np.where(assignment2[idx_recovered]==clust)[0]], 100)
+
+        # finish plotting
         ax.legend(handles = labels, fontsize=5)
         ax.set_title(str(sizes.sum()))
        
@@ -1805,50 +1919,73 @@ def get_feat_channels_mad2(wf, n_feat_chans):
     
     # order channels by largest diptest value
     feat_chans = np.argsort(std_max)[-n_feat_chans:][::-1]
-    feat_chans = feat_chans[std_max[feat_chans] > 1.1]
+    feat_chans = feat_chans[std_max[feat_chans] > 1.2]
     max_chan = wf.mean(0).ptp(0).argmax(0)
     if len(feat_chans) == 0:
-        feat_chans = np.array([max_chan])
+        feat_chans = np.array([std_max.argmax()])
 
     return feat_chans, max_chan, stds
     
     
-def featurize_residual_triage(wf, robust_stds, triage_th=0.1, noise_th=4, min_rank=2):
     
-    n = wf.shape[0]
-    rank = min_rank
+def featurize_residual_triage(wf, robust_stds, triage_th=0.1, noise_th=4, 
+                    min_rank=2, max_rank=5):
     
-    #time_points = robust_stds.argmax(0)
-    #wf_temp = wf[:, time_points, np.arange(wf.shape[2])]
+    # Cat: some suggestions for this step
+    #   1. fix the number of features to some value, e.g. 5-10, not arbitrary number
+    #   2. try to pick single time points from multipole channels rather 
+    #       than multiple time points from the same channel
+    #      - of course within some threshold
+    #      - so we could write an argrelmax-based algorithm step for this
+    #   3. this time point selection should not be independent from
+    #       the pca reconstruction error below;
+    #      - maybe we want to set the 1.2 threshold dynamically based on            
+    #       PCA reconstruction error
+    #   4. A bigger issue is that it's not clear to me why PCA rank is the 
+    #       correct way to find feautrization dimension; 
+    #      - so here it's possible that we might underpresent small clusters
+    #       that are different than 90% of the data
+    #      - does this triage step remove good spikes? (e.g. somas if data is 90% axons)
+    #   5. PCA dimensionality issue: we currently limit to max of 3D for mfm and downstream
+    #       clustering; 
+    #
     
-    #print (wf.shape, robust_stds.shape)
-    thresh = 1.2
-    wf_temp = wf[:,robust_stds > thresh]
-    while wf_temp.shape[1]<min_rank:
-        thresh*=.95
-        wf_temp = wf[:,robust_stds > thresh]
+    # select only time points where rstds are over fixed threshold
+    if np.sum(robust_stds > 1.2) >= min_rank:
+        wf_temp = wf[:, robust_stds > 1.2]
+    # if there aren't at least min # timepoints, find the largest ones
+    else:
+        temp_threshold = np.sort(robust_stds.reshape(-1))[-(min_rank+1)]
+        wf_temp = wf[:, robust_stds > temp_threshold]
 
-    print (" wf_temp.shape: ", wf_temp.shape)
+    # - compute difference between waveforms and pca-reconstruction
+    # - compute index of spikes that have max single-time point reconstruction error
+    #   over some treshold (where does this threshold come from?)
+    n, m = wf_temp.shape
+    rank = np.min([min_rank, n])
+    max_rank = np.min([max_rank, n])
     pca = PCA_original(n_components=rank)
     pca.fit(wf_temp)
     feature_data = pca.transform(wf_temp)
     resid = np.abs(pca.inverse_transform(pca.transform(wf_temp)) - wf_temp)
     keep = resid.max(1) < noise_th
     
-    while (np.mean(keep) < 1 - triage_th):
+    # loop over reconstruction error from PCA reconstruction while increasing rank
+    #  until minimum number of spikes are removed
+    while (np.mean(keep) < (1 - triage_th)) and (rank <= max_rank):
         rank += 1
-        if rank>=(wf_temp[keep].shape[0]-1): break
-        print (rank, wf_temp[keep].shape)
         pca = PCA_original(n_components=rank)
-        pca.fit(wf_temp[keep])
+        pca.fit(wf_temp)
         feature_data = pca.transform(wf_temp)
         resid = np.abs(pca.inverse_transform(feature_data) - wf_temp)
         keep =  resid.max(1) < noise_th
     
-    # convert indexes to values
+    # convert boolean indexes to integer indexes
     keep = np.where(keep)[0]
     
     return keep, feature_data
+    
+    
 
 
 def recover_spikes(vbParam, pca, CONFIG):
@@ -2023,6 +2160,8 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     n_sec_chunk = 1200
     #n_sec_chunk = 300
     
+    min_spikes_local = int(n_sec_chunk * 0.25)
+    
     # determine length of processing chunk based on lenght of rec
     standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
                                          'standarized.bin')
@@ -2105,11 +2244,11 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         channels = np.arange(CONFIG.recordings.n_channels)
         args_in = []
         for channel in channels:
-        #for channel in [15]:
+        #for channel in [6]:
             args_in.append([channel, idx, proc_index,CONFIG2, 
                 spike_index_chunk, n_dim_pca, n_dim_pca_compression,
                 wf_start, wf_end, n_feat_chans, out_dir, 
-                mfm_threshold, upsample_factor, nshifts])
+                mfm_threshold, upsample_factor, nshifts, min_spikes_local])
 
         # Cat: TODO: have single-core option also here     
         print ("  starting clustering")
@@ -2227,6 +2366,7 @@ def cluster_channels_chunks_args(data_in):
     mfm_threshold = data_in[11]
     upsample_factor = data_in[12]
     nshifts = data_in[13]
+    min_spikes_local = data_in[14]
 
     data_start = idx_list[0]
     data_end = idx_list[1]
@@ -2244,11 +2384,8 @@ def cluster_channels_chunks_args(data_in):
     if os.path.exists(filename_postclustering)==False: 
         
         # starting params
-        chans = [] 
-        spike_size = int(CONFIG.recordings.spike_size_ms*
-                         CONFIG.recordings.sampling_rate//1000)
-
         # Cat: TODO: read all these from CONFIG
+        spike_size = 111
         scale = 10 
         triageflag = False
         alignflag = True
@@ -2280,7 +2417,6 @@ def cluster_channels_chunks_args(data_in):
         # load waveforms with some padding then clip them
         # Cat: TODO: spike_padding to be read/fixed in CONFIG
         spike_padding = 25
-        spike_size = 111
         knn_triage_threshold = 0.90
         
         # Cat: TODO: recording_chunk is a global variable; 
@@ -2325,22 +2461,6 @@ def cluster_channels_chunks_args(data_in):
         
         # indicate whether running the RRR3 function initially or post deconv
         deconv_flag = False
-        #if False:
-            #RRR3_noregress_recovery_fast(channel, 
-                 #wf[indexes_subsampled][:,spike_padding:-spike_padding], 
-                 #spike_train[indexes_subsampled], gen, fig, grid, x, ax_t, 
-                 #triageflag, alignflag, plotting, n_feat_chans, 
-                 #n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
-                 #upsample_factor, nshifts, assignment_global, spike_index, scale,
-                 #knn_triage_threshold, deconv_flag, templates)
-        #else:
-        #RRR3_noregress_recovery(channel, 
-             #wf[indexes_subsampled][:,spike_padding:-spike_padding], 
-             #spike_train[indexes_subsampled], gen, fig, grid, x, ax_t, 
-             #triageflag, alignflag, plotting, n_feat_chans, 
-             #n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
-             #upsample_factor, nshifts, assignment_global, spike_index, scale,
-             #knn_triage_threshold, deconv_flag, templates)
 
         RRR3_noregress_recovery_dynamic_features(channel, 
              wf[indexes_subsampled][:,spike_padding:-spike_padding], 
@@ -2348,7 +2468,7 @@ def cluster_channels_chunks_args(data_in):
              triageflag, alignflag, plotting, n_feat_chans, 
              n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
              upsample_factor, nshifts, assignment_global, spike_index, scale,
-             knn_triage_threshold, deconv_flag, templates)
+             knn_triage_threshold, deconv_flag, templates, min_spikes_local)
              
                           
         # finish plotting 
@@ -2373,11 +2493,9 @@ def cluster_channels_chunks_args(data_in):
                 clusters, sizes = np.unique(assignment_temp[idx], return_counts= True)
                 clusters = clusters.astype(int)
 
-                chans.extend(channel*np.ones(clusters.size))
-
                 labels=[]
                 for i, clust in enumerate(clusters):
-                    patch_j = mpatches.Patch(color = sorted_names[clust%100], label = "size = {}".format(sizes[i]))
+                    patch_j = mpatches.Patch(color = sorted_colors[clust%100], label = "size = {}".format(sizes[i]))
                     labels.append(patch_j)
                 ax_t.legend(handles = labels, fontsize=30)
 
@@ -2389,17 +2507,21 @@ def cluster_channels_chunks_args(data_in):
         # Cat: TODO: note clustering is done on PCA denoised waveforms but
         #            templates are computed on original raw signal
         # recompute templates to contain full width information... 
-        full_templates = []
-        for k in range(len(spike_index)):
-            indexes = np.in1d(spike_train[indexes_subsampled,0], 
-                                                spike_index[k][:,0])
-            template = wf[indexes_subsampled][indexes].mean(0)
-            full_templates.append(template)
+        #aligned_wide_templates = []
+        #for k in range(len(spike_index)):
+            #indexes = np.in1d(spike_train[indexes_subsampled,0], 
+                                                #spike_index[k][:,0])            
+            ## realign spikes before saving
+            #mc = wf[indexes].mean(0).ptp(0).argmax(0)
+            #best_shifts = align_get_shifts(wf[indexes_subsampled][indexes,:,mc], CONFIG) 
+            #wf_align = shift_chans(wf[indexes_subsampled][indexes], best_shifts, CONFIG)
+            #template = wf_align[indexes_subsampled][indexes].mean(0)
+            #aligned_wide_templates.append(template)
         
         np.savez(filename_postclustering, 
                         spike_index=spike_index, 
                         indexes_subsampled=indexes_subsampled,
-                        templates=full_templates)
+                        templates=templates)
 
 
         print ("**** Channel ", str(channel), " starting spikes: ", wf.shape[0],
@@ -2626,7 +2748,9 @@ def global_merge_max_dist(chunk_dir, recording_chunk, CONFIG, out_dir, units):
 
     # delete templates below certain treshold; and collision templates
     # Cat: TODO: note, can't centre post-deconv rclustered tempaltes as they are tooshort
-    if out_dir=='cluster': 
+    
+    if False: 
+    #if out_dir=='cluster': 
         # centre spikes in case misaligned and centre 
         # Cat: TODO read from CONFIG
         spike_padding = 25
