@@ -19,7 +19,7 @@ from scipy.signal import argrelmin
 from yass.deconvolve.match_pursuit import (MatchPursuit_objectiveUpsample, 
                                             MatchPursuitWaveforms)
                                             
-from yass.cluster.util import (binary_reader, RRR3_noregress_recovery,
+from yass.cluster.util import (binary_reader, RRR3_noregress_recovery_dynamic_features,
                                global_merge_max_dist, PCA, 
                                load_waveforms_from_memory,
                                make_CONFIG2, upsample_parallel, 
@@ -33,7 +33,7 @@ from matplotlib import colors as mcolors
 colors = dict(mcolors.BASE_COLORS, **mcolors.CSS4_COLORS)
 by_hsv = ((tuple(mcolors.rgb_to_hsv(mcolors.to_rgba(color)[:3])), name)
                  for name, color in colors.items())
-sorted_names = [name for hsv, name in by_hsv]
+sorted_colors = [name for hsv, name in by_hsv]
 
 
 def run(spike_train_cluster,
@@ -110,7 +110,7 @@ def run(spike_train_cluster,
     # compute pairwise convolution filter outside match pursuit
     # Cat: TODO: make sure you don't miss chunks at end
     # Cat: TODO: do we want to do 10sec chunks in deconv?
-    n_seconds_initial = 60
+    n_seconds_initial = 300
     initial_chunk = int(n_seconds_initial//CONFIG.resources.n_sec_chunk) 
     
     chunk_ctr = 0
@@ -225,7 +225,6 @@ def run(spike_train_cluster,
                                               output_directory, 
                                               recordings_filename)
 
-
     ''' 
     ***********************************************************
     *************** RUN MATCH PURSUIT OVER ALL DATA ***********
@@ -234,7 +233,7 @@ def run(spike_train_cluster,
     
     # run over rest of data in single chunk run:
     chunk_size = len(idx_list)
-    print (templates.shape)
+
     #templates = templates.swapaxes(1,2)
     for chunk_ctr, c in enumerate(range(0, len(idx_list), chunk_size)):
  
@@ -422,27 +421,25 @@ def reclustering_function(CONFIG,
     # read recording chunk and share as global variable
     # Cat: TODO: recording_chunk should be a shared variable in 
     #            multiprocessing module;
-    global recording_chunk
     idx = idx_chunk
     data_start = idx[0]
     offset = idx[2]
-
-    residuaL_clustering_flag = False
-    if residuaL_clustering_flag:
-        print ("  reclustering using residuals ")
-    else:
-        print ("  reclustering using raw data ")
-
+    n_channels = CONFIG.recordings.n_channels
     buffer_size = 200
     standardized_filename = os.path.join(CONFIG.data.root_folder,
                                          output_directory, 
                                          recordings_filename)
-    n_channels = CONFIG.recordings.n_channels
-    recording_chunk = binary_reader(idx, 
-                                    buffer_size, 
-                                    standardized_filename, 
-                                    n_channels)
-                    
+
+    residual_clustering_flag = True
+    if residual_clustering_flag:
+        print ("  reclustering using residuals ")
+    else:
+        print ("  reclustering using raw data ")
+        global recording_chunk
+        recording_chunk = binary_reader(idx, 
+                                        buffer_size, 
+                                        standardized_filename, 
+                                        n_channels)
 
     ''' ************************************************************
         ************** SETUP & RUN RECLUSTERING ********************
@@ -467,7 +464,7 @@ def reclustering_function(CONFIG,
                             deconv_chunk_dir,
                             data_start,
                             offset,
-                            residuaL_clustering_flag
+                            residual_clustering_flag
                             ])
 
     # run residual-reclustering function
@@ -479,19 +476,22 @@ def reclustering_function(CONFIG,
             p.close()
         else:
             for unit in range(len(args_in)):
-                res = deconv_residual_recluster(args_in[unit])
+                deconv_residual_recluster(args_in[unit])
 
+        print ("  done reclustering using residuals ")
 
     ''' ************************************************************
         ******* RECOMPUTE TEMPLATES USING NEW SPIKETRAINS  *********
         ************************************************************
     '''
-    print ("  TODO:  RECOMPUTE TEMPLATES USING RAW DATA...")
-    quit()
-    
-    
-    
-    
+    print ("  recomputing templates from raw data")
+    recompute_templates_from_raw(templates,
+                                 deconv_chunk_dir, 
+                                 idx, 
+                                 buffer_size, 
+                                 standardized_filename, 
+                                 n_channels,
+                                 CONFIG)
 
     ''' ************************************************************
         ******************* RUN TEMPLATE MERGE  ********************
@@ -499,16 +499,149 @@ def reclustering_function(CONFIG,
     '''
     # run template merge
     out_dir = 'deconv'
-    spike_train, templates = global_merge_max_dist(
-                                          deconv_chunk_dir, recording_chunk,
-                                          CONFIG, out_dir, units)
+    spike_train, templates = global_merge_max_dist(deconv_chunk_dir+'/raw_templates/', 
+                                                   CONFIG, 
+                                                   out_dir, 
+                                                   units)
 
-    #print (templates_first_chunk.shape)
+    templates = templates.swapaxes(0,2).swapaxes(0,1)
     np.savez(deconv_chunk_dir+"/deconv_results_post_recluster.npz", 
             spike_train=spike_train, 
             templates=templates)
     
     return templates, spike_train
+
+def recompute_templates_from_raw(templates,
+                                 deconv_chunk_dir, 
+                                 idx, 
+                                 buffer_size, 
+                                 standardized_filename, 
+                                 n_channels,
+                                 CONFIG):
+    '''
+        Function reloads spike trains from deconv+residual reclustering
+        and recomputes templates using raw record;
+        - it then overwrites the original sorted files
+    '''
+    
+    data_start = 0
+    offset = 200
+    spike_size=61
+    units = np.arange(templates.shape[2])
+
+    recording_chunk = binary_reader(idx, 
+                                    buffer_size, 
+                                    standardized_filename, 
+                                    n_channels)
+
+    # make deconv directory
+    dir_name = (deconv_chunk_dir+ '/raw_templates')
+    if not os.path.isdir(dir_name):
+        os.makedirs(dir_name)
+    
+    plotting = True
+    for unit in units:
+        fname = (deconv_chunk_dir+
+                 "/unit_{}.npz".format(
+                 str(unit).zfill(6)))
+    
+        data = np.load(fname)
+
+        templates_postrecluster = data['templates_postrecluster']
+        templates_cluster= data['templates_cluster']
+        spike_index_postrecluster = data['spike_index_postrecluster']
+        spike_index_cluster = data['spike_index_cluster']
+    
+        templates = []
+        for s in range(len(spike_index_postrecluster)):
+            spike_train = spike_index_postrecluster[s]-200
+
+            wf = load_waveforms_from_memory(recording_chunk, 
+                                data_start, 
+                                offset, 
+                                spike_train, 
+                                spike_size)
+            template = wf.mean(0)
+            templates.append(template)    
+
+        fout = (dir_name+
+                "/unit_{}.npz".format(
+                str(unit).zfill(6)))
+
+        np.savez(fout, 
+                 spike_index=spike_index_postrecluster, 
+                 templates=templates)
+        
+        channel = templates[0].ptp(0).argmax(0)
+        # plot templates 
+        if plotting: 
+
+            fig = plt.figure(figsize =(40,20))
+            grid = plt.GridSpec(40,20,wspace = 0.0,hspace = 0.2)
+            ax = fig.add_subplot(grid[:, :])
+
+            yscale = 4.
+            xscale = 5.
+            labels = []
+            ctr=0
+            # plot original post-cluster template
+            ax.plot(CONFIG.geom[:,0]-30+
+                    np.arange(-templates_cluster.shape[0]//2.,templates_cluster.shape[0]//2,1)[:,np.newaxis]/xscale, 
+                    CONFIG.geom[:,1] + templates_cluster*yscale, 
+                    c=sorted_colors[ctr%100])
+
+            patch_j = mpatches.Patch(color = sorted_colors[ctr%100], 
+                            label = "cluster :"+ str(spike_index_cluster.shape[0]))
+            labels.append(patch_j)
+            ctr+=1
+            
+            # plot recluster templates - using residual data
+            for k in range(templates_postrecluster.shape[0]):
+                ax.plot(CONFIG.geom[:,0]-15+
+                        np.arange(-templates_postrecluster[k].shape[0]//2,
+                                 templates_postrecluster[k].shape[0]//2,1)[:,np.newaxis]/xscale, 
+                                 CONFIG.geom[:,1] + templates_postrecluster[k]*yscale, 
+                                 c=sorted_colors[ctr%100])
+
+                patch_j = mpatches.Patch(color = sorted_colors[ctr%100], 
+                                label = "recluster+res: "+ str(spike_index_postrecluster[k].shape[0]))
+                labels.append(patch_j)
+                ctr+=1
+
+            # plot recomputed templates
+            templates = np.array(templates)
+            for k in range(templates.shape[0]):
+                ax.plot(CONFIG.geom[:,0]+
+                      np.arange(-templates[k].shape[0]//2,
+                                 templates[k].shape[0]//2,1)[:,np.newaxis]/xscale, 
+                                 CONFIG.geom[:,1] + templates[k]*yscale, 
+                                 c=sorted_colors[ctr%100])
+
+                patch_j = mpatches.Patch(color = sorted_colors[ctr%100], 
+                                label = "recluster+raw: "+ str(spike_index_postrecluster[k].shape[0]))
+                labels.append(patch_j)
+                ctr+=1
+
+            # plot chan nubmers
+            for i in range(CONFIG.recordings.n_channels):
+                ax.text(CONFIG.geom[i,0], CONFIG.geom[i,1], str(i), alpha=0.4, 
+                                                                fontsize=30)
+                # fill bewteen 2SUs on each channel
+                ax.fill_between(CONFIG.geom[i,0] + np.arange(-61,0,1)/3.,
+                    -yscale + CONFIG.geom[i,1], yscale + CONFIG.geom[i,1], 
+                    color='black', alpha=0.05)
+                
+            # plot max chan with big red dot                
+            ax.scatter(CONFIG.geom[channel,0]+5, CONFIG.geom[channel,1], s = 1000, 
+                                                    color = 'red',alpha=0.3)
+            # finish plotting
+            ax.legend(handles = labels, fontsize=15)
+            fig.suptitle("Unit: "+str(unit)+" chan: "+str(channel), fontsize=25)
+            fig.savefig(dir_name+"/unit_"+str(unit)+".png")
+            plt.close(fig)
+            
+            
+
 
 def compute_residual_function(CONFIG, idx_list_local,
                               buffer_size,
@@ -706,7 +839,7 @@ def deconv_residual_recluster(data_in):
     dec_spike_train_offset = data_in[1]
     spike_train_cluster_new = data_in[2]
     idx_chunk = data_in[3]
-    template = data_in[4]
+    template_original = data_in[4]
     CONFIG = data_in[5]
     deconv_chunk_dir = data_in[6]
     data_start = data_in[7]
@@ -745,7 +878,7 @@ def deconv_residual_recluster(data_in):
         
         
         # Cat: TODO read this from disk
-        deconv_max_spikes = 1000
+        deconv_max_spikes = 10000
         if unit_sp.shape[0]>deconv_max_spikes:
             idx_deconv = np.random.choice(np.arange(unit_sp.shape[0]),
                                           size=deconv_max_spikes,
@@ -758,7 +891,7 @@ def deconv_residual_recluster(data_in):
         if residuaL_clustering_flag:
             spike_size = 61
             wf = get_wfs_from_residual(unit_sp, 
-                                       template, 
+                                       template_original, 
                                        deconv_chunk_dir,
                                        spike_size)
         else:    
@@ -773,8 +906,7 @@ def deconv_residual_recluster(data_in):
                                             offset, 
                                             unit_sp, 
                                             spike_size)
-        #print (wf.shape)
-        
+       
         if wf.shape[1]==111:
             spike_start = 25
             spike_end = -25
@@ -791,8 +923,8 @@ def deconv_residual_recluster(data_in):
         #               channel templates
         channel = wf.mean(0).ptp(0).argmax(0)
 
-        # run mfm
-        scale = 10 
+        # Cat: TODO: set this from CONFIG;
+        min_spikes_local = CONFIG.cluster.min_spikes
 
         triageflag = False
         alignflag = True
@@ -800,6 +932,7 @@ def deconv_residual_recluster(data_in):
         if unit%10==0:
             plotting = False
             
+        scale = 10 
         n_feat_chans = 5
         n_dim_pca = 3
         wf_start = 0
@@ -808,6 +941,7 @@ def deconv_residual_recluster(data_in):
         knn_triage_threshold = 0.90
         upsample_factor = 5
         nshifts = 15
+        
                 
         chans = [] 
         gen = 0     #Set default generation for starting clustering stpe
@@ -835,11 +969,12 @@ def deconv_residual_recluster(data_in):
             x = []
             
         deconv_flag = True
-        RRR3_noregress_recovery(unit, wf[:, spike_start:spike_end], unit_sp, gen, fig, grid, x,
+        RRR3_noregress_recovery_dynamic_features(unit, wf[:, spike_start:spike_end], 
+            unit_sp, gen, fig, grid, x,
             ax_t, triageflag, alignflag, plotting, n_feat_chans, 
             n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
             upsample_factor, nshifts, assignment_global, spike_index, scale,
-            knn_triage_threshold, deconv_flag, templates)
+            knn_triage_threshold, deconv_flag, templates, min_spikes_local)
 
 
         # finish plotting 
@@ -855,8 +990,10 @@ def deconv_residual_recluster(data_in):
                     
                 # plot original templates
                 ax_t.plot(CONFIG.geom[:,0]+
-                    np.arange(-template.shape[0]//2,template.shape[0]//2,1)[:,np.newaxis]/3., 
-                    CONFIG.geom[:,1] + template*scale, 'r--', c='red')
+                    np.arange(-template_original.shape[0]//2,
+                               template_original.shape[0]//2,1)[:,np.newaxis]/3., 
+                               CONFIG.geom[:,1] + template_original*scale, 
+                               'r--', c='red')
                         
             # plot max chan with big red dot                
             ax_t.scatter(CONFIG.geom[channel,0], CONFIG.geom[channel,1], s = 2000, 
@@ -872,13 +1009,9 @@ def deconv_residual_recluster(data_in):
                 chans.extend(channel*np.ones(clusters.size))
                 
                 for i, clust in enumerate(clusters):
-                    patch_j = mpatches.Patch(color = sorted_names[clust%100], 
+                    patch_j = mpatches.Patch(color = sorted_colors[clust%100], 
                                              label = "deconv = {}".format(sizes[i]))
                     labels.append(patch_j)
-            
-            idx3 = np.where(spike_train_cluster_new[:,1]==unit)[0]
-            spikes_in_chunk = np.where(np.logical_and(spike_train_cluster_new[idx3][:,0]>idx_chunk[0], 
-                                                      spike_train_cluster_new[idx3][:,0]<=idx_chunk[1]))[0]
 
             patch_original = mpatches.Patch(color = 'red', label = 
                              "cluster in chunk/total: "+ 
@@ -896,26 +1029,19 @@ def deconv_residual_recluster(data_in):
 
         # Cat: TODO: note clustering is done on PCA denoised waveforms but
         #            templates are computed on original raw signal
-        #np.savez(deconv_filename, spike_index=spike_index, 
-                        #templates=templates)
-                        ##templates_std=temp_std,
-                        ##weights=np.asarray([sic.shape[0] for sic in spike_index]))
 
-        full_templates = []
-        for k in range(len(spike_index)):
-            indexes = np.in1d(unit_sp[:,0], spike_index[k][:,0])
-            template = wf[indexes].mean(0)
-            full_templates.append(template)
-        
+        # find original spikes in clustered chunk
+        idx3 = np.where(spike_train_cluster_new[:,1]==unit)[0]
+        spikes_in_chunk = np.where(np.logical_and(spike_train_cluster_new[idx3][:,0]>idx_chunk[0], 
+                                                  spike_train_cluster_new[idx3][:,0]<=idx_chunk[1]))[0]
+        # save original templates/spikes and reclustered
         np.savez(deconv_filename, 
-                        spike_index=spike_index, 
-                        templates=full_templates)
+                        spike_index_postrecluster=spike_index, 
+                        templates_postrecluster=templates,
+                        spike_index_cluster= spikes_in_chunk, 
+                        templates_cluster=template_original)
                         
         print ("**** Unit ", str(unit), ", found # clusters: ", len(spike_index))
-        
-    #if len(spike_index)==0:
-    #    fname = (deconv_chunk_dir+"/lost_units/unit_"+str(unit).zfill(6)+'.npz')
-    #    np.savez(fname, original_template=template)
     
     # overwrite this variable just in case multiprocessing doesn't destroy it
     wf = None

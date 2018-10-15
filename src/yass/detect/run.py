@@ -341,12 +341,12 @@ def run_neural_network(standarized_path, standarized_params,
 
         # open etsnrflow session
         with tf.Session() as sess:
-            K.set_session(sess)
+            #K.set_session(sess)
             NND.restore(sess)
 
-            triage = KerasModel(triage_fname,
-                                allow_longer_waveform_length=True,
-                                allow_more_channels=True)
+            #triage = KerasModel(triage_fname,
+            #                    allow_longer_waveform_length=True,
+            #                    allow_more_channels=True)
 
             # read chunks of data first:
             # read chunk of raw standardized data
@@ -362,7 +362,7 @@ def run_neural_network(standarized_path, standarized_params,
 
                 # reset lists 
                 spike_index_list = []
-                idx_clean_list = []
+                #idx_clean_list = []
                 energy_list = []
                 TC_list = []
                 offset_list = []
@@ -392,9 +392,9 @@ def run_neural_network(standarized_path, standarized_params,
                                                               'waveform'))
                     spike_index, wfs = res
 
-                    idx_clean = (triage
-                                 .predict_with_threshold(x=wfs,
-                                                         threshold=triage_th))
+                    #idx_clean = (triage
+                    #             .predict_with_threshold(x=wfs,
+                    #                                     threshold=triage_th))
 
                     score = NNAE.predict(wfs)
                     rot = NNAE.load_rotation()
@@ -403,7 +403,7 @@ def run_neural_network(standarized_path, standarized_params,
 
                     # idx_clean is the indexes of clear spikes in all_spikes
                     spike_index_list.append(spike_index)
-                    idx_clean_list.append(idx_clean)
+                    #idx_clean_list.append(idx_clean)
 
                     # run AE nn; required for remove_axon function
                     # Cat: TODO: Do we really need this: can we get energy list faster?
@@ -417,34 +417,30 @@ def run_neural_network(standarized_path, standarized_params,
                     processing_ctr+=1
             
                 # save chunk of data in case crashes occur
-                #np.save(os.path.join(fname_detection,"score_"+
-                #                       str(idx[0]).zfill(5)),score_list)
                 np.savez(os.path.join(fname_detection,"detect_"+
                                        str(chunk_ctr).zfill(5)),
                                        spike_index_list = spike_index_list,
-                                       idx_clean_list = idx_clean_list,
                                        energy_list = energy_list, 
                                        TC_list = TC_list,
                                        offset_list = offset_list)
-                
-                # increase index for chunk
-                #chunk_ctr+=1
-
+        
         # load all saved data;
-        #score_list = []
         spike_index_list = []
-        idx_clean_list = []
         energy_list = []
         TC_list = []
         offset_list = []
         for ctr, idx in enumerate(idx_list): 
             data = np.load(fname_detection+'/detect_'+str(ctr).zfill(5)+'.npz')
             spike_index_list.extend(data['spike_index_list'])
-            idx_clean_list.extend(data['idx_clean_list'])
             energy_list.extend(data['energy_list'])
             TC_list.extend(data['TC_list'])
             offset_list.extend(data['offset_list'])
 
+        # save all detected spikes pre axon_kill
+        np.save(os.path.join(TMP_FOLDER,'spike_index_all_pre_deduplication.npy'), 
+                             spike_index_list)
+        
+        
         # remove axons - compute axons to be killed
         logger.info(' removing axons in parallel')
         multi_procesing = 1
@@ -469,54 +465,32 @@ def run_neural_network(standarized_path, standarized_params,
         # Cat: TODO Note that we're killing spike_index_all as well.
         # remove axons from clear spikes - keep only non-killed+clean events
         spike_index_all_postkill = []
-        #score_clear_postkill = []
-        spike_index_clear_postkill = []
-        for k in range(len(idx_clean_list)):
-            idx_keep = np.logical_and(keep[k][0], idx_clean_list[k])
-            spike_index_clear_postkill.append(spike_index_list[k][idx_keep])
+        for k in range(len(spike_index_list)):
             spike_index_all_postkill.append(spike_index_list[k][keep[k][0]])
 
-        # modified fix index file
         logger.info(' fixing indexes from batching')
-        spike_index_clear, spike_index_all = fix_indexes_firstbatch_2(
+        spike_index_all = fix_indexes_firstbatch_3(
                 spike_index_all_postkill, 
-                spike_index_clear_postkill, 
                 offset_list,
                 buffer_size, 
                 sampling_rate)
                 
-        # get clear spikes
-        clear = spike_index_clear
-
-        #logger.info('Removing clear indexes outside the allowed range to '
-        #            'draw a complete waveform...')
-        _n_observations = fp_len
-        clear, idx = detect.remove_incomplete_waveforms(
-            clear, CONFIG.spike_size + CONFIG.templates.max_shift,
-            _n_observations)
-
         # get and clean all spikes
         spikes_all = spike_index_all 
         
         #logger.info('Removing all indexes outside the allowed range to '
         #            'draw a complete waveform...')
+        _n_observations = fp_len
         spikes_all, _ = detect.remove_incomplete_waveforms(
             spikes_all, CONFIG.spike_size + CONFIG.templates.max_shift,
             _n_observations)
 
-        #np.save(os.path.join(TMP_FOLDER,'scores_clear.npy'),scores)
-        np.save(os.path.join(TMP_FOLDER,'spike_index_clear.npy'),clear)
         np.save(os.path.join(TMP_FOLDER,'spike_index_all.npy'),spikes_all)
     
     else:
-        
-        #scores = np.load(os.path.join(TMP_FOLDER,'scores_clear.npy'))
-        clear = np.load(os.path.join(TMP_FOLDER,'spike_index_clear.npy'))
         spikes_all = np.load(os.path.join(TMP_FOLDER,'spike_index_all.npy'))
 
-    #quit()
-
-    return clear, spikes_all
+    return spikes_all
 
 def binary_reader(idx_list, buffer_size, standardized_filename,
                   n_channels, root_folder):
@@ -753,6 +727,60 @@ def fix_indexes_firstbatch(res, buffer_size, chunk_len, offset):
 
 
     return score_not_in_buffer, clear_not_in_buffer, col_not_in_buffer
+
+
+
+def fix_indexes_firstbatch_3(spike_index_list,  
+                             offsets,
+                             buffer_size, chunk_len):
+            
+    """ Fixes indexes from the first batch in the list of data with 
+        multiple buffer offsets
+
+    Parameters
+
+    buffer_size: int
+        Buffer size
+    """
+
+    # get limits for the data (exlude indexes that have buffer data)
+    data_start = buffer_size
+    data_end = buffer_size + chunk_len
+
+    #fixed_scores = []
+    #fixed_clear_spikes = []
+    fixed_allspikes = []
+    for (collision, offset) in zip(spike_index_list, offsets):
+
+        ## ********** fix clear spikes **********
+        ##clear_times = clear[:, 0]
+
+        ## get only observations outside the buffer
+        #idx_not_in_buffer = np.logical_and(clear_times >= data_start,
+                                           #clear_times <= data_end)
+
+        #clear_not_in_buffer = clear[idx_not_in_buffer]
+        ##score_not_in_buffer = score[idx_not_in_buffer]
+
+        ## offset spikes depending on the absolute location
+        #clear_not_in_buffer[:, 0] = (clear_not_in_buffer[:, 0] + offset
+                                     #- buffer_size)
+
+        # ********** fix collided spikes *********
+        col_times = collision[:, 0]
+        
+        # get only observations outside the buffer
+        col_not_in_buffer = collision[np.logical_and(col_times >= data_start,
+                                                     col_times <= data_end)]
+        # offset spikes depending on the absolute location
+        col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset - buffer_size
+
+        #fixed_scores.append(score_not_in_buffer)
+        #fixed_clear_spikes.append(clear_not_in_buffer)
+        fixed_allspikes.append(col_not_in_buffer)
+
+    #return score_not_in_buffer, clear_not_in_buffer, col_not_in_buffer
+    return np.vstack(fixed_allspikes)
 
 
 def fix_indexes_firstbatch_2(spike_index_list, spike_index_clear_postkill, 

@@ -132,12 +132,12 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # detect
     # Cat: This code now runs with open tensorflow calls
     start = time.time()
-    (spike_index_clear,
-     spike_index_all) = detect.run(standarized_path,
+    (spike_index_all) = detect.run(standarized_path,
                                    standarized_params,
                                    whiten_filter,
                                    if_file_exists=CONFIG.detect.if_file_exists,
                                    save_results=CONFIG.detect.save_results)
+    spike_index_clear = None
     time_detect = time.time() - start
 
 
