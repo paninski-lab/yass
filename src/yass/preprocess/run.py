@@ -69,7 +69,7 @@ def run(if_file_exists='skip'):
     CONFIG = read_config()
     OUTPUT_DTYPE = CONFIG.preprocess.dtype
     TMP = os.path.join(CONFIG.path_to_output_directory)
-    output_directory = os.path.join(TMP, 'preprocess')
+    output_directory = TMP
 
     logger.info('Output dtype for transformed data will be {}'
                 .format(OUTPUT_DTYPE))

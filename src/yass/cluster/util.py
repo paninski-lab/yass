@@ -9,6 +9,7 @@ from scipy.signal import argrelmax
 from scipy.spatial import cKDTree
 from copy import deepcopy
 import math
+from sklearn.cluster import AgglomerativeClustering
 
 from yass.explore.explorers import RecordingExplorer
 from yass.templates.util import strongly_connected_components_iterative
@@ -39,26 +40,27 @@ from sklearn.decomposition import PCA as PCA_original
 #sorted_colors = [name for hsv, name in by_hsv]
 
 colors = [
-'black', 'brown', 'orange','olive','green','cyan','blue','purple','pink',
-'red','firebrick','lawngreen','dodgerblue','crimson','orchid','slateblue',
+'black','blue','red','green','cyan','magenta','brown','pink',
+'orange','firebrick','lawngreen','dodgerblue','crimson','orchid','slateblue',
 'darkgreen','darkorange','indianred','darkviolet','deepskyblue','greenyellow',
 'peru','cadetblue','forestgreen','slategrey','lightsteelblue','rebeccapurple',
 'darkmagenta','yellow','hotpink',
-'black', 'brown', 'orange','olive','green','cyan','blue','purple','pink',
-'red','firebrick','lawngreen','dodgerblue','crimson','orchid','slateblue',
+'black','blue','red','green','cyan','magenta','brown','pink',
+'orange','firebrick','lawngreen','dodgerblue','crimson','orchid','slateblue',
 'darkgreen','darkorange','indianred','darkviolet','deepskyblue','greenyellow',
 'peru','cadetblue','forestgreen','slategrey','lightsteelblue','rebeccapurple',
 'darkmagenta','yellow','hotpink',
-'black', 'brown', 'orange','olive','green','cyan','blue','purple','pink',
-'red','firebrick','lawngreen','dodgerblue','crimson','orchid','slateblue',
+'black','blue','red','green','cyan','magenta','brown','pink',
+'orange','firebrick','lawngreen','dodgerblue','crimson','orchid','slateblue',
 'darkgreen','darkorange','indianred','darkviolet','deepskyblue','greenyellow',
 'peru','cadetblue','forestgreen','slategrey','lightsteelblue','rebeccapurple',
 'darkmagenta','yellow','hotpink',
-'black', 'brown', 'orange','olive','green','cyan','blue','purple','pink',
-'red','firebrick','lawngreen','dodgerblue','crimson','orchid','slateblue',
+'black','blue','red','green','cyan','magenta','brown','pink',
+'orange','firebrick','lawngreen','dodgerblue','crimson','orchid','slateblue',
 'darkgreen','darkorange','indianred','darkviolet','deepskyblue','greenyellow',
 'peru','cadetblue','forestgreen','slategrey','lightsteelblue','rebeccapurple',
 'darkmagenta','yellow','hotpink']
+
 
 sorted_colors=colors
 
@@ -1068,12 +1070,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                                 
     # First, check again that triage steps above didn't drop below min_spikes
     # Cat: TODO: 
-    #if ((pca_wf.shape[0] < CONFIG.cluster.min_spikes) or
-    #                            (idx_recovered.shape[0]<min_spikes_local)):
-    if (pca_wf.shape[0] < CONFIG.cluster.min_spikes): # or
-                                #(idx_recovered.shape[0]<min_spikes_local)):
-        print ("EXITING EARLY:  pca_wf.shape: ", pca_wf.shape, 
-               "  idx_recovered.shape: ", idx_recovered.shape)
+    if (pca_wf.shape[0] < CONFIG.cluster.min_spikes):
         return
         
     # Case #1: single cluster found
@@ -1154,7 +1151,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
 
             # always plot scatter distributions
             if plotting and gen<20:
-                split_type = 'mfm'
+                split_type = 'mfm multi split'
                 plot_clustering_scatter(fig, 
                             grid, x, gen,  
                             assignment2[idx_recovered],
@@ -1211,27 +1208,65 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
 
             #print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #3: no cluster > threshold")
 
-            # split using EM
-            gmm = GaussianMixture(n_components=2)
 
+            # loop over cluster until binary split achieved
+            ctr=0 
             dp = 1.0
-            #print ("  fitting EM")
-            for k in range(3): 
-                gmm.fit(pca_wf_all[idx_recovered])
-                labels = gmm.predict_proba(pca_wf_all[idx_recovered])
+            idx_temp_keep = np.arange(idx_recovered.shape[0])
+            while True:    
+                # use EM aglorithm to get labels for 2 clusters
+                if True: 
+                    # split using EM
+                    gmm = GaussianMixture(n_components=2)
+                    gmm.fit(pca_wf_all[idx_recovered])
+                    labels = gmm.predict_proba(pca_wf_all[idx_recovered])
 
-                temp_rhat = labels
-                temp_assignment = np.zeros(labels.shape[0], 'int32')
-                idx = np.where(labels[:,1]>0.5)[0]
-                temp_assignment[idx]=1
+                    temp_rhat = labels
+                    temp_assignment = np.zeros(labels.shape[0], 'int32')
+                    idx = np.where(labels[:,1]>0.5)[0]
+                    temp_assignment[idx]=1
                 
-                # test EM for unimodality
-                dp_new = test_unimodality(pca_wf_all[idx_recovered], temp_assignment)
-                if dp_new <dp:
-                    dp= dp_new
-                    vbParam2.rhat = labels
-                    assignment3 = temp_assignment
+                else:
+                   # split using mfm assignments                   
+                    temp_assignment = mfm_binary_split(
+                                        vbParam2.muhat, 
+                                        assignment2[idx_recovered])
+                                    
+                # check if any clusters smaller than min spikes
+
                 
+                counts = np.unique(temp_assignment, return_counts=True)[1]
+                if min(counts)<CONFIG.cluster.min_spikes:
+                    bigger_cluster_id = np.argmax(counts)
+                    idx_temp_keep = np.where(temp_assignment==bigger_cluster_id)[0]
+                    idx_recovered = idx_recovered[idx_temp_keep]
+
+                    if idx_recovered.shape[0]<CONFIG.cluster.min_spikes:
+                        return
+                    
+                else:
+                
+                    # test EM for unimodality
+                    dp_new = test_unimodality(pca_wf_all[idx_recovered], temp_assignment)
+                    
+                    # set initial values
+                    if ctr==0:
+                        assignment3 = temp_assignment
+                    
+                    # reset values for lower scores
+                    if dp_new <dp:
+                        dp= dp_new
+                        assignment3 = temp_assignment
+                    
+                    if ctr>2:
+                        # need to also ensure that we've not deleted any spikes after we
+                        #  saved the last lowest-dp avlue assignment
+                        if assignment3.shape[0] != temp_assignment.shape[0]:
+                            assignment3 = temp_assignment
+                        break
+                    
+                    ctr+=1
+            
             # Cat: TODO : read this from file
             diptest_thresh = 0.995
             norm_thresh = 1E-4
@@ -1247,7 +1282,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                     
                     # always plot scatter distributions
                     if gen<20:
-                        split_type = 'EM non_max-chan'
+                        split_type = 'mfm-binary - non max chan'
                         end_flag = 'cyan'                       
                         plot_clustering_scatter(fig, 
                             grid, x, gen,  
@@ -1278,9 +1313,9 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                     if gen<20:
                         # hack to expand the assignments back out to size of original
                         # data stream
-                        temp_assignment3 = np.zeros(pca_wf_all.shape[0],'int32')
-                        split_type = 'EM dp: '+ str(round(dp,5)) + '\n'+str(np.round(stability,2))
-                        end_flag = 'red'
+                        assignment3 = np.zeros(pca_wf_all.shape[0],'int32')
+                        split_type = 'mfm-binary, dp: '+ str(round(dp,5))
+                        end_flag = 'green'
                         plot_clustering_scatter(fig, 
                             grid, x, gen,  
                             assignment3,
@@ -1288,13 +1323,12 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                             vbParam2.rhat,
                             channel,
                             split_type,
-                            end_flag)
-                                                        
+                            end_flag)                   
                             
             else:
                 # plot EM labeled data
                 if gen<20 and plotting:
-                    split_type = 'EM dp: '+ str(round(dp,5))
+                    split_type = 'mfm-binary, dp: '+ str(round(dp,5))
                     plot_clustering_scatter(fig, 
                             grid, x, gen,  
                             assignment3,
@@ -1302,8 +1336,6 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                             vbParam2.rhat,
                             channel,
                             split_type)
-                            
-                            
 
                 if verbose:
                     print("chan "+str(channel)+' gen: '+str(gen)+ 
@@ -1733,9 +1765,9 @@ def test_unimodality(pca_wf, assignment, max_spikes = 10000):
     n_samples = np.max(np.unique(assignment, return_counts=True)[1])
 
     # compute diptest metric on current assignment+LDA
-    lda = LDA(n_components = 1)
-    trans = lda.fit_transform(pca_wf[:max_spikes], assignment[:max_spikes])
-    diptest = dp(trans.ravel())
+    #lda = LDA(n_components = 1)
+    #trans = lda.fit_transform(pca_wf[:max_spikes], assignment[:max_spikes])
+    #diptest = dp(trans.ravel())
     
     ## find indexes of data
     idx1 = np.where(assignment==0)[0]
@@ -1751,6 +1783,7 @@ def test_unimodality(pca_wf, assignment, max_spikes = 10000):
 
     ## run LDA on remaining data
     lda = LDA(n_components = 1)
+    #print (pca_wf[idx_total].shape, assignment[idx_total].shape) 
     trans = lda.fit_transform(pca_wf[idx_total], assignment[idx_total])
     diptest = dp(trans.ravel())
 
@@ -1774,24 +1807,20 @@ def KMEANS(data, n_clusters):
 def plot_clustering_template(fig, grid, ax_t, gen, N, wf, idx_recovered, CONFIG, 
                              colors, feat_chans, scale):
         # plot templates 
-        #ax_t = fig.add_subplot(grid[13:, 6:])
         wf_mean = wf[idx_recovered].mean(0)
         
         # plot template
         temp_clrs = []
-        #for k in assignment2[idx_recovered]:
-        #    temp_clrs.append(sorted_colors[k])
-
         ax_t.plot(CONFIG.geom[:,0]+
-                  np.arange(-wf_mean.shape[0]//2,wf_mean.shape[0]//2,1)[:,np.newaxis]/3., 
-                  CONFIG.geom[:,1] + wf_mean[:,:]*scale, c=sorted_colors[N%100], 
+                  np.arange(-wf_mean.shape[0]//2,wf_mean.shape[0]//2,1)[:,np.newaxis]/1.5, 
+                  CONFIG.geom[:,1] + wf_mean[:,:]*scale, c=colors[N%100], 
                   alpha=min(max(0.4, idx_recovered.shape[0]/1000.),1))
 
-        # plot feature channels
+        # plot feature channels as scatter dots
         for i in feat_chans:
              ax_t.scatter(CONFIG.geom[i,0]+gen, CONFIG.geom[i,1]+N, 
                                                     s = 30, 
-                                                    color = sorted_colors[N%100],
+                                                    color = colors[N%50],
                                                     alpha=1)
 
 
@@ -1846,8 +1875,7 @@ def plot_clustering_scatter(fig, grid, x, gen,
         labels = []
         for clust in clusters:
             patch_j = mpatches.Patch(color = sorted_colors[clust%100], 
-                    label = "size = {}, stability = {}".format(sizes[clust], 
-                    stability[clust]))
+                                    label = "size = "+str(int(sizes[clust])))
             
             labels.append(patch_j)
         
@@ -1870,11 +1898,9 @@ def plot_clustering_scatter(fig, grid, x, gen,
 
         # finish plotting
         ax.legend(handles = labels, fontsize=5)
-        ax.set_title(str(sizes.sum())+" "+split_type)
+        ax.set_title(str(sizes.sum())+", "+split_type+'\nmfm stability '+
+                     str(np.round(stability,2)))
        
-        
- 
-    
     
     
 def get_feat_channels_mad_cat(wf, n_feat_chans):
@@ -2320,8 +2346,9 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         # make arg list first
         channels = np.arange(CONFIG.recordings.n_channels)
         args_in = []
-        #for channel in channels:
-        for channel in [15, 31,32, 45]:
+        for channel in channels:
+        #for channel in [31,32,15,45]:
+        #for channel in [6,15,45,31,32]:
             args_in.append([channel, idx, proc_index,CONFIG2, 
                 spike_index_chunk, n_dim_pca, n_dim_pca_compression,
                 wf_start, wf_end, n_feat_chans, out_dir, 
@@ -2418,6 +2445,18 @@ def binary_reader(idx_list, buffer_size, standardized_filename,
     recording = recordings_1D.reshape(-1, n_channels)
     
     return recording
+    
+
+def mfm_binary_split(muhat, assignment_orig):
+    centers = muhat[:,:,0].T
+    label = AgglomerativeClustering(n_clusters=2).fit(centers).labels_
+    assignment = np.zeros(len(assignment_orig), 'int16')
+    for j in range(2):
+        clusters = np.where(label==j)[0]
+        for k in clusters:
+            assignment[assignment_orig==k] = j
+        
+    return assignment
     
     
 def cluster_channels_chunks_args(data_in):

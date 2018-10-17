@@ -258,7 +258,7 @@ def run_neural_network(standarized_path, standarized_params,
     path_to_spike_index_all = os.path.join(TMP_FOLDER, 'spike_index_all.npy')
     path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
 
-    path_to_standardized = os.path.join(TMP_FOLDER, 'preprocess', 'standarized.bin')
+    path_to_standardized = os.path.join(TMP_FOLDER, 'standarized.bin')
 
     paths = [path_to_score, path_to_spike_index_clear, path_to_spike_index_all]
     exists = [os.path.exists(p) for p in paths]
@@ -276,8 +276,6 @@ def run_neural_network(standarized_path, standarized_params,
         triage_fname = CONFIG.detect.neural_network_triage.filename
         n_channels = CONFIG.recordings.n_channels
       
-
-
         # open tensorflow for every chunk
         NND = NeuralNetDetector.load(detection_fname, detection_th,
                                      CONFIG.channel_index)
@@ -396,8 +394,8 @@ def run_neural_network(standarized_path, standarized_params,
                     #             .predict_with_threshold(x=wfs,
                     #                                     threshold=triage_th))
 
-                    score = NNAE.predict(wfs)
-                    rot = NNAE.load_rotation()
+                    score = NNAE.predict(wfs, sess)
+                    rot = NNAE.load_rotation(sess)
                     neighbors = n_steps_neigh_channels(CONFIG.neigh_channels,
                                                        2)
 
@@ -407,7 +405,7 @@ def run_neural_network(standarized_path, standarized_params,
 
                     # run AE nn; required for remove_axon function
                     # Cat: TODO: Do we really need this: can we get energy list faster?
-                    rot = NNAE.load_rotation()
+                    #rot = NNAE.load_rotation()
                     energy_ = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
                     energy_list.append(energy_)
                    

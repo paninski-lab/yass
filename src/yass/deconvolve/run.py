@@ -129,7 +129,7 @@ def run(spike_train_cluster,
     # Cat: TODO: make sure you don't miss chunks at end
     # Cat: TODO: do we want to do 10sec chunks in deconv?
     
-    n_iterations = 0
+    n_iterations = 1
     if n_iterations>0: 
         if not os.path.isdir(deconv_dir+'/initial/'):
             os.makedirs(deconv_dir+'/initial/')

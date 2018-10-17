@@ -97,14 +97,14 @@ class AutoEncoder(Model):
 
         return score_tf
 
-    def load_rotation(self):
+    def load_rotation(self, sess):
         """
         Load neural network rotation matrix
         """
 
-        with tf.Session() as sess:
-            self.saver.restore(sess, self.path_to_model)
-            rotation = sess.run(self.vars_dict['W_ae'])
+        #with tf.Session() as sess:
+        self.saver.restore(sess, self.path_to_model)
+        rotation = sess.run(self.vars_dict['W_ae'])
 
         return rotation
 
@@ -113,18 +113,17 @@ class AutoEncoder(Model):
         """
         self.saver.restore(sess, self.path_to_model)
 
-    def predict(self, waveforms):
+    def predict(self, waveforms, sess):
         """Apply autoencoder
         """
         n_waveforms, waveform_length, n_neigh = waveforms.shape
         self._validate_dimensions(waveform_length)
 
-        with tf.Session() as sess:
-            self.restore(sess)
+        #with tf.Session() as sess:
+        self.restore(sess)
 
-            scores = sess.run(self.score_tf,
+        scores = sess.run(self.score_tf,
                               feed_dict={self.x_tf: waveforms})
-
         return scores
 
     def fit(self, x_train):

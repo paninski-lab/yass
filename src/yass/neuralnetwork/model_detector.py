@@ -415,36 +415,36 @@ class NeuralNetDetector(Model):
         """
         output_tensors = [getattr(self, name+'_tf') for name in output_names]
 
-        if sess is None:
-            with tf.Session() as sess:
-                self.restore(sess)
+        #if sess is None:
+            #with tf.Session() as sess:
+                #self.restore(sess)
 
-                output = sess.run(output_tensors,
-                                  feed_dict={self.x_tf: recording})
-        else:
-            output = sess.run(output_tensors,
-                              feed_dict={self.x_tf: recording})
+                #output = sess.run(output_tensors,
+                                  #feed_dict={self.x_tf: recording})
+        #else:
+        output = sess.run(output_tensors,
+                      feed_dict={self.x_tf: recording})
 
         return output
 
-    def predict_proba(self, waveforms):
+    def predict_proba(self, sess, waveforms):
         """Predict probabilities
         """
         _, waveform_length, n_neighbors = waveforms.shape
         self._validate_dimensions(waveform_length, n_neighbors)
 
-        with tf.Session() as sess:
-            self.restore(sess)
+        #with tf.Session() as sess:
+        self.restore(sess)
 
-            output = sess.run(self.sigmoid_tr,
-                              feed_dict={self.x_tf_tr: waveforms})
+        output = sess.run(self.sigmoid_tr,
+                      feed_dict={self.x_tf_tr: waveforms})
 
         return output
 
-    def predict(self, waveforms):
+    def predict(self, waveforms, sess):
         """Predict classes (higher or equal than threshold)
         """
-        probas = self.predict_proba(waveforms)
+        probas = self.predict_proba(sess, waveforms)
         return (probas > self.threshold).astype('int')
 
     def fit(self, x_train, y_train, test_size=0.3, save_test_set=False):
