@@ -539,108 +539,113 @@ def recompute_templates_from_raw(templates,
     if not os.path.isdir(dir_name):
         os.makedirs(dir_name)
     
+    # Cat: TODO: parallelize this
     plotting = True
-    for unit in units:
-        fname = (deconv_chunk_dir+
-                 "/unit_{}.npz".format(
-                 str(unit).zfill(6)))
+
+    parmap.map(raw_templates_parallel, units, deconv_chunk_dir, dir_name)
     
-        data = np.load(fname)
 
-        templates_postrecluster = data['templates_postrecluster']
-        templates_cluster= data['templates_cluster']
-        spike_index_postrecluster = data['spike_index_postrecluster']
-        spike_index_cluster = data['spike_index_cluster']
+def raw_templates_parallel(unit, 
+                           deconv_chunk_dir,
+                           dir_name):
     
-        templates = []
-        for s in range(len(spike_index_postrecluster)):
-            spike_train = spike_index_postrecluster[s]-200
+    fname = (deconv_chunk_dir+"/unit_{}.npz".format(str(unit).zfill(6)))
+    data = np.load(fname)
 
-            wf = load_waveforms_from_memory(recording_chunk, 
-                                data_start, 
-                                offset, 
-                                spike_train, 
-                                spike_size)
-            template = wf.mean(0)
-            templates.append(template)    
+    templates_postrecluster = data['templates_postrecluster']
+    templates_cluster= data['templates_cluster']
+    spike_index_postrecluster = data['spike_index_postrecluster']
+    spike_index_cluster = data['spike_index_cluster']
 
-        fout = (dir_name+
-                "/unit_{}.npz".format(
-                str(unit).zfill(6)))
+    templates = []
+    for s in range(len(spike_index_postrecluster)):
+        spike_train = spike_index_postrecluster[s]-200
 
-        np.savez(fout, 
-                 spike_index=spike_index_postrecluster, 
-                 templates=templates)
+        wf = load_waveforms_from_memory(recording_chunk, 
+                            data_start, 
+                            offset, 
+                            spike_train, 
+                            spike_size)
+        template = wf.mean(0)
+        templates.append(template)    
+
+    fout = (dir_name+
+            "/unit_{}.npz".format(
+            str(unit).zfill(6)))
+
+    np.savez(fout, 
+             spike_index=spike_index_postrecluster, 
+             templates=templates)
+    
+    channel = templates[0].ptp(0).argmax(0)
+    # plot templates 
+    if plotting: 
+
+        fig = plt.figure(figsize =(40,20))
+        grid = plt.GridSpec(40,20,wspace = 0.0,hspace = 0.2)
+        ax = fig.add_subplot(grid[:, :])
+
+        yscale = 4.
+        xscale = 5.
+        labels = []
+        ctr=0
+        # plot original post-cluster template
+        ax.plot(CONFIG.geom[:,0]-30+
+                np.arange(-templates_cluster.shape[0]//2.,templates_cluster.shape[0]//2,1)[:,np.newaxis]/xscale, 
+                CONFIG.geom[:,1] + templates_cluster*yscale, 
+                c=sorted_colors[ctr%100])
+
+        patch_j = mpatches.Patch(color = sorted_colors[ctr%100], 
+                        label = "cluster :"+ str(spike_index_cluster.shape[0]))
+        labels.append(patch_j)
+        ctr+=1
         
-        channel = templates[0].ptp(0).argmax(0)
-        # plot templates 
-        if plotting: 
-
-            fig = plt.figure(figsize =(40,20))
-            grid = plt.GridSpec(40,20,wspace = 0.0,hspace = 0.2)
-            ax = fig.add_subplot(grid[:, :])
-
-            yscale = 4.
-            xscale = 5.
-            labels = []
-            ctr=0
-            # plot original post-cluster template
-            ax.plot(CONFIG.geom[:,0]-30+
-                    np.arange(-templates_cluster.shape[0]//2.,templates_cluster.shape[0]//2,1)[:,np.newaxis]/xscale, 
-                    CONFIG.geom[:,1] + templates_cluster*yscale, 
-                    c=sorted_colors[ctr%100])
+        # plot recluster templates - using residual data
+        for k in range(templates_postrecluster.shape[0]):
+            ax.plot(CONFIG.geom[:,0]-15+
+                    np.arange(-templates_postrecluster[k].shape[0]//2,
+                             templates_postrecluster[k].shape[0]//2,1)[:,np.newaxis]/xscale, 
+                             CONFIG.geom[:,1] + templates_postrecluster[k]*yscale, 
+                             c=sorted_colors[ctr%100])
 
             patch_j = mpatches.Patch(color = sorted_colors[ctr%100], 
-                            label = "cluster :"+ str(spike_index_cluster.shape[0]))
+                            label = "recluster+res: "+ str(spike_index_postrecluster[k].shape[0]))
             labels.append(patch_j)
             ctr+=1
+
+        # plot recomputed templates
+        templates = np.array(templates)
+        for k in range(templates.shape[0]):
+            ax.plot(CONFIG.geom[:,0]+
+                  np.arange(-templates[k].shape[0]//2,
+                             templates[k].shape[0]//2,1)[:,np.newaxis]/xscale, 
+                             CONFIG.geom[:,1] + templates[k]*yscale, 
+                             c=sorted_colors[ctr%100])
+
+            patch_j = mpatches.Patch(color = sorted_colors[ctr%100], 
+                            label = "recluster+raw: "+ str(spike_index_postrecluster[k].shape[0]))
+            labels.append(patch_j)
+            ctr+=1
+
+        # plot chan nubmers
+        for i in range(CONFIG.recordings.n_channels):
+            ax.text(CONFIG.geom[i,0], CONFIG.geom[i,1], str(i), alpha=0.4, 
+                                                            fontsize=30)
+            # fill bewteen 2SUs on each channel
+            ax.fill_between(CONFIG.geom[i,0] + np.arange(-61,0,1)/3.,
+                -yscale + CONFIG.geom[i,1], yscale + CONFIG.geom[i,1], 
+                color='black', alpha=0.05)
             
-            # plot recluster templates - using residual data
-            for k in range(templates_postrecluster.shape[0]):
-                ax.plot(CONFIG.geom[:,0]-15+
-                        np.arange(-templates_postrecluster[k].shape[0]//2,
-                                 templates_postrecluster[k].shape[0]//2,1)[:,np.newaxis]/xscale, 
-                                 CONFIG.geom[:,1] + templates_postrecluster[k]*yscale, 
-                                 c=sorted_colors[ctr%100])
-
-                patch_j = mpatches.Patch(color = sorted_colors[ctr%100], 
-                                label = "recluster+res: "+ str(spike_index_postrecluster[k].shape[0]))
-                labels.append(patch_j)
-                ctr+=1
-
-            # plot recomputed templates
-            templates = np.array(templates)
-            for k in range(templates.shape[0]):
-                ax.plot(CONFIG.geom[:,0]+
-                      np.arange(-templates[k].shape[0]//2,
-                                 templates[k].shape[0]//2,1)[:,np.newaxis]/xscale, 
-                                 CONFIG.geom[:,1] + templates[k]*yscale, 
-                                 c=sorted_colors[ctr%100])
-
-                patch_j = mpatches.Patch(color = sorted_colors[ctr%100], 
-                                label = "recluster+raw: "+ str(spike_index_postrecluster[k].shape[0]))
-                labels.append(patch_j)
-                ctr+=1
-
-            # plot chan nubmers
-            for i in range(CONFIG.recordings.n_channels):
-                ax.text(CONFIG.geom[i,0], CONFIG.geom[i,1], str(i), alpha=0.4, 
-                                                                fontsize=30)
-                # fill bewteen 2SUs on each channel
-                ax.fill_between(CONFIG.geom[i,0] + np.arange(-61,0,1)/3.,
-                    -yscale + CONFIG.geom[i,1], yscale + CONFIG.geom[i,1], 
-                    color='black', alpha=0.05)
-                
-            # plot max chan with big red dot                
-            ax.scatter(CONFIG.geom[channel,0]+5, CONFIG.geom[channel,1], s = 1000, 
-                                                    color = 'red',alpha=0.3)
-            # finish plotting
-            ax.legend(handles = labels, fontsize=15)
-            fig.suptitle("Unit: "+str(unit)+" chan: "+str(channel), fontsize=25)
-            fig.savefig(dir_name+"/unit_"+str(unit)+".png")
-            plt.close(fig)
-            
-            
+        # plot max chan with big red dot                
+        ax.scatter(CONFIG.geom[channel,0]+5, CONFIG.geom[channel,1], s = 1000, 
+                                                color = 'red',alpha=0.3)
+        # finish plotting
+        ax.legend(handles = labels, fontsize=15)
+        fig.suptitle("Unit: "+str(unit)+" chan: "+str(channel), fontsize=25)
+        fig.savefig(dir_name+"/unit_"+str(unit)+".png")
+        plt.close(fig)
+        
+        
 
 
 def compute_residual_function(CONFIG, idx_list_local,

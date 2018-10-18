@@ -1213,6 +1213,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
             ctr=0 
             dp = 1.0
             idx_temp_keep = np.arange(idx_recovered.shape[0])
+            cluster_idx_keep = np.arange(vbParam2.muhat.shape[0])
             while True:    
                 # use EM aglorithm to get labels for 2 clusters
                 if True: 
@@ -1228,19 +1229,28 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                 
                 else:
                    # split using mfm assignments                   
-                    temp_assignment = mfm_binary_split(
-                                        vbParam2.muhat, 
-                                        assignment2[idx_recovered])
-                                    
+                    #temp_assignment = mfm_binary_split2(
+                    #                    vbParam2.muhat, 
+                    #                    assignment2[idx_recovered])
+                    
+                    temp_assignment = mfm_binary_split2(
+                                        vbParam2.muhat[cluster_idx_keep], 
+                                        assignment2[idx_recovered],
+                                        cluster_idx_keep)
+                                        
+                    
                 # check if any clusters smaller than min spikes
-
-                
                 counts = np.unique(temp_assignment, return_counts=True)[1]
+
+                # update indexes if some clusters too small
                 if min(counts)<CONFIG.cluster.min_spikes:
                     bigger_cluster_id = np.argmax(counts)
                     idx_temp_keep = np.where(temp_assignment==bigger_cluster_id)[0]
                     idx_recovered = idx_recovered[idx_temp_keep]
 
+                    cluster_idx_keep = np.unique(assignment2[idx_recovered])
+                    
+                    # exit if cluster gets decimated below threshld
                     if idx_recovered.shape[0]<CONFIG.cluster.min_spikes:
                         return
                     
@@ -2447,16 +2457,35 @@ def binary_reader(idx_list, buffer_size, standardized_filename,
     return recording
     
 
-def mfm_binary_split(muhat, assignment_orig):
-    centers = muhat[:,:,0].T
-    label = AgglomerativeClustering(n_clusters=2).fit(centers).labels_
-    assignment = np.zeros(len(assignment_orig), 'int16')
-    for j in range(2):
-        clusters = np.where(label==j)[0]
-        for k in clusters:
-            assignment[assignment_orig==k] = j
+#def mfm_binary_split(muhat, assignment_orig):
+    #centers = muhat[:,:,0].T
+    #label = AgglomerativeClustering(n_clusters=2).fit(centers).labels_
+    #assignment = np.zeros(len(assignment_orig), 'int16')
+    #for j in range(2):
+        #clusters = np.where(label==j)[0]
+        #for k in clusters:
+            #assignment[assignment_orig==k] = j
         
-    return assignment
+    #return assignment
+    
+    
+def mfm_binary_split2(muhat, assignment_orig, cluster_index=None):
+    
+   centers = muhat[:,:,0].T
+
+   K, D = cetners.reshape
+   if cluster_index is None:
+       cluster_index = np.arange(K)
+
+   label = AgglomerativeClustering(n_clusters=2).fit(centers).labels_
+   assignment = np.zeros(len(assignment_orig), 'int16')
+   for j in range(2):
+       clusters = cluster_index[np.where(label==j)[0]]
+       for k in clusters:
+           assignment[assignment_orig==k] = j
+
+   return assignment
+    
     
     
 def cluster_channels_chunks_args(data_in):
