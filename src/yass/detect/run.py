@@ -371,7 +371,7 @@ def run_neural_network(standarized_path, standarized_params,
                 
                 # run detection on smaller chunks of data, e.g. 1 sec
                 # Cat: TODO: add last bit at end in case short
-                indexes = np.arange(0, standardized_recording.shape[0], sampling_rate)
+                indexes = np.arange(0, standardized_recording.shape[0], int(sampling_rate/2))
 
                 # run tensorflow over 1sec chunks in general
                 for ctr, index in enumerate(indexes[:-1]): 

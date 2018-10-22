@@ -931,7 +931,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
          n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
          upsample_factor, nshifts, assignment_global, spike_index, 
          scale, knn_triage_threshold, deconv_flag, templates, 
-         min_spikes_local):
+         min_spikes_local, feat_chans_cumulative):
     
     ''' Recursive clusteringn function
         channel: current channel being clusterd
@@ -983,7 +983,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
     
     # try to keep more std information    
     feat_chans, mc, robust_stds = get_feat_channels_mad_cat(wf_align, n_feat_chans)
-
+    feat_chans_cumulative.append(feat_chans[:5])
     # featurize using latest alg
     idx_keep, pca_wf = featurize_residual_triage_cat(wf_align, robust_stds, 
                                                   feat_chans, mc, n_feat_chans)
@@ -1183,7 +1183,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                      plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
                      mfm_threshold,  CONFIG, upsample_factor, nshifts, 
                      assignment_global, spike_index, scale, knn_triage_threshold, 
-                     deconv_flag, templates, min_spikes_local)
+                     deconv_flag, templates, min_spikes_local, feat_chans_cumulative)
 
             # run mfm on remaining data
             idx = np.in1d(assignment2, np.where(stability<=mfm_threshold)[0])
@@ -1199,7 +1199,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                     plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
                     mfm_threshold, CONFIG, upsample_factor, nshifts, 
                     assignment_global, spike_index, scale, knn_triage_threshold,
-                    deconv_flag, templates, min_spikes_local)
+                    deconv_flag, templates, min_spikes_local, feat_chans_cumulative)
 
 
 
@@ -1371,7 +1371,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                          plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
                          mfm_threshold,  CONFIG, upsample_factor, nshifts, 
                          assignment_global, spike_index, scale, knn_triage_threshold, 
-                         deconv_flag, templates, min_spikes_local)
+                         deconv_flag, templates, min_spikes_local, feat_chans_cumulative)
 
         
         
@@ -2246,7 +2246,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     
     ''' New voltage feature based clustering; parallel version
     ''' 
-    
     # Cat: TODO: Edu said the CONFIG file can be passed as a dictionary
     CONFIG2 = make_CONFIG2(CONFIG)
     
@@ -2280,7 +2279,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                                          'standarized.bin')
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
-
+    fp_len = int(20000*60*5*512)
     # make index list for chunk/parallel processing
     # Cat: TODO: read buffer size from CONFIG file
     # Cat: TODO: ensure all data read including residuals (there are multiple
@@ -2312,8 +2311,8 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
     # make chunk directory if not available:
     # save chunk in own directory to enable cumulative recovery 
-    chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
-                                                str(proc_index).zfill(6)
+    chunk_dir = os.path.join(CONFIG.data.root_folder,'tmp/cluster/chunk_'+str(proc_index).zfill(6))
+    
     if not os.path.isdir(chunk_dir):
         os.makedirs(chunk_dir)
        
@@ -2330,7 +2329,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         spike_index = spike_index_clear.copy()
     
     if os.path.exists(chunk_dir+'/complete.npy')==False:
-   
         # read recording chunk and share as global variable
         # Cat: TODO: recording_chunk should be a shared variable in 
         #            multiprocessing module;
@@ -2356,7 +2354,8 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         # make arg list first
         channels = np.arange(CONFIG.recordings.n_channels)
         args_in = []
-        for channel in channels:
+        #for channel in channels:
+        for channel in [315]:
         #for channel in [31,32,15,45]:
         #for channel in [6,15,45,31,32]:
             args_in.append([channel, idx, proc_index,CONFIG2, 
@@ -2397,7 +2396,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                                                 'standarized.bin')
             n_channels = CONFIG.recordings.n_channels
             root_folder = CONFIG.data.root_folder
-            
             recording_chunk = binary_reader(idx, 
                                             buffer_size, 
                                             standardized_filename, 
@@ -2416,7 +2414,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
 def binary_reader(idx_list, buffer_size, standardized_filename,
                   n_channels):
-
     # New indexes
     idx_start = idx_list[0]
     idx_stop = idx_list[1]
@@ -2560,7 +2557,7 @@ def cluster_channels_chunks_args(data_in):
         # read waveforms from recording chunk in memory
         # load waveforms with some padding then clip them
         # Cat: TODO: spike_padding to be read/fixed in CONFIG
-        spike_padding = 25
+        spike_padding = 5
         knn_triage_threshold = 0.90
         
         # Cat: TODO: recording_chunk is a global variable; 
@@ -2608,9 +2605,49 @@ def cluster_channels_chunks_args(data_in):
              triageflag, alignflag, plotting, n_feat_chans, 
              n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
              upsample_factor, nshifts, assignment_global, spike_index, scale,
-             knn_triage_threshold, deconv_flag, templates, min_spikes_local)
+             knn_triage_threshold, deconv_flag, templates, min_spikes_local, feat_chans_cumulative)
              
-                          
+        feat_chans_cumulative = np.unique(np.hstack(feat_chans_cumulative))
+        mean_wf = np.mean(wf[indexes_subsampled][:,spike_padding:-spike_padding], axis=0)
+        active_chans = np.where(mean_wf.ptp(0) > 0.5)[0]
+        feat_chans_missed = np.zeros(len(feat_chans_cumulative), 'bool')
+        for ii, cc in enumerate(feat_chans_cumulative):
+            if np.all(active_chans != cc):
+                feat_chans_missed[ii] = 1
+        missing_chans = feat_chans_cumulative[feat_chans_missed]    
+        
+        from matplotlib.lines import Line2D
+        
+        def robust_stds(data):
+            return np.median(np.abs(data - np.median(data, axis=0, keepdims=True)), axis=0)*1.4826
+        stds = robust_stds(wf[indexes_subsampled][:,spike_padding:-spike_padding]).max(0)
+        
+
+        def plot_with_geom(data, geom, time_scale=0.5, scale=10, color='k', mark_channels=None):
+            t, c = data.shape
+            plt.plot(geom[:,0]+np.arange(-data.shape[0],0)[:,np.newaxis]/time_scale, 
+                         geom[:,1] + data*scale, color=color, alpha=.8)
+            if mark_channels is not None:
+                plt.scatter(geom[mark_channels,0], geom[mark_channels,1], s=scale*10, color='green')
+            for j in range(c):
+                plt.text(geom[j,0], geom[j,1], str(j))
+
+        plt.figure(figsize=(20,12))
+        plt.subplot(111)
+        plot_with_geom(mean_wf, CONFIG.geom, time_scale=2, scale=20, color='k', mark_channels=active_chans)
+        plt.scatter(CONFIG.geom[channel,0], CONFIG.geom[channel,1], s=20*10, color='red')
+        plt.scatter(CONFIG.geom[missing_chans,0], CONFIG.geom[missing_chans,1], s=20*10, color='blue')
+        legend_elements = [Line2D([0], [0], marker='o', color='w', label='active channels',
+                           markerfacecolor='g', markersize=15),
+                           Line2D([0], [0], marker='o', color='w', label='main channel',
+                           markerfacecolor='r', markersize=15),
+                           Line2D([0], [0], marker='o', color='w', label='missed channels',
+                           markerfacecolor='b', markersize=15)]
+        plt.legend(handles=legend_elements)
+        plt.title(stds[missing_chans])
+        plt.savefig(chunk_dir+'/active_channels_'+str(channel)+'.png')
+
+
         # finish plotting 
         if plotting: 
             #ax_t = fig.add_subplot(grid[13:, 6:])
