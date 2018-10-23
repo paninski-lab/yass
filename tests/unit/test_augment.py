@@ -51,13 +51,13 @@ def test_can_make_clean(templates_uncropped):
     make_from_templates(templates_uncropped,
                         min_amplitude=2,
                         max_amplitude=10,
-                        n_per_template=100)
+                        n_per_amplitude_step=100)
 
 
 def test_can_make_collided(templates_uncropped):
     x_clean = make_from_templates(templates_uncropped, min_amplitude=2,
                                   max_amplitude=10,
-                                  n_per_template=100)
+                                  n_per_amplitude_step=100)
 
     make_collided(x_clean, x_clean, n_per_spike=1,
                   max_shift=3,
@@ -67,7 +67,7 @@ def test_can_make_collided(templates_uncropped):
 def test_can_make_spatially_misaligned(templates_uncropped):
     x_clean = make_from_templates(templates_uncropped, min_amplitude=2,
                                   max_amplitude=10,
-                                  n_per_template=100)
+                                  n_per_amplitude_step=100)
 
     make_spatially_misaligned(x_clean, n_per_spike=1)
 
@@ -76,7 +76,7 @@ def test_can_make_temporally_misaligned(templates_uncropped):
     x_clean = make_from_templates(templates_uncropped,
                                   min_amplitude=2,
                                   max_amplitude=10,
-                                  n_per_template=100)
+                                  n_per_amplitude_step=100)
 
     make_temporally_misaligned(x_clean, n_per_spike=1)
 

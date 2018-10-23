@@ -59,7 +59,7 @@ def draw_with_group_probabilities(elements, probabilities):
 
 
 def make_from_templates(templates, min_amplitude, max_amplitude,
-                        n_per_amplitude_range, probabilities=None,
+                        n_per_amplitude_step, probabilities=None,
                         return_metadata=False,
                         n_repeat=1):
     """Make spikes with varying amplitudes from templates
@@ -77,7 +77,7 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
         Maximum value allowed for the maximum absolute amplitude of the
         isolated spike on its main channel
 
-    n_per_amplitude_range: int
+    n_per_amplitude_step: int
         How many scaled versions are created between min_amplitude and
         max_amplitude
 
@@ -92,7 +92,7 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
 
     Returns
     -------
-    numpy.ndarray (n_templates * n_per_amplitude_range,
+    numpy.ndarray (n_templates * n_per_amplitude_step,
     waveform_length, n_channels)
         Clean spikes
     """
@@ -104,15 +104,15 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
 
     n_templates, waveform_length, n_neighbors = templates.shape
 
-    n_per_template = n_per_amplitude_range * n_repeat
+    n_per_template = n_per_amplitude_step * n_repeat
 
     x = np.zeros((n_per_template * n_templates,
                   waveform_length, n_neighbors))
 
     d = max_amplitude - min_amplitude
 
-    amps_range = (min_amplitude + np.arange(n_per_amplitude_range)
-                  * d / (n_per_amplitude_range - 1))
+    amps_range = (min_amplitude + np.arange(n_per_amplitude_step)
+                  * d / (n_per_amplitude_step - 1))
 
     if probabilities is not None:
         amps_range = draw_with_group_probabilities(amps_range, probabilities)
@@ -139,7 +139,7 @@ def make_from_templates(templates, min_amplitude, max_amplitude,
           (k + 1) * n_per_template] = spikes_in_range_repeated
 
     if return_metadata:
-        ids = [[k]*n_per_amplitude_range for k in range(n_templates)]
+        ids = [[k]*n_per_amplitude_step for k in range(n_templates)]
         ids = np.array([item for sublist in ids for item in sublist])
         metadata = dict(ids=ids)
         return yarr.ArrayWithMetadata(x, metadata)
