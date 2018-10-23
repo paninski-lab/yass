@@ -1,7 +1,8 @@
 import yass
 from yass import preprocess
 from yass import detect
-from yass.detect import nnet, threshold, nnet_experimental
+from yass.detect import nnet, threshold
+# from yass.detect import nnet_experimental
 
 
 def test_can_detect_with_threshold(path_to_config, make_tmp_folder):
