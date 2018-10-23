@@ -59,8 +59,8 @@ def run(standarized_path, standarized_params,
         max_memory = (CONFIG.resources.max_memory_gpu if GPU_ENABLED else
                       CONFIG.resources.max_memory)
 
-        # make tensorflow tensors and neural net classes
-        n_channels = CONFIG.recordings.n_channels
+        n_channels = standarized_params['n_channels']
+        dtype = standarized_params['dtype']
 
         # open tensorflow for every chunk
         NND = NeuralNetDetector.load(detector, detector_threshold,
@@ -71,9 +71,7 @@ def run(standarized_path, standarized_params,
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
 
         # compute len of recording
-        filename_dat = os.path.join(CONFIG.data.root_folder,
-                                    CONFIG.data.recordings)
-        fp = np.memmap(filename_dat, dtype='int16', mode='r')
+        fp = np.memmap(standarized_path, dtype=dtype, mode='r')
         fp_len = fp.shape[0] / n_channels
 
         # compute batch indexes
