@@ -981,7 +981,8 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
         print("chan/unit "+str(channel)+' gen: '+str(gen)+' getting feat chans')
     
     # try to keep more std information    
-    feat_chans, mc, robust_stds = get_feat_channels_mad_cat(wf_align, n_feat_chans)
+    feat_chans, mc, robust_stds = get_feat_channels_mad_cat(
+                                            wf_align[:10000], n_feat_chans)
 
     # featurize using latest alg
     idx_keep, pca_wf = featurize_residual_triage_cat(wf_align, robust_stds, 
