@@ -1193,8 +1193,12 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                                             str(wf[idx_keep][idx].shape))
                 triageflag = False
                 alignflag = True
-                RRR3_noregress_recovery_dynamic_features(channel, wf[idx_keep][idx],
-                    sic[idx_keep][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
+                
+                # overwrite wf with current index to remove data from memory
+                wf = wf[idx_keep][idx]
+                sic = sic[idx_keep][idx]
+                RRR3_noregress_recovery_dynamic_features(channel, wf,
+                    sic, gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
                     plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
                     mfm_threshold, CONFIG, upsample_factor, nshifts, 
                     assignment_global, spike_index, scale, knn_triage_threshold,
@@ -1351,7 +1355,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                                     " no stable clusters, binary split "+
                                     str(wf[idx_keep][idx_recovered].shape))
 
-                # loop over dual split
+                # loop over binary split
                 for clust in np.unique(assignment3): #np.where(stability>mfm_threshold)[0]:
                     idx = np.where(assignment3==clust)[0]
                     
@@ -2343,8 +2347,8 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         root_folder = CONFIG.data.root_folder
         
         print ("  loading recording chunk")
-        recording_chunk = binary_reader(idx, buffer_size, 
-                    standardized_filename, n_channels)
+        #recording_chunk = binary_reader(idx, buffer_size, 
+        #            standardized_filename, n_channels)
 
         # select only spike_index_clear that is in the chunk
         indexes_chunk = np.where(
@@ -2574,18 +2578,19 @@ def cluster_channels_chunks_args(data_in):
         
         # Cat: TODO: recording_chunk is a global variable; 
         #            this might cause problems eventually
-        #wf = load_waveforms_from_memory(recording_chunk, 
-                                        #data_start, 
-                                        #offset, 
-                                        #spike_train, 
-                                        #spike_size)
-                                        
-        wf = load_waveforms_from_disk(standardized_filename, 
-                                      geometry_file,
-                                      n_channels, 
-                                      spike_train, 
-                                      spike_size)    
-        print (wf.shape)
+        if False: 
+            wf = load_waveforms_from_memory(recording_chunk, 
+                                            data_start, 
+                                            offset, 
+                                            spike_train, 
+                                            spike_size)
+        else:
+            wf = load_waveforms_from_disk(standardized_filename, 
+                                          geometry_file,
+                                          n_channels, 
+                                          spike_train, 
+                                          spike_size)    
+
         ''' *****************************************************
             ************* PCA Based spike triage ****************
             *****************************************************
