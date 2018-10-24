@@ -573,9 +573,9 @@ class RecordingExplorer(object):
                 continue
             wfs.append(temp)
 
-            if i % 10000 == 0 and i > 0:
-                self.logger.info('Loaded {:,}/{:,} waveforms...'
-                                 .format(i, total))
+            #if i % 10000 == 0 and i > 0:
+            #    self.logger.info('Loaded {:,}/{:,} waveforms...'
+            #                     .format(i, total))
 
         #self.logger.info('Loaded all {:,} waveforms...'.format(total))
     

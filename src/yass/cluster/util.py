@@ -19,7 +19,6 @@ from scipy.sparse import lil_matrix
 from statsmodels import robust
 from scipy.signal import argrelmin
 import matplotlib
-import progressbar
 from sklearn.mixture import GaussianMixture
 
 import matplotlib.pyplot as plt
@@ -2266,6 +2265,8 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     n_channels = CONFIG.recordings.n_channels
     sampling_rate = CONFIG.recordings.sampling_rate
     root_folder = CONFIG.data.root_folder
+    geometry_file = os.path.join(CONFIG.data.root_folder, 
+                                 CONFIG.data.geometry)
 
     # select length of recording to chunk data for processing;
     # Cat: TODO: read this value from CONFIG; use initial_batch_size
@@ -2362,7 +2363,10 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
             args_in.append([channel, idx, proc_index,CONFIG2, 
                 spike_index_chunk, n_dim_pca, n_dim_pca_compression,
                 wf_start, wf_end, n_feat_chans, out_dir, 
-                mfm_threshold, upsample_factor, nshifts, min_spikes_local])
+                mfm_threshold, upsample_factor, nshifts, min_spikes_local,
+                standardized_filename, 
+                geometry_file,
+                n_channels])
 
         # Cat: TODO: have single-core option also here     
         print ("  starting clustering")
@@ -2511,6 +2515,11 @@ def cluster_channels_chunks_args(data_in):
     upsample_factor = data_in[12]
     nshifts = data_in[13]
     min_spikes_local = data_in[14]
+    
+    standardized_filename = data_in[15] 
+    geometry_file = data_in[16]
+    n_channels = data_in[17]
+                
 
     data_start = idx_list[0]
     data_end = idx_list[1]
@@ -2560,17 +2569,23 @@ def cluster_channels_chunks_args(data_in):
         # read waveforms from recording chunk in memory
         # load waveforms with some padding then clip them
         # Cat: TODO: spike_padding to be read/fixed in CONFIG
-        spike_padding = 25
+        #spike_padding = 25
         knn_triage_threshold = 0.90
         
         # Cat: TODO: recording_chunk is a global variable; 
         #            this might cause problems eventually
-        wf = load_waveforms_from_memory(recording_chunk, 
-                                        data_start, 
-                                        offset, 
-                                        spike_train, 
-                                        spike_size)
-       
+        #wf = load_waveforms_from_memory(recording_chunk, 
+                                        #data_start, 
+                                        #offset, 
+                                        #spike_train, 
+                                        #spike_size)
+                                        
+        wf = load_waveforms_from_disk(standardized_filename, 
+                                      geometry_file,
+                                      n_channels, 
+                                      spike_train, 
+                                      spike_size)    
+        print (wf.shape)
         ''' *****************************************************
             ************* PCA Based spike triage ****************
             *****************************************************
@@ -2603,7 +2618,7 @@ def cluster_channels_chunks_args(data_in):
         deconv_flag = False
 
         RRR3_noregress_recovery_dynamic_features(channel, 
-             wf[indexes_subsampled][:,spike_padding:-spike_padding], 
+             wf[indexes_subsampled], 
              spike_train[indexes_subsampled], gen, fig, grid, x, ax_t, 
              triageflag, alignflag, plotting, n_feat_chans, 
              n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
@@ -4272,9 +4287,28 @@ def load_waveforms_from_memory_merge(recording, data_start, offset, spike_train,
     return waveforms    
 
 
+def load_waveforms_from_disk(standardized_file, 
+                             geometry_file,
+                             n_channels, 
+                             spike_train, 
+                             spike_size):
 
+    #from yass.explore.explorers import RecordingExplorer
+    #standardized_file = '/media/cat/250GB/liam/49chans/tmp/standarized.bin'
+    #geometry_file = '/media/cat/250GB/liam/49chans/ej49_geometry1.txt'
+    #n_channels = 49
 
+    # initialize rec explorer
+    # Cat: TODO is there a faster version of this?!
+    re = RecordingExplorer(standardized_file, path_to_geom = geometry_file, 
+                           spike_size = 30, neighbor_radius = 100, 
+                           dtype = 'float32',n_channels = n_channels, 
+                           data_order = 'samples')
 
+    spikes = spike_train[:,0]
+    wf_data = re.read_waveforms(spikes) #
+
+    return (wf_data)
 
 def align_singletrace_lastchan(wf, CONFIG, upsample_factor = 5, nshifts = 15, 
              ref = None):
