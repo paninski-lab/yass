@@ -13,6 +13,7 @@ from sklearn.cluster import AgglomerativeClustering
 
 from yass.explore.explorers import RecordingExplorer
 from yass.templates.util import strongly_connected_components_iterative
+from yass.geometry import n_steps_neigh_channels
 from yass import mfm
 from yass.empty import empty
 from scipy.sparse import lil_matrix
@@ -981,13 +982,12 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
     if verbose:
         print("chan/unit "+str(channel)+' gen: '+str(gen)+' getting feat chans')
     
-    # try to keep more std information    
+    # try to keep more std information
     feat_chans, mc, robust_stds = get_feat_channels_mad_cat(wf_align, n_feat_chans)
-    feat_chans_cumulative.append(feat_chans[:5])
     # featurize using latest alg
     idx_keep, pca_wf = featurize_residual_triage_cat(wf_align, robust_stds, 
                                                   feat_chans, mc, n_feat_chans)
-    
+
     if verbose:
         print("chan "+str(channel)+' gen: '+str(gen)+", feat chans: "+
                   str(feat_chans[:n_feat_chans]) + ", max_chan: "+ str(mc))
@@ -1808,10 +1808,10 @@ def test_unimodality(pca_wf, assignment, max_spikes = 10000):
 
 
 def KMEANS(data, n_clusters):
-   from sklearn import cluster, datasets
-   clusters = cluster.KMeans(n_clusters, max_iter=1000, n_jobs=-1, random_state = 121)
-   clusters.fit(data)
-   return clusters.labels_
+    from sklearn import cluster, datasets
+    clusters = cluster.KMeans(n_clusters, max_iter=1000, n_jobs=-1, random_state = 121)
+    clusters.fit(data)
+    return clusters.labels_
 
 
 def plot_clustering_template(fig, grid, ax_t, gen, N, wf, idx_recovered, CONFIG, 
@@ -1836,29 +1836,29 @@ def plot_clustering_template(fig, grid, ax_t, gen, N, wf, idx_recovered, CONFIG,
 
 def get_connected_components(rhat, assignment):
     
-   KK = rhat.shape[1]
-   mask = rhat > 0.1
-   connection = np.zeros((KK, KK))
-   for k in range(KK):
-       temp = rhat[mask[:, k]]
-       connection[k] = np.mean(temp[:, [k]]/(temp + temp[:, [k]]), 0) < 0.9
-   connection = (connection + connection.T) > 0
+    KK = rhat.shape[1]
+    mask = rhat > 0.1
+    connection = np.zeros((KK, KK))
+    for k in range(KK):
+        temp = rhat[mask[:, k]]
+        connection[k] = np.mean(temp[:, [k]]/(temp + temp[:, [k]]), 0) < 0.9
+    connection = (connection + connection.T) > 0
 
-   edges = {x: np.where(connection[x])[0] for x in range(KK)}
-   groups = list()
-   for scc in strongly_connected_components_iterative(np.arange(KK), edges):
-       groups.append(np.array(list(scc)))
+    edges = {x: np.where(connection[x])[0] for x in range(KK)}
+    groups = list()
+    for scc in strongly_connected_components_iterative(np.arange(KK), edges):
+        groups.append(np.array(list(scc)))
 
-   ccomps = np.zeros(len(assignment), 'int16')
-   rhat_new = np.zeros((rhat.shape[0], len(groups)))
-   for k in range(len(groups)):
-       for j in groups[k]:
-           ccomps[assignment==j] = k
+    ccomps = np.zeros(len(assignment), 'int16')
+    rhat_new = np.zeros((rhat.shape[0], len(groups)))
+    for k in range(len(groups)):
+        for j in groups[k]:
+            ccomps[assignment==j] = k
 
-       rhat_new[:, k] = np.sum(rhat[:, groups[k]], axis=1)
+        rhat_new[:, k] = np.sum(rhat[:, groups[k]], axis=1)
 
-   return ccomps, rhat_new
-   
+    return ccomps, rhat_new
+
    
                             
 def plot_clustering_scatter(fig, grid, x, gen, 
@@ -2003,7 +2003,7 @@ def featurize_residual_triage_cat(wf, robust_stds, feat_chans, max_chan,
                                   min_rank=2, max_rank=5):
     
     # select argrelmax of mad metric greater than trehsold
-    #n_feat_chans = 5
+    n_feat_chans = np.min((n_feat_chans, len(feat_chans)))
 
     n_features_per_channel = 2
     wf_final = []
@@ -2354,8 +2354,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         # make arg list first
         channels = np.arange(CONFIG.recordings.n_channels)
         args_in = []
-        #for channel in channels:
-        for channel in [315]:
+        for channel in channels:
         #for channel in [31,32,15,45]:
         #for channel in [6,15,45,31,32]:
             args_in.append([channel, idx, proc_index,CONFIG2, 
@@ -2365,7 +2364,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
         # Cat: TODO: have single-core option also here     
         print ("  starting clustering")
-        if CONFIG.resources.multi_processing:       
+        if CONFIG.resources.multi_processing:
             p = mp.Pool(CONFIG.resources.n_processors)
             res = p.map_async(cluster_channels_chunks_args, args_in).get(988895)
             p.close()
@@ -2468,21 +2467,32 @@ def binary_reader(idx_list, buffer_size, standardized_filename,
     
 def mfm_binary_split2(muhat, assignment_orig, cluster_index=None):
     
-   centers = muhat[:,:,0].T
+    centers = muhat[:,:,0].T
 
-   K, D = cetners.reshape
-   if cluster_index is None:
-       cluster_index = np.arange(K)
+    K, D = cetners.reshape
+    if cluster_index is None:
+        cluster_index = np.arange(K)
 
-   label = AgglomerativeClustering(n_clusters=2).fit(centers).labels_
-   assignment = np.zeros(len(assignment_orig), 'int16')
-   for j in range(2):
-       clusters = cluster_index[np.where(label==j)[0]]
-       for k in clusters:
-           assignment[assignment_orig==k] = j
+    label = AgglomerativeClustering(n_clusters=2).fit(centers).labels_
+    assignment = np.zeros(len(assignment_orig), 'int16')
+    for j in range(2):
+        clusters = cluster_index[np.where(label==j)[0]]
+        for k in clusters:
+            assignment[assignment_orig==k] = j
 
-   return assignment
-    
+    return assignment
+
+def connected_channels(channel_list, ref_channel, neighbors, keep=None):
+    if keep is None:
+        keep = np.zeros(len(neighbors), 'bool')
+    if keep[ref_channel] == 1:
+        return keep
+    else:
+        keep[ref_channel] = 1
+        chans = channel_list[neighbors[ref_channel][channel_list]]
+        for c in chans:
+            keep = connected_channels(channel_list, c, neighbors, keep=keep)
+        return keep
     
     
 def cluster_channels_chunks_args(data_in):
@@ -2549,7 +2559,7 @@ def cluster_channels_chunks_args(data_in):
         #       Subsammpling is done inside clustering function.
         indexes_subsampled = np.arange(indexes.shape[0])
         #indexes_subsampled = np.random.choice(indexes,min(10000, indexes.shape[0]))
-                
+
         spike_train = spike_indexes_chunk[indexes]
         #print ('Starting channel: '+str(channel)+ ', events: '+
         #                                            str(spike_train.shape[0]))
@@ -2562,6 +2572,7 @@ def cluster_channels_chunks_args(data_in):
         
         # Cat: TODO: recording_chunk is a global variable; 
         #            this might cause problems eventually
+
         wf = load_waveforms_from_memory(recording_chunk, 
                                         data_start, 
                                         offset, 
@@ -2581,7 +2592,7 @@ def cluster_channels_chunks_args(data_in):
                                                    spike_padding)
         else:
             indexes_subsampled=np.arange(wf.shape[0])
-           
+            
         # plotting parameters
         if plotting:
             # Cat: TODO: this global x is not necessary, should make it local
@@ -2598,56 +2609,26 @@ def cluster_channels_chunks_args(data_in):
         
         # indicate whether running the RRR3 function initially or post deconv
         deconv_flag = False
-
+        
+        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 1)             
+        mean_wf = np.mean(wf_align, axis=0)
+        active_chans = np.where(mean_wf.ptp(0) > 0.5)[0]
+        active_chans = np.where(connected_channels(active_chans, channel, neighbors))[0]
+        if verbose:
+            print("chan "+str(channel)+' gen: '+str(gen)+", number of active chans: "+
+                      str(len(active_chans)))     
+            if len(active_chans) == 512:
+                print(np.sum(mean_wf.ptp(0) > 0.5))
+               
         RRR3_noregress_recovery_dynamic_features(channel, 
              wf[indexes_subsampled][:,spike_padding:-spike_padding], 
              spike_train[indexes_subsampled], gen, fig, grid, x, ax_t, 
              triageflag, alignflag, plotting, n_feat_chans, 
              n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
              upsample_factor, nshifts, assignment_global, spike_index, scale,
-             knn_triage_threshold, deconv_flag, templates, min_spikes_local, feat_chans_cumulative)
+             knn_triage_threshold, deconv_flag, templates, min_spikes_local,
+             feat_chans_cumulative)
              
-        feat_chans_cumulative = np.unique(np.hstack(feat_chans_cumulative))
-        mean_wf = np.mean(wf[indexes_subsampled][:,spike_padding:-spike_padding], axis=0)
-        active_chans = np.where(mean_wf.ptp(0) > 0.5)[0]
-        feat_chans_missed = np.zeros(len(feat_chans_cumulative), 'bool')
-        for ii, cc in enumerate(feat_chans_cumulative):
-            if np.all(active_chans != cc):
-                feat_chans_missed[ii] = 1
-        missing_chans = feat_chans_cumulative[feat_chans_missed]    
-        
-        from matplotlib.lines import Line2D
-        
-        def robust_stds(data):
-            return np.median(np.abs(data - np.median(data, axis=0, keepdims=True)), axis=0)*1.4826
-        stds = robust_stds(wf[indexes_subsampled][:,spike_padding:-spike_padding]).max(0)
-        
-
-        def plot_with_geom(data, geom, time_scale=0.5, scale=10, color='k', mark_channels=None):
-            t, c = data.shape
-            plt.plot(geom[:,0]+np.arange(-data.shape[0],0)[:,np.newaxis]/time_scale, 
-                         geom[:,1] + data*scale, color=color, alpha=.8)
-            if mark_channels is not None:
-                plt.scatter(geom[mark_channels,0], geom[mark_channels,1], s=scale*10, color='green')
-            for j in range(c):
-                plt.text(geom[j,0], geom[j,1], str(j))
-
-        plt.figure(figsize=(20,12))
-        plt.subplot(111)
-        plot_with_geom(mean_wf, CONFIG.geom, time_scale=2, scale=20, color='k', mark_channels=active_chans)
-        plt.scatter(CONFIG.geom[channel,0], CONFIG.geom[channel,1], s=20*10, color='red')
-        plt.scatter(CONFIG.geom[missing_chans,0], CONFIG.geom[missing_chans,1], s=20*10, color='blue')
-        legend_elements = [Line2D([0], [0], marker='o', color='w', label='active channels',
-                           markerfacecolor='g', markersize=15),
-                           Line2D([0], [0], marker='o', color='w', label='main channel',
-                           markerfacecolor='r', markersize=15),
-                           Line2D([0], [0], marker='o', color='w', label='missed channels',
-                           markerfacecolor='b', markersize=15)]
-        plt.legend(handles=legend_elements)
-        plt.title(stds[missing_chans])
-        plt.savefig(chunk_dir+'/active_channels_'+str(channel)+'.png')
-
-
         # finish plotting 
         if plotting: 
             #ax_t = fig.add_subplot(grid[13:, 6:])
