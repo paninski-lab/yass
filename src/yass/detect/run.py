@@ -312,9 +312,9 @@ def run_neural_network(standarized_path, standarized_params,
                 indexes[k + 1] - indexes[k] + buffer_size
             ])
 
-        idx_list = np.int64(np.vstack(idx_list))
+        idx_list = np.int64(np.vstack(idx_list))[:20]
 
-        idx_list = idx_list
+        #idx_list = idx_list
         
         logger.info("# of chunks: %i", len(idx_list))
         

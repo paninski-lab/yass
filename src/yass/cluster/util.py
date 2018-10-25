@@ -2365,14 +2365,13 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         
         # Cat: TODO: this parallelization may not be optimally asynchronous
         # make arg list first
+        chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
+                                                    str(proc_index).zfill(6)
         channels = np.arange(CONFIG.recordings.n_channels)
         args_in = []
         for channel in channels:
         #for channel in [31,32,15,45]:
         #for channel in [6,15,45,31,32]:
-            # save chunk in own directory to enable cumulative recovery 
-            chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
-                                                        str(idx).zfill(6)
 
             # check to see if chunk + channel already completed
             filename_postclustering = (chunk_dir + "/channel_"+
@@ -2381,7 +2380,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
             if os.path.exists(filename_postclustering):
                 print ("skipping file: ", filename_postclustering)
                 continue 
-                
                 
             args_in.append([channel, idx, proc_index,CONFIG2, 
                 spike_index_chunk, n_dim_pca, n_dim_pca_compression,
