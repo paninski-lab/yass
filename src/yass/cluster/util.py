@@ -980,7 +980,8 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
     if verbose:
         print("chan/unit "+str(channel)+' gen: '+str(gen)+' getting feat chans')
     
-    # try to keep more std information    
+    # Cat: TODO: is 10k spikes enough? 
+    # Cat: TODO: what do these metrics look like for 100 spikes!?; should we simplify for low spike count?
     feat_chans, mc, robust_stds = get_feat_channels_mad_cat(
                                             wf_align[:10000], n_feat_chans)
 
@@ -1118,8 +1119,11 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
 
             # plot template if done
             if plotting:
-                plot_clustering_template(fig, grid, ax_t, gen, N, wf_align, idx_recovered, 
-                                        CONFIG, colors, feat_chans, scale)
+                #plot_clustering_template(fig, grid, ax_t, gen, N, wf_align, idx_recovered, 
+                #                        CONFIG, colors, feat_chans, scale)
+                plot_clustering_template(fig, grid, ax_t, gen, N, wf_align[idx_recovered].mean(0), 
+                                         idx_recovered, 
+                                         CONFIG, colors, feat_chans, scale)
 
                 # always plot scatter distributions
                 if gen<20:
@@ -1320,9 +1324,11 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
 
                 # plot template if done
                 if plotting:
-                    plot_clustering_template(fig, grid, ax_t, gen, N, wf_align, idx_recovered, 
-                                            CONFIG, colors, feat_chans, scale)
-
+                    plot_clustering_template(fig, grid, ax_t, gen, N, 
+                                         wf_align[idx_recovered].mean(0), 
+                                         idx_recovered, 
+                                         CONFIG, colors, feat_chans, scale)
+                                         
                     # always plot scatter distributions
                     if gen<20:
                         # hack to expand the assignments back out to size of original
@@ -1818,10 +1824,10 @@ def KMEANS(data, n_clusters):
    return clusters.labels_
 
 
-def plot_clustering_template(fig, grid, ax_t, gen, N, wf, idx_recovered, CONFIG, 
+def plot_clustering_template(fig, grid, ax_t, gen, N, wf_mean, idx_recovered, CONFIG, 
                              colors, feat_chans, scale):
         # plot templates 
-        wf_mean = wf[idx_recovered].mean(0)
+        #wf_mean = wf[idx_recovered].mean(0)
         
         # plot template
         temp_clrs = []
