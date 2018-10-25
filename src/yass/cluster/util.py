@@ -1138,7 +1138,6 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                             split_type,
                             end_flag)
                             
-                            
     # Case #2: multiple clusters
     else:
         mask = vbParam2.rhat[idx_recovered]>0
@@ -1288,7 +1287,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
             # Cat: TODO : read this from file
             diptest_thresh = 0.995
             norm_thresh = 1E-4
-            # don't exit on gen0 split ever
+            # don' exit on gen0 split ever
             if (dp> diptest_thresh and gen!=0):
             #if (dp> diptest_thresh) and (norm>norm_thresh):
                 #assignment3[:]=0
@@ -2371,6 +2370,19 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         for channel in channels:
         #for channel in [31,32,15,45]:
         #for channel in [6,15,45,31,32]:
+            # save chunk in own directory to enable cumulative recovery 
+            chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
+                                                        str(idx).zfill(6)
+
+            # check to see if chunk + channel already completed
+            filename_postclustering = (chunk_dir + "/channel_"+
+                                                            str(channel)+".npz")
+            # skip 
+            if os.path.exists(filename_postclustering):
+                print ("skipping file: ", filename_postclustering)
+                continue 
+                
+                
             args_in.append([channel, idx, proc_index,CONFIG2, 
                 spike_index_chunk, n_dim_pca, n_dim_pca_compression,
                 wf_start, wf_end, n_feat_chans, out_dir, 
@@ -2536,11 +2548,11 @@ def cluster_channels_chunks_args(data_in):
     data_end = idx_list[1]
     offset = idx_list[2]
     
-    # save chunk in own directory to enable cumulative recovery 
+    ## save chunk in own directory to enable cumulative recovery 
     chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
                                                 str(proc_index).zfill(6)
-    if not os.path.isdir(chunk_dir):
-        os.makedirs(chunk_dir)
+    #if not os.path.isdir(chunk_dir):
+        #os.makedirs(chunk_dir)
 
     # check to see if chunk + channel already completed
     filename_postclustering = (chunk_dir + "/channel_"+
