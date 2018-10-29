@@ -71,7 +71,7 @@ class MatchPursuit_objectiveUpsample(object):
 
     def __init__(self, temps, deconv_chunk_dir, standardized_filename, 
                  max_iter, refrac_period=60, upsample=1, threshold=10., 
-                 conv_approx_rank=5, n_processors=1,multi_processing=False,
+                 conv_approx_rank=10, n_processors=1,multi_processing=False,
                  vis_su=2., 
                  keep_iterations=False):
         """Sets up the deconvolution object.
@@ -112,25 +112,7 @@ class MatchPursuit_objectiveUpsample(object):
         # Upsample and downsample time shifted versions
         # Dynamic Upsampling Setup; function for upsampling based on PTP
         # Cat: TODO find better ptp-> upsample function
-        if upsample < 1:
-            self.unit_up_factor = np.power(
-                    2, np.floor(np.log2(np.max(temps.ptp(axis=0), axis=0))))
-            self.up_factor = min(32, int(np.max(self.unit_up_factor)))
-            self.unit_up_factor[self.unit_up_factor > 32] = 32
-            self.up_up_map = np.zeros(
-                    self.n_unit * self.up_factor, dtype=np.int32)
-            for i in range(self.n_unit):
-                u_idx = i * self.up_factor
-                u_factor = self.unit_up_factor[i]
-                skip = self.up_factor // u_factor
-                self.up_up_map[u_idx:u_idx + self.up_factor] = u_idx  + np.arange(
-                        #0, self.up_factor, u_factor).repeat(u_factor)
-                        0, self.up_factor, skip).repeat(skip)
-
-        else:
-            # Upsample and downsample time shifted versions
-            self.up_factor = upsample
-            self.up_up_map = range(self.n_unit * self.up_factor)
+        self.upsample_templates_mp(int(upsample))
             
         self.threshold = threshold
         self.approx_rank = conv_approx_rank
@@ -154,7 +136,6 @@ class MatchPursuit_objectiveUpsample(object):
         # Compute pairwise convolution of filters
         print ("  computing temp_temp")
         self.pairwise_filter_conv()
-        
         
         # compute norm of templates
         self.norm = np.zeros([self.orig_n_unit, 1], dtype=np.float32)
@@ -201,7 +182,52 @@ class MatchPursuit_objectiveUpsample(object):
 
         # Stack for turning on invalud units for next iteration
         self.turn_off_stack = []
-        
+
+    def upsample_templates_mp(self, upsample):
+      if upsample != 1:
+            
+        if True: 
+            # original function
+            self.unit_up_factor = np.power(
+                    2, np.floor(np.log2(np.max(self.temps.ptp(axis=0), axis=0))))
+            self.up_factor = min(32, int(np.max(self.unit_up_factor)))
+            self.unit_up_factor[self.unit_up_factor > 32] = 32
+            self.up_up_map = np.zeros(
+                    self.n_unit * self.up_factor, dtype=np.int32)
+            for i in range(self.n_unit):
+                u_idx = i * self.up_factor
+                u_factor = self.unit_up_factor[i]
+                skip = self.up_factor // u_factor
+                self.up_up_map[u_idx:u_idx + self.up_factor] = u_idx  + np.arange(
+                        #0, self.up_factor, u_factor).repeat(u_factor)
+                        0, self.up_factor, skip).repeat(skip)
+        else:
+                #unit_up_factor2 = np.power(
+                #        2, np.floor(np.log2(ptps)))*2
+                ptps = np.max(self.temps.ptp(axis=0), axis=0)
+                self.unit_up_factor = np.ones(ptps.shape)
+                self.up_factor = upsample
+                self.unit_up_factor[ptps > 4] = 2
+                self.unit_up_factor[ptps > 8] = 8
+                self.unit_up_factor[ptps > 16] = 32
+                self.unit_up_factor[ptps > 32] = 64
+                self.unit_up_factor[ptps > 64] = 128
+                self.up_up_map = np.zeros(
+                        self.n_unit * self.up_factor, dtype=np.int32)
+                for i in range(self.n_unit):
+                #for i in range(100):
+                    u_idx = i * self.up_factor
+                    u_factor = self.unit_up_factor[i]
+                    skip = self.up_factor // u_factor
+                    self.up_up_map[u_idx:u_idx + self.up_factor] = u_idx  + np.arange(
+                            0, self.up_factor, skip).repeat(skip)
+
+      else:
+            # Upsample and downsample time shifted versions
+            self.up_factor = upsample
+            self.up_up_map = range(self.n_unit * self.up_factor)
+            
+            
     def update_data(self):
         """Updates the data for the deconv to be run on with same templates."""
         self.data = self.data.astype(np.float32)
@@ -401,7 +427,7 @@ class MatchPursuit_objectiveUpsample(object):
         returns:
         --------
         Tuple of numpy.ndarray. First element is of shape (t, C, M) is the set
-        updampled shifted templates that have been used in the dynamic
+        upsampled shifted templates that have been used in the dynamic
         upsampling approach. Second is an array of lenght K (number of original
         units) * maximum upsample factor. Which maps cluster ids that are result
         of deconvolution to 0,...,M-1 that corresponds to the sparse upsampled

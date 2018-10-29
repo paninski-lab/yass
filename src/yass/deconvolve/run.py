@@ -118,7 +118,7 @@ def run(spike_train_cluster,
     
     # Cat: TODO: read both from CONFIG
     threshold = 10.    
-    conv_approx_rank = 5
+    conv_approx_rank = 10
     
     ''' 
     ***********************************************************
@@ -764,12 +764,14 @@ def match_pursuit_function(CONFIG,
     # Cat: TODO: to read from CONFIG
     # this value sets dynamic upsampling for MP object
     default_upsample_value=0
+    upsample_max_val = 128.
+
     mp_object = MatchPursuit_objectiveUpsample(
                               temps=templates,
                               deconv_chunk_dir=deconv_chunk_dir,
                               standardized_filename=standardized_filename,
                               max_iter=max_iter,
-                              upsample=default_upsample_value,
+                              upsample=upsample_max_val,
                               threshold=threshold,
                               conv_approx_rank=conv_approx_rank,
                               n_processors=CONFIG.resources.n_processors,
@@ -816,7 +818,6 @@ def match_pursuit_function(CONFIG,
 
     # save original spike ids (before upsampling
     # Cat: TODO: get this value from global/CONFIG
-    upsample_max_val = 32.
     temp_spike_train = dec_spike_train.copy()
     temp_spike_train[:,1] = np.int32(dec_spike_train[:,1]/upsample_max_val)
     np.savez(deconv_chunk_dir+"/deconv_results.npz", 
