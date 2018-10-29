@@ -13,6 +13,7 @@ from sklearn.cluster import AgglomerativeClustering
 
 from yass.explore.explorers import RecordingExplorer
 from yass.templates.util import strongly_connected_components_iterative
+from yass.geometry import n_steps_neigh_channels
 from yass import mfm
 from yass.empty import empty
 from scipy.sparse import lil_matrix
@@ -925,7 +926,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
          n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
          upsample_factor, nshifts, assignment_global, spike_index, 
          scale, knn_triage_threshold, deconv_flag, templates, 
-         min_spikes_local):
+         min_spikes_local, active_chans=None):
     
     ''' Recursive clusteringn function
         channel: current channel being clusterd
@@ -968,6 +969,28 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
     else:
         wf_align = wf
     
+    if gen == 0:
+        stds = np.median(np.abs(wf - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
+        #active_chans = np.argsort(stds.max(0))[::-1][:100]
+        active_chans = np.where(stds.max(0) > 1.05)[0]
+
+        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 1)
+        active_chans = np.where(connected_channels(active_chans, channel, neighbors))[0]
+        
+        def plot_with_geom(data, geom, time_scale=0.5, scale=10, color='k', mark_channels=None):
+            t, c = data.shape
+            plt.plot(geom[:,0]+np.arange(-data.shape[0],0)[:,np.newaxis]/time_scale, 
+                         geom[:,1] + data*scale, color=color, alpha=.8)
+            if mark_channels is not None:
+                plt.scatter(geom[mark_channels,0], geom[mark_channels,1], s=scale*10, color='green')
+            for j in range(c):
+                plt.text(geom[j,0], geom[j,1], str(j))
+        
+        chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_000000"
+        plt.figure(figsize=(30,20))
+        plot_with_geom(stds, CONFIG.geom, time_scale=2, scale=10, color='k', mark_channels=active_chans)
+        plt.savefig(chunk_dir+"/channel_{}_active_chans.png".format(channel))
+        
     # Cat: TODO: so we force all subsequent generations to use gen0 alignment
     #wf=wf_align
         
@@ -982,15 +1005,15 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
     # Cat: TODO: is 10k spikes enough? 
     # Cat: TODO: what do these metrics look like for 100 spikes!?; should we simplify for low spike count?
     feat_chans, mc, robust_stds = get_feat_channels_mad_cat(
-                                            wf_align[:10000], n_feat_chans)
+                                            wf_align[:10000][:, :, active_chans], n_feat_chans)
 
     # featurize using latest alg
-    idx_keep_feature, pca_wf = featurize_residual_triage_cat(wf_align, robust_stds, 
+    idx_keep_feature, pca_wf = featurize_residual_triage_cat(wf_align[:, :, active_chans], robust_stds, 
                                                   feat_chans, mc, n_feat_chans)
     
     if verbose:
         print("chan "+str(channel)+' gen: '+str(gen)+", feat chans: "+
-                  str(feat_chans[:n_feat_chans]) + ", max_chan: "+ str(mc))
+                  str(feat_chans[:n_feat_chans]) + ", max_chan: "+ str(active_chans[mc]))
 
     pca_wf = pca_wf[idx_keep_feature][:,:5]
  
@@ -1069,6 +1092,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
     # make a template that in case the cluster is saved, can be used below
     # Cat: TODO: can take template to be just core of cluster 
     template = wf_align[idx_keep][idx_recovered].mean(0)
+    mc = np.argmax(template.ptp(0))
     sic_current = sic_global[current_indexes][idx_keep][idx_recovered]
     
     # zero out all wf arrays; not required below here any longer
@@ -1196,7 +1220,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
                      plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
                      mfm_threshold,  CONFIG, upsample_factor, nshifts, 
                      assignment_global, spike_index, scale, knn_triage_threshold, 
-                     deconv_flag, templates, min_spikes_local)
+                     deconv_flag, templates, min_spikes_local, active_chans)
 
             # run mfm on remaining data
             idx = np.in1d(assignment2[idx_recovered], np.where(stability<=mfm_threshold)[0])
@@ -1215,7 +1239,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
                     plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
                     mfm_threshold, CONFIG, upsample_factor, nshifts, 
                     assignment_global, spike_index, scale, knn_triage_threshold,
-                    deconv_flag, templates, min_spikes_local)
+                    deconv_flag, templates, min_spikes_local, active_chans)
 
 
 
@@ -1383,7 +1407,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
                          plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
                          mfm_threshold,  CONFIG, upsample_factor, nshifts, 
                          assignment_global, spike_index, scale, knn_triage_threshold, 
-                         deconv_flag, templates, min_spikes_local)
+                         deconv_flag, templates, min_spikes_local, active_chans)
 
         
         
@@ -2284,8 +2308,8 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
     # select length of recording to chunk data for processing;
     # Cat: TODO: read this value from CONFIG; use initial_batch_size
-    n_sec_chunk = 1200
-    #n_sec_chunk = 300
+    #n_sec_chunk = 1200
+    n_sec_chunk = 300
     
     #min_spikes_local = int(n_sec_chunk * 0.25)
     min_spikes_local = CONFIG.cluster.min_spikes
@@ -2714,6 +2738,18 @@ def cluster_channels_chunks_args(data_in):
     wf_global = None
     
     return channel
+
+def connected_channels(channel_list, ref_channel, neighbors, keep=None):
+    if keep is None:
+        keep = np.zeros(len(neighbors), 'bool')
+    if keep[ref_channel] == 1:
+        return keep
+    else:
+        keep[ref_channel] = 1
+        chans = channel_list[neighbors[ref_channel][channel_list]]
+        for c in chans:
+            keep = connected_channels(channel_list, c, neighbors, keep=keep)
+        return keep
 
 def pca_triage_spikes(wf,CONFIG, channel, spike_padding):
 
