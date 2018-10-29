@@ -13,7 +13,6 @@ from sklearn.cluster import AgglomerativeClustering
 
 from yass.explore.explorers import RecordingExplorer
 from yass.templates.util import strongly_connected_components_iterative
-from yass.geometry import n_steps_neigh_channels
 from yass import mfm
 from yass.empty import empty
 from scipy.sparse import lil_matrix
@@ -824,13 +823,8 @@ def upsample_resample_parallel_channel(wf, upsample_factor):
     
     # dont' parallize alignment - unless seems ok otherwise
     # Cat: TODO: can we parallize recursively and to this?
-    #if n_spikes<1000000:
+
     wf_up = upsample_parallel(wf, upsample_factor)
-    #else: 
-    #    wf_array = np.array_split(wf, CONFIG.resources.n_processors)
-    #    wf_up = parmap.map(upsample_parallel, wf_array, upsample_factor, 
-    #                       processes=CONFIG.resources.n_processors)
-    #    wf_up = np.vstack(wf_up)
         
     return wf_up
 
@@ -926,12 +920,12 @@ def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, x, ax_t, triagefla
     verbose=True
     
 
-def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig, 
+def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig, 
          grid, x, ax_t, triageflag, alignflag, plotting, n_feat_chans, 
          n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
          upsample_factor, nshifts, assignment_global, spike_index, 
          scale, knn_triage_threshold, deconv_flag, templates, 
-         min_spikes_local, active_chans):
+         min_spikes_local):
     
     ''' Recursive clusteringn function
         channel: current channel being clusterd
@@ -943,6 +937,10 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
 
     # Cat: TODO read from CONFIG File
     verbose=True
+    
+    # load correct waveforms from disk
+    #wf = np.load(wf_fname)[current_indexes]
+    wf = wf_global[current_indexes]
     
     # ************* CHECK SMALL CLUSTERS *************
     # Exit clusters that are too small
@@ -984,18 +982,17 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
     # Cat: TODO: is 10k spikes enough? 
     # Cat: TODO: what do these metrics look like for 100 spikes!?; should we simplify for low spike count?
     feat_chans, mc, robust_stds = get_feat_channels_mad_cat(
-                                            wf_align[:10000][:, :, active_chans], n_feat_chans)
+                                            wf_align[:10000], n_feat_chans)
 
     # featurize using latest alg
-    idx_keep, pca_wf = featurize_residual_triage_cat(wf_align[:, :, active_chans], robust_stds, 
+    idx_keep_feature, pca_wf = featurize_residual_triage_cat(wf_align, robust_stds, 
                                                   feat_chans, mc, n_feat_chans)
-
+    
     if verbose:
         print("chan "+str(channel)+' gen: '+str(gen)+", feat chans: "+
-                  str(active_chans[feat_chans[:np.min((n_feat_chans,len(feat_chans)))]])\
-              + ", max_chan: "+ str(active_chans[mc]))
+                  str(feat_chans[:n_feat_chans]) + ", max_chan: "+ str(mc))
 
-    pca_wf = pca_wf[idx_keep][:,:5]
+    pca_wf = pca_wf[idx_keep_feature][:,:5]
  
     ''' ************************************************        
         ******** KNN TRIAGE & PCA #2 *******************
@@ -1004,16 +1001,19 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
     # Cat: TODO: this is hardwired now
     ## knn triage outliars; e.g. remove 2%
     if True:
-        idx_keep_triage = knn_triage(95, pca_wf)
-        idx_keep_triage = np.where(idx_keep_triage==1)[0]
+        idx_keep = knn_triage(95, pca_wf)
+        idx_keep = np.where(idx_keep==1)[0]
         if verbose:
             print("chan "+str(channel)+' gen: '+str(gen) + 
                   " triaged, remaining spikes "+ 
-                  str(idx_keep[idx_keep_triage].shape[0]))
+                  str(idx_keep.shape[0]))
 
-        pca_wf = pca_wf[idx_keep_triage]
+        pca_wf = pca_wf[idx_keep]
         
-        idx_keep = idx_keep[idx_keep_triage]
+        #idx_keep = idx_keep[idx_keep]
+    
+    else:
+        idx_keep = np.arange(pca_wf.shape[0])
 
     # do another min spike check in case triage killed too many spikes
     if wf.shape[0] < CONFIG.cluster.min_spikes:
@@ -1066,6 +1066,15 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
         print ("chan "+ str(channel)+' gen: '+str(gen)+" - recovered ",
                                             str(idx_recovered.shape[0]))
     
+    # make a template that in case the cluster is saved, can be used below
+    # Cat: TODO: can take template to be just core of cluster 
+    template = wf_align[idx_keep][idx_recovered].mean(0)
+    sic_current = sic_global[current_indexes][idx_keep][idx_recovered]
+    
+    # zero out all wf arrays; not required below here any longer
+    wf = None
+    wf_align = None
+
     '''*************************************************        
        *********** REVIEW AND SAVE RESULTS *************
        *************************************************        
@@ -1081,8 +1090,8 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
         #print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #1: converged cluster")
         # exclude units whose maximum channel is not on the current 
         # clustered channel; but only during clustering, not during deconv
-        if active_chans[mc] != channel and (deconv_flag==False): 
-            print ("  channel: ", channel, " template has maxchan: ", active_chans[mc], 
+        if mc != channel and (deconv_flag==False): 
+            print ("  channel: ", channel, " template has maxchan: ", mc, 
                     " skipping ...")
             
             # always plot scatter distributions
@@ -1103,13 +1112,11 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
             N= len(assignment_global)
             if verbose:
                 print("chan "+str(channel)+' gen: '+str(gen)+" >>> cluster "+
-                    str(N)+" saved, size: "+str(wf[idx_recovered].shape)+"<<<")
+                    str(N)+" saved, size: "+str(idx_recovered.shape)+"<<<")
                 print ("")
             
             assignment_global.append(N * np.ones(assignment2[idx_recovered].shape[0]))
-            spike_index.append(sic[idx_recovered])
-            
-            template = wf_align[idx_recovered].mean(0)
+            spike_index.append(sic_current)
             templates.append(template)
             
             ## Save only core of distribution
@@ -1142,7 +1149,6 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                             split_type,
                             end_flag)
                             
-                            
     # Case #2: multiple clusters
     else:
         mask = vbParam2.rhat[idx_recovered]>0
@@ -1172,60 +1178,56 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
             # remove stable clusters 
             for clust in np.where(stability>mfm_threshold)[0]:
 
-                #print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #2: thresholded cluster")
-
-                idx = np.where(assignment2==clust)[0]
+                idx = np.where(assignment2[idx_recovered]==clust)[0]
                 
-                if wf[idx_keep][idx].shape[0]<CONFIG.cluster.min_spikes: 
+                if idx.shape[0]<CONFIG.cluster.min_spikes: 
                     continue    # cluster too small
                 
                 if verbose:
                     print("chan "+str(channel)+' gen: '+str(gen)+
                         " reclustering stable cluster"+ 
-                        str(wf[idx_keep][idx].shape))
+                        str(idx.shape))
                 
                 triageflag = False
                 alignflag = True
-                RRR3_noregress_recovery_dynamic_features(channel, wf[idx_keep][idx], 
-                     sic[idx_keep][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
+                RRR3_noregress_recovery_dynamic_features(channel, 
+                     current_indexes[idx_keep][idx_recovered][idx], 
+                     gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
                      plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
                      mfm_threshold,  CONFIG, upsample_factor, nshifts, 
                      assignment_global, spike_index, scale, knn_triage_threshold, 
-                     deconv_flag, templates, min_spikes_local, active_chans)
+                     deconv_flag, templates, min_spikes_local)
 
             # run mfm on remaining data
-            idx = np.in1d(assignment2, np.where(stability<=mfm_threshold)[0])
+            idx = np.in1d(assignment2[idx_recovered], np.where(stability<=mfm_threshold)[0])
             if idx.sum()>CONFIG.cluster.min_spikes:
                 #print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #4: clustering residuals")
                 if verbose:
                     print("chan "+str(channel)+" reclustering residuals "+
-                                            str(wf[idx_keep][idx].shape))
+                                            str(idx.shape))
                 triageflag = False
                 alignflag = True
                 
                 # overwrite wf with current index to remove data from memory
-                wf = wf[idx_keep][idx]
-                sic = sic[idx_keep][idx]
-                RRR3_noregress_recovery_dynamic_features(channel, wf,
-                    sic, gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
+                RRR3_noregress_recovery_dynamic_features(channel, 
+                    current_indexes[idx_keep][idx_recovered][idx],
+                    gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
                     plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
                     mfm_threshold, CONFIG, upsample_factor, nshifts, 
                     assignment_global, spike_index, scale, knn_triage_threshold,
-                    deconv_flag, templates, min_spikes_local, active_chans)
+                    deconv_flag, templates, min_spikes_local)
 
 
 
-        # if all clusters are unstable: triage (also annealing is an option)
+        # ********** if all clusters are unstable ****************
+        # ********** check diptest 
         else:
 
-            #print ("chan "+str(channel)+' gen: '+str(gen)+ " CASE #3: no cluster > threshold")
-
-
-            # loop over cluster until binary split achieved
             ctr=0 
             dp = 1.0
             idx_temp_keep = np.arange(idx_recovered.shape[0])
             cluster_idx_keep = np.arange(vbParam2.muhat.shape[0])
+            # loop over cluster until at least 3 loops and take lowest dp value
             while True:    
                 # use EM aglorithm to get labels for 2 clusters
                 if True: 
@@ -1240,11 +1242,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                     temp_assignment[idx]=1
                 
                 else:
-                   # split using mfm assignments                   
-                    #temp_assignment = mfm_binary_split2(
-                    #                    vbParam2.muhat, 
-                    #                    assignment2[idx_recovered])
-                    
+                   # split using mfm 
                     temp_assignment = mfm_binary_split2(
                                         vbParam2.muhat[cluster_idx_keep], 
                                         assignment2[idx_recovered],
@@ -1267,7 +1265,6 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                         return
                     
                 else:
-                
                     # test EM for unimodality
                     dp_new = test_unimodality(pca_wf_all[idx_recovered], temp_assignment)
                     
@@ -1289,17 +1286,16 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                     
                     ctr+=1
             
-            # Cat: TODO : read this from file
+            # cluster is unimodal, save it: 
+            # Cat: TODO : read values from file
             diptest_thresh = 0.995
             norm_thresh = 1E-4
-            # don't exit on gen0 split ever
+            # don' exit on gen0 split ever
             if (dp> diptest_thresh and gen!=0):
             #if (dp> diptest_thresh) and (norm>norm_thresh):
-                #assignment3[:]=0
-
                 # make sure cluster on max chan            
-                if active_chans[mc] != channel and (deconv_flag==False): 
-                    print ("  channel: ", channel, " template has maxchan: ", active_chans[mc], 
+                if mc != channel and (deconv_flag==False): 
+                    print ("  channel: ", channel, " template has maxchan: ", mc, 
                             " skipping ...")
                     
                     # always plot scatter distributions
@@ -1310,7 +1306,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                             grid, x, gen,  
                             assignment2[idx_recovered],
                             pca_wf_all[idx_recovered], 
-                            vbParam2.rhat,
+                            vbParam2.rhat[idx_recovered],
                             channel,
                             split_type,
                             end_flag)
@@ -1320,12 +1316,10 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                 N= len(assignment_global)
                 if verbose:
                     print("chan "+str(channel)+' gen: '+str(gen)+" >>> cluster "+
-                        str(N)+" saved, size: "+str(wf[idx_recovered].shape)+"<<<")
+                        str(N)+" saved, size: "+str(idx_recovered.shape)+"<<<")
                 
                 assignment_global.append(N * np.ones(assignment3.shape[0]))
-                spike_index.append(sic[idx_recovered])
-                
-                template = wf_align[idx_recovered].mean(0)
+                spike_index.append(sic_current)
                 templates.append(template)
 
                 # plot template if done
@@ -1339,18 +1333,19 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                     if gen<20:
                         # hack to expand the assignments back out to size of original
                         # data stream
-                        assignment3 = np.zeros(pca_wf_all.shape[0],'int32')
+                        assignment3 = np.zeros(pca_wf_all[idx_recovered].shape[0],'int32')
                         split_type = 'mfm-binary, dp: '+ str(round(dp,5))
                         end_flag = 'green'
                         plot_clustering_scatter(fig, 
                             grid, x, gen,  
                             assignment3,
                             pca_wf_all[idx_recovered], 
-                            vbParam2.rhat,
+                            vbParam2.rhat[idx_recovered],
                             channel,
                             split_type,
-                            end_flag)                   
-                            
+                            end_flag)       
+                                        
+            # cluster is not unimodal, split it along binary split and recluster 
             else:
                 # plot EM labeled data
                 if gen<20 and plotting:
@@ -1359,14 +1354,14 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                             grid, x, gen,  
                             assignment3,
                             pca_wf_all[idx_recovered], 
-                            vbParam2.rhat,
+                            vbParam2.rhat[idx_recovered],
                             channel,
                             split_type)
 
                 if verbose:
                     print("chan "+str(channel)+' gen: '+str(gen)+ 
                                     " no stable clusters, binary split "+
-                                    str(wf[idx_keep][idx_recovered].shape))
+                                    str(idx_recovered.shape))
 
                 # loop over binary split
                 for clust in np.unique(assignment3): #np.where(stability>mfm_threshold)[0]:
@@ -1378,16 +1373,17 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                     if verbose:
                         print("chan "+str(channel)+' gen: '+str(gen)+
                             " reclustering cluster"+ 
-                            str(wf[idx_keep][idx].shape))
+                            str(idx.shape))
                     
                     triageflag = False
                     alignflag = True
-                    RRR3_noregress_recovery_dynamic_features(channel, wf[idx_keep][idx_recovered][idx], 
-                         sic[idx_keep][idx_recovered][idx], gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
+                    RRR3_noregress_recovery_dynamic_features(channel, 
+                         current_indexes[idx_keep][idx_recovered][idx], 
+                         gen+1, fig, grid, x, ax_t, triageflag, alignflag, 
                          plotting, n_feat_chans, n_dim_pca, wf_start, wf_end, 
                          mfm_threshold,  CONFIG, upsample_factor, nshifts, 
                          assignment_global, spike_index, scale, knn_triage_threshold, 
-                         deconv_flag, templates, min_spikes_local, active_chans)
+                         deconv_flag, templates, min_spikes_local)
 
         
         
@@ -1824,10 +1820,10 @@ def test_unimodality(pca_wf, assignment, max_spikes = 10000):
 
 
 def KMEANS(data, n_clusters):
-    from sklearn import cluster, datasets
-    clusters = cluster.KMeans(n_clusters, max_iter=1000, n_jobs=-1, random_state = 121)
-    clusters.fit(data)
-    return clusters.labels_
+   from sklearn import cluster, datasets
+   clusters = cluster.KMeans(n_clusters, max_iter=1000, n_jobs=-1, random_state = 121)
+   clusters.fit(data)
+   return clusters.labels_
 
 
 def plot_clustering_template(fig, grid, ax_t, gen, N, wf_mean, idx_recovered, CONFIG, 
@@ -1852,29 +1848,29 @@ def plot_clustering_template(fig, grid, ax_t, gen, N, wf_mean, idx_recovered, CO
 
 def get_connected_components(rhat, assignment):
     
-    KK = rhat.shape[1]
-    mask = rhat > 0.1
-    connection = np.zeros((KK, KK))
-    for k in range(KK):
-        temp = rhat[mask[:, k]]
-        connection[k] = np.mean(temp[:, [k]]/(temp + temp[:, [k]]), 0) < 0.9
-    connection = (connection + connection.T) > 0
+   KK = rhat.shape[1]
+   mask = rhat > 0.1
+   connection = np.zeros((KK, KK))
+   for k in range(KK):
+       temp = rhat[mask[:, k]]
+       connection[k] = np.mean(temp[:, [k]]/(temp + temp[:, [k]]), 0) < 0.9
+   connection = (connection + connection.T) > 0
 
-    edges = {x: np.where(connection[x])[0] for x in range(KK)}
-    groups = list()
-    for scc in strongly_connected_components_iterative(np.arange(KK), edges):
-        groups.append(np.array(list(scc)))
+   edges = {x: np.where(connection[x])[0] for x in range(KK)}
+   groups = list()
+   for scc in strongly_connected_components_iterative(np.arange(KK), edges):
+       groups.append(np.array(list(scc)))
 
-    ccomps = np.zeros(len(assignment), 'int16')
-    rhat_new = np.zeros((rhat.shape[0], len(groups)))
-    for k in range(len(groups)):
-        for j in groups[k]:
-            ccomps[assignment==j] = k
+   ccomps = np.zeros(len(assignment), 'int16')
+   rhat_new = np.zeros((rhat.shape[0], len(groups)))
+   for k in range(len(groups)):
+       for j in groups[k]:
+           ccomps[assignment==j] = k
 
-        rhat_new[:, k] = np.sum(rhat[:, groups[k]], axis=1)
+       rhat_new[:, k] = np.sum(rhat[:, groups[k]], axis=1)
 
-    return ccomps, rhat_new
-
+   return ccomps, rhat_new
+   
    
                             
 def plot_clustering_scatter(fig, grid, x, gen, 
@@ -1909,9 +1905,10 @@ def plot_clustering_scatter(fig, grid, x, gen,
         temp_clrs = []
         for k in assignment2:
             temp_clrs.append(sorted_colors[k])
-        
+
         # make scater plots
         if pca_wf.shape[1]>1:
+            print (pca_wf.shape, len(temp_clrs))
             ax.scatter(pca_wf[:,0], pca_wf[:,1], 
                 c = temp_clrs, edgecolor = 'k',alpha=0.1)
             
@@ -2019,7 +2016,7 @@ def featurize_residual_triage_cat(wf, robust_stds, feat_chans, max_chan,
                                   min_rank=2, max_rank=5):
     
     # select argrelmax of mad metric greater than trehsold
-    n_feat_chans = np.min((n_feat_chans, len(feat_chans)))
+    #n_feat_chans = 5
 
     n_features_per_channel = 2
     wf_final = []
@@ -2262,6 +2259,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     
     ''' New voltage feature based clustering; parallel version
     ''' 
+    
     # Cat: TODO: Edu said the CONFIG file can be passed as a dictionary
     CONFIG2 = make_CONFIG2(CONFIG)
     
@@ -2297,7 +2295,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                                          'standarized.bin')
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
-    fp_len = int(20000*60*5*512)
+
     # make index list for chunk/parallel processing
     # Cat: TODO: read buffer size from CONFIG file
     # Cat: TODO: ensure all data read including residuals (there are multiple
@@ -2329,8 +2327,8 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
     # make chunk directory if not available:
     # save chunk in own directory to enable cumulative recovery 
-    chunk_dir = os.path.join(CONFIG.data.root_folder,'tmp/cluster/chunk_'+str(proc_index).zfill(6))
-    
+    chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
+                                                str(proc_index).zfill(6)
     if not os.path.isdir(chunk_dir):
         os.makedirs(chunk_dir)
        
@@ -2347,6 +2345,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         spike_index = spike_index_clear.copy()
     
     if os.path.exists(chunk_dir+'/complete.npy')==False:
+   
         # read recording chunk and share as global variable
         # Cat: TODO: recording_chunk should be a shared variable in 
         #            multiprocessing module;
@@ -2370,11 +2369,22 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         
         # Cat: TODO: this parallelization may not be optimally asynchronous
         # make arg list first
+        chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
+                                                    str(proc_index).zfill(6)
         channels = np.arange(CONFIG.recordings.n_channels)
         args_in = []
         for channel in channels:
         #for channel in [31,32,15,45]:
         #for channel in [6,15,45,31,32]:
+
+            # check to see if chunk + channel already completed
+            filename_postclustering = (chunk_dir + "/channel_"+
+                                                            str(channel)+".npz")
+            # skip 
+            if os.path.exists(filename_postclustering):
+                #print ("skipping file: ", filename_postclustering)
+                continue 
+                
             args_in.append([channel, idx, proc_index,CONFIG2, 
                 spike_index_chunk, n_dim_pca, n_dim_pca_compression,
                 wf_start, wf_end, n_feat_chans, out_dir, 
@@ -2385,8 +2395,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
         # Cat: TODO: have single-core option also here     
         print ("  starting clustering")
-        if CONFIG.resources.multi_processing:
-        #if False:
+        if CONFIG.resources.multi_processing:       
             p = mp.Pool(CONFIG.resources.n_processors)
             res = p.map_async(cluster_channels_chunks_args, args_in).get(988895)
             p.close()
@@ -2417,6 +2426,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                                                 'standarized.bin')
             n_channels = CONFIG.recordings.n_channels
             root_folder = CONFIG.data.root_folder
+            
             recording_chunk = binary_reader(idx, 
                                             buffer_size, 
                                             standardized_filename, 
@@ -2435,6 +2445,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
 def binary_reader(idx_list, buffer_size, standardized_filename,
                   n_channels):
+
     # New indexes
     idx_start = idx_list[0]
     idx_stop = idx_list[1]
@@ -2489,32 +2500,21 @@ def binary_reader(idx_list, buffer_size, standardized_filename,
     
 def mfm_binary_split2(muhat, assignment_orig, cluster_index=None):
     
-    centers = muhat[:,:,0].T
+   centers = muhat[:,:,0].T
 
-    K, D = cetners.reshape
-    if cluster_index is None:
-        cluster_index = np.arange(K)
+   K, D = cetners.reshape
+   if cluster_index is None:
+       cluster_index = np.arange(K)
 
-    label = AgglomerativeClustering(n_clusters=2).fit(centers).labels_
-    assignment = np.zeros(len(assignment_orig), 'int16')
-    for j in range(2):
-        clusters = cluster_index[np.where(label==j)[0]]
-        for k in clusters:
-            assignment[assignment_orig==k] = j
+   label = AgglomerativeClustering(n_clusters=2).fit(centers).labels_
+   assignment = np.zeros(len(assignment_orig), 'int16')
+   for j in range(2):
+       clusters = cluster_index[np.where(label==j)[0]]
+       for k in clusters:
+           assignment[assignment_orig==k] = j
 
-    return assignment
-
-def connected_channels(channel_list, ref_channel, neighbors, keep=None):
-    if keep is None:
-        keep = np.zeros(len(neighbors), 'bool')
-    if keep[ref_channel] == 1:
-        return keep
-    else:
-        keep[ref_channel] = 1
-        chans = channel_list[neighbors[ref_channel][channel_list]]
-        for c in chans:
-            keep = connected_channels(channel_list, c, neighbors, keep=keep)
-        return keep
+   return assignment
+    
     
     
 def cluster_channels_chunks_args(data_in):
@@ -2550,17 +2550,18 @@ def cluster_channels_chunks_args(data_in):
     data_end = idx_list[1]
     offset = idx_list[2]
     
-    # save chunk in own directory to enable cumulative recovery 
+    ## save chunk in own directory to enable cumulative recovery 
     chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
                                                 str(proc_index).zfill(6)
-    if not os.path.isdir(chunk_dir):
-        os.makedirs(chunk_dir)
+    #if not os.path.isdir(chunk_dir):
+        #os.makedirs(chunk_dir)
 
     # check to see if chunk + channel already completed
     filename_postclustering = (chunk_dir + "/channel_"+
                                                     str(channel)+".npz")
     if os.path.exists(filename_postclustering)==False: 
-        
+        global wf_global, sic_global
+
         # starting params
         # Cat: TODO: read all these from CONFIG
         spike_size = 111
@@ -2586,8 +2587,8 @@ def cluster_channels_chunks_args(data_in):
         #       Subsammpling is done inside clustering function.
         indexes_subsampled = np.arange(indexes.shape[0])
         #indexes_subsampled = np.random.choice(indexes,min(10000, indexes.shape[0]))
-
-        spike_train = spike_indexes_chunk[indexes]
+                
+        sic_global = spike_indexes_chunk[indexes]
         #print ('Starting channel: '+str(channel)+ ', events: '+
         #                                            str(spike_train.shape[0]))
 
@@ -2600,16 +2601,16 @@ def cluster_channels_chunks_args(data_in):
         # Cat: TODO: recording_chunk is a global variable; 
         #            this might cause problems eventually
         if False: 
-            wf = load_waveforms_from_memory(recording_chunk, 
+            wf_global = load_waveforms_from_memory(recording_chunk, 
                                             data_start, 
                                             offset, 
                                             spike_train, 
                                             spike_size)
         else:
-            wf = load_waveforms_from_disk(standardized_filename, 
+            wf_global = load_waveforms_from_disk(standardized_filename, 
                                           geometry_file,
                                           n_channels, 
-                                          spike_train, 
+                                          sic_global, 
                                           spike_size)    
 
         ''' *****************************************************
@@ -2619,13 +2620,13 @@ def cluster_channels_chunks_args(data_in):
         # Project waveforms on feature channels back onto 
         if False:
             #print (wf.shape)
-            indexes_subsampled = pca_triage_spikes(wf,
+            indexes_subsampled = pca_triage_spikes(wf_global,
                                                    CONFIG, 
                                                    channel,
                                                    spike_padding)
         else:
-            indexes_subsampled=np.arange(wf.shape[0])
-            
+            indexes_subsampled=np.arange(wf_global.shape[0])
+           
         # plotting parameters
         if plotting:
             # Cat: TODO: this global x is not necessary, should make it local
@@ -2642,21 +2643,16 @@ def cluster_channels_chunks_args(data_in):
         
         # indicate whether running the RRR3 function initially or post deconv
         deconv_flag = False
-        
-        # calculate active channels
-        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 1)             
-        mean_wf = np.mean(wf[indexes_subsampled], axis=0)
-        active_chans = np.where(mean_wf.ptp(0) > 0.5)[0]
-        active_chans = np.where(connected_channels(active_chans, channel, neighbors))[0]               
-        #active_chans = np.where(neighbors[channel])[0]
+
         RRR3_noregress_recovery_dynamic_features(channel, 
-             wf[indexes_subsampled], 
-             spike_train[indexes_subsampled], gen, fig, grid, x, ax_t, 
+             indexes_subsampled, 
+             gen, fig, grid, x, ax_t, 
              triageflag, alignflag, plotting, n_feat_chans, 
              n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
              upsample_factor, nshifts, assignment_global, spike_index, scale,
-             knn_triage_threshold, deconv_flag, templates, min_spikes_local, active_chans)
+             knn_triage_threshold, deconv_flag, templates, min_spikes_local)
              
+                          
         # finish plotting 
         if plotting: 
             #ax_t = fig.add_subplot(grid[13:, 6:])
@@ -2710,12 +2706,12 @@ def cluster_channels_chunks_args(data_in):
                         templates=templates)
 
 
-        print ("**** Channel ", str(channel), " starting spikes: ", wf.shape[0],
+        print ("**** Channel ", str(channel), " starting spikes: ", wf_global.shape[0],
             ", pca triaged down to: ", indexes_subsampled.shape[0], 
             ", found # clusters: ", len(spike_index))
 
     # overwrite this variable just in case garbage collector doesn't
-    wf = None
+    wf_global = None
     
     return channel
 
@@ -2929,12 +2925,9 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         spike_train = np.vstack((spike_train, temp))
     spike_indexes = spike_train
 
-    dir_templates = os.path.join(CONFIG.data.root_folder, 'tmp',
-                                         'temps_align.npy')
-    dir_spike_indexes = os.path.join(CONFIG.data.root_folder, 'tmp',
-                                         'spike_times_align.npy')
-    np.save(dir_templates, templates)
-    np.save(dir_spike_indexes, spike_indexes)
+
+    np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/temps_align.npy', templates)
+    np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/spike_times_align.npy', spike_indexes)
 
     # delete templates below certain treshold; and collision templates
     # Cat: TODO: note, can't centre post-deconv rclustered tempaltes as they are tooshort
