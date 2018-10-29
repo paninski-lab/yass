@@ -984,10 +984,10 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
     # Cat: TODO: is 10k spikes enough? 
     # Cat: TODO: what do these metrics look like for 100 spikes!?; should we simplify for low spike count?
     feat_chans, mc, robust_stds = get_feat_channels_mad_cat(
-                                            wf_align[:10000], n_feat_chans)
+                                            wf_align[:10000][:, :, active_chans], n_feat_chans)
 
     # featurize using latest alg
-    idx_keep, pca_wf = featurize_residual_triage_cat(wf_align, robust_stds, 
+    idx_keep, pca_wf = featurize_residual_triage_cat(wf_align[:, :, active_chans], robust_stds, 
                                                   feat_chans, mc, n_feat_chans)
 
     if verbose:
@@ -1109,8 +1109,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
             assignment_global.append(N * np.ones(assignment2[idx_recovered].shape[0]))
             spike_index.append(sic[idx_recovered])
             
-            template = np.zeros((wf_align.shape[1], CONFIG.geom.shape[0]))
-            template[:, active_chans] = wf_align[idx_recovered].mean(0)
+            template = wf_align[idx_recovered].mean(0)
             templates.append(template)
             
             ## Save only core of distribution
@@ -1326,8 +1325,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, wf, sic, gen, fig,
                 assignment_global.append(N * np.ones(assignment3.shape[0]))
                 spike_index.append(sic[idx_recovered])
                 
-                template = np.zeros((wf_align.shape[1], CONFIG.geom.shape[0]))
-                template[:, active_chans] = wf_align[idx_recovered].mean(0)
+                template = wf_align[idx_recovered].mean(0)
                 templates.append(template)
 
                 # plot template if done
@@ -2652,7 +2650,7 @@ def cluster_channels_chunks_args(data_in):
         active_chans = np.where(connected_channels(active_chans, channel, neighbors))[0]               
         #active_chans = np.where(neighbors[channel])[0]
         RRR3_noregress_recovery_dynamic_features(channel, 
-             wf[indexes_subsampled][:, :, active_chans], 
+             wf[indexes_subsampled], 
              spike_train[indexes_subsampled], gen, fig, grid, x, ax_t, 
              triageflag, alignflag, plotting, n_feat_chans, 
              n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
