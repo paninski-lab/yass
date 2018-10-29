@@ -971,25 +971,24 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
     
     if gen == 0:
         stds = np.median(np.abs(wf - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
-        #active_chans = np.argsort(stds.max(0))[::-1][:100]
         active_chans = np.where(stds.max(0) > 1.05)[0]
 
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 1)
         active_chans = np.where(connected_channels(active_chans, channel, neighbors))[0]
         
-        def plot_with_geom(data, geom, time_scale=0.5, scale=10, color='k', mark_channels=None):
-            t, c = data.shape
-            plt.plot(geom[:,0]+np.arange(-data.shape[0],0)[:,np.newaxis]/time_scale, 
-                         geom[:,1] + data*scale, color=color, alpha=.8)
-            if mark_channels is not None:
-                plt.scatter(geom[mark_channels,0], geom[mark_channels,1], s=scale*10, color='green')
-            for j in range(c):
-                plt.text(geom[j,0], geom[j,1], str(j))
+        #def plot_with_geom(data, geom, time_scale=0.5, scale=10, color='k', mark_channels=None):
+        #    t, c = data.shape
+        #    plt.plot(geom[:,0]+np.arange(-data.shape[0],0)[:,np.newaxis]/time_scale, 
+        #                 geom[:,1] + data*scale, color=color, alpha=.8)
+        #    if mark_channels is not None:
+        #        plt.scatter(geom[mark_channels,0], geom[mark_channels,1], s=scale*10, color='green')
+        #    for j in range(c):
+        #        plt.text(geom[j,0], geom[j,1], str(j))
         
-        chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_000000"
-        plt.figure(figsize=(30,20))
-        plot_with_geom(stds, CONFIG.geom, time_scale=2, scale=10, color='k', mark_channels=active_chans)
-        plt.savefig(chunk_dir+"/channel_{}_active_chans.png".format(channel))
+        #chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_000000"
+        #plt.figure(figsize=(30,20))
+        #plot_with_geom(stds, CONFIG.geom, time_scale=2, scale=10, color='k', mark_channels=active_chans)
+        #plt.savefig(chunk_dir+"/channel_{}_active_chans.png".format(channel))
         
     # Cat: TODO: so we force all subsequent generations to use gen0 alignment
     #wf=wf_align
