@@ -5,6 +5,7 @@ import os
 import logging
 
 import numpy as np
+from scipy.signal import argrelmin
 
 from yass.batch import BatchProcessor
 from yass.util import check_for_files, LoadFile, save_numpy_object
@@ -201,6 +202,48 @@ def _threshold(rec, neighbors, spike_size, threshold):
             index = np.append(index, new_spikes, axis=0)
 
     return index
+
+
+def _threshold2(rec, spike_size, threshold):
+    """Run Threshold-based spike detection
+
+    Parameters
+    ----------
+    rec: np.ndarray (n_observations, n_channels)
+        numpy 2-D array with the recordings, first dimension must be
+        n_observations and second n_channels
+
+    spike_size: int
+        Spike size
+
+    threshold: float
+        Threshold used on amplitude for detection
+
+    Notes
+    -----
+    any values below -std_factor is considered as a spike
+    and its location is saved and returned
+
+    Returns
+    -------
+    index: np.ndarray (number of spikes, 2)
+        First column is spike time, second column is main channel (the channel
+        where spike has the biggest amplitude)
+    """
+    T, C = rec.shape
+    R = spike_size
+    th = threshold
+
+    index = argrelmin(rec[:10000], axis=0, order=2)
+    index = np.vstack(index).T
+    index = index[np.logical_and(index[:, 0] > spike_size, index[:, 0] < T-spike_size-1)]
+    index = index[rec[index[:,0],index[:,1]] < threshold]
+    wf = np.zeros((index.shape[0], 2*spike_size+1))
+    t_idx = np.arange(-spike_size, spike_size+1)
+    for j in range(index.shape[0]):
+        wf[j] = rec[t_idx+index[j,0], index[j,1]]
+    
+    return index, wf
 
 
 def fix_indexes(spikes, idx_local, idx, buffer_size):
