@@ -974,6 +974,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
         active_chans = np.where(stds.max(0) > 1.05)[0]
 
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 1)
+        active_chans = np.hstack((active_chans, np.where(neighbors[channel])[0]))
         active_chans = np.where(connected_channels(active_chans, channel, neighbors))[0]
         
         #def plot_with_geom(data, geom, time_scale=0.5, scale=10, color='k', mark_channels=None):
@@ -2052,6 +2053,7 @@ def featurize_residual_triage_cat(wf, robust_stds, feat_chans, max_chan,
         wf_final.append(wf[:,idx_thresh,max_chan])
         
     ## loop over all feat chans and select max 2 argrelmax time points as features
+    n_feat_chans = np.min((n_feat_chans, wf.shape[2]))
     for k in range(n_feat_chans):
         # don't pick max channel again
         if feat_chans[k]==max_chan: continue
@@ -2418,7 +2420,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
         # Cat: TODO: have single-core option also here     
         print ("  starting clustering")
-        if CONFIG.resources.multi_processing:       
+        if CONFIG.resources.multi_processing:
             p = mp.Pool(CONFIG.resources.n_processors)
             res = p.map_async(cluster_channels_chunks_args, args_in).get(988895)
             p.close()
