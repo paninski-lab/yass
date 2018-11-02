@@ -2963,8 +2963,8 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     spike_indexes = spike_train
 
 
-    np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/temps_align.npy', templates)
-    np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/spike_times_align.npy', spike_indexes)
+    #np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/temps_align.npy', templates)
+    #np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/spike_times_align.npy', spike_indexes)
 
     # delete templates below certain treshold; and collision templates
     # Cat: TODO: note, can't centre post-deconv rclustered tempaltes as they are tooshort
@@ -4519,21 +4519,21 @@ def clean_templates(templates, spike_train_cluster, CONFIG):
         print ("  deleted # collsion clusters: ", templates.shape[2]-idx.shape[0])
         
         templates = templates[:,:,idx]
-        spike_train_cluster_new = []
+        spike_train_cluster_new2 = []
         for ctr,k in enumerate(idx):
-            temp = np.where(spike_train_cluster[:,1]==k)[0]
-            temp_train = spike_train_cluster[temp]
+            temp = np.where(spike_train_cluster_new[:,1]==k)[0]
+            temp_train = spike_train_cluster_new[temp]
             temp_train[:,1]=ctr
-            spike_train_cluster_new.append(temp_train)
+            spike_train_cluster_new2.append(temp_train)
             
-        spike_train_cluster_new = np.vstack(spike_train_cluster_new)
+        spike_train_cluster_new2 = np.vstack(spike_train_cluster_new2)
     else:
         print ("  not deleting collision clusters ")
         
         
     #quit()
     
-    return templates, spike_train_cluster_new
+    return templates, spike_train_cluster_new2
 
 
 def find_clean_templates(templates, CONFIG):
