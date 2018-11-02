@@ -2309,8 +2309,8 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
     # select length of recording to chunk data for processing;
     # Cat: TODO: read this value from CONFIG; use initial_batch_size
-    #n_sec_chunk = 1200
-    n_sec_chunk = 300
+    n_sec_chunk = 1200
+    #n_sec_chunk = 300
     
     #min_spikes_local = int(n_sec_chunk * 0.25)
     min_spikes_local = CONFIG.cluster.min_spikes
