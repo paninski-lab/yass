@@ -19,10 +19,10 @@ def parallel_conv_filter(data_in,
                         vis_chan,
                         approx_rank,
                         deconv_dir):
-                            
+
     proc_index = data_in[0]
-    unit_array = data_in[1]    
-    
+    unit_array = data_in[1]
+
     # Cat: must load these structures from disk for multiprocessing step; 
     #       where there are many templates; due to multiproc 4gb limit 
     fname = deconv_dir+"/svd.npz"

@@ -2926,8 +2926,8 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     spike_indexes = spike_train
 
 
-    np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/temps_align.npy', templates)
-    np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/spike_times_align.npy', spike_indexes)
+    #np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/temps_align.npy', templates)
+    #np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/spike_times_align.npy', spike_indexes)
 
     # delete templates below certain treshold; and collision templates
     # Cat: TODO: note, can't centre post-deconv rclustered tempaltes as they are tooshort
@@ -2960,8 +2960,6 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     np.save(chunk_dir  + '/templates_post_'+out_dir+'_before_merge_before_cutoff.npy', templates)
     np.save(chunk_dir + '/spike_train_post_'+out_dir+'_before_merge_before_cutoff.npy', spike_indexes)
 
-    #quit()
-
     # option to skip merge step
     if True:
         ''' ************************************************
@@ -2988,6 +2986,7 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
             temps_PCA = temps_PCA.reshape(templates.shape[0],templates.shape[2],templates.shape[1])
             temps_PCA = np.swapaxes(temps_PCA,1,2)
             
+            # run merge algorithm
             sim_mat = abs_max_dist(temps_PCA, CONFIG)
             np.save(abs_max_file, sim_mat)
             

@@ -118,7 +118,7 @@ def run(spike_train_cluster,
     
     # Cat: TODO: read both from CONFIG
     threshold = 10.    
-    conv_approx_rank = 10
+    conv_approx_rank = 5
     
     ''' 
     ***********************************************************
@@ -764,7 +764,7 @@ def match_pursuit_function(CONFIG,
     # Cat: TODO: to read from CONFIG
     # this value sets dynamic upsampling for MP object
     default_upsample_value=0
-    upsample_max_val = 128.
+    upsample_max_val = 32.
 
     mp_object = MatchPursuit_objectiveUpsample(
                               temps=templates,
