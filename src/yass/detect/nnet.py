@@ -1,3 +1,9 @@
+"""
+Stable implementation of Neural Network detection, lacks some features
+than nnet_experimental.py and is slower (see docstring in nnet_experimental.py)
+but is reliable (the other one still has some bugs and sometimes breaks).
+"""
+
 import pkg_resources
 import logging
 import os.path

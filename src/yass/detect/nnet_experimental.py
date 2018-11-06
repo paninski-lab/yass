@@ -1,5 +1,11 @@
 """
-Detection pipeline
+Neural Network detection experimental implementation: this is cat's fork
+of nnet.py. Adds new features and removes the use of BatchProcessor, still
+has some bugs and issues. Ideally, we want to merge the new features to
+the stable implementation. This is faster than the stable implementation
+due to inefficiencies in BatchProcessor when reading large binary files,
+those issues can be fixed by optimizing the reader but the changes haven't
+been done.
 """
 import pkg_resources
 import logging

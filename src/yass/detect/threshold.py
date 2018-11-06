@@ -1,3 +1,7 @@
+"""
+Threshold detector, this implementation is stable and uses the BatchProcessor
+"""
+
 import logging
 import os.path
 import os
