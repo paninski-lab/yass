@@ -58,7 +58,10 @@ def cli():
 def sort(config, logger_level, clean, output_dir, complete, zero_seed,
          global_gpu_memory):
     """
-    Sort recordings using a configuration file located in CONFIG
+    Sort recordings using a configuration file located in CONFIG, this
+    is just a CLI for yass.pipeline.run function. And provides the stable
+    implementations of all pipeline steps. For customizing, you have to
+    build your own pipeline. See examples/pipeline/custom.py for an example.
     """
     if global_gpu_memory != 1.0:
         tf_config = tf.ConfigProto()
