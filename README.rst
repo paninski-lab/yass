@@ -47,28 +47,9 @@ If you are feeling adventurous, you can install from the master branch:
 Example
 -------
 
-Quick example of YASS using a sample of the neuropixel data from `Nick
-Steinmetz`_:
-
-.. _Nick Steinmetz: http://data.cortexlab.net/singlePhase3/
-
-.. code-block:: shell
-
-    # install last stable version
-    pip install yass-algorithm
-
-    # clone repo to get the sample data
-    git clone https://github.com/paninski-lab/yass
-
-    # move to the examples/ folder and run yass in the sample data
-    cd yass/examples
-    yass sort config_sample.yaml
-
-    # see the spike train
-    cat data/spike_train.csv
-
-
-You can also use YASS in Python scripts. See the documentation for details.
+We are currently updating our documentation, this section
+will be updated once we have an example with publicly available
+data.
 
 
 Documentation
@@ -81,6 +62,9 @@ Documentation hosted at `https://yass.readthedocs.io`_
 
 Running tests
 -------------
+
+Note: this is indented only for YASS developers, our testing
+data is not publicly available.
 
 Before running the tests, download the testing data:
 
