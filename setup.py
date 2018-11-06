@@ -29,6 +29,8 @@ INSTALL_REQUIRES_DOCS = ['pathlib2', 'funcsigs', 'cerberus']
 INSTALL_REQUIRES = [
     'numpy', 'scipy', 'scikit-learn', 'pyyaml', 'python-dateutil', 'click',
     'tqdm', 'multiprocess', 'coloredlogs', 'keras',
+    # from experimental pipeline (nnet and clustering)
+    'parmap', 'statsmodels',
 ] + INSTALL_REQUIRES_DOCS
 
 # pass an empty INSTALL_REQUIRES if building the docs, to avoid breaking the

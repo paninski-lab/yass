@@ -84,11 +84,20 @@ def training_data_triage(templates, minimum_amplitude, maximum_amplitude,
     return x_triage, y_triage
 
 
-def training_data_detect(templates, minimum_amplitude, maximum_amplitude,
-                         n_clean_per_template, from_templates_kwargs,
-                         n_collided_per_spike, max_shift, min_shift,
-                         collided_kwargs, spatial_SIG, temporal_SIG,
-                         n_noise, n_temporally_misaligned_per_spike):
+def training_data_detect(templates,
+                         minimum_amplitude,
+                         maximum_amplitude,
+                         n_clean_per_template,
+                         n_collided_per_spike,
+                         n_temporally_misaligned_per_spike,
+                         n_spatially_misaliged_per_spike,
+                         n_noise,
+                         spatial_SIG,
+                         temporal_SIG,
+                         from_templates_kwargs={},
+                         collided_kwargs={},
+                         temporally_misaligned_kwargs={},
+                         add_noise_kwargs={'reject_cancelling_noise': False}):
     """Make training data for detector network
 
 
@@ -105,34 +114,48 @@ def training_data_detect(templates, minimum_amplitude, maximum_amplitude,
                                            n_clean_per_template,
                                            **from_templates_kwargs)
 
-    x_collision = util.make_collided(x_templates, n_collided_per_spike,
-                                     multi_channel=True,
-                                     max_shift=max_shift,
-                                     min_shift=min_shift,
+    # now spatially misalign (shuffle channels)
+    fn = util.make_spatially_misaligned
+
+    x_spatially2 = fn(x_templates, n_per_spike=n_spatially_misaliged_per_spike,
+                      force_first_channel_shuffle=True)
+
+    x_spatially = fn(x_templates, n_per_spike=1,
+                     force_first_channel_shuffle=False)
+
+    x_collision = util.make_collided(x_templates, x_spatially,
+                                     n_collided_per_spike,
                                      **collided_kwargs)
 
-    _ = util.make_temporally_misaligned
-
     # create temporally misaligned spikes
-    x_temporally_misaligned = _(x_templates, n_temporally_misaligned_per_spike,
-                                multi_channel=True, max_shift=max_shift)
-
-    # now spatially misalign those
-    x_misalign = util.make_spatially_misaligned(x_temporally_misaligned,
-                                                n_per_spike=1)
+    fn = util.make_temporally_misaligned
+    x_misalign = fn(x_spatially, n_temporally_misaligned_per_spike,
+                    **temporally_misaligned_kwargs)
 
     x_noise = util.make_noise(n_noise, spatial_SIG, temporal_SIG)
 
-    # make labels
-    ones = np.ones(len(x_templates) + len(x_collision))
-    zeros = np.zeros(len(x_temporally_misaligned) + len(x_noise))
+    x_templates_noisy, _ = util.add_noise(x_templates, spatial_SIG,
+                                          temporal_SIG,
+                                          **add_noise_kwargs)
 
-    x_templates_noisy = util.add_noise(x_templates, spatial_SIG, temporal_SIG)
-    x_collision_noisy = util.add_noise(x_collision, spatial_SIG, temporal_SIG)
-    x_misaligned_noisy = util.add_noise(x_misalign, spatial_SIG, temporal_SIG)
+    x_collision_noisy, _ = util.add_noise(x_collision, spatial_SIG,
+                                          temporal_SIG,
+                                          **add_noise_kwargs)
+    x_misaligned_noisy, _ = util.add_noise(x_misalign, spatial_SIG,
+                                           temporal_SIG,
+                                           **add_noise_kwargs)
+
+    x_spatially2_noisy, _ = util.add_noise(x_spatially2, spatial_SIG,
+                                           temporal_SIG,
+                                           **add_noise_kwargs)
 
     X = yarr.concatenate((x_templates_noisy, x_collision_noisy,
-                          x_misaligned_noisy, x_noise))
+                          x_misaligned_noisy, x_noise, x_spatially2_noisy))
+
+    # make labels
+    ones = np.ones(len(x_templates_noisy) + len(x_collision_noisy))
+    zeros = np.zeros(len(x_misaligned_noisy) + len(x_noise) +
+                     len(x_spatially2_noisy))
 
     y = np.concatenate((ones, zeros))
 
@@ -389,14 +412,19 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
 
 def spikes(templates, min_amplitude, max_amplitude,
            n_per_template, spatial_sig, temporal_sig,
-           min_shift,
            make_from_templates=True,
            make_spatially_misaligned=True,
            make_temporally_misaligned=True,
            make_collided=True,
            make_noise=True,
            return_metadata=True,
-           collided_kwargs=None):
+           templates_kwargs=dict(),
+           collided_kwargs=dict(n_per_spike=1, min_shift=5),
+           temporally_misaligned_kwargs=dict(n_per_spike=1),
+           spatially_misaligned_kwargs=dict(n_per_spike=1,
+                                            force_first_channel_shuffle=True),
+           add_noise_kwargs={'reject_cancelling_noise': False},
+           ):
     """
     Make spikes, it creates several types of spikes from templates with a range
     of amplitudes
@@ -462,9 +490,6 @@ def spikes(templates, min_amplitude, max_amplitude,
     temporal_SIG
     """
 
-    if collided_kwargs is None:
-        collided_kwargs = dict()
-
     # NOTE: is the order importante here, maybe it's better to first compute
     # from templates, then take those and misalign spatially
     # (all templates in all channels) then take those and misalign temporally
@@ -491,54 +516,101 @@ def spikes(templates, min_amplitude, max_amplitude,
 
     # make spikes
     x_templates = util.make_from_templates(templates, min_amplitude,
-                                           max_amplitude, n_per_template)
+                                           max_amplitude, n_per_template,
+                                           **templates_kwargs)
+    kwargs = spatially_misaligned_kwargs
+    x_spatially = (util.make_spatially_misaligned(x_templates, **kwargs))
 
     n_spikes, _, _ = x_templates.shape
 
-    x_all, keys = [], []
+    x_all, x_all_noisy, keys, lengths = [], [], [], []
 
     if make_from_templates:
-        x_all.append(x_templates)
+        (x_templates_noisy,
+         x_templates_sub) = util.add_noise(x_templates,
+                                           spatial_sig,
+                                           temporal_sig,
+                                           **add_noise_kwargs)
+
+        x_all.append(x_templates_sub)
+        x_all_noisy.append(x_templates_noisy)
         keys.append('from templates')
+        lengths.append(len(x_templates_sub))
 
     if make_spatially_misaligned:
-        x_spatially = util.make_spatially_misaligned(x_templates,
-                                                     n_per_spike=1)
-        x_all.append(x_spatially)
+        (x_spatially_noisy,
+         x_spatially_sub) = util.add_noise(x_spatially,
+                                           spatial_sig,
+                                           temporal_sig,
+                                           **add_noise_kwargs)
+        x_all.append(x_spatially_sub)
+        x_all_noisy.append(x_spatially_noisy)
         keys.append('spatially misaligned')
+        lengths.append(len(x_spatially_sub))
 
     if make_temporally_misaligned:
-        x_temporally = util.make_temporally_misaligned(x_templates,
-                                                       n_per_spike=1,
-                                                       multi_channel=True)
+        kwargs = temporally_misaligned_kwargs
+        x_temporally = (util.make_temporally_misaligned(x_spatially, **kwargs))
+
+        (x_temporally_noisy,
+         x_temporally) = util.add_noise(x_temporally,
+                                        spatial_sig,
+                                        temporal_sig,
+                                        **add_noise_kwargs)
+
         x_all.append(x_temporally)
+        x_all_noisy.append(x_temporally_noisy)
         keys.append('temporally misaligned')
+        lengths.append(len(x_temporally))
 
     if make_collided:
-        # TODO: refactor this as it has redundant logic with misaligned
-        x_collided = util.make_collided(x_templates,
-                                        n_per_spike=1,
-                                        multi_channel=True,
-                                        min_shift=min_shift,
+        x_collided = util.make_collided(x_templates, x_spatially,
                                         **collided_kwargs)
+
+        (x_collided_noisy,
+         x_collided) = util.add_noise(x_collided,
+                                      spatial_sig,
+                                      temporal_sig,
+                                      **add_noise_kwargs)
+
         x_all.append(x_collided)
+        x_all_noisy.append(x_collided_noisy)
         keys.append('collided')
+        lengths.append(len(x_collided))
 
     if make_noise:
         x_zero = np.zeros((n_spikes, waveform_length, n_neigh))
+
+        (x_zero_noisy,
+         x_zero) = util.add_noise(x_zero,
+                                  spatial_sig,
+                                  temporal_sig,
+                                  **add_noise_kwargs)
+
         x_all.append(x_zero)
+        x_all_noisy.append(x_zero_noisy)
         keys.append('noise')
+        lengths.append(len(x_zero))
 
     x_all = np.concatenate(x_all, axis=0)
-
-    x_all_noisy = util.add_noise(x_all, spatial_sig, temporal_sig)
+    x_all_noisy = np.concatenate(x_all_noisy, axis=0)
 
     # compute amplitudes
     the_amplitudes = util.amplitudes(x_all)
 
+    def previous(lengths, i):
+        if i == 0:
+            return 0
+        else:
+            return sum(lengths[:i]) + 1
+
+    def following(lengths, i):
+        return previous(lengths, i) + lengths[i]
+
     # return a dictionary with slices for every type of spike generated
-    slices = {k: slice(n_spikes * i, n_spikes * (i + 1)) for k, i
-              in zip(keys, range(len(x_all)))}
+    slices = {k: slice(previous(lengths, i), following(lengths, i))
+              for k, i
+              in zip(keys, range(len(lengths)))}
 
     # FIXME: shoudld not return sigs
     return (x_all, x_all_noisy, the_amplitudes, slices, spatial_sig,

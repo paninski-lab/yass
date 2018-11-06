@@ -19,3 +19,4 @@ script:
   - make docs
 
 after_success: coveralls
+
