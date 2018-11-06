@@ -9,3 +9,4 @@ Developer's Guide
     dev/dev_mode
     dev/pr
     dev/testing
+    dev/known_issues

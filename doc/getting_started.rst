@@ -19,7 +19,7 @@ this `tutorial`_ for details.
 
 .. _tutorial: https://github.com/paninski-lab/yass-examples/blob/master/NN_training_tutorial.ipynb
 
-If you do now want to use a Neural Network, you can use the `threshold`
+If you do not want to use a Neural Network, you can use the `threshold`
 detector instead.
 
 For details regarding the configuration file see :doc:`config`.
@@ -47,3 +47,14 @@ Running YASS in a Python script
 *******************************
 
 .. literalinclude:: ../examples/pipeline/deconvolute.py
+
+
+Advanced usage
+**************
+
+`yass sort` is a wrapper for the code in `yass.pipeline.run`, it provides
+a pipeline implementation with some defaults but you cannot customize it,
+if you want to use experimental features, the only way to do so is to
+customize your pipeline:
+
+.. literalinclude:: ../examples/pipeline/custom.py
