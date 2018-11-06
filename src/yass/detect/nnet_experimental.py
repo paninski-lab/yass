@@ -57,9 +57,6 @@ def run(standarized_path, standarized_params,
     path_to_spike_index_all = os.path.join(TMP_FOLDER, 'spike_index_all.npy')
     path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
 
-    path_to_standardized = os.path.join(
-        TMP_FOLDER, 'preprocess', 'standarized.bin')
-
     paths = [path_to_score, path_to_spike_index_clear, path_to_spike_index_all]
     exists = [os.path.exists(p) for p in paths]
 
@@ -68,8 +65,8 @@ def run(standarized_path, standarized_params,
         max_memory = (CONFIG.resources.max_memory_gpu if GPU_ENABLED else
                       CONFIG.resources.max_memory)
 
-        # make tensorflow tensors and neural net classes
-        n_channels = CONFIG.recordings.n_channels
+        n_channels = standarized_params['n_channels']
+        dtype = standarized_params['dtype']
 
         # open tensorflow for every chunk
         NND = NeuralNetDetector.load(detector, detector_threshold,
@@ -80,9 +77,7 @@ def run(standarized_path, standarized_params,
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
 
         # compute len of recording
-        filename_dat = os.path.join(CONFIG.data.root_folder,
-                                    CONFIG.data.recordings)
-        fp = np.memmap(filename_dat, dtype='int16', mode='r')
+        fp = np.memmap(standarized_path, dtype=dtype, mode='r')
         fp_len = fp.shape[0] / n_channels
 
         # compute batch indexes
@@ -161,7 +156,8 @@ def run(standarized_path, standarized_params,
                 offset_list = []
 
                 # load chunk of data
-                standardized_recording = binary_reader(idx, buffer_size, path_to_standardized,
+                standardized_recording = binary_reader(idx, buffer_size,
+                                                       standarized_path,
                                                        n_channels, CONFIG.data.root_folder)
 
                 # run detection on smaller chunks of data, e.g. 1 sec
