@@ -26,6 +26,15 @@ def run(if_file_exists='skip', function=batch.run, **function_kwargs):
         if 'skip' it skips the operation (and loads the files) if any of them
         exist
 
+    function: function, optional
+        Which function to use, either yass.preprocess.batch.run or
+        yass.preprocess.experimental.run. See the respective files for
+        differences
+
+    **function_kwargs: keyword arguments
+        Keyword arguments passed to `function`. First argument is CONFIG,
+        then if_file_exists and then this keyword parameters
+
     Returns
     -------
     standarized_path: str
@@ -33,9 +42,6 @@ def run(if_file_exists='skip', function=batch.run, **function_kwargs):
 
     standarized_params: str
         Path to standarized data parameters
-
-    channel_index: numpy.ndarray
-        Channel indexes
 
     whiten_filter: numpy.ndarray
         Whiten matrix

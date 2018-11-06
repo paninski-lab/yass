@@ -39,9 +39,6 @@ def run(CONFIG, if_file_exists='skip', output_dtype='float64',
     standarized_params: str
         Path to standarized data parameters
 
-    channel_index: numpy.ndarray
-        Channel indexes
-
     whiten_filter: numpy.ndarray
         Whiten matrix
 
