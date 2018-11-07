@@ -118,7 +118,7 @@ def run(spike_train_cluster,
     
     # Cat: TODO: read both from CONFIG
     threshold = 10.    
-    conv_approx_rank = 5
+    conv_approx_rank = 15
     
     ''' 
     ***********************************************************
@@ -230,7 +230,6 @@ def run(spike_train_cluster,
     *************** RUN MATCH PURSUIT OVER ALL DATA ***********
     ***********************************************************
     '''
-    
     # run over rest of data in single chunk run:
     chunk_size = len(idx_list)
 

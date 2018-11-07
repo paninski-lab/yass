@@ -16,6 +16,7 @@ from yass.templates.util import strongly_connected_components_iterative
 from yass.geometry import n_steps_neigh_channels
 from yass import mfm
 from yass.empty import empty
+from yass.cluster.cluster import Cluster
 from scipy.sparse import lil_matrix
 from statsmodels import robust
 from scipy.signal import argrelmin
@@ -60,7 +61,6 @@ colors = [
 'darkgreen','darkorange','indianred','darkviolet','deepskyblue','greenyellow',
 'peru','cadetblue','forestgreen','slategrey','lightsteelblue','rebeccapurple',
 'darkmagenta','yellow','hotpink']
-
 
 sorted_colors=colors
 
@@ -969,7 +969,12 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
     else:
         wf_align = wf
     
-    if gen == 0:
+    ''' *************************************************       
+        ************** ACTIVE CHAN SELECTION ************
+        *************************************************
+    ''' 
+    active_chans_flag = False
+    if active_chans_flag and gen == 0:
         stds = np.median(np.abs(wf - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
         active_chans = np.where(stds.max(0) > 1.05)[0]
 
@@ -990,6 +995,9 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
         #plt.figure(figsize=(30,20))
         #plot_with_geom(stds, CONFIG.geom, time_scale=2, scale=10, color='k', mark_channels=active_chans)
         #plt.savefig(chunk_dir+"/channel_{}_active_chans.png".format(channel))
+    
+    else:
+        active_chans = np.arange(wf_align.shape[2])
         
     # Cat: TODO: so we force all subsequent generations to use gen0 alignment
     #wf=wf_align
@@ -1049,7 +1057,7 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
         ************** SUBSAMPLE STEP ****************** 
         ************************************************
     '''
-    # subsmaple 10,000 spikes 
+    # subsmaple 10,000 spikes if not in deconv and have > 10k spikes
     if not deconv_flag and (pca_wf.shape[0]> CONFIG.cluster.max_n_spikes):
         idx_subsampled = np.random.choice(np.arange(pca_wf.shape[0]),
                          size=CONFIG.cluster.max_n_spikes,
@@ -1082,7 +1090,6 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
                                                CONFIG)
     else:
         vbParam2, assignment2 = vbParam, assignment
-
 
     idx_recovered = np.where(assignment2!=-1)[0]
     if verbose:
@@ -1282,12 +1289,15 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
                     idx_temp_keep = np.where(temp_assignment==bigger_cluster_id)[0]
                     idx_recovered = idx_recovered[idx_temp_keep]
 
+                    # this is only requried for MFM?
                     cluster_idx_keep = np.unique(assignment2[idx_recovered])
                     
                     # exit if cluster gets decimated below threshld
                     if idx_recovered.shape[0]<CONFIG.cluster.min_spikes:
                         return
-                    
+                
+                # else run the unimodality test
+                # Cat: TODO: this is not perfect, still misses some bimodal distributions
                 else:
                     # test EM for unimodality
                     dp_new = test_unimodality(pca_wf_all[idx_recovered], temp_assignment)
@@ -1311,13 +1321,14 @@ def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig,
                     ctr+=1
             
             # cluster is unimodal, save it: 
-            # Cat: TODO : read values from file
+            # Cat: TODO : read these values from file
             diptest_thresh = 0.995
             norm_thresh = 1E-4
             # don' exit on gen0 split ever
             if (dp> diptest_thresh and gen!=0):
             #if (dp> diptest_thresh) and (norm>norm_thresh):
-                # make sure cluster on max chan            
+                
+                # make sure cluster is on max chan, otherwise omit it
                 if mc != channel and (deconv_flag==False): 
                     print ("  channel: ", channel, " template has maxchan: ", mc, 
                             " skipping ...")
@@ -2138,8 +2149,6 @@ def featurize_residual_triage(wf, robust_stds, triage_th=0.1, noise_th=4,
     
     return keep, feature_data
     
-    
-
 
 def recover_spikes(vbParam, pca, CONFIG, maha_dist = 1):
     
@@ -2149,6 +2158,13 @@ def recover_spikes(vbParam, pca, CONFIG, maha_dist = 1):
     
     vbParam.update_local(maskedData)
     assignment = mfm.cluster_triage(vbParam, pca[:,:,np.newaxis], D*maha_dist)
+    
+    # zero out low assignment vals
+    if True:
+        vbParam.rhat[vbParam.rhat < 0.001] = 0
+        vbParam.rhat = vbParam.rhat/np.sum(vbParam.rhat,
+                                         1, keepdims=True)
+        assignment = np.argmax(vbParam.rhat, axis=1)
     
     return vbParam, assignment
 
@@ -2276,12 +2292,14 @@ def make_CONFIG2(CONFIG):
     return CONFIG2
 
 
+
+
 def run_cluster_features_chunks(spike_index_clear, spike_index_all,
-                         n_dim_pca_compression, 
-                         n_dim_pca, wf_start, wf_end, 
-                         n_feat_chans, CONFIG, out_dir,
-                         mfm_threshold, upsample_factor, nshifts):
-    
+                                n_dim_pca_compression, 
+                                n_dim_pca, wf_start, wf_end, 
+                                n_feat_chans, CONFIG, out_dir,
+                                mfm_threshold, upsample_factor, nshifts):
+            
     ''' New voltage feature based clustering; parallel version
     ''' 
     
@@ -2374,7 +2392,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         # read recording chunk and share as global variable
         # Cat: TODO: recording_chunk should be a shared variable in 
         #            multiprocessing module;
-        
         buffer_size = 200
         standardized_filename = os.path.join(CONFIG.data.root_folder,
                                             'tmp', 'standarized.bin')
@@ -2399,7 +2416,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         channels = np.arange(CONFIG.recordings.n_channels)
         args_in = []
         for channel in channels:
-        #for channel in [31,32,15,45]:
+        #for channel in [45]:
         #for channel in [6,15,45,31,32]:
 
             # check to see if chunk + channel already completed
@@ -2407,7 +2424,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                                                             str(channel)+".npz")
             # skip 
             if os.path.exists(filename_postclustering):
-                #print ("skipping file: ", filename_postclustering)
                 continue 
                 
             args_in.append([channel, idx, proc_index,CONFIG2, 
@@ -2419,16 +2435,28 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                 n_channels])
 
         # Cat: TODO: have single-core option also here     
+        # print ("  starting clustering")
+        # if CONFIG.resources.multi_processing:
+            # p = mp.Pool(CONFIG.resources.n_processors)
+            # res = p.map_async(cluster_channels_chunks_args, args_in).get(988895)
+            # p.close()
+
+        # else:
+            # res = []
+            # for arg_in in args_in:
+                # res.append(cluster_channels_chunks_args(arg_in))
         print ("  starting clustering")
         if CONFIG.resources.multi_processing:
             p = mp.Pool(CONFIG.resources.n_processors)
-            res = p.map_async(cluster_channels_chunks_args, args_in).get(988895)
+            res = p.map_async(Cluster, args_in).get(988895)
             p.close()
 
         else:
             res = []
             for arg_in in args_in:
-                res.append(cluster_channels_chunks_args(arg_in))
+                res.append(Cluster(arg_in))
+
+        quit()
 
         ## save simple flag that chunk is done
         ## Cat: TODO: fix this; or run chunk wise-global merge
@@ -2540,7 +2568,8 @@ def mfm_binary_split2(muhat, assignment_orig, cluster_index=None):
 
    return assignment
     
-    
+   
+
     
 def cluster_channels_chunks_args(data_in):
 
@@ -2668,7 +2697,7 @@ def cluster_channels_chunks_args(data_in):
         
         # indicate whether running the RRR3 function initially or post deconv
         deconv_flag = False
-
+        
         RRR3_noregress_recovery_dynamic_features(channel, 
              indexes_subsampled, 
              gen, fig, grid, x, ax_t, 
@@ -4295,6 +4324,9 @@ def run_mfm_3(kk, CONFIG):
 
 
 def run_mfm3(kk, CONFIG):
+    if verbose:
+        print("chan "+ str(self.channel)+' gen: '+str(self.gen)+" - clustering ", 
+                                                          pca_wf.shape)
     mask = np.ones((kk.shape[0], 1))
     group = np.arange(kk.shape[0])
     vbParam2 = mfm.spikesort(kk[:,:,np.newaxis],
@@ -4350,28 +4382,7 @@ def load_waveforms_from_memory_merge(recording, data_start, offset, spike_train,
     return waveforms    
 
 
-def load_waveforms_from_disk(standardized_file, 
-                             geometry_file,
-                             n_channels, 
-                             spike_train, 
-                             spike_size):
 
-    #from yass.explore.explorers import RecordingExplorer
-    #standardized_file = '/media/cat/250GB/liam/49chans/tmp/standarized.bin'
-    #geometry_file = '/media/cat/250GB/liam/49chans/ej49_geometry1.txt'
-    #n_channels = 49
-
-    # initialize rec explorer
-    # Cat: TODO is there a faster version of this?!
-    re = RecordingExplorer(standardized_file, path_to_geom = geometry_file, 
-                           spike_size = 30, neighbor_radius = 100, 
-                           dtype = 'float32',n_channels = n_channels, 
-                           data_order = 'samples')
-
-    spikes = spike_train[:,0]
-    wf_data = re.read_waveforms(spikes) #
-
-    return (wf_data)
 
 def align_singletrace_lastchan(wf, CONFIG, upsample_factor = 5, nshifts = 15, 
              ref = None):
@@ -4599,22 +4610,6 @@ def find_clean_templates(templates, CONFIG):
             template_ids.append(k)
             
     return np.array(template_ids)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
