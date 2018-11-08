@@ -63,14 +63,14 @@ class Cluster(object):
 
         # run generational clustering on channel
         self.cluster(self.starting_indexes, self.starting_gen, 
-                     self.triageflag, self.alignflag)
+                     self.triageflag)
                          
         # save clusters and make plots
         self.save_clustering()
         
-	
-    def cluster(self, current_indexes, gen, triage_flag, alignflag, 
-		active_chans=None):
+        
+    def cluster(self, current_indexes, gen, triage_flag,  
+                active_chans=None):
 
         ''' Recursive clusteringn function
             channel: current channel being clusterd
@@ -85,16 +85,18 @@ class Cluster(object):
         # Exit if cluster too small
         if current_indexes.shape[0] < self.CONFIG.cluster.min_spikes: return
         
-        # Align all chans to max chan
-        wf_align = self.align_step(gen, alignflag, current_indexes)
-        
+        # Align all chans to max chan - only in gen0
+        if gen==0:
+            self.align_step(gen)
+        wf_align = self.wf_global[current_indexes]
+
         # Select active channels
         active_chans_flag = False
         active_chans = self.active_chans_step(active_chans_flag, gen, wf_align)
         
         # Find feature channels and featurize
         pca_wf, idx_keep_feature, wf_final, feat_chans = self.featurize_step(
-						gen, wf_align, active_chans)
+                                                gen, wf_align, active_chans)
 
         # KNN Triage and re-PCA step
         pca_wf, idx_keep = self.knn_triage_step(gen, pca_wf, wf_final, triage_flag)
@@ -109,21 +111,30 @@ class Cluster(object):
 
         # mfm cluster step
         vbParam, assignment = self.run_mfm3(gen, pca_wf)
+        #vbParam, assignment = self.run_EM(gen, pca_wf_all)
         
         # if we subsampled then recover soft-assignments using above:
         idx_recovered, vbParam2, assignment2 = self.recover_step(gen,
-                                pca_wf, vbParam, assignment, pca_wf_all)
-
+                            pca_wf, vbParam, assignment, pca_wf_all)
+        #else:
+        #    idx_recovered = np.arange(assignment.shape[0])
+        #    assignment2 = assignment
+        #    vbParam2 = vbParam
+            
         # Exit if cluster too small
         if idx_recovered.shape[0] < self.CONFIG.cluster.min_spikes: return
 
+        # Note: do not compute the spike index or template until done decimating the data
+        #template_current = wf_align[idx_keep][idx_recovered].mean(0)
+        template_current = wf_align[idx_keep].copy()
+        #sic_current = self.sic_global[current_indexes][idx_keep][idx_recovered]
+        sic_current = self.sic_global[current_indexes][idx_keep].copy() 
+
         # make a template that in case the cluster is saved, can be used below
         # Cat: TODO: can take template to be just core of cluster 
-        template = wf_align[idx_keep][idx_recovered].mean(0)
-        mc = np.argmax(template.ptp(0))
-        sic_current = self.sic_global[current_indexes][idx_keep][idx_recovered]
-        
-        # zero out all wf data arrays; not required below here
+        mc = np.argmax(template_current[idx_recovered].mean(0).ptp(0))
+
+        # zero out all wf data arrays as not required below here
         wf = None
         wf_align = None
 
@@ -134,7 +145,7 @@ class Cluster(object):
         # Case #1: single mfm cluster found
         if vbParam.rhat.shape[1] == 1:
             self.single_cluster_step(mc, assignment2, pca_wf_all, vbParam2, 
-                            idx_recovered, sic_current, gen, template, 
+                            idx_recovered, sic_current, gen, template_current, 
                             feat_chans)
             
         # Case #2: multiple clusters
@@ -150,13 +161,14 @@ class Cluster(object):
                             idx_recovered, pca_wf_all, vbParam2, stability, 
                             current_indexes, sizes)
 
-            # if all clusters are unstable
+            # if no stable clusters, run spliting algorithm
             else:
                 self.multi_cluster_unstable(mc, gen, assignment2, idx_keep, 
                             idx_recovered, pca_wf_all, vbParam2, stability, 
-                            current_indexes, sic_current, template, feat_chans)
-			    
-			    			    
+                            current_indexes, sic_current, template_current, 
+                            feat_chans)
+                            
+                                                    
     def load_params(self, data_in):
                 
         # CAT: todo read params below from file:
@@ -207,7 +219,7 @@ class Cluster(object):
         self.spike_size = 111
         self.scale = 10 
         self.triageflag = True
-        self.alignflag = True
+        #self.alignflag = True
         self.plotting = True
 
         self.starting_gen = 0     
@@ -253,7 +265,7 @@ class Cluster(object):
             self.ax_t = []
             
 
-    def align_step(self, gen, align_flag, current_indexes):
+    def align_step(self, gen):
         # align, note: aligning all channels to max chan which is appended to the end
         # note: max chan is first from feat_chans above, ensure order is preserved
         # note: don't want for wf array to be used beyond this function
@@ -261,23 +273,14 @@ class Cluster(object):
         
         if self.verbose:
             print("chan/unit "+str(self.channel)+' gen: '+str(gen)+' # spikes: '+
-                  str(current_indexes.shape[0]))
-                  
-        # load correct waveforms from disk
-        wf = self.wf_global[current_indexes]
-                  
-        if align_flag:
-            if self.verbose:
-                print ("chan "+str(self.channel)+' gen: '+str(gen)+" - aligning")
+                  str(self.wf_global.shape[0]))
 
-            mc = wf.mean(0).ptp(0).argmax(0)
-            best_shifts = align_get_shifts(wf[:,:,mc], self.CONFIG) 
-            wf_align = shift_chans(wf, best_shifts, self.CONFIG)
+        if self.verbose:
+            print ("chan "+str(self.channel)+' gen: '+str(gen)+" - aligning")
 
-        else:
-            wf_align = wf
-
-        return wf_align
+        mc = self.wf_global.mean(0).ptp(0).argmax(0)
+        best_shifts = align_get_shifts(self.wf_global[:,:,mc], self.CONFIG) 
+        self.wf_global = shift_chans(self.wf_global, best_shifts, self.CONFIG)
 
 
     def active_chans_step(self, active_chans_flag, gen, wf_align):
@@ -303,7 +306,7 @@ class Cluster(object):
         # Cat: TODO: what do these metrics look like for 100 spikes!?; should we simplify for low spike count?
         feat_chans, mc, robust_stds = self.get_feat_channels_mad_cat(
                                         wf_align[:self.n_spikes_featurize, :, active_chans])
-	
+        
         # featurize all spikes
         idx_keep_feature, pca_wf, wf_final = self.featurize_residual_triage_cat(
                                             wf_align[:, :, active_chans], 
@@ -333,12 +336,13 @@ class Cluster(object):
             if idx_keep.shape[0] < self.CONFIG.cluster.min_spikes: 
                 return None, np.array([])
 
-            #pca_wf = pca_wf[idx_keep]
+            pca_wf = pca_wf[idx_keep]
 
             # rerun global compression on residual waveforms
-            pca = PCA(n_components=min(self.selected_PCA_rank, wf_final[idx_keep].shape[1]))
-            pca.fit(wf_final[idx_keep])
-            pca_wf = pca.transform(wf_final[idx_keep])
+            if True:
+                pca = PCA(n_components=min(self.selected_PCA_rank, wf_final[idx_keep].shape[1]))
+                pca.fit(wf_final[idx_keep])
+                pca_wf = pca.transform(wf_final[idx_keep])
         
         else:
             idx_keep = np.arange(pca_wf.shape[0])
@@ -422,8 +426,8 @@ class Cluster(object):
         
     
     def single_cluster_step(self, mc, assignment2, pca_wf_all, vbParam2, idx_recovered,
-                            sic_current, gen, template, feat_chans):
-				
+                            sic_current, gen, template_current, feat_chans):
+                                
         # exclude units whose maximum channel is not on the current 
         # clustered channel; but only during clustering, not during deconv
         if mc != self.channel and (self.deconv_flag==False): 
@@ -441,7 +445,7 @@ class Cluster(object):
                             split_type,
                             end_flag)
             return 
-	    
+            
         else:         
             N = len(self.assignment_global)
             if self.verbose:
@@ -450,13 +454,14 @@ class Cluster(object):
                 print ("")
             
             self.assignment_global.append(N * np.ones(assignment2[idx_recovered].shape[0]))
-            self.spike_index.append(sic_current)
+            self.spike_index.append(sic_current[idx_recovered])
+            template = template_current[idx_recovered].mean(0)
             self.templates.append(template)
             
             # plot template if done
             if self.plotting:
                 self.plot_clustering_template(gen, template, 
-                                         idx_recovered, feat_chans, N)
+                                              idx_recovered, feat_chans, N)
 
                 # always plot scatter distributions
                 if gen<20:
@@ -471,9 +476,9 @@ class Cluster(object):
                 
                                 
     def multi_cluster_stable(self, gen, assignment2, idx_keep, idx_recovered, 
-			     pca_wf_all, vbParam2, stability, current_indexes,
-			     sizes):
-			    
+                             pca_wf_all, vbParam2, stability, current_indexes,
+                             sizes):
+                            
         if self.verbose:
             print("chan "+str(self.channel)+' gen: '+str(gen) + 
                   " multiple clusters, stability " + str(np.round(stability,2)) + 
@@ -503,47 +508,50 @@ class Cluster(object):
                     str(idx.shape))
             
             triageflag = True
-            alignflag = True
+            #alignflag = True
             self.cluster(current_indexes[idx_keep][idx_recovered][idx], 
-                         gen+1, triageflag, alignflag)
+                         gen+1, triageflag)
 
-        # run mfm on remaining data
+        # run mfm on residual data
         idx = np.in1d(assignment2[idx_recovered], 
                                 np.where(stability<=self.mfm_threshold)[0])
         if idx.sum()>self.CONFIG.cluster.min_spikes:
             if self.verbose:
                 print("chan "+str(self.channel)+" reclustering residuals "+
                                         str(idx.shape))
+                                        
+            # recluster
             triageflag = True
-            alignflag = True
-            
-            # overwrite wf with current index to remove data from memory
             self.cluster(current_indexes[idx_keep][idx_recovered][idx], 
-                         gen+1, triageflag, alignflag)
+                         gen+1, triageflag)
 
 
     def multi_cluster_unstable(self, mc, gen, assignment2, idx_keep, 
                             idx_recovered, pca_wf_all, vbParam2, stability, 
-                            current_indexes, sic_current, template,
-			    feat_chans):
+                            current_indexes, sic_current, template_current,
+                            feat_chans):
         
         # use EM algorithm for binary split for now
         EM_split = True
-        dp_val, assignment3 = self.diptest_step(EM_split, assignment2, 
-				    idx_recovered, vbParam2, pca_wf_all)
-        
-        # cluster is unimodal, save it: TODO : read from CONFIG
+        dp_val, assignment3, idx_recovered = self.diptest_step(EM_split, 
+                        assignment2, idx_recovered, vbParam2, pca_wf_all)
+
+        # exit if clusters were decimated below threshold during diptest
+        if idx_recovered.shape[0] < self.CONFIG.cluster.min_spikes: return
+                
+        # cluster is unimodal, save it
         # don't exit on gen0 split ever
         diptest_thresh = 1.0
         if (dp_val> diptest_thresh and gen!=0):
-            self.diptest_save_step(dp_val, mc, gen, assignment2, idx_recovered, pca_wf_all,
-                          vbParam2, assignment3, sic_current, template,
+            self.save_step(dp_val, mc, gen, idx_recovered, pca_wf_all,
+                          vbParam2, assignment3, sic_current, template_current,
                           feat_chans)
+        
 
         # cluster is not unimodal, split it along binary split and recluster 
         else:
-            self.diptest_split_step(gen, dp_val, assignment3, pca_wf_all, idx_recovered,
-				    vbParam2, idx_keep, current_indexes)
+            self.split_step(gen, dp_val, assignment3, pca_wf_all, idx_recovered,
+                                    vbParam2, idx_keep, current_indexes)
 
     def diptest_step(self, EM_split, assignment2, idx_recovered, vbParam2, pca_wf_all):
         
@@ -553,7 +561,7 @@ class Cluster(object):
         ctr=0 
         dp_val = 1.0
         idx_temp_keep = np.arange(idx_recovered.shape[0])
-        cluster_idx_keep = np.arange(vbParam2.muhat.shape[0])
+        #cluster_idx_keep = np.arange(vbParam2.muhat.shape[0])
         # loop over cluster until at least 3 loops and take lowest dp value
         while True:    
             # use EM algorithm to get binary split
@@ -566,12 +574,12 @@ class Cluster(object):
                 idx = np.where(labels[:,1]>0.5)[0]
                 temp_assignment[idx]=1
             
-            # use mfm algorithm to find temp-assignment
-            else:
-                temp_assignment = mfm_binary_split2(
-                                    vbParam2.muhat[cluster_idx_keep], 
-                                    assignment2[idx_recovered],
-                                    cluster_idx_keep)
+            # # use mfm algorithm to find temp-assignment
+            # else:
+                # temp_assignment = mfm_binary_split2(
+                                    # vbParam2.muhat[cluster_idx_keep], 
+                                    # assignment2[idx_recovered],
+                                    # cluster_idx_keep)
                 
             # check if any clusters smaller than min spikes
             counts = np.unique(temp_assignment, return_counts=True)[1]
@@ -583,11 +591,11 @@ class Cluster(object):
                 idx_recovered = idx_recovered[idx_temp_keep]
 
                 # this is only requried for MFM?
-                cluster_idx_keep = np.unique(assignment2[idx_recovered])
+                #cluster_idx_keep = np.unique(assignment2[idx_recovered])
                 
                 # exit if cluster gets decimated below threshld
                 if idx_recovered.shape[0]<self.CONFIG.cluster.min_spikes:
-                    return
+                    return dp_val, assignment2, idx_recovered
             
             # else run the unimodality test
             # Cat: TODO: this is not perfect, still misses some bimodal distributions
@@ -614,13 +622,13 @@ class Cluster(object):
                 
                 ctr+=1
             
-        return dp_val, assignment3
+        return dp_val, assignment3, idx_recovered
 
 
-    def diptest_save_step(self, dp_val, mc, gen, assignment2, idx_recovered, 
-			  pca_wf_all, vbParam2, assignment3, sic_current, 
-			  template, feat_chans):
-			      
+    def save_step(self, dp_val, mc, gen, idx_recovered, 
+                          pca_wf_all, vbParam2, assignment3, sic_current, 
+                          template_current, feat_chans):
+                              
         # make sure cluster is on max chan, otherwise omit it
         if mc != self.channel and (self.deconv_flag==False): 
             print ("  channel: ", self.channel, " template has maxchan: ", mc, 
@@ -631,7 +639,7 @@ class Cluster(object):
                 split_type = 'mfm-binary - non max chan'
                 end_flag = 'cyan'                       
                 self.plot_clustering_scatter(gen,  
-                    assignment2[idx_recovered],
+                    assignment3,
                     pca_wf_all[idx_recovered], 
                     vbParam2.rhat[idx_recovered],
                     split_type,
@@ -644,9 +652,9 @@ class Cluster(object):
             print("chan "+str(self.channel)+' gen: '+str(gen)+" >>> cluster "+
                   str(N)+" saved, size: "+str(idx_recovered.shape)+"<<<")
         
-        print (" WHY IS assignment3 being USED HERE")
         self.assignment_global.append(N * np.ones(assignment3.shape[0]))
-        self.spike_index.append(sic_current)
+        self.spike_index.append(sic_current[idx_recovered])
+        template = template_current[idx_recovered].mean(0)
         self.templates.append(template)
 
         # plot template if done
@@ -669,9 +677,9 @@ class Cluster(object):
                     end_flag)     
     
     
-    def diptest_split_step(self, gen, dp_val, assignment3, pca_wf_all, 
-			   idx_recovered, vbParam2, idx_keep, current_indexes):
-			       
+    def split_step(self, gen, dp_val, assignment3, pca_wf_all, 
+                           idx_recovered, vbParam2, idx_keep, current_indexes):
+                               
         # plot EM labeled data
         if gen<20 and self.plotting:
             split_type = 'mfm-binary, dp: '+ str(round(dp_val,5))
@@ -680,6 +688,7 @@ class Cluster(object):
                     pca_wf_all[idx_recovered], 
                     vbParam2.rhat[idx_recovered],
                     split_type)
+                    
 
         if self.verbose:
             print("chan "+str(self.channel)+' gen: '+str(gen)+ 
@@ -696,10 +705,10 @@ class Cluster(object):
                 print("chan "+str(self.channel)+' gen: '+str(gen)+
                     " reclustering cluster"+ str(idx.shape))
             
+            # recluster
             triageflag = True
-            alignflag = True
             self.cluster(current_indexes[idx_keep][idx_recovered][idx], 
-                         gen+1, triageflag, alignflag)
+                         gen+1, triageflag)
                          
     
     def save_clustering(self,):
@@ -750,7 +759,7 @@ class Cluster(object):
 
         print ("**** Channel ", str(self.channel), " starting spikes: ", 
             self.wf_global.shape[0], ", found # clusters: ", 
-	    len(self.spike_index))
+            len(self.spike_index))
 
         # overwrite this variable just in case garbage collector doesn't
         self.wf_global = None
@@ -874,8 +883,7 @@ class Cluster(object):
                                 rhat,
                                 split_type,
                                 end_point='false'):
-        print (self.x[gen], gen)
-        #if np.all(self.x[gen]<20) and (gen <20):
+
         if (self.x[gen]<20) and (gen <20):
 
             # add generation index
@@ -929,10 +937,105 @@ class Cluster(object):
         # plot feature channels as scatter dots
         for i in feat_chans:
              self.ax_t.scatter(self.CONFIG.geom[i,0]+gen, 
-			       self.CONFIG.geom[i,1]+N, 
-			       s = 30, 
-			       color = colors[N%50],
-			       alpha=1) 
+                               self.CONFIG.geom[i,1]+N, 
+                               s = 30, 
+                               color = colors[N%50],
+                               alpha=1) 
+
+
+
+
+    def run_EM(self, gen, pca_wf):
+        ''' Experimental idea of using EM only to do clustering step
+        '''
+        if self.verbose:
+            print("chan "+ str(self.channel)+' gen: '+str(gen)+" - clustering ", 
+                                                              pca_wf.shape)
+
+        self.recover_threshold = 0.001
+
+        class vbParam_ojb():
+            def __init__(self):
+                self.rhat = None
+
+        # test unimodality of cluster
+        dp_val = 1.0 
+        for k in range(3):
+            gmm = GaussianMixture(n_components=2)
+            gmm.fit(pca_wf)
+            labels = gmm.predict_proba(pca_wf)
+
+            temp_rhat = labels
+
+            # zero out low assignment vals
+            temp_rhat[temp_rhat <  self.recover_threshold] = 0
+            temp_rhat = temp_rhat/np.sum(temp_rhat, 1, keepdims=True)
+
+            assignment2 = np.argmax(temp_rhat, axis=1)
+            
+            mask = temp_rhat>0
+            stability = np.average(mask * temp_rhat, axis = 0, weights = mask)
+            clusters, sizes = np.unique(assignment2, return_counts = True)
+
+            print (" EM: comps: ", 2, "sizes: ", sizes, 
+                    "stability: ", stability)
+                                                                
+            dp_new = self.test_unimodality(pca_wf, assignment2)
+            print ("diptest: ", dp_new)
+            if dp_new<dp_val:
+                dp_val=dp_new
+            
+
+        # if distribution unimodal
+        if dp_val >0.990: 
+            assignment2[:]=0
+            temp_rhat=np.ones((assignment2.shape[0],1))
+            #print (temp_rhat)
+            #quit()
+        
+        # else
+        else:
+            components_list = [3,4,5,6]
+            for n_components in components_list:
+                gmm = GaussianMixture(n_components=n_components)
+                
+                #ctr=0 
+                #dp_val = 1.0
+                #idx_temp_keep = np.arange(idx_recovered.shape[0])
+                #cluster_idx_keep = np.arange(vbParam2.muhat.shape[0])
+
+                gmm.fit(pca_wf)
+                labels = gmm.predict_proba(pca_wf)
+
+                temp_rhat = labels
+                temp_assignment = np.zeros(labels.shape[0], 'int32')
+                #idx = np.where(labels[:,1]>0.5)[0]
+                #temp_assignment[idx]=1
+
+            
+                # zero out low assignment vals
+                self.recover_threshold = 0.001
+                temp_rhat[temp_rhat <  self.recover_threshold] = 0
+                temp_rhat = temp_rhat/np.sum(temp_rhat, 1, keepdims=True)
+
+                assignment2 = np.argmax(temp_rhat, axis=1)
+
+                mask = temp_rhat>0
+                stability = np.average(mask * temp_rhat, axis = 0, weights = mask)
+                clusters, sizes = np.unique(assignment2, return_counts = True)
+
+                print (" EM: comps: ", n_components, "sizes: ", sizes, 
+                        "stability: ", stability)
+                
+                if np.any(stability>0.90):
+                    break
+                
+        vbParam = vbParam_ojb()
+        vbParam.rhat = temp_rhat
+
+        return vbParam, assignment2
+
+
 
 def align_get_shifts(wf, CONFIG, upsample_factor = 5, nshifts = 15):
 
