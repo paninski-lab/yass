@@ -122,6 +122,104 @@ def threshold(path_to_data, dtype, n_channels, data_order,
     return spike_index_clear
 
 
+def threshold_parallel(path_to_data, dtype, n_channels, data_order,
+              max_memory, neighbors, spike_size,
+              minimum_half_waveform_size, threshold, output_path=None,
+              spike_index_clear_filename='spike_index_clear.npy',
+              if_file_exists='skip'):
+    """Threshold spike detection in batches
+
+    Parameters
+    ----------
+    path_to_data: str
+        Path to recordings in binary format
+
+    dtype: str
+        Recordings dtype
+
+    n_channels: int
+        Number of channels in the recordings
+
+    data_order: str
+        Recordings order, one of ('channels', 'samples'). In a dataset with k
+        observations per channel and j channels: 'channels' means first k
+        contiguous observations come from channel 0, then channel 1, and so
+        on. 'sample' means first j contiguous data are the first observations
+        from all channels, then the second observations from all channels and
+        so on
+
+    max_memory:
+        Max memory to use in each batch (e.g. 100MB, 1GB)
+
+    neighbors_matrix: numpy.ndarray (n_channels, n_channels)
+        Boolean numpy 2-D array where a i, j entry is True if i is considered
+        neighbor of j
+
+    spike_size: int
+        Spike size
+
+    minimum_half_waveform_size: int
+        This is used to remove spikes that are either at the beginning or end
+        of the recordings and whose location does not allow to draw a
+        wavefor of size at least 2 * minimum_half_waveform_size + 1
+
+    threshold: float
+        Threshold used on amplitude for detection
+
+    output_path: str, optional
+        Directory to save spike indexes, if None, results won't be stored, but
+        only returned by the function
+
+    spike_index_clear_filename: str, optional
+        Filename for spike_index_clear, it is used as the filename for the
+        file (relative to output_path), if None, results won't be saved, only
+        returned
+
+    if_file_exists:
+        What to do if there is already a file in save_spike_index_clear
+        path. One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces
+        he file if it exists, if 'abort' if raise a ValueError exception if
+        the file exists, if 'skip' it skips the operation if
+        save_spike_index_clear and save_spike_index_collision the file exist
+        and loads them from disk, if any of the files is missing they are
+        computed
+
+    Returns
+    -------
+    spike_index_clear: numpy.ndarray (n_clear_spikes, 2)
+        2D array with indexes for clear spikes, first column contains the
+        spike location in the recording and the second the main channel
+        (channel whose amplitude is maximum)
+
+    spike_index_collision: numpy.ndarray (0, 2)
+        Empty array, collision is not implemented in the threshold detector
+    """
+    # instatiate batch processor
+    bp = BatchProcessor(path_to_data, dtype, n_channels, data_order,
+                        max_memory, buffer_size=spike_size)
+
+    # run threshold detector
+    spikes = _threshold(rec, neighbors, spike_size, threshold)
+
+    # no collision detection implemented, all spikes are marked as clear
+    spike_index_clear = np.vstack(spikes)
+
+    # remove spikes whose location won't let us draw a complete waveform
+    logger.info('Removing clear indexes outside the allowed range to '
+                'draw a complete waveform...')
+    spike_index_clear, _ = (remove_incomplete_waveforms(
+                            spike_index_clear,
+                            minimum_half_waveform_size,
+                            bp.reader.observations))
+
+    if output_path and spike_index_clear_filename:
+        path = os.path.join(output_path, spike_index_clear_filename)
+        save_numpy_object(spike_index_clear, path,
+                          if_file_exists=if_file_exists,
+                          name='Spike index clear')
+
+    return spike_index_clear
+
 def _threshold(rec, neighbors, spike_size, threshold):
     """Run Threshold-based spike detection
 

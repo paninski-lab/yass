@@ -1985,6 +1985,7 @@ def get_connected_components(rhat, assignment):
 # def robust_stds(data):
     # return np.median(np.abs(data - np.median(data, axis=0, keepdims=True)), axis=0)*1.4826
     
+    
 # def get_feat_channels_mad4(wf, n_feat_chans):
     # '''  Function that uses MAD statistic like robust variance estimator to select channels
     # '''
@@ -2382,6 +2383,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     # select which spike index to use:
     if True:
         print ("  using spike_index_all for clustering step")
+        print (spike_index_all.shape)
         spike_index = spike_index_all.copy()
     else:
         print ("  using spike_index_clear for clustering step")
@@ -2415,9 +2417,9 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                                                     str(proc_index).zfill(6)
         channels = np.arange(CONFIG.recordings.n_channels)
         args_in = []
-        #for channel in channels:
-        for channel in [45]:
-        #for channel in [6,15,45,31,32]:
+        for channel in channels:
+        #for channel in [4,6,22,23]:
+        #for channel in [255]:
 
             # check to see if chunk + channel already completed
             filename_postclustering = (chunk_dir + "/channel_"+
@@ -2455,8 +2457,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
             res = []
             for arg_in in args_in:
                 res.append(Cluster(arg_in))
-
-        quit()
 
         ## save simple flag that chunk is done
         ## Cat: TODO: fix this; or run chunk wise-global merge

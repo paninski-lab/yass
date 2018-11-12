@@ -819,14 +819,15 @@ class MatchPursuitWaveforms(object):
                  deconv_chunk_dir, 
                  chunk_size, 
                  n_sec_chunk,
-                 idx_list_local):
+                 idx_list_local,
+                 standardized_filename):
         
         """ Initialize by computing residuals
             provide: raw data block, templates, and deconv spike train; 
         """
         self.n_time, self.n_chan, self.n_unit = temps.shape
         self.buffer_size = buffer_size
-        self.standardized_filename = '/media/cat/1TB/liam/49channels/data1_allset/tmp/standarized.bin'
+        self.standardized_filename = standardized_filename
 
         self.dec_spike_train = dec_spike_train
         self.n_processors = n_processors

@@ -118,7 +118,7 @@ def run(spike_train_cluster,
     
     # Cat: TODO: read both from CONFIG
     threshold = 10.    
-    conv_approx_rank = 15
+    conv_approx_rank = 10
     
     ''' 
     ***********************************************************
@@ -232,6 +232,14 @@ def run(spike_train_cluster,
     '''
     # run over rest of data in single chunk run:
     chunk_size = len(idx_list)
+
+    # process only white noise, first 30 mins
+    white_noise_only = True
+    if white_noise_only:
+        print ("  DECONV ONLY OVER WHITE NOISE STIMULUS ")
+        max_time = 30*60*CONFIG.recordings.sampling_rate
+        idx = np.where(np.array(idx_list)[:,0]<max_time)[0]
+        idx_list = idx_list[idx]
 
     #templates = templates.swapaxes(1,2)
     for chunk_ctr, c in enumerate(range(0, len(idx_list), chunk_size)):
@@ -691,9 +699,10 @@ def compute_residual_function(CONFIG, idx_list_local,
                                       deconv_chunk_dir,
                                       chunk_size,
                                       n_sec_chunk,
-                                      idx_list_local)
-    
-        
+                                      idx_list_local,
+                                      standardized_filename)
+
+
     # compute residual using initial templates obtained above
     # Note: this uses spike times occuring at beginning of spike
     fname = (deconv_chunk_dir+"/residual.npy")

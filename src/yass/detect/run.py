@@ -29,7 +29,8 @@ from yass.geometry import n_steps_neigh_channels
 from yass.util import file_loader, save_numpy_object
 from keras import backend as K
 from collections import defaultdict
-
+from yass.threshold.detect import threshold
+from yass.threshold.dimensionality_reduction import pca
 from yass.templates.util import strongly_connected_components_iterative
 
 
@@ -129,225 +130,105 @@ def run(standarized_path, standarized_params,
                                   save_results)
 
 
-def run_threshold(standarized_path, standarized_params,
-                  whiten_filter, output_directory, if_file_exists,
-                  save_results):
-    """Run threshold detection and autoencoder dimensionality reduction
 
+def run_threshold(standarized_path, standarized_params,
+        whiten_filter, output_directory, if_file_exists,
+        save_results, temporal_features=3,
+        std_factor=4):
+    """Run threshold detector and dimensionality reduction using PCA
     Returns
     -------
     scores
       Scores for all spikes
-
     spike_index_clear
       Spike indexes for clear spikes
-
     spike_index_all
       Spike indexes for all spikes
     """
     logger = logging.getLogger(__name__)
 
+    logger.debug('Running threshold detector...')
+
     CONFIG = read_config()
-    TMP_FOLDER = CONFIG.path_to_output_directory
 
-    # check if all scores, clear and collision spikes exist..
-    path_to_score = os.path.join(TMP_FOLDER, 'scores_clear.npy')
-    path_to_spike_index_clear = os.path.join(TMP_FOLDER,
-                                             'spike_index_clear.npy')
-    path_to_spike_index_all = os.path.join(TMP_FOLDER, 'spike_index_all.npy')
-    path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
+    folder = Path(CONFIG.path_to_output_directory, 'detect')
+    folder.mkdir(exist_ok=True)
 
-    path_to_standardized = os.path.join(TMP_FOLDER, 'standarized.bin')
+    TMP_FOLDER = str(folder)
 
-    paths = [path_to_score, path_to_spike_index_clear, path_to_spike_index_all]
-    exists = [os.path.exists(p) for p in paths]
+    # files that will be saved if enable by the if_file_exists option
+    filename_index_clear = 'spike_index_clear.npy'
+    filename_index_clear_pca = 'spike_index_clear_pca.npy'
+    filename_scores_clear = 'scores_clear.npy'
+    filename_spike_index_all = 'spike_index_all.npy'
+    filename_rotation = 'rotation.npy'
 
-    if (if_file_exists == 'overwrite' or not any(exists)):
+    ###################
+    # Spike detection #
+    ###################
 
-        n_channels = CONFIG.recordings.n_channels
-      
-        # run nn preprocess batch-wsie
-        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-        
-        # compute len of recording
-        filename_dat = os.path.join(CONFIG.data.root_folder,
-                                    CONFIG.data.recordings)
-        fp = np.memmap(filename_dat, dtype='int16', mode='r')
-        fp_len = fp.shape[0] / n_channels
+    # run threshold detection, save clear indexes in TMP/filename_index_clear
+    clear = threshold(standarized_path,
+                      standarized_params['dtype'],
+                      standarized_params['n_channels'],
+                      standarized_params['data_order'],
+                      CONFIG.resources.max_memory,
+                      CONFIG.neigh_channels,
+                      CONFIG.spike_size,
+                      CONFIG.spike_size + CONFIG.templates.max_shift,
+                      std_factor,
+                      TMP_FOLDER,
+                      spike_index_clear_filename=filename_index_clear,
+                      if_file_exists=if_file_exists)
 
-        # compute batch indexes
-        buffer_size = 200       # Cat: to set this in CONFIG file
-        sampling_rate = CONFIG.recordings.sampling_rate
-        #n_sec_chunk = CONFIG.resources.n_sec_chunk
-        
-        # Cat: TODO: Set a different size chunk for clustering vs. detection
-        n_sec_chunk = 60
-        
-        # take chunks
-        indexes = np.arange(0, fp_len, sampling_rate * n_sec_chunk)
-        
-        # add last bit of recording if it's shorter
-        if indexes[-1] != fp_len :
-            indexes = np.hstack((indexes, fp_len ))
+    #######
+    # PCA #
+    #######
 
-        idx_list = []
-        for k in range(len(indexes) - 1):
-            idx_list.append([
-                indexes[k], indexes[k + 1], buffer_size,
-                indexes[k + 1] - indexes[k] + buffer_size
-            ])
+    # run PCA, save rotation matrix and pca scores under TMP_FOLDER
+    # TODO: remove clear as input for PCA and create an independent function
+    pca_scores, clear, _ = pca(standarized_path,
+                               standarized_params['dtype'],
+                               standarized_params['n_channels'],
+                               standarized_params['data_order'],
+                               clear,
+                               CONFIG.spike_size,
+                               temporal_features,
+                               CONFIG.neigh_channels,
+                               CONFIG.channel_index,
+                               CONFIG.resources.max_memory,
+                               TMP_FOLDER,
+                               'scores_pca.npy',
+                               filename_rotation,
+                               filename_index_clear_pca,
+                               if_file_exists)
 
-        idx_list = np.int64(np.vstack(idx_list))
+    #################
+    # Whiten scores #
+    #################
 
-        idx_list = idx_list
-        
-        logger.info("# of chunks: %i", len(idx_list))
-        
-        logger.info (idx_list)
-        
-        # run tensorflow 
-        processing_ctr = 0
-        #chunk_ctr = 0
-        
-        # chunks to cycle over are 10 x as much as initial chosen data
-        total_processing = len(idx_list)*n_sec_chunk
+    # apply whitening to scores
+    scores = whiten.score(pca_scores, clear[:, 1], whiten_filter)
 
-        # keep tensorflow open
-        # save iteratively
-        fname_detection = os.path.join(CONFIG.path_to_output_directory,
-                                       'detect')
-        if not os.path.exists(fname_detection):
-            os.mkdir(fname_detection)
-        
-        # loop over 10sec or 60 sec chunks
-        for chunk_ctr, idx in enumerate(idx_list): 
-            if os.path.exists(os.path.join(fname_detection,"detect_"+
-                              str(chunk_ctr).zfill(5)+'.npz')):
-                                       continue
+    if save_results:
+        # save spike_index_all (same as spike_index_clear for threshold
+        # detector)
+        path_to_spike_index_all = os.path.join(TMP_FOLDER,
+                                               filename_spike_index_all)
+        save_numpy_object(clear, path_to_spike_index_all, if_file_exists,
+                          name='Spike index all')
 
-            # reset lists 
-            spike_index_list = []
-            #idx_clean_list = []
-            energy_list = []
-            TC_list = []
-            offset_list = []
+    # FIXME: always saving scores since they are loaded by the clustering
+    # step, we need to find a better way to do this, since the current
+    # clustering code is going away soon this is a tmp solution
+    # saves scores
+    # saves whiten scores
+    path_to_scores = os.path.join(TMP_FOLDER, filename_scores_clear)
+    save_numpy_object(scores, path_to_scores, if_file_exists,
+                      name='scores')
 
-            # load chunk of data
-            standardized_recording = binary_reader(idx, buffer_size, path_to_standardized,
-                                      n_channels, CONFIG.data.root_folder)
+    return clear #, np.copy(clear)
 
-            # run detection on smaller chunks of data, e.g. 1 sec
-            # Cat: TODO: add last bit at end in case short
-            indexes = np.arange(0, standardized_recording.shape[0], int(sampling_rate))
-
-            # run tensorflow over 1sec chunks in general
-            for ctr, index in enumerate(indexes[:-1]): 
-
-                # save absolute index of each subchunk
-                offset_list.append(idx[0]+indexes[ctr])
-
-                data_temp = standardized_recording[indexes[ctr]:indexes[ctr+1]]
-
-                # store size of recordings in case at end of dataset.
-                TC_list.append(data_temp.shape)
-
-                # run detect nn
-                threshold = -3
-                spike_size = 30
-                res = _threshold2(data_temp, spike_size, threshold)
-                spike_index, wfs = res
-                spike_index_list.append(spike_index)
-                
-                pca = PCA(n_components=3)
-                score = pca.fit_transform(wfs)
-                energy_ = pca.inverse_transform(score).ptp(1)
-                energy_list.append(energy_)
-
-                logger.info('processed chunk: %s/%s,  # spikes: %s', 
-                  str(processing_ctr), str(total_processing), spike_index.shape)
-
-                processing_ctr+=1
-
-            # save chunk of data in case crashes occur
-            np.savez(os.path.join(fname_detection,"detect_"+
-                                   str(chunk_ctr).zfill(5)),
-                                   spike_index_list = spike_index_list,
-                                   energy_list = energy_list, 
-                                   TC_list = TC_list,
-                                   offset_list = offset_list)
-
-        # load all saved data;
-        spike_index_list = []
-        energy_list = []
-        TC_list = []
-        offset_list = []
-        for ctr, idx in enumerate(idx_list): 
-            data = np.load(fname_detection+'/detect_'+str(ctr).zfill(5)+'.npz')
-            spike_index_list.extend(data['spike_index_list'])
-            energy_list.extend(data['energy_list'])
-            TC_list.extend(data['TC_list'])
-            offset_list.extend(data['offset_list'])
-
-        # save all detected spikes pre axon_kill
-        spike_index_all_pre_deduplication = fix_indexes_firstbatch_3(
-                spike_index_list, 
-                offset_list,
-                buffer_size, 
-                sampling_rate)
-        np.save(os.path.join(TMP_FOLDER,'spike_index_all_pre_deduplication.npy'), 
-                             spike_index_all_pre_deduplication)
-        
-        
-        # remove axons - compute axons to be killed
-        logger.info(' removing axons in parallel')
-        multi_procesing = 1
-        if CONFIG.resources.multi_processing:
-            keep = parmap.map(deduplicate,
-                                list(zip(spike_index_list, 
-                                energy_list, 
-                                TC_list,
-                                np.arange(len(energy_list)))),
-                                neighbors,
-                                processes=CONFIG.resources.n_processors,
-                                pm_pbar=True)
-        else:
-            keep=[]
-            for k in range(len(energy_list)):
-                keep.append(deduplicate((spike_index_list[k], 
-                                                     energy_list[k], 
-                                                     TC_list[k],k),
-                                                     neighbors))
-
-
-        # Cat: TODO Note that we're killing spike_index_all as well.
-        # remove axons from clear spikes - keep only non-killed+clean events
-        spike_index_all_postkill = []
-        for k in range(len(spike_index_list)):
-            spike_index_all_postkill.append(spike_index_list[k][keep[k][0]])
-
-        logger.info(' fixing indexes from batching')
-        spike_index_all = fix_indexes_firstbatch_3(
-                spike_index_all_postkill, 
-                offset_list,
-                buffer_size, 
-                sampling_rate)
-                
-        # get and clean all spikes
-        spikes_all = spike_index_all 
-        
-        #logger.info('Removing all indexes outside the allowed range to '
-        #            'draw a complete waveform...')
-        _n_observations = fp_len
-        spikes_all, _ = detect.remove_incomplete_waveforms(
-            spikes_all, CONFIG.spike_size + CONFIG.templates.max_shift,
-            _n_observations)
-
-        np.save(os.path.join(TMP_FOLDER,'spike_index_all.npy'),spikes_all)
-    
-    else:
-        spikes_all = np.load(os.path.join(TMP_FOLDER,'spike_index_all.npy'))
-
-    return spikes_all
 
 
 def run_neural_network(standarized_path, standarized_params,
@@ -986,3 +867,225 @@ def remove_incomplete_waveforms(spike_index, spike_size, recordings_length):
                              spike_index[:, 0] >= min_index)
     return spike_index[include], include
 
+
+
+#
+# def run_threshold(standarized_path, standarized_params,
+#                   whiten_filter, output_directory, if_file_exists,
+#                   save_results):
+#     """Run threshold detection and autoencoder dimensionality reduction
+#
+#     Returns
+#     -------
+#     scores
+#       Scores for all spikes
+#
+#     spike_index_clear
+#       Spike indexes for clear spikes
+#
+#     spike_index_all
+#       Spike indexes for all spikes
+#     """
+#     logger = logging.getLogger(__name__)
+#
+#     CONFIG = read_config()
+#     TMP_FOLDER = CONFIG.path_to_output_directory
+#
+#     # check if all scores, clear and collision spikes exist..
+#     path_to_score = os.path.join(TMP_FOLDER, 'scores_clear.npy')
+#     path_to_spike_index_clear = os.path.join(TMP_FOLDER,
+#                                              'spike_index_clear.npy')
+#     path_to_spike_index_all = os.path.join(TMP_FOLDER, 'spike_index_all.npy')
+#     path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
+#
+#     path_to_standardized = os.path.join(TMP_FOLDER, 'standarized.bin')
+#
+#     paths = [path_to_score, path_to_spike_index_clear, path_to_spike_index_all]
+#     exists = [os.path.exists(p) for p in paths]
+#
+#     if (if_file_exists == 'overwrite' or not any(exists)):
+#
+#         n_channels = CONFIG.recordings.n_channels
+#
+#         # run nn preprocess batch-wsie
+#         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+#
+#         # compute len of recording
+#         filename_dat = os.path.join(CONFIG.data.root_folder,
+#                                     CONFIG.data.recordings)
+#         fp = np.memmap(filename_dat, dtype='int16', mode='r')
+#         fp_len = fp.shape[0] / n_channels
+#
+#         # compute batch indexes
+#         buffer_size = 200       # Cat: to set this in CONFIG file
+#         sampling_rate = CONFIG.recordings.sampling_rate
+#         #n_sec_chunk = CONFIG.resources.n_sec_chunk
+#
+#         # Cat: TODO: Set a different size chunk for clustering vs. detection
+#         n_sec_chunk = 60
+#
+#         # take chunks
+#         indexes = np.arange(0, fp_len, sampling_rate * n_sec_chunk)
+#
+#         # add last bit of recording if it's shorter
+#         if indexes[-1] != fp_len :
+#             indexes = np.hstack((indexes, fp_len ))
+#
+#         idx_list = []
+#         for k in range(len(indexes) - 1):
+#             idx_list.append([
+#                 indexes[k], indexes[k + 1], buffer_size,
+#                 indexes[k + 1] - indexes[k] + buffer_size
+#             ])
+#
+#         idx_list = np.int64(np.vstack(idx_list))
+#
+#         idx_list = idx_list
+#
+#         logger.info("# of chunks: %i", len(idx_list))
+#
+#         logger.info (idx_list)
+#
+#         # run tensorflow
+#         processing_ctr = 0
+#         #chunk_ctr = 0
+#
+#         # chunks to cycle over are 10 x as much as initial chosen data
+#         total_processing = len(idx_list)*n_sec_chunk
+#
+#         # keep tensorflow open
+#         # save iteratively
+#         fname_detection = os.path.join(CONFIG.path_to_output_directory,
+#                                        'detect')
+#         if not os.path.exists(fname_detection):
+#             os.mkdir(fname_detection)
+#
+#         # loop over 10sec or 60 sec chunks
+#         for chunk_ctr, idx in enumerate(idx_list):
+#             if os.path.exists(os.path.join(fname_detection,"detect_"+
+#                               str(chunk_ctr).zfill(5)+'.npz')):
+#                                        continue
+#
+#             # reset lists
+#             spike_index_list = []
+#             #idx_clean_list = []
+#             energy_list = []
+#             TC_list = []
+#             offset_list = []
+#
+#             # load chunk of data
+#             standardized_recording = binary_reader(idx, buffer_size, path_to_standardized,
+#                                       n_channels, CONFIG.data.root_folder)
+#
+#             # run detection on smaller chunks of data, e.g. 1 sec
+#             # Cat: TODO: add last bit at end in case short
+#             indexes = np.arange(0, standardized_recording.shape[0], int(sampling_rate))
+#
+#             # run tensorflow over 1sec chunks in general
+#             for ctr, index in enumerate(indexes[:-1]):
+#
+#                 # save absolute index of each subchunk
+#                 offset_list.append(idx[0]+indexes[ctr])
+#
+#                 data_temp = standardized_recording[indexes[ctr]:indexes[ctr+1]]
+#
+#                 # store size of recordings in case at end of dataset.
+#                 TC_list.append(data_temp.shape)
+#
+#                 # run detect nn
+#                 threshold = -3
+#                 spike_size = 30
+#                 res = _threshold2(data_temp, spike_size, threshold)
+#                 spike_index, wfs = res
+#                 spike_index_list.append(spike_index)
+#
+#                 pca = PCA(n_components=3)
+#                 score = pca.fit_transform(wfs)
+#                 energy_ = pca.inverse_transform(score).ptp(1)
+#                 energy_list.append(energy_)
+#
+#                 logger.info('processed chunk: %s/%s,  # spikes: %s',
+#                   str(processing_ctr), str(total_processing), spike_index.shape)
+#
+#                 processing_ctr+=1
+#
+#             # save chunk of data in case crashes occur
+#             np.savez(os.path.join(fname_detection,"detect_"+
+#                                    str(chunk_ctr).zfill(5)),
+#                                    spike_index_list = spike_index_list,
+#                                    energy_list = energy_list,
+#                                    TC_list = TC_list,
+#                                    offset_list = offset_list)
+#
+#         # load all saved data;
+#         spike_index_list = []
+#         energy_list = []
+#         TC_list = []
+#         offset_list = []
+#         for ctr, idx in enumerate(idx_list):
+#             data = np.load(fname_detection+'/detect_'+str(ctr).zfill(5)+'.npz')
+#             spike_index_list.extend(data['spike_index_list'])
+#             energy_list.extend(data['energy_list'])
+#             TC_list.extend(data['TC_list'])
+#             offset_list.extend(data['offset_list'])
+#
+#         # save all detected spikes pre axon_kill
+#         spike_index_all_pre_deduplication = fix_indexes_firstbatch_3(
+#                 spike_index_list,
+#                 offset_list,
+#                 buffer_size,
+#                 sampling_rate)
+#         np.save(os.path.join(TMP_FOLDER,'spike_index_all_pre_deduplication.npy'),
+#                              spike_index_all_pre_deduplication)
+#
+#
+#         # remove axons - compute axons to be killed
+#         logger.info(' removing axons in parallel')
+#         multi_procesing = 1
+#         if CONFIG.resources.multi_processing:
+#             keep = parmap.map(deduplicate,
+#                                 list(zip(spike_index_list,
+#                                 energy_list,
+#                                 TC_list,
+#                                 np.arange(len(energy_list)))),
+#                                 neighbors,
+#                                 processes=CONFIG.resources.n_processors,
+#                                 pm_pbar=True)
+#         else:
+#             keep=[]
+#             for k in range(len(energy_list)):
+#                 keep.append(deduplicate((spike_index_list[k],
+#                                                      energy_list[k],
+#                                                      TC_list[k],k),
+#                                                      neighbors))
+#
+#
+#         # Cat: TODO Note that we're killing spike_index_all as well.
+#         # remove axons from clear spikes - keep only non-killed+clean events
+#         spike_index_all_postkill = []
+#         for k in range(len(spike_index_list)):
+#             spike_index_all_postkill.append(spike_index_list[k][keep[k][0]])
+#
+#         logger.info(' fixing indexes from batching')
+#         spike_index_all = fix_indexes_firstbatch_3(
+#                 spike_index_all_postkill,
+#                 offset_list,
+#                 buffer_size,
+#                 sampling_rate)
+#
+#         # get and clean all spikes
+#         spikes_all = spike_index_all
+#
+#         #logger.info('Removing all indexes outside the allowed range to '
+#         #            'draw a complete waveform...')
+#         _n_observations = fp_len
+#         spikes_all, _ = detect.remove_incomplete_waveforms(
+#             spikes_all, CONFIG.spike_size + CONFIG.templates.max_shift,
+#             _n_observations)
+#
+#         np.save(os.path.join(TMP_FOLDER,'spike_index_all.npy'),spikes_all)
+#
+#     else:
+#         spikes_all = np.load(os.path.join(TMP_FOLDER,'spike_index_all.npy'))
+#
+#     return spikes_all

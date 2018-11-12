@@ -7,12 +7,14 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from sklearn.decomposition import PCA
 from scipy import signal
+from scipy import stats
 from scipy.signal import argrelmax
 from scipy.spatial import cKDTree
 from copy import deepcopy
 from sklearn.mixture import GaussianMixture
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from diptest.diptest import diptest as dp
+from sklearn.cluster import AgglomerativeClustering
 
 from yass.explore.explorers import RecordingExplorer
 from yass import mfm
@@ -66,7 +68,7 @@ class Cluster(object):
                      self.triageflag)
                          
         # save clusters and make plots
-        self.save_clustering()
+        self.finish_clustering()
         
         
     def cluster(self, current_indexes, gen, triage_flag,  
@@ -125,9 +127,9 @@ class Cluster(object):
         if idx_recovered.shape[0] < self.CONFIG.cluster.min_spikes: return
 
         # Note: do not compute the spike index or template until done decimating the data
-        #template_current = wf_align[idx_keep][idx_recovered].mean(0)
+        # template_current = wf_align[idx_keep][idx_recovered].mean(0)
         template_current = wf_align[idx_keep].copy()
-        #sic_current = self.sic_global[current_indexes][idx_keep][idx_recovered]
+        # sic_current = self.sic_global[current_indexes][idx_keep][idx_recovered]
         sic_current = self.sic_global[current_indexes][idx_keep].copy() 
 
         # make a template that in case the cluster is saved, can be used below
@@ -212,28 +214,54 @@ class Cluster(object):
                                                 str(self.proc_index).zfill(6))
         self.filename_postclustering = (self.chunk_dir + "/channel_"+
                                                         str(self.channel)+".npz")
-                                                                
-    def load_raw_data(self):
-        
+
         # Cat: TODO: read all these from CONFIG
         self.spike_size = 111
-        self.scale = 10 
+        self.yscale = 1.
+        self.xscale = 4.
         self.triageflag = True
         #self.alignflag = True
         self.plotting = True
 
-        self.starting_gen = 0     
+        self.starting_gen = 0
         self.assignment_global = []
         self.spike_index = []
         self.templates = []
         self.feat_chans_cumulative = []
         self.shifts = []
         self.aligned_wfs_cumulative = []
-        
-        
-        # Cat: TODO: Is this index search expensive for hundreds of chans and many 
+
+
+    def load_raw_data(self):
+
+        # Cat: TO DO: Is this index search expensive for hundreds of chans and many
         #       millions of spikes?  Might want to do once rather than repeat
         self.indexes = np.where(self.spike_indexes_chunk[:,1]==self.channel)[0]
+
+        # limit clustering to at most 50,000 spikes
+        if True:
+            if self.indexes.shape[0]>50000:
+                idx_50k = np.random.choice(np.arange(self.indexes.shape[0]),
+                                                  size=50000,
+                                                  replace=False)
+                self.indexes = self.indexes[idx_50k]
+
+        # check that spkes times not too lcose to edges:
+        # first determine length of processing chunk based on lenght of rec
+        fp = np.memmap(self.standardized_filename, dtype='float32', mode='r')
+        fp_len = fp.shape[0]/self.n_channels
+
+        # limit indexes away from edge of recording
+        idx_inbounds = np.where(np.logical_and(self.indexes>=self.spike_size//2,
+                                               self.indexes<(fp_len-self.spike_size//2)))[0]
+        self.indexes = self.indexes[idx_inbounds]
+
+        # check to see if any duplicate spike times occur
+        if np.unique(self.indexes).shape[0] != self.indexes.shape[0]:
+            print ("   >>>>>>>>>>>>>>>>>>>>>>>> DUPLICATE SPIKE TIMES <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
+        self.indexes = np.unique(self.indexes)
+
+        # set spikeindexes from all spikes
         self.sic_global = self.spike_indexes_chunk[self.indexes]
 
         # sets up initial array of indexes
@@ -244,25 +272,34 @@ class Cluster(object):
                                     self.standardized_filename, 
                                     self.geometry_file,
                                     self.n_channels, 
-                                    self.sic_global, 
+                                    self.sic_global,
                                     self.spike_size)    
 
-        # Cat: TODO: subsampled indexes outside clustering function is 
+        # make sure no artifacts in data, clip to 1000
+        self.wf_global = self.wf_global.clip(min=-1000, max=1000)
+
+        # Cat: TO DO: subsampled indexes outside clustering function is
         # legacy code; remove it
-        self.indexes_subsampled=np.arange(self.wf_global.shape[0])
+        #self.indexes_subsampled=np.arange(self.wf_global.shape[0])
 
         # plotting parameters
         if self.plotting:
-            # Cat: TODO: this global x is not necessary, should make it local
+            # Cat: TO DO: this global x is not necessary, should make it local
             self.x = np.zeros(100, dtype = int)
-            self.fig = plt.figure(figsize =(100,100))
-            self.grid = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
-            self.ax_t = self.fig.add_subplot(self.grid[13:, 6:])
+            self.fig1 = plt.figure(figsize =(60,60))
+            self.grid1 = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
+            self.ax1 = self.fig1.add_subplot(self.grid1[:,:])
+
+            # setup template plot
+            xlim = self.CONFIG.geom[:,0].ptp(0)
+            ylim = self.CONFIG.geom[:,1].ptp(0)#/float(xlim)
+            self.fig2 = plt.figure(figsize =(100,max(ylim/float(xlim)*100,10)))
+            self.ax2 = self.fig2.add_subplot(111)
         else:
-            self.fig = []
-            self.grid = []
+            self.fig1 = []
+            self.grid2 = []
             self.x = []
-            self.ax_t = []
+            #self.ax_t = []
             
 
     def align_step(self, gen):
@@ -304,11 +341,11 @@ class Cluster(object):
         
         # Cat: TODO: is 10k spikes enough for feat chan selection?
         # Cat: TODO: what do these metrics look like for 100 spikes!?; should we simplify for low spike count?
-        feat_chans, mc, robust_stds = self.get_feat_channels_mad_cat(
+        feat_chans, mc, robust_stds = self.get_feat_channels_mad(
                                         wf_align[:self.n_spikes_featurize, :, active_chans])
         
         # featurize all spikes
-        idx_keep_feature, pca_wf, wf_final = self.featurize_residual_triage_cat(
+        idx_keep_feature, pca_wf, wf_final = self.featurize(
                                             wf_align[:, :, active_chans], 
                                             robust_stds, feat_chans, mc)
 
@@ -440,7 +477,8 @@ class Cluster(object):
                 end_flag = 'cyan'
                 self.plot_clustering_scatter(gen, 
                             assignment2[idx_recovered],
-                            pca_wf_all[idx_recovered], 
+                            assignment2[idx_recovered],
+                            pca_wf_all[idx_recovered],
                             vbParam2.rhat[idx_recovered],
                             split_type,
                             end_flag)
@@ -455,7 +493,7 @@ class Cluster(object):
             
             self.assignment_global.append(N * np.ones(assignment2[idx_recovered].shape[0]))
             self.spike_index.append(sic_current[idx_recovered])
-            template = template_current[idx_recovered].mean(0)
+            template = np.median(template_current[idx_recovered], 0)
             self.templates.append(template)
             
             # plot template if done
@@ -469,7 +507,8 @@ class Cluster(object):
                     end_flag = 'red'
                     self.plot_clustering_scatter(gen,  
                             assignment2[idx_recovered],
-                            pca_wf_all[idx_recovered], 
+                            assignment2[idx_recovered],
+                            pca_wf_all[idx_recovered],
                             vbParam2.rhat[idx_recovered],
                             split_type,
                             end_flag)
@@ -489,7 +528,8 @@ class Cluster(object):
             split_type = 'mfm multi split'
             self.plot_clustering_scatter(gen,  
                         assignment2[idx_recovered],
-                        pca_wf_all[idx_recovered], 
+                        assignment2[idx_recovered],
+                        pca_wf_all[idx_recovered],
                         vbParam2.rhat[idx_recovered],
                         split_type)
                         
@@ -535,7 +575,7 @@ class Cluster(object):
         EM_split = True
         dp_val, assignment3, idx_recovered = self.diptest_step(EM_split, 
                         assignment2, idx_recovered, vbParam2, pca_wf_all)
-
+ 
         # exit if clusters were decimated below threshold during diptest
         if idx_recovered.shape[0] < self.CONFIG.cluster.min_spikes: return
                 
@@ -544,13 +584,13 @@ class Cluster(object):
         diptest_thresh = 1.0
         if (dp_val> diptest_thresh and gen!=0):
             self.save_step(dp_val, mc, gen, idx_recovered, pca_wf_all,
-                          vbParam2, assignment3, sic_current, template_current,
-                          feat_chans)
+                          vbParam2, assignment2, assignment3, sic_current,
+                          template_current, feat_chans)
         
 
         # cluster is not unimodal, split it along binary split and recluster 
         else:
-            self.split_step(gen, dp_val, assignment3, pca_wf_all, idx_recovered,
+            self.split_step(gen, dp_val, assignment2, assignment3, pca_wf_all, idx_recovered,
                                     vbParam2, idx_keep, current_indexes)
 
     def diptest_step(self, EM_split, assignment2, idx_recovered, vbParam2, pca_wf_all):
@@ -561,7 +601,9 @@ class Cluster(object):
         ctr=0 
         dp_val = 1.0
         idx_temp_keep = np.arange(idx_recovered.shape[0])
-        #cluster_idx_keep = np.arange(vbParam2.muhat.shape[0])
+        print ("Original vbParam2.muhat.shape: ", vbParam2.muhat.shape
+               )
+        cluster_idx_keep = np.arange(vbParam2.muhat.shape[1])
         # loop over cluster until at least 3 loops and take lowest dp value
         while True:    
             # use EM algorithm to get binary split
@@ -574,31 +616,38 @@ class Cluster(object):
                 idx = np.where(labels[:,1]>0.5)[0]
                 temp_assignment[idx]=1
             
-            # # use mfm algorithm to find temp-assignment
-            # else:
-                # temp_assignment = mfm_binary_split2(
-                                    # vbParam2.muhat[cluster_idx_keep], 
-                                    # assignment2[idx_recovered],
-                                    # cluster_idx_keep)
+            # use mfm algorithm to find temp-assignment
+            else:
+                temp_assignment = self.mfm_binary_split2(
+                    vbParam2.muhat[:, cluster_idx_keep],
+                    assignment2[idx_recovered],
+                    cluster_idx_keep)
+
+
                 
             # check if any clusters smaller than min spikes
             counts = np.unique(temp_assignment, return_counts=True)[1]
 
             # update indexes if some clusters too small
             if min(counts)<self.CONFIG.cluster.min_spikes:
+                print ("  REMOVING SMALL CLUSTER DURING diptest")
                 bigger_cluster_id = np.argmax(counts)
                 idx_temp_keep = np.where(temp_assignment==bigger_cluster_id)[0]
                 idx_recovered = idx_recovered[idx_temp_keep]
 
-                # this is only requried for MFM?
-                #cluster_idx_keep = np.unique(assignment2[idx_recovered])
+                # This decreases the clusters kept in muhat
+                cluster_idx_keep = np.unique(assignment2[idx_recovered])
                 
                 # exit if cluster gets decimated below threshld
                 if idx_recovered.shape[0]<self.CONFIG.cluster.min_spikes:
-                    return dp_val, assignment2, idx_recovered
-            
+                    return dp_val, assignment2[idx_recovered], idx_recovered
+
+                # if removed down to a single cluster, recluster it (i.e. send dpval=0.0)
+                if cluster_idx_keep.shape[0] < 2:
+                    return 0.0, assignment2[idx_recovered], idx_recovered
+
             # else run the unimodality test
-            # Cat: TODO: this is not perfect, still misses some bimodal distributions
+            # Cat: todo: this is not perfect, still misses some bimodal distributions
             else:
                 # test EM for unimodality
                 dp_new = self.test_unimodality(pca_wf_all[idx_recovered], temp_assignment)
@@ -612,8 +661,9 @@ class Cluster(object):
                 if dp_new <dp_val:
                     dp_val= dp_new
                     assignment3 = temp_assignment
-                
-                if ctr>2:
+
+                # if at least 3 loops using EM-split, or any loop iteration for mfm
+                if ctr>2 or not EM_split:
                     # need to also ensure that we've not deleted any spikes after we
                     #  saved the last lowest-dp avlue assignment
                     if assignment3.shape[0] != temp_assignment.shape[0]:
@@ -624,10 +674,28 @@ class Cluster(object):
             
         return dp_val, assignment3, idx_recovered
 
+    def mfm_binary_split2(self, muhat, assignment_orig, cluster_index=None):
 
-    def save_step(self, dp_val, mc, gen, idx_recovered, 
-                          pca_wf_all, vbParam2, assignment3, sic_current, 
-                          template_current, feat_chans):
+        centers = muhat[:, :, 0].T
+        K, D = centers.shape
+        if cluster_index is None:
+            cluster_index = np.arange(K)
+
+        label = AgglomerativeClustering(n_clusters=2).fit(centers).labels_
+        assignment = np.zeros(len(assignment_orig), 'int16')
+        for j in range(2):
+            print (j)
+            print (np.where(label == j)[0])
+            #clusters = cluster_index[np.where(label == j)[0]]
+            clusters = cluster_index[np.where(label == j)[0]]
+            for k in clusters:
+                assignment[assignment_orig == k] = j
+
+        return assignment
+
+    def save_step(self, dp_val, mc, gen, idx_recovered,
+                          pca_wf_all, vbParam2, assignment2, assignment3,
+                          sic_current, template_current, feat_chans):
                               
         # make sure cluster is on max chan, otherwise omit it
         if mc != self.channel and (self.deconv_flag==False): 
@@ -640,7 +708,8 @@ class Cluster(object):
                 end_flag = 'cyan'                       
                 self.plot_clustering_scatter(gen,  
                     assignment3,
-                    pca_wf_all[idx_recovered], 
+                    assignment2[idx_recovered],
+                    pca_wf_all[idx_recovered],
                     vbParam2.rhat[idx_recovered],
                     split_type,
                     end_flag)
@@ -654,7 +723,7 @@ class Cluster(object):
         
         self.assignment_global.append(N * np.ones(assignment3.shape[0]))
         self.spike_index.append(sic_current[idx_recovered])
-        template = template_current[idx_recovered].mean(0)
+        template = np.median(template_current[idx_recovered],0)
         self.templates.append(template)
 
         # plot template if done
@@ -671,13 +740,14 @@ class Cluster(object):
                 end_flag = 'green'
                 self.plot_clustering_scatter(gen,  
                     assignment3,
-                    pca_wf_all[idx_recovered], 
+                    assignment2[idx_recovered],
+                    pca_wf_all[idx_recovered],
                     vbParam2.rhat[idx_recovered],
                     split_type,
                     end_flag)     
     
     
-    def split_step(self, gen, dp_val, assignment3, pca_wf_all, 
+    def split_step(self, gen, dp_val, assignment2, assignment3, pca_wf_all,
                            idx_recovered, vbParam2, idx_keep, current_indexes):
                                
         # plot EM labeled data
@@ -685,7 +755,8 @@ class Cluster(object):
             split_type = 'mfm-binary, dp: '+ str(round(dp_val,5))
             self.plot_clustering_scatter(gen,  
                     assignment3,
-                    pca_wf_all[idx_recovered], 
+                    assignment2[idx_recovered],
+                    pca_wf_all[idx_recovered],
                     vbParam2.rhat[idx_recovered],
                     split_type)
                     
@@ -711,22 +782,29 @@ class Cluster(object):
                          gen+1, triageflag)
                          
     
-    def save_clustering(self,):
+    def finish_clustering(self,):
         # finish plotting 
         if self.plotting: 
+
+            # finish cluster plots
+            self.fig1.suptitle("Channel: "+str(self.channel), fontsize=25)
+            self.fig1.savefig(self.chunk_dir+"/channel_{}_scatter.png".format(self.channel))
+            plt.close(self.fig1)
+
+            # finish template plots
             # plot channel numbers
             for i in range(self.CONFIG.recordings.n_channels):
-                self.ax_t.text(self.CONFIG.geom[i,0], self.CONFIG.geom[i,1], 
-                              str(i), alpha=0.4, fontsize=30)
+                self.ax2.text(self.CONFIG.geom[i,0], self.CONFIG.geom[i,1],
+                              str(i), alpha=0.4, fontsize=10)
                               
                 # fill bewteen 2SUs on each channel
-                self.ax_t.fill_between(self.CONFIG.geom[i,0] + 
-                     np.arange(-61,0,1)/3., -self.scale + 
-                     self.CONFIG.geom[i,1], self.scale + self.CONFIG.geom[i,1], 
+                self.ax2.fill_between(self.CONFIG.geom[i,0] +
+                     np.arange(-61,0,1)/self.xscale, -self.yscale +
+                     self.CONFIG.geom[i,1], self.yscale + self.CONFIG.geom[i,1],
                      color='black', alpha=0.05)
                 
             # plot max chan with big red dot                
-            self.ax_t.scatter(self.CONFIG.geom[self.channel,0], 
+            self.ax2.scatter(self.CONFIG.geom[self.channel,0],
                               self.CONFIG.geom[self.channel,1], s = 2000, 
                               color = 'red')
                               
@@ -742,12 +820,12 @@ class Cluster(object):
                 for i, clust in enumerate(clusters):
                     patch_j = mpatches.Patch(color = sorted_colors[clust%100], label = "size = {}".format(sizes[i]))
                     labels.append(patch_j)
-                self.ax_t.legend(handles = labels, fontsize=30)
+                self.ax2.legend(handles = labels, fontsize=30)
 
             # plto title
-            self.fig.suptitle("Channel: "+str(self.channel), fontsize=25)
-            self.fig.savefig(self.chunk_dir+"/channel_{}.png".format(self.channel))
-            plt.close(self.fig)
+            self.fig2.suptitle("Channel: " + str(self.channel), fontsize=25)
+            self.fig2.savefig(self.chunk_dir + "/channel_{}_template.png".format(self.channel))
+            plt.close(self.fig2)
 
         # Cat: TODO: note clustering is done on PCA denoised waveforms but
         #            templates are computed on original raw signal
@@ -765,7 +843,7 @@ class Cluster(object):
         self.wf_global = None
         
 
-    def connected_channels(channel_list, ref_channel, neighbors, keep=None):
+    def connected_channels(self, channel_list, ref_channel, neighbors, keep=None):
         if keep is None:
             keep = np.zeros(len(neighbors), 'bool')
         if keep[ref_channel] == 1:
@@ -774,17 +852,19 @@ class Cluster(object):
             keep[ref_channel] = 1
             chans = channel_list[neighbors[ref_channel][channel_list]]
             for c in chans:
-                keep = connected_channels(channel_list, c, neighbors, keep=keep)
+                keep = self.connected_channels(channel_list, c, neighbors, keep=keep)
             return keep
 
 
-    def get_feat_channels_mad_cat(self, wf_align):
-        '''  Function that uses MAD statistic like robust variance estimator 
+    def get_feat_channels_mad(self, wf_align):
+        '''  Function that uses MAD statistic like robust variance estimator
              to select channels
         '''
         # compute robust stds over units
-        stds = np.median(np.abs(wf_align - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
-       
+        #stds = np.median(np.abs(wf_align - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
+        # trim vesrion of stds
+        stds = np.std(stats.trimboth(wf_align, 0.025), 0)
+        
         # max per channel
         std_max = stds.max(0)
         
@@ -796,25 +876,29 @@ class Cluster(object):
 
         return feat_chans, max_chan, stds
     
-    def featurize_residual_triage_cat(self, wf, robust_stds, feat_chans, max_chan):
+    def featurize(self, wf, robust_stds, feat_chans, max_chan):
         
         # select argrelmax of mad metric greater than trehsold
         #n_feat_chans = 5
 
         n_features_per_channel = 2
-        wf_final = []
+        wf_final = np.zeros((0,wf.shape[0]), 'float32')
         # select up to 2 features from max amplitude chan;
         trace = robust_stds[:,max_chan]
         idx = argrelmax(trace, axis=0, mode='clip')[0]
+
         if idx.shape[0]>0:
             idx_sorted = np.argsort(trace[idx])[::-1]
             idx_thresh = idx[idx_sorted[:n_features_per_channel]]
-            wf_final.append(wf[:,idx_thresh,max_chan])
+            temp = wf[:,idx_thresh,max_chan]
+            wf_final = np.vstack((wf_final, temp.T))
+            #wf_final.append(wf[:,idx_thresh,max_chan])
             
         ## loop over all feat chans and select max 2 argrelmax time points as features
         n_feat_chans = np.min((self.n_feat_chans, wf.shape[2]))
         for k in range(n_feat_chans):
-            # don't pick max channel again
+
+            # don't pick max channel again, already picked above
             if feat_chans[k]==max_chan: continue
             
             trace = robust_stds[:,feat_chans[k]]
@@ -822,22 +906,25 @@ class Cluster(object):
             if idx.shape[0]>0:
                 idx_sorted = np.argsort(trace[idx])[::-1]
                 idx_thresh = idx[idx_sorted[:n_features_per_channel]]
-                wf_final.append(wf[:,idx_thresh,feat_chans[k]])
-        
+                temp = wf[:,idx_thresh,feat_chans[k]]
+                wf_final = np.vstack((wf_final, temp.T))
+
         # Cat: TODO: this may crash if weird data goes in
-        wf_final = np.array(wf_final).swapaxes(0,1).reshape(wf.shape[0],-1)
+        #print (" len wf arra: ", len(wf_final))
+        #wf_final = np.array(wf_final)
+        #wf_final = wf_final.swapaxes(0,1).reshape(wf.shape[0],-1)
+        wf_final = wf_final.T
 
         # run PCA on argrelmax points;
         # Cat: TODO: read this from config
         pca = PCA(n_components=min(self.selected_PCA_rank, wf_final.shape[1]))
         pca.fit(wf_final)
         pca_wf = pca.transform(wf_final)
-        
+
         # convert boolean to integer indexes
         idx_keep_feature = np.arange(wf_final.shape[0])
 
         return idx_keep_feature, pca_wf, wf_final
-
 
 
     def test_unimodality(self, pca_wf, assignment, max_spikes = 10000):
@@ -878,8 +965,9 @@ class Cluster(object):
 
                                 
     def plot_clustering_scatter(self, gen, 
-                                assignment2, 
-                                pca_wf, 
+                                assignment2,
+                                assignment_original,
+                                pca_wf,
                                 rhat,
                                 split_type,
                                 end_point='false'):
@@ -887,19 +975,24 @@ class Cluster(object):
         if (self.x[gen]<20) and (gen <20):
 
             # add generation index
-            ax = self.fig.add_subplot(self.grid[gen, self.x[gen]])
+            ax = self.fig1.add_subplot(self.grid1[gen, self.x[gen]])
             self.x[gen] += 1
 
             # compute cluster memberships
-            mask = rhat>0
-            stability = np.average(mask * rhat, axis = 0, weights = mask)
+            #mask = rhat>0
+            #print (" mask: ", mask.shape)
+            #print (" mask: ", mask)
+            #print (" rhat: ", rhat.shape)
+            #print (" rhat: ", rhat)
+            #stability = np.average(mask * rhat, axis = 0, weights = mask)
 
             clusters, sizes = np.unique(assignment2, return_counts=True)
             # make legend
             labels = []
-            for clust in clusters:
+            for clust,_ in enumerate(clusters):
                 patch_j = mpatches.Patch(color = sorted_colors[clust%100], 
                                         label = "size = "+str(int(sizes[clust])))
+                                         #+ "stab: "+ str(np.round(stability[clust],2)))
                 
                 labels.append(patch_j)
             
@@ -922,25 +1015,25 @@ class Cluster(object):
 
             # finish plotting
             ax.legend(handles = labels, fontsize=5)
-            ax.set_title(str(sizes.sum())+", "+split_type+'\nmfm stability '+
-                         str(np.round(stability,2)))
+            ax.set_title("Spikes: "+ str(sizes.sum())+", "+split_type)
            
           
     def plot_clustering_template(self, gen, wf_mean, idx_recovered, feat_chans, N):
         
         # plot template
-        self.ax_t.plot(self.CONFIG.geom[:,0]+
-                  np.arange(-wf_mean.shape[0]//2,wf_mean.shape[0]//2,1)[:,np.newaxis]/1.5, 
-                  self.CONFIG.geom[:,1] + wf_mean[:,:]*self.scale, c=colors[N%100], 
+        #local_scale = min
+        self.ax2.plot(self.CONFIG.geom[:,0]+
+                  np.arange(-wf_mean.shape[0]//2,wf_mean.shape[0]//2,1)[:,np.newaxis]/self.xscale,
+                  self.CONFIG.geom[:,1] + wf_mean[:,:]*self.yscale, c=colors[N%100],
                   alpha=min(max(0.4, idx_recovered.shape[0]/1000.),1))
 
         # plot feature channels as scatter dots
-        for i in feat_chans:
-             self.ax_t.scatter(self.CONFIG.geom[i,0]+gen, 
-                               self.CONFIG.geom[i,1]+N, 
-                               s = 30, 
-                               color = colors[N%50],
-                               alpha=1) 
+        #for i in feat_chans:
+        #     self.ax_t.scatter(self.CONFIG.geom[i,0]+gen,
+        #                       self.CONFIG.geom[i,1]+N,
+        #                       s = 30,
+        #                       color = colors[N%50],
+        #                       alpha=1)
 
 
 
