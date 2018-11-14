@@ -19,7 +19,7 @@ class TemplatesProcessor:
     def from_spike_train(cls, CONFIG, half_waveform_length, spike_train,
                          path_to_data):
 
-        # make sure standarized data already exists
+        # make sure standardized data already exists
         if not os.path.exists(path_to_data):
             raise ValueError('Standarized data does not exist in: {}, this is '
                              'needed to generate training data, run the '

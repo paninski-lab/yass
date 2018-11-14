@@ -13,12 +13,12 @@ def test_threshold_detector_returns_expected_results(path_to_threshold_config,
 
     yass.set_config(path_to_threshold_config, make_tmp_folder)
 
-    (standarized_path,
-     standarized_params,
+    (standardized_path,
+     standardized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    clear, collision = detect.run(standarized_path,
-                                  standarized_params,
+    clear, collision = detect.run(standardized_path,
+                                  standardized_params,
                                   whiten_filter,
                                   output_directory=make_tmp_folder)
 
@@ -38,12 +38,12 @@ def test_nnet_detector_returns_expected_results(path_to_nnet_config,
 
     yass.set_config(path_to_nnet_config, make_tmp_folder)
 
-    (standarized_path,
-     standarized_params,
+    (standardized_path,
+     standardized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    clear, collision = detect.run(standarized_path,
-                                  standarized_params,
+    clear, collision = detect.run(standardized_path,
+                                  standardized_params,
                                   whiten_filter,
                                   output_directory=make_tmp_folder)
 

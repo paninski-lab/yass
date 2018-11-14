@@ -10,4 +10,4 @@ logging.basicConfig(level=logging.INFO)
 yass.set_config('config_sample.yaml', 'preprocess-example')
 
 # run preprocessor
-standarized_path, standarized_params, whiten_filter = preprocess.run()
+standardized_path, standardized_params, whiten_filter = preprocess.run()

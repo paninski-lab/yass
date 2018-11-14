@@ -31,27 +31,27 @@ def test_threshold_output(path_to_tests):
     np.random.seed(0)
 
     # run preprocess
-    (standarized_path, standarized_params,
+    (standardized_path, standardized_params,
      whiten_filter) = preprocess.run()
 
     # load preprocess output
-    path_to_standarized = path.join(PATH_TO_REF,
-                                    'preprocess', 'standarized.bin')
+    path_to_standardized = path.join(PATH_TO_REF,
+                                    'preprocess', 'standardized.bin')
     path_to_whitening = path.join(PATH_TO_REF, 'preprocess', 'whitening.npy')
 
     whitening_saved = np.load(path_to_whitening)
-    standarized_saved = RecordingsReader(path_to_standarized,
+    standardized_saved = RecordingsReader(path_to_standardized,
                                          loader='array').data
-    standarized = RecordingsReader(standarized_path, loader='array').data
+    standardized = RecordingsReader(standardized_path, loader='array').data
 
     # test preprocess
     np.testing.assert_array_equal(whitening_saved, whiten_filter)
-    np.testing.assert_array_equal(standarized_saved, standarized)
+    np.testing.assert_array_equal(standardized_saved, standardized)
 
     # run detect
     (score, spike_index_clear,
-     spike_index_all) = detect.run(standarized_path,
-                                   standarized_params,
+     spike_index_all) = detect.run(standardized_path,
+                                   standardized_params,
                                    whiten_filter)
     # load detect output
     path_to_scores = path.join(PATH_TO_REF, 'detect', 'scores_clear.npy')

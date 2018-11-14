@@ -60,8 +60,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     * ``metadata.yaml`` - Experiment metadata
     * ``filtered.bin`` - Filtered recordings (from preprocess)
     * ``filtered.yaml`` - Filtered recordings metadata (from preprocess)
-    * ``standarized.bin`` - Standarized recordings (from preprocess)
-    * ``standarized.yaml`` - Standarized recordings metadata (from preprocess)
+    * ``standardized.bin`` - Standarized recordings (from preprocess)
+    * ``standardized.yaml`` - Standarized recordings metadata (from preprocess)
     * ``whitening.npy`` - Whitening filter (from preprocess)
 
 
@@ -116,8 +116,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     '''
     # preprocess
     start = time.time()
-    (standarized_path,
-     standarized_params,
+    (standardized_path,
+     standardized_params,
      whiten_filter) = (preprocess
                        .run(if_file_exists=CONFIG.preprocess.if_file_exists))
 
@@ -132,8 +132,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # detect
     # Cat: This code now runs with open tensorflow calls
     start = time.time()
-    (spike_index_all) = detect.run(standarized_path,
-                                   standarized_params,
+    (spike_index_all) = detect.run(standardized_path,
+                                   standardized_params,
                                    whiten_filter,
                                    if_file_exists=CONFIG.detect.if_file_exists,
                                    save_results=CONFIG.detect.save_results)
@@ -215,8 +215,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # this part loads waveforms for all spikes in the spike train and scores
     # them, this data is needed to later generate phy files
     if complete:
-        STANDARIZED_PATH = path.join(TMP_FOLDER, 'standarized.bin')
-        PARAMS = load_yaml(path.join(TMP_FOLDER, 'standarized.yaml'))
+        STANDARIZED_PATH = path.join(TMP_FOLDER, 'standardized.bin')
+        PARAMS = load_yaml(path.join(TMP_FOLDER, 'standardized.yaml'))
 
         # load waveforms for all spikes in the spike train
         logger.info('Loading waveforms from all spikes in the spike train...')

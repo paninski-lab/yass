@@ -70,7 +70,7 @@ def random_sample_spike_train(spike_train, n_max):
 
 # TODO: remove this function and use the explorer directly
 def get_templates_parallel(spike_train,
-                           path_to_standarized,
+                           path_to_standardized,
                            CONFIG,
                            n_max=5000):
     # CONFIG, n_max=100):
@@ -89,7 +89,7 @@ def get_templates_parallel(spike_train,
     print(spike_train_small.shape, " spike train small")
 
     # determine length of processing chunk based on lenght of rec
-    standardized_filename = os.path.join(path_to_standarized)
+    standardized_filename = os.path.join(path_to_standardized)
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
 

@@ -65,11 +65,11 @@ def matrix(path_to_data, dtype, n_channels, data_order,
 
     Returns
     -------
-    standarized_path: str
-        Path to standarized recordings
+    standardized_path: str
+        Path to standardized recordings
 
-    standarized_params: dict
-        A dictionary with the parameters for the standarized recordings
+    standardized_params: dict
+        A dictionary with the parameters for the standardized recordings
         (dtype, n_channels, data_order)
     """
     logger = logging.getLogger(__name__)
@@ -148,7 +148,7 @@ def _matrix(recording, channel_index, spike_size):
     M = np.matmul(blanked_rec.transpose(), blanked_rec) / \
         np.matmul(spikes_rec.transpose(), spikes_rec)
 
-    # since recording is standarized recording, covaraince = correlation
+    # since recording is standardized recording, covaraince = correlation
     invhalf_var = np.diag(np.power(np.diag(M), -0.5))
     M = np.matmul(np.matmul(invhalf_var, M), invhalf_var)
 

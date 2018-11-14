@@ -4,18 +4,12 @@ import numpy as np
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import tqdm
+import parmap
 
 from statsmodels import robust
 from scipy.signal import argrelmin
 
-#from yass.deconvolute.util import (svd_shifted_templates,
-#                                   small_shift_templates,
-#                                   make_spt_list_parallel, clean_up,
-#                                   calculate_temp_temp_parallel)
-                                   
-#from yass.deconvolute.deconvolve import (deconvolve_new_allcores_updated,
-#                                         deconvolve_match_pursuit)
-                                         
+
 from yass.deconvolve.match_pursuit import (MatchPursuit_objectiveUpsample, 
                                             MatchPursuitWaveforms)
                                             
@@ -25,10 +19,10 @@ from yass.cluster.util import (binary_reader, RRR3_noregress_recovery_dynamic_fe
                                make_CONFIG2, upsample_parallel, 
                                clean_templates, find_clean_templates)
 from yass import read_config
+from yass.cluster.cluster import Cluster
 
 import multiprocessing as mp
 
-            
 from matplotlib import colors as mcolors
 colors = dict(mcolors.BASE_COLORS, **mcolors.CSS4_COLORS)
 by_hsv = ((tuple(mcolors.rgb_to_hsv(mcolors.to_rgba(color)[:3])), name)
@@ -39,7 +33,7 @@ sorted_colors = [name for hsv, name in by_hsv]
 def run(spike_train_cluster,
         templates,
         output_directory='tmp/',
-        recordings_filename='standarized.bin'):
+        recordings_filename='standardized.bin'):
     """Deconvolute spikes
 
     Parameters
@@ -61,7 +55,7 @@ def run(spike_train_cluster,
     recordings_filename: str, optional
         Recordings filename (relative to CONFIG.data.root_folder/
         output_directory) used to draw the waveforms from, defaults to
-        standarized.bin
+        standardized.bin
 
     Returns
     -------
@@ -129,7 +123,7 @@ def run(spike_train_cluster,
     # Cat: TODO: make sure you don't miss chunks at end
     # Cat: TODO: do we want to do 10sec chunks in deconv?
     
-    n_iterations = 0
+    n_iterations = 1
     if n_iterations>0: 
         if not os.path.isdir(deconv_dir+'/initial/'):
             os.makedirs(deconv_dir+'/initial/')
@@ -234,7 +228,7 @@ def run(spike_train_cluster,
     chunk_size = len(idx_list)
 
     # process only white noise, first 30 mins
-    white_noise_only = True
+    white_noise_only = False
     if white_noise_only:
         print ("  DECONV ONLY OVER WHITE NOISE STIMULUS ")
         max_time = 30*60*CONFIG.recordings.sampling_rate
@@ -404,7 +398,7 @@ def reclustering_function(CONFIG,
                           initial_chunk,
                           output_directory, 
                           recordings_filename):
-                              
+
     idx_chunk = [idx_list_local[0][0], idx_list_local[-1][1], 
                  idx_list_local[0][2], idx_list_local[0][3]]
     
@@ -455,37 +449,39 @@ def reclustering_function(CONFIG,
 
     # make argument list
     args_in = []
-    #templates=templates.swapaxes(0,1)
+
+    # flag to indicate whether clustering original data or post-deconv
+    deconv_flag = 'deconv'
+
+    # index to be used for directory naming
+    chunk_index = 0
+
     units = np.arange(templates.shape[2])
     for unit in units:
         fname_out = (deconv_chunk_dir+
-                     "/unit_{}.npz".format(
+                     "/recluster/unit_{}.npz".format(
                      str(unit).zfill(6)))
         if os.path.exists(fname_out)==False:
-            args_in.append([unit, 
-                            dec_spike_train_offset,
-                            spike_train_cluster_new,
+            args_in.append([deconv_flag,
+                            unit,
                             idx_chunk,
-                            templates[:,:,unit],
+                            chunk_index,
                             CONFIG2,
+                            dec_spike_train_offset,
                             deconv_chunk_dir,
-                            data_start,
-                            offset,
-                            residual_clustering_flag
-                            ])
+                            spike_train_cluster_new,
+                            templates[:,:,unit]])
 
     # run residual-reclustering function
     if len(args_in)>0:
         if CONFIG.resources.multi_processing:
-        #if False:
             p = mp.Pool(processes = CONFIG.resources.n_processors)
-            res = p.map_async(deconv_residual_recluster, args_in).get(988895)
+            p.map_async(Cluster, args_in).get(988895)
             p.close()
         else:
             for unit in range(len(args_in)):
-                deconv_residual_recluster(args_in[unit])
+                Cluster(args_in[unit])
 
-        print ("  done reclustering using residuals ")
 
     ''' ************************************************************
         ******* RECOMPUTE TEMPLATES USING NEW SPIKETRAINS  *********
@@ -493,21 +489,23 @@ def reclustering_function(CONFIG,
     '''
     print ("  recomputing templates from raw data")
     recompute_templates_from_raw(templates,
-                                 deconv_chunk_dir, 
+                                 deconv_chunk_dir+"/recluster/",
                                  idx, 
                                  buffer_size, 
                                  standardized_filename, 
                                  n_channels,
-                                 CONFIG)
+                                 CONFIG2)
 
     ''' ************************************************************
         ******************* RUN TEMPLATE MERGE  ********************
         ************************************************************
     '''
     # run template merge
+    print ("  merging templates")
     out_dir = 'deconv'
-    spike_train, templates = global_merge_max_dist(deconv_chunk_dir+'/raw_templates/', 
-                                                   CONFIG, 
+    raw_dir = deconv_chunk_dir+'/raw_templates/'
+    spike_train, templates = global_merge_max_dist(raw_dir,
+                                                   CONFIG,
                                                    out_dir, 
                                                    units)
 
@@ -530,32 +528,63 @@ def recompute_templates_from_raw(templates,
         and recomputes templates using raw record;
         - it then overwrites the original sorted files
     '''
-    
+
+    # Cat: TODO: data_start is not 0, should be
     data_start = 0
     offset = 200
     spike_size=61
-    units = np.arange(templates.shape[2])
 
+    global recording_chunk
     recording_chunk = binary_reader(idx, 
                                     buffer_size, 
                                     standardized_filename, 
                                     n_channels)
 
     # make deconv directory
-    dir_name = (deconv_chunk_dir+ '/raw_templates')
-    if not os.path.isdir(dir_name):
-        os.makedirs(dir_name)
+    raw_dir = deconv_chunk_dir.replace('recluster','raw_templates')
+    if not os.path.isdir(raw_dir):
+        os.makedirs(raw_dir)
     
-    # Cat: TODO: parallelize this
-    plotting = True
+    # compute raw tempaltes in parallel
+    units = []
+    for k in range(templates.shape[2]):
+        fout = (raw_dir +
+                "/unit_{}.npz".format(
+                str(k).zfill(6)))
+        if os.path.exists(fout):
+            continue
+        units.append(k)
 
-    parmap.map(raw_templates_parallel, units, deconv_chunk_dir, dir_name)
-    
+    if CONFIG.resources.multi_processing:
+        parmap.map(raw_templates_parallel,
+               units,
+               deconv_chunk_dir,
+               raw_dir,
+               data_start,
+               offset,
+               spike_size,
+               CONFIG,
+               CONFIG.resources.n_processors)
+    else:
+        for unit in units:
+            raw_templates_parallel(
+            unit,
+            deconv_chunk_dir,
+            raw_dir,
+            data_start,
+            offset,
+            spike_size,
+            CONFIG)
+
 
 def raw_templates_parallel(unit, 
                            deconv_chunk_dir,
-                           dir_name):
-    
+                           raw_dir,
+                           data_start,
+                           offset,
+                           spike_size,
+                           CONFIG):
+
     fname = (deconv_chunk_dir+"/unit_{}.npz".format(str(unit).zfill(6)))
     data = np.load(fname)
 
@@ -568,25 +597,27 @@ def raw_templates_parallel(unit,
     for s in range(len(spike_index_postrecluster)):
         spike_train = spike_index_postrecluster[s]-200
 
-        wf = load_waveforms_from_memory(recording_chunk, 
-                            data_start, 
-                            offset, 
-                            spike_train, 
+        wf = load_waveforms_from_memory(recording_chunk,
+                            data_start,
+                            offset,
+                            spike_train,
                             spike_size)
-        template = wf.mean(0)
-        templates.append(template)    
 
-    fout = (dir_name+
+        template = wf.mean(0)
+        templates.append(template)
+
+    fout = (raw_dir+
             "/unit_{}.npz".format(
             str(unit).zfill(6)))
 
-    np.savez(fout, 
-             spike_index=spike_index_postrecluster, 
+    np.savez(fout,
+             spike_index=spike_index_postrecluster,
              templates=templates)
-    
+
     channel = templates[0].ptp(0).argmax(0)
-    # plot templates 
-    if plotting: 
+    # plot templates
+    plotting=True
+    if plotting:
 
         fig = plt.figure(figsize =(40,20))
         grid = plt.GridSpec(40,20,wspace = 0.0,hspace = 0.2)
@@ -598,24 +629,24 @@ def raw_templates_parallel(unit,
         ctr=0
         # plot original post-cluster template
         ax.plot(CONFIG.geom[:,0]-30+
-                np.arange(-templates_cluster.shape[0]//2.,templates_cluster.shape[0]//2,1)[:,np.newaxis]/xscale, 
-                CONFIG.geom[:,1] + templates_cluster*yscale, 
+                np.arange(-templates_cluster.shape[0]//2.,templates_cluster.shape[0]//2,1)[:,np.newaxis]/xscale,
+                CONFIG.geom[:,1] + templates_cluster*yscale,
                 c=sorted_colors[ctr%100])
 
-        patch_j = mpatches.Patch(color = sorted_colors[ctr%100], 
+        patch_j = mpatches.Patch(color = sorted_colors[ctr%100],
                         label = "cluster :"+ str(spike_index_cluster.shape[0]))
         labels.append(patch_j)
         ctr+=1
-        
+
         # plot recluster templates - using residual data
         for k in range(templates_postrecluster.shape[0]):
             ax.plot(CONFIG.geom[:,0]-15+
                     np.arange(-templates_postrecluster[k].shape[0]//2,
-                             templates_postrecluster[k].shape[0]//2,1)[:,np.newaxis]/xscale, 
-                             CONFIG.geom[:,1] + templates_postrecluster[k]*yscale, 
+                             templates_postrecluster[k].shape[0]//2,1)[:,np.newaxis]/xscale,
+                             CONFIG.geom[:,1] + templates_postrecluster[k]*yscale,
                              c=sorted_colors[ctr%100])
 
-            patch_j = mpatches.Patch(color = sorted_colors[ctr%100], 
+            patch_j = mpatches.Patch(color = sorted_colors[ctr%100],
                             label = "recluster+res: "+ str(spike_index_postrecluster[k].shape[0]))
             labels.append(patch_j)
             ctr+=1
@@ -625,33 +656,33 @@ def raw_templates_parallel(unit,
         for k in range(templates.shape[0]):
             ax.plot(CONFIG.geom[:,0]+
                   np.arange(-templates[k].shape[0]//2,
-                             templates[k].shape[0]//2,1)[:,np.newaxis]/xscale, 
-                             CONFIG.geom[:,1] + templates[k]*yscale, 
+                             templates[k].shape[0]//2,1)[:,np.newaxis]/xscale,
+                             CONFIG.geom[:,1] + templates[k]*yscale,
                              c=sorted_colors[ctr%100])
 
-            patch_j = mpatches.Patch(color = sorted_colors[ctr%100], 
+            patch_j = mpatches.Patch(color = sorted_colors[ctr%100],
                             label = "recluster+raw: "+ str(spike_index_postrecluster[k].shape[0]))
             labels.append(patch_j)
             ctr+=1
 
         # plot chan nubmers
         for i in range(CONFIG.recordings.n_channels):
-            ax.text(CONFIG.geom[i,0], CONFIG.geom[i,1], str(i), alpha=0.4, 
+            ax.text(CONFIG.geom[i,0], CONFIG.geom[i,1], str(i), alpha=0.4,
                                                             fontsize=30)
             # fill bewteen 2SUs on each channel
             ax.fill_between(CONFIG.geom[i,0] + np.arange(-61,0,1)/3.,
-                -yscale + CONFIG.geom[i,1], yscale + CONFIG.geom[i,1], 
+                -yscale + CONFIG.geom[i,1], yscale + CONFIG.geom[i,1],
                 color='black', alpha=0.05)
-            
-        # plot max chan with big red dot                
-        ax.scatter(CONFIG.geom[channel,0]+5, CONFIG.geom[channel,1], s = 1000, 
+
+        # plot max chan with big red dot
+        ax.scatter(CONFIG.geom[channel,0]+5, CONFIG.geom[channel,1], s = 1000,
                                                 color = 'red',alpha=0.3)
         # finish plotting
         ax.legend(handles = labels, fontsize=15)
         fig.suptitle("Unit: "+str(unit)+" chan: "+str(channel), fontsize=25)
-        fig.savefig(dir_name+"/unit_"+str(unit)+".png")
+        fig.savefig(raw_dir+"/unit_"+str(unit)+".png")
         plt.close(fig)
-        
+
         
 
 

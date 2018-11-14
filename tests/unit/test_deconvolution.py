@@ -6,13 +6,13 @@ def test_deconvolution(patch_triage_network, path_to_nnet_config,
                        make_tmp_folder):
     yass.set_config(path_to_nnet_config, make_tmp_folder)
 
-    (standarized_path,
-     standarized_params,
+    (standardized_path,
+     standardized_params,
      whiten_filter) = preprocess.run()
 
     (spike_index_clear,
-     spike_index_all) = detect.run(standarized_path,
-                                   standarized_params,
+     spike_index_all) = detect.run(standardized_path,
+                                   standardized_params,
                                    whiten_filter)
 
     spike_train_clear, tmp_loc, vbParam = cluster.run(

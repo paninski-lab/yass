@@ -34,7 +34,7 @@ from yass.threshold.dimensionality_reduction import pca
 from yass.templates.util import strongly_connected_components_iterative
 
 
-def run(standarized_path, standarized_params,
+def run(standardized_path, standardized_params,
         whiten_filter, output_directory='tmp/',
         if_file_exists='skip', save_results=False):
 
@@ -46,11 +46,11 @@ def run(standarized_path, standarized_params,
 
     Parameters
     ----------
-    standarized_path: str or pathlib.Path
-        Path to standarized data binary file
+    standardized_path: str or pathlib.Path
+        Path to standardized data binary file
 
-    standarized_params: dict, str or pathlib.Path
-        Dictionary with standarized data parameters or path to a yaml file
+    standardized_params: dict, str or pathlib.Path
+        Dictionary with standardized data parameters or path to a yaml file
 
     channel_index: numpy.ndarray, str or pathlib.Path
         Channel index or path to a npy file
@@ -110,20 +110,20 @@ def run(standarized_path, standarized_params,
     CONFIG = read_config()
 
     # load files in case they are strings or Path objects
-    standarized_params = file_loader(standarized_params)
+    standardized_params = file_loader(standardized_params)
     whiten_filter = file_loader(whiten_filter)
 
     # run detection
     if CONFIG.detect.method == 'threshold':
-        return run_threshold(standarized_path,
-                             standarized_params,
+        return run_threshold(standardized_path,
+                             standardized_params,
                              whiten_filter,
                              output_directory,
                              if_file_exists,
                              save_results)
     elif CONFIG.detect.method == 'nn':
-        return run_neural_network(standarized_path,
-                                  standarized_params,
+        return run_neural_network(standardized_path,
+                                  standardized_params,
                                   whiten_filter,
                                   output_directory,
                                   if_file_exists,
@@ -131,7 +131,7 @@ def run(standarized_path, standarized_params,
 
 
 
-def run_threshold(standarized_path, standarized_params,
+def run_threshold(standardized_path, standardized_params,
         whiten_filter, output_directory, if_file_exists,
         save_results, temporal_features=3,
         std_factor=4):
@@ -168,10 +168,10 @@ def run_threshold(standarized_path, standarized_params,
     ###################
 
     # run threshold detection, save clear indexes in TMP/filename_index_clear
-    clear = threshold(standarized_path,
-                      standarized_params['dtype'],
-                      standarized_params['n_channels'],
-                      standarized_params['data_order'],
+    clear = threshold(standardized_path,
+                      standardized_params['dtype'],
+                      standardized_params['n_channels'],
+                      standardized_params['data_order'],
                       CONFIG.resources.max_memory,
                       CONFIG.neigh_channels,
                       CONFIG.spike_size,
@@ -187,10 +187,10 @@ def run_threshold(standarized_path, standarized_params,
 
     # run PCA, save rotation matrix and pca scores under TMP_FOLDER
     # TODO: remove clear as input for PCA and create an independent function
-    pca_scores, clear, _ = pca(standarized_path,
-                               standarized_params['dtype'],
-                               standarized_params['n_channels'],
-                               standarized_params['data_order'],
+    pca_scores, clear, _ = pca(standardized_path,
+                               standardized_params['dtype'],
+                               standardized_params['n_channels'],
+                               standardized_params['data_order'],
                                clear,
                                CONFIG.spike_size,
                                temporal_features,
@@ -231,7 +231,7 @@ def run_threshold(standarized_path, standarized_params,
 
 
 
-def run_neural_network(standarized_path, standarized_params,
+def run_neural_network(standardized_path, standardized_params,
                        whiten_filter, output_directory, if_file_exists,
                        save_results):
                            
@@ -260,7 +260,7 @@ def run_neural_network(standarized_path, standarized_params,
     path_to_spike_index_all = os.path.join(TMP_FOLDER, 'spike_index_all.npy')
     path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
 
-    path_to_standardized = os.path.join(TMP_FOLDER, 'standarized.bin')
+    path_to_standardized = os.path.join(TMP_FOLDER, 'standardized.bin')
 
     paths = [path_to_score, path_to_spike_index_clear, path_to_spike_index_all]
     exists = [os.path.exists(p) for p in paths]
@@ -870,7 +870,7 @@ def remove_incomplete_waveforms(spike_index, spike_size, recordings_length):
 
 
 #
-# def run_threshold(standarized_path, standarized_params,
+# def run_threshold(standardized_path, standardized_params,
 #                   whiten_filter, output_directory, if_file_exists,
 #                   save_results):
 #     """Run threshold detection and autoencoder dimensionality reduction
@@ -898,7 +898,7 @@ def remove_incomplete_waveforms(spike_index, spike_size, recordings_length):
 #     path_to_spike_index_all = os.path.join(TMP_FOLDER, 'spike_index_all.npy')
 #     path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
 #
-#     path_to_standardized = os.path.join(TMP_FOLDER, 'standarized.bin')
+#     path_to_standardized = os.path.join(TMP_FOLDER, 'standardized.bin')
 #
 #     paths = [path_to_score, path_to_spike_index_clear, path_to_spike_index_all]
 #     exists = [os.path.exists(p) for p in paths]

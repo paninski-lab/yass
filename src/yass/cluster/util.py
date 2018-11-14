@@ -545,141 +545,7 @@ def align_channelwise3(wf, upsample_factor = 20, nshifts = 7):
     return wf_final[:,::upsample_factor]
 
 
-# def align_last_chan_linear(wf, CONFIG, channel):
-    # ''' Align all waveforms to the master channel; 
-    
-        # wf = selected waveform matrix (# spikes, # samples, # featchans)
-        # max_channel: is the last channel provided in wf 
-        
-        # Use linear interpolation for all otehr chans aside from master chan;
-
-    # '''
-    
-    # # compute feature channels
-    # n_feat_chans = 5
-    # feat_chans, mc = get_feat_channels_diptest(wf, n_feat_chans)
-    # #print (' featchans, max chan ', feat_chans, mc)
-
-    # # compute best interpolated alignemt using feature channel templates
-    # fit_chans = np.concatenate((feat_chans, [channel]),axis=0)
-    # template= wf[:,:,fit_chans].mean(0)
-    # #print (template.shape)
-
-    # upsample_factor = 5
-    # template_align, best_shifts = align_singletrace_lastchan(template, CONFIG, upsample_factor = upsample_factor, nshifts = 15, ref = None)
-
-    # # use template feat_channel shifts to interpolate shift of all spikes on all other chans
-    # wf_shifted = []
-    # for ctr,feat_chan in enumerate(feat_chans):
-        # shift_ = best_shifts[ctr]/upsample_factor
-        # if int(shift_)==shift_:
-            # ceil = int(shift_)
-            # temp = np.roll(wf[:,:,feat_chan],ceil,axis=1)
-        # else:
-            # ceil = math.ceil(shift_)
-            # floor = math.floor(shift_)
-            # temp = np.roll(wf[:,:,feat_chan],ceil,axis=1)*(shift_-floor)+np.roll(wf[:,:,feat_chan],floor, axis=1)*(ceil-shift_)
-        # wf_shifted.append(temp)
-
-    # wf_shifted = np.array(wf_shifted).swapaxes(0,1).swapaxes(1,2)[:,spike_padding:-spike_padding]
-    # print (wf_shifted.shape)
-    
-    # return wf_shifted
-    
-    
-    
-# def align_last_chan(wf, CONFIG, upsample_factor = 5, nshifts = 15):
-
-    # ''' Align all waveforms to the master channel
-    
-        # wf = selected waveform matrix (# spikes, # samples, # featchans)
-        # max_channel: is the last channel provided in wf 
-    # '''
-    
-    # # convert nshifts from timesamples to  #of times in upsample_factor
-    # nshifts = (nshifts*upsample_factor)
-    # if nshifts%2==0:
-        # nshifts+=1    
-    
-    # # or loop over every channel and parallelize each channel:
-    # wf_up = []
-    # for k in range(wf.shape[2]): 
-        # #print ("aligning : ", k)
-        # wf_up.append(upsample_resample_parallel_channel(wf[:,:,k], upsample_factor))
-    # wf_up = np.array(wf_up).swapaxes(1,2).swapaxes(0,2)
-
-    # wlen = wf_up.shape[1]
-    # wf_start = int(.2 * (wlen-1))
-    # wf_end = -int(.3 * (wlen-1))
-    
-    # wf_trunc = wf_up[:,wf_start:wf_end]
-    # wlen_trunc = wf_trunc.shape[1]
-    
-    # # align to last chanenl which is largest amplitude channel appended
-    # ref_upsampled = wf_up[:,:,-1].mean(0)
-    
-    # ref_shifted = np.zeros([wf_trunc.shape[1], nshifts])
-    
-    # for i,s in enumerate(range(-int((nshifts-1)/2), int((nshifts-1)/2+1))):
-        # ref_shifted[:,i] = ref_upsampled[s+ wf_start: s+ wf_end]
-
-    # bs_indices = np.matmul(wf_trunc[:,np.newaxis,:, -1], ref_shifted).squeeze(1).argmax(1)
-    # best_shifts = (np.arange(-int((nshifts-1)/2), int((nshifts-1)/2+1)))[bs_indices]
-    # wf_final = np.zeros([wf.shape[0],wlen_trunc, wf.shape[2]])
-    # for i,s in enumerate(best_shifts):
-        # wf_final[i] = wf_up[i,-s+ wf_start: -s+ wf_end][:, np.arange(wf.shape[2])]
-
-    # return np.float32(wf_final[:,::upsample_factor])
-
-
-# def align_mc(wf, mc, CONFIG, upsample_factor = 5, nshifts = 15, 
-             # ref = None):
-
-    # ''' Align all waveforms to the master channel
-    
-        # wf = selected waveform matrix (# spikes, # samples, # featchans)
-        # mc = maximum channel from featchans; usually first channle, i.e. 0
-    # '''
-    
-    # # convert nshifts from timesamples to  #of times in upsample_factor
-    # nshifts = (nshifts*upsample_factor)
-    # if nshifts%2==0:
-        # nshifts+=1    
-    
-    # # or loop over every channel and parallelize each channel:
-    # wf_up = []
-    # for k in range(wf.shape[2]): 
-        # #print ("aligning : ", k)
-        # wf_up.append(upsample_resample_parallel_channel(wf[:,:,k], upsample_factor))
-    # wf_up = np.array(wf_up).swapaxes(1,2).swapaxes(0,2)
-
-    # wlen = wf_up.shape[1]
-    # wf_start = int(.2 * (wlen-1))
-    # wf_end = -int(.3 * (wlen-1))
-    
-    # wf_trunc = wf_up[:,wf_start:wf_end]
-    # wlen_trunc = wf_trunc.shape[1]
-    
-    # if ref is not None:
-        # ref_upsampled = upsample_resample(ref[:,np.newaxis],upsample_factor)[0]
-    # else:
-        # ref_upsampled = wf_up[:,:,mc].mean(0)
-    
-    # ref_shifted = np.zeros([wf_trunc.shape[1], nshifts])
-    
-    # for i,s in enumerate(range(-int((nshifts-1)/2), int((nshifts-1)/2+1))):
-        # ref_shifted[:,i] = ref_upsampled[s+ wf_start: s+ wf_end]
-
-    # bs_indices = np.matmul(wf_trunc[:,np.newaxis,:, mc], ref_shifted).squeeze(1).argmax(1)
-    # best_shifts = (np.arange(-int((nshifts-1)/2), int((nshifts-1)/2+1)))[bs_indices]
-    # wf_final = np.zeros([wf.shape[0],wlen_trunc, wf.shape[2]])
-    # for i,s in enumerate(best_shifts):
-        # wf_final[i] = wf_up[i,-s+ wf_start: -s+ wf_end][:, np.arange(wf.shape[2])]
-
-    # return np.float32(wf_final[:,::upsample_factor])
-
-
-def align_mc_templates(wf, mc, spike_padding, upsample_factor = 5, 
+def align_mc_templates(wf, mc, spike_padding, upsample_factor = 5,
                        nshifts = 15):
 
     ''' Align all waveforms to the master channel
@@ -779,32 +645,6 @@ def align_mc_cumulative(wf, mc, CONFIG, upsample_factor = 20, nshifts = 7,
     
     return wf_final[:,::upsample_factor]
     
-# def align_channelwise3_parallel(wf, upsample_factor = 20, nshifts = 7):
-    # ''' NOT IN USE
-    # ''' 
-    # wf_up = upsample_resample(wf.T, upsample_factor)
-    # wlen = wf_up.shape[1]
-    # wf_start = int(.2 * (wlen-1))
-    # wf_end = -int(.3 * (wlen-1))
-    # wf_trunc = wf_up[:,wf_start:wf_end]
-    # wlen_trunc = wf_trunc.shape[1]
-   
-    # #if type(ref) == 'ndarray':
-    # #    ref_upsampled = upsample_resample(ref,20)
-    # #else:
-    # ref_upsampled = wf_up.mean(0)
-    
-    # ref_shifted = np.zeros([wf_trunc.shape[1], nshifts])
-    # for i,s in enumerate(range(-int((nshifts-1)/2), int((nshifts-1)/2+1))):
-        # ref_shifted[:,i] = ref_upsampled[s+ wf_start: s+ wf_end]
-    # bs_indices = np.matmul(wf_trunc[:,np.newaxis,:], ref_shifted).squeeze(1).argmax(1)
-    # best_shifts = (np.arange(-int((nshifts-1)/2), int((nshifts-1)/2+1)))[bs_indices]
-    
-    # wf_final = np.zeros([wf.shape[0], (wlen-1)//2 +1])
-    # for i,s in enumerate(best_shifts):
-        # wf_final[i] = wf_up[i,-s+ wf_start: -s+ wf_end]
-    # return wf_final[:,::upsample_factor]    
-    
 def upsample_resample(wf, upsample_factor):
     waveform_len, n_spikes = wf.shape
     traces = np.zeros((n_spikes, (waveform_len-1)*upsample_factor+1),'float32')
@@ -900,25 +740,6 @@ def upsample_parallel(wf, upsample_factor):
     for j in range(wf.shape[1]):
         traces[j] = signal.resample(wf[:,j],(waveform_len-1)*upsample_factor+1)
     return traces
-
-
-        
-
-# def RRR3_noregress_recovery(channel, wf, sic, gen, fig, grid, x, ax_t, triageflag, 
-         # alignflag, plotting, n_feat_chans, n_dim_pca, 
-         # wf_start, wf_end, mfm_threshold, CONFIG, upsample_factor, nshifts, 
-         # assignment_global, spike_index, scale, knn_triage_threshold, deconv_flag,
-         # templates):
-    
-    # ''' Recursive clusteringn function
-        # channel: current channel being clusterd
-        # wf = wf_PCA: denoised waveforms (# spikes, # time points, # chans)
-        # sic = spike_indexes of spikes on current channel
-        # gen = generation of cluster; increases with each clustering step        
-    # '''
-
-    # # Cat: TODO read from CONFIG File
-    # verbose=True
     
 
 def RRR3_noregress_recovery_dynamic_features(channel, current_indexes, gen, fig, 
@@ -2293,14 +2114,9 @@ def make_CONFIG2(CONFIG):
     return CONFIG2
 
 
-
-
 def run_cluster_features_chunks(spike_index_clear, spike_index_all,
-                                n_dim_pca_compression, 
-                                n_dim_pca, wf_start, wf_end, 
-                                n_feat_chans, CONFIG, out_dir,
-                                mfm_threshold, upsample_factor, nshifts):
-            
+                                CONFIG):
+
     ''' New voltage feature based clustering; parallel version
     ''' 
     
@@ -2317,13 +2133,10 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     #if os.path.exists(res_file)==False: 
     
     # Cat: TODO: link spike_size in CONFIG param
-    spike_size = int(CONFIG.recordings.spike_size_ms*
-                     CONFIG.recordings.sampling_rate//1000)
-    n_processors = CONFIG.resources.n_processors
+
     n_channels = CONFIG.recordings.n_channels
     sampling_rate = CONFIG.recordings.sampling_rate
-    root_folder = CONFIG.data.root_folder
-    geometry_file = os.path.join(CONFIG.data.root_folder, 
+    geometry_file = os.path.join(CONFIG.data.root_folder,
                                  CONFIG.data.geometry)
 
     # select length of recording to chunk data for processing;
@@ -2331,12 +2144,9 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     n_sec_chunk = 1200
     #n_sec_chunk = 300
     
-    #min_spikes_local = int(n_sec_chunk * 0.25)
-    min_spikes_local = CONFIG.cluster.min_spikes
-    
     # determine length of processing chunk based on lenght of rec
-    standardized_filename = os.path.join(CONFIG.data.root_folder, out_dir,
-                                         'standarized.bin')
+    standardized_filename = os.path.join(CONFIG.data.root_folder,
+                                         'tmp/standardized.bin')
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
 
@@ -2359,11 +2169,12 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     idx_list = np.int64(np.vstack(idx_list))
     proc_indexes = np.arange(len(idx_list))
 
-    #if CONFIG.resources.multi_processing:
+    # select first time index to make output_directories for each chunk of clustering
+    chunk_index = proc_indexes[0]
+
     # Cat: TODO: the logic below is hardcoded for clustering a single chunk
-        
     idx = idx_list[0]
-    proc_index = proc_indexes[0]
+
     # read chunk of data
     print ("Clustering initial chunk: ", 
             idx[0]/CONFIG.recordings.sampling_rate, "(sec)  to  ", 
@@ -2372,7 +2183,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     # make chunk directory if not available:
     # save chunk in own directory to enable cumulative recovery 
     chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
-                                                str(proc_index).zfill(6)
+                                                str(chunk_index).zfill(6)
     if not os.path.isdir(chunk_dir):
         os.makedirs(chunk_dir)
        
@@ -2391,35 +2202,21 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     
     if os.path.exists(chunk_dir+'/complete.npy')==False:
    
-        # read recording chunk and share as global variable
-        # Cat: TODO: recording_chunk should be a shared variable in 
-        #            multiprocessing module;
-        buffer_size = 200
-        standardized_filename = os.path.join(CONFIG.data.root_folder,
-                                            'tmp', 'standarized.bin')
-        n_channels = CONFIG.recordings.n_channels
-        root_folder = CONFIG.data.root_folder
-        
-        print ("  loading recording chunk")
-        #recording_chunk = binary_reader(idx, buffer_size, 
-        #            standardized_filename, n_channels)
-
         # select only spike_index_clear that is in the chunk
         indexes_chunk = np.where(
                     np.logical_and(spike_index[:,0]>=idx[0], 
                     spike_index[:,0]<idx[1]))[0]
+        spike_index_chunk = spike_index[indexes_chunk]
         
-        spike_index_chunk = spike_index[indexes_chunk]    
-        
+        # flag to indicate whether clusteirng or post-deconv reclustering
+        deconv_flag = False
+
         # Cat: TODO: this parallelization may not be optimally asynchronous
         # make arg list first
-        chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
-                                                    str(proc_index).zfill(6)
-        channels = np.arange(CONFIG.recordings.n_channels)
-        args_in = []
-        for channel in channels:
+        #for channel in np.arange(CONFIG.recordings.n_channels):
         #for channel in [4,6,22,23]:
-        #for channel in [255]:
+        args_in = []
+        for channel in [4]:
 
             # check to see if chunk + channel already completed
             filename_postclustering = (chunk_dir + "/channel_"+
@@ -2427,26 +2224,10 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
             # skip 
             if os.path.exists(filename_postclustering):
                 continue 
-                
-            args_in.append([channel, idx, proc_index,CONFIG2, 
-                spike_index_chunk, n_dim_pca, n_dim_pca_compression,
-                wf_start, wf_end, n_feat_chans, out_dir, 
-                mfm_threshold, upsample_factor, nshifts, min_spikes_local,
-                standardized_filename, 
-                geometry_file,
-                n_channels])
 
-        # Cat: TODO: have single-core option also here     
-        # print ("  starting clustering")
-        # if CONFIG.resources.multi_processing:
-            # p = mp.Pool(CONFIG.resources.n_processors)
-            # res = p.map_async(cluster_channels_chunks_args, args_in).get(988895)
-            # p.close()
+            args_in.append([deconv_flag, channel, idx, chunk_index, CONFIG2,
+                            spike_index_chunk, chunk_dir])
 
-        # else:
-            # res = []
-            # for arg_in in args_in:
-                # res.append(cluster_channels_chunks_args(arg_in))
         print ("  starting clustering")
         if CONFIG.resources.multi_processing:
             p = mp.Pool(CONFIG.resources.n_processors)
@@ -2476,10 +2257,9 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
             buffer_size = 200
             standardized_filename = os.path.join(CONFIG.data.root_folder,
                                                 'tmp', 
-                                                'standarized.bin')
+                                                'standardized.bin')
             n_channels = CONFIG.recordings.n_channels
-            root_folder = CONFIG.data.root_folder
-            
+
             recording_chunk = binary_reader(idx, 
                                             buffer_size, 
                                             standardized_filename, 
@@ -2570,204 +2350,6 @@ def mfm_binary_split2(muhat, assignment_orig, cluster_index=None):
     
    
 
-    
-# def cluster_channels_chunks_args(data_in):
-
-    # ''' Clustering wrapper function run chunks in parallel for each channel
-    
-        # spike_indexes_chunk:  only spikes in the current chunk
-                         # Note; this is not offest to zero yet
-    # '''
-    # #data_in = data_in.get() 
-    # channel = data_in[0]
-    # idx_list = data_in[1]
-    # proc_index = data_in[2]
-    # CONFIG = data_in[3]
-    # spike_indexes_chunk = data_in[4]
-    # n_dim_pca = data_in[5]
-    # n_dim_pca_compression = data_in[6]
-    # wf_start = data_in[7]
-    # wf_end = data_in[8]
-    # n_feat_chans = data_in[9]
-    # out_dir = data_in[10]
-    # mfm_threshold = data_in[11]
-    # upsample_factor = data_in[12]
-    # nshifts = data_in[13]
-    # min_spikes_local = data_in[14]
-    
-    # standardized_filename = data_in[15] 
-    # geometry_file = data_in[16]
-    # n_channels = data_in[17]
-                
-
-    # data_start = idx_list[0]
-    # data_end = idx_list[1]
-    # offset = idx_list[2]
-    
-    # ## save chunk in own directory to enable cumulative recovery 
-    # chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
-                                                # str(proc_index).zfill(6)
-    # #if not os.path.isdir(chunk_dir):
-        # #os.makedirs(chunk_dir)
-
-    # # check to see if chunk + channel already completed
-    # filename_postclustering = (chunk_dir + "/channel_"+
-                                                    # str(channel)+".npz")
-    # if os.path.exists(filename_postclustering)==False: 
-        # global wf_global, sic_global
-
-        # # starting params
-        # # Cat: TODO: read all these from CONFIG
-        # spike_size = 111
-        # scale = 10 
-        # triageflag = False
-        # alignflag = True
-        # plotting = True
-
-        # gen = 0     #Set default generation for starting clustering stpe
-        # assignment_global = []
-        # spike_index = []
-        # templates = []
-        # feat_chans_cumulative = []
-        # shifts = []
-        # aligned_wfs_cumulative = []
-        
-        
-        # # Cat: TODO: Is this index search expensive for hundreds of chans and many 
-        # #       millions of spikes?  Might want to do once rather than repeat
-        # indexes = np.where(spike_indexes_chunk[:,1]==channel)[0]
-        
-        # # Cat: TODO: legacy code fix; don't really need indexes subsampled here
-        # #       Subsammpling is done inside clustering function.
-        # indexes_subsampled = np.arange(indexes.shape[0])
-        # #indexes_subsampled = np.random.choice(indexes,min(10000, indexes.shape[0]))
-                
-        # sic_global = spike_indexes_chunk[indexes]
-        # #print ('Starting channel: '+str(channel)+ ', events: '+
-        # #                                            str(spike_train.shape[0]))
-
-        # # read waveforms from recording chunk in memory
-        # # load waveforms with some padding then clip them
-        # # Cat: TODO: spike_padding to be read/fixed in CONFIG
-        # #spike_padding = 25
-        # knn_triage_threshold = 0.90
-        
-        # # Cat: TODO: recording_chunk is a global variable; 
-        # #            this might cause problems eventually
-        # if False: 
-            # wf_global = load_waveforms_from_memory(recording_chunk, 
-                                            # data_start, 
-                                            # offset, 
-                                            # spike_train, 
-                                            # spike_size)
-        # else:
-            # wf_global = load_waveforms_from_disk(standardized_filename, 
-                                          # geometry_file,
-                                          # n_channels, 
-                                          # sic_global, 
-                                          # spike_size)    
-
-        # ''' *****************************************************
-            # ************* PCA Based spike triage ****************
-            # *****************************************************
-        # '''
-        # # Project waveforms on feature channels back onto 
-        # if False:
-            # #print (wf.shape)
-            # indexes_subsampled = pca_triage_spikes(wf_global,
-                                                   # CONFIG, 
-                                                   # channel,
-                                                   # spike_padding)
-        # else:
-            # indexes_subsampled=np.arange(wf_global.shape[0])
-           
-        # # plotting parameters
-        # if plotting:
-            # # Cat: TODO: this global x is not necessary, should make it local
-            # x = np.zeros(100, dtype = int)
-            # fig = plt.figure(figsize =(100,100))
-            # grid = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
-            # ax_t = fig.add_subplot(grid[13:, 6:])
-        # else:
-            # fig = []
-            # grid = []
-            # x = []
-            # ax_t = []
-
-        
-        # # indicate whether running the RRR3 function initially or post deconv
-        # deconv_flag = False
-        
-        # RRR3_noregress_recovery_dynamic_features(channel, 
-             # indexes_subsampled, 
-             # gen, fig, grid, x, ax_t, 
-             # triageflag, alignflag, plotting, n_feat_chans, 
-             # n_dim_pca, wf_start, wf_end, mfm_threshold, CONFIG, 
-             # upsample_factor, nshifts, assignment_global, spike_index, scale,
-             # knn_triage_threshold, deconv_flag, templates, min_spikes_local)
-             
-                          
-        # # finish plotting 
-        # if plotting: 
-            # #ax_t = fig.add_subplot(grid[13:, 6:])
-            # for i in range(CONFIG.recordings.n_channels):
-                # ax_t.text(CONFIG.geom[i,0], CONFIG.geom[i,1], str(i), alpha=0.4, 
-                                                                # fontsize=30)
-                # # fill bewteen 2SUs on each channel
-                # ax_t.fill_between(CONFIG.geom[i,0] + np.arange(-61,0,1)/3.,
-                    # -scale + CONFIG.geom[i,1], scale + CONFIG.geom[i,1], 
-                    # color='black', alpha=0.05)
-                
-            # # plot max chan with big red dot                
-            # ax_t.scatter(CONFIG.geom[channel,0], CONFIG.geom[channel,1], s = 2000, 
-                                                    # color = 'red')
-            # # if at least 1 cluster is found:
-            # if len(spike_index)>0: 
-                # sic_temp = np.concatenate(spike_index, axis = 0)
-                # assignment_temp = np.concatenate(assignment_global, axis = 0)
-                # idx = sic_temp[:,1] == channel
-                # clusters, sizes = np.unique(assignment_temp[idx], return_counts= True)
-                # clusters = clusters.astype(int)
-
-                # labels=[]
-                # for i, clust in enumerate(clusters):
-                    # patch_j = mpatches.Patch(color = sorted_colors[clust%100], label = "size = {}".format(sizes[i]))
-                    # labels.append(patch_j)
-                # ax_t.legend(handles = labels, fontsize=30)
-
-            # # plto title
-            # fig.suptitle("Channel: "+str(channel), fontsize=25)
-            # fig.savefig(chunk_dir+"/channel_{}.png".format(channel))
-            # plt.close(fig)
-
-        # # Cat: TODO: note clustering is done on PCA denoised waveforms but
-        # #            templates are computed on original raw signal
-        # # recompute templates to contain full width information... 
-        # #aligned_wide_templates = []
-        # #for k in range(len(spike_index)):
-            # #indexes = np.in1d(spike_train[indexes_subsampled,0], 
-                                                # #spike_index[k][:,0])            
-            # ## realign spikes before saving
-            # #mc = wf[indexes].mean(0).ptp(0).argmax(0)
-            # #best_shifts = align_get_shifts(wf[indexes_subsampled][indexes,:,mc], CONFIG) 
-            # #wf_align = shift_chans(wf[indexes_subsampled][indexes], best_shifts, CONFIG)
-            # #template = wf_align[indexes_subsampled][indexes].mean(0)
-            # #aligned_wide_templates.append(template)
-        
-        # np.savez(filename_postclustering, 
-                        # spike_index=spike_index, 
-                        # indexes_subsampled=indexes_subsampled,
-                        # templates=templates)
-
-
-        # print ("**** Channel ", str(channel), " starting spikes: ", wf_global.shape[0],
-            # ", pca triaged down to: ", indexes_subsampled.shape[0], 
-            # ", found # clusters: ", len(spike_index))
-
-    # # overwrite this variable just in case garbage collector doesn't
-    # wf_global = None
-    
-    # return channel
 
 def connected_channels(channel_list, ref_channel, neighbors, keep=None):
     if keep is None:
@@ -2781,153 +2363,6 @@ def connected_channels(channel_list, ref_channel, neighbors, keep=None):
             keep = connected_channels(channel_list, c, neighbors, keep=keep)
         return keep
 
-# def pca_triage_spikes(wf,CONFIG, channel, spike_padding):
-
-    # # compute feature channels
-    # n_feat_chans = 5
-    # feat_chans, mc = get_feat_channels_diptest(wf, n_feat_chans)
-    # #print (' featchans, max chan ', feat_chans, mc)
-
-    # # compute best interpolated alignemt using feature channel templates
-    # fit_chans = np.concatenate((feat_chans, [channel]),axis=0)
-    # template= wf[:,:,fit_chans].mean(0)
-    # #print (template.shape)
-
-    # upsample_factor = 5
-    # template_align, best_shifts = align_singletrace_lastchan(template, CONFIG, upsample_factor = upsample_factor, nshifts = 15, ref = None)
-
-    # # use template feat_channel shifts to interpolate shift of all spikes on all other chans
-    # wf_shifted = []
-    # for ctr,feat_chan in enumerate(feat_chans):
-        # shift_ = best_shifts[ctr]/upsample_factor
-        # if int(shift_)==shift_:
-            # ceil = int(shift_)
-            # temp = np.roll(wf[:,:,feat_chan],ceil,axis=1)
-        # else:
-            # ceil = math.ceil(shift_)
-            # floor = math.floor(shift_)
-            # temp = np.roll(wf[:,:,feat_chan],ceil,axis=1)*(shift_-floor)+np.roll(wf[:,:,feat_chan],floor, axis=1)*(ceil-shift_)
-        # wf_shifted.append(temp)
-
-    # wf_shifted = np.array(wf_shifted).swapaxes(0,1).swapaxes(1,2)[:,spike_padding:-spike_padding]
-
-    # # compute pca project per channel
-    # # project interpolation aligned waveforms into same space
-    # n_pca = 5
-    
-    # # new method pca projection per channel
-    # wf_shifted_PCA = []
-    # for k in range(feat_chans.shape[0]):
-        # _, wf_temp, _ = PCA(wf_shifted[:,:,k], n_pca)
-        # wf_shifted_PCA.append(wf_temp)
-
-    # wf_shifted_PCA=np.array(wf_shifted_PCA).swapaxes(0,1).swapaxes(1,2)
-
-    # # triage out spikes with substantial reconstruction error
-    # start = 18
-    # end = start+20
-    # diff = wf_shifted_PCA[:,start:end,:] - wf_shifted[:,start:end,:]
-
-    # diff = diff.swapaxes(1,2)#.reshape(diff.shape[2],-1)
-
-    # # don't remove spikes due to residual difference in centre part of spike
-    # lock_start = 5
-    # lock_end = lock_start+5
-    # diff_local = diff.copy()
-    # diff_local[:,:,lock_start:lock_end]=0
-
-    # max_error = diff_local.max(2).max(1)
-    # idx_bad = np.where(max_error>2.0)[0]
-
-    # idx_good = np.delete(np.arange(diff.shape[0]),idx_bad)
-    # #print ('  chan: ', channel, '  tot idx_good:', idx_good.shape, " total: ", diff.shape)
-
-    # indexes_subsampled = idx_good
-    
-    # return indexes_subsampled
-    
-    
-# def pca_triage_spikes_old(wf,CONFIG):
-
-    # # compute feature channels
-    # n_feat_chans = 5
-    # feat_chans, mc = get_feat_channels_diptest(wf, n_feat_chans)
-    # #print (' featchans, max chan ', feat_chans, mc)
-
-    # # compute best interpolated alignemt using feature channel templates
-    # fit_chans = np.concatenate((feat_chans, [channel]),axis=0)
-    # template= wf[:,:,fit_chans].mean(0)
-    # #print (template.shape)
-
-    # upsample_factor = 5
-    # template_align, best_shifts = align_singletrace_lastchan(template, CONFIG, upsample_factor = upsample_factor, nshifts = 15, ref = None)
-        
-    # #print (template_align.shape)
-    # #print (best_shifts.shape)
-    # #print (best_shifts/upsample_factor)
-
-    # # use template feat_channel shifts to interpolate shift of all spikes on all other chans
-    # wf_shifted = []
-    # for ctr,feat_chan in enumerate(feat_chans):
-        # shift_ = best_shifts[ctr]/upsample_factor
-        # if int(shift_)==shift_:
-            # ceil = int(shift_)
-            # temp = np.roll(wf[:,:,feat_chan],ceil,axis=1)
-        # else:
-            # ceil = math.ceil(shift_)
-            # floor = math.floor(shift_)
-            # temp = np.roll(wf[:,:,feat_chan],ceil,axis=1)*(shift_-floor)+np.roll(wf[:,:,feat_chan],floor, axis=1)*(ceil-shift_)
-        # wf_shifted.append(temp)
-
-    # wf_shifted = np.array(wf_shifted).swapaxes(0,1).swapaxes(1,2)[:,spike_padding:-spike_padding]
-    # #print (wf_shifted.shape)
-
-
-    # # project interpolation aligned waveforms into same space
-    # n_pca = 5
-    # pca_object, pca_object2 = get_template_PCA_rotation(
-                                                # wf_shifted, n_pca)
-    # #pca_object=pca_object2
-
-    # # apply template based PCA rotation to aligned raw wfs 
-    # wf_shifted_PCA= []
-    # for k in range(wf_shifted.shape[2]):
-        # X = pca_object.transform(wf_shifted[:,:,k])
-        # wf_shifted_PCA.append(pca_object.inverse_transform(X))
-
-    # wf_shifted_PCA=np.array(wf_shifted_PCA).swapaxes(0,1).swapaxes(1,2)
-    # #print (wf_shifted_PCA.shape)
-
-    # # triage out spikes with substantial reconstruction error
-    # start = 18
-    # end = -25
-    # ptps = wf_shifted[:,start:end].ptp(1).max(1)
-
-    # diffs = np.abs(wf_shifted[:,start:end] - wf_shifted_PCA[:,start:end])
-
-    # if True:
-        # diffs[:,6:13]=0
-        
-    # diffs_max = diffs.max(1).max(1)
-    # diffs_max_arg_ch = diffs.max(1).argmax(1)
-    # diffs_max_arg_time = diffs.argmax(1)
-
-    # min_diff = 2.5
-    # idx_bad_abs = np.where(diffs_max>min_diff)[0]
-
-    # min_diff_rel = 0.35
-    # idx_bad_rel = np.where(diffs_max/ptps>min_diff_rel)[0]
-    # #print ('idx_bad_rel', idx_bad_rel.shape)
-
-    # idx_bad = np.union1d(np.intersect1d(idx_bad_abs, idx_bad_rel), idx_bad_abs)
-    # #print ("tot idx_bad", idx_bad.shape)
-
-    # idx_good = np.delete(np.arange(diffs_max.shape[0]),idx_bad)
-    # print ('  chan: ', channel, '  tot idx_good:', idx_good.shape, " total: ", diffs.shape)
-
-    # indexes_subsampled = idx_good
-    
-    # return indexes_subsampled
 
 
 def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
@@ -3001,8 +2436,7 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     
     # centre spikes
     if False: 
-    #if out_dir=='cluster': 
-        # centre spikes in case misaligned and centre 
+        # centre spikes in case misaligned and centre
         # Cat: TODO read from CONFIG
         spike_padding = 25
         spike_width = 61        
@@ -3180,7 +2614,8 @@ def abs_max_dist(temp, CONFIG):
     # Cat: TODO: don't compare all pair-wise templates, but just those
     #           with main chan + next 3-6 largest shared channels
     #      - not sure if this is necessary though, may be already fast enough
-    print ("  computing merge matrix")
+    print ("")
+    print ("Computing merge matrix")
     print ("  temp shape (temps, times, chans):" , temp.shape)
     
     dist_max = np.zeros((temp.shape[0],temp.shape[0]), 'float32')
@@ -3193,7 +2628,7 @@ def abs_max_dist(temp, CONFIG):
     else:
         ids = np.arange(temp.shape[0])
         res = parallel_abs_max_dist(ids, temp)
-                
+
     # sum all results
     for k in range(len(res)):
         dist_max +=res[k]
@@ -3651,7 +3086,7 @@ def parallel_merge(data):
     #   spikes and no edge cases are occuring
     ## read waveforms
     # Cat: TODO: spike_size must be read from CONFIG or will crash
-    re = RecordingExplorer(CONFIG.data.root_folder+'/tmp/standarized.bin', 
+    re = RecordingExplorer(CONFIG.data.root_folder+'/tmp/standardized.bin', 
                    path_to_geom = CONFIG.data.root_folder+CONFIG.data.geometry, 
                    spike_size = spike_width//2, 
                    neighbor_radius = 100, 
@@ -4501,15 +3936,14 @@ def clean_templates(templates, spike_train_cluster, CONFIG):
 
     # need to transpose axes for analysis below
     templates = templates.swapaxes(0,1)
-    print ("cleaning templates (time, chan, temps): ", templates.shape)
+    print ("")
+    print ("Cleaning templates (time, chan, temps): ", templates.shape)
     ptps = templates.ptp(0).max(0)
     idx = np.where(ptps>=template_threshold)[0]
     print ("  deleted # clusters < 3SU: ", templates.shape[2]-idx.shape[0])
     
     templates = templates[:,:,idx]
-    
-    #np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/cluster/chunk_000000/templates_ptp3SU.npy',templates)
-    
+
     spike_train_cluster_new = []
     for ctr,k in enumerate(idx):
         temp = np.where(spike_train_cluster[:,1]==k)[0]
@@ -4563,20 +3997,11 @@ def find_clean_templates(templates, CONFIG):
 
     # Cat: TODO: limit # of shifts here, we don't want to correct bad templates using
     #           alignment
-    #nshifts = 5 
-    #upsample_factor = 5
-    #templates_aligned, best_shifts = align_singletrace_lastchan(templates.T, 
-    #                                                        CONFIG, 
-    #                                                        upsample_factor, 
-    #                                                        nshifts)
-    
     templates_aligned = templates
-    
-    #np.save('/home/cat/templates_aligned.npy'  , templates_aligned)
-    #print ("  templates_aligned: ", templates_aligned.shape)
 
     # find largest negative peak and the following one
     mean_template = templates_aligned.mean(0)
+
     #print (mean_template.shape)
     mean_template_centre = np.argmin(mean_template)
     

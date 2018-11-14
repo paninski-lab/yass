@@ -19,6 +19,9 @@ from sklearn.cluster import AgglomerativeClustering
 from yass.explore.explorers import RecordingExplorer
 from yass import mfm
 
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 colors = [
 'black','blue','red','green','cyan','magenta','brown','pink',
 'orange','firebrick','lawngreen','dodgerblue','crimson','orchid','slateblue',
@@ -54,18 +57,11 @@ class Cluster(object):
               
         """
         
-        # load params into correct attributes
-        self.load_params(data_in)
+        # load data and check if prev completed
+        if self.load_data(data_in):  return
         
-        # check if clustering already done
-        if os.path.exists(self.filename_postclustering): return
-            
-        # load raw data array
-        self.load_raw_data()
-
         # run generational clustering on channel
-        self.cluster(self.starting_indexes, self.starting_gen, 
-                     self.triageflag)
+        self.cluster(self.starting_indexes, self.starting_gen, self.triageflag)
                          
         # save clusters and make plots
         self.finish_clustering()
@@ -74,16 +70,13 @@ class Cluster(object):
     def cluster(self, current_indexes, gen, triage_flag,  
                 active_chans=None):
 
-        ''' Recursive clusteringn function
+        ''' Recursive clustering function
             channel: current channel being clusterd
             wf = wf_PCA: denoised waveforms (# spikes, # time points, # chans)
             sic = spike_indexes of spikes on current channel
             gen = generation of cluster; increases with each clustering step        
         '''
 
-        # Cat: TODO read from CONFIG File
-        self.verbose=True
-        
         # Exit if cluster too small
         if current_indexes.shape[0] < self.CONFIG.cluster.min_spikes: return
         
@@ -169,61 +162,101 @@ class Cluster(object):
                             idx_recovered, pca_wf_all, vbParam2, stability, 
                             current_indexes, sic_current, template_current, 
                             feat_chans)
-                            
-                                                    
-    def load_params(self, data_in):
-                
-        # CAT: todo read params below from file:
-        self.knn_triage_threshold = 0.95 * 100
-        self.knn_triage_flag = True
-        self.selected_PCA_rank = 5
 
-        # number of spikes used to compute featurization statistics
-        self.n_spikes_featurize = 10000
-        
+                                                    
+    def load_data(self, data_in):
+        ''''''
+
+        ''' *******************************************
+            ************ LOADED PARAMETERS ************
+            *******************************************
+        '''
+
         # this indicates channel-wise clustering - NOT postdeconv recluster
-        self.deconv_flag = False
-            
-        # load params passed in
-        self.channel = data_in[0]
-        
-        self.idx_list = data_in[1]
+        self.deconv_flag = data_in[0]
+        self.channel = data_in[1]
+
+        # indexes of start and end of data chunk; not currently used, but
+        # could be in future; do not erase!
+        self.idx_list = data_in[2]
         self.data_start = self.idx_list[0]
         self.data_end = self.idx_list[1]
         self.offset = self.idx_list[2]
-        
-        self.proc_index = data_in[2]
-        self.CONFIG = data_in[3]
-        self.spike_indexes_chunk = data_in[4]
-        self.n_dim_pca = data_in[5]
-        self.n_dim_pca_compression = data_in[6]
-        self.wf_start = data_in[7]
-        self.wf_end = data_in[8]
-        self.n_feat_chans = data_in[9]
-        self.out_dir = data_in[10]
-        self.mfm_threshold = data_in[11]
-        self.upsample_factor = data_in[12]
-        self.nshifts = data_in[13]
-        self.min_spikes_local = data_in[14]
-        self.standardized_filename = data_in[15]
-        self.geometry_file = data_in[16]
-        self.n_channels = data_in[17]
 
-        # Check if channel alredy clustered
-        self.chunk_dir = (self.CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
-                                                str(self.proc_index).zfill(6))
+        # index of chunk being clustered; used for saving unique directories
+        self.chunk_index = data_in[3]
+        self.CONFIG = data_in[4]
+
+        # spikes in the current chunk
+        self.spike_indexes_chunk = data_in[5]
+        self.chunk_dir = data_in[6]
+
+        # Check if channel alreedy clustered
         self.filename_postclustering = (self.chunk_dir + "/channel_"+
-                                                        str(self.channel)+".npz")
+                                                        str(self.channel).zfill(6)+".npz")
 
-        # Cat: TODO: read all these from CONFIG
-        self.spike_size = 111
-        self.yscale = 1.
+        # additional parameters if doing deconv:
+        if self.deconv_flag:
+            self.spike_train_cluster_original = data_in[7]
+            self.template_original = data_in[8]
+
+            self.deconv_max_spikes = 3000
+            self.unit = self.channel.copy()
+            self.filename_postclustering = (self.chunk_dir + "/recluster/unit_"+
+                                                        str(self.unit).zfill(6)+".npz")
+
+            # check to see if 'result/' folder exists otherwise make it
+            recluster_dir = self.chunk_dir+'/recluster'
+            if not os.path.isdir(recluster_dir):
+                os.makedirs(recluster_dir)
+
+        if os.path.exists(self.filename_postclustering):
+            return True
+
+        ''' ********************************************
+            *********** DEFAULT PARAMETERS *************
+            ******************************************** 
+        '''
+        # default parameters
+        self.n_channels = self.CONFIG.recordings.n_channels
+        self.min_spikes_local = self.CONFIG.cluster.min_spikes
+        self.standardized_filename = self.CONFIG.data.root_folder+'/tmp/standardized.bin'
+        self.geometry_file = os.path.join(self.CONFIG.data.root_folder,
+                                          self.CONFIG.data.geometry)
+
+        # CAT: todo read params below from file:
+        self.plotting = False
+        self.verbose = True
+        self.starting_gen = 0
+        self.knn_triage_threshold = 0.95 * 100
+        self.knn_triage_flag = True
+        self.selected_PCA_rank = 5
+        self.yscale = 10.
         self.xscale = 4.
         self.triageflag = True
-        #self.alignflag = True
-        self.plotting = True
+        self.n_feat_chans = 5
+        self.mfm_threshold = 0.90
+        self.upsample_factor = 5
+        self.nshifts = 15
+        self.n_dim_pca = 3
+        self.n_dim_pca_compression = 5
 
-        self.starting_gen = 0
+        # limit on featurization window;
+        # Cat: TODO this needs to be further set using window based on spike_size and smapling rate
+        self.spike_size = 61
+
+        # these are not currently used; but manually set inside alignment function; TODO
+        #self.wf_start = 0
+        #self.wf_end = int(self.CONFIG.recordings.spike_size_ms *
+        #                  self.CONFIG.recordings.sampling_rate // 1000)
+
+        # number of spikes used to compute featurization statistics
+        self.n_spikes_featurize = 10000
+
+        # max number of spikes to use for reclustering step post-deconv
+        # Cat: TODO read from disk
+
+        # save arrays for results
         self.assignment_global = []
         self.spike_index = []
         self.templates = []
@@ -232,7 +265,38 @@ class Cluster(object):
         self.aligned_wfs_cumulative = []
 
 
-    def load_raw_data(self):
+        # plotting parameters
+        if self.plotting:
+            # Cat: TO DO: this global x is not necessary, should make it local
+            self.x = np.zeros(100, dtype = int)
+            self.fig1 = plt.figure(figsize =(60,60))
+            self.grid1 = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
+            self.ax1 = self.fig1.add_subplot(self.grid1[:,:])
+
+            # setup template plot; scale based on electrode array layout
+            xlim = self.CONFIG.geom[:,0].ptp(0)
+            ylim = self.CONFIG.geom[:,1].ptp(0)#/float(xlim)
+            self.fig2 = plt.figure(figsize =(100,max(ylim/float(xlim)*100,10)))
+            self.ax2 = self.fig2.add_subplot(111)
+        else:
+            self.fig1 = []
+            self.grid2 = []
+            self.x = []
+
+
+        # load raw data array
+        if self.deconv_flag==False:
+            self.load_data_channels()
+        else:
+            self.load_data_units()
+
+        # return flag that clustering not yet complete
+        return False
+
+    def load_data_channels(self):
+
+        if self.verbose:
+            print("chan " + str(self.channel) + " loading data")
 
         # Cat: TO DO: Is this index search expensive for hundreds of chans and many
         #       millions of spikes?  Might want to do once rather than repeat
@@ -252,8 +316,9 @@ class Cluster(object):
         fp_len = fp.shape[0]/self.n_channels
 
         # limit indexes away from edge of recording
-        idx_inbounds = np.where(np.logical_and(self.indexes>=self.spike_size//2,
-                                               self.indexes<(fp_len-self.spike_size//2)))[0]
+        idx_inbounds = np.where(np.logical_and(
+                        self.spike_indexes_chunk[self.indexes,0]>=self.spike_size//2,
+                        self.spike_indexes_chunk[self.indexes,0]<(fp_len-self.spike_size//2)))[0]
         self.indexes = self.indexes[idx_inbounds]
 
         # check to see if any duplicate spike times occur
@@ -268,39 +333,67 @@ class Cluster(object):
         self.starting_indexes = np.arange(self.indexes.shape[0])
 
         # load raw data from disk
-        self.wf_global = load_waveforms_from_disk(
-                                    self.standardized_filename, 
-                                    self.geometry_file,
-                                    self.n_channels, 
-                                    self.sic_global,
-                                    self.spike_size)    
+        self.wf_global = self.load_waveforms_from_disk()
 
         # make sure no artifacts in data, clip to 1000
+        # Cat: TODO: is this necessary?
         self.wf_global = self.wf_global.clip(min=-1000, max=1000)
 
-        # Cat: TO DO: subsampled indexes outside clustering function is
-        # legacy code; remove it
-        #self.indexes_subsampled=np.arange(self.wf_global.shape[0])
 
-        # plotting parameters
-        if self.plotting:
-            # Cat: TO DO: this global x is not necessary, should make it local
-            self.x = np.zeros(100, dtype = int)
-            self.fig1 = plt.figure(figsize =(60,60))
-            self.grid1 = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
-            self.ax1 = self.fig1.add_subplot(self.grid1[:,:])
+    def load_data_units(self):
 
-            # setup template plot
-            xlim = self.CONFIG.geom[:,0].ptp(0)
-            ylim = self.CONFIG.geom[:,1].ptp(0)#/float(xlim)
-            self.fig2 = plt.figure(figsize =(100,max(ylim/float(xlim)*100,10)))
-            self.ax2 = self.fig2.add_subplot(111)
-        else:
-            self.fig1 = []
-            self.grid2 = []
-            self.x = []
-            #self.ax_t = []
-            
+        if self.verbose:
+            print("unit " + str(self.unit) + " loading data")
+
+        # select deconv spikes and read waveforms
+        self.indexes = np.where(self.spike_indexes_chunk[:, 1] == self.unit)[0]
+
+        # If there are no spikes assigned to unit, exit
+        if self.indexes.shape[0] == 0:
+            print("  unit: ", str(self.unit), " has no spikes...")
+            np.savez(deconv_filename, spike_index=[],
+                     templates=[],
+                     templates_std=[],
+                     weights=[])
+            return
+
+        if self.indexes.shape[0] != np.unique(self.indexes).shape[0]:
+            print("  unit: ", self.unit, " non unique spikes found...")
+            idx_unique = np.unique(self.indexes[:, 0], return_index=True)[1]
+            self.indexes = self.indexes[idx_unique]
+
+        # Cat: TODO read this from disk
+        if self.indexes.shape[0] > self.deconv_max_spikes:
+            idx_subsampled = np.random.choice(np.arange(self.indexes.shape[0]),
+                                          size=self.deconv_max_spikes,
+                                          replace=False)
+            self.indexes = self.indexes[idx_subsampled]
+
+        # check that all spike indexes are inbounds
+        # Cat: TODO: this should be solved inside the waveform reader!
+        fp = np.memmap(self.standardized_filename, dtype='float32', mode='r')
+        fp_len = fp.shape[0] / self.n_channels
+
+        # limit indexes away from edge of recording
+        idx_inbounds = np.where(np.logical_and(
+                        self.spike_indexes_chunk[self.indexes,0]>=self.spike_size//2,
+                        self.spike_indexes_chunk[self.indexes,0]<(fp_len-self.spike_size//2)))[0]
+        self.indexes = self.indexes[idx_inbounds]
+
+        # set global spike indexes for all downstream analysis:
+        self.sic_global = self.spike_indexes_chunk[self.indexes]
+
+        # sets up initial array of indexes
+        self.starting_indexes = np.arange(self.indexes.shape[0])
+
+        # Cat: TODO: here we add additional offset for buffer inside residual matrix
+        # read waveforms by adding templates to residual
+        self.wf_global = self.load_waveforms_from_residual()
+
+        # make sure no artifacts in data, clip to 1000
+        # Cat: TODO: this should not be required; to test
+        self.wf_global = self.wf_global.clip(min=-1000, max=1000)
+
 
     def align_step(self, gen):
         # align, note: aligning all channels to max chan which is appended to the end
@@ -312,7 +405,6 @@ class Cluster(object):
             print("chan/unit "+str(self.channel)+' gen: '+str(gen)+' # spikes: '+
                   str(self.wf_global.shape[0]))
 
-        if self.verbose:
             print ("chan "+str(self.channel)+' gen: '+str(gen)+" - aligning")
 
         mc = self.wf_global.mean(0).ptp(0).argmax(0)
@@ -466,7 +558,7 @@ class Cluster(object):
                             sic_current, gen, template_current, feat_chans):
                                 
         # exclude units whose maximum channel is not on the current 
-        # clustered channel; but only during clustering, not during deconv
+        # clustered channel; but only during clustering, not during re-deconv
         if mc != self.channel and (self.deconv_flag==False): 
             print ("  channel: ", self.channel, " template has maxchan: ", mc, 
                     " skipping ...")
@@ -593,6 +685,7 @@ class Cluster(object):
             self.split_step(gen, dp_val, assignment2, assignment3, pca_wf_all, idx_recovered,
                                     vbParam2, idx_keep, current_indexes)
 
+
     def diptest_step(self, EM_split, assignment2, idx_recovered, vbParam2, pca_wf_all):
         
         if EM_split: 
@@ -601,8 +694,6 @@ class Cluster(object):
         ctr=0 
         dp_val = 1.0
         idx_temp_keep = np.arange(idx_recovered.shape[0])
-        print ("Original vbParam2.muhat.shape: ", vbParam2.muhat.shape
-               )
         cluster_idx_keep = np.arange(vbParam2.muhat.shape[1])
         # loop over cluster until at least 3 loops and take lowest dp value
         while True:    
@@ -624,7 +715,6 @@ class Cluster(object):
                     cluster_idx_keep)
 
 
-                
             # check if any clusters smaller than min spikes
             counts = np.unique(temp_assignment, return_counts=True)[1]
 
@@ -783,16 +873,23 @@ class Cluster(object):
                          
     
     def finish_clustering(self,):
-        # finish plotting 
+
+        if self.deconv_flag:
+            spikes_original = np.where(self.spike_train_cluster_original == self.unit)[0]
+
+        # finish plotting
         if self.plotting: 
 
             # finish cluster plots
-            self.fig1.suptitle("Channel: "+str(self.channel), fontsize=25)
-            self.fig1.savefig(self.chunk_dir+"/channel_{}_scatter.png".format(self.channel))
+            max_chan = self.template_original.ptp(0).argmax(0)
+            self.fig1.suptitle("Channel: "+str(max_chan), fontsize=25)
+            if self.deconv_flag:
+                self.fig1.savefig(self.chunk_dir + "/recluster/unit_{}_scatter.png".format(self.channel))
+            else:
+                self.fig1.savefig(self.chunk_dir + "/recluster/channel_{}_scatter.png".format(self.channel))
             plt.close(self.fig1)
 
-            # finish template plots
-            # plot channel numbers
+            # plot channel numbers and shading
             for i in range(self.CONFIG.recordings.n_channels):
                 self.ax2.text(self.CONFIG.geom[i,0], self.CONFIG.geom[i,1],
                               str(i), alpha=0.4, fontsize=10)
@@ -803,39 +900,62 @@ class Cluster(object):
                      self.CONFIG.geom[i,1], self.yscale + self.CONFIG.geom[i,1],
                      color='black', alpha=0.05)
                 
-            # plot max chan with big red dot                
-            self.ax2.scatter(self.CONFIG.geom[self.channel,0],
-                              self.CONFIG.geom[self.channel,1], s = 2000, 
+            # plot max chan with big red dot
+            self.ax2.scatter(self.CONFIG.geom[max_chan,0],
+                              self.CONFIG.geom[max_chan,1], s = 2000,
                               color = 'red')
-                              
+
+            # plot original templates for post-deconv reclustering
+            if self.deconv_flag:
+                self.ax2.plot(self.CONFIG.geom[:, 0] +
+                          np.arange(-self.template_original.shape[0] // 2,
+                          self.template_original.shape[0] // 2, 1)[:, np.newaxis] / self.xscale,
+                          self.CONFIG.geom[:, 1] + self.template_original * self.yscale,
+                          'r--', c='red')
+
             # if at least 1 cluster is found, plot the template
-            if len(self.spike_index)>0: 
+            labels = []
+            if self.deconv_flag:
+                patch_j = mpatches.Patch(color='red', label="size = {}".format(spikes_original.shape[0]))
+                labels.append(patch_j)
+
+            if len(self.spike_index)>0:
                 sic_temp = np.concatenate(self.spike_index, axis = 0)
                 assignment_temp = np.concatenate(self.assignment_global, axis = 0)
                 idx = sic_temp[:,1] == self.channel
                 clusters, sizes = np.unique(assignment_temp[idx], return_counts= True)
                 clusters = clusters.astype(int)
 
-                labels=[]
                 for i, clust in enumerate(clusters):
                     patch_j = mpatches.Patch(color = sorted_colors[clust%100], label = "size = {}".format(sizes[i]))
                     labels.append(patch_j)
-                self.ax2.legend(handles = labels, fontsize=30)
+
+            self.ax2.legend(handles=labels, fontsize=30)
 
             # plto title
-            self.fig2.suptitle("Channel: " + str(self.channel), fontsize=25)
-            self.fig2.savefig(self.chunk_dir + "/channel_{}_template.png".format(self.channel))
+            self.fig2.suptitle("Channel/Unit: " + str(self.channel), fontsize=25)
+            if self.deconv_flag:
+                self.fig2.savefig(self.chunk_dir + "/recluster/unit_{}_template.png".format(self.channel))
+            else:
+                self.fig2.savefig(self.chunk_dir + "/recluster/channel_{}_template.png".format(self.channel))
             plt.close(self.fig2)
 
         # Cat: TODO: note clustering is done on PCA denoised waveforms but
         #            templates are computed on original raw signal
         # recompute templates to contain full width information... 
-        
-        np.savez(self.filename_postclustering, 
-                        spike_index=self.spike_index, 
-                        templates=self.templates)
 
-        print ("**** Channel ", str(self.channel), " starting spikes: ", 
+        if self.deconv_flag:
+            np.savez(self.filename_postclustering,
+                        spike_index_postrecluster=self.spike_index,
+                        templates_postrecluster=self.templates,
+                        spike_index_cluster= spikes_original,
+                        templates_cluster=self.template_original)
+        else:
+            np.savez(self.filename_postclustering,
+                     spike_index=self.spike_index,
+                     templates=self.templates)
+
+        print ("**** Channel/Unit ", str(self.channel), " starting spikes: ",
             self.wf_global.shape[0], ", found # clusters: ", 
             len(self.spike_index))
 
@@ -861,9 +981,9 @@ class Cluster(object):
              to select channels
         '''
         # compute robust stds over units
-        #stds = np.median(np.abs(wf_align - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
+        stds = np.median(np.abs(wf_align - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
         # trim vesrion of stds
-        stds = np.std(stats.trimboth(wf_align, 0.025), 0)
+        #stds = np.std(stats.trimboth(wf_align, 0.025), 0)
         
         # max per channel
         std_max = stds.max(0)
@@ -875,7 +995,8 @@ class Cluster(object):
         max_chan = wf_align.mean(0).ptp(0).argmax(0)
 
         return feat_chans, max_chan, stds
-    
+
+
     def featurize(self, wf, robust_stds, feat_chans, max_chan):
         
         # select argrelmax of mad metric greater than trehsold
@@ -1014,8 +1135,8 @@ class Cluster(object):
                     ax.hist(pca_wf[np.where(assignment2==clust)[0]], 100)
 
             # finish plotting
-            ax.legend(handles = labels, fontsize=5)
-            ax.set_title("Spikes: "+ str(sizes.sum())+", "+split_type)
+            ax.legend(handles = labels, fontsize=4)
+            ax.set_title("Spikes: "+ str(sizes.sum())+", "+split_type, fontsize=6)
            
           
     def plot_clustering_template(self, gen, wf_mean, idx_recovered, feat_chans, N):
@@ -1034,8 +1155,6 @@ class Cluster(object):
         #                       s = 30,
         #                       color = colors[N%50],
         #                       alpha=1)
-
-
 
 
     def run_EM(self, gen, pca_wf):
@@ -1129,6 +1248,40 @@ class Cluster(object):
         return vbParam, assignment2
 
 
+    def load_waveforms_from_disk(self):
+        # initialize rec explorer
+        # Cat: TODO is there a faster version of this?!
+        # Cat: TODO should parameters by flexible?
+        # Cat: TODO incporpporate alterantive read of spike_size...
+        # spike_size = int(CONFIG.recordings.spike_size_ms*
+        #                 CONFIG.recordings.sampling_rate//1000)
+
+        re = RecordingExplorer(self.standardized_filename, path_to_geom=self.geometry_file,
+                               spike_size=self.spike_size // 2, neighbor_radius=100,
+                               dtype='float32', n_channels=self.n_channels,
+                               data_order='samples')
+
+        spikes = self.sic_global[:, 0]
+        wf_data = re.read_waveforms(spikes)
+
+        return (wf_data)
+
+
+    def load_waveforms_from_residual(self):
+        """Gets clean spikes for a given unit."""
+
+        # Note: residual contains buffers, make sure indexes also are buffered here
+        fname = self.chunk_dir + '/residual.npy'
+        data = np.load(self.chunk_dir + '/residual.npy')
+
+        # Add the spikes of the current unit back to the residual
+        x = np.arange(-self.spike_size // 2, self.spike_size // 2, 1)
+        temp = data[x + self.indexes[:,np.newaxis], :] + self.template_original
+
+        data = None
+        return temp
+
+
 
 def align_get_shifts(wf, CONFIG, upsample_factor = 5, nshifts = 15):
 
@@ -1202,24 +1355,3 @@ def shift_chans(wf, best_shifts, CONFIG):
     return wf_shifted
     
            
-           
-def load_waveforms_from_disk(standardized_file, 
-                             geometry_file,
-                             n_channels, 
-                             spike_train, 
-                             spike_size):
-
-
-    # initialize rec explorer
-    # Cat: TODO is there a faster version of this?!
-    # Cat: TODO should parameters by flexible
-    re = RecordingExplorer(standardized_file, path_to_geom = geometry_file, 
-                           spike_size = 30, neighbor_radius = 100, 
-                           dtype = 'float32',n_channels = n_channels, 
-                           data_order = 'samples')
-
-    spikes = spike_train[:,0]
-    wf_data = re.read_waveforms(spikes)
-
-    return (wf_data)
-

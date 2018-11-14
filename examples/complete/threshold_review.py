@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 from yass.explore import SpikeTrainExplorer, RecordingExplorer
 
-path_to_data = '/Users/Edu/data/yass/tmp/standarized.bin'
+path_to_data = '/Users/Edu/data/yass/tmp/standardized.bin'
 path_to_spike_train = '/Users/Edu/data/yass/tmp/spike_train.npy'
 
 exp = RecordingExplorer(path_to_data, spike_size=15)

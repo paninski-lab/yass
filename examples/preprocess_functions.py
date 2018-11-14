@@ -58,7 +58,7 @@ filtered = preprocess.butterworth(raw_data,
                                   order=3,
                                   sampling_freq=sampling_freq)
 
-standarized = preprocess.standarize(filtered, sampling_freq=sampling_freq)
+standardized = preprocess.standarize(filtered, sampling_freq=sampling_freq)
 
 
 fix, (ax1, ax2, ax3) = plt.subplots(nrows=3)
@@ -66,7 +66,7 @@ ax1.plot(raw_data)
 ax1.set_title('Raw')
 ax2.plot(filtered)
 ax2.set_title('Filtered')
-ax3.plot(standarized)
+ax3.plot(standardized)
 ax3.set_title('Standarized')
 plt.tight_layout()
 plt.show()
@@ -79,7 +79,7 @@ plt.show()
 
 # run threshold detection, not sure if this is the right
 # place for the threshold detector to be
-standarized = standarized.reshape(1000, 1)
+standardized = standardized.reshape(1000, 1)
 spike_index = preprocess.detect.threshold(rec, neighbors, spike_size,
                                           std_factor=1)
 

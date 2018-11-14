@@ -15,7 +15,7 @@ from yass.util import check_for_files, LoadFile, file_loader
                             LoadFile('spike_train.npy')],
                  mode='values', relative_to=None,
                  auto_save=True)
-def run(spike_train, tmp_loc, recordings_filename='standarized.bin',
+def run(spike_train, tmp_loc, recordings_filename='standardized.bin',
         if_file_exists='skip', save_results=False):
     """Compute templates
 
@@ -34,7 +34,7 @@ def run(spike_train, tmp_loc, recordings_filename='standarized.bin',
     recordings_filename: str, optional
         Recordings filename (relative to CONFIG.data.root_folder/
         output_directory) used to generate the templates, defaults to
-        standarized.bin
+        standardized.bin
 
     if_file_exists: str, optional
       One of 'overwrite', 'abort', 'skip'. Control de behavior for the

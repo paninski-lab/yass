@@ -83,10 +83,10 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
 
     Returns
     -------
-    standarized_path: str
+    standardized_path: str
         Location to filtered recordings
 
-    standarized_params: dict
+    standardized_params: dict
         A dictionary with the parameters for the filtered recordings
         (dtype, n_channels, data_order)
     """
@@ -422,7 +422,7 @@ def merge_filtered_files(output_directory):
     filenames = os.listdir(path)
     filenames_sorted = sorted(filenames)
 
-    f_out = os.path.join(output_directory, "standarized.bin")
+    f_out = os.path.join(output_directory, "standardized.bin")
     logger.info('...saving standardized file: %s', f_out)
 
     f = open(f_out, 'wb')

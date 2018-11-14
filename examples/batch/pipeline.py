@@ -26,7 +26,7 @@ butterworth_op = PipedTransformation(butterworth, 'filtered.bin',
                                      keep=True, low_freq=300, high_factor=0.1,
                                      order=3, sampling_freq=30000)
 
-standarize_op = PipedTransformation(standarize, 'standarized.bin',
+standarize_op = PipedTransformation(standarize, 'standardized.bin',
                                     mode='single_channel_one_batch',
                                     keep=True, sampling_freq=30000)
 
@@ -38,7 +38,7 @@ pipeline.run()
 raw = RecordingsReader(path_to_neuropixel_data, dtype='int16',
                        n_channels=385, data_format='wide')
 filtered = RecordingsReader(os.path.join(path_output, 'filtered.bin'))
-standarized = RecordingsReader(os.path.join(path_output, 'standarized.bin'))
+standardized = RecordingsReader(os.path.join(path_output, 'standardized.bin'))
 
 # plot results
 fig, (ax1, ax2, ax3) = plt.subplots(3, 1)
@@ -46,7 +46,7 @@ ax1.plot(raw[:2000, 0])
 ax1.set_title('Raw data')
 ax2.plot(filtered[:2000, 0])
 ax2.set_title('Filtered data')
-ax3.plot(standarized[:2000, 0])
+ax3.plot(standardized[:2000, 0])
 ax3.set_title('Standarized data')
 plt.tight_layout()
 plt.show()

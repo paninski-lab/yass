@@ -28,7 +28,7 @@ import multiprocessing as mp
     
 def run(spike_index_clear, 
         spike_index_all,
-        output_directory='tmp/',
+        out_dir='tmp/',
         if_file_exists='skip',
         save_results=False):
     """Spike clustering
@@ -41,7 +41,7 @@ def run(spike_index_clear,
         spike location in the recording and the second the main channel
         (channel whose amplitude is maximum). Or path to an npy file
 
-    output_directory: str, optional
+    out_dir: str, optional
         Location to store/look for the generate spike train, relative to
         CONFIG.data.root_folder
 
@@ -72,9 +72,6 @@ def run(spike_index_clear,
 
     CONFIG = read_config()
 
-    CLUSTER_OUTPUT_DIR = os.path.join(CONFIG.path_to_output_directory,
-                                      'cluster')
-
     startTime = datetime.datetime.now()
 
     Time = {'t': 0, 'c': 0, 'm': 0, 's': 0, 'e': 0}
@@ -87,25 +84,11 @@ def run(spike_index_clear,
     _b = datetime.datetime.now()
 
     # voltage space feature clustering
-    fname = os.path.join(CLUSTER_OUTPUT_DIR, 'spike_train_cluster.npy')
+    fname = os.path.join(CONFIG.data.root_folder,
+                              'tmp/spike_train_cluster.npy')
     
     if os.path.exists(fname)==False:
 
-        #spike_index_clear = spike_index
-
-        # option to select highest variance points on a channel
-        # Cat: TODO: read all these values from CONFIG
-        n_dim_pca_compression =  5      # denoise level for raw waveforms
-        n_dim_pca = 3                   # compression level for clustering
-        wf_start = 0
-        wf_end = int(CONFIG.recordings.spike_size_ms*
-                     CONFIG.recordings.sampling_rate//1000)
-                     
-        n_feat_chans = 5
-        mfm_threshold = 0.90
-        upsample_factor = 5
-        nshifts = 15
-        
         # check to see if 'result/' folder exists otherwise make it
         result_dir = os.path.join(CONFIG.data.root_folder,
                                   'tmp/cluster')
@@ -115,15 +98,6 @@ def run(spike_index_clear,
         # run new voltage features-based clustering - chunk the data
         run_cluster_features_chunks(spike_index_clear, 
                                     spike_index_all, 
-                                    n_dim_pca_compression,
-                                    n_dim_pca, 
-                                    wf_start, 
-                                    wf_end, 
-                                    n_feat_chans, 
-                                    CONFIG, 
-                                    output_directory,
-                                    mfm_threshold, 
-                                    upsample_factor, 
-                                    nshifts)
+                                    CONFIG)
      
 
