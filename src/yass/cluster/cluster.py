@@ -411,15 +411,19 @@ class Cluster(object):
         best_shifts = align_get_shifts(self.wf_global[:,:,mc], self.CONFIG) 
         self.wf_global = shift_chans(self.wf_global, best_shifts, self.CONFIG)
 
+    def robust_stds(self, wf_align):
+        
+        stds = np.median(np.abs(wf_align - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
+        return stds
 
     def active_chans_step(self, active_chans_flag, gen, wf_align):
                 
         if active_chans_flag and gen == 0:
-            stds = np.median(np.abs(wf_align - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
-            active_chans = np.where(stds.max(0) > 1.05)[0]
+            stds = self.robust_stds(wf_align)
+            active_chans = np.where(stds.max(0) > 1.02)[0]
 
             neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
-            active_chans = np.hstack((active_chans, np.where(neighbors[self.channel])[0]))
+            active_chans = np.sort(np.unique(np.hstack((active_chans, np.where(neighbors[self.channel])[0]))))
             active_chans = np.where(self.connected_channels(active_chans, self.channel, neighbors))[0]
         else:
             active_chans = np.arange(wf_align.shape[2])
@@ -981,9 +985,13 @@ class Cluster(object):
              to select channels
         '''
         # compute robust stds over units
+<<<<<<< HEAD
         stds = np.median(np.abs(wf_align - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
         # trim vesrion of stds
         #stds = np.std(stats.trimboth(wf_align, 0.025), 0)
+=======
+        stds = self.robust_stds(wf_align)
+>>>>>>> 3df34fc3c19b0c35fd30d3378538f45fd392d640
         
         # max per channel
         std_max = stds.max(0)
