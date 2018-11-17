@@ -225,7 +225,7 @@ class Cluster(object):
                                           self.CONFIG.data.geometry)
 
         # CAT: todo read params below from file:
-        self.plotting = False
+        self.plotting = True
         self.verbose = True
         self.starting_gen = 0
         self.knn_triage_threshold = 0.95 * 100
@@ -281,7 +281,7 @@ class Cluster(object):
         else:
             self.fig1 = []
             self.grid2 = []
-            self.x = []
+            self.x = np.zeros(100, dtype = int)
 
 
         # load raw data array
@@ -295,8 +295,8 @@ class Cluster(object):
 
     def load_data_channels(self):
 
-        if self.verbose:
-            print("chan " + str(self.channel) + " loading data")
+        #if self.verbose:
+        #    print("chan " + str(self.channel) + " loading data")
 
         # Cat: TO DO: Is this index search expensive for hundreds of chans and many
         #       millions of spikes?  Might want to do once rather than repeat
@@ -885,12 +885,16 @@ class Cluster(object):
         if self.plotting: 
 
             # finish cluster plots
-            max_chan = self.template_original.ptp(0).argmax(0)
+            if self.deconv_flag:
+                max_chan = self.template_original.ptp(0).argmax(0)
+            else:
+                max_chan = self.channel
+
             self.fig1.suptitle("Channel: "+str(max_chan), fontsize=25)
             if self.deconv_flag:
-                self.fig1.savefig(self.chunk_dir + "/recluster/unit_{}_scatter.png".format(self.channel))
+                self.fig1.savefig(self.chunk_dir + "/recluster/unit_{}_scatter.png".format(self.unit))
             else:
-                self.fig1.savefig(self.chunk_dir + "/recluster/channel_{}_scatter.png".format(self.channel))
+                self.fig1.savefig(self.chunk_dir + "/channel_{}_scatter.png".format(self.channel))
             plt.close(self.fig1)
 
             # plot channel numbers and shading
@@ -917,12 +921,12 @@ class Cluster(object):
                           self.CONFIG.geom[:, 1] + self.template_original * self.yscale,
                           'r--', c='red')
 
-            # if at least 1 cluster is found, plot the template
             labels = []
             if self.deconv_flag:
                 patch_j = mpatches.Patch(color='red', label="size = {}".format(spikes_original.shape[0]))
                 labels.append(patch_j)
 
+            # if at least 1 cluster is found, plot the template
             if len(self.spike_index)>0:
                 sic_temp = np.concatenate(self.spike_index, axis = 0)
                 assignment_temp = np.concatenate(self.assignment_global, axis = 0)
@@ -939,9 +943,9 @@ class Cluster(object):
             # plto title
             self.fig2.suptitle("Channel/Unit: " + str(self.channel), fontsize=25)
             if self.deconv_flag:
-                self.fig2.savefig(self.chunk_dir + "/recluster/unit_{}_template.png".format(self.channel))
+                self.fig2.savefig(self.chunk_dir + "/recluster/unit_{}_template.png".format(self.unit))
             else:
-                self.fig2.savefig(self.chunk_dir + "/recluster/channel_{}_template.png".format(self.channel))
+                self.fig2.savefig(self.chunk_dir + "/channel_{}_template.png".format(self.channel))
             plt.close(self.fig2)
 
         # Cat: TODO: note clustering is done on PCA denoised waveforms but
@@ -985,14 +989,11 @@ class Cluster(object):
              to select channels
         '''
         # compute robust stds over units
-<<<<<<< HEAD
-        stds = np.median(np.abs(wf_align - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
+        #stds = np.median(np.abs(wf_align - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
         # trim vesrion of stds
         #stds = np.std(stats.trimboth(wf_align, 0.025), 0)
-=======
         stds = self.robust_stds(wf_align)
->>>>>>> 3df34fc3c19b0c35fd30d3378538f45fd392d640
-        
+
         # max per channel
         std_max = stds.max(0)
         

@@ -184,50 +184,56 @@ class MatchPursuit_objectiveUpsample(object):
         self.turn_off_stack = []
 
     def upsample_templates_mp(self, upsample):
-      if upsample != 1:
+        if upsample != 1:
             
-        if True: 
-            # original function
-            self.unit_up_factor = np.power(
-                    2, np.floor(np.log2(np.max(self.temps.ptp(axis=0), axis=0))))
-            self.up_factor = min(32, int(np.max(self.unit_up_factor)))
-            self.unit_up_factor[self.unit_up_factor > 32] = 32
-            self.up_up_map = np.zeros(
-                    self.n_unit * self.up_factor, dtype=np.int32)
-            for i in range(self.n_unit):
-                u_idx = i * self.up_factor
-                u_factor = self.unit_up_factor[i]
-                skip = self.up_factor // u_factor
-                self.up_up_map[u_idx:u_idx + self.up_factor] = u_idx  + np.arange(
-                        #0, self.up_factor, u_factor).repeat(u_factor)
-                        0, self.up_factor, skip).repeat(skip)
-        else:
-                #unit_up_factor2 = np.power(
-                #        2, np.floor(np.log2(ptps)))*2
-                ptps = np.max(self.temps.ptp(axis=0), axis=0)
-                self.unit_up_factor = np.ones(ptps.shape)
-                self.up_factor = upsample
-                self.unit_up_factor[ptps > 4] = 2
-                self.unit_up_factor[ptps > 8] = 8
-                self.unit_up_factor[ptps > 16] = 32
-                self.unit_up_factor[ptps > 32] = 64
-                self.unit_up_factor[ptps > 64] = 128
+            if True:
+                # original function
+                self.unit_up_factor = np.power(
+                        2, np.floor(np.log2(np.max(self.temps.ptp(axis=0), axis=0))))
+                self.up_factor = min(32, int(np.max(self.unit_up_factor)))
+                self.unit_up_factor[self.unit_up_factor > 32] = 32
                 self.up_up_map = np.zeros(
                         self.n_unit * self.up_factor, dtype=np.int32)
                 for i in range(self.n_unit):
-                #for i in range(100):
                     u_idx = i * self.up_factor
                     u_factor = self.unit_up_factor[i]
                     skip = self.up_factor // u_factor
                     self.up_up_map[u_idx:u_idx + self.up_factor] = u_idx  + np.arange(
+                            #0, self.up_factor, u_factor).repeat(u_factor)
                             0, self.up_factor, skip).repeat(skip)
+            else:
+                    #unit_up_factor2 = np.power(
+                    #        2, np.floor(np.log2(ptps)))*2
+                    ptps = np.max(self.temps.ptp(axis=0), axis=0)
+                    self.unit_up_factor = np.ones(ptps.shape)
+                    self.up_factor = upsample
+                    self.unit_up_factor[ptps > 4] = 2
+                    self.unit_up_factor[ptps > 8] = 8
+                    self.unit_up_factor[ptps > 16] = 32
+                    self.unit_up_factor[ptps > 32] = 64
+                    self.unit_up_factor[ptps > 64] = 128
+                    self.up_up_map = np.zeros(
+                            self.n_unit * self.up_factor, dtype=np.int32)
+                    for i in range(self.n_unit):
+                    #for i in range(100):
+                        u_idx = i * self.up_factor
+                        u_factor = self.unit_up_factor[i]
+                        skip = self.up_factor // u_factor
+                        self.up_up_map[u_idx:u_idx + self.up_factor] = u_idx  + np.arange(
+                                0, self.up_factor, skip).repeat(skip)
 
-      else:
-            # Upsample and downsample time shifted versions
-            self.up_factor = upsample
-            self.up_up_map = range(self.n_unit * self.up_factor)
-            
-            
+        else:
+                # Upsample and downsample time shifted versions
+                self.up_factor = upsample
+                self.unit_up_factor = upsample
+                self.up_up_map = range(self.n_unit * self.up_factor)
+
+        fname = self.deconv_dir + "/up_up_maps.npz"
+        np.savez(fname,
+                 up_up_map = self.up_up_map,
+                 unit_up_factor = self.unit_up_factor)
+
+
     def update_data(self):
         """Updates the data for the deconv to be run on with same templates."""
         self.data = self.data.astype(np.float32)
@@ -437,7 +443,7 @@ class MatchPursuit_objectiveUpsample(object):
         fname = self.deconv_dir+"/sparse_templates.npy"
         if os.path.exists(fname)==False:
         
-            print ("  getting sparse upsampled templates (todo: Parallelize)...")
+            print ("  getting sparse upsampled templates (TODO: Parallelize)...")
             down_sample_idx = np.arange(
                     0, self.n_time * self.up_factor, self.up_factor)
             down_sample_idx = down_sample_idx + np.arange(
@@ -835,16 +841,17 @@ class MatchPursuitWaveforms(object):
         self.chunk_size = chunk_size
         self.n_sec_chunk = n_sec_chunk
         self.idx_list_local = idx_list_local
-                             
-    def get_unit_spikes(self, unit, unit_sp):
-        """Gets clean spikes for a given unit."""
-        #unit_sp = dec_spike_train[dec_spike_train[:, 1] == unit, :]
+
+    # Legacy code, do not remove yet
+    # def get_unit_spikes(self, unit, unit_sp):
+    #     """Gets clean spikes for a given unit."""
+    #     #unit_sp = dec_spike_train[dec_spike_train[:, 1] == unit, :]
+    #
+    #     # Add the spikes of the current unit back to the residual
+    #     temp = self.data[np.arange(0, self.n_time) + unit_sp[:, :1], :] + self.temps[:, :, unit]
+    #     return temp
         
-        # Add the spikes of the current unit back to the residual
-        temp = self.data[np.arange(0, self.n_time) + unit_sp[:, :1], :] + self.temps[:, :, unit]
-        return temp
-        
-    def compute_residual_new(self, CONFIG):
+    def compute_residual_new(self, CONFIG, min_ptp):
         ''' Function to subtract residuals using parallel CPU
             How to: grab chunks of data with a buffer on each side (e.g. 200)
                     and delete all spike tempaltes at location of spike times                   
@@ -867,12 +874,15 @@ class MatchPursuitWaveforms(object):
                 buffer zones. 
         '''
         
-        print ("  compute residual in parallel ...")
+        print ("  Computing residual in parallel ")
+
+        # compute residual only with tempaltes > min_ptp
+        self.min_ptp = min_ptp
 
         # take 10sec chunks with 200 buffer on each side
-        # Cat: TODO: read sampling rate and buffer_size from CONFIG file
-        len_chunks = 20000*self.n_sec_chunk
-        
+        len_chunks = CONFIG.recordings.sampling_rate *self.n_sec_chunk
+
+        # split the data into lists of indexes and spike_times for parallelization
         # get indexes for entire chunk from local chunk list
         end_index = self.idx_list_local[-1][1]
         spike_times=[]
@@ -945,8 +955,11 @@ class MatchPursuitWaveforms(object):
                              self.n_chan)
         data_blank = np.zeros(data.shape)
 
-        deconv_id_sparse_temp_map = np.load(deconv_chunk_dir +'/deconv_id_sparse_temp_map.npy')
-        temps = np.load(deconv_chunk_dir+'/sparse_templates.npy')
+        deconv_id_sparse_temp_map = np.load(deconv_chunk_dir+'/deconv_id_sparse_temp_map.npy')
+        sparse_templates = np.load(deconv_chunk_dir+'/sparse_templates.npy')
+
+        ptps = sparse_templates.ptp(0).max(0)
+        exclude_idx = np.where(ptps<self.min_ptp)[0]
 
         # loop over units and subtract energy
         unique_units = np.unique(local_spike_train[:,1])
@@ -955,9 +968,13 @@ class MatchPursuitWaveforms(object):
 
             # subtract data from both the datachunk and blank version
             template_id = int(deconv_id_sparse_temp_map[i])
+
+            # exclude some templates from residual computation
+            if template_id in exclude_idx:
+                continue
             
-            data[np.arange(0, n_time) + unit_sp[:, :1], :] -= temps[:, :, template_id]
-            data_blank[np.arange(0, n_time) + unit_sp[:, :1], :] -= temps[:, :, template_id]
+            data[np.arange(0, n_time) + unit_sp[:, :1], :] -= sparse_templates[:, :, template_id]
+            data_blank[np.arange(0, n_time) + unit_sp[:, :1], :] -= sparse_templates[:, :, template_id]
 
         # Cat: TODO: This still leaves edge artifacts in; should fix at some point
         #       So the problem is that if a large spike is on the buffer border, only

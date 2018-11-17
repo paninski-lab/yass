@@ -2213,10 +2213,10 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
         # Cat: TODO: this parallelization may not be optimally asynchronous
         # make arg list first
-        #for channel in np.arange(CONFIG.recordings.n_channels):
         #for channel in [4,6,22,23]:
         args_in = []
-        for channel in [4]:
+        #for channel in [4]:
+        for channel in np.arange(CONFIG.recordings.n_channels):
 
             # check to see if chunk + channel already completed
             filename_postclustering = (chunk_dir + "/channel_"+
@@ -2387,7 +2387,7 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     # Cat: TODO: make sure this step is correct
     if out_dir == 'cluster':
         for channel in range(CONFIG.recordings.n_channels):
-            data = np.load(chunk_dir+'/channel_{}.npz'.format(channel))
+            data = np.load(chunk_dir+'/channel_'+str(channel).zfill(6)+'.npz')
             temp_temp = data['templates']
 
             if (temp_temp.shape[0]) !=0:
@@ -2455,10 +2455,10 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
                                                    CONFIG)
         templates = templates.swapaxes(0,2).swapaxes(1,2)
 
-    print("  "+out_dir+ " templates/spiketrain before merge/cutoff: ", templates.shape, spike_indexes.shape)
+    print("  "+out_dir+ " templates/spiketrain before merge: ", templates.shape, spike_indexes.shape)
 
-    np.save(chunk_dir  + '/templates_post_'+out_dir+'_before_merge_before_cutoff.npy', templates)
-    np.save(chunk_dir + '/spike_train_post_'+out_dir+'_before_merge_before_cutoff.npy', spike_indexes)
+    np.save(chunk_dir  + '/templates_post_'+out_dir+'_before_merge.npy', templates)
+    np.save(chunk_dir + '/spike_train_post_'+out_dir+'_before_merge.npy', spike_indexes)
 
     # option to skip merge step
     if True:
@@ -2532,7 +2532,7 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         np.save(chunk_dir+'/templates_post_'+out_dir+'_post_merge.npy', templates)
         np.save(chunk_dir+'/spike_train_post_'+out_dir+'_post_merge.npy', final_spike_train)
 
-        print("  "+out_dir+" templates/spike train after merge cutoff: ", templates.shape, final_spike_train.shape)
+        print("  "+out_dir+" templates/spike train after merge : ", templates.shape, final_spike_train.shape)
 
     else:
         print ("  *** Skipped merge step *** ")
