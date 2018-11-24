@@ -974,7 +974,8 @@ class MatchPursuitWaveforms(object):
                 continue
             
             data[np.arange(0, n_time) + unit_sp[:, :1], :] -= sparse_templates[:, :, template_id]
-            data_blank[np.arange(0, n_time) + unit_sp[:, :1], :] -= sparse_templates[:, :, template_id]
+
+            #data_blank[np.arange(0, n_time) + unit_sp[:, :1], :] -= sparse_templates[:, :, template_id]
 
         # Cat: TODO: This still leaves edge artifacts in; should fix at some point
         #       So the problem is that if a large spike is on the buffer border, only

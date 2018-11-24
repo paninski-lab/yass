@@ -105,7 +105,7 @@ def run(spike_train_cluster,
     # compute pairwise convolution filter outside match pursuit
     # Cat: TODO: make sure you don't miss chunks at end
     # Cat: TODO: do we want to do 10sec chunks in deconv?
-    n_seconds_initial = 60
+    n_seconds_initial = 1200
     initial_chunk = int(n_seconds_initial//CONFIG.resources.n_sec_chunk) 
     
     chunk_ctr = 0
@@ -115,11 +115,7 @@ def run(spike_train_cluster,
     threshold = 10.
     conv_approx_rank = 10
     
-    ''' 
-    ***********************************************************
-    ****************** LOOP MATCH PURSUIT  ********************
-    ***********************************************************
-    '''
+
     # compute pairwise convolution filter outside match pursuit
     # Cat: TODO: make sure you don't miss chunks at end
     # Cat: TODO: do we want to do 10sec chunks in deconv?
@@ -133,17 +129,12 @@ def run(spike_train_cluster,
     # modify templates for steps below
     templates = templates.swapaxes(1,2).swapaxes(0,1)
 
-    # Cat: TODO: fix this from CONFIG
-    if templates.shape[0] == 61:
-        spike_padding = 0
-        pass
-    elif templates.shape[0] == 111:
-        spike_padding = 25
-        templates = templates[spike_padding:-spike_padding]
-    else:
-        print ("  template array error!")
-        quit()
 
+    ''' 
+    ***********************************************************
+    ****************** RUN DECONV + RECLUSTER *****************
+    ***********************************************************
+    '''
     chunk_size = initial_chunk
     for chunk_ctr, c in enumerate(range(0, len(idx_list), chunk_size)):
 
@@ -167,9 +158,7 @@ def run(spike_train_cluster,
         idx_list_local = idx_list[:chunk_size]
         
         ''' 
-        # *******************************************
         # **** RUN MATCH PURSUIT & RESIDUAL COMP ****
-        # *******************************************
         '''
         (sparse_upsampled_templates, 
          dec_spike_train, 
@@ -188,9 +177,7 @@ def run(spike_train_cluster,
                                         buffer_size)
         
         '''
-        # *****************************************
         # *** COMPUTE RESIDUAL BY DERASTERIZING ***
-        # *****************************************
         '''
         compute_residual_function(CONFIG, 
                                   idx_list_local,
@@ -203,12 +190,9 @@ def run(spike_train_cluster,
                                   chunk_size,
                                   CONFIG.resources.n_sec_chunk)
 
-        quit()
 
         '''
-        # *****************************************
         # ************** RECLUSTERING *************
-        # *****************************************   
         '''
         templates, spike_train_cluster = reclustering_function(
                                               CONFIG,
@@ -249,7 +233,7 @@ def run(spike_train_cluster,
             os.makedirs(deconv_chunk_dir)
             os.makedirs(deconv_chunk_dir+'/lost_units/')
 
-        print (" TODO: don't recomp temp_temp for final step if prev. computed!")
+        # Cat: TODO: don't recomp temp_temp for final step if prev. computed
         #templates = templates.swapaxes(1,2)
         match_pursuit_function(
                         CONFIG, 
@@ -535,8 +519,8 @@ def recompute_templates_from_raw(templates,
     # Cat: TODO: data_start is not 0, should be
     data_start = 0
     offset = 200
-    spike_size=61
-
+    spike_size = int(self.CONFIG.recordings.spike_size_ms * 2
+                          * self.CONFIG.recordings.sampling_rate / 1000) + 1
     global recording_chunk
     recording_chunk = binary_reader(idx, 
                                     buffer_size, 
@@ -961,8 +945,9 @@ def deconv_residual_recluster(data_in):
         # read waveforms by adding templates to residual
         residuaL_clustering_flag=True
         if residuaL_clustering_flag:
-            spike_size = 61
-            wf = get_wfs_from_residual(unit_sp, 
+            spike_size = int(self.CONFIG.recordings.spike_size_ms * 2
+                              * self.CONFIG.recordings.sampling_rate / 1000) + 1
+            wf = get_wfs_from_residual(unit_sp,
                                        template_original, 
                                        deconv_chunk_dir,
                                        spike_size)
@@ -979,15 +964,15 @@ def deconv_residual_recluster(data_in):
                                             unit_sp, 
                                             spike_size)
        
-        if wf.shape[1]==111:
-            spike_start = 25
-            spike_end = -25
-        elif wf.shape[1]==61:
-            spike_start =0
-            spike_end = wf.shape[1]    
-        else:
-            print ("  spike width irregular fix this...")
-            quit()
+        # if wf.shape[1]==111:
+        #     spike_start = 25
+        #     spike_end = -25
+        # elif wf.shape[1]==XX:
+        #     spike_start =0
+        #     spike_end = wf.shape[1]
+        # else:
+        #     print ("  spike width irregular fix this...")
+        #     quit()
 
 
         #np.save(deconv_chunk_dir+'/wfs_'+str(unit).zfill(6)+'.npy', wf)
@@ -1122,7 +1107,7 @@ def deconv_residual_recluster(data_in):
 
 
 def get_wfs_from_residual(unit_sp, template, deconv_chunk_dir, 
-                          n_times=61):
+                          n_times):
                                   
     """Gets clean spikes for a given unit."""
     

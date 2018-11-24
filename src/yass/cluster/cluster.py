@@ -231,7 +231,7 @@ class Cluster(object):
         self.knn_triage_threshold = 0.95 * 100
         self.knn_triage_flag = True
         self.selected_PCA_rank = 5
-        self.yscale = 10.
+        self.yscale = 2.
         self.xscale = 4.
         self.triageflag = True
         self.n_feat_chans = 5
@@ -243,7 +243,8 @@ class Cluster(object):
 
         # limit on featurization window;
         # Cat: TODO this needs to be further set using window based on spike_size and smapling rate
-        self.spike_size = 61
+        self.spike_size = int(self.CONFIG.recordings.spike_size_ms*2
+                              *self.CONFIG.recordings.sampling_rate/1000)+1
 
         # these are not currently used; but manually set inside alignment function; TODO
         #self.wf_start = 0
@@ -904,7 +905,7 @@ class Cluster(object):
                               
                 # fill bewteen 2SUs on each channel
                 self.ax2.fill_between(self.CONFIG.geom[i,0] +
-                     np.arange(-61,0,1)/self.xscale, -self.yscale +
+                     np.arange(-self.spike_size,0,1)/self.xscale, -self.yscale +
                      self.CONFIG.geom[i,1], self.yscale + self.CONFIG.geom[i,1],
                      color='black', alpha=0.05)
                 
@@ -1058,13 +1059,19 @@ class Cluster(object):
 
 
     def test_unimodality(self, pca_wf, assignment, max_spikes = 10000):
-        
+
+        '''
+        Parameters
+        ----------
+        pca_wf:  pca projected data
+        assignment:  spike assignments
+        max_spikes: optional
+        '''
+
         n_samples = np.max(np.unique(assignment, return_counts=True)[1])
 
         # compute diptest metric on current assignment+LDA
-        #lda = LDA(n_components = 1)
-        #trans = lda.fit_transform(pca_wf[:max_spikes], assignment[:max_spikes])
-        #diptest = dp(trans.ravel())
+
         
         ## find indexes of data
         idx1 = np.where(assignment==0)[0]

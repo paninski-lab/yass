@@ -2434,19 +2434,18 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     # Cat: TODO: note, can't centre post-deconv rclustered tempaltes as they are tooshort
     
     
-    # centre spikes
-    if False: 
-        # centre spikes in case misaligned and centre
-        # Cat: TODO read from CONFIG
-        spike_padding = 25
-        spike_width = 61        
-        templates, spike_indexes = centre_templates(templates, 
-                                                    spike_indexes,
-                                                    CONFIG, 
-                                                    spike_padding, 
-                                                    spike_width)
-
-        np.save(chunk_dir  + '/templates_centred.npy', templates)
+    # # centre spikes
+    # if False:
+    #     # centre spikes in case misaligned and centre
+    #     # Cat: TODO read from CONFIG
+    #     spike_padding = 25
+    #     templates, spike_indexes = centre_templates(templates,
+    #                                                 spike_indexes,
+    #                                                 CONFIG,
+    #                                                 spike_padding,
+    #                                                 spike_width)
+    #
+    #     np.save(chunk_dir  + '/templates_centred.npy', templates)
 
     # delete templates below certain treshold; and collision templates
     if True: 
@@ -2550,58 +2549,56 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     return final_spike_train, templates
 
 
-def centre_templates(templates, spike_train_cluster, CONFIG, spike_padding, spike_width):
-    ''' Function centres templates to the mean of all tempaltes on max channel;
-        - deals with duplicate detected templates    
-    '''
-
-    print ("  centering and clipping templates ")
-    print (templates.shape)
-    # grab max channel templates and make mean
-    max_chan_templates = []
-    #print (templates.shape)
-    templates = templates.swapaxes(0,2)
-    for k in range(templates.shape[2]):
-        temp = templates[:,:,k]
-        max_chan = temp.ptp(1).argmax(0)
-        trace = temp[max_chan]
-        max_chan_templates.append(trace/trace.ptp(0))
-
-    mean = np.array(max_chan_templates).mean(0)
-    min_loc_all = np.argmin(mean)
-
-    # compute shifts for all templates based on max channel trough location
-    # clip and centred data on 61 timesteps
-    # Cat: TODO: read 61 teimsteps from file
-    shifts = []
-    indexes = []
-    templates_centred = []
-    for k in range(len(max_chan_templates)):
-        min_loc = np.argmin(max_chan_templates[k])
-        shift = min_loc_all-min_loc
-        if abs(shift)<=spike_padding:
-            indexes.append(k)
-            trace = templates[:,
-                max_chan_templates[k].shape[0]//2-spike_width//2-shift:
-                max_chan_templates[k].shape[0]//2+spike_width//2+1-shift,k]
-            templates_centred.append(trace)
-
-    templates_centred = np.array(templates_centred).swapaxes(1,2)
-    #np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/cluster/chunk_000000/templates_centred2.npy'  , templates_centred)
-
-
-    # delete spike indexes for templates that are shifted outside the window
-    # Note: this could possibly delete good templates; but very unlikely
-    spike_train_cluster_new = []
-    for ctr,k in enumerate(indexes):
-        temp = np.where(spike_train_cluster[:,1]==k)[0]
-        temp_train = spike_train_cluster[temp]
-        temp_train[:,1]=ctr
-        spike_train_cluster_new.append(temp_train)
-        
-    spike_train_cluster_new = np.vstack(spike_train_cluster_new)
-
-    return templates_centred, spike_train_cluster_new        
+# def centre_templates(templates, spike_train_cluster, CONFIG, spike_padding, spike_width):
+#     ''' Function centres templates to the mean of all tempaltes on max channel;
+#         - deals with duplicate detected templates
+#     '''
+#
+#     print ("  centering and clipping templates ")
+#     print (templates.shape)
+#     # grab max channel templates and make mean
+#     max_chan_templates = []
+#     #print (templates.shape)
+#     templates = templates.swapaxes(0,2)
+#     for k in range(templates.shape[2]):
+#         temp = templates[:,:,k]
+#         max_chan = temp.ptp(1).argmax(0)
+#         trace = temp[max_chan]
+#         max_chan_templates.append(trace/trace.ptp(0))
+#
+#     mean = np.array(max_chan_templates).mean(0)
+#     min_loc_all = np.argmin(mean)
+#
+#     # compute shifts for all templates based on max channel trough location
+#     shifts = []
+#     indexes = []
+#     templates_centred = []
+#     for k in range(len(max_chan_templates)):
+#         min_loc = np.argmin(max_chan_templates[k])
+#         shift = min_loc_all-min_loc
+#         if abs(shift)<=spike_padding:
+#             indexes.append(k)
+#             trace = templates[:,
+#                 max_chan_templates[k].shape[0]//2-spike_width//2-shift:
+#                 max_chan_templates[k].shape[0]//2+spike_width//2+1-shift,k]
+#             templates_centred.append(trace)
+#
+#     templates_centred = np.array(templates_centred).swapaxes(1,2)
+#     #np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/cluster/chunk_000000/templates_centred2.npy'  , templates_centred)
+#
+#
+#     # delete spike indexes for templates that are shifted outside the window
+#     # Note: this could possibly delete good templates; but very unlikely
+#     spike_train_cluster_new = []
+#     for ctr,k in enumerate(indexes):
+#         temp = np.where(spike_train_cluster[:,1]==k)[0]
+#         temp_train = spike_train_cluster[temp]
+#         temp_train[:,1]=ctr
+#         spike_train_cluster_new.append(temp_train)
+#
+#     spike_train_cluster_new = np.vstack(spike_train_cluster_new)
+#
+#     return templates_centred, spike_train_cluster_new
 
 
 def abs_max_dist(temp, CONFIG):
