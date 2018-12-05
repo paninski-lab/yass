@@ -2,20 +2,6 @@
 .PHONY: test integration-test
 
 
-install: install-dev install-yass ## Install Yass + Dev Requirements
-	@echo "--> Installing Yass and Dev Requirements"
-	
-
-install-dev: ## Dev Requirements
-	@echo "--> Install Dev Requirements"
-	pip install -r requirements.txt	
-
-
-install-yass: ## Install Yass package
-	@echo "--> Installing Yass Package"
-	pip install -e .
-
-
 test: ## Run Tests
 	@echo "--> Running Tests"
 	pytest tests/unit --flake8 --cov=yass

@@ -23,24 +23,27 @@ EMAIL = 'fkq8@blancas.io'
 AUTHOR = 'Peter Lee, Eduardo Blancas'
 LICENSE = 'Apache'
 
-# pathlib2 and funcsigs are required to be compatible with python 2
-INSTALL_REQUIRES_DOCS = ['pathlib2', 'funcsigs', 'cerberus']
-
-# FIXME: matplotlib should not be a hard dependency and only be  required when
-# using some specific modules. Also evaluate this situation for statsmodels
-# and networkx
+# YASS dependencies
+# NOTE: this are installed when running pip install yass-algorithm, however
+# when building the documentation on readthedocs.io we do not install them
+# and just mock them, if doc building breaks, make sure you update the
+# autodoc_mock_imports list in conf.py
 INSTALL_REQUIRES = [
+    # these first two are only required for Python 2
+    'pathlib2;python_version<"3"', 'funcsigs;python_version<"3"',
+    # dependencies...
     'numpy', 'scipy', 'scikit-learn', 'pyyaml', 'python-dateutil', 'click',
-    'tqdm', 'parmap', 'statsmodels', 'matplotlib', 'networkx',
-    'multiprocess', 'coloredlogs', 'keras',
-] + INSTALL_REQUIRES_DOCS
+    'tqdm', 'multiprocess', 'coloredlogs', 'keras', 'cerberus',
+    # from experimental pipeline (nnet and clustering)
+    # TODO: consider reducing the number of dependencies: parmap, matplotlib
+    # and progressbar2 are not necessary
+    'parmap', 'statsmodels', 'matplotlib', 'networkx', 'Cython',
+    'git+https://github.com/paninski-lab/diptest@fix-import', 'progressbar2'
+]
 
-# pass an empty INSTALL_REQUIRES if building the docs, to avoid breaking the
-# build, modules are mocked in conf.py
-INSTALL_REQUIRES = (INSTALL_REQUIRES_DOCS if os.environ.get('READTHEDOCS')
-                    else INSTALL_REQUIRES)
-
-EXTRAS_REQUIRE = {'tensorflow': ['tensorflow']}
+# this will be installed when doing `pip install yass-algorithm[tf]`
+# or `pip install yass-algorithm[tf-gpu]
+EXTRAS_REQUIRE = {'tf': ['tensorflow'], 'tf-gpu': ['tensorflow-gpu']}
 
 here = os.path.abspath(os.path.dirname(__file__))
 
