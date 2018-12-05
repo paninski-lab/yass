@@ -37,8 +37,7 @@ INSTALL_REQUIRES = [
     # from experimental pipeline (nnet and clustering)
     # TODO: consider reducing the number of dependencies: parmap, matplotlib
     # and progressbar2 are not necessary
-    'parmap', 'statsmodels', 'matplotlib', 'networkx', 'Cython',
-    'git+https://github.com/paninski-lab/diptest@fix-import', 'progressbar2'
+    'parmap', 'statsmodels', 'matplotlib', 'networkx', 'Cython', 'progressbar2'
 ]
 
 # this will be installed when doing `pip install yass-algorithm[tf]`
@@ -122,8 +121,5 @@ setup(
         'console_scripts': ['yass=yass.command_line:cli'],
     },
     download_url='{url}/archive/{version}.tar.gz'.format(url=URL,
-                                                         version=VERSION),
-    dependency_links=[
-        'https://github.com/paninski-lab/diptest@fix-import',
-    ]
+                                                         version=VERSION)
 )
