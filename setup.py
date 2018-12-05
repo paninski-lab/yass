@@ -123,4 +123,7 @@ setup(
     },
     download_url='{url}/archive/{version}.tar.gz'.format(url=URL,
                                                          version=VERSION),
+    dependency_links=[
+        'https://github.com/paninski-lab/diptest@fix-import',
+    ]
 )
