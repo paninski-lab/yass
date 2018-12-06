@@ -13,7 +13,7 @@ from scipy.spatial import cKDTree
 from copy import deepcopy
 from sklearn.mixture import GaussianMixture
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
-from diptest.diptest import diptest as dp
+from yass.cluster.diptest.diptest import diptest as dp
 from sklearn.cluster import AgglomerativeClustering
 
 from yass.explore.explorers import RecordingExplorer

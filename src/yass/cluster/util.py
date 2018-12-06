@@ -29,7 +29,7 @@ import pandas as pd
 import networkx as nx
 import multiprocessing as mp
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
-from diptest.diptest import diptest as dp
+from yass.cluster.diptest.diptest import diptest as dp
 
 from sklearn.decomposition import PCA as PCA_original
 
