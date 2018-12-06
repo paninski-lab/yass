@@ -1,5 +1,5 @@
 import yass
-from yass import preprocess, cluster, templates, deconvolute, detect
+from yass import preprocess, cluster, templates, deconvolve, detect
 
 
 def test_deconvolution(patch_triage_network, path_to_nnet_config,
@@ -22,4 +22,4 @@ def test_deconvolution(patch_triage_network, path_to_nnet_config,
      groups, idx_good_templates) = templates.run(
         spike_train_clear, tmp_loc)
 
-    deconvolute.run(spike_index_all, templates_)
+    deconvolve.run(spike_index_all, templates_)
