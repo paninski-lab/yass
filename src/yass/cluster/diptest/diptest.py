@@ -1,7 +1,7 @@
 import numpy as np
-from yass.cluster.diptest.diptest import _diptest
+from yass.cluster.diptest import _diptest
+from pkg_resources import resource_filename
 import warnings
-import os
 
 
 def dip(x, full_output=False, min_is_0=True, x_is_sorted=False, debug=0):
@@ -85,7 +85,7 @@ def diptest(x, min_is_0=True, boot_pval=False, n_boot=2000):
         boot_x.sort(axis=1)
         boot_D = np.empty(n_boot)
 
-        for ii in xrange(n_boot):
+        for ii in range(n_boot):
             boot_D[ii] = dip(boot_x[ii], full_output=False,
                              min_is_0=min_is_0, x_is_sorted=True)
 
@@ -115,8 +115,8 @@ def diptest(x, min_is_0=True, boot_pval=False, n_boot=2000):
 
 
 # [len(N), len(SIG)] table of critical values
-curdir = os.path.dirname(os.path.realpath(__file__))
-CV = np.loadtxt(os.path.join(curdir, 'dip_crit.txt'))
+path = resource_filename('yass', 'cluster/diptest/dip_crit.txt')
+CV = np.loadtxt(path)
 
 N = np.array([4,     5,     6,     7,     8,     9,    10,    15,    20,
               30,    50,   100,   200,   500,  1000,  2000,  5000, 10000,
