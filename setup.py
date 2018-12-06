@@ -62,15 +62,20 @@ except Exception:
     # If we couldn't import Cython, use the normal setuptools
     # and look for a pre-compiled .c file instead of a .pyx file
     from setuptools.command.build_ext import build_ext
-    ext_modules = [Extension("hello", ["hello.c"])]
+    ext_modules = [Extension(name="yass.cluster.diptest._diptest",
+                             sources=["src/yass/cluster/diptest/_dip.c"],
+                             extra_compile_args=['-O3', '-std=c99'])]
 else:
     # If we successfully imported Cython, look for a .pyx file
-    ext_modules = [Extension("hello", ["hello.pyx"])]
+    ext_modules = [Extension(name="yass.cluster.diptest._diptest",
+                             sources=["src/yass/cluster/diptest/_diptest.pyx"],
+                             extra_compile_args=['-O3', '-std=c99'])]
 
 
 class CustomBuildExtCommand(build_ext):
     """build_ext command for use when numpy headers are needed
     """
+
     def run(self):
 
         # Import numpy here, only when headers are needed
@@ -81,15 +86,6 @@ class CustomBuildExtCommand(build_ext):
 
         # Call original build_ext command
         build_ext.run(self)
-
-
-# diptest extension
-diptest = Extension(
-    name="yass.cluster.diptest._diptest",
-    sources=["src/yass/cluster/diptest/_dip.c",
-             "src/yass/cluster/diptest/_diptest.pyx"],
-    extra_compile_args=['-O3', '-std=c99'],
-)
 
 
 setup(
@@ -126,5 +122,5 @@ setup(
                                                          version=VERSION),
     # diptest parameters
     cmdclass={'build_ext': CustomBuildExtCommand},
-    ext_modules=[diptest],
+    ext_modules=ext_modules,
 )

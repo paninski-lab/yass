@@ -10,8 +10,6 @@ install:
   - sudo apt-get install gfortran python-liblas libblas-dev liblapack-dev libatlas-dev
   - pip install --upgrade pip
   - pip install -r requirements.txt
-  # FIXME: this is the only dependency that we cannot install directly
-  - pip install git+https://github.com/paninski-lab/diptest@fix-import
   - pip install .[tf]
 
 script:
