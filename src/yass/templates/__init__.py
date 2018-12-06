@@ -1,8 +1,7 @@
 """
 Making templates
 """
-
-from yass.templates.run import run
+# FIXME: this module is mostly  unused
 from yass.templates.processor import TemplatesProcessor
 
-__all__ = ['run', 'TemplatesProcessor']
+__all__ = ['TemplatesProcessor']
