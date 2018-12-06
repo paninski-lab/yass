@@ -142,7 +142,8 @@ class Config:
     def __init__(self, mapping, output_directory=None):
         self._logger = logging.getLogger(__name__)
 
-        mapping = validate(mapping)
+        # FIXME: not raising errors due to schema validation for now
+        mapping = validate(mapping, silent=True)
 
         self._frozenjson = FrozenJSON(mapping)
 

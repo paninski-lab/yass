@@ -133,6 +133,22 @@ preprocess:
 
 detect:
   type: dict
+  default:
+    if_file_exists: skip
+    save_results: True
+    method: nn
+    temporal_features: 3
+    neural_network_detector:
+      filename: detect_nn1.ckpt
+      threshold_spike: 0.5
+    neural_network_triage:
+      filename: triage-31wf7ch-15-Aug-2018@00-17-16.h5
+      threshold_collision: 0.5
+    neural_network_autoencoder:
+      filename: ae_nn1.ckpt
+    threshold_detector:
+      std_factor: 4
+
   schema:
     if_file_exists:
       type: string

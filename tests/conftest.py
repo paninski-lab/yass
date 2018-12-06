@@ -23,8 +23,7 @@ def patch_triage_network(monkeypatch):
     yield
 
 
-@pytest.fixture()
-def data_info():
+def _data_info():
     d = dict()
 
     d['spike_size_ms'] = 1.5
@@ -42,8 +41,13 @@ def data_info():
 
 
 @pytest.fixture()
+def data_info():
+    return _data_info()
+
+
+@pytest.fixture()
 def data():
-    info = data_info()
+    info = _data_info()
 
     path = os.path.join(PATH_TO_RETINA_DIR, 'data.bin')
     d = np.fromfile(path, dtype='int16')
@@ -85,10 +89,10 @@ def path_to_sample_pipeline_folder():
 
 
 @pytest.fixture()
-def path_to_standardized_data():
+def path_to_standarized_data():
     return os.path.join(PATH_TO_RETINA_DIR,
                         'sample_pipeline_output', 'preprocess',
-                        'standardized.bin')
+                        'standarized.bin')
 
 
 @pytest.fixture()
@@ -97,13 +101,8 @@ def path_to_output_reference():
 
 
 @pytest.fixture
-def path_to_nnet_config():
-    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'nnet.yaml')
-
-
-@pytest.fixture
-def path_to_threshold_config():
-    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'threshold.yaml')
+def path_to_config():
+    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'config.yaml')
 
 
 @pytest.fixture

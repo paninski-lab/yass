@@ -9,19 +9,19 @@ from yass import templates
 from util import ReferenceTesting
 
 
-def test_templates_returns_expected_results(path_to_threshold_config,
+def test_templates_returns_expected_results(path_to_config,
                                             path_to_output_reference,
                                             make_tmp_folder):
 
-    yass.set_config(path_to_threshold_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
 
-    (standardized_path,
-     standardized_params,
+    (standarized_path,
+     standarized_params,
      whiten_filter) = preprocess.run()
 
     (spike_index_clear,
-     spike_index_all) = detect.run(standardized_path,
-                                   standardized_params,
+     spike_index_all) = detect.run(standarized_path,
+                                   standarized_params,
                                    whiten_filter)
 
     (spike_train_clear,
