@@ -106,6 +106,11 @@ def path_to_config():
 
 
 @pytest.fixture
+def path_to_config_threshold():
+    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'config_threshold.yaml')
+
+
+@pytest.fixture
 def path_to_config_with_wrong_channels():
     return os.path.join(PATH_TO_RETINA_CONFIG_DIR,
                         'wrong_channels.yaml')
