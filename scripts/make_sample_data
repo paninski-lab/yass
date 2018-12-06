@@ -2,9 +2,11 @@
 """
 Sample data for testing
 """
+from copy import deepcopy
 import shutil
 from pathlib import Path
 
+import yaml
 import numpy as np
 
 from yass.batch import RecordingsReader
@@ -27,13 +29,16 @@ path_to_retina_data = Path(path_to_retina_folder, 'ej49_data1_set1.bin')
 path_to_retina_geom = Path(path_to_retina_folder, 'ej49_geometry1.txt')
 
 
-path_to_output_folder = Path(path_to_data_storage, 'yass-testing-data', 'data')
+path_to_output_folder = Path(path_to_data_storage, 'yass-testing-data',
+                             'recordings')
 
 
 print('Output will be at ', path_to_output_folder)
 
 path_to_output_folder_neuro = Path(path_to_output_folder, 'neuropixel')
+
 path_to_output_folder_retina = Path(path_to_output_folder, 'retina')
+path_to_output_folder_retina_cfg = path_to_output_folder_retina / 'config'
 
 if path_to_output_folder.exists():
     print('Output Folder exists, removing contents....')
@@ -43,6 +48,7 @@ if path_to_output_folder.exists():
 path_to_output_folder.mkdir(parents=True)
 # path_to_output_folder_neuro.mkdir()
 path_to_output_folder_retina.mkdir()
+path_to_output_folder_retina_cfg.mkdir()
 
 
 # Dataset 1: retina
@@ -74,18 +80,6 @@ CONFIG = {
         'spike_size_ms': 1.5,
         'order': 'samples',
     },
-
-    'preprocess': {
-        'apply_filter': True,
-        'dtype': 'float32'
-
-    },
-
-    'detect': {
-        'method': 'threshold',
-        'temporal_features': 3
-
-    }
 }
 
 
@@ -112,6 +106,38 @@ print('Standarizing data...')
 pipeline.run(CONFIG, clean=True,
              output_dir='sample_pipeline_output',
              set_zero_seed=True)
+
+
+CONFIG_TEST = deepcopy(CONFIG)
+CONFIG_TEST['data'] = {
+    'root_folder': 'tests/assets/recordings/retina',
+    'recordings': 'data.bin',
+    'geometry': 'geometry.npy'
+}
+
+
+wrong_channels = deepcopy(CONFIG_TEST)
+_ = wrong_channels['recordings']
+_['n_channels'] = channels + 1
+wrong_channels['recordings'] = _
+
+
+threshold_detector = deepcopy(CONFIG_TEST)
+threshold_detector['detect'] = dict(method='threshold')
+
+
+with open(str(path_to_output_folder_retina_cfg / 'config.yaml'), 'w') as f:
+    yaml.dump(CONFIG_TEST, f)
+
+
+with open(str(path_to_output_folder_retina_cfg /
+              'wrong_channels.yaml'), 'w')as f:
+    yaml.dump(wrong_channels, f)
+
+
+with open(str(path_to_output_folder_retina_cfg / 'config_threshold.yaml'),
+          'w') as f:
+    yaml.dump(threshold_detector, f)
 
 
 print('Done')
@@ -144,7 +170,7 @@ print('Done')
 #             sampling_frequency=sampling_frequency, max_memory='1GB',
 #             output_path=str(path_to_output_folder_neuro),
 #             standarize=True,
-#             output_filename='standardized.bin',
+#             output_filename='standarized.bin',
 #             if_file_exists='overwrite',
 #             output_dtype='float32')
 
@@ -154,6 +180,6 @@ print('Done')
 
 
 # # import matplotlib.pyplot as plt
-# # standardized = RecordingsReader('tests/data/standardized.bin', loader='array').data
-# # plt.plot(standardized[1000:1200])
+# # standarized = RecordingsReader('tests/data/standarized.bin', loader='array').data
+# # plt.plot(standarized[1000:1200])
 # # plt.show()

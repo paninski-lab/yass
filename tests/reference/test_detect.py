@@ -18,19 +18,14 @@ def test_threshold_detector_returns_expected_results(path_to_config,
      standarized_params,
      whiten_filter) = preprocess.run(output_directory=make_tmp_folder)
 
-    clear, collision = detect.run(standarized_path,
-                                  standarized_params,
-                                  whiten_filter,
-                                  output_directory=make_tmp_folder,
-                                  function=threshold.run)
+    clear = detect.run(standarized_path,
+                       standarized_params,
+                       whiten_filter)
 
     path_to_clear = path.join(path_to_output_reference,
                               'detect_threshold_clear.npy')
-    path_to_collision = path.join(path_to_output_reference,
-                                  'detect_threshold_collision.npy')
 
     ReferenceTesting.assert_array_equal(clear, path_to_clear)
-    ReferenceTesting.assert_array_equal(collision, path_to_collision)
 
 
 def test_nnet_detector_returns_expected_results(path_to_config,
