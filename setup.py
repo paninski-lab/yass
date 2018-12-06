@@ -63,12 +63,14 @@ except Exception:
     # and look for a pre-compiled .c file instead of a .pyx file
     from setuptools.command.build_ext import build_ext
     ext_modules = [Extension(name="yass.cluster.diptest._diptest",
-                             sources=["src/yass/cluster/diptest/_dip.c"],
+                             sources=["src/yass/cluster/diptest/_dip.c",
+                                      "src/yass/cluster/diptest/_diptest.c"],
                              extra_compile_args=['-O3', '-std=c99'])]
 else:
     # If we successfully imported Cython, look for a .pyx file
     ext_modules = [Extension(name="yass.cluster.diptest._diptest",
-                             sources=["src/yass/cluster/diptest/_diptest.pyx"],
+                             sources=["src/yass/cluster/diptest/_dip.c",
+                                      "src/yass/cluster/diptest/_diptest.pyx"],
                              extra_compile_args=['-O3', '-std=c99'])]
 
 
