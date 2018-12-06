@@ -84,14 +84,14 @@ def run(spike_index_clear,
     _b = datetime.datetime.now()
 
     # voltage space feature clustering
-    fname = os.path.join(CONFIG.data.root_folder,
-                              'tmp/spike_train_cluster.npy')
+    fname = os.path.join(CONFIG.path_to_output_directory,
+                              'spike_train_cluster.npy')
     
     if os.path.exists(fname)==False:
 
         # check to see if 'result/' folder exists otherwise make it
-        result_dir = os.path.join(CONFIG.data.root_folder,
-                                  'tmp/cluster')
+        result_dir = os.path.join(CONFIG.path_to_output_directory,
+                                  'cluster')
         if not os.path.isdir(result_dir):
             os.makedirs(result_dir)
 
