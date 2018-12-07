@@ -224,7 +224,7 @@ class Cluster(object):
 
         # CAT: todo read params below from file:
         self.plotting = True
-        self.verbose = True
+        self.verbose = False
         self.starting_gen = 0
         self.knn_triage_threshold = 0.95 * 100
         self.knn_triage_flag = True
@@ -394,7 +394,7 @@ class Cluster(object):
             else:
                 #self.fig1.savefig(self.chunk_dir + "/channel_{}_scatter.png".format(self.channel))
                 self.fig1.savefig(os.path.join(self.chunk_dir,fname+'_scatter.png'))
-            plt.close(self.fig1)
+            #plt.close(self.fig1)
 
             ####### finish template plots #######
             # plot channel numbers and shading
@@ -441,7 +441,8 @@ class Cluster(object):
             else:
                 #self.fig2.savefig(self.chunk_dir + "/channel_{}_template.png".format(self.channel))
                 self.fig2.savefig(os.path.join(self.chunk_dir,fname+'_template.png'))
-            plt.close(self.fig2)        
+            #plt.close(self.fig2)
+            plt.close('all')
 
 
     def save_result(self, spike_train=None, templates=None):
@@ -486,7 +487,7 @@ class Cluster(object):
             self.loaded_channels = self.neighbor_chans
         else:
             self.loaded_channels = np.arange(self.CONFIG.recordings.n_channels)
- 
+
         self.wf_global = binary_reader_waveforms(self.standardized_filename,
             self.CONFIG.recordings.n_channels,
             self.spike_size,
