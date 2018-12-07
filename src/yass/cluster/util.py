@@ -2225,7 +2225,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
             if os.path.exists(filename_postclustering):
                 continue 
 
-            args_in.append([deconv_flag, channel, idx, chunk_index, CONFIG2,
+            args_in.append([deconv_flag, channel, CONFIG2,
                             spike_index_chunk, chunk_dir])
 
         print ("  starting clustering")
@@ -2392,9 +2392,9 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
 
             if (temp_temp.shape[0]) !=0:
                 templates.append(temp_temp)
-                temp = data['spike_index']
+                temp = data['spiketime']
                 for s in range(len(temp)):
-                    spike_times = temp[s][:,0]
+                    spike_times = temp[s]
                     spike_indexes.append(spike_times)
                     weights.append(spike_times.shape[0])
  
