@@ -26,14 +26,13 @@ def patch_triage_network(monkeypatch):
 def _data_info():
     d = dict()
 
+    d['n_channels'] = 49
+
     d['spike_size_ms'] = 1.5
     d['sampling_frequency'] = 20000
     d['spike_size'] = int(np.round(d['spike_size_ms'] *
                                    d['sampling_frequency']/2000))
-    d['BUFF'] = d['spike_size'] * 2
-    d['n_features'] = 3
-    d['n_channels'] = 49
-    d['observations'] = 20000
+
     d['data_order'] = 'samples'
     d['dtype'] = 'int16'
 
