@@ -90,7 +90,7 @@ def run(spike_train_cluster,
                                 recordings_filename)
            
     # make deconv directory
-    deconv_dir = os.path.join(CONFIG.data.root_folder, 'tmp/deconv')
+    deconv_dir = os.path.join(CONFIG.path_to_output_directory, 'deconv')
     if not os.path.isdir(deconv_dir):
         os.makedirs(deconv_dir)
 
@@ -98,8 +98,7 @@ def run(spike_train_cluster,
     # Cat: TODO: recording_chunk should be a shared variable in 
     #            multiprocessing module;
     buffer_size = 200
-    standardized_filename = os.path.join(CONFIG.data.root_folder,
-                                         output_directory, 
+    standardized_filename = os.path.join(CONFIG.path_to_output_directory, 
                                          recordings_filename)
 
     # compute pairwise convolution filter outside match pursuit
@@ -353,8 +352,7 @@ def compute_idx_list(templates, CONFIG, output_directory,
     buffer_size = 200
 
     # Grab length of .dat file to compute chunk indexes below
-    standardized_filename = os.path.join(CONFIG.data.root_folder, 
-                                    output_directory, recordings_filename)
+    standardized_filename = os.path.join(CONFIG.path_to_output_directory, recordings_filename)
     
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
@@ -413,8 +411,7 @@ def reclustering_function(CONFIG,
     offset = idx[2]
     n_channels = CONFIG.recordings.n_channels
     buffer_size = 200
-    standardized_filename = os.path.join(CONFIG.data.root_folder,
-                                         output_directory, 
+    standardized_filename = os.path.join(CONFIG.path_to_output_directory,
                                          recordings_filename)
 
     residual_clustering_flag = True
