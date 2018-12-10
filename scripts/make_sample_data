@@ -52,6 +52,8 @@ path_to_output_folder_retina_cfg.mkdir()
 
 
 # Dataset 1: retina
+
+# FIXME: tested pipeline with 5 seconds but it breaks during deconv
 seconds = 10
 channels_total = 49
 channels = 49

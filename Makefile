@@ -33,6 +33,8 @@ generate-testing-data: ## Generates testing data and files that are used as refe
 	./scripts/make_sample_data
 	./scripts/generate_output_reference
 
+	# echo 'Done generating sample data, upload it '
+
 # self-documenting makefile as described in http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 help: ## Show this documentation
 	echo "\nYass build/test tools:\n"
