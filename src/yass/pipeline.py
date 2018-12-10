@@ -7,6 +7,8 @@ import logging.config
 import shutil
 import os
 import os.path as path
+import matplotlib
+matplotlib.use('Agg')
 
 try:
     # py3
