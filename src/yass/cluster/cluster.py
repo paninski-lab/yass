@@ -20,6 +20,7 @@ import networkx as nx
 from yass.explore.explorers import RecordingExplorer
 from yass.geometry import n_steps_neigh_channels
 from yass import mfm
+from yass.util import absolute_path_to_asset
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -507,7 +508,7 @@ class Cluster(object):
             print ("chan "+str(self.channel)+", gen 0, aligning")
 
         if local:
-            ref_template = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'ref_template.npy'))
+            ref_template = np.load(absolute_path_to_asset(os.path.join('template_space', 'ref_template.npy')))
             mc = np.where(self.loaded_channels==self.channel)[0][0]
             best_shifts = align_get_shifts_with_ref(
                 self.wf_global[:, :, mc], ref_template)
@@ -555,10 +556,10 @@ class Cluster(object):
         # note: don't want for wf array to be used beyond this function
         # Alignment: upsample max chan only; linear shift other chans
     
-        pc_mc = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'pc_mc.npy'))
-        pc_sec = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'pc_sec.npy'))
-        pc_mc_std = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'pc_mc_std.npy'))
-        pc_sec_std = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'pc_sec_std.npy'))
+        pc_mc = np.load(absolute_path_to_asset(os.path.join('template_space', 'pc_mc.npy')))
+        pc_sec = np.load(absolute_path_to_asset(os.path.join('template_space', 'pc_sec.npy')))
+        pc_mc_std = np.load(absolute_path_to_asset(os.path.join('template_space', 'pc_mc_std.npy')))
+        pc_sec_std = np.load(absolute_path_to_asset(os.path.join('template_space', 'pc_sec_std.npy')))
         
         self.denoised_wf = np.zeros((self.wf_global.shape[0], pc_mc.shape[1], len(self.active_chans)),
                                     dtype='float32')
