@@ -63,6 +63,9 @@ class Cluster(object):
         # load data and check if prev completed
         if self.load_data(data_in):  return
 
+        # no spikes
+        if len(self.spike_indexes_chunk[:, 0]) == 0: return 
+
         # local clustering
         print("\nchan "+str(self.channel)+", START LOCAL CLUSTERING")
 
