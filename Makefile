@@ -30,10 +30,19 @@ download-test-data: ## Download data for running tests
 	./scripts/download_test_data
 
 generate-testing-data: ## Generates testing data and files that are used as reference in some tests to check that the output is still the same
-	./scripts/make_sample_data
-	./scripts/generate_output_reference
+	# generate sample data
+	./scripts/make_sample_data ~/data
 
-	# echo 'Done generating sample data, upload it '
+	# move generated data to the right place to make sure
+	# ./scripts/generate_output_reference is run with the latest generated
+	# data
+	rm -rf tests/assets/recordings
+	cp -r ~/data/yass-testing-data/recordings tests/assets/recordings
+
+	# generate output reference
+	./scripts/generate_output_reference ~/data
+
+	echo 'Done generating sample data, Make sure you upload it and set the YASS_TESTING_DATA_URL variable before running make download-test-data'
 
 # self-documenting makefile as described in http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 help: ## Show this documentation
