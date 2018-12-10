@@ -19,7 +19,7 @@ def run(if_file_exists='skip'):
     """Preprocess pipeline: filtering, standarization and whitening filter
 
     This step (optionally) performs filtering on the data, standarizes it
-    and computes a whitening filter. Filtering and standardized data are
+    and computes a whitening filter. Filtering and standarized data are
     processed in chunks and written to disk.
 
     Parameters
@@ -33,11 +33,11 @@ def run(if_file_exists='skip'):
 
     Returns
     -------
-    standardized_path: str
-        Path to standardized data binary file
+    standarized_path: str
+        Path to standarized data binary file
 
-    standardized_params: str
-        Path to standardized data parameters
+    standarized_params: str
+        Path to standarized data parameters
 
     channel_index: numpy.ndarray
         Channel indexes
@@ -52,8 +52,8 @@ def run(if_file_exists='skip'):
 
     * ``filtered.bin`` - Filtered recordings
     * ``filtered.yaml`` - Filtered recordings metadata
-    * ``standardized.bin`` - Standarized recordings
-    * ``standardized.yaml`` - Standarized recordings metadata
+    * ``standarized.bin`` - Standarized recordings
+    * ``standarized.yaml`` - Standarized recordings metadata
     * ``whitening.npy`` - Whitening filter
 
     Everything is run on CPU.
@@ -68,8 +68,8 @@ def run(if_file_exists='skip'):
 
     CONFIG = read_config()
     OUTPUT_DTYPE = CONFIG.preprocess.dtype
-    TMP = os.path.join(CONFIG.path_to_output_directory)
-    output_directory = TMP
+    output_directory = os.path.join(CONFIG.path_to_output_directory,
+                                    'preprocess')
 
     logger.info('Output dtype for transformed data will be {}'
                 .format(OUTPUT_DTYPE))
@@ -87,24 +87,23 @@ def run(if_file_exists='skip'):
         data_order=CONFIG.recordings.order)
 
     # Generate params:
-    standardized_path = os.path.join(output_directory, "standardized.bin")
-    standardized_params = params
-    standardized_params['dtype'] = 'float32'
+    standarized_path = os.path.join(output_directory, "standarized.bin")
+    standarized_params = params
+    standarized_params['dtype'] = 'float32'
 
     # Check if data already saved to disk and skip:
     if if_file_exists == 'skip':
-        f_out = os.path.join(output_directory, "standardized.bin")
-        if os.path.exists(f_out):
+        if os.path.exists(standarized_path):
 
             channel_index = make_channel_index(CONFIG.neigh_channels,
                                                CONFIG.geom, 2)
 
             # Cat: this is redundant, should save to disk/not recompute
             whiten_filter = whiten.matrix(
-                standardized_path,
-                standardized_params['dtype'],
-                standardized_params['n_channels'],
-                standardized_params['data_order'],
+                standarized_path,
+                standarized_params['dtype'],
+                standarized_params['n_channels'],
+                standarized_params['data_order'],
                 channel_index,
                 CONFIG.spike_size,
                 CONFIG.resources.max_memory,
@@ -115,7 +114,7 @@ def run(if_file_exists='skip'):
             path_to_channel_index = os.path.join(output_directory,
                                                  "channel_index.npy")
 
-            return str(standardized_path), standardized_params, whiten_filter
+            return str(standarized_path), standarized_params, whiten_filter
 
     # read config params
     multi_processing = CONFIG.resources.multi_processing
@@ -184,12 +183,12 @@ def run(if_file_exists='skip'):
     merge_filtered_files(output_directory)
 
     # save yaml file with params
-    path_to_yaml = standardized_path.replace('.bin', '.yaml')
+    path_to_yaml = standarized_path.replace('.bin', '.yaml')
 
     params = dict(
-        dtype=standardized_params['dtype'],
-        n_channels=standardized_params['n_channels'],
-        data_order=standardized_params['data_order'])
+        dtype=standarized_params['dtype'],
+        n_channels=standarized_params['n_channels'],
+        data_order=standarized_params['data_order'])
 
     with open(path_to_yaml, 'w') as f:
         logger.info('Saving params...')
@@ -207,10 +206,10 @@ def run(if_file_exists='skip'):
     # TODO: remove whiten_filter out of output argument
 
     whiten_filter = whiten.matrix(
-        standardized_path,
-        standardized_params['dtype'],
-        standardized_params['n_channels'],
-        standardized_params['data_order'],
+        standarized_path,
+        standarized_params['dtype'],
+        standarized_params['n_channels'],
+        standarized_params['data_order'],
         channel_index,
         CONFIG.spike_size,
         # CONFIG.resources.max_memory,
@@ -226,4 +225,4 @@ def run(if_file_exists='skip'):
         if_file_exists=if_file_exists,
         name='Channel index')
 
-    return str(standardized_path), standardized_params, whiten_filter
+    return str(standarized_path), standarized_params, whiten_filter

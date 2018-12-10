@@ -2147,9 +2147,10 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     #n_sec_chunk = 300
     
     # determine length of processing chunk based on lenght of rec
-    standardized_filename = os.path.join(CONFIG.path_to_output_directory,
-                                         'standardized.bin')
-    fp = np.memmap(standardized_filename, dtype='float32', mode='r')
+    standarized_filename = os.path.join(CONFIG.path_to_output_directory,
+                                         'preprocess',
+                                         'standarized.bin')
+    fp = np.memmap(standarized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
 
     # make index list for chunk/parallel processing
@@ -2257,13 +2258,14 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         # reload recording chunk if not already in memory
         if recording_chunk is None: 
             buffer_size = 200
-            standardized_filename = os.path.join(CONFIG.path_to_output_directory,
-                                                'standardized.bin')
+            standarized_filename = os.path.join(CONFIG.path_to_output_directory,
+                                                'preprocess',
+                                                'standarized.bin')
             n_channels = CONFIG.recordings.n_channels
 
             recording_chunk = binary_reader(idx, 
                                             buffer_size, 
-                                            standardized_filename, 
+                                            standarized_filename, 
                                             n_channels)
                     
         # run global merge function
@@ -2277,7 +2279,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                               units)
 
 
-def binary_reader(idx_list, buffer_size, standardized_filename,
+def binary_reader(idx_list, buffer_size, standarized_filename,
                   n_channels):
 
     # New indexes
@@ -2290,7 +2292,7 @@ def binary_reader(idx_list, buffer_size, standardized_filename,
     offset = idx_local
 
     # ***** LOAD RAW RECORDING *****
-    with open(standardized_filename, "rb") as fin:
+    with open(standarized_filename, "rb") as fin:
         if data_start == 0:
             # Seek position and read N bytes
             recordings_1D = np.fromfile(
@@ -3084,7 +3086,8 @@ def parallel_merge(data):
     #   spikes and no edge cases are occuring
     ## read waveforms
     # Cat: TODO: spike_size must be read from CONFIG or will crash
-    re = RecordingExplorer(CONFIG.path_to_output_directory+'/standardized.bin', 
+    re = RecordingExplorer(os.path.join(CONFIG.path_to_output_directory, 'preprocess',
+                                        'standarized.bin'),
                    path_to_geom = CONFIG.data.root_folder+CONFIG.data.geometry, 
                    spike_size = spike_width//2, 
                    neighbor_radius = 100, 

@@ -225,7 +225,7 @@ class Cluster(object):
         # default parameters
         self.n_channels = self.CONFIG.recordings.n_channels
         self.min_spikes_local = self.CONFIG.cluster.min_spikes
-        self.standardized_filename = self.CONFIG.path_to_output_directory+'/standardized.bin'
+        self.standardized_filename = os.path.join(self.CONFIG.path_to_output_directory, 'preprocess', 'standarized.bin')
         self.geometry_file = os.path.join(self.CONFIG.data.root_folder,
                                           self.CONFIG.data.geometry)
 

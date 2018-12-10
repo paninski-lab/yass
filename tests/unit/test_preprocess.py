@@ -1,4 +1,5 @@
 from os import path
+from pathlib import Path
 
 from yass.preprocess.filter import _butterworth
 from yass.preprocess.standarize import _standard_deviation
@@ -71,7 +72,18 @@ def test_standarize_does_not_run_if_files_already_exist(path_to_data,
 
 def test_can_preprocess(path_to_config, make_tmp_folder):
     yass.set_config(path_to_config, make_tmp_folder)
-    standardized_path, standardized_params, whiten_filter = preprocess.run()
+    standarized_path, standarized_params, whiten_filter = preprocess.run()
+
+
+def test_preprocess_saves_result_in_the_right_folder(path_to_config,
+                                                     make_tmp_folder):
+    yass.set_config(path_to_config, make_tmp_folder)
+    standarized_path, standarized_params, _ = preprocess.run()
+
+    expected = Path(make_tmp_folder, 'preprocess', 'standarized.bin')
+
+    assert str(expected) == standarized_path
+    assert expected.is_file()
 
 
 def test_can_preprocess_in_parallel(path_to_config, make_tmp_folder):
@@ -80,7 +92,7 @@ def test_can_preprocess_in_parallel(path_to_config, make_tmp_folder):
 
     yass.set_config(CONFIG, make_tmp_folder)
 
-    standardized_path, standardized_params, whiten_filter = preprocess.run()
+    standarized_path, standarized_params, whiten_filter = preprocess.run()
 
 
 # FIXME: reference testing was deactivated
@@ -88,19 +100,19 @@ def test_can_preprocess_in_parallel(path_to_config, make_tmp_folder):
 #                                              path_to_output_reference,
 #                                              make_tmp_folder):
 #     yass.set_config(path_to_config, make_tmp_folder)
-#     standardized_path, standardized_params, whiten_filter = preprocess.run()
+#     standarized_path, standarized_params, whiten_filter = preprocess.run()
 
-#     # load standardized data
-#     standardized = np.fromfile(standardized_path,
-#                                dtype=standardized_params['dtype'])
+#     # load standarized data
+#     standarized = np.fromfile(standarized_path,
+#                                dtype=standarized_params['dtype'])
 
-#     path_to_standardized = path.join(path_to_output_reference,
-#                                      'preprocess_standardized.npy')
+#     path_to_standarized = path.join(path_to_output_reference,
+#                                      'preprocess_standarized.npy')
 #     path_to_whiten_filter = path.join(path_to_output_reference,
 #                                       'preprocess_whiten_filter.npy')
 
-#     ReferenceTesting.assert_array_almost_equal(standardized,
-#                                                path_to_standardized)
+#     ReferenceTesting.assert_array_almost_equal(standarized,
+#                                                path_to_standarized)
 #     ReferenceTesting.assert_array_almost_equal(whiten_filter,
 #                                                path_to_whiten_filter)
 
@@ -112,4 +124,4 @@ def test_can_preprocess_without_filtering(path_to_config,
 
     yass.set_config(CONFIG, make_tmp_folder)
 
-    standardized_path, standardized_params, whiten_filter = preprocess.run()
+    standarized_path, standarized_params, whiten_filter = preprocess.run()

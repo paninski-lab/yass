@@ -32,9 +32,7 @@ sorted_colors = [name for hsv, name in by_hsv]
 
 
 def run(spike_train_cluster,
-        templates,
-        output_directory='tmp/',
-        recordings_filename='standardized.bin'):
+        templates):
     """Deconvolute spikes
 
     Parameters
@@ -48,15 +46,6 @@ def run(spike_train_cluster,
 
     templates: numpy.ndarray (n_channels, waveform_size, n_templates)
         A 3D array with the templates
-
-    output_directory: str, optional
-        Output directory (relative to CONFIG.data.root_folder) used to load
-        the recordings to generate templates, defaults to tmp/
-
-    recordings_filename: str, optional
-        Recordings filename (relative to CONFIG.data.root_folder/
-        output_directory) used to draw the waveforms from, defaults to
-        standardized.bin
 
     Returns
     -------
@@ -85,9 +74,7 @@ def run(spike_train_cluster,
     ''' 
     # compute chunk and segment lists for parallel processing below
     idx_list = compute_idx_list(templates, 
-                                CONFIG, 
-                                output_directory,
-                                recordings_filename)
+                                CONFIG)
            
     # make deconv directory
     deconv_dir = os.path.join(CONFIG.path_to_output_directory, 'deconv')
@@ -99,7 +86,7 @@ def run(spike_train_cluster,
     #            multiprocessing module;
     buffer_size = 200
     standardized_filename = os.path.join(CONFIG.path_to_output_directory, 
-                                         recordings_filename)
+                                         'preprocess', 'standarized.bin')
 
     # compute pairwise convolution filter outside match pursuit
     # Cat: TODO: make sure you don't miss chunks at end
@@ -199,9 +186,7 @@ def run(spike_train_cluster,
                                               deconv_chunk_dir,
                                               spike_train_cluster_prev_iteration,
                                               idx_list_local,
-                                              initial_chunk,
-                                              output_directory, 
-                                              recordings_filename)
+                                              initial_chunk)
 
 
     ''' 
@@ -336,8 +321,7 @@ def align_singletrace_lastchan(wf, CONFIG, upsample_factor = 5, nshifts = 15,
 
     return np.float32(wf_final[:,::upsample_factor]), best_shifts
     
-def compute_idx_list(templates, CONFIG, output_directory, 
-                                        recordings_filename):
+def compute_idx_list(templates, CONFIG):
     
     # necessary parameters
     n_channels, n_temporal_big, n_templates = templates.shape
@@ -352,7 +336,8 @@ def compute_idx_list(templates, CONFIG, output_directory,
     buffer_size = 200
 
     # Grab length of .dat file to compute chunk indexes below
-    standardized_filename = os.path.join(CONFIG.path_to_output_directory, recordings_filename)
+    standardized_filename = os.path.join(CONFIG.path_to_output_directory,
+                                         'preprocess', 'standarized.bin')
     
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
@@ -379,9 +364,7 @@ def reclustering_function(CONFIG,
                           deconv_chunk_dir,
                           spike_train_cluster_new,
                           idx_list_local,
-                          initial_chunk,
-                          output_directory, 
-                          recordings_filename):
+                          initial_chunk):
 
     idx_chunk = [idx_list_local[0][0], idx_list_local[-1][1], 
                  idx_list_local[0][2], idx_list_local[0][3]]
@@ -412,7 +395,7 @@ def reclustering_function(CONFIG,
     n_channels = CONFIG.recordings.n_channels
     buffer_size = 200
     standardized_filename = os.path.join(CONFIG.path_to_output_directory,
-                                         recordings_filename)
+                                         'preprocess', 'standarized.bin')
 
     residual_clustering_flag = True
     if residual_clustering_flag:
