@@ -2,7 +2,9 @@ import shutil
 import tempfile
 import numpy as np
 import os
+from os.path import getsize
 import pytest
+import yaml
 from util import PATH_TO_TESTS, seed, dummy_predict_with_threshold
 
 PATH_TO_ASSETS = os.path.join(PATH_TO_TESTS, 'assets')
@@ -23,18 +25,14 @@ def patch_triage_network(monkeypatch):
     yield
 
 
+def _path_to_config():
+    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'config.yaml')
+
+
 def _data_info():
-    d = dict()
 
-    d['n_channels'] = 49
-
-    d['spike_size_ms'] = 1.5
-    d['sampling_frequency'] = 20000
-    d['spike_size'] = int(np.round(d['spike_size_ms'] *
-                                   d['sampling_frequency']/2000))
-
-    d['data_order'] = 'samples'
-    d['dtype'] = 'int16'
+    with open(_path_to_config()) as f:
+        d = yaml.load(f)
 
     return d
 
@@ -46,11 +44,15 @@ def data_info():
 
 @pytest.fixture()
 def data():
-    info = _data_info()
+    info = _data_info()['recordings']
 
     path = os.path.join(PATH_TO_RETINA_DIR, 'data.bin')
-    d = np.fromfile(path, dtype='int16')
-    d = d.reshape(info['observations'], info['n_channels'])
+    d = np.fromfile(path, dtype=info['dtype'])
+
+    n_observations = int(getsize(path) / info['n_channels'] /
+                         np.dtype(info['dtype']).itemsize)
+
+    d = d.reshape(n_observations, info['n_channels'])
     return d
 
 
@@ -101,7 +103,7 @@ def path_to_output_reference():
 
 @pytest.fixture
 def path_to_config():
-    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'config.yaml')
+    return _path_to_config()
 
 
 @pytest.fixture
