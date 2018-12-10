@@ -114,20 +114,28 @@ class Cluster(object):
         # featurize it
         pca_wf = self.featurize_step(gen, current_indices)
         
-        # run initial cluster step
-        vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
-        
-
-        ##### TRIAGE 1 #####
-        # adaptive knn triage
-        idx_keep = self.knn_triage_dynamic(gen, vbParam, pca_wf)
+        # knn triage
+        idx_keep = self.knn_triage_step(gen, pca_wf)
         if idx_keep.shape[0] < self.CONFIG.cluster.min_spikes: return
 
         # if anything is triaged, re-featurize and re-cluster
         if idx_keep.shape[0] < pca_wf.shape[0]:
             current_indices = current_indices[idx_keep]
             pca_wf = self.featurize_step(gen, current_indices)
-            vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
+
+        # run initial cluster step
+        vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
+
+        ##### TRIAGE 1 #####
+        # adaptive knn triage
+        #idx_keep = self.knn_triage_dynamic(gen, vbParam, pca_wf)
+        #if idx_keep.shape[0] < self.CONFIG.cluster.min_spikes: return
+
+        # if anything is triaged, re-featurize and re-cluster
+        #if idx_keep.shape[0] < pca_wf.shape[0]:
+        #    current_indices = current_indices[idx_keep]
+        #    pca_wf = self.featurize_step(gen, current_indices)
+        #    vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
 
         ##### TRIAGE 2 #####
         # if we subsampled then recover soft-assignments using above:
@@ -560,9 +568,16 @@ class Cluster(object):
         # Alignment: upsample max chan only; linear shift other chans
 
         energy = np.median(np.square(self.wf_global), axis=0)
+        # high activity channels
         potential_active_chans = np.where(np.max(energy, axis=0) > 0.5)[0]
+
+        # look for ones connected from main channel
         neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
         active_chans = np.where(self.connected_channels(potential_active_chans, self.channel, neighbors))[0]
+
+        # exclude main and secondary channels
+        active_chans = active_chans[~np.in1d(active_chans, self.neighbor_chans)]
+
         self.denoised_wf = np.zeros((self.wf_global.shape[0], len(active_chans)), dtype='float32')
         for ii, chan in enumerate(active_chans):
             #active_timepoints = np.median(np.square(wf_chan), axis=0) > 0.5
@@ -678,31 +693,16 @@ class Cluster(object):
         return np.where(idx_keep)[0]
 
 
-    def knn_triage_step(self, gen, pca_wf, wf_final, triage_flag):
-        
-        if triage_flag:
-            idx_keep = self.knn_triage(self.knn_triage_threshold, pca_wf)
-            idx_keep = np.where(idx_keep==1)[0]
-            if self.verbose:
-                print("chan "+str(self.channel)+' gen: '+str(gen) + 
-                      " triaged, remaining spikes "+ 
-                      str(idx_keep.shape[0]))
+    def knn_triage_step(self, gen, pca_wf):
 
-            if idx_keep.shape[0] < self.CONFIG.cluster.min_spikes: 
-                return None, np.array([])
-
-            pca_wf = pca_wf[idx_keep]
-
-            # rerun global compression on residual waveforms
-            if True:
-                pca = PCA(n_components=min(self.selected_PCA_rank, wf_final[idx_keep].shape[1]))
-                pca.fit(wf_final[idx_keep])
-                pca_wf = pca.transform(wf_final[idx_keep])
+        if self.verbose:
+            print("chan "+str(self.channel)+', gen '+str(gen)+', knn triage')
         
-        else:
-            idx_keep = np.arange(pca_wf.shape[0])
-        
-        return pca_wf, idx_keep
+        idx_keep = self.knn_triage(self.knn_triage_threshold, pca_wf)
+        idx_keep = np.where(idx_keep==1)[0]
+        self.triage_value = self.knn_triage_threshold
+
+        return idx_keep
 
 
     def knn_triage(self, th, pca_wf):
