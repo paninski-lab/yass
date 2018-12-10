@@ -30,7 +30,7 @@ def templates_uncropped(path_to_config, make_tmp_folder,
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
-                                    'spike_train.npy'))
+                                    'spike_train_post_deconv_post_merge.npy'))
 
     n_spikes, _ = spike_train.shape
 
