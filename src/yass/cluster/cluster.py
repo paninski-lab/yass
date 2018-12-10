@@ -62,9 +62,6 @@ class Cluster(object):
         # load data and check if prev completed
         if self.load_data(data_in):  return
 
-        # no spikes
-        if len(self.spike_indexes_chunk[:, 0]) == 0: return 
-
         # local clustering
         print("\nchan "+str(self.channel)+", START LOCAL CLUSTERING")
 
@@ -100,7 +97,7 @@ class Cluster(object):
         '''
 
         # Exit if cluster too small
-        if current_indices.shape[0] < self.CONFIG.cluster.min_spikes: return
+        if current_indices.shape[0] <= self.CONFIG.cluster.min_spikes: return
         
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', # spikes: '+ str(current_indices.shape[0]))
@@ -119,7 +116,7 @@ class Cluster(object):
         
         # knn triage
         idx_keep = self.knn_triage_step(gen, pca_wf)
-        if idx_keep.shape[0] < self.CONFIG.cluster.min_spikes: return
+        if idx_keep.shape[0] <= self.CONFIG.cluster.min_spikes: return
 
         # if anything is triaged, re-featurize and re-cluster
         if idx_keep.shape[0] < pca_wf.shape[0]:
@@ -132,7 +129,7 @@ class Cluster(object):
         ##### TRIAGE 1 #####
         # adaptive knn triage
         #idx_keep = self.knn_triage_dynamic(gen, vbParam, pca_wf)
-        #if idx_keep.shape[0] < self.CONFIG.cluster.min_spikes: return
+        #if idx_keep.shape[0] <= self.CONFIG.cluster.min_spikes: return
 
         # if anything is triaged, re-featurize and re-cluster
         #if idx_keep.shape[0] < pca_wf.shape[0]:
@@ -143,7 +140,7 @@ class Cluster(object):
         ##### TRIAGE 2 #####
         # if we subsampled then recover soft-assignments using above:
         idx_recovered, vbParam = self.recover_step(gen, vbParam, pca_wf)
-        if idx_recovered.shape[0] < self.CONFIG.cluster.min_spikes: return
+        if idx_recovered.shape[0] <= self.CONFIG.cluster.min_spikes: return
         
         # if anything is triaged further, update the info
         if idx_recovered.shape[0] < pca_wf.shape[0]:    
@@ -153,7 +150,7 @@ class Cluster(object):
         ##### TRIAGE 3 #####
         # kill any units with less than min_spikes
         idx_survived, vbParam = self.kill_small_units(gen, vbParam)
-        if idx_survived.shape[0] < self.CONFIG.cluster.min_spikes: return
+        if idx_survived.shape[0] <= self.CONFIG.cluster.min_spikes: return
         
         # if anything is triaged further, update the info
         if idx_survived.shape[0] < pca_wf.shape[0]:    
