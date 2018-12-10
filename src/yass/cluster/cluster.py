@@ -470,9 +470,9 @@ class Cluster(object):
                      spiketime=spike_train,
                      templates=templates)
 
-        print ("**** Channel/Unit ", str(self.channel), " starting spikes: ",
-            self.wf_global.shape[0], ", found # clusters: ", 
-            len(spike_train))
+        # print ("**** Channel/Unit ", str(self.channel), " starting spikes: ",
+        #     self.wf_global.shape[0], ", found # clusters: ", 
+        #     len(spike_train))
 
         self.wf_global = None
         self.denoised_wf = None
