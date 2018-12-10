@@ -108,13 +108,11 @@ class Cluster(object):
             self.load_waveforms(local)
             # align waveforms
             self.align_step(local)
-            # get active channels
-            self.active_chans_step(local)
             # denoise waveforms on active channels
             self.denoise_step(local)
 
         # featurize it
-        pca_wf = self.featurize_step(gen, current_indices, local)
+        pca_wf = self.featurize_step(gen, current_indices)
         
         # run initial cluster step
         vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
@@ -128,7 +126,7 @@ class Cluster(object):
         # if anything is triaged, re-featurize and re-cluster
         if idx_keep.shape[0] < pca_wf.shape[0]:
             current_indices = current_indices[idx_keep]
-            pca_wf = self.featurize_step(gen, current_indices, local)
+            pca_wf = self.featurize_step(gen, current_indices)
             vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
 
         ##### TRIAGE 2 #####
@@ -223,7 +221,7 @@ class Cluster(object):
                                           self.CONFIG.data.geometry)
 
         # CAT: todo read params below from file:
-        self.plotting = True
+        self.plotting = False
         self.verbose = False
         self.starting_gen = 0
         self.knn_triage_threshold = 0.95 * 100
@@ -375,8 +373,6 @@ class Cluster(object):
 
 
     def finish(self, fname=None):
-        if self.verbose:
-            print('finishing plotting for '+fname)
 
         if self.plotting:
             if self.deconv_flag:
@@ -518,23 +514,6 @@ class Cluster(object):
         self.wf_global = shift_chans(self.wf_global, best_shifts)
 
 
-    def active_chans_step(self, local):
-            
-        if self.verbose:
-                print ("chan "+str(self.channel)+", gen 0, getting active channels")
-
-        energy = np.max(np.median(np.square(self.wf_global), axis=0), axis=0)
-        active_chans = np.where(energy > 0.5)[0]
-        
-        if not local:
-            active_chans = active_chans[~np.in1d(active_chans, self.neighbor_chans)]
-
-        if len(active_chans) == 0:
-            active_chans = np.where(self.loaded_channels==self.channel)[0]
-        
-        self.active_chans = active_chans
-
-
     def denoise_step(self, local):
         # align, note: aligning all channels to max chan which is appended to the end
         # note: max chan is first from feat_chans above, ensure order is preserved
@@ -560,57 +539,64 @@ class Cluster(object):
         pc_mc_std = np.load(self.CONFIG.data.root_folder+'/pc_mc_std.npy')
         pc_sec_std = np.load(self.CONFIG.data.root_folder+'/pc_sec_std.npy')
         
-        self.denoised_wf = np.zeros((self.wf_global.shape[0], pc_mc.shape[1], len(self.active_chans)),
+        n_data, _, n_chans = self.wf_global.shape
+        self.denoised_wf = np.zeros((n_data, pc_mc.shape[1], n_chans),
                                     dtype='float32')
-        for ii, chan in enumerate(self.active_chans):
-            if self.loaded_channels[chan] == self.channel:
-                self.denoised_wf[:, :, ii] = np.matmul(self.wf_global[:, :, chan], pc_mc)/pc_mc_std[np.newaxis]
+        for ii in range(n_chans):
+            if self.loaded_channels[ii] == self.channel:
+                self.denoised_wf[:, :, ii] = np.matmul(self.wf_global[:, :, ii], pc_mc)/pc_mc_std[np.newaxis]
             else:
-                self.denoised_wf[:, :, ii] = np.matmul(self.wf_global[:, :, chan], pc_sec)/pc_sec_std[np.newaxis]
-        self.denoised_wf = self.denoised_wf.reshape((self.denoised_wf.shape[0], -1))
+                self.denoised_wf[:, :, ii] = np.matmul(self.wf_global[:, :, ii], pc_sec)/pc_sec_std[np.newaxis]
 
+        self.denoised_wf = np.reshape(self.denoised_wf, [n_data, -1])
+
+        good_features = np.median(np.square(self.denoised_wf), axis=0) > 0.5
+        self.denoised_wf = self.denoised_wf[:, good_features]
 
     def denoise_step_distant(self):
         # align, note: aligning all channels to max chan which is appended to the end
         # note: max chan is first from feat_chans above, ensure order is preserved
         # note: don't want for wf array to be used beyond this function
         # Alignment: upsample max chan only; linear shift other chans
-        
-        self.denoised_wf = np.zeros((self.wf_global.shape[0], len(self.active_chans)),
-                                    dtype='float32')
-        energy = np.median(np.square(self.wf_global[:, :, self.active_chans]), axis=0)
-        for ii in range(len(self.active_chans)):
+
+        energy = np.median(np.square(self.wf_global), axis=0)
+        potential_active_chans = np.where(np.max(energy, axis=0) > 0.5)[0]
+        neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
+        active_chans = np.where(self.connected_channels(potential_active_chans, self.channel, neighbors))[0]
+        self.denoised_wf = np.zeros((self.wf_global.shape[0], len(active_chans)), dtype='float32')
+        for ii, chan in enumerate(active_chans):
             #active_timepoints = np.median(np.square(wf_chan), axis=0) > 0.5
             #pca = PCA(n_components=1)
             #self.denoised_wf[:, ii] = pca.fit_transform(wf_chan[:, active_timepoints])[:,0]
-            most_active = energy[:,ii].argmax()
-            self.denoised_wf[:, ii] = self.wf_global[:, most_active, ii]
-           
+            most_active = energy[:,chan].argmax()
+            self.denoised_wf[:, ii] = self.wf_global[:, most_active, chan]
 
-    def featurize_step(self, gen, indices, local):
+
+    def active_chans_step(self, local):
+            
+        if self.verbose:
+                print ("chan "+str(self.channel)+", gen 0, getting active channels")
+
+        energy = np.max(np.median(np.square(self.wf_global), axis=0), axis=0)
+        active_chans = np.where(energy > 0.5)[0]
+        
+        if not local:
+            active_chans = active_chans[~np.in1d(active_chans, self.neighbor_chans)]
+
+        if len(active_chans) == 0:
+            active_chans = np.where(self.loaded_channels==self.channel)[0]
+        
+        self.active_chans = active_chans
+           
+        if local:
+            self.denoised_wf
+    
+
+    def featurize_step(self, gen, indices):
+
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', featurizing')
 
-        if local:
-            return self.featurize_step_local(indices)
-        else:
-            return self.featurize_step_distant(indices)
-
-
-    def featurize_step_local(self, indices):
-        
-        stds = np.std(self.denoised_wf[indices], axis=0)
-        good_d = np.where(stds > 1.05)[0]
-        if len(good_d) < self.selected_PCA_rank:
-            good_d = np.argsort(stds)[::-1][:self.selected_PCA_rank]
-        pca = PCA(n_components=self.selected_PCA_rank)
-        pca_wf = pca.fit_transform(self.denoised_wf[indices][:, good_d])
-
-        return pca_wf.astype('float32')
-    
-
-    def featurize_step_distant(self, indices):
-        
         if self.denoised_wf.shape[1] > self.selected_PCA_rank:
             stds = np.std(self.denoised_wf[indices], axis=0)
             good_d = np.where(stds > 1.05)[0]
@@ -666,7 +652,7 @@ class Cluster(object):
             idx_keep = np.arange(pca_wf.shape[0])
 
         else:
-            min_spikes = 200
+            min_spikes = 1200
 
             pca_wf_temp = np.zeros([min_spikes*cov.shape[0], cov.shape[1]])
             assignment_temp = np.zeros(min_spikes*cov.shape[0], dtype = int)
@@ -679,7 +665,8 @@ class Cluster(object):
 
             median_distances = np.zeros([cov.shape[0]])
             for i in range(median_distances.shape[0]):
-                median_distances[i] = np.median(np.median(kdist_temp[i*min_spikes:(i+1)*min_spikes], axis = 0), axis = 0)
+                #median_distances[i] = np.median(np.median(kdist_temp[i*min_spikes:(i+1)*min_spikes], axis = 0), axis = 0)
+                median_distances[i] = np.percentile(np.median(kdist_temp[i*min_spikes:(i+1)*min_spikes], axis = 1), 90)
 
             kdist = knn_dist(pca_wf)
             idx_keep = np.median(kdist[:,1:], axis = 1) < 1 * np.median(median_distances)
