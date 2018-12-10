@@ -507,7 +507,7 @@ class Cluster(object):
             print ("chan "+str(self.channel)+", gen 0, aligning")
 
         if local:
-            ref_template = np.load(self.CONFIG.data.root_folder+'ref_template.npy')
+            ref_template = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'ref_template.npy'))
             mc = np.where(self.loaded_channels==self.channel)[0][0]
             best_shifts = align_get_shifts_with_ref(
                 self.wf_global[:, :, mc], ref_template)
@@ -555,10 +555,10 @@ class Cluster(object):
         # note: don't want for wf array to be used beyond this function
         # Alignment: upsample max chan only; linear shift other chans
     
-        pc_mc = np.load(self.CONFIG.data.root_folder+'/pc_mc.npy')
-        pc_sec = np.load(self.CONFIG.data.root_folder+'/pc_sec.npy')
-        pc_mc_std = np.load(self.CONFIG.data.root_folder+'/pc_mc_std.npy')
-        pc_sec_std = np.load(self.CONFIG.data.root_folder+'/pc_sec_std.npy')
+        pc_mc = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'pc_mc.npy'))
+        pc_sec = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'pc_sec.npy'))
+        pc_mc_std = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'pc_mc_std.npy'))
+        pc_sec_std = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'pc_sec_std.npy'))
         
         self.denoised_wf = np.zeros((self.wf_global.shape[0], pc_mc.shape[1], len(self.active_chans)),
                                     dtype='float32')
@@ -1433,7 +1433,7 @@ class Cluster(object):
         self.wf_global = np.memmap(filename=fname, dtype='float32', mode='w+', 
                                    shape=(n_data, self.spike_size, self.n_channels))
 
-        ref_template = np.load(self.CONFIG.data.root_folder+'ref_template.npy')
+        ref_template = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'ref_template.npy'))
 
         index = np.append(np.arange(0, n_data, max_load_size), n_data)
         x = np.arange(-self.spike_size // 2, self.spike_size // 2, 1)
