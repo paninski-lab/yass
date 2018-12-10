@@ -134,8 +134,8 @@ def run(spike_train_cluster,
         # select segments and chunk to be processed
         #idx_list_local = idx_list[c:c+chunk_size]
         idx_list_local = idx_list[c:c+chunk_size]
-        deconv_chunk_dir = os.path.join(CONFIG.data.root_folder,
-                          'tmp/deconv/initial/chunk_'+str(chunk_ctr).zfill(6))
+        deconv_chunk_dir = os.path.join(deconv_dir,
+                          'initial/chunk_'+str(chunk_ctr).zfill(6))
         if not os.path.isdir(deconv_chunk_dir):
             os.makedirs(deconv_chunk_dir)
             os.makedirs(deconv_chunk_dir+'/lost_units/')
@@ -211,8 +211,8 @@ def run(spike_train_cluster,
         # select segments and chunk to be processed
         #idx_list_local = idx_list[c:c+chunk_size]
         idx_list_local = idx_list[c:c+chunk_size]
-        deconv_chunk_dir = os.path.join(CONFIG.data.root_folder,
-                          'tmp/deconv/chunk_'+str(chunk_ctr).zfill(6))
+        deconv_chunk_dir = os.path.join(deconv_dir,
+                          'chunk_'+str(chunk_ctr).zfill(6))
         if not os.path.isdir(deconv_chunk_dir):
             os.makedirs(deconv_chunk_dir)
             os.makedirs(deconv_chunk_dir+'/lost_units/')
@@ -245,8 +245,8 @@ def run(spike_train_cluster,
     for chunk_ctr, c in enumerate(range(0, len(idx_list), chunk_size)):
 
         # make deconv chunk directory
-        deconv_chunk_dir = os.path.join(CONFIG.data.root_folder,
-                          'tmp/deconv/chunk_'+str(chunk_ctr).zfill(6))
+        deconv_chunk_dir = os.path.join(deconv_dir,
+                          'chunk_'+str(chunk_ctr).zfill(6))
 
         deconv_results = np.load(deconv_chunk_dir+'/deconv_results.npz')
         temp_train = deconv_results['spike_train']

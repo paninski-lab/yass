@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 from yass import geometry
 from yass.geometry import (parse, find_channel_neighbors,
                            n_steps_neigh_channels,
@@ -33,29 +34,40 @@ def test_raises_error_if_txt_with_wrong_channels(path_to_txt_geometry):
 
 
 def test_can_parse(data_info, path_to_geometry):
-    parse(path_to_geometry, data_info['n_channels'])
+    parse(path_to_geometry, data_info['recordings']['n_channels'])
 
 
 def test_can_compute_channel_neighbors(data_info, path_to_geometry):
-    geometry = parse(path_to_geometry, data_info['n_channels'])
+    geometry = parse(path_to_geometry, data_info['recordings']['n_channels'])
     find_channel_neighbors(geometry, radius=70)
 
 
 def test_can_compute_n_steps_neighbors(data_info, path_to_geometry):
-    geometry = parse(path_to_geometry, data_info['n_channels'])
+    geometry = parse(path_to_geometry, data_info['recordings']['n_channels'])
     neighbors = find_channel_neighbors(geometry, radius=70)
     n_steps_neigh_channels(neighbors, steps=2)
 
 
 def test_can_use_threshold_detector(data, data_info, path_to_geometry):
-    geometry = parse(path_to_geometry, data_info['n_channels'])
+    geometry = parse(path_to_geometry, data_info['recordings']['n_channels'])
     neighbors = find_channel_neighbors(geometry, radius=70)
-    detect._threshold(data, neighbors, data_info['spike_size'], 5)
+
+    # FIXME: using the same formula from yass/config/config.py, might be
+    # better to avoid having this hardcoded
+    spike_size = int(np.round(data_info['recordings']['spike_size_ms'] *
+                     data_info['recordings']['sampling_rate'] / (2 * 1000)))
+
+    detect._threshold(data, neighbors, spike_size, 5)
 
 
 def test_can_compute_whiten_matrix(data, data_info, path_to_geometry):
-    geometry = parse(path_to_geometry, data_info['n_channels'])
+    geometry = parse(path_to_geometry, data_info['recordings']['n_channels'])
     neighbors = find_channel_neighbors(geometry, radius=70)
     channel_index = make_channel_index(neighbors, geometry)
 
-    whiten._matrix(data, channel_index, data_info['spike_size'])
+    # FIXME: using the same formula from yass/config/config.py, might be
+    # better to avoid having this hardcoded
+    spike_size = int(np.round(data_info['recordings']['spike_size_ms'] *
+                     data_info['recordings']['sampling_rate'] / (2 * 1000)))
+
+    whiten._matrix(data, channel_index, spike_size)

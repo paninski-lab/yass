@@ -333,7 +333,8 @@ class MatchPursuit_objectiveUpsample(object):
                             pm_pbar=True)
         else:
             units = np.unique(self.up_up_map)
-            for k in units:
+
+            for k in range(len(units)):
                 print ("unit : ", k)
                 parallel_conv_filter( 
                             [k,[units[k]]],
