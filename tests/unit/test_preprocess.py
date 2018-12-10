@@ -1,5 +1,9 @@
 from os import path
-from pathlib import Path
+
+try:
+    from pathlib2 import Path
+except ImportError:
+    from pathlib import Path
 
 from yass.preprocess.filter import _butterworth
 from yass.preprocess.standarize import _standard_deviation
