@@ -31,7 +31,8 @@ download-test-data: ## Download data for running tests
 
 generate-testing-data: ## Generates testing data and files that are used as reference in some tests to check that the output is still the same
 	./scripts/make_sample_data
-	./scripts/generate_output_reference
+	# FIXME: reference testing was deactivated
+	# ./scripts/generate_output_reference
 
 	# echo 'Done generating sample data, upload it '
 

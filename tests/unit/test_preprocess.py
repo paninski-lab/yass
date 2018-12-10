@@ -83,6 +83,7 @@ def test_can_preprocess_in_parallel(path_to_config, make_tmp_folder):
     standardized_path, standardized_params, whiten_filter = preprocess.run()
 
 
+# FIXME: reference testing was deactivated
 # def test_preprocess_returns_expected_results(path_to_config,
 #                                              path_to_output_reference,
 #                                              make_tmp_folder):
