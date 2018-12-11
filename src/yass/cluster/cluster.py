@@ -619,8 +619,14 @@ class Cluster(object):
             if len(good_d) < self.selected_PCA_rank:
                 good_d = np.argsort(stds)[::-1][:self.selected_PCA_rank]
 
-            pca = PCA(n_components=self.selected_PCA_rank)
-            pca_wf = pca.fit_transform(self.denoised_wf[indices][:, good_d])
+            data_to_fit = self.denoised_wf[indices][:, good_d]
+
+            n_samples, n_features = data_to_fit.shape
+            # max allowed components by scikit-learn
+            n_components_max = min(n_samples, n_features)
+            pca = PCA(n_components=min(self.selected_PCA_rank,
+                                       n_components_max))
+            pca_wf = pca.fit_transform(data_to_fit)
            
         else:
             pca_wf = self.denoised_wf[indices].copy()
