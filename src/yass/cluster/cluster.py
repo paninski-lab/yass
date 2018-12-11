@@ -211,6 +211,11 @@ class Cluster(object):
         if os.path.exists(self.filename_postclustering):
             return True
 
+        # check to see if 'result/' folder exists otherwise make it
+        self.figures_dir = self.chunk_dir+'/figures/'
+        if not os.path.isdir(self.figures_dir):
+            os.makedirs(self.figures_dir)
+                
         ''' ********************************************
             *********** DEFAULT PARAMETERS *************
             ******************************************** 
@@ -224,7 +229,7 @@ class Cluster(object):
 
         # CAT: todo read params below from file:
         self.plotting = True
-        self.verbose = False
+        self.verbose = True
         self.starting_gen = 0
         self.knn_triage_threshold = 0.95 * 100
         self.knn_triage_flag = True
@@ -393,7 +398,7 @@ class Cluster(object):
                 self.fig1.savefig(self.chunk_dir + "/recluster/unit_{}_scatter.png".format(self.unit))
             else:
                 #self.fig1.savefig(self.chunk_dir + "/channel_{}_scatter.png".format(self.channel))
-                self.fig1.savefig(os.path.join(self.chunk_dir,fname+'_scatter.png'))
+                self.fig1.savefig(os.path.join(self.figures_dir,fname+'_scatter.png'))
             #plt.close(self.fig1)
 
             ####### finish template plots #######
@@ -440,7 +445,7 @@ class Cluster(object):
                 self.fig2.savefig(self.chunk_dir + "/recluster/unit_{}_template.png".format(self.unit))
             else:
                 #self.fig2.savefig(self.chunk_dir + "/channel_{}_template.png".format(self.channel))
-                self.fig2.savefig(os.path.join(self.chunk_dir,fname+'_template.png'))
+                self.fig2.savefig(os.path.join(self.figures_dir,fname+'_template.png'))
             #plt.close(self.fig2)
             plt.close('all')
 
