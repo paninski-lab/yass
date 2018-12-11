@@ -622,14 +622,8 @@ class Cluster(object):
             data_to_fit = self.denoised_wf[indices][:, good_d]
 
             n_samples, n_features = data_to_fit.shape
-            # max allowed components by scikit-learn
-            n_components_max = min(n_samples, n_features)
-            # NOTE: consider sending a warning to the user saying that
-            # n_components_max will be used instead of
-            # self.selected_PCA_rank if
-            # n_components_max < self.selected_PCA_rank
-            pca = PCA(n_components=min(self.selected_PCA_rank,
-                                       n_components_max))
+            pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
+
             pca_wf = pca.fit_transform(data_to_fit)
            
         else:
