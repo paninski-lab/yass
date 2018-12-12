@@ -15,8 +15,7 @@ install:
 script:
   - make download-test-data
   - make test
+  - make docs
   # - make integration-test
-  # FIXME: doc building is broken cause importing some modules give errors
-  # - make docs
 
 after_success: coveralls

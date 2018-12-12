@@ -115,7 +115,7 @@ def diptest(x, min_is_0=True, boot_pval=False, n_boot=2000):
 
 
 # [len(N), len(SIG)] table of critical values
-path = resource_filename('yass', 'cluster/diptest/dip_crit.txt')
+path = resource_filename('diptest', 'dip_crit.txt')
 CV = np.loadtxt(path)
 
 N = np.array([4,     5,     6,     7,     8,     9,    10,    15,    20,

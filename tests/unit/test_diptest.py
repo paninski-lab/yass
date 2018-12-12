@@ -1,4 +1,4 @@
-from yass.cluster.diptest.diptest import dip
+from diptest.diptest import dip
 import numpy as np
 
 
