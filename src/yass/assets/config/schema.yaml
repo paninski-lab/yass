@@ -92,6 +92,15 @@ recordings:
 
 preprocess:
   type: dict
+  default:
+    if_file_exists: skip
+    save_results: True
+    apply_filter: True
+    dtype: float64
+    filter:
+      order: 3
+      low_pass_freq: 300
+      high_factor: 0.1
   schema:
     if_file_exists:
       type: string
@@ -133,6 +142,22 @@ preprocess:
 
 detect:
   type: dict
+  default:
+    if_file_exists: skip
+    save_results: True
+    method: nn
+    temporal_features: 3
+    neural_network_detector:
+      filename: detect_nn1.ckpt
+      threshold_spike: 0.5
+    neural_network_triage:
+      filename: triage-31wf7ch-15-Aug-2018@00-17-16.h5
+      threshold_collision: 0.5
+    neural_network_autoencoder:
+      filename: ae_nn1.ckpt
+    threshold_detector:
+      std_factor: 4
+
   schema:
     if_file_exists:
       type: string
@@ -193,7 +218,7 @@ cluster:
     n_split: 5
     method: voltage_features
     max_n_spikes: 10000
-    min_spikes: 0
+    min_spikes: 100
     merge_threshold: 0.90
     prior:
       beta: 1
@@ -310,6 +335,8 @@ cluster:
           type: float
           default: 0.95
 
+# FIXME: yass.templates.run was removed, a lot of options here are probably
+# no longer used
 templates:
   type: dict
   default:

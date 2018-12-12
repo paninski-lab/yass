@@ -2,9 +2,13 @@
 """
 Sample data for testing
 """
+from copy import deepcopy
 import shutil
 from pathlib import Path
 
+import argparse
+
+import yaml
 import numpy as np
 
 from yass.batch import RecordingsReader
@@ -12,148 +16,163 @@ from yass import geometry as yass_geometry
 from yass import pipeline
 
 
-path_to_data_storage = Path('~', 'data').expanduser()
+def main():
+    path_to_data_storage = Path(args.data_dir).expanduser()
 
-print('Loading testing data from ', path_to_data_storage)
+    print('Loading testing data from ', path_to_data_storage)
 
-path_to_neuro_folder = Path(path_to_data_storage, 'neuro')
-path_to_neuro_data = Path(path_to_neuro_folder, 'rawDataSample.bin')
-path_to_neuro_geom = Path(path_to_neuro_folder, 'channel_positions.npy')
+    path_to_neuro_folder = Path(path_to_data_storage, 'neuro')
+    path_to_neuro_data = Path(path_to_neuro_folder, 'rawDataSample.bin')
+    path_to_neuro_geom = Path(path_to_neuro_folder, 'channel_positions.npy')
 
+    path_to_retina_folder = Path(path_to_data_storage, 'retina')
+    path_to_retina_config = Path(path_to_retina_folder, 'config.yaml')
+    path_to_retina_data = Path(path_to_retina_folder, 'ej49_data1_set1.bin')
+    path_to_retina_geom = Path(path_to_retina_folder, 'ej49_geometry1.txt')
 
-path_to_retina_folder = Path(path_to_data_storage, 'retina')
-path_to_retina_config = Path(path_to_retina_folder, 'config.yaml')
-path_to_retina_data = Path(path_to_retina_folder, 'ej49_data1_set1.bin')
-path_to_retina_geom = Path(path_to_retina_folder, 'ej49_geometry1.txt')
+    path_to_output_folder = Path(path_to_data_storage, 'yass-testing-data',
+                                 'recordings')
 
+    print('Output will be at ', path_to_output_folder)
 
-path_to_output_folder = Path(path_to_data_storage, 'yass-testing-data', 'data')
+    path_to_output_folder_neuro = Path(path_to_output_folder, 'neuropixel')
 
+    path_to_output_folder_retina = Path(path_to_output_folder, 'retina')
+    path_to_output_folder_retina_cfg = path_to_output_folder_retina / 'config'
 
-print('Output will be at ', path_to_output_folder)
+    if path_to_output_folder.exists():
+        print('Output Folder exists, removing contents....')
+        shutil.rmtree(str(path_to_output_folder))
 
-path_to_output_folder_neuro = Path(path_to_output_folder, 'neuropixel')
-path_to_output_folder_retina = Path(path_to_output_folder, 'retina')
+    path_to_output_folder.mkdir(parents=True)
+    # path_to_output_folder_neuro.mkdir()
+    path_to_output_folder_retina.mkdir()
+    path_to_output_folder_retina_cfg.mkdir()
 
-if path_to_output_folder.exists():
-    print('Output Folder exists, removing contents....')
-    shutil.rmtree(str(path_to_output_folder))
+    # Dataset 1: retina
+    seconds = 5
+    channels_total = 49
+    channels = 49
 
+    print('Creating retina data: {} seconds, {} channels out of {}'
+          .format(seconds, channels, channels_total))
 
-path_to_output_folder.mkdir(parents=True)
-# path_to_output_folder_neuro.mkdir()
-path_to_output_folder_retina.mkdir()
+    CONFIG = {
+        'data': {
+            'root_folder': str(path_to_output_folder_retina),
+            'recordings': 'data.bin',
+            'geometry': 'geometry.npy'
+        },
 
+        'resources': {
+            'max_memory': '200MB',
+            'processes': 1
+        },
 
-# Dataset 1: retina
-seconds = 1
-channels_total = 49
-channels = 49
+        'recordings': {
+            'dtype': 'int16',
+            'sampling_rate': 20000,
+            'n_channels': channels,
+            'spatial_radius': 70,
+            'spike_size_ms': 1.5,
+            'order': 'samples',
+        },
+    }
 
+    observations = CONFIG['recordings']['sampling_rate'] * seconds
 
-print('Creating retina data: {} seconds, {} channels out of {}'
-      .format(seconds, channels, channels_total))
+    # retina, 49ch
+    retina = RecordingsReader(str(path_to_retina_data),
+                              dtype=CONFIG['recordings']['dtype'],
+                              n_channels=channels_total,
+                              data_order='samples',
+                              loader='array').data
 
-CONFIG = {
-    'data': {
-        'root_folder': str(path_to_output_folder_retina),
+    sample_data = retina[:observations, :channels]
+    sample_data.tofile(str(Path(path_to_output_folder_retina, 'data.bin')))
+
+    geometry = yass_geometry.parse(str(path_to_retina_geom), channels_total)
+    sample_geometry = geometry[:channels, :channels]
+    np.save(str(Path(path_to_output_folder_retina, 'geometry.npy')),
+            sample_geometry)
+
+    print('Standarizing data...')
+
+    pipeline.run(CONFIG, clean=True,
+                 output_dir='sample_pipeline_output',
+                 set_zero_seed=True)
+
+    CONFIG_TEST = deepcopy(CONFIG)
+    CONFIG_TEST['data'] = {
+        'root_folder': 'tests/assets/recordings/retina',
         'recordings': 'data.bin',
         'geometry': 'geometry.npy'
-    },
-
-    'resources': {
-        'max_memory': '200MB',
-        'processes': 1
-    },
-
-    'recordings': {
-        'dtype': 'int16',
-        'sampling_rate': 20000,
-        'n_channels': channels,
-        'spatial_radius': 70,
-        'spike_size_ms': 1.5,
-        'order': 'samples',
-    },
-
-    'preprocess': {
-        'apply_filter': True,
-        'dtype': 'float32'
-
-    },
-
-    'detect': {
-        'method': 'threshold',
-        'temporal_features': 3
-
     }
-}
+
+    wrong_channels = deepcopy(CONFIG_TEST)
+    _ = wrong_channels['recordings']
+    _['n_channels'] = channels + 1
+    wrong_channels['recordings'] = _
+
+    threshold_detector = deepcopy(CONFIG_TEST)
+    threshold_detector['detect'] = dict(method='threshold')
+
+    with open(str(path_to_output_folder_retina_cfg / 'config.yaml'), 'w') as f:
+        yaml.dump(CONFIG_TEST, f)
+
+    with open(str(path_to_output_folder_retina_cfg /
+                  'wrong_channels.yaml'), 'w')as f:
+        yaml.dump(wrong_channels, f)
+
+    with open(str(path_to_output_folder_retina_cfg / 'config_threshold.yaml'),
+              'w') as f:
+        yaml.dump(threshold_detector, f)
+
+    print('Done')
+
+    # # Dataset 2: neuropixel
+    # seconds = 5
+    # channels = 10
+    # dtype = 'int16'
+    # data_order = 'samples'
+    # sampling_frequency = 30000
+    # observations = sampling_frequency * seconds
+
+    # data = np.fromfile(str(Path(path_to_neuro_data)), dtype=dtype)
+    # data = data.reshape((385, 1800000)).T
+    # sample_data = data[:observations, :channels]
+
+    # geometry = np.load(str(Path(path_to_neuro_geom)))
+    # sample_geometry = geometry[:channels, :]
+
+    # # save data and geometry
+    # sample_data.tofile(str(Path(path_to_output_folder_neuro, 'data.bin')))
+    # np.save(str(Path(path_to_output_folder_neuro, 'geometry.npy')),
+    #         sample_geometry)
+
+    # butterworth(str(Path(path_to_output_folder_neuro, 'data.bin')),
+    #             dtype=dtype,
+    #             n_channels=channels, data_order=data_order,
+    #             order=3, low_frequency=300, high_factor=0.1,
+    #             sampling_frequency=sampling_frequency, max_memory='1GB',
+    #             output_path=str(path_to_output_folder_neuro),
+    #             standarize=True,
+    #             output_filename='standarized.bin',
+    #             if_file_exists='overwrite',
+    #             output_dtype='float32')
+
+    # # FIXME: automatically generate config files based on this? also generate
+    # # a file for conftest data_info()
+
+    # # import matplotlib.pyplot as plt
+    # # standarized = RecordingsReader('tests/data/standarized.bin', loader='array').data
+    # # plt.plot(standarized[1000:1200])
+    # # plt.show()
 
 
-observations = CONFIG['recordings']['sampling_rate'] * seconds
-
-
-# retina, 49ch
-retina = RecordingsReader(str(path_to_retina_data),
-                          dtype=CONFIG['recordings']['dtype'],
-                          n_channels=channels_total,
-                          data_order='samples',
-                          loader='array').data
-
-sample_data = retina[:observations, :channels]
-sample_data.tofile(str(Path(path_to_output_folder_retina, 'data.bin')))
-
-geometry = yass_geometry.parse(str(path_to_retina_geom), channels_total)
-sample_geometry = geometry[:channels, :channels]
-np.save(str(Path(path_to_output_folder_retina, 'geometry.npy')),
-        sample_geometry)
-
-print('Standarizing data...')
-
-pipeline.run(CONFIG, clean=True,
-             output_dir='sample_pipeline_output',
-             set_zero_seed=True)
-
-
-print('Done')
-
-# # Dataset 2: neuropixel
-# seconds = 5
-# channels = 10
-# dtype = 'int16'
-# data_order = 'samples'
-# sampling_frequency = 30000
-# observations = sampling_frequency * seconds
-
-# data = np.fromfile(str(Path(path_to_neuro_data)), dtype=dtype)
-# data = data.reshape((385, 1800000)).T
-# sample_data = data[:observations, :channels]
-
-# geometry = np.load(str(Path(path_to_neuro_geom)))
-# sample_geometry = geometry[:channels, :]
-
-# # save data and geometry
-# sample_data.tofile(str(Path(path_to_output_folder_neuro, 'data.bin')))
-# np.save(str(Path(path_to_output_folder_neuro, 'geometry.npy')),
-#         sample_geometry)
-
-
-# butterworth(str(Path(path_to_output_folder_neuro, 'data.bin')),
-#             dtype=dtype,
-#             n_channels=channels, data_order=data_order,
-#             order=3, low_frequency=300, high_factor=0.1,
-#             sampling_frequency=sampling_frequency, max_memory='1GB',
-#             output_path=str(path_to_output_folder_neuro),
-#             standarize=True,
-#             output_filename='standardized.bin',
-#             if_file_exists='overwrite',
-#             output_dtype='float32')
-
-
-# # FIXME: automatically generate config files based on this? also generate
-# # a file for conftest data_info()
-
-
-# # import matplotlib.pyplot as plt
-# # standardized = RecordingsReader('tests/data/standardized.bin', loader='array').data
-# # plt.plot(standardized[1000:1200])
-# # plt.show()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description="Generate sample data")
+    parser.add_argument("data_dir", type=str, help="Path to data folder")
+    args = parser.parse_args()
+    main()

@@ -19,10 +19,10 @@ from yass.explore import RecordingExplorer
 
 
 @pytest.mark.xfail
-def test_can_train_detector(path_to_nnet_config,
+def test_can_train_detector(path_to_config,
                             path_to_sample_pipeline_folder,
                             make_tmp_folder):
-    yass.set_config(path_to_nnet_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
@@ -35,15 +35,15 @@ def test_can_train_detector(path_to_nnet_config,
     templates = make.load_templates(path_to_sample_pipeline_folder,
                                     spike_train, CONFIG, chosen_templates)
 
-    path_to_standardized = path.join(path_to_sample_pipeline_folder,
-                                    'preprocess', 'standardized.bin')
+    path_to_standarized = path.join(path_to_sample_pipeline_folder,
+                                    'preprocess', 'standarized.bin')
 
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make.training_data(CONFIG, templates,
                                       min_amplitude, max_amplitude,
                                       n_spikes_to_make,
-                                      path_to_standardized)
+                                      path_to_standarized)
 
     _, waveform_length, n_neighbors = x_detect.shape
 
@@ -59,10 +59,10 @@ def test_can_train_detector(path_to_nnet_config,
 
 
 @pytest.mark.xfail
-def test_can_reload_detector(path_to_nnet_config,
+def test_can_reload_detector(path_to_config,
                              path_to_sample_pipeline_folder,
                              make_tmp_folder):
-    yass.set_config(path_to_nnet_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
@@ -75,15 +75,15 @@ def test_can_reload_detector(path_to_nnet_config,
     templates = make.load_templates(path_to_sample_pipeline_folder,
                                     spike_train, CONFIG, chosen_templates)
 
-    path_to_standardized = path.join(path_to_sample_pipeline_folder,
-                                    'preprocess', 'standardized.bin')
+    path_to_standarized = path.join(path_to_sample_pipeline_folder,
+                                    'preprocess', 'standarized.bin')
 
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make.training_data(CONFIG, templates,
                                       min_amplitude, max_amplitude,
                                       n_spikes_to_make,
-                                      path_to_standardized)
+                                      path_to_standarized)
 
     _, waveform_length, n_neighbors = x_detect.shape
 
@@ -102,11 +102,11 @@ def test_can_reload_detector(path_to_nnet_config,
 
 
 @pytest.mark.xfail
-def test_can_use_detector_after_fit(path_to_nnet_config,
+def test_can_use_detector_after_fit(path_to_config,
                                     path_to_sample_pipeline_folder,
                                     make_tmp_folder,
-                                    path_to_standardized_data):
-    yass.set_config(path_to_nnet_config, make_tmp_folder)
+                                    path_to_standarized_data):
+    yass.set_config(path_to_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
@@ -119,15 +119,15 @@ def test_can_use_detector_after_fit(path_to_nnet_config,
     templates = make.load_templates(path_to_sample_pipeline_folder,
                                     spike_train, CONFIG, chosen_templates)
 
-    path_to_standardized = path.join(path_to_sample_pipeline_folder,
-                                    'preprocess', 'standardized.bin')
+    path_to_standarized = path.join(path_to_sample_pipeline_folder,
+                                    'preprocess', 'standarized.bin')
 
     (x_detect, y_detect,
      x_triage, y_triage,
      x_ae, y_ae) = make.training_data(CONFIG, templates,
                                       min_amplitude, max_amplitude,
                                       n_spikes_to_make,
-                                      path_to_standardized)
+                                      path_to_standarized)
 
     _, waveform_length, n_neighbors = x_detect.shape
 
@@ -139,7 +139,7 @@ def test_can_use_detector_after_fit(path_to_nnet_config,
                                  n_iter=10)
     detector.fit(x_detect, y_detect)
 
-    data = RecordingExplorer(path_to_standardized_data).reader.data
+    data = RecordingExplorer(path_to_standarized_data).reader.data
 
     output_names = ('spike_index', 'waveform', 'probability')
 
@@ -150,17 +150,17 @@ def test_can_use_detector_after_fit(path_to_nnet_config,
 
 
 @pytest.mark.xfail
-def test_can_use_neural_network_detector(path_to_nnet_config,
+def test_can_use_neural_network_detector(path_to_config,
                                          path_to_sample_pipeline_folder,
                                          make_tmp_folder,
-                                         path_to_standardized_data):
-    yass.set_config(path_to_nnet_config, make_tmp_folder)
+                                         path_to_standarized_data):
+    yass.set_config(path_to_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
-    PATH_TO_DATA = path_to_standardized_data
+    PATH_TO_DATA = path_to_standarized_data
 
     with open(path.join(path_to_sample_pipeline_folder, 'preprocess',
-                        'standardized.yaml')) as f:
+                        'standarized.yaml')) as f:
         PARAMS = yaml.load(f)
 
     channel_index = make_channel_index(CONFIG.neigh_channels,
@@ -215,17 +215,17 @@ def test_can_use_neural_network_detector(path_to_nnet_config,
 
 
 @pytest.mark.xfail
-def test_splitting_in_batches_does_not_affect(path_to_nnet_config,
+def test_splitting_in_batches_does_not_affect(path_to_config,
                                               path_to_sample_pipeline_folder,
                                               make_tmp_folder,
-                                              path_to_standardized_data):
-    yass.set_config(path_to_nnet_config, make_tmp_folder)
+                                              path_to_standarized_data):
+    yass.set_config(path_to_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
-    PATH_TO_DATA = path_to_standardized_data
+    PATH_TO_DATA = path_to_standarized_data
 
     with open(path.join(path_to_sample_pipeline_folder, 'preprocess',
-                        'standardized.yaml')) as f:
+                        'standarized.yaml')) as f:
         PARAMS = yaml.load(f)
 
     channel_index = make_channel_index(CONFIG.neigh_channels,

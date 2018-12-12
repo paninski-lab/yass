@@ -8,14 +8,11 @@ import re
 import ast
 from glob import glob
 import os
-import sys
 from os.path import basename
 from os.path import splitext
-from shutil import rmtree
+from setuptools import find_packages, setup
+from distutils.extension import Extension
 
-from setuptools import find_packages, Command, setup
-
-# yass was taken...
 NAME = 'yass-algorithm'
 DESCRIPTION = 'YASS: Yet Another Spike Sorter'
 URL = 'https://github.com/paninski-lab/yass'
@@ -23,24 +20,26 @@ EMAIL = 'fkq8@blancas.io'
 AUTHOR = 'Peter Lee, Eduardo Blancas'
 LICENSE = 'Apache'
 
-# pathlib2 and funcsigs are required to be compatible with python 2
-INSTALL_REQUIRES_DOCS = ['pathlib2', 'funcsigs', 'cerberus']
-
-# FIXME: matplotlib should not be a hard dependency and only be  required when
-# using some specific modules. Also evaluate this situation for statsmodels
-# and networkx
+# YASS dependencies
+# NOTE: this are installed when running pip install yass-algorithm, however
+# when building the documentation on readthedocs.io we do not install them
+# and just mock them, if doc building breaks, make sure you update the
+# autodoc_mock_imports list in conf.py
 INSTALL_REQUIRES = [
+    # these first two are only required for Python 2
+    'pathlib2;python_version<"3"', 'funcsigs;python_version<"3"',
+    # dependencies...
     'numpy', 'scipy', 'scikit-learn', 'pyyaml', 'python-dateutil', 'click',
-    'tqdm', 'parmap', 'statsmodels', 'matplotlib', 'networkx',
-    'multiprocess', 'coloredlogs', 'keras',
-] + INSTALL_REQUIRES_DOCS
+    'tqdm', 'multiprocess', 'coloredlogs', 'keras', 'cerberus',
+    # from experimental pipeline (nnet and clustering)
+    # TODO: consider reducing the number of dependencies: parmap, matplotlib
+    # and progressbar2 are not necessary
+    'parmap', 'statsmodels', 'matplotlib', 'networkx', 'Cython', 'progressbar2'
+]
 
-# pass an empty INSTALL_REQUIRES if building the docs, to avoid breaking the
-# build, modules are mocked in conf.py
-INSTALL_REQUIRES = (INSTALL_REQUIRES_DOCS if os.environ.get('READTHEDOCS')
-                    else INSTALL_REQUIRES)
-
-EXTRAS_REQUIRE = {'tensorflow': ['tensorflow']}
+# this will be installed when doing `pip install yass-algorithm[tf]`
+# or `pip install yass-algorithm[tf-gpu]
+EXTRAS_REQUIRE = {'tf': ['tensorflow'], 'tf-gpu': ['tensorflow-gpu']}
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -53,39 +52,42 @@ with open('src/yass/__init__.py', 'rb') as f:
     VERSION = str(ast.literal_eval(_version_re.search(
         f.read().decode('utf-8')).group(1)))
 
+# Cython and numpy installation based on this:
+# https://stackoverflow.com/a/42163080/709975
 
-class UploadCommand(Command):
-    """Support setup.py upload."""
 
-    description = 'Build and publish the package.'
-    user_options = []
+try:
+    from Cython.setuptools import build_ext
+except Exception:
+    # If we couldn't import Cython, use the normal setuptools
+    # and look for a pre-compiled .c file instead of a .pyx file
+    from setuptools.command.build_ext import build_ext
+    ext_modules = [Extension(name="yass.cluster.diptest._diptest",
+                             sources=["src/yass/cluster/diptest/_dip.c",
+                                      "src/yass/cluster/diptest/_diptest.c"],
+                             extra_compile_args=['-O3', '-std=c99'])]
+else:
+    # If we successfully imported Cython, look for a .pyx file
+    ext_modules = [Extension(name="yass.cluster.diptest._diptest",
+                             sources=["src/yass/cluster/diptest/_dip.c",
+                                      "src/yass/cluster/diptest/_diptest.pyx"],
+                             extra_compile_args=['-O3', '-std=c99'])]
 
-    @staticmethod
-    def status(s):
-        """Prints things in bold."""
-        print('\033[1m{0}\033[0m'.format(s))
 
-    def initialize_options(self):
-        pass
-
-    def finalize_options(self):
-        pass
+class CustomBuildExtCommand(build_ext):
+    """build_ext command for use when numpy headers are needed
+    """
 
     def run(self):
-        try:
-            self.status('Removing previous builds...')
-            rmtree(os.path.join(here, 'dist'))
-        except OSError:
-            pass
 
-        self.status('Building Source and Wheel (universal) distribution...')
-        os.system('{0} setup.py sdist bdist_wheel '
-                  '--universal'.format(sys.executable))
+        # Import numpy here, only when headers are needed
+        import numpy
 
-        self.status('Uploading the package to PyPi via Twine...')
-        os.system('twine upload dist/*')
+        # Add numpy headers to include_dirs
+        self.include_dirs.append(numpy.get_include())
 
-        sys.exit()
+        # Call original build_ext command
+        build_ext.run(self)
 
 
 setup(
@@ -120,4 +122,7 @@ setup(
     },
     download_url='{url}/archive/{version}.tar.gz'.format(url=URL,
                                                          version=VERSION),
+    # diptest parameters
+    cmdclass={'build_ext': CustomBuildExtCommand},
+    ext_modules=ext_modules,
 )

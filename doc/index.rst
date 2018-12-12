@@ -18,7 +18,6 @@ Contents
    blocks
    api
    devs
-   advanced
 
 
 Indices and tables

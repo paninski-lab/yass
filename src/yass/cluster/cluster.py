@@ -13,13 +13,14 @@ from scipy.spatial import cKDTree
 from copy import deepcopy
 from sklearn.mixture import GaussianMixture
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
-from diptest.diptest import diptest as dp
+from yass.cluster.diptest.diptest import diptest as dp
 from sklearn.cluster import AgglomerativeClustering
 import networkx as nx
 
 from yass.explore.explorers import RecordingExplorer
 from yass.geometry import n_steps_neigh_channels
 from yass import mfm
+from yass.util import absolute_path_to_asset
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -229,7 +230,7 @@ class Cluster(object):
         # default parameters
         self.n_channels = self.CONFIG.recordings.n_channels
         self.min_spikes_local = self.CONFIG.cluster.min_spikes
-        self.standardized_filename = self.CONFIG.data.root_folder+'/tmp/standardized.bin'
+        self.standardized_filename = os.path.join(self.CONFIG.path_to_output_directory, 'preprocess', 'standarized.bin')
         self.geometry_file = os.path.join(self.CONFIG.data.root_folder,
                                           self.CONFIG.data.geometry)
 
@@ -474,6 +475,7 @@ class Cluster(object):
                      spiketime=spike_train,
                      templates=templates)
 
+
         print ("**** Channel/Unit ", str(self.channel), " starting spikes: ",
             len(self.spike_indexes_chunk), ", found # clusters: ",
             len(spike_train))
@@ -516,7 +518,7 @@ class Cluster(object):
             print ("chan "+str(self.channel)+", gen 0, aligning")
 
         if local:
-            ref_template = np.load(self.CONFIG.data.root_folder+'ref_template.npy')
+            ref_template = np.load(absolute_path_to_asset(os.path.join('template_space', 'ref_template.npy')))
             mc = np.where(self.loaded_channels==self.channel)[0][0]
             best_shifts = align_get_shifts_with_ref(
                 self.wf_global[:, :, mc], ref_template)
@@ -539,11 +541,15 @@ class Cluster(object):
 
 
     def denoise_step_local(self):
+        # align, note: aligning all channels to max chan which is appended to the end
+        # note: max chan is first from feat_chans above, ensure order is preserved
+        # note: don't want for wf array to be used beyond this function
+        # Alignment: upsample max chan only; linear shift other chans
 
-        pc_mc = np.load(self.CONFIG.data.root_folder+'/pc_mc.npy')
-        pc_sec = np.load(self.CONFIG.data.root_folder+'/pc_sec.npy')
-        pc_mc_std = np.load(self.CONFIG.data.root_folder+'/pc_mc_std.npy')
-        pc_sec_std = np.load(self.CONFIG.data.root_folder+'/pc_sec_std.npy')
+        pc_mc = np.load(absolute_path_to_asset(os.path.join('template_space', 'pc_mc.npy')))
+        pc_sec = np.load(absolute_path_to_asset(os.path.join('template_space', 'pc_sec.npy')))
+        pc_mc_std = np.load(absolute_path_to_asset(os.path.join('template_space', 'pc_mc_std.npy')))
+        pc_sec_std = np.load(absolute_path_to_asset(os.path.join('template_space', 'pc_sec_std.npy')))
         
         n_data, _, n_chans = self.wf_global.shape
         self.denoised_wf = np.zeros((n_data, pc_mc.shape[1], n_chans),
@@ -634,8 +640,12 @@ class Cluster(object):
             if len(good_d) < self.selected_PCA_rank:
                 good_d = np.argsort(stds)[::-1][:self.selected_PCA_rank]
 
-            pca = PCA(n_components=self.selected_PCA_rank)
-            pca_wf = pca.fit_transform(self.denoised_wf[indices][:, good_d])
+            data_to_fit = self.denoised_wf[indices][:, good_d]
+
+            n_samples, n_features = data_to_fit.shape
+            pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
+
+            pca_wf = pca.fit_transform(data_to_fit)
            
         else:
             pca_wf = self.denoised_wf[indices].copy()
@@ -1436,7 +1446,7 @@ class Cluster(object):
         self.wf_global = np.memmap(filename=fname, dtype='float32', mode='w+', 
                                    shape=(n_data, self.spike_size, self.n_channels))
 
-        ref_template = np.load(self.CONFIG.data.root_folder+'ref_template.npy')
+        ref_template = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'ref_template.npy'))
 
         index = np.append(np.arange(0, n_data, max_load_size), n_data)
         x = np.arange(-self.spike_size // 2, self.spike_size // 2, 1)

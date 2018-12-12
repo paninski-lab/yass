@@ -29,7 +29,7 @@ import pandas as pd
 import networkx as nx
 import multiprocessing as mp
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
-from diptest.diptest import diptest as dp
+from yass.cluster.diptest.diptest import diptest as dp
 
 from sklearn.decomposition import PCA as PCA_original
 
@@ -2111,6 +2111,8 @@ def make_CONFIG2(CONFIG):
     CONFIG2.cluster.max_n_spikes = CONFIG.cluster.max_n_spikes
     CONFIG2.merge_threshold = CONFIG.cluster.merge_threshold
 
+    CONFIG2.path_to_output_directory = CONFIG.path_to_output_directory
+
     return CONFIG2
 
 
@@ -2145,9 +2147,10 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     #n_sec_chunk = 300
     
     # determine length of processing chunk based on lenght of rec
-    standardized_filename = os.path.join(CONFIG.data.root_folder,
-                                         'tmp/standardized.bin')
-    fp = np.memmap(standardized_filename, dtype='float32', mode='r')
+    standarized_filename = os.path.join(CONFIG.path_to_output_directory,
+                                         'preprocess',
+                                         'standarized.bin')
+    fp = np.memmap(standarized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
 
     # make index list for chunk/parallel processing
@@ -2182,7 +2185,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
     # make chunk directory if not available:
     # save chunk in own directory to enable cumulative recovery 
-    chunk_dir = CONFIG.data.root_folder+"/tmp/cluster/chunk_"+ \
+    chunk_dir = CONFIG.path_to_output_directory+"/cluster/chunk_"+ \
                                                 str(chunk_index).zfill(6)
     if not os.path.isdir(chunk_dir):
         os.makedirs(chunk_dir)
@@ -2248,21 +2251,21 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
     
     # Cat: TODO: this logic isn't quite correct; should merge with above
-    fname = os.path.join(CONFIG.data.root_folder, 
-                         'tmp/cluster/spike_train_post_cluster_post_merge_post_cutoff.npy')
+    fname = os.path.join(CONFIG.path_to_output_directory, 
+                         'cluster/spike_train_post_cluster_post_merge_post_cutoff.npy')
     if os.path.exists(fname)==False: 
 
         # reload recording chunk if not already in memory
         if recording_chunk is None: 
             buffer_size = 200
-            standardized_filename = os.path.join(CONFIG.data.root_folder,
-                                                'tmp', 
-                                                'standardized.bin')
+            standarized_filename = os.path.join(CONFIG.path_to_output_directory,
+                                                'preprocess',
+                                                'standarized.bin')
             n_channels = CONFIG.recordings.n_channels
 
             recording_chunk = binary_reader(idx, 
                                             buffer_size, 
-                                            standardized_filename, 
+                                            standarized_filename, 
                                             n_channels)
                     
         # run global merge function
@@ -2276,7 +2279,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                               units)
 
 
-def binary_reader(idx_list, buffer_size, standardized_filename,
+def binary_reader(idx_list, buffer_size, standarized_filename,
                   n_channels):
 
     # New indexes
@@ -2289,7 +2292,7 @@ def binary_reader(idx_list, buffer_size, standardized_filename,
     offset = idx_local
 
     # ***** LOAD RAW RECORDING *****
-    with open(standardized_filename, "rb") as fin:
+    with open(standarized_filename, "rb") as fin:
         if data_start == 0:
             # Seek position and read N bytes
             recordings_1D = np.fromfile(
@@ -2539,10 +2542,10 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         templates = templates
     
     if out_dir=='cluster':
-        fname = CONFIG.data.root_folder + '/tmp/spike_train_cluster.npy'
+        fname = CONFIG.path_to_output_directory + '/spike_train_cluster.npy'
         np.save(fname, final_spike_train)
         
-        fname = CONFIG.data.root_folder + '/tmp/templates_cluster.npy'
+        fname = CONFIG.path_to_output_directory + '/templates_cluster.npy'
         templates = templates.swapaxes(0,2).swapaxes(1,2)
         np.save(fname, templates)
     
@@ -2749,8 +2752,8 @@ def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG, min_spikes,
 
     print("  "+out_dir+ " templates/spiketrain before merge/cutoff: ", templates.shape, spike_indexes.shape)
 
-    np.save(CONFIG.data.root_folder+'/tmp/'+out_dir+'/templates_post_'+out_dir+'_before_merge_before_cutoff.npy', templates)
-    np.save(CONFIG.data.root_folder+'/tmp/'+out_dir+'/spike_train_post_'+out_dir+'_before_merge_before_cutoff.npy', spike_indexes)
+    np.save(CONFIG.path_to_output_directory+'/'+out_dir+'/templates_post_'+out_dir+'_before_merge_before_cutoff.npy', templates)
+    np.save(CONFIG.path_to_output_directoryr+'/'+out_dir+'/spike_train_post_'+out_dir+'_before_merge_before_cutoff.npy', spike_indexes)
     #print (np.unique(spike_indexes[:,1]))
 
 
@@ -2777,7 +2780,7 @@ def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG, min_spikes,
     # Cat: TODO: this should be parallized, takes several mintues for 49chans, 
     #            should take much less
     
-    cos_sim_file = (CONFIG.data.root_folder+'/tmp/'+out_dir+'/cos_sim_vector_post_'+out_dir+'.npy')
+    cos_sim_file = (CONFIG.path_to_output_directory+'/'+out_dir+'/cos_sim_vector_post_'+out_dir+'.npy')
     if os.path.exists(cos_sim_file)==False:
         sim_temp = calc_cos_sim_vector(temps_PCA, CONFIG)
         sim_temp[np.diag_indices(sim_temp.shape[0])] = 0
@@ -2791,7 +2794,7 @@ def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG, min_spikes,
         sim_temp[np.tril_indices(sim_temp.shape[0])] = 0
         
     # ************** RUN KS TEST ****************
-    global_merge_file = (CONFIG.data.root_folder+'/tmp/'+out_dir+'/merge_matrix_post_'+out_dir+'.npz')
+    global_merge_file = (CONFIG.path_to_output_directory+'/'+out_dir+'/merge_matrix_post_'+out_dir+'.npz')
     if os.path.exists(global_merge_file)==False:
         sim_mat = run_KS_test_new(sim_temp, spike_indexes, recording_chunk, 
                                         CONFIG, chunk_dir, pca_object,
@@ -2842,8 +2845,8 @@ def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG, min_spikes,
     templates = np.float32(templates_final)
     templates = np.swapaxes(templates, 2,0)
      
-    np.save(CONFIG.data.root_folder+'/tmp/'+out_dir+'/templates_post_'+out_dir+'_post_merge_pre_cutoff.npy', templates)
-    np.save(CONFIG.data.root_folder+'/tmp/'+out_dir+'/spike_train_post_'+out_dir+'_post_merge_pre_cutoff.npy', final_spike_train)
+    np.save(CONFIG.path_to_output_directory+'/'+out_dir+'/templates_post_'+out_dir+'_post_merge_pre_cutoff.npy', templates)
+    np.save(CONFIG.path_to_output_directory+'/'+out_dir+'/spike_train_post_'+out_dir+'_post_merge_pre_cutoff.npy', final_spike_train)
 
     print("  "+out_dir+" templates/spike train after merge, pre-spike cutoff: ", templates.shape, final_spike_train.shape)
 
@@ -2877,8 +2880,8 @@ def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG, min_spikes,
     final_templates_cutoff = np.array(final_templates_cutoff).T
 
     # these are saved outside
-    np.save(CONFIG.data.root_folder+'/tmp/'+out_dir+'/templates_post_'+out_dir+'_post_merge_post_cutoff.npy', final_templates_cutoff)
-    np.save(CONFIG.data.root_folder+'/tmp/'+out_dir+'/spike_train_post_'+out_dir+'_post_merge_post_cutoff.npy', final_spike_train_cutoff)
+    np.save(CONFIG.path_to_output_directory+'/'+out_dir+'/templates_post_'+out_dir+'_post_merge_post_cutoff.npy', final_templates_cutoff)
+    np.save(CONFIG.path_to_output_directoryr+'/'+out_dir+'/spike_train_post_'+out_dir+'_post_merge_post_cutoff.npy', final_spike_train_cutoff)
 
     print("  "+out_dir+" templates & spike train post merge, post-spike cutoff: ", final_templates_cutoff.shape, final_spike_train_cutoff.shape)
     
@@ -3083,7 +3086,8 @@ def parallel_merge(data):
     #   spikes and no edge cases are occuring
     ## read waveforms
     # Cat: TODO: spike_size must be read from CONFIG or will crash
-    re = RecordingExplorer(CONFIG.data.root_folder+'/tmp/standardized.bin', 
+    re = RecordingExplorer(os.path.join(CONFIG.path_to_output_directory, 'preprocess',
+                                        'standarized.bin'),
                    path_to_geom = CONFIG.data.root_folder+CONFIG.data.geometry, 
                    spike_size = spike_width//2, 
                    neighbor_radius = 100, 
