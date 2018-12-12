@@ -235,7 +235,7 @@ class Cluster(object):
 
         # CAT: todo read params below from file:
         self.plotting = True
-        self.verbose = True
+        self.verbose = False
         self.starting_gen = 0
         self.knn_triage_threshold = 0.95 * 100
         self.knn_triage_flag = True
@@ -475,7 +475,7 @@ class Cluster(object):
                      templates=templates)
 
         print ("**** Channel/Unit ", str(self.channel), " starting spikes: ",
-            self.wf_global.shape[0], ", found # clusters: ", 
+            len(spike_indexes_chunk), ", found # clusters: ",
             len(spike_train))
 
         self.wf_global = None
