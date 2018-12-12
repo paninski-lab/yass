@@ -142,7 +142,14 @@ class MatchPursuit_objectiveUpsample(object):
         for i in range(self.orig_n_unit):
             self.norm[i] = np.sum(
                     np.square(self.temps[:, self.vis_chan[:, i], i]))
-                    
+        
+        #fname_out = (self.deconv_dir+"/seg_{}_deconv.npz".format(
+        #                                    str(self.seg_ctr).zfill(6)))
+        
+        # np.save(self.deconv_dir+'/vis_chans.npy', self.vis_chan)
+        # np.save(self.deconv_dir+'/norms.npy', self.norm)
+        # quit()
+        
         # Setting up data properties
         self.keep_iterations = keep_iterations
         #self.update_data(data)
@@ -177,9 +184,11 @@ class MatchPursuit_objectiveUpsample(object):
         
         # Account for upsampling window so that np.inf does not fall into the
         # window around peak for valid spikes.
-        self.adjusted_refrac_radius = max(
-                1, self.refrac_radius - self.up_factor // 2)
-
+        #self.adjusted_refrac_radius = max(
+        #        1, self.refrac_radius - self.up_factor // 2)
+        
+        self.adjusted_refrac_radius = 10
+        
         # Stack for turning on invalud units for next iteration
         self.turn_off_stack = []
 
@@ -187,11 +196,12 @@ class MatchPursuit_objectiveUpsample(object):
         if upsample != 1:
             
             if True:
+                max_upsample = 32
                 # original function
                 self.unit_up_factor = np.power(
-                        2, np.floor(np.log2(np.max(self.temps.ptp(axis=0), axis=0))))
-                self.up_factor = min(32, int(np.max(self.unit_up_factor)))
-                self.unit_up_factor[self.unit_up_factor > 32] = 32
+                        4, np.floor(np.log2(np.max(self.temps.ptp(axis=0), axis=0))))
+                self.up_factor = min(max_upsample, int(np.max(self.unit_up_factor)))
+                self.unit_up_factor[self.unit_up_factor > max_upsample] = max_upsample
                 self.up_up_map = np.zeros(
                         self.n_unit * self.up_factor, dtype=np.int32)
                 for i in range(self.n_unit):
@@ -667,6 +677,34 @@ class MatchPursuit_objectiveUpsample(object):
         return self.peak_to_template_idx[shift_idx], self.peak_time_jitter[shift_idx], valid_idx
         
         
+    # def find_peaks_old(self):
+        # """Finds peaks in subtraction differentials of spikes."""
+        # max_across_temp = np.max(self.obj, axis=0)
+        # spike_times = scipy.signal.argrelmax(
+                # max_across_temp, order=self.refrac_radius)[0]
+        # spike_times = spike_times[max_across_temp[spike_times] > self.threshold]
+        # dist_metric = max_across_temp[spike_times]
+        # # TODO(hooshmand): this requires a check of the last element(s)
+        # # of spike_times only not of all of them since spike_times
+        # # is sorted already.
+        # valid_idx = spike_times < self.data_len - self.n_time
+        # dist_metric = dist_metric[valid_idx]
+        # spike_times = spike_times[valid_idx]
+        # # Upsample the objective and find the best shift (upsampled)
+        # # template.
+        # spike_ids = np.argmax(self.obj[:, spike_times], axis=0)
+        # upsampled_template_idx, time_shift, valid_idx = self.high_res_peak(
+                # spike_times, spike_ids)
+        # spike_ids = spike_ids[valid_idx] * self.up_factor + upsampled_template_idx
+        # spike_times = spike_times[valid_idx] - time_shift
+        # # Note that we shift the discovered spike times from convolution
+        # # Space to actual raw voltate space by subtracting self.n_time
+        # result = np.append(
+            # spike_times[:, None] - self.n_time + 1,
+            # spike_ids[:, None], axis=1)
+        
+        # return result, dist_metric[valid_idx]
+
     def find_peaks(self):
         """Finds peaks in subtraction differentials of spikes."""
         max_across_temp = np.max(self.obj, axis=0)
@@ -685,14 +723,18 @@ class MatchPursuit_objectiveUpsample(object):
         spike_ids = np.argmax(self.obj[:, spike_times], axis=0)
         upsampled_template_idx, time_shift, valid_idx = self.high_res_peak(
                 spike_times, spike_ids)
-        spike_ids = spike_ids[valid_idx] * self.up_factor + upsampled_template_idx
-        spike_times = spike_times[valid_idx] - time_shift
+        # The spikes that had NAN in the window and could not be updampled
+        # should fall-back on default value.
+        spike_ids *= self.up_factor
+        if np.sum(valid_idx) > 0:
+            spike_ids[valid_idx] += upsampled_template_idx
+            spike_times[valid_idx] -= time_shift
         # Note that we shift the discovered spike times from convolution
         # Space to actual raw voltate space by subtracting self.n_time
         result = np.append(
             spike_times[:, None] - self.n_time + 1,
             spike_ids[:, None], axis=1)
-        
+
         return result, dist_metric[valid_idx]
 
         

@@ -115,6 +115,31 @@ def run(spike_train_cluster,
     # modify templates for steps below
     templates = templates.swapaxes(1,2).swapaxes(0,1)
 
+    
+    # resize templates
+    if False: 
+        n_channels = CONFIG.recordings.n_channels
+        template_len = 50
+        idx_list_local = idx_list[:initial_chunk]
+        idx = [idx_list_local[0][0], idx_list_local[-1][1], 
+               idx_list_local[0][2], idx_list_local[0][3]]
+
+        spike_index_filename = os.path.join(CONFIG.data.root_folder,
+                                             output_directory,
+                                             'spike_train_cluster.npy')
+                                             
+        print (templates.shape)
+        templates = resize_templates(idx,
+                         templates,
+                         spike_index_filename,
+                         buffer_size, 
+                         standardized_filename, 
+                         n_channels,
+                         CONFIG,
+                         template_len)
+        templates = np.float32(templates).swapaxes(0,1).swapaxes(1,2)
+        print (templates.shape)
+
 
     ''' 
     ***********************************************************
@@ -194,18 +219,18 @@ def run(spike_train_cluster,
     *************** RUN MATCH PURSUIT OVER ALL DATA ***********
     ***********************************************************
     '''
-    # run over rest of data in single chunk run:
+
+    # # process only white noise, first 30 mins
+    # white_noise_only = False
+    # if white_noise_only:
+        # print ("  DECONV ONLY OVER WHITE NOISE STIMULUS ")
+        # max_time = 30*60*CONFIG.recordings.sampling_rate
+        # idx = np.where(np.array(idx_list)[:,0]<max_time)[0]
+        # idx_list = idx_list[idx]
+
+    # Cat: TODO: no need to use chunks anymore, just run all data over single
+    #      temporariy fix: run over rest of data in single chunk run:
     chunk_size = len(idx_list)
-
-    # process only white noise, first 30 mins
-    white_noise_only = False
-    if white_noise_only:
-        print ("  DECONV ONLY OVER WHITE NOISE STIMULUS ")
-        max_time = 30*60*CONFIG.recordings.sampling_rate
-        idx = np.where(np.array(idx_list)[:,0]<max_time)[0]
-        idx_list = idx_list[idx]
-
-    #templates = templates.swapaxes(1,2)
     for chunk_ctr, c in enumerate(range(0, len(idx_list), chunk_size)):
  
         # select segments and chunk to be processed
@@ -231,7 +256,6 @@ def run(spike_train_cluster,
                         idx_list_local, 
                         chunk_ctr,
                         buffer_size)
-
         
 
     ''' 
@@ -259,7 +283,31 @@ def run(spike_train_cluster,
 
     logger.info('spike_train.shape: {}'.format(spike_train.shape))
 
+
+    ''' 
+    *********************************************************
+    **************** POST DECONV MERGE **********************
+    *********************************************************
+    '''
+    if False: 
+        '''
+        # *** COMPUTE RESIDUAL BY DERASTERIZING ***
+        '''
+        compute_residual_function(CONFIG, 
+                                  idx_list_local,
+                                  buffer_size,
+                                  standardized_filename,
+                                  dec_spike_train,
+                                  sparse_upsampled_templates,
+                                  deconv_chunk_dir,
+                                  deconv_id_sparse_temp_map,
+                                  chunk_size,
+                                  CONFIG.resources.n_sec_chunk)
+        
+        get_clean_spikes_from_residual()
+    
     return spike_train, templates
+    
 
 def delete_spikes(templates, spike_train):
 
@@ -545,6 +593,80 @@ def recompute_templates_from_raw(templates,
             CONFIG)
 
 
+def resize_templates(idx,
+                     templates,
+                     spike_index_filename,
+                     buffer_size, 
+                     standardized_filename, 
+                     n_channels,
+                     CONFIG,
+                     template_len):
+                                     
+    '''
+        Function that reloads templates 
+    '''
+
+    # Cat: TODO: data_start is not 0, should be
+    data_start = 0
+    offset = 200
+    #spike_size = int(CONFIG.recordings.spike_size_ms * 2
+    #                 * CONFIG.recordings.sampling_rate / 1000) + 1
+    
+    spike_size = template_len*2+1
+    
+    global recording_chunk
+    recording_chunk = binary_reader(idx, 
+                                    buffer_size, 
+                                    standardized_filename, 
+                                    n_channels)
+    print (templates.shape)
+    units = np.arange(templates.shape[2])
+
+    #if False:
+    if CONFIG.resources.multi_processing:
+        new_templates = parmap.map(resize_templates_parallel,
+               units,
+               spike_index_filename,
+               data_start,
+               offset,
+               spike_size,
+               processes=CONFIG.resources.n_processors,
+               pm_pbar=True)
+    else:
+        for unit in units:
+            resize_templates_parallel(
+            unit,
+            spike_index_filename,
+            data_start,
+            offset,
+            spike_size)                              
+
+    return new_templates
+
+def resize_templates_parallel(unit, 
+                              spike_index_filename,
+                              data_start,
+                              offset,
+                              spike_size):
+
+    # load spikes and templates from cluster step
+    spike_index_cluster = np.load(spike_index_filename)
+
+    idx = np.where(spike_index_cluster[:,1]==unit)[0]
+    spike_train = spike_index_cluster[idx]
+
+    # recompute templates based on raw data
+    templates = []
+    wf = load_waveforms_from_memory(recording_chunk,
+                        data_start,
+                        offset,
+                        spike_train,
+                        spike_size)
+
+    template = np.median(wf, axis=0)
+
+    return template
+    
 def raw_templates_parallel(unit, 
                            deconv_chunk_dir,
                            raw_dir,
