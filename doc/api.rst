@@ -7,8 +7,7 @@ API Reference
     api/preprocess
     api/detect
     api/cluster
-    api/templates
-    api/deconvolute
+    api/deconvolve
     api/geometry
     api/batch
     api/augment

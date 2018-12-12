@@ -64,11 +64,6 @@ Cluster
 
 See :doc:`api/cluster` for details.
 
-Templates
----------
-
-See :doc:`api/templates` for details.
-
 
 Deconvolve
 ----------
@@ -89,4 +84,4 @@ Deconvolve
     }
 
 
-See :doc:`api/deconvolute` for details.
+See :doc:`api/deconvolve` for details.

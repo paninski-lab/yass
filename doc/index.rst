@@ -7,6 +7,9 @@
 .. include:: ../README.rst
 
 
+Note: this documentation is outdated.
+
+
 Contents
 ========
 
