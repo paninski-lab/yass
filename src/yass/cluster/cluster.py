@@ -528,10 +528,7 @@ class Cluster(object):
 
 
     def denoise_step(self, local):
-        # align, note: aligning all channels to max chan which is appended to the end
-        # note: max chan is first from feat_chans above, ensure order is preserved
-        # note: don't want for wf array to be used beyond this function
-        # Alignment: upsample max chan only; linear shift other chans
+
         if self.verbose:
             print ("chan "+str(self.channel)+", gen 0, denoising waveorms")        
 
@@ -542,11 +539,7 @@ class Cluster(object):
 
 
     def denoise_step_local(self):
-        # align, note: aligning all channels to max chan which is appended to the end
-        # note: max chan is first from feat_chans above, ensure order is preserved
-        # note: don't want for wf array to be used beyond this function
-        # Alignment: upsample max chan only; linear shift other chans
-    
+
         pc_mc = np.load(self.CONFIG.data.root_folder+'/pc_mc.npy')
         pc_sec = np.load(self.CONFIG.data.root_folder+'/pc_sec.npy')
         pc_mc_std = np.load(self.CONFIG.data.root_folder+'/pc_mc_std.npy')
@@ -566,30 +559,48 @@ class Cluster(object):
         good_features = np.median(np.square(self.denoised_wf), axis=0) > 0.5
         self.denoised_wf = self.denoised_wf[:, good_features]
 
+
     def denoise_step_distant(self):
-        # align, note: aligning all channels to max chan which is appended to the end
-        # note: max chan is first from feat_chans above, ensure order is preserved
-        # note: don't want for wf array to be used beyond this function
-        # Alignment: upsample max chan only; linear shift other chans
 
-        energy = np.median(np.square(self.wf_global), axis=0)
-        # high activity channels
-        potential_active_chans = np.where(np.max(energy, axis=0) > 0.5)[0]
+        energy = np.median(self.wf_global, axis=0)
+        max_energy = np.min(energy, axis=0)
 
-        # look for ones connected from main channel
+        th = np.max((-0.5, max_energy[self.channel]))
+        max_energy_loc_c = np.where(max_energy <= th)[0]
+        max_energy_loc_t = energy.argmin(axis=0)
+        max_energy_loc = np.hstack((max_energy_loc_t[max_energy_loc_c][:, np.newaxis],
+                                    max_energy_loc_c[:, np.newaxis]))
+
         neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
-        active_chans = np.where(self.connected_channels(potential_active_chans, self.channel, neighbors))[0]
+        t_diff = 3
+        index = np.where(max_energy_loc[:,1]==self.channel)[0][0]
+        keep = self.connecting_points(max_energy_loc, index, neighbors, t_diff)
+
+        max_energy_loc = max_energy_loc[keep]
 
         # exclude main and secondary channels
-        active_chans = active_chans[~np.in1d(active_chans, self.neighbor_chans)]
+        max_energy_loc = max_energy_loc[~np.in1d(max_energy_loc[:,1], self.neighbor_chans)]
 
-        self.denoised_wf = np.zeros((self.wf_global.shape[0], len(active_chans)), dtype='float32')
-        for ii, chan in enumerate(active_chans):
-            #active_timepoints = np.median(np.square(wf_chan), axis=0) > 0.5
-            #pca = PCA(n_components=1)
-            #self.denoised_wf[:, ii] = pca.fit_transform(wf_chan[:, active_timepoints])[:,0]
-            most_active = energy[:,chan].argmax()
-            self.denoised_wf[:, ii] = self.wf_global[:, most_active, chan]
+        self.denoised_wf = np.zeros((self.wf_global.shape[0], len(max_energy_loc)), dtype='float32')
+        for ii in range(len(max_energy_loc)):
+            self.denoised_wf[:, ii] = self.wf_global[:, max_energy_loc[ii,0], max_energy_loc[ii,1]]
+
+
+    def connecting_points(self, points, index, neighbors, t_diff, keep=None):
+        if keep is None:
+            keep = np.zeros(len(points), 'bool')
+
+        if keep[index] == 1:
+            return keep
+        else:
+            keep[index] = 1
+            spatially_close = np.where(neighbors[points[index, 1]][points[:, 1]])[0]
+            close_index = spatially_close[np.abs(points[spatially_close, 0] - points[index, 0]) <= t_diff]
+
+            for j in close_index:
+                keep = self.connecting_points(points, j, neighbors, t_diff, keep)
+
+            return keep
 
 
     def active_chans_step(self, local):
