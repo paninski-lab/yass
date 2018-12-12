@@ -42,7 +42,7 @@ generate-testing-data: ## Generates testing data and files that are used as refe
 	# generate output reference
 	./scripts/generate_output_reference ~/data
 
-	echo 'Done generating sample data, Make sure you upload it and set the YASS_TESTING_DATA_URL variable before running make download-test-data'
+	@echo 'Done generating sample data, Make sure you upload it and set the YASS_TESTING_DATA_URL variable before running make download-test-data'
 
 # self-documenting makefile as described in http://marmelab.com/blog/2016/02/29/auto-documented-makefile.html
 help: ## Show this documentation
