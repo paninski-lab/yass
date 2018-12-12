@@ -1,4 +1,4 @@
-from diptest.diptest import dip
+from diptest import dip
 import numpy as np
 
 

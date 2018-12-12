@@ -64,7 +64,7 @@ except Exception:
     from setuptools.command.build_ext import build_ext
     ext_modules = [Extension(name="diptest._diptest",
                              sources=["src/diptest/_dip.c",
-                                      "src//diptest/_diptest.c"],
+                                      "src/diptest/_diptest.c"],
                              extra_compile_args=['-O3', '-std=c99'])]
 else:
     # If we successfully imported Cython, look for a .pyx file
