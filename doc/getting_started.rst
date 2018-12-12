@@ -46,7 +46,7 @@ Run the following command for more information:
 Running YASS in a Python script
 *******************************
 
-.. literalinclude:: ../examples/pipeline/deconvolute.py
+.. literalinclude:: ../examples/pipeline/deconvolve.py
 
 
 Advanced usage
