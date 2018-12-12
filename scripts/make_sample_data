@@ -50,7 +50,7 @@ def main():
     path_to_output_folder_retina_cfg.mkdir()
 
     # Dataset 1: retina
-    seconds = 5
+    seconds = 10
     channels_total = 49
     channels = 49
 

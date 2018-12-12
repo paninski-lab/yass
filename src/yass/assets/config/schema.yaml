@@ -218,7 +218,7 @@ cluster:
     n_split: 5
     method: voltage_features
     max_n_spikes: 10000
-    min_spikes: 0
+    min_spikes: 5
     merge_threshold: 0.90
     prior:
       beta: 1
