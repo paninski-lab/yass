@@ -1,5 +1,5 @@
 import numpy as np
-from yass.cluster.diptest import _diptest
+from diptest import _diptest
 from pkg_resources import resource_filename
 import warnings
 
