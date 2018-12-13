@@ -6,4 +6,5 @@ export YASS_SAVE_OUTPUT_REFERENCE=1
 pytest tests/unit/
 unset YASS_SAVE_OUTPUT_REFERENCE
 
-mv tests/output_reference/ ~/data/yass-testing-data/output_reference
+# copy generated test data to the original place so all gets uploaded
+cp -r tests/assets/output_reference/ "$1/yass-testing-data/output_reference"

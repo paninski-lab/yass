@@ -10,7 +10,7 @@ YASS configuration file
 
 YASS is configured using a YAML file, below is an example of such configuration:
 
-.. literalinclude:: ../examples/config_sample.yaml
+.. literalinclude:: ../examples/config.yaml
 
 
 If you want to use a Neural Network as detector, you need to provide your
@@ -19,7 +19,7 @@ this `tutorial`_ for details.
 
 .. _tutorial: https://github.com/paninski-lab/yass-examples/blob/master/NN_training_tutorial.ipynb
 
-If you do now want to use a Neural Network, you can use the `threshold`
+If you do not want to use a Neural Network, you can use the `threshold`
 detector instead.
 
 For details regarding the configuration file see :doc:`config`.
@@ -46,4 +46,15 @@ Run the following command for more information:
 Running YASS in a Python script
 *******************************
 
-.. literalinclude:: ../examples/pipeline/deconvolute.py
+.. literalinclude:: ../examples/pipeline/deconvolve.py
+
+
+Advanced usage
+**************
+
+`yass sort` is a wrapper for the code in `yass.pipeline.run`, it provides
+a pipeline implementation with some defaults but you cannot customize it,
+if you want to use experimental features, the only way to do so is to
+customize your pipeline:
+
+.. literalinclude:: ../examples/pipeline/custom.py

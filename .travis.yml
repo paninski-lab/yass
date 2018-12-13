@@ -9,13 +9,13 @@ sudo: required
 install:
   - sudo apt-get install gfortran python-liblas libblas-dev liblapack-dev libatlas-dev
   - pip install --upgrade pip
-  - make install
+  - pip install -r requirements.txt
+  - pip install .[tf]
 
 script:
-  - pip install tensorflow; pip install Cython; pip install git+https://github.com/paninski-lab/diptest@fix-import progressbar2
   - make download-test-data
   - make test
-  # - make integration-test
   - make docs
+  # - make integration-test
 
 after_success: coveralls

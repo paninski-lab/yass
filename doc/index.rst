@@ -7,6 +7,9 @@
 .. include:: ../README.rst
 
 
+Note: this documentation is outdated.
+
+
 Contents
 ========
 
@@ -18,7 +21,6 @@ Contents
    blocks
    api
    devs
-   advanced
 
 
 Indices and tables

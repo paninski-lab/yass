@@ -152,6 +152,13 @@ def load_asset(path):
     return asset
 
 
+def absolute_path_to_asset(path):
+    relative_path = os.path.join('assets', path)
+    absolute_path = resource_filename('yass', relative_path)
+
+    return absolute_path
+
+
 def load_logging_config_file():
     content = load_yaml_asset(os.path.join('logger', 'config.yaml'))
     return content

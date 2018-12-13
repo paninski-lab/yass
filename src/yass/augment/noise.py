@@ -135,7 +135,8 @@ def search_noise_snippets(recordings, is_noise_idx, sample_size,
 
     Parameters
     ----------
-    channel_choices
+    channel_choices: list
+        List of sets of channels to select at random on each trial
     max_trials_per_sample: int, optional
         Maximum random trials per sample
     allow_smaller_sample_size: bool, optional
@@ -162,9 +163,10 @@ def search_noise_snippets(recordings, is_noise_idx, sample_size,
     else:
         lenghts = set([len(ch) for ch in channel_choices])
 
-        if len(lenghts):
+        if len(lenghts) > 1:
             raise ValueError('All elements in channel_choices must have '
                              'the same length, got {}'.format(lenghts))
+
         n_channels = len(channel_choices[0])
         noise_wf = np.zeros((sample_size, temporal_size, n_channels))
 

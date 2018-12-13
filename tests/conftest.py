@@ -2,7 +2,9 @@ import shutil
 import tempfile
 import numpy as np
 import os
+from os.path import getsize
 import pytest
+import yaml
 from util import PATH_TO_TESTS, seed, dummy_predict_with_threshold
 
 PATH_TO_ASSETS = os.path.join(PATH_TO_TESTS, 'assets')
@@ -23,31 +25,34 @@ def patch_triage_network(monkeypatch):
     yield
 
 
-@pytest.fixture()
-def data_info():
-    d = dict()
+def _path_to_config():
+    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'config.yaml')
 
-    d['spike_size_ms'] = 1.5
-    d['sampling_frequency'] = 20000
-    d['spike_size'] = int(np.round(d['spike_size_ms'] *
-                                   d['sampling_frequency']/2000))
-    d['BUFF'] = d['spike_size'] * 2
-    d['n_features'] = 3
-    d['n_channels'] = 49
-    d['observations'] = 20000
-    d['data_order'] = 'samples'
-    d['dtype'] = 'int16'
+
+def _data_info():
+
+    with open(_path_to_config()) as f:
+        d = yaml.load(f)
 
     return d
 
 
 @pytest.fixture()
+def data_info():
+    return _data_info()
+
+
+@pytest.fixture()
 def data():
-    info = data_info()
+    info = _data_info()['recordings']
 
     path = os.path.join(PATH_TO_RETINA_DIR, 'data.bin')
-    d = np.fromfile(path, dtype='int16')
-    d = d.reshape(info['observations'], info['n_channels'])
+    d = np.fromfile(path, dtype=info['dtype'])
+
+    n_observations = int(getsize(path) / info['n_channels'] /
+                         np.dtype(info['dtype']).itemsize)
+
+    d = d.reshape(n_observations, info['n_channels'])
     return d
 
 
@@ -85,10 +90,10 @@ def path_to_sample_pipeline_folder():
 
 
 @pytest.fixture()
-def path_to_standardized_data():
+def path_to_standarized_data():
     return os.path.join(PATH_TO_RETINA_DIR,
                         'sample_pipeline_output', 'preprocess',
-                        'standardized.bin')
+                        'standarized.bin')
 
 
 @pytest.fixture()
@@ -97,13 +102,13 @@ def path_to_output_reference():
 
 
 @pytest.fixture
-def path_to_nnet_config():
-    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'nnet.yaml')
+def path_to_config():
+    return _path_to_config()
 
 
 @pytest.fixture
-def path_to_threshold_config():
-    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'threshold.yaml')
+def path_to_config_threshold():
+    return os.path.join(PATH_TO_RETINA_CONFIG_DIR, 'config_threshold.yaml')
 
 
 @pytest.fixture

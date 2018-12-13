@@ -16,9 +16,9 @@ from yass.batch import RecordingsReader
 
 
 @pytest.fixture()
-def templates_uncropped(path_to_nnet_config, make_tmp_folder,
+def templates_uncropped(path_to_config, make_tmp_folder,
                         path_to_sample_pipeline_folder,
-                        path_to_standardized_data):
+                        path_to_standarized_data):
     spike_train = np.array([100, 0,
                             150, 0,
                             200, 1,
@@ -26,11 +26,11 @@ def templates_uncropped(path_to_nnet_config, make_tmp_folder,
                             300, 2,
                             350, 2]).reshape(-1, 2)
 
-    yass.set_config(path_to_nnet_config, make_tmp_folder)
+    yass.set_config(path_to_config, make_tmp_folder)
     CONFIG = yass.read_config()
 
     spike_train = np.load(path.join(path_to_sample_pipeline_folder,
-                                    'spike_train.npy'))
+                                    'spike_train_post_deconv_post_merge.npy'))
 
     n_spikes, _ = spike_train.shape
 
@@ -38,7 +38,7 @@ def templates_uncropped(path_to_nnet_config, make_tmp_folder,
                                       np.ones((n_spikes, 1), 'int32')))
 
     templates_uncropped, _ = get_templates(weighted_spike_train,
-                                           path_to_standardized_data,
+                                           path_to_standarized_data,
                                            CONFIG.resources.max_memory,
                                            4*CONFIG.spike_size)
 
@@ -51,16 +51,15 @@ def test_can_make_clean(templates_uncropped):
     make_from_templates(templates_uncropped,
                         min_amplitude=2,
                         max_amplitude=10,
-                        n_per_template=100)
+                        n_per_amplitude_step=100)
 
 
 def test_can_make_collided(templates_uncropped):
     x_clean = make_from_templates(templates_uncropped, min_amplitude=2,
                                   max_amplitude=10,
-                                  n_per_template=100)
+                                  n_per_amplitude_step=100)
 
-    make_collided(x_clean, n_per_spike=1,
-                  multi_channel=True,
+    make_collided(x_clean, x_clean, n_per_spike=1,
                   max_shift=3,
                   min_shift=2)
 
@@ -68,7 +67,7 @@ def test_can_make_collided(templates_uncropped):
 def test_can_make_spatially_misaligned(templates_uncropped):
     x_clean = make_from_templates(templates_uncropped, min_amplitude=2,
                                   max_amplitude=10,
-                                  n_per_template=100)
+                                  n_per_amplitude_step=100)
 
     make_spatially_misaligned(x_clean, n_per_spike=1)
 
@@ -77,13 +76,13 @@ def test_can_make_temporally_misaligned(templates_uncropped):
     x_clean = make_from_templates(templates_uncropped,
                                   min_amplitude=2,
                                   max_amplitude=10,
-                                  n_per_template=100)
+                                  n_per_amplitude_step=100)
 
-    make_temporally_misaligned(x_clean, n_per_spike=1, multi_channel=True)
+    make_temporally_misaligned(x_clean, n_per_spike=1)
 
 
-def test_can_compute_noise_cov(path_to_tests, path_to_standardized_data):
-    recordings = RecordingsReader(path_to_standardized_data,
+def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):
+    recordings = RecordingsReader(path_to_standarized_data,
                                   loader='array')._data
 
     spatial_SIG, temporal_SIG = noise_cov(recordings,
@@ -93,8 +92,8 @@ def test_can_compute_noise_cov(path_to_tests, path_to_standardized_data):
                                           window_size=10)
 
 
-def test_can_make_noise(path_to_tests, path_to_standardized_data):
-    recordings = RecordingsReader(path_to_standardized_data,
+def test_can_make_noise(path_to_tests, path_to_standarized_data):
+    recordings = RecordingsReader(path_to_standarized_data,
                                   loader='array')._data
 
     spatial_SIG, temporal_SIG = noise_cov(recordings,

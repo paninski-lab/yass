@@ -1,2 +1,3 @@
 include README.rst LICENSE
 include src/yass/assets/*/*
+include src/diptest/dip_crit.txt

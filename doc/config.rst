@@ -3,4 +3,4 @@
 YASS configuration file
 =======================
 
-.. literalinclude:: ../examples/config_sample_complete.yaml
+.. literalinclude:: ../examples/config.yaml

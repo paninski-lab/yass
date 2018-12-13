@@ -15,7 +15,7 @@ import numpy as np
                  mode='extract', relative_to='output_path')
 def standarize(path_to_data, dtype, n_channels, data_order,
                sampling_frequency, max_memory, output_path,
-               output_dtype, output_filename='standardized.bin',
+               output_dtype, output_filename='standarized.bin',
                if_file_exists='skip', processes='max'):
     """
     Standarize recordings in batches and write results to disk. Standard
@@ -47,17 +47,17 @@ def standarize(path_to_data, dtype, n_channels, data_order,
         Max memory to use in each batch (e.g. 100MB, 1GB)
 
     output_path: str
-        Where to store the standardized recordings
+        Where to store the standarized recordings
 
     output_dtype: str
-        dtype  for standardized data
+        dtype  for standarized data
 
     output_filename: str, optional
         Filename for the output data, defaults to whitened.bin
 
     if_file_exists: str, optional
         One of 'overwrite', 'abort', 'skip'. If 'overwrite' it replaces the
-        standardized data if it exists, if 'abort' if raise a ValueError
+        standarized data if it exists, if 'abort' if raise a ValueError
         exception if the file exists, if 'skip' if skips the operation if the
         file exists
 
@@ -67,11 +67,11 @@ def standarize(path_to_data, dtype, n_channels, data_order,
 
     Returns
     -------
-    standardized_path: str
-        Path to standardized recordings
+    standarized_path: str
+        Path to standarized recordings
 
-    standardized_params: dict
-        A dictionary with the parameters for the standardized recordings
+    standarized_params: dict
+        A dictionary with the parameters for the standarized recordings
         (dtype, n_channels, data_order)
     """
     processes = multiprocess.cpu_count() if processes == 'max' else processes
@@ -87,14 +87,14 @@ def standarize(path_to_data, dtype, n_channels, data_order,
         return np.divide(rec, sd)
 
     # apply transformation
-    (standardized_path,
-     standardized_params) = bp.multi_channel_apply(divide,
+    (standarized_path,
+     standarized_params) = bp.multi_channel_apply(divide,
                                                   mode='disk',
                                                   output_path=_output_path,
                                                   cast_dtype=output_dtype,
                                                   processes=processes)
 
-    return standardized_path, standardized_params
+    return standarized_path, standarized_params
 
 
 def standard_deviation(batch_processor, sampling_frequency,

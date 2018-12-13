@@ -29,7 +29,7 @@ def expand_asset_model(mapping, section, subsection, field):
     mapping[section][subsection][field] = new_value
 
 
-def validate(mapping):
+def validate(mapping, silent=True):
     """Validate values in the input dictionary using a reference schema
     """
     path_to_validator = resource_filename('yass',
@@ -40,7 +40,7 @@ def validate(mapping):
     validator = Validator(schema)
     is_valid = validator.validate(mapping)
 
-    if not is_valid:
+    if not is_valid and silent:
         raise ValueError('Errors occurred while validating the '
                          'configuration file: {}'
                          .format(validator.errors))

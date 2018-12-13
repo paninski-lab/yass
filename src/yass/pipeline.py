@@ -47,8 +47,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         Delete CONFIG.data.root_folder/output_dir/ before running
 
     output_dir: str, optional
-        Output directory (relative to CONFIG.data.root_folder to store the
-        output data, defaults to tmp/
+        Output directory (if relative, it makes it relative to
+        CONFIG.data.root_folder) to store the output data, defaults to tmp/.
+        If absolute, it leaves it as it is.
 
     complete: bool, optional
         Generates extra files (needed to generate phy files)
@@ -172,8 +173,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # run deconvolution
     start=time.time()
     spike_train, postdeconv_templates = deconvolve.run(spike_train_cluster, 
-                                                         templates_cluster,
-                                                         output_directory=output_dir)
+                                                         templates_cluster)
     time_deconvolution = time.time() - start
 
     # save spike train

@@ -83,10 +83,10 @@ def butterworth(path_to_data, dtype, n_channels, data_order,
 
     Returns
     -------
-    standardized_path: str
+    standarized_path: str
         Location to filtered recordings
 
-    standardized_params: dict
+    standarized_params: dict
         A dictionary with the parameters for the filtered recordings
         (dtype, n_channels, data_order)
     """
@@ -284,9 +284,9 @@ def filter_standardize_parallel(data_in, low_frequency, high_factor, order,
 
     # Standardize data
     sd = _standard_deviation(res, sampling_frequency)
-    standardized = np.divide(res, sd)
+    standarized = np.divide(res, sd)
 
-    return standardized
+    return standarized
 
 
 def filter_standardize(data_in, low_frequency, high_factor, order,
@@ -404,14 +404,14 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
 
     # Standardize data
     sd = _standard_deviation(res, sampling_frequency)
-    standardized = np.divide(res, sd)
+    standarized = np.divide(res, sd)
 
     np.save(
         os.path.join(output_directory,
-                     "filtered_files/standardized_" + str(chunk_idx).zfill(6)),
-        standardized)
+                     "filtered_files/standarized_" + str(chunk_idx).zfill(6)),
+        standarized)
 
-    return standardized.shape
+    return standarized.shape
 
 
 def merge_filtered_files(output_directory):
@@ -422,8 +422,8 @@ def merge_filtered_files(output_directory):
     filenames = os.listdir(path)
     filenames_sorted = sorted(filenames)
 
-    f_out = os.path.join(output_directory, "standardized.bin")
-    logger.info('...saving standardized file: %s', f_out)
+    f_out = os.path.join(output_directory, "standarized.bin")
+    logger.info('...saving standarized file: %s', f_out)
 
     f = open(f_out, 'wb')
     for fname in filenames_sorted:

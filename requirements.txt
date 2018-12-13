@@ -8,11 +8,7 @@ sphinx>=1.6
 sphinxcontrib-blockdiag
 numpydoc
 
-# notebooks
-jupyter
-matplotlib
-
 # profiling
-memory_profiler
-line-profiler
-psutil
+# memory_profiler
+# line-profiler
+# psutil

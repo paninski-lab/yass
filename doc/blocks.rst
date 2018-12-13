@@ -1,6 +1,9 @@
 Using pre-built pipeline
 ========================
 
+Note: this document is outdated. The default pipeline has changed but not
+documented yet.
+
 YASS provides with a pre-built pipeline for spike sorting, which consists of
 five parts: preprocess, detect, cluster, make templates and deconvolute.
 
@@ -61,11 +64,6 @@ Cluster
 
 See :doc:`api/cluster` for details.
 
-Templates
----------
-
-See :doc:`api/templates` for details.
-
 
 Deconvolve
 ----------
@@ -86,4 +84,4 @@ Deconvolve
     }
 
 
-See :doc:`api/deconvolute` for details.
+See :doc:`api/deconvolve` for details.
