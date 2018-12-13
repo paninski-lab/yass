@@ -2260,7 +2260,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
             buffer_size = 200
             standarized_filename = os.path.join(CONFIG.path_to_output_directory,
                                                 'preprocess',
-                                                'standarized.bin')
+                                                'standardized.bin')
             n_channels = CONFIG.recordings.n_channels
 
             recording_chunk = binary_reader(idx, 
