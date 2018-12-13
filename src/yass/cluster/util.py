@@ -2149,7 +2149,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     # determine length of processing chunk based on lenght of rec
     standarized_filename = os.path.join(CONFIG.path_to_output_directory,
                                          'preprocess',
-                                         'standarized.bin')
+                                         'standardized.bin')
     fp = np.memmap(standarized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
 
