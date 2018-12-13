@@ -157,7 +157,7 @@ def main():
     #             sampling_frequency=sampling_frequency, max_memory='1GB',
     #             output_path=str(path_to_output_folder_neuro),
     #             standarize=True,
-    #             output_filename='standarized.bin',
+    #             output_filename='standardized.bin',
     #             if_file_exists='overwrite',
     #             output_dtype='float32')
 
@@ -165,8 +165,8 @@ def main():
     # # a file for conftest data_info()
 
     # # import matplotlib.pyplot as plt
-    # # standarized = RecordingsReader('tests/data/standarized.bin', loader='array').data
-    # # plt.plot(standarized[1000:1200])
+    # # standardized = RecordingsReader('tests/data/standardized.bin', loader='array').data
+    # # plt.plot(standardized[1000:1200])
     # # plt.show()
 
 

@@ -27,25 +27,25 @@ logging.basicConfig(level=logging.INFO)
 yass.set_config('config.yaml', 'custom-example')
 
 # run standarization using the stable implementation (by default)
-(standarized_path, standarized_params,
+(standardized_path, standardized_params,
  whiten_filter) = preprocess.run()
 
 # ...or using the experimental code (see source code for details)
-(standarized_path, standarized_params,
+(standardized_path, standardized_params,
  whiten_filter) = preprocess.run(function=experimental_run)
 
 # run detection using threshold detector
 (spike_index_clear,
- spike_index_all) = detect.run(standarized_path,
-                               standarized_params,
+ spike_index_all) = detect.run(standardized_path,
+                               standardized_params,
                                whiten_filter,
                                function=threshold.run)
 
 # ...or using the neural network detector (see source code for details)
 # on changing the network to use
 (spike_index_clear,
- spike_index_all) = detect.run(standarized_path,
-                               standarized_params,
+ spike_index_all) = detect.run(standardized_path,
+                               standardized_params,
                                whiten_filter,
                                function=nnet.run)
 
@@ -54,8 +54,8 @@ yass.set_config('config.yaml', 'custom-example')
 # (see source code for details) on changing the network to use and the
 # difference between this and the stable implementation
 (spike_index_clear,
- spike_index_all) = detect.run(standarized_path,
-                               standarized_params,
+ spike_index_all) = detect.run(standardized_path,
+                               standardized_params,
                                whiten_filter,
                                function=nnet_experimental.run)
 

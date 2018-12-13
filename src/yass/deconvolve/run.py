@@ -32,7 +32,9 @@ sorted_colors = [name for hsv, name in by_hsv]
 
 
 def run(spike_train_cluster,
-        templates):
+        templates,
+        output_directory='tmp/',
+        recordings_filename='standardized.bin'):
     """Deconvolute spikes
 
     Parameters
@@ -46,6 +48,15 @@ def run(spike_train_cluster,
 
     templates: numpy.ndarray (n_channels, waveform_size, n_templates)
         A 3D array with the templates
+
+    output_directory: str, optional
+        Output directory (relative to CONFIG.data.root_folder) used to load
+        the recordings to generate templates, defaults to tmp/
+
+    recordings_filename: str, optional
+        Recordings filename (relative to CONFIG.data.root_folder/
+        output_directory) used to draw the waveforms from, defaults to
+        standardized.bin
 
     Returns
     -------
@@ -74,10 +85,12 @@ def run(spike_train_cluster,
     ''' 
     # compute chunk and segment lists for parallel processing below
     idx_list = compute_idx_list(templates, 
-                                CONFIG)
+                                CONFIG, 
+                                output_directory,
+                                recordings_filename)
            
     # make deconv directory
-    deconv_dir = os.path.join(CONFIG.path_to_output_directory, 'deconv')
+    deconv_dir = os.path.join(CONFIG.data.root_folder, 'tmp/deconv')
     if not os.path.isdir(deconv_dir):
         os.makedirs(deconv_dir)
 
@@ -85,8 +98,9 @@ def run(spike_train_cluster,
     # Cat: TODO: recording_chunk should be a shared variable in 
     #            multiprocessing module;
     buffer_size = 200
-    standardized_filename = os.path.join(CONFIG.path_to_output_directory, 
-                                         'preprocess', 'standarized.bin')
+    standardized_filename = os.path.join(CONFIG.data.root_folder,
+                                         output_directory, 
+                                         recordings_filename)
 
     # compute pairwise convolution filter outside match pursuit
     # Cat: TODO: make sure you don't miss chunks at end
@@ -113,10 +127,18 @@ def run(spike_train_cluster,
 
 
     # modify templates for steps below
-    templates = templates.swapaxes(1,2).swapaxes(0,1)
+    if True:
+        templates = templates.swapaxes(1,2).swapaxes(0,1)
+    else:
+        print (" >>>>>> LOADING MANUALLY RECOMPUTED TEMPLATES  <<<<<")
+        templates = np.load('/media/cat/256GB/liam/49channels/synthetic_003/tmp/templates_recomputed.npy')
 
-    
-    # resize templates
+
+    ''' 
+    ***********************************************************
+    *********** RECOMPUTE/RESIZE TEMPLATES ********************
+    ***********************************************************
+    '''
     if False: 
         n_channels = CONFIG.recordings.n_channels
         template_len = 50
@@ -127,16 +149,16 @@ def run(spike_train_cluster,
         spike_index_filename = os.path.join(CONFIG.data.root_folder,
                                              output_directory,
                                              'spike_train_cluster.npy')
-                                             
+
         print (templates.shape)
-        templates = resize_templates(idx,
-                         templates,
-                         spike_index_filename,
-                         buffer_size, 
-                         standardized_filename, 
-                         n_channels,
-                         CONFIG,
-                         template_len)
+        templates = recompute_templates(idx,
+                                     templates,
+                                     spike_index_filename,
+                                     buffer_size, 
+                                     standardized_filename, 
+                                     n_channels,
+                                     CONFIG,
+                                     template_len)
         templates = np.float32(templates).swapaxes(0,1).swapaxes(1,2)
         print (templates.shape)
 
@@ -159,8 +181,8 @@ def run(spike_train_cluster,
         # select segments and chunk to be processed
         #idx_list_local = idx_list[c:c+chunk_size]
         idx_list_local = idx_list[c:c+chunk_size]
-        deconv_chunk_dir = os.path.join(deconv_dir,
-                          'initial/chunk_'+str(chunk_ctr).zfill(6))
+        deconv_chunk_dir = os.path.join(CONFIG.data.root_folder,
+                          'tmp/deconv/initial/chunk_'+str(chunk_ctr).zfill(6))
         if not os.path.isdir(deconv_chunk_dir):
             os.makedirs(deconv_chunk_dir)
             os.makedirs(deconv_chunk_dir+'/lost_units/')
@@ -211,7 +233,9 @@ def run(spike_train_cluster,
                                               deconv_chunk_dir,
                                               spike_train_cluster_prev_iteration,
                                               idx_list_local,
-                                              initial_chunk)
+                                              initial_chunk,
+                                              output_directory, 
+                                              recordings_filename)
 
 
     ''' 
@@ -234,29 +258,81 @@ def run(spike_train_cluster,
     for chunk_ctr, c in enumerate(range(0, len(idx_list), chunk_size)):
  
         # select segments and chunk to be processed
-        #idx_list_local = idx_list[c:c+chunk_size]
         idx_list_local = idx_list[c:c+chunk_size]
-        deconv_chunk_dir = os.path.join(deconv_dir,
-                          'chunk_'+str(chunk_ctr).zfill(6))
+        deconv_chunk_dir = os.path.join(CONFIG.data.root_folder,
+                          'tmp/deconv/chunk_'+str(chunk_ctr).zfill(6))
         if not os.path.isdir(deconv_chunk_dir):
             os.makedirs(deconv_chunk_dir)
             os.makedirs(deconv_chunk_dir+'/lost_units/')
 
         # Cat: TODO: don't recomp temp_temp for final step if prev. computed
-        #templates = templates.swapaxes(1,2)
-        match_pursuit_function(
-                        CONFIG, 
-                        templates, 
-                        spike_train_cluster,
-                        deconv_chunk_dir,
-                        standardized_filename,
-                        max_iter,
-                        threshold,
-                        conv_approx_rank,
-                        idx_list_local, 
-                        chunk_ctr,
-                        buffer_size)
+        (sparse_upsampled_templates, 
+         dec_spike_train, 
+         deconv_id_sparse_temp_map, 
+         spike_train_cluster_prev_iteration) = match_pursuit_function(
+                                                CONFIG, 
+                                                templates, 
+                                                spike_train_cluster,
+                                                deconv_chunk_dir,
+                                                standardized_filename,
+                                                max_iter,
+                                                threshold,
+                                                conv_approx_rank,
+                                                idx_list_local, 
+                                                chunk_ctr,
+                                                buffer_size)
         
+        
+    ''' 
+    ***********************************************************
+    *********** RECOMPUTE/RESIZE TEMPLATES ********************
+    ***********************************************************
+    '''
+    if False: 
+        n_channels = CONFIG.recordings.n_channels
+        template_len = 50
+        idx_list_local = idx_list[:initial_chunk]
+        idx = [idx_list_local[0][0], idx_list_local[-1][1], 
+               idx_list_local[0][2], idx_list_local[0][3]]
+
+        spike_index_filename = os.path.join(CONFIG.data.root_folder,
+                                             output_directory,
+                                             'spike_train_cluster.npy')
+
+        print (templates.shape)
+        templates = recompute_templates(idx,
+                                     templates,
+                                     spike_index_filename,
+                                     buffer_size, 
+                                     standardized_filename, 
+                                     n_channels,
+                                     CONFIG,
+                                     template_len)
+        templates = np.float32(templates).swapaxes(0,1).swapaxes(1,2)
+        print (templates.shape)
+
+
+    ''' 
+    *********************************************************
+    ************* COMPUTE AND SAVE RESIDUAL *****************
+    *********************************************************
+    '''
+ 
+    if False:
+        print ("  OPTIONAL: computing residual...")
+        compute_residual_function(CONFIG, 
+                              idx_list,     # compute residual over entire dataset
+                              buffer_size,
+                              standardized_filename,
+                              dec_spike_train,
+                              sparse_upsampled_templates,
+                              deconv_chunk_dir,
+                              deconv_id_sparse_temp_map,
+                              chunk_size,
+                              CONFIG.resources.n_sec_chunk)
+
+        quit()
+
 
     ''' 
     *********************************************************
@@ -269,8 +345,8 @@ def run(spike_train_cluster,
     for chunk_ctr, c in enumerate(range(0, len(idx_list), chunk_size)):
 
         # make deconv chunk directory
-        deconv_chunk_dir = os.path.join(deconv_dir,
-                          'chunk_'+str(chunk_ctr).zfill(6))
+        deconv_chunk_dir = os.path.join(CONFIG.data.root_folder,
+                          'tmp/deconv/chunk_'+str(chunk_ctr).zfill(6))
 
         deconv_results = np.load(deconv_chunk_dir+'/deconv_results.npz')
         temp_train = deconv_results['spike_train']
@@ -369,7 +445,8 @@ def align_singletrace_lastchan(wf, CONFIG, upsample_factor = 5, nshifts = 15,
 
     return np.float32(wf_final[:,::upsample_factor]), best_shifts
     
-def compute_idx_list(templates, CONFIG):
+def compute_idx_list(templates, CONFIG, output_directory, 
+                                        recordings_filename):
     
     # necessary parameters
     n_channels, n_temporal_big, n_templates = templates.shape
@@ -384,8 +461,8 @@ def compute_idx_list(templates, CONFIG):
     buffer_size = 200
 
     # Grab length of .dat file to compute chunk indexes below
-    standardized_filename = os.path.join(CONFIG.path_to_output_directory,
-                                         'preprocess', 'standarized.bin')
+    standardized_filename = os.path.join(CONFIG.data.root_folder, 
+                                    output_directory, recordings_filename)
     
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
@@ -412,7 +489,9 @@ def reclustering_function(CONFIG,
                           deconv_chunk_dir,
                           spike_train_cluster_new,
                           idx_list_local,
-                          initial_chunk):
+                          initial_chunk,
+                          output_directory, 
+                          recordings_filename):
 
     idx_chunk = [idx_list_local[0][0], idx_list_local[-1][1], 
                  idx_list_local[0][2], idx_list_local[0][3]]
@@ -442,8 +521,9 @@ def reclustering_function(CONFIG,
     offset = idx[2]
     n_channels = CONFIG.recordings.n_channels
     buffer_size = 200
-    standardized_filename = os.path.join(CONFIG.path_to_output_directory,
-                                         'preprocess', 'standarized.bin')
+    standardized_filename = os.path.join(CONFIG.data.root_folder,
+                                         output_directory, 
+                                         recordings_filename)
 
     residual_clustering_flag = True
     if residual_clustering_flag:
@@ -593,7 +673,7 @@ def recompute_templates_from_raw(templates,
             CONFIG)
 
 
-def resize_templates(idx,
+def recompute_templates(idx,
                      templates,
                      spike_index_filename,
                      buffer_size, 
@@ -843,10 +923,14 @@ def compute_residual_function(CONFIG, idx_list_local,
     # Note: this uses spike times occuring at beginning of spike
     fname = (deconv_chunk_dir+"/residual.npy")
     min_ptp = 0.0
-    print ("  residual computation excludes units < ", min_ptp, "SU")
+    #print ("  residual computation excludes units < ", min_ptp, "SU")
     if os.path.exists(fname)==False:
         wf_object.compute_residual_new(CONFIG, min_ptp)
         np.save(fname, wf_object.data)
+        print (" TODO: currently saving both .npy and .bin residuals, to change")
+        wf_object.data = wf_object.data.reshape(-1)
+        wf_object.data.tofile(fname[:-4]+'.bin')
+        
     else:
         wf_object.data = np.load(fname)
 

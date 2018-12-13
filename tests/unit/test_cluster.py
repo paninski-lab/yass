@@ -11,12 +11,12 @@ from yass import cluster
 def test_cluster_threshold(path_to_config_threshold, make_tmp_folder):
     yass.set_config(path_to_config_threshold, make_tmp_folder)
 
-    (standarized_path,
-     standarized_params,
+    (standardized_path,
+     standardized_params,
      whiten_filter) = preprocess.run()
 
-    spike_index_all = detect.run(standarized_path,
-                                 standarized_params,
+    spike_index_all = detect.run(standardized_path,
+                                 standardized_params,
                                  whiten_filter)
 
     cluster.run(None, spike_index_all)
@@ -25,12 +25,12 @@ def test_cluster_threshold(path_to_config_threshold, make_tmp_folder):
 def test_cluster_nnet(path_to_config, make_tmp_folder):
     yass.set_config(path_to_config, make_tmp_folder)
 
-    (standarized_path,
-     standarized_params,
+    (standardized_path,
+     standardized_params,
      whiten_filter) = preprocess.run()
 
-    spike_index_all = detect.run(standarized_path,
-                                 standarized_params,
+    spike_index_all = detect.run(standardized_path,
+                                 standardized_params,
                                  whiten_filter)
 
     cluster.run(None, spike_index_all)
@@ -40,12 +40,12 @@ def test_cluster_save_results(path_to_config, make_tmp_folder):
 
     yass.set_config(path_to_config, make_tmp_folder)
 
-    (standarized_path,
-     standarized_params,
+    (standardized_path,
+     standardized_params,
      whiten_filter) = preprocess.run()
 
-    spike_index_all = detect.run(standarized_path,
-                                 standarized_params,
+    spike_index_all = detect.run(standardized_path,
+                                 standardized_params,
                                  whiten_filter)
 
     cluster.run(None, spike_index_all, save_results=True)
@@ -56,12 +56,12 @@ def test_cluster_save_results(path_to_config, make_tmp_folder):
 #                                                     make_tmp_folder):
 #     yass.set_config(path_to_config, make_tmp_folder)
 
-#     (standarized_path,
-#      standarized_params,
+#     (standardized_path,
+#      standardized_params,
 #      whiten_filter) = preprocess.run()
 
-#     spike_index_all = detect.run(standarized_path,
-#                                  standarized_params,
+#     spike_index_all = detect.run(standardized_path,
+#                                  standardized_params,
 #                                  whiten_filter)
 
 #     # save results

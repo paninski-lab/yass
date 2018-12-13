@@ -17,7 +17,7 @@ def load_templates(data_folder, spike_train, CONFIG, chosen_templates_indexes):
     Parameters
     ----------
     data_folder: str
-        Folder storing the standarized data (if not exist, run preprocess to
+        Folder storing the standardized data (if not exist, run preprocess to
         automatically generate)
     spike_train: numpy.ndarray
         [number of spikes, 2] Ground truth for training. First column is the
@@ -25,14 +25,14 @@ def load_templates(data_folder, spike_train, CONFIG, chosen_templates_indexes):
     chosen_templates_indexes: list
         List of chosen templates' id's
     """
-    path_to_standarized = os.path.join(data_folder, 'preprocess',
-                                       'standarized.bin')
+    path_to_standardized = os.path.join(data_folder, 'preprocess',
+                                       'standardized.bin')
 
     # load 4x templates
     processor = TemplatesProcessor.from_spike_train(CONFIG,
                                                     4 * CONFIG.spike_size,
                                                     spike_train,
-                                                    path_to_standarized)
+                                                    path_to_standardized)
 
     processor.choose_with_indexes(chosen_templates_indexes, inplace=True)
     # TODO: make this a parameter
@@ -164,7 +164,7 @@ def training_data_detect(templates,
 
 def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
                   n_isolated_spikes,
-                  path_to_standarized, noise_ratio=10,
+                  path_to_standardized, noise_ratio=10,
                   collision_ratio=1, misalign_ratio=1, misalign_ratio2=1,
                   multi_channel=True, return_metadata=False):
     """Makes training sets for detector, triage and autoencoder
@@ -182,8 +182,8 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
     n_isolated_spikes: int
         Number of isolated spikes to generate. This is different from the
         total number of x_detect
-    path_to_standarized: str
-        Folder storing the standarized data (if not exist, run preprocess to
+    path_to_standardized: str
+        Folder storing the standardized data (if not exist, run preprocess to
         automatically generate)
     noise_ratio: int
         Ratio of number of noise to isolated spikes. For example, if
@@ -243,7 +243,7 @@ def training_data(CONFIG, templates_uncropped, min_amp, max_amp,
 
     # ##### FIXME: this needs to be removed, the user should already
     # pass data with the desired channels
-    rec = RecordingsReader(path_to_standarized, loader='array')
+    rec = RecordingsReader(path_to_standardized, loader='array')
     channel_n_neighbors = np.sum(CONFIG.neigh_channels, 0)
     max_neighbors = np.max(channel_n_neighbors)
     channels_with_max_neighbors = np.where(channel_n_neighbors

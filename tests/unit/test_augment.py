@@ -18,7 +18,7 @@ from yass.batch import RecordingsReader
 @pytest.fixture()
 def templates_uncropped(path_to_config, make_tmp_folder,
                         path_to_sample_pipeline_folder,
-                        path_to_standarized_data):
+                        path_to_standardized_data):
     spike_train = np.array([100, 0,
                             150, 0,
                             200, 1,
@@ -38,7 +38,7 @@ def templates_uncropped(path_to_config, make_tmp_folder,
                                       np.ones((n_spikes, 1), 'int32')))
 
     templates_uncropped, _ = get_templates(weighted_spike_train,
-                                           path_to_standarized_data,
+                                           path_to_standardized_data,
                                            CONFIG.resources.max_memory,
                                            4*CONFIG.spike_size)
 
@@ -81,8 +81,8 @@ def test_can_make_temporally_misaligned(templates_uncropped):
     make_temporally_misaligned(x_clean, n_per_spike=1)
 
 
-def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):
-    recordings = RecordingsReader(path_to_standarized_data,
+def test_can_compute_noise_cov(path_to_tests, path_to_standardized_data):
+    recordings = RecordingsReader(path_to_standardized_data,
                                   loader='array')._data
 
     spatial_SIG, temporal_SIG = noise_cov(recordings,
@@ -92,8 +92,8 @@ def test_can_compute_noise_cov(path_to_tests, path_to_standarized_data):
                                           window_size=10)
 
 
-def test_can_make_noise(path_to_tests, path_to_standarized_data):
-    recordings = RecordingsReader(path_to_standarized_data,
+def test_can_make_noise(path_to_tests, path_to_standardized_data):
+    recordings = RecordingsReader(path_to_standardized_data,
                                   loader='array')._data
 
     spatial_SIG, temporal_SIG = noise_cov(recordings,

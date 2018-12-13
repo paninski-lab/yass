@@ -15,11 +15,11 @@ logging.basicConfig(level=logging.INFO)
 # set yass configuration parameters
 yass.set_config('config_sample.yaml', 'templates-example')
 
-standarized_path, standarized_params, whiten_filter = preprocess.run()
+standardized_path, standardized_params, whiten_filter = preprocess.run()
 
 (spike_index_clear,
- spike_index_all) = detect.run(standarized_path,
-                               standarized_params,
+ spike_index_all) = detect.run(standardized_path,
+                               standardized_params,
                                whiten_filter)
 
 
