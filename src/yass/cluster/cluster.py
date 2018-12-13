@@ -150,13 +150,13 @@ class Cluster(object):
             
         ##### TRIAGE 3 #####
         # kill any units with less than min_spikes
-        #idx_survived, vbParam = self.kill_small_units(gen, vbParam)
-        #if idx_survived.shape[0] <= self.CONFIG.cluster.min_spikes: return
+        idx_survived, vbParam = self.kill_small_units(gen, vbParam)
+        if idx_survived.shape[0] <= self.CONFIG.cluster.min_spikes: return
         
         # if anything is triaged further, update the info
-        #if idx_survived.shape[0] < pca_wf.shape[0]:    
-        #    current_indices = current_indices[idx_survived]
-        #    pca_wf = pca_wf[idx_survived]
+        if idx_survived.shape[0] < pca_wf.shape[0]:
+            current_indices = current_indices[idx_survived]
+            pca_wf = pca_wf[idx_survived]
             
         '''*************************************************        
            *********** REVIEW AND SAVE RESULTS *************
@@ -235,8 +235,8 @@ class Cluster(object):
                                           self.CONFIG.data.geometry)
 
         # CAT: todo read params below from file:
-        self.plotting = True
-        self.verbose = True
+        self.plotting = False
+        self.verbose = False
         self.starting_gen = 0
         self.knn_triage_threshold = 0.95 * 100
         self.knn_triage_flag = True
