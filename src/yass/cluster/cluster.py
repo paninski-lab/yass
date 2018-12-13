@@ -144,19 +144,19 @@ class Cluster(object):
         if idx_recovered.shape[0] <= self.CONFIG.cluster.min_spikes: return
         
         # if anything is triaged further, update the info
-        if idx_recovered.shape[0] < pca_wf.shape[0]:    
+        if idx_recovered.shape[0] < pca_wf.shape[0]:
             current_indices = current_indices[idx_recovered]
             pca_wf = pca_wf[idx_recovered]
             
         ##### TRIAGE 3 #####
         # kill any units with less than min_spikes
-        idx_survived, vbParam = self.kill_small_units(gen, vbParam)
-        if idx_survived.shape[0] <= self.CONFIG.cluster.min_spikes: return
+        #idx_survived, vbParam = self.kill_small_units(gen, vbParam)
+        #if idx_survived.shape[0] <= self.CONFIG.cluster.min_spikes: return
         
         # if anything is triaged further, update the info
-        if idx_survived.shape[0] < pca_wf.shape[0]:    
-            current_indices = current_indices[idx_survived]
-            pca_wf = pca_wf[idx_survived]
+        #if idx_survived.shape[0] < pca_wf.shape[0]:    
+        #    current_indices = current_indices[idx_survived]
+        #    pca_wf = pca_wf[idx_survived]
             
         '''*************************************************        
            *********** REVIEW AND SAVE RESULTS *************
@@ -235,8 +235,8 @@ class Cluster(object):
                                           self.CONFIG.data.geometry)
 
         # CAT: todo read params below from file:
-        self.plotting = False
-        self.verbose = False
+        self.plotting = True
+        self.verbose = True
         self.starting_gen = 0
         self.knn_triage_threshold = 0.95 * 100
         self.knn_triage_flag = True
@@ -531,13 +531,13 @@ class Cluster(object):
 
     def denoise_step(self, local):
 
-        if self.verbose:
-            print ("chan "+str(self.channel)+", gen 0, denoising waveorms")        
-
         if local:
             self.denoise_step_local()
         else:
             self.denoise_step_distant()
+
+        if self.verbose:
+            print ("chan "+str(self.channel)+", gen 0, waveorms denoised to {} dimensions".format(self.denoised_wf.shape[1]))
 
 
     def denoise_step_local(self):
@@ -579,13 +579,17 @@ class Cluster(object):
 
         neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
         t_diff = 3
-        index = np.where(max_energy_loc[:,1]==self.channel)[0][0]
+        main_channel_loc = np.where(self.loaded_channels == self.channel)[0][0]
+        index = np.where(max_energy_loc[:,1]== main_channel_loc) [0][0]
         keep = self.connecting_points(max_energy_loc, index, neighbors, t_diff)
 
         max_energy_loc = max_energy_loc[keep]
 
         # exclude main and secondary channels
-        max_energy_loc = max_energy_loc[~np.in1d(max_energy_loc[:,1], self.neighbor_chans)]
+        if np.sum(~np.in1d(max_energy_loc[:,1], self.neighbor_chans)) > 0:
+            max_energy_loc = max_energy_loc[~np.in1d(max_energy_loc[:,1], self.neighbor_chans)]
+        else:
+            max_energy_loc = max_energy_loc[max_energy_loc[:,1]==main_channel_loc]
 
         self.denoised_wf = np.zeros((self.wf_global.shape[0], len(max_energy_loc)), dtype='float32')
         for ii in range(len(max_energy_loc)):
@@ -720,13 +724,13 @@ class Cluster(object):
 
 
     def knn_triage_step(self, gen, pca_wf):
-
-        if self.verbose:
-            print("chan "+str(self.channel)+', gen '+str(gen)+', knn triage')
         
         idx_keep = self.knn_triage(self.knn_triage_threshold, pca_wf)
         idx_keep = np.where(idx_keep==1)[0]
-        self.triage_value = self.knn_triage_threshold
+        self.triage_value = self.knn_triage_threshold/100.
+
+        if self.verbose:
+            print("chan "+str(self.channel)+', gen '+str(gen)+', knn triage removed {} from {} spikes'.format(pca_wf.shape[0]-len(idx_keep), pca_wf.shape[0]))
 
         return idx_keep
 
@@ -736,8 +740,7 @@ class Cluster(object):
         tree = cKDTree(pca_wf)
         dist, ind = tree.query(pca_wf, k=11)
         dist = np.sum(dist, 1)
-    
-        idx_keep1 = dist < np.percentile(dist, th)
+        idx_keep1 = dist <= np.percentile(dist, th)
         return idx_keep1
 
 
