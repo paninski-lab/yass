@@ -287,9 +287,7 @@ def run_neural_network(standardized_path, standardized_params,
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
         
         # compute len of recording
-        filename_dat = os.path.join(CONFIG.data.root_folder,
-                                    CONFIG.data.recordings)
-        fp = np.memmap(filename_dat, dtype='int16', mode='r')
+        fp = np.memmap(standardized_path, dtype='int16', mode='r')
         fp_len = fp.shape[0] / n_channels
 
         # compute batch indexes
