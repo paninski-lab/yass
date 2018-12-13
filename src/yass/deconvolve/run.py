@@ -99,7 +99,7 @@ def run(spike_train_cluster,
     #            multiprocessing module;
     buffer_size = 200
     standardized_filename = os.path.join(CONFIG.data.root_folder,
-                                         output_directory, 
+                                         'preprocess', 
                                          recordings_filename)
 
     # compute pairwise convolution filter outside match pursuit
@@ -462,7 +462,7 @@ def compute_idx_list(templates, CONFIG, output_directory,
 
     # Grab length of .dat file to compute chunk indexes below
     standardized_filename = os.path.join(CONFIG.data.root_folder, 
-                                    output_directory, recordings_filename)
+                                    'preprocess', recordings_filename)
     
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
@@ -522,7 +522,7 @@ def reclustering_function(CONFIG,
     n_channels = CONFIG.recordings.n_channels
     buffer_size = 200
     standardized_filename = os.path.join(CONFIG.data.root_folder,
-                                         output_directory, 
+                                         'preprocess', 
                                          recordings_filename)
 
     residual_clustering_flag = True
