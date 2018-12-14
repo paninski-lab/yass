@@ -2220,7 +2220,9 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         #for channel in [4,6,22,23]:
         args_in = []
         #for channel in [4]:
-        for channel in np.arange(CONFIG.recordings.n_channels):
+        channels = np.arange(CONFIG.recordings.n_channels)
+#         channels = [0]
+        for channel in channels:
 
             # check to see if chunk + channel already completed
             filename_postclustering = (chunk_dir + "/channel_"+
@@ -2264,6 +2266,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                                                 'standardized.bin')
             
             n_channels = CONFIG.recordings.n_channels
+
             recording_chunk = binary_reader(idx, 
                                             buffer_size, 
                                             standardized_filename, 
@@ -2385,8 +2388,10 @@ def get_denoised_templates(templates, pca_mc, pca_sec, ref_template):
 #     sec_templates_norm_aligned, best_shifts_sec, _ = align_temp_roll(sec_templates_norm, 5, 10, ref_template)
     
     ## denoise 
-    mc_templates_norm_aligned_denoised = pca_mc.inverse_transform(pca_mc.transform(mc_templates_norm_aligned))
-    sec_templates_norm_aligned_denoised = pca_sec.inverse_transform(pca_sec.transform(sec_templates_norm_aligned))
+#     mc_templates_norm_aligned_denoised = pca_mc.inverse_transform(pca_mc.transform(mc_templates_norm_aligned))
+    mc_templates_norm_aligned_denoised = temp_space_trans(pca_space_trans(mc_templates_norm_aligned, pca_mc), pca_mc)
+#     sec_templates_norm_aligned_denoised = pca_sec.inverse_transform(pca_sec.transform(sec_templates_norm_aligned))
+    sec_templates_norm_aligned_denoised = temp_space_trans(pca_space_trans(sec_templates_norm_aligned, pca_sec), pca_sec)
         
     ## roll back 
     mc_templates_norm_denoised_back = inverse_alignment(mc_templates_norm_aligned_denoised, mc_templates_norm, best_shifts_mc, 5)
@@ -2403,6 +2408,22 @@ def get_denoised_templates(templates, pca_mc, pca_sec, ref_template):
                               sec_templates_norm_denoised_back,
                               ptp_thresh)
 
+def pca_space_trans(X, pca):
+    pca_len = pca.mean_.shape[0]
+    wf_start = int(0.2 * (pca_len-1))
+    wf_end = -int(0.3 * (pca_len-1))
+    X = X - pca.mean_[wf_start:wf_end]
+    X_transformed = np.dot(X, pca.components_[:,wf_start:wf_end].T)
+    return X_transformed
+
+def temp_space_trans(X_transformed, pca):
+    pca_len = pca.mean_.shape[0]
+    wf_start = int(0.2 * (pca_len-1))
+    wf_end = -int(0.3 * (pca_len-1))
+    X = np.dot(X_transformed, pca.components_[:,wf_start:wf_end])
+    return X + pca.mean_[wf_start:wf_end]
+                           
+                           
 def inverse_alignment(den_wf, orig_wf, best_shifts, upsample_factor):
     den_nspikes, den_waveform_len = den_wf.shape
     orig_nspikes, orig_waveform_len = orig_wf.shape
@@ -2546,7 +2567,6 @@ def get_back_full_templates(templates, mc_templates, sec_templates, ptp_thresh):
 
         ctr += active_channels.size
     return yass_templates_denoised
-    
     
 
 def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
@@ -2712,10 +2732,7 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
             idx = np.int32(t)
 
             # compute weighted template
-            if len(idx) > 1:
-                weighted_average = merge_templates(templates[idx], weights[idx])
-            else:
-                weighted_average = templates[idx[0]]
+            weighted_average = np.average(templates[idx],axis=0,weights=weights[idx])
             templates_final.append(weighted_average)
 
         # convert templates to : (n_channels, waveform_size, n_templates)
@@ -2741,16 +2758,6 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         np.save(fname, templates)
     
     return final_spike_train, templates
-
-
-def merge_templates(templates, weights):
-
-    largest_unit = np.argmax(weights)
-    mc = templates[largest_unit].ptp(0).argmax()
-    wf_out = align_mc_templates(templates, mc, spike_padding=15,
-                                upsample_factor = 5, nshifts = 15)
-
-    return np.average(templates, axis=0, weights=weights)
 
 
 # def centre_templates(templates, spike_train_cluster, CONFIG, spike_padding, spike_width):
@@ -3470,6 +3477,7 @@ def chunk_merge(chunk_dir, channels, CONFIG):
     spike_indexes = []
     channels = np.arange(n_channels)
     tmp_loc = []
+#     channels = [0]
     for channel in channels:
         data = np.load(chunk_dir+'/channel_{}.npz'.format(channel), encoding='latin1')
         templates.append(data['templates'])
