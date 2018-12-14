@@ -2526,7 +2526,10 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
             idx = np.int32(t)
 
             # compute weighted template
-            weighted_average = np.average(templates[idx],axis=0,weights=weights[idx])
+            if len(idx) > 1:
+                weighted_average = merge_templates(templates[idx], weights[idx])
+            else:
+                weighted_average = templates[idx[0]]
             templates_final.append(weighted_average)
 
         # convert templates to : (n_channels, waveform_size, n_templates)
@@ -2552,6 +2555,16 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         np.save(fname, templates)
     
     return final_spike_train, templates
+
+
+def merge_templates(templates, weights):
+
+    largest_unit = np.argmax(weights)
+    mc = templates[largest_unit].ptp(0).argmax()
+    wf_out = align_mc_templates(templates, mc, spike_padding=15,
+                                upsample_factor = 5, nshifts = 15)
+
+    return np.average(templates, axis=0, weights=weights)
 
 
 # def centre_templates(templates, spike_train_cluster, CONFIG, spike_padding, spike_width):
