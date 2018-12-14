@@ -2449,8 +2449,8 @@ def inverse_roll(wf_mc, best_shifts, upsample_factor):
     return wf_final_mc[:,::upsample_factor]
 
 def convert_templates(templates, ptp_thresh = 3):
+
     N, wlen, nchannels = templates.shape
-    
     
     mc_templates = np.zeros([N, wlen])
     sec_templates = np.zeros([0, wlen])
