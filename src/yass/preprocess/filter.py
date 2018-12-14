@@ -291,7 +291,7 @@ def filter_standardize_parallel(data_in, low_frequency, high_factor, order,
 
 def filter_standardize(data_in, low_frequency, high_factor, order,
                        sampling_frequency, buffer_size, filename_dat,
-                       n_channels, output_directory):
+                       n_channels, output_directory, init_flag=False):
     """Butterworth filter for a one dimensional time series
 
     Parameters
@@ -368,50 +368,36 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
     # ******************************************************************
     # *********** FILTER DATA ******************************************
     # ******************************************************************
+    T, C = ts.shape
 
-    if ts.ndim == 1:
-        logger.info("SINGLE CHANNEL FILTER NOTE AVAILABLE.... !")
-        quit()
-        (T, ) = ts.shape
-        low = float(low_frequency) / sampling_frequency * 2
-        high = float(high_factor) * 2
-        b, a = butter(order, [low, high], btype='band')
+    low = float(low_frequency) / sampling_frequency * 2
+    high = float(high_factor) * 2
+    b, a = butter(order, low, btype='high', analog=False)
 
-        output = lfilter(b, a, ts)
-
-    else:
-        #T, C = ts.shape
-        #low = float(low_frequency) / sampling_frequency * 2
-        #high = float(high_factor) * 2
-        #b, a = butter(order, [low, high], btype='band')
-
-        #output = np.zeros((T, C), 'float32')
-        # for c in range(C):
-            #output[:, c] = lfilter(b, a, ts[:, c])
-
-        T, C = ts.shape
-
-        low = float(low_frequency) / sampling_frequency * 2
-        high = float(high_factor) * 2
-        b, a = butter(order, low, btype='high', analog=False)
-
-        output = np.zeros((T, C), 'float32')
-        for c in range(C):
-            output[:, c] = filtfilt(b, a, ts[:, c])
+    output = np.zeros((T, C), 'float32')
+    for c in range(C):
+        output[:, c] = filtfilt(b, a, ts[:, c])
 
     # Fix indexes function
     res = output[buffer_size:data_end - data_start + buffer_size]
 
-    # Standardize data
-    sd = _standard_deviation(res, sampling_frequency)
-    standardized = np.divide(res, sd)
+    
+    # compute standardization from a single chunk of data:
+    fname = os.path.join(output_directory,'standard_dev_value.npy')
+    if init_flag:
+        # Standardize data
+        sd = _standard_deviation(res, sampling_frequency)
+        np.save(fname, sd)
+    else:
+        sd = np.load(fname)
+        standardized = np.divide(res, sd)
+        np.save(os.path.join(
+                     output_directory,
+                     "filtered_files/standardized_"+
+                     str(chunk_idx).zfill(6)),
+                standardized)
 
-    np.save(
-        os.path.join(output_directory,
-                     "filtered_files/standardized_" + str(chunk_idx).zfill(6)),
-        standardized)
-
-    return standardized.shape
+    #return standardized.shape
 
 
 def merge_filtered_files(output_directory):

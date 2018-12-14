@@ -158,7 +158,22 @@ def run(if_file_exists='skip'):
     if not os.path.exists(filtered_location):
         os.makedirs(filtered_location)
 
+    # get standardized value from the 2nd batch of data...
+    init_flag = True
+    batch_index_for_standardization = 1
+    filter_standardize([idx_list[batch_index_for_standardization], batch_index_for_standardization], 
+                        low_frequency, 
+                        high_factor,
+                        order, 
+                        sampling_rate, 
+                        buffer_size, 
+                        filename_dat,
+                        n_channels, 
+                        output_directory,
+                        init_flag)
+
     # filter and standardize in one step
+    init_flag = False
     if multi_processing:
         parmap.map(
             filter_standardize,
@@ -171,13 +186,14 @@ def run(if_file_exists='skip'):
             filename_dat,
             n_channels,
             output_directory,
+            init_flag,
             processes=n_processors,
             pm_pbar=True)
     else:
         for k in range(len(idx_list)):
             filter_standardize([idx_list[k], k], low_frequency, high_factor,
                                order, sampling_rate, buffer_size, filename_dat,
-                               n_channels, output_directory)
+                               n_channels, output_directory, init_flag)
 
     # Merge the chunk filtered files and delete the individual chunks
     merge_filtered_files(output_directory)
