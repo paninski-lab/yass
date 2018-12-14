@@ -2452,9 +2452,10 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
 
     # delete templates below certain treshold; and collision templates
     if True: 
-        templates, spike_indexes = clean_templates(templates.swapaxes(0,2),
-                                                   spike_indexes,
-                                                   CONFIG)
+        templates, spike_indexes, weights = clean_templates(templates.swapaxes(0,2),
+                                                            spike_indexes,
+                                                            weights,
+                                                            CONFIG)
         templates = templates.swapaxes(0,2).swapaxes(1,2)
 
     print("  "+out_dir+ " templates/spiketrain before merge: ", templates.shape, spike_indexes.shape)
@@ -2514,6 +2515,7 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
             temp = np.concatenate([sic[:,np.newaxis], i*np.ones([sic.size,1],dtype = int)],axis = 1)
             final_spike_indexes.append(temp)
 
+        np.save(chunk_dir+'/final_template_indexes.npy', final_template_indexes)
         final_spike_train = np.vstack(final_spike_indexes)
         
         # recompute tmp_loc from weighted templates
@@ -3923,7 +3925,7 @@ def get_template_PCA_rotation(wf_shifted=None, n_pca=3):
 
 
 
-def clean_templates(templates, spike_train_cluster, CONFIG):
+def clean_templates(templates, spike_train_cluster, weights, CONFIG):
 
     ''' ***************************************************
         ************* DELETE SMALL TEMPLATES **************
@@ -3944,6 +3946,7 @@ def clean_templates(templates, spike_train_cluster, CONFIG):
     print ("  deleted # clusters < 3SU: ", templates.shape[2]-idx.shape[0])
     
     templates = templates[:,:,idx]
+    weights = weights[idx]
 
     spike_train_cluster_new = []
     for ctr,k in enumerate(idx):
@@ -3964,6 +3967,7 @@ def clean_templates(templates, spike_train_cluster, CONFIG):
         print ("  deleted # collsion clusters: ", templates.shape[2]-idx.shape[0])
         
         templates = templates[:,:,idx]
+        weights = weights[idx]
         spike_train_cluster_new2 = []
         for ctr,k in enumerate(idx):
             temp = np.where(spike_train_cluster_new[:,1]==k)[0]
@@ -3978,7 +3982,7 @@ def clean_templates(templates, spike_train_cluster, CONFIG):
         
     #quit()
     
-    return templates, spike_train_cluster_new2
+    return templates, spike_train_cluster_new2, weights
 
 
 def find_clean_templates(templates, CONFIG):
