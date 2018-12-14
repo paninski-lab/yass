@@ -2382,26 +2382,90 @@ def get_denoised_templates(templates, pca_mc, pca_sec, ref_template):
     mc_templates_norm, sec_templates_norm = normalize_templates(mc_templates), normalize_templates(sec_templates)
     
     ## align by rolling
-    mc_templates_norm_aligned, best_shifts_mc, _ = align_temp_roll(mc_templates_norm, 5, 10, ref_template)
-    sec_templates_norm_aligned, best_shifts_sec, _ = align_temp_roll(sec_templates_norm, 5, 10, ref_template)
+    mc_templates_norm_aligned, best_shifts_mc, _ = align_temp(mc_templates_norm, 5, 10, ref_template)
+#     mc_templates_norm_aligned, best_shifts_mc, _ = align_temp_roll(mc_templates_norm, 5, 10, ref_template)
+    sec_templates_norm_aligned, best_shifts_sec, _ = align_temp(sec_templates_norm, 5, 10, ref_template)
+#     sec_templates_norm_aligned, best_shifts_sec, _ = align_temp_roll(sec_templates_norm, 5, 10, ref_template)
     
     ## denoise 
     mc_templates_norm_aligned_denoised = pca_mc.inverse_transform(pca_mc.transform(mc_templates_norm_aligned))
     sec_templates_norm_aligned_denoised = pca_sec.inverse_transform(pca_sec.transform(sec_templates_norm_aligned))
         
     ## roll back 
-    mc_templates_norm_denoised_back = inverse_roll(mc_templates_norm_aligned_denoised,  
-                                                   best_shifts_mc, 
-                                                   upsample_factor = 5)
-    sec_templates_norm_denoised_back = inverse_roll(sec_templates_norm_aligned_denoised,  
-                                                    best_shifts_sec, 
-                                                    upsample_factor = 5)
+    mc_templates_norm_denoised_back = inverse_alignment(mc_templates_norm_aligned_denoised, mc_templates_norm, best_shifts_mc, 5)
+#     mc_templates_norm_denoised_back = inverse_roll(mc_templates_norm_aligned_denoised,  
+#                                                    best_shifts_mc, 
+#                                                    upsample_factor = 5)
+    sec_templates_norm_denoised_back = inverse_alignment(sec_templates_norm_aligned_denoised, sec_templates_norm, best_shifts_sec, 5)
+#     sec_templates_norm_denoised_back = inverse_roll(sec_templates_norm_aligned_denoised,  
+#                                                     best_shifts_sec, 
+#                                                     upsample_factor = 5)
     
     return get_back_full_templates(templates,
                               mc_templates_norm_denoised_back,
                               sec_templates_norm_denoised_back,
                               ptp_thresh)
+
+def inverse_alignment(den_wf, orig_wf, best_shifts, upsample_factor):
+    den_nspikes, den_waveform_len = den_wf.shape
+    orig_nspikes, orig_waveform_len = orig_wf.shape
+        
+    den_wf_up = np.zeros([den_wf.shape[0], (den_waveform_len-1)*upsample_factor+1])
+    orig_wf_up = np.zeros([orig_wf.shape[0], (orig_waveform_len-1)*upsample_factor+1])
+    for i in range(den_wf.shape[0]):
+        den_wf_up[i] = signal.resample(den_wf[i], (den_waveform_len-1)*upsample_factor+1)
+        orig_wf_up[i] = signal.resample(orig_wf[i], (orig_waveform_len-1)*upsample_factor+1)
+        
+    wlen = orig_wf_up.shape[1]
+    wf_start = int(.2 * (wlen-1))
+    wf_end = -int(.3 * (wlen-1))
     
+    wf_final = orig_wf_up.copy()
+    for i, s in enumerate(best_shifts):
+        wf_final[i, wf_start-s:wf_end-s] = den_wf_up[i]
+        
+    return wf_final[:,::upsample_factor]
+    
+
+def align_temp(wf, upsample_factor, nshifts, CONFIG, ref = None):
+    
+    nspikes, waveform_len = wf.shape
+    
+    nshifts = (nshifts*upsample_factor)
+    if nshifts%2==0:
+        nshifts+=1
+    
+    wf_up = np.zeros([wf.shape[0], (waveform_len-1)*upsample_factor+1])
+    for i in range(wf.shape[0]):
+        wf_up[i] = signal.resample(wf[i], (waveform_len-1)*upsample_factor+1)
+    
+    wlen = wf_up.shape[1]
+    wf_start = int(.2 * (wlen-1))
+    wf_end = -int(.3 * (wlen-1))
+    
+    wf_trunc = wf_up[:,wf_start:wf_end]
+    wlen_trunc = wf_trunc.shape[1]
+    
+    
+    if ref is None:
+        ref_upsampled = wf_up.mean(0)
+    else:
+        ref_upsampled = signal.resample(wf[i], (waveform_len-1)*upsample_factor+1)
+        
+    ref_shifted = np.zeros([wf_trunc.shape[1], nshifts])
+    
+    for i,s in enumerate(range(-int((nshifts-1)/2), int((nshifts-1)/2+1))):
+        ref_shifted[:,i] = ref_upsampled[s+ wf_start: s+ wf_end]
+        
+    bs_indices = np.matmul(wf_trunc[:, np.newaxis, :], ref_shifted).squeeze(1).argmax(1)
+    best_shifts = (np.arange(-int((nshifts-1)/2), int((nshifts-1)/2+1)))[bs_indices]
+    
+    wf_final = np.zeros([wf.shape[0], wlen_trunc])
+    for i, s in enumerate(best_shifts):
+        wf_final[i] = wf_up[i,-s + wf_start: -s + wf_end]
+    
+    return wf_final[:,::upsample_factor], best_shifts, ref_upsampled[::upsample_factor]
+
 
 def align_temp_roll(wf_mc, upsample_factor, nshifts, ref = None):
 
