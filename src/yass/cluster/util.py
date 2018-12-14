@@ -2220,9 +2220,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         #for channel in [4,6,22,23]:
         args_in = []
         #for channel in [4]:
-        channels = np.arange(CONFIG.recordings.n_channels)
-#         channels = [0]
-        for channel in channels:
+        for channel in np.arange(CONFIG.recordings.n_channels):
 
             # check to see if chunk + channel already completed
             filename_postclustering = (chunk_dir + "/channel_"+
@@ -2266,7 +2264,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                                                 'standardized.bin')
             
             n_channels = CONFIG.recordings.n_channels
-
             recording_chunk = binary_reader(idx, 
                                             buffer_size, 
                                             standardized_filename, 
@@ -3396,7 +3393,6 @@ def chunk_merge(chunk_dir, channels, CONFIG):
     spike_indexes = []
     channels = np.arange(n_channels)
     tmp_loc = []
-#     channels = [0]
     for channel in channels:
         data = np.load(chunk_dir+'/channel_{}.npz'.format(channel), encoding='latin1')
         templates.append(data['templates'])
