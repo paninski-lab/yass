@@ -2564,6 +2564,9 @@ def merge_templates(templates, weights):
     wf_out = align_mc_templates(templates, mc, spike_padding=15,
                                 upsample_factor = 5, nshifts = 15)
 
+    weights /= np.sum(weights)
+    weights[weights < 0.1] = 0
+
     return np.average(templates, axis=0, weights=weights)
 
 
