@@ -22,7 +22,7 @@ from statsmodels import robust
 from scipy.signal import argrelmin
 import matplotlib
 from sklearn.mixture import GaussianMixture
-
+import pickle
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pandas as pd
@@ -2150,6 +2150,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     standardized_filename = os.path.join(CONFIG.path_to_output_directory,
                                          'preprocess',
                                          'standardized.bin')
+    
     fp = np.memmap(standardized_filename, dtype='float32', mode='r')
     fp_len = fp.shape[0]
 
@@ -2219,7 +2220,9 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         #for channel in [4,6,22,23]:
         args_in = []
         #for channel in [4]:
-        for channel in np.arange(CONFIG.recordings.n_channels):
+        channels = np.arange(CONFIG.recordings.n_channels)
+#         channels = [0]
+        for channel in channels:
 
             # check to see if chunk + channel already completed
             filename_postclustering = (chunk_dir + "/channel_"+
@@ -2261,6 +2264,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
             standardized_filename = os.path.join(CONFIG.path_to_output_directory,
                                                 'preprocess',
                                                 'standardized.bin')
+            
             n_channels = CONFIG.recordings.n_channels
 
             recording_chunk = binary_reader(idx, 
@@ -2366,7 +2370,123 @@ def connected_channels(channel_list, ref_channel, neighbors, keep=None):
             keep = connected_channels(channel_list, c, neighbors, keep=keep)
         return keep
 
+def get_denoised_templates(templates, pca_mc, pca_sec, ref_template):
+    
+    ## set active channel threshold
+    ptp_thresh = 0
+    
+    ## break templates into main channel templates and secondary channel templates
+    mc_templates, sec_templates = convert_templates(templates, ptp_thresh)
+    
+    ## normalize such that L2 norm is 1
+    mc_templates_norm, sec_templates_norm = normalize_templates(mc_templates), normalize_templates(sec_templates)
+    
+    ## align by rolling
+    mc_templates_norm_aligned, best_shifts_mc, _ = align_temp_roll(mc_templates_norm, 5, 10, ref_template)
+    sec_templates_norm_aligned, best_shifts_sec, _ = align_temp_roll(sec_templates_norm, 5, 10, ref_template)
+    
+    ## denoise 
+    mc_templates_norm_aligned_denoised = pca_mc.inverse_transform(pca_mc.transform(mc_templates_norm_aligned))
+    sec_templates_norm_aligned_denoised = pca_sec.inverse_transform(pca_sec.transform(sec_templates_norm_aligned))
+        
+    ## roll back 
+    mc_templates_norm_denoised_back = inverse_roll(mc_templates_norm_aligned_denoised,  
+                                                   best_shifts_mc, 
+                                                   upsample_factor = 5)
+    sec_templates_norm_denoised_back = inverse_roll(sec_templates_norm_aligned_denoised,  
+                                                    best_shifts_sec, 
+                                                    upsample_factor = 5)
+    
+    return get_back_full_templates(templates,
+                              mc_templates_norm_denoised_back,
+                              sec_templates_norm_denoised_back,
+                              ptp_thresh)
+    
 
+def align_temp_roll(wf_mc, upsample_factor, nshifts, ref = None):
+
+    nspikes, waveform_len = wf_mc.shape
+
+    nshifts = (nshifts*upsample_factor)
+    if nshifts%2==0:
+        nshifts+=1
+
+    wf_mc_up = np.zeros([wf_mc.shape[0], (waveform_len-1)*upsample_factor+1])
+    for i in range(wf_mc.shape[0]):
+        wf_mc_up[i] = signal.resample(wf_mc[i], (waveform_len-1)*upsample_factor+1)
+
+    wlen = wf_mc_up.shape[1]
+    
+    if ref is None:
+        ref_upsampled = wf_mc_up.mean(0)
+    else:
+        ref_upsampled = signal.resample(ref, wlen)
+        
+    ref_shifted = np.zeros([wlen, nshifts])
+
+    for i,s in enumerate(range(-int((nshifts-1)/2), int((nshifts-1)/2+1))):
+        ref_shifted[:,i] = np.roll(ref_upsampled, -s)
+
+    bs_indices = np.matmul(wf_mc_up[:, np.newaxis, :], ref_shifted).squeeze(1).argmax(1)
+    best_shifts = (np.arange(-int((nshifts-1)/2), int((nshifts-1)/2+1)))[bs_indices]
+
+    wf_final_mc = np.zeros([wf_mc.shape[0], wlen])
+    for i, s in enumerate(best_shifts):
+        wf_final_mc[i] = np.roll(wf_mc_up[i], s)
+
+    return wf_final_mc[:,::upsample_factor], best_shifts, ref_upsampled[::upsample_factor]
+
+def inverse_roll(wf_mc, best_shifts, upsample_factor):
+    
+    nspikes, waveform_len = wf_mc.shape
+
+    
+    wf_mc_up = np.zeros([wf_mc.shape[0], (waveform_len-1)*upsample_factor+1])
+    for i in range(wf_mc.shape[0]):
+        wf_mc_up[i] = signal.resample(wf_mc[i], (waveform_len-1)*upsample_factor+1)
+    wlen = wf_mc_up.shape[1]
+    wf_final_mc = np.zeros([wf_mc.shape[0], wlen])
+    for i, s in enumerate(best_shifts):
+        wf_final_mc[i] = np.roll(wf_mc_up[i], -s)
+        
+    return wf_final_mc[:,::upsample_factor]
+
+def convert_templates(templates, ptp_thresh = 3):
+    N, wlen, nchannels = templates.shape
+    
+    
+    mc_templates = np.zeros([N, wlen])
+    sec_templates = np.zeros([0, wlen])
+    for i in range(templates.shape[0]):
+        mc_templates[i] = templates[i,:,templates[i].ptp(0).argmax(0)]
+        active_channels = np.where(np.logical_and(templates[i].ptp(0)>ptp_thresh, 
+                                                  np.arange(49) != templates[i].ptp(0).argmax(0)
+                                                 )
+                                  )[0]
+        sec_templates = np.concatenate([sec_templates, templates[i, :, active_channels]], axis = 0)
+
+    return mc_templates, sec_templates
+
+
+def normalize_templates(templates):
+    return templates/ np.linalg.norm(templates, axis = 1, keepdims = True)
+
+def get_back_full_templates(templates, mc_templates, sec_templates, ptp_thresh):
+
+    yass_templates_denoised = templates.copy()
+    ctr = 0
+    for i in range(templates.shape[0]):
+        mc = templates[i].ptp(0).argmax(0)
+        yass_templates_denoised[i,:,mc] = mc_templates[i] * np.linalg.norm(templates[i,:,mc])
+        active_channels = np.where(np.logical_and(templates[i].ptp(0)>ptp_thresh, np.arange(49) != mc))[0]
+        yass_templates_denoised[i,:,active_channels] = sec_templates[ctr:ctr+active_channels.size] * \
+                            np.linalg.norm(templates[i,:,active_channels], keepdims = True, axis = 1)
+
+
+        ctr += active_channels.size
+    return yass_templates_denoised
+    
+    
 
 def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
 
@@ -2390,6 +2510,7 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     # Cat: TODO: make sure this step is correct
     if out_dir == 'cluster':
         for channel in range(CONFIG.recordings.n_channels):
+#         for channel in [0]:
             data = np.load(chunk_dir+'/channel_'+str(channel).zfill(6)+'.npz')
             temp_temp = data['templates']
 
@@ -2480,17 +2601,21 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         if os.path.exists(abs_max_file)==False:
             # first denoise/smooth all templates in global template space;
             # then use temps_PCA for cos_sim_test; this removes many bumps
-            spike_width = templates.shape[1]
-            temps_stack = np.swapaxes(templates, 1,0)
-            temps_stack = np.reshape(temps_stack, (temps_stack.shape[0], 
-                                     temps_stack.shape[1]*temps_stack.shape[2])).T
-            _, temps_PCA, pca_object = PCA(temps_stack, n_pca)
+#             spike_width = templates.shape[1]
+#             temps_stack = np.swapaxes(templates, 1,0)
+#             temps_stack = np.reshape(temps_stack, (temps_stack.shape[0], 
+#                                      temps_stack.shape[1]*temps_stack.shape[2])).T
+#             _, temps_PCA, pca_object = PCA(temps_stack, n_pca)
 
-            temps_PCA = temps_PCA.reshape(templates.shape[0],templates.shape[2],templates.shape[1])
-            temps_PCA = np.swapaxes(temps_PCA,1,2)
-            
+#             temps_PCA = temps_PCA.reshape(templates.shape[0],templates.shape[2],templates.shape[1])
+#             temps_PCA = np.swapaxes(temps_PCA,1,2)
+            pca_mc = pickle.load(open('/hdd/data/Nishchal/yass/src/pca_mc.p', 'rb'))
+            pca_sec = pickle.load(open('/hdd/data/Nishchal/yass/src/pca_sec.p', 'rb'))
+            ref = np.load('/hdd/data/Nishchal/yass/src/ref.npy')
+            temps_denoised = get_denoised_templates(templates, pca_mc, pca_sec, ref)
+        
             # run merge algorithm
-            sim_mat = abs_max_dist(temps_PCA, CONFIG)
+            sim_mat = abs_max_dist(temps_denoised, CONFIG)
             np.save(abs_max_file, sim_mat)
             
         else:
@@ -2715,6 +2840,7 @@ def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG, min_spikes,
     if out_dir == 'cluster':
         
         for channel in range(CONFIG.recordings.n_channels):
+#         for channel in [0]:
             data = np.load(chunk_dir+'/channel_{}.npz'.format(channel))
             templates.append(data['templates'])
             templates_std.append(data['templates_std'])
@@ -3270,7 +3396,7 @@ def chunk_merge(chunk_dir, channels, CONFIG):
     spike_indexes = []
     channels = np.arange(n_channels)
     tmp_loc = []
-    
+#     channels = [0]
     for channel in channels:
         data = np.load(chunk_dir+'/channel_{}.npz'.format(channel), encoding='latin1')
         templates.append(data['templates'])

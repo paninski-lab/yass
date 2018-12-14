@@ -231,6 +231,7 @@ class Cluster(object):
         self.n_channels = self.CONFIG.recordings.n_channels
         self.min_spikes_local = self.CONFIG.cluster.min_spikes
         self.standardized_filename = os.path.join(self.CONFIG.path_to_output_directory, 'preprocess', 'standardized.bin')
+        
         self.geometry_file = os.path.join(self.CONFIG.data.root_folder,
                                           self.CONFIG.data.geometry)
 
@@ -376,8 +377,8 @@ class Cluster(object):
         if self.plotting:
             self.x = np.zeros(100, dtype = int)
             self.fig1 = plt.figure(figsize =(60,60))
-            self.grid1 = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
-            self.ax1 = self.fig1.add_subplot(self.grid1[:,:])
+            self.grid1 = plt.GridSpec(20,20,wspace = 1,hspace = 2)
+            
 
             # setup template plot; scale based on electrode array layout
             xlim = self.CONFIG.geom[:,0].ptp(0)
