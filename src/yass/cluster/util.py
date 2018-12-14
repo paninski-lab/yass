@@ -2564,8 +2564,10 @@ def merge_templates(templates, weights):
     wf_out = align_mc_templates(templates, mc, spike_padding=15,
                                 upsample_factor = 5, nshifts = 15)
 
+    weights = np.float32(weights) 
     weights /= np.sum(weights)
-    weights[weights < 0.1] = 0
+    idx_remove = weights < np.max(weights)*0.05
+    weights[idx_remove] = 0
 
     return np.average(templates, axis=0, weights=weights)
 
