@@ -98,8 +98,7 @@ def run(spike_train_cluster,
     # Cat: TODO: recording_chunk should be a shared variable in 
     #            multiprocessing module;
     buffer_size = 200
-    standardized_filename = os.path.join(CONFIG.data.root_folder,
-                                         output_directory,
+    standardized_filename = os.path.join(CONFIG.path_to_output_directory,
                                          'preprocess', 
                                          recordings_filename)
 
