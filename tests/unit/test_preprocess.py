@@ -88,7 +88,7 @@ def test_preprocess_saves_result_in_the_right_folder(path_to_config,
     yass.set_config(path_to_config, make_tmp_folder)
     standardized_path, standardized_params, _ = preprocess.run()
 
-    expected = Path(make_tmp_folder, 'preprocess', 'standardized.bin')
+    expected = Path(make_tmp_folder, 'preprocess', 'standarized.bin')
 
     assert str(expected) == standardized_path
     assert expected.is_file()
