@@ -36,7 +36,7 @@ def test_can_train_detector(path_to_config,
                                     spike_train, CONFIG, chosen_templates)
 
     path_to_standardized = path.join(path_to_sample_pipeline_folder,
-                                    'preprocess', 'standardized.bin')
+                                     'preprocess', 'standarized.bin')
 
     (x_detect, y_detect,
      x_triage, y_triage,
@@ -76,7 +76,7 @@ def test_can_reload_detector(path_to_config,
                                     spike_train, CONFIG, chosen_templates)
 
     path_to_standardized = path.join(path_to_sample_pipeline_folder,
-                                    'preprocess', 'standardized.bin')
+                                     'preprocess', 'standarized.bin')
 
     (x_detect, y_detect,
      x_triage, y_triage,
@@ -120,7 +120,7 @@ def test_can_use_detector_after_fit(path_to_config,
                                     spike_train, CONFIG, chosen_templates)
 
     path_to_standardized = path.join(path_to_sample_pipeline_folder,
-                                    'preprocess', 'standardized.bin')
+                                     'preprocess', 'standarized.bin')
 
     (x_detect, y_detect,
      x_triage, y_triage,

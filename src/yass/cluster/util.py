@@ -2838,6 +2838,21 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     return final_spike_train, templates
 
 
+def merge_templates(templates, weights):
+
+    largest_unit = np.argmax(weights)
+    mc = templates[largest_unit].ptp(0).argmax()
+    wf_out = align_mc_templates(templates, mc, spike_padding=15,
+                                upsample_factor = 5, nshifts = 15)
+
+    weights = np.float32(weights) 
+    weights /= np.sum(weights)
+    idx_remove = weights < np.max(weights)*0.05
+    weights[idx_remove] = 0
+
+    return np.average(templates, axis=0, weights=weights)
+
+
 # def centre_templates(templates, spike_train_cluster, CONFIG, spike_padding, spike_width):
 #     ''' Function centres templates to the mean of all tempaltes on max channel;
 #         - deals with duplicate detected templates
