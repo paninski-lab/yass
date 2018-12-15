@@ -2461,10 +2461,10 @@ def align_temp(wf, upsample_factor, nshifts, ref = None):
     for i, s in enumerate(best_shifts):
     
         if s >= 0:
-            wf_final.append(np.roll(wf_up[i], s)[s:])
+            wf_final.append(np.roll(wf_up[i], s)[s:][::upsample_factor])
 
         else:
-            wf_final.append(np.roll(wf_up[i], s)[:s])
+            wf_final.append(np.roll(wf_up[i], s)[:s][::upsample_factor])
 
     
     return wf_final, best_shifts
@@ -2472,16 +2472,17 @@ def align_temp(wf, upsample_factor, nshifts, ref = None):
 def denoise(X, pca_mc, best_shifts, upsample_factor = 5):
     X_trans = []
     wlen = pca_mc.mean_.size
-    pca_mean = signal.resample(pca_mc.mean_, (wlen-1) * upsample_factor + 1)
+#     pca_mean = signal.resample(pca_mc.mean_, (wlen-1) * upsample_factor + 1)
+    pca_mean = pca_mc.mean_
     for unit in range(best_shifts.size):
         shift = int(np.ceil(np.abs(best_shifts[unit])/upsample_factor))
         if best_shifts[unit] < 0:
-            X_new = X[unit] - pca_mean[:best_shifts[unit]]
-            X_trans_temp = ((X_new[::upsample_factor] * pca_mc.components_[:,:-shift]).sum(1) * pca_mc.components_[:,:-shift].T).sum(1)
+            X_new = X[unit] - pca_mean[:-shift]
+            X_trans_temp = ((X_new * pca_mc.components_[:,:-shift]).sum(1) * pca_mc.components_[:,:-shift].T).sum(1)
             X_trans.append(X_trans_temp + pca_mc.mean_[:-shift])
         else:
-            X_new = X[unit] - pca_mean[best_shifts[unit]:]
-            X_trans_temp = ((X_new[::upsample_factor] * pca_mc.components_[:,shift:]).sum(1) * pca_mc.components_[:,shift:].T).sum(1)
+            X_new = X[unit] - pca_mean[shift:]
+            X_trans_temp = ((X_new * pca_mc.components_[:,shift:]).sum(1) * pca_mc.components_[:,shift:].T).sum(1)
             X_trans.append(X_trans_temp + pca_mc.mean_[shift:])
             
     return X_trans
