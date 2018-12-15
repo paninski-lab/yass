@@ -90,7 +90,7 @@ def run(spike_train_cluster,
                                 recordings_filename)
            
     # make deconv directory
-    deconv_dir = os.path.join(self.CONFIG.path_to_output_directory,  'deconv')
+    deconv_dir = os.path.join(CONFIG.path_to_output_directory,  'deconv')
     if not os.path.isdir(deconv_dir):
         os.makedirs(deconv_dir)
 

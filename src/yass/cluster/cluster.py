@@ -922,7 +922,8 @@ class Cluster(object):
 
         # exclude units whose maximum channel is not on the current 
         # clustered channel; but only during clustering, not during deconv
-        template = np.median(self.wf_global[current_indices], axis=0)
+        #template = np.median(self.wf_global[current_indices], axis=0)
+        template = np.mean(self.wf_global[current_indices], axis=0)
         assignment = np.zeros(len(current_indices))
         mc = self.loaded_channels[np.argmax(template.ptp(0))]
         if mc != self.channel and (self.deconv_flag==False): 
@@ -1104,7 +1105,8 @@ class Cluster(object):
         
         self.assignment_global.append(N * np.ones(assignment3.shape[0]))
         self.spike_index.append(sic_current[idx_recovered])
-        template = np.median(template_current[idx_recovered],0)
+        #template = np.median(template_current[idx_recovered],0)
+        template = np.mean(template_current[idx_recovered],0)
         self.templates.append(template)
 
         # plot template if done
