@@ -93,7 +93,7 @@ def path_to_sample_pipeline_folder():
 def path_to_standardized_data():
     return os.path.join(PATH_TO_RETINA_DIR,
                         'sample_pipeline_output', 'preprocess',
-                        'standardized.bin')
+                        'standarized.bin')
 
 
 @pytest.fixture()
