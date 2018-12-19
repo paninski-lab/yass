@@ -258,6 +258,9 @@ class Cluster(object):
         self.spike_size = int(self.CONFIG.recordings.spike_size_ms*2
                               *self.CONFIG.recordings.sampling_rate/1000)+1
 
+        # array to hold shifts; need to initialize 
+        self.global_shifts=None
+
         # load raw data array
         if self.deconv_flag==False:
             self.load_data_channels()
