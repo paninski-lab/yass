@@ -377,7 +377,7 @@ def run(spike_train_cluster,
     np.save(os.path.join(CONFIG.path_to_output_directory,
                         'spike_train_post_deconv_pre_merge'), 
                         spike_train)
-    if True: 
+    if False: 
         print ("Post-deconv merge...")
         align_jitter=5
         upsample = 5

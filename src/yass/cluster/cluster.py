@@ -260,6 +260,7 @@ class Cluster(object):
 
         # array to hold shifts; need to initialize 
         self.global_shifts=None
+        self.pca_wf_gen0=None
 
         # load raw data array
         if self.deconv_flag==False:
