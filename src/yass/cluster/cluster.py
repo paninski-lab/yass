@@ -3,6 +3,7 @@
 import os
 import math
 import numpy as np
+import pickle
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from sklearn.decomposition import PCA
@@ -233,6 +234,7 @@ class Cluster(object):
         self.n_channels = self.CONFIG.recordings.n_channels
         self.min_spikes_local = self.CONFIG.cluster.min_spikes
         self.standardized_filename = os.path.join(self.CONFIG.path_to_output_directory, 'preprocess', 'standardized.bin')
+        
         self.geometry_file = os.path.join(self.CONFIG.data.root_folder,
                                           self.CONFIG.data.geometry)
 
@@ -252,11 +254,13 @@ class Cluster(object):
         self.nshifts = 15
         self.n_dim_pca = 3
         self.n_dim_pca_compression = 5
+        self.shift_allowance = 10
 
         # limit on featurization window;
         # Cat: TODO this needs to be further set using window based on spike_size and smapling rate
         self.spike_size = int(self.CONFIG.recordings.spike_size_ms*2
-                              *self.CONFIG.recordings.sampling_rate/1000)+1
+                              *self.CONFIG.recordings.sampling_rate/1000
+                              + self.shift_allowance*2)+1
 
         # array to hold shifts; need to initialize 
         self.global_shifts=None
@@ -384,11 +388,13 @@ class Cluster(object):
 
         self.starting_indices = np.arange(len(self.spt_global))
 
+        self.initialize_template_space()
+
         if self.plotting:
             self.x = np.zeros(100, dtype = int)
             self.fig1 = plt.figure(figsize =(60,60))
-            self.grid1 = plt.GridSpec(20,20,wspace = 0.0,hspace = 0.2)
-            self.ax1 = self.fig1.add_subplot(self.grid1[:,:])
+            self.grid1 = plt.GridSpec(20,20,wspace = 1,hspace = 2)
+            
 
             # setup template plot; scale based on electrode array layout
             xlim = self.CONFIG.geom[:,0].ptp(0)
@@ -396,6 +402,29 @@ class Cluster(object):
             self.fig2 = plt.figure(figsize =(100,max(ylim/float(xlim)*100,10)))
             self.ax2 = self.fig2.add_subplot(111)
 
+
+    def initialize_template_space(self):
+
+        # load template space related files
+        self.pca_main = pickle.load(open(absolute_path_to_asset(
+            os.path.join('template_space', 'pca_main.pkl')), 'rb'))
+        self.pca_sec = pickle.load(open(absolute_path_to_asset(
+            os.path.join('template_space', 'pca_sec.pkl')), 'rb'))
+        self.pca_main_noise_std = np.load(absolute_path_to_asset(
+            os.path.join('template_space', 'pca_main_noise_std.npy')))
+        self.pca_sec_noise_std = np.load(absolute_path_to_asset(
+            os.path.join('template_space', 'pca_sec_noise_std.npy')))
+
+        # ref template
+        self.ref_template = np.load(absolute_path_to_asset(
+            os.path.join('template_space', 'ref_template.npy')))
+
+        # turn off edges for less collision
+        window = [15, 40]
+        self.pca_main.components_[:, :window[0]] = 0
+        self.pca_main.components_[:, window[1]:] = 0
+        self.pca_sec.components_[:, :window[0]] = 0
+        self.pca_sec.components_[:, window[1]:] = 0
 
     def finish(self, fname=None):
 
@@ -532,10 +561,10 @@ class Cluster(object):
             print ("chan "+str(self.channel)+", gen 0, aligning")
 
         if local:
-            ref_template = np.load(absolute_path_to_asset(os.path.join('template_space', 'ref_template.npy')))
             mc = np.where(self.loaded_channels==self.channel)[0][0]
             best_shifts = align_get_shifts_with_ref(
-                self.wf_global[:, :, mc], ref_template)
+                self.wf_global[:, self.shift_allowance:-self.shift_allowance, mc],
+                self.ref_template)
             self.spt_global -= best_shifts
             self.global_shifts = best_shifts.copy()
         else:
@@ -561,19 +590,18 @@ class Cluster(object):
         # note: don't want for wf array to be used beyond this function
         # Alignment: upsample max chan only; linear shift other chans
 
-        pc_mc = np.load(absolute_path_to_asset(os.path.join('template_space', 'pc_mc.npy')))
-        pc_sec = np.load(absolute_path_to_asset(os.path.join('template_space', 'pc_sec.npy')))
-        pc_mc_std = np.load(absolute_path_to_asset(os.path.join('template_space', 'pc_mc_std.npy')))
-        pc_sec_std = np.load(absolute_path_to_asset(os.path.join('template_space', 'pc_sec_std.npy')))
-        
         n_data, _, n_chans = self.wf_global.shape
-        self.denoised_wf = np.zeros((n_data, pc_mc.shape[1], n_chans),
+        self.denoised_wf = np.zeros((n_data, self.pca_main.components_.shape[0], n_chans),
                                     dtype='float32')
         for ii in range(n_chans):
             if self.loaded_channels[ii] == self.channel:
-                self.denoised_wf[:, :, ii] = np.matmul(self.wf_global[:, :, ii], pc_mc)/pc_mc_std[np.newaxis]
+                self.denoised_wf[:, :, ii] = np.matmul(
+                    self.wf_global[:, self.shift_allowance:-self.shift_allowance, ii],
+                    self.pca_main.components_.T)/self.pca_main_noise_std[np.newaxis]
             else:
-                self.denoised_wf[:, :, ii] = np.matmul(self.wf_global[:, :, ii], pc_sec)/pc_sec_std[np.newaxis]
+                self.denoised_wf[:, :, ii] = np.matmul(
+                    self.wf_global[:, self.shift_allowance:-self.shift_allowance, ii],
+                    self.pca_sec.components_.T)/self.pca_sec_noise_std[np.newaxis]
 
         self.denoised_wf = np.reshape(self.denoised_wf, [n_data, -1])
 
@@ -595,8 +623,8 @@ class Cluster(object):
         neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
         t_diff = 3
         main_channel_loc = np.where(self.loaded_channels == self.channel)[0][0]
-        index = np.where(max_energy_loc[:,1]== main_channel_loc) [0][0]
-        keep = self.connecting_points(max_energy_loc, index, neighbors, t_diff)
+        index = np.where(max_energy_loc[:,1]== main_channel_loc)[0][0]
+        keep = connecting_points(max_energy_loc, index, neighbors, t_diff)
 
         max_energy_loc = max_energy_loc[keep]
 
@@ -609,23 +637,6 @@ class Cluster(object):
         self.denoised_wf = np.zeros((self.wf_global.shape[0], len(max_energy_loc)), dtype='float32')
         for ii in range(len(max_energy_loc)):
             self.denoised_wf[:, ii] = self.wf_global[:, max_energy_loc[ii,0], max_energy_loc[ii,1]]
-
-
-    def connecting_points(self, points, index, neighbors, t_diff, keep=None):
-        if keep is None:
-            keep = np.zeros(len(points), 'bool')
-
-        if keep[index] == 1:
-            return keep
-        else:
-            keep[index] = 1
-            spatially_close = np.where(neighbors[points[index, 1]][points[:, 1]])[0]
-            close_index = spatially_close[np.abs(points[spatially_close, 0] - points[index, 0]) <= t_diff]
-
-            for j in close_index:
-                keep = self.connecting_points(points, j, neighbors, t_diff, keep)
-
-            return keep
 
 
     def active_chans_step(self, local):
@@ -1452,33 +1463,6 @@ class Cluster(object):
         vbParam.rhat = temp_rhat
 
         return vbParam, assignment2
-
-
-    def load_align_save_waveforms(self, recording):
-        
-        n_data = self.spt_global.shape[0]
-        if self.verbose:
-            print('chan '+str(self.channel)+', loading and aligning '+str(n_data)+' spikes')
-        
-        # load at most 1GB of data at a time
-        gb = 1000000000
-        max_load_size = int(gb/(8*self.CONFIG.recordings.n_channels*self.spike_size))
-        
-        # placeholder for all waveforms
-        fname = self.chunk_dir+'/channel_'+str(self.channel)+'_wf.dat'
-        self.wf_global = np.memmap(filename=fname, dtype='float32', mode='w+', 
-                                   shape=(n_data, self.spike_size, self.n_channels))
-
-        ref_template = np.load(os.path.join(self.CONFIG.path_to_output_directory, 'ref_template.npy'))
-
-        index = np.append(np.arange(0, n_data, max_load_size), n_data)
-        x = np.arange(-self.spike_size // 2, self.spike_size // 2, 1)
-        for j in range(len(index)-1):
-            spt = self.spt_global[index[j]:index[j+1]]
-            wf_temp = recording[x + spt[:,np.newaxis], :]
-            best_shifts = align_get_shifts_with_ref(wf_temp[:, :, self.channel],
-                                                    ref_template)
-            self.wf_global[index[j]:index[j+1]] = shift_chans(wf_temp, best_shifts)
             
 
     def load_waveforms_from_disk(self):
@@ -1513,6 +1497,23 @@ class Cluster(object):
 
         data = None
         return temp
+
+
+def connecting_points(points, index, neighbors, t_diff, keep=None):
+    if keep is None:
+        keep = np.zeros(len(points), 'bool')
+
+    if keep[index] == 1:
+        return keep
+    else:
+        keep[index] = 1
+        spatially_close = np.where(neighbors[points[index, 1]][points[:, 1]])[0]
+        close_index = spatially_close[np.abs(points[spatially_close, 0] - points[index, 0]) <= t_diff]
+
+        for j in close_index:
+            keep = connecting_points(points, j, neighbors, t_diff, keep)
+
+        return keep
 
 
 def align_get_shifts_with_ref(wf, ref, upsample_factor = 5, nshifts = 7):
@@ -1552,6 +1553,7 @@ def align_get_shifts_with_ref(wf, ref, upsample_factor = 5, nshifts = 7):
     best_shifts = (np.arange(-int((nshifts-1)/2), int((nshifts-1)/2+1)))[bs_indices]
 
     return best_shifts/np.float32(upsample_factor)
+
 
 def align_get_shifts(wf, CONFIG, upsample_factor = 5, nshifts = 15):
 
@@ -1593,6 +1595,7 @@ def align_get_shifts(wf, CONFIG, upsample_factor = 5, nshifts = 15):
 
     return best_shifts
     
+
 def upsample_resample(wf, upsample_factor):
 
     wf = wf.T
@@ -1601,7 +1604,6 @@ def upsample_resample(wf, upsample_factor):
     for j in range(wf.shape[1]):
         traces[j] = signal.resample(wf[:,j],(waveform_len-1)*upsample_factor+1)
     return traces
-
 
 
 def shift_chans(wf, best_shifts):
