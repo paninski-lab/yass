@@ -851,6 +851,7 @@ class MatchPursuit_objectiveUpsample(object):
         np.savez(fname_out, spike_train = self.dec_spike_train, 
                             dist_metric = self.dist_metric)
 
+        self.data = None
         #return self.dec_spike_train
         
     
