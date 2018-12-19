@@ -377,7 +377,7 @@ def run(spike_train_cluster,
     np.save(os.path.join(CONFIG.path_to_output_directory,
                         'spike_train_post_deconv_pre_merge'), 
                         spike_train)
-    if True: 
+    if False: 
         print ("Post-deconv merge...")
         align_jitter=5
         upsample = 5
@@ -1570,7 +1570,10 @@ class TemplateMerger(object):
         
         # TODO find pairs that for proposing merges
         # get temp vs. temp affinity, use for merge proposals
-        fname = '/home/cat/affinity.npy'
+        fname = os.path.join(CONFIG.path_to_output_directory, 
+                             'deconv', 
+                             'affinity.npy')
+                             
         if os.path.exists(fname)==False:
             self.affinity_matrix = template_spike_dist(
                 self.templates, self.templates,
@@ -1606,14 +1609,17 @@ class TemplateMerger(object):
         
         units = np.where(self.dist_norm_ratio < 0.5)[0]
         
-        fname = '/media/cat/500GB/liam/49channels/synthetic_004/tmp/deconv/merge_list.npy'
+        fname = os.path.join(self.CONFIG.path_to_output_directory, 
+                             'deconv',
+                             'merge_list.npy')
+                             
         if os.path.exists(fname)==False:
-            # single core version
             if self.CONFIG.resources.multi_processing:
                 merge_list = parmap.map(self.merge_templates_parallel, 
                              list(zip(units, self.merge_candidate[units])),
                              processes=self.CONFIG.resources.n_processors,
                              pm_pbar=True)
+            # single core version
             else:
                 merge_list = []
                 for unit in units:

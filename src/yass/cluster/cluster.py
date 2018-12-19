@@ -64,21 +64,21 @@ class Cluster(object):
         # load data and check if prev completed
         if self.load_data(data_in):  return
 
-        # local clustering
+        # local channel clustering
         print("\nchan "+str(self.channel)+", START LOCAL CLUSTERING")
 
-        self.initialize(initial_spt=self.spike_indexes_chunk[:, 0])
+        self.initialize(initial_spt=self.spike_indexes_chunk[:, 0], local=True)
         self.cluster(current_indices=self.starting_indices, gen=0, local=True)
         self.finish(fname='channel_{}'.format(self.channel))
 
-        # 
+        # distant channel clustering
         spike_train_local = np.copy(self.spike_train)
         spike_train_final = []
         templates_final = []
         for ii, spike_train_k in enumerate(spike_train_local):
             print("\nchan {}, START CLUSTERING UNIT {}/{}".format(self.channel, ii, len(spike_train_local)))
 
-            self.initialize(initial_spt=spike_train_k)
+            self.initialize(initial_spt=spike_train_k, local=False)
             self.cluster(current_indices=self.starting_indices, gen=0, local=False)
             self.finish(fname='channel_{}_local_unit_{}'.format(self.channel, ii))
             
@@ -114,7 +114,8 @@ class Cluster(object):
             self.denoise_step(local)
 
         # featurize it
-        pca_wf = self.featurize_step(gen, current_indices)
+        save_pca=True
+        pca_wf = self.featurize_step(gen, current_indices, local, save_pca)
         
         # knn triage
         idx_keep = self.knn_triage_step(gen, pca_wf)
@@ -123,7 +124,8 @@ class Cluster(object):
         # if anything is triaged, re-featurize and re-cluster
         if idx_keep.shape[0] < pca_wf.shape[0]:
             current_indices = current_indices[idx_keep]
-            pca_wf = self.featurize_step(gen, current_indices)
+            save_pca=False
+            pca_wf = self.featurize_step(gen, current_indices, local, save_pca)
 
         # run initial cluster step
         vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
@@ -260,6 +262,10 @@ class Cluster(object):
                               *self.CONFIG.recordings.sampling_rate/1000
                               + self.shift_allowance*2)+1
 
+        # array to hold shifts; need to initialize 
+        self.global_shifts=None
+        self.pca_wf_gen0=None
+
         # load raw data array
         if self.deconv_flag==False:
             self.load_data_channels()
@@ -275,11 +281,12 @@ class Cluster(object):
         #if self.verbose:
         #    print("chan " + str(self.channel) + " loading data")
 
-        # Cat: TO DO: Is this index search expensive for hundreds of chans and many
+        # Cat: TODO: Is this index search expensive for hundreds of chans and many
         #       millions of spikes?  Might want to do once rather than repeat
         indexes = np.where(self.spike_indexes_chunk[:,1]==self.channel)[0]
 
         # limit clustering to at most 50,000 spikes
+        # Cat: TODO: both flag and value should be read from CONFIG
         if True:
             if indexes.shape[0]>50000:
                 idx_50k = np.random.choice(np.arange(indexes.shape[0]),
@@ -368,12 +375,16 @@ class Cluster(object):
         self.wf_global = self.wf_global.clip(min=-1000, max=1000)
 
 
-    def initialize(self, initial_spt):
+    def initialize(self, initial_spt, local):
 
         self.spike_train = []
         self.templates = []
 
-        self.spt_global = initial_spt.astype('float32')
+        # save detected spike times for channel (redundant step)
+        if local:
+            self.spiketime_detect = initial_spt.copy()
+            
+        self.spt_global = initial_spt.astype('float64')
 
         self.starting_indices = np.arange(len(self.spt_global))
 
@@ -502,7 +513,10 @@ class Cluster(object):
         else:
             np.savez(self.filename_postclustering,
                      spiketime=spike_train,
-                     templates=templates)
+                     templates=templates,
+                     global_shifts=self.global_shifts,
+                     pca_wf_gen0=self.pca_wf_gen0,
+                     spiketime_detect=self.spiketime_detect)
 
 
         print ("**** Channel/Unit ", str(self.channel), " starting spikes: ",
@@ -552,9 +566,10 @@ class Cluster(object):
                 self.wf_global[:, self.shift_allowance:-self.shift_allowance, mc],
                 self.ref_template)
             self.spt_global -= best_shifts
+            self.global_shifts = best_shifts.copy()
         else:
             best_shifts = self.spt_global.astype('int32') - self.spt_global
-
+        
         self.wf_global = shift_chans(self.wf_global, best_shifts)
 
 
@@ -644,7 +659,7 @@ class Cluster(object):
             self.denoised_wf
     
 
-    def featurize_step(self, gen, indices):
+    def featurize_step(self, gen, indices, local, save_pca):
 
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', featurizing')
@@ -665,6 +680,9 @@ class Cluster(object):
         else:
             pca_wf = self.denoised_wf[indices].copy()
 
+        if gen==0 and local and save_pca:
+            self.pca_wf_gen0= pca_wf.copy()
+            
         return pca_wf.astype('float32')
      
 
@@ -1141,39 +1159,39 @@ class Cluster(object):
                     end_flag)     
     
     
-    def split_step(self, gen, dp_val, assignment2, assignment3, pca_wf_all,
-                           idx_recovered, vbParam2, idx_keep, current_indexes):
+    # def split_step(self, gen, dp_val, assignment2, assignment3, pca_wf_all,
+                           # idx_recovered, vbParam2, idx_keep, current_indexes):
                                
-        # plot EM labeled data
-        if gen<20 and self.plotting:
-            split_type = 'mfm-binary, dp: '+ str(round(dp_val,5))
-            self.plot_clustering_scatter(gen,  
-                    assignment3,
-                    assignment2[idx_recovered],
-                    pca_wf_all[idx_recovered],
-                    vbParam2.rhat[idx_recovered],
-                    split_type)
+        # # plot EM labeled data
+        # if gen<20 and self.plotting:
+            # split_type = 'mfm-binary, dp: '+ str(round(dp_val,5))
+            # self.plot_clustering_scatter(gen,  
+                    # assignment3,
+                    # assignment2[idx_recovered],
+                    # pca_wf_all[idx_recovered],
+                    # vbParam2.rhat[idx_recovered],
+                    # split_type)
                     
 
-        if self.verbose:
-            print("chan "+str(self.channel)+' gen: '+str(gen)+ 
-                            " no stable clusters, binary split "+
-                            str(idx_recovered.shape))
+        # if self.verbose:
+            # print("chan "+str(self.channel)+' gen: '+str(gen)+ 
+                            # " no stable clusters, binary split "+
+                            # str(idx_recovered.shape))
 
-        # loop over binary split
-        for clust in np.unique(assignment3): 
-            idx = np.where(assignment3==clust)[0]
+        # # loop over binary split
+        # for clust in np.unique(assignment3): 
+            # idx = np.where(assignment3==clust)[0]
             
-            if idx.shape[0]<self.CONFIG.cluster.min_spikes: continue 
+            # if idx.shape[0]<self.CONFIG.cluster.min_spikes: continue 
             
-            if self.verbose:
-                print("chan "+str(self.channel)+' gen: '+str(gen)+
-                    " reclustering cluster"+ str(idx.shape))
+            # if self.verbose:
+                # print("chan "+str(self.channel)+' gen: '+str(gen)+
+                    # " reclustering cluster"+ str(idx.shape))
             
-            # recluster
-            triageflag = True
-            self.cluster(current_indexes[idx_keep][idx_recovered][idx], 
-                         gen+1, triageflag)
+            # # recluster
+            # triageflag = True
+            # self.cluster(current_indexes[idx_keep][idx_recovered][idx], 
+                         # gen+1, triageflag)
 
 
     def connected_channels(self, channel_list, ref_channel, neighbors, keep=None):
