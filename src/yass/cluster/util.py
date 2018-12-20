@@ -518,9 +518,6 @@ def PCA(X, n_components):
     return X, Y, pca
 
 
-
-
-
 def align_channelwise3(wf, upsample_factor = 20, nshifts = 7):
 
     wf_up = upsample_resample(wf.T, upsample_factor)
@@ -2679,44 +2676,102 @@ def get_denoised_templates(templates, CONFIG):
         os.path.join('template_space', 'pca_sec.pkl')), 'rb'))
 
     n_templates, n_times, n_channels = templates.shape
-    shift_allowance = (n_times - len(ref_template))//2
+    n_times_ref = len(ref_template)
+    shift_allowance = int((n_times - n_times_ref)//2)
 
 
-    # step 1. align templates for each channel
-    reshaped_templates = np.reshape(
-        templates.transpose((0, 2, 1)), [-1, n_times])
+    # step 1. get fits with ref_templates
+    fits = get_fits(templates, ref_template)
 
-    best_shifts = align_get_shifts_with_ref(
-        reshaped_templates[:, shift_allowance:-shift_allowance], ref_template,
-        upsample_factor=5, nshifts=shift_allowance*2+1)
 
-    aligned_reshaped_templates = shift_chans(reshaped_templates, best_shifts)
+    # step 2. get shifts
+    max_chans = templates.ptp(1).argmax(1)
+    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 1)
+    shifts = np.zeros((n_templates, n_channels), 'int32')
+    for k in range(n_templates):
+        shifts[k] = get_shifts(fits[k], max_chans[k], neighbors)
+    shifts -= int(fits.shape[2]//2)
+    shifts = -shifts
 
+
+    # step 3. shift templates
+    reshaped_templates = np.reshape(np.transpose(templates, (0, 2, 1)), (-1, n_times))
+    reshaped_shifts = np.reshape(shifts, -1)
+    aligned_reshaped_templates = shift_chans(reshaped_templates, reshaped_shifts)
     aligned_templates = np.reshape(
         aligned_reshaped_templates, [n_templates, n_channels, n_times]).transpose((0, 2, 1))
 
 
-    # step 2. denoise each one
+    # step 4. denoise templates
     aligned_denoised_templates = denoise(aligned_templates, pca_main, pca_sec)
 
 
     # step 3. shift aligned templates back to its original location
     reshaped_aligned_denoised_templates = np.reshape(
         aligned_denoised_templates.transpose((0, 2, 1)), [-1, n_times])
-
-    reshaped_denoised_templates = shift_chans(reshaped_aligned_denoised_templates, -best_shifts)
-
+    reshaped_denoised_templates = shift_chans(reshaped_aligned_denoised_templates, -reshaped_shifts)
     denoised_templates = np.reshape(
         reshaped_denoised_templates, [n_templates, n_channels, n_times]).transpose((0, 2, 1))
 
 
-    # step 4. undo denoising on undesired channels
-    best_shifts = np.reshape(best_shifts, [n_templates, n_channels])
-    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 1)
-    denoised_templates = undo_denoise(templates, denoised_templates, best_shifts,
-        neighbors=neighbors, ptp_threshold=3)
+    # step 4. undo denoising on channels with small ptp
+    ptp_threshold = 0.5
+    denoised_templates = undo_denoise(
+        templates, denoised_templates, shifts, ptp_threshold)
 
     return denoised_templates, shift_allowance
+
+
+def get_fits(templates, ref_template):
+
+    n_templates, n_times, n_channels = templates.shape
+    n_times_ref = len(ref_template)
+
+    shift_allowance = int((n_times - n_times_ref)//2)
+
+    reshaped_templates = np.reshape(templates.transpose(0, 2, 1), (-1, n_times))
+    
+    shifts = np.arange(-shift_allowance, shift_allowance+1)
+    fits = np.zeros((reshaped_templates.shape[0], 2*shift_allowance+1))
+    for j in range(len(shifts)):
+        fits[:, j] =np.sum(
+            reshaped_templates[:, j:(j+n_times_ref)]*ref_template[np.newaxis], axis=1)
+
+    #fits = np.abs(fits)
+    return np.reshape(fits, (n_templates, n_channels, -1))
+
+
+def get_shifts(fits, max_channel, neighbors, window=3):
+
+    n_channels, n_shifts = fits.shape
+
+    shifts = np.ones(n_channels, 'int32')*n_shifts
+    mid_point = int(n_shifts//2)
+    shifts[max_channel] = get_shift_per_channel(fits[max_channel], 
+        mid_point, window)
+
+    current_chans = np.array([max_channel])
+    while np.any(shifts == n_shifts):
+        neigh_chans = np.any(neighbors[current_chans], axis=0)
+        next_chans = np.where(np.logical_and(neigh_chans, shifts==n_shifts))[0]
+
+        for c in next_chans:
+            shifted_nearby_chans = np.where(np.logical_and(neighbors[c], shifts<n_shifts))[0]
+            mid_point = int(np.mean(shifts[shifted_nearby_chans]))
+            shifts[c] = get_shift_per_channel(fits[c], mid_point, window)
+
+        current_chans = next_chans
+
+    return shifts
+
+
+def get_shift_per_channel(fits, mid_point, window):
+
+    start_index = np.max((mid_point - window, 0))
+    end_index = np.min((mid_point+window+1, len(fits)))
+
+    return start_index + np.argmax(fits[start_index:end_index])
+    
 
 
 def denoise(templates, pca_main, pca_sec):
@@ -2725,7 +2780,6 @@ def denoise(templates, pca_main, pca_sec):
     shift_allowance = (n_times - len(pca_main.mean_))//2
 
     max_channels = templates.ptp(1).argmax(1)
-
 
     norms = np.linalg.norm(templates, axis=1)
     normalized_templates = templates/norms[:, np.newaxis]
@@ -2747,23 +2801,13 @@ def denoise(templates, pca_main, pca_sec):
     return denoised_templates*norms[:, np.newaxis]
 
 
-def undo_denoise(templates, denoised_templates, shifts, neighbors, ptp_threshold=1):
+def undo_denoise(templates, denoised_templates, shifts, ptp_threshold):
 
     n_templates, n_times, n_channels = templates.shape
 
-    max_channels = templates.ptp(1).argmax(1)
-
+    ptps = templates.ptp(1)
     for k in range(n_templates):
-
-        t_diff = 3
-        shifts_matrix_form = np.hstack((np.round(shifts[k])[:, np.newaxis], np.arange(n_channels)[:, np.newaxis]))
-        shifts_matrix_form = shifts_matrix_form.astype('int32')
-        index = max_channels[k]
-        keep = connecting_points(shifts_matrix_form, index, neighbors, t_diff)
-
-        # size threshold
-        keep2 = templates[k].ptp(0) > ptp_threshold
-        undo_channels = ~np.logical_and(keep, keep2)
+        undo_channels = np.where(ptps[k] < ptp_threshold)[0]
         denoised_templates[k][:, undo_channels] = np.copy(templates[k][:, undo_channels])
 
     return denoised_templates
