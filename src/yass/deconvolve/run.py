@@ -248,7 +248,7 @@ def run(spike_train_cluster,
     ***********************************************************
     '''
 
-    # # process only white noise, first 30 mins
+    # # process only white noise, first 30 mins of longer MEA recordings
     # white_noise_only = False
     # if white_noise_only:
         # print ("  DECONV ONLY OVER WHITE NOISE STIMULUS ")
@@ -316,27 +316,6 @@ def run(spike_train_cluster,
         print (templates.shape)
 
 
-    ''' 
-    *********************************************************
-    ************* COMPUTE AND SAVE RESIDUAL *****************
-    *********************************************************
-    '''
- 
-    if False:
-        print ("  OPTIONAL: computing residual...")
-        compute_residual_function(CONFIG, 
-                              idx_list,     # compute residual over entire dataset
-                              buffer_size,
-                              standardized_filename,
-                              dec_spike_train,
-                              sparse_upsampled_templates,
-                              deconv_chunk_dir,
-                              deconv_id_sparse_temp_map,
-                              chunk_size,
-                              CONFIG.resources.n_sec_chunk)
-
-        #quit()
-
 
     ''' 
     *********************************************************
@@ -358,8 +337,8 @@ def run(spike_train_cluster,
         spike_train = np.vstack((spike_train, temp_train))
 
     # Cat: TODO: reorder spike train by time
-    print ("Final deconv spike train: ", spike_train.shape)
-    print ("Final deconv templates: ", templates.shape)
+    print ("Deconv spike train (pre-merge): ", spike_train.shape)
+    print ("Deconv templates (pre-merge): ", templates.shape)
 
     logger.info('spike_train.shape: {}'.format(spike_train.shape))
 
@@ -377,22 +356,70 @@ def run(spike_train_cluster,
     np.save(os.path.join(CONFIG.path_to_output_directory,
                         'spike_train_post_deconv_pre_merge'), 
                         spike_train)
-    if False: 
+    if True: 
         print ("Post-deconv merge...")
-        align_jitter=5
+        print ("  computing residual to generate clean spikes")
+        compute_residual_function(CONFIG, 
+                              idx_list,     # compute residual over entire dataset
+                              buffer_size,
+                              standardized_filename,
+                              dec_spike_train,
+                              sparse_upsampled_templates,
+                              deconv_chunk_dir,
+                              deconv_id_sparse_temp_map,
+                              chunk_size,
+                              CONFIG.resources.n_sec_chunk)
+
+        jitter=5
         upsample = 5
         CONFIG2 = make_CONFIG2(CONFIG)
         tm = TemplateMerger(templates, spike_train, 
-                            align_jitter, upsample,
-                            CONFIG2)
+                            jitter, upsample,
+                            CONFIG2, iteration=0, recompute=False)
        
         merge_list = tm.get_merge_pairs()
         
-        spike_train, templates = merge_pairs(templates, 
+        (spike_train, 
+         templates,
+         connected_components) = merge_pairs(templates, 
                                              spike_train, 
                                              merge_list, 
                                              CONFIG2)
+
+        # save spike train
+        np.savez(os.path.join(CONFIG.path_to_output_directory,
+                        'results_post_deconv_post_merge1'),
+                 templates=templates,
+                 spike_train=spike_train,
+                 connected_components=connected_components)
         
+        # run second iteration
+        if False:
+            print ("  running 2nd iteration of post-deconv merge ")
+        
+            templates = templates.transpose(1,2,0)
+            tm = TemplateMerger(templates, spike_train, 
+                            jitter, upsample,
+                            CONFIG2, iteration=1, recompute=False)
+       
+            merge_list = tm.get_merge_pairs()
+            
+            (spike_train, 
+             templates,
+             connected_components) = merge_pairs(templates, 
+                                                 spike_train, 
+                                                 merge_list, 
+                                                 CONFIG2)
+
+            # save spike train
+            np.savez(os.path.join(CONFIG.path_to_output_directory,
+                            'results_post_deconv_post_merge2'),
+                     templates=templates,
+                     spike_train=spike_train,
+                     connected_components=connected_components)
+     
+        print ("Deconv templates (post-merge): ", templates.shape)
+    
     return spike_train, templates
 
 def merge_pairs(templates, spike_train, merge_list, CONFIG2):
@@ -403,31 +430,36 @@ def merge_pairs(templates, spike_train, merge_list, CONFIG2):
             merge_matrix[merge_pair[0],merge_pair[1]]=1
 
     # compute graph based on pairwise connectivity
-    print ("Computing connectivity") 
     G = nx.from_numpy_matrix(merge_matrix)
     
     # merge spikes and templates
+    print ("  merging units")
     final_spike_indexes = []
     templates_final = []
     ctr=0
+    merge_array=[]
     for cc in nx.connected_components(G):
-        
         # gather spikes 
         sic = np.zeros(0, dtype = int)
+        weights=[]
+        merge_array.append(list(cc))
         for j in cc:
             idx = np.where(spike_train[:,1]==j)[0]
             sic = np.concatenate([sic, spike_train[:,0][idx]])
+            weights.append(idx.shape[0])
         temp = np.concatenate([sic[:,np.newaxis], ctr*np.ones([sic.size,1],dtype = 'int32')],axis = 1)
         final_spike_indexes.append(temp)
         
         # gather templates
-        temp_ = templates[:,:,list(cc)].mean(2)
+        #temp_ = templates[:,:,list(cc)].mean(2)
+        temp_ = np.average(templates[:,:,list(cc)], weights=weights,axis=2)
         templates_final.append(temp_)
         
         ctr+=1
     
     final_spike_indexes = np.vstack(final_spike_indexes)
-    return final_spike_indexes, templates_final
+    return (final_spike_indexes, np.array(templates_final), 
+            merge_array)
     
 def delete_spikes(templates, spike_train):
 
@@ -928,6 +960,13 @@ def compute_residual_function(CONFIG, idx_list_local,
                               chunk_size,
                               n_sec_chunk):
                               
+    # Note: this uses spike times occuring at beginning of spike
+    fname = os.path.join(CONFIG.path_to_output_directory, 
+                                     'deconv',
+                                     'residual.bin')
+    if os.path.exists(fname)==True:
+        return
+
     # re-read entire block to get waveforms 
     # get indexes for entire chunk from local chunk list
     idx_chunk = [idx_list_local[0][0], idx_list_local[-1][1], 
@@ -950,8 +989,8 @@ def compute_residual_function(CONFIG, idx_list_local,
     # this also enables working with spikes that are near the edges
     dec_spike_train_offset = dec_spike_train
     dec_spike_train_offset[:,0] += buffer_size
-    np.save(deconv_chunk_dir+'/dec_spike_train_offset_upsampled.npy',
-            dec_spike_train_offset)
+    #np.save(deconv_chunk_dir+'/dec_spike_train_offset_upsampled.npy',
+    #        dec_spike_train_offset)
 
     print ("  init residual object")
     wf_object = MatchPursuitWaveforms(sparse_upsampled_templates,
@@ -966,27 +1005,13 @@ def compute_residual_function(CONFIG, idx_list_local,
 
 
     # compute residual using initial templates obtained above
-    # Note: this uses spike times occuring at beginning of spike
-    fname = os.path.join(CONFIG.path_to_output_directory, 
-                                     'deconv',
-                                     'residual.npy')
-                                     
     min_ptp = 0.0
-    #print ("  residual computation excludes units < ", min_ptp, "SU")
-    if os.path.exists(fname)==False:
-        wf_object.compute_residual_new(CONFIG, min_ptp)
-        np.save(fname, wf_object.data[buffer_size:-buffer_size])
-        print (" TODO: currently saving both .npy and .bin residuals, to change")
-        wf_object.data = wf_object.data[buffer_size:-buffer_size].reshape(-1)
-        wf_object.data.tofile(fname[:-4]+'.bin')
-        
-    else:
-        wf_object.data = np.load(fname)
-
-    # save spike train set back to original shifts;
-    # note: do not alter dec_spike_train_offset here; needed below
-    dec_spike_train_offset_save = offset_spike_train(CONFIG, dec_spike_train_offset)
-    np.save(deconv_chunk_dir+'/dec_spike_train_offset.npy',dec_spike_train_offset_save)
+    print ("  residual computation excludes units < ", min_ptp, "SU")
+    wf_object.compute_residual_new(CONFIG, min_ptp)
+    #np.save(fname, wf_object.data[buffer_size:-buffer_size])
+    #print (" TODO: currently saving both .npy and .bin residuals, to change")
+    wf_object.data = wf_object.data[buffer_size:-buffer_size].reshape(-1)
+    wf_object.data.tofile(fname[:-4]+'.bin')
 
 
 def offset_spike_train(CONFIG, dec_spike_train_offset):
@@ -1410,7 +1435,6 @@ def fix_spiketrains(up_up_map, spike_train):
         print ("  ", k, up_up_map[k], idx.shape, ctr)
 
     return spike_train_fixed
-        
 
     
 def template_spike_dist(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **kwargs):
@@ -1437,7 +1461,6 @@ def template_spike_dist(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **k
         templates = scipy.signal.resample(templates, n_t * upsample, axis=-1)
         spikes = scipy.signal.resample(spikes, n_t * upsample, axis=-1)
         
-    
     n_times = templates.shape[-1]
     n_chan = templates.shape[1]
     n_unit = templates.shape[0]
@@ -1462,8 +1485,6 @@ def template_spike_dist(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **k
     if jitter > 0:
         return dist.reshape([n_unit, n_spikes, jitter]).min(axis=-1)
     return dist
-
-
 
 
 def template_spike_dist_align(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **kwargs):
@@ -1543,7 +1564,8 @@ def template_spike_dist_align(templates, spikes, jitter=0, upsample=1, vis_ptp=2
 
 class TemplateMerger(object):
 
-    def __init__(self, templates, spike_train, align_jitter, upsample, CONFIG):
+    def __init__(self, templates, spike_train, jitter, upsample, CONFIG,
+                 iteration=0, recompute=False):
         """
         parameters:
         -----------
@@ -1562,9 +1584,12 @@ class TemplateMerger(object):
                                      'deconv',
                                      'residual.bin')
         self.CONFIG = CONFIG
-        
+        self.iteration = iteration
+        self.jitter, self.upsample = jitter, upsample
+
+        print (" templates in: ", templates.shape)
         self.templates = templates.transpose(2,1,0)
-        print (" templates: ", self.templates.shape)
+        self.recompute=recompute
         self.spike_train = spike_train
         self.n_unit = self.templates.shape[0]
         
@@ -1572,22 +1597,21 @@ class TemplateMerger(object):
         # get temp vs. temp affinity, use for merge proposals
         fname = os.path.join(CONFIG.path_to_output_directory, 
                              'deconv', 
-                             'affinity.npy')
+                             'affinity_'+str(self.iteration)+'.npy')
                              
-        if os.path.exists(fname)==False:
+        if os.path.exists(fname)==False or self.recompute:
             self.affinity_matrix = template_spike_dist(
                 self.templates, self.templates,
-                jitter=align_jitter, upsample=upsample)
+                jitter=self.jitter, upsample=self.upsample)
             np.save(fname, self.affinity_matrix)
         else:
             self.affinity_matrix = np.load(fname)
             
-        self.jitter, self.upsample = align_jitter, upsample
         
         # Template norms
         self.norms = template_spike_dist(
             self.templates, self.templates[:1, :, :] * 0,
-            jitter=4, upsample=5, vis_ptp=0.).flatten()
+            jitter=self.jitter, upsample=self.upsample, vis_ptp=0.).flatten()
         
         # Distance metric with diagonal set to large numbers
         dist_mat = np.zeros_like(self.affinity_matrix)
@@ -1598,6 +1622,11 @@ class TemplateMerger(object):
         # proposed merge pairs
         self.merge_candidate = scipy.optimize.linear_sum_assignment(dist_mat)[1]
         
+        fname = os.path.join(CONFIG.path_to_output_directory, 
+                             'deconv', 
+                             'merge_candidate_'+str(self.iteration)+'.npy')
+        np.save(fname, self.merge_candidate)
+        
         # Check the ratio of distance between proposed pairs compared to
         # their norms, if the value is greater that .3 then test the unimodality
         # test on the distribution of distinces of residuals.
@@ -1605,15 +1634,20 @@ class TemplateMerger(object):
             range(self.n_unit),
             self.merge_candidate] / (self.norms[self.merge_candidate] + self.norms)
 
+        fname = os.path.join(CONFIG.path_to_output_directory, 
+                             'deconv', 
+                             'dist_norm_ratio_'+str(self.iteration)+'.npy')
+        np.save(fname, self.dist_norm_ratio)
+        
     def get_merge_pairs(self):
         
         units = np.where(self.dist_norm_ratio < 0.5)[0]
         
         fname = os.path.join(self.CONFIG.path_to_output_directory, 
                              'deconv',
-                             'merge_list.npy')
+                             'merge_list_'+str(self.iteration)+'.npy')
                              
-        if os.path.exists(fname)==False:
+        if os.path.exists(fname)==False or self.recompute:
             if self.CONFIG.resources.multi_processing:
                 merge_list = parmap.map(self.merge_templates_parallel, 
                              list(zip(units, self.merge_candidate[units])),
@@ -1632,7 +1666,7 @@ class TemplateMerger(object):
             
         return merge_list
 
-    def merge_templates_parallel(self, data_in, threshold=0.99, n_samples=500):
+    def merge_templates_parallel(self, data_in, threshold=0.9, n_samples=1000):
         """Whether to merge two templates or not.
 
         parameters:
@@ -1653,78 +1687,51 @@ class TemplateMerger(object):
         unit1 = data_in[0]
         unit2 = data_in[1]
         
-        # get n_sample of cleaned spikes per template.
-        spt1_idx = np.where(self.spike_train[:, 1] == unit1)[0][:n_samples]
-        spt2_idx = np.where(self.spike_train[:, 1] == unit2)[0][:n_samples]
-        spt1 = self.spike_train[spt1_idx, :]
-        spt2 = self.spike_train[spt2_idx, :]
-
-        # TODO(Cat): this filename and Config somehow
-        spikes_1 = read_spikes(
-            self.filename, unit1, self.templates.transpose([2, 1, 0]), spt1,
-            self.CONFIG, residual_flag=True).transpose([0, 2, 1])
-        spikes_2 = read_spikes(
-            self.filename, unit2, self.templates.transpose([2, 1, 0]), spt2,
-            self.CONFIG, residual_flag=True).transpose([0, 2, 1])
-        spike_ids = np.append(
-            np.ones(len(spikes_1)), np.zeros(len(spikes_2)), axis=0)
-        l2_features = template_spike_dist(
-            self.templates[[unit1, unit2], :, :],
-            np.append(spikes_1, spikes_2, axis=0),
-            jitter=self.jitter, upsample=self.upsample)
+        fname = os.path.join(self.CONFIG.path_to_output_directory, 
+                    'deconv', 
+                    'l2features_'+str(unit1)+'_'+str(unit2)+'_'+str(self.iteration))
+                    
+        if os.path.exists(fname)==False or self.recompute:
         
-        try:
-            if test_unimodality(np.log(l2_features).T, spike_ids) > threshold:
-                return (unit1, unit2)
-        except:
-            return None
+            # get n_sample of cleaned spikes per template.
+            spt1_idx = np.where(self.spike_train[:, 1] == unit1)[0][:n_samples]
+            spt2_idx = np.where(self.spike_train[:, 1] == unit2)[0][:n_samples]
+            spt1 = self.spike_train[spt1_idx, :]
+            spt2 = self.spike_train[spt2_idx, :]
+
+            # TODO(Cat): this filename and Config somehow
+            spikes_1 = read_spikes(
+                self.filename, unit1, self.templates.transpose([2, 1, 0]), spt1,
+                self.CONFIG, residual_flag=True).transpose([0, 2, 1])
+            spikes_2 = read_spikes(
+                self.filename, unit2, self.templates.transpose([2, 1, 0]), spt2,
+                self.CONFIG, residual_flag=True).transpose([0, 2, 1])
+            spike_ids = np.append(
+                np.ones(len(spikes_1)), np.zeros(len(spikes_2)), axis=0)
+            l2_features = template_spike_dist(
+                self.templates[[unit1, unit2], :, :],
+                np.append(spikes_1, spikes_2, axis=0),
+                jitter=self.jitter, upsample=self.upsample)
+                        
+            dp_val = test_unimodality(np.log(l2_features).T, spike_ids)
+            #print (" units: ", unit1, unit2, " dp_val: ", dp_val)
+            # save data
+            np.savez(fname,
+                     #spt1_idx=spt1_idx, spt2_idx=spt2_idx,
+                     #spikes_1=spikes_1, spikes_2=spikes_2,
+                     spike_ids=spike_ids,
+                     l2_features=l2_features,
+                     dp_val=dp_val)
+
+        else:
+            data = np.load(fname)
+            dp_val = data['dp_val']
+        
+        if dp_val > threshold:
+            return (unit1, unit2)
+
         return None
-        
-    def merge_templates(self, unit1, unit2, threshold=0.99, n_samples=200):
-        """Whether to merge two templates or not.
 
-        parameters:
-        -----------
-        unit1: int
-            Index of the first template
-        unit2: int
-            Index of the second template
-        threshold: float
-            The threshold for the unimodality test.
-        n_samples: int
-            Maximum number of cleaned spikes from each unit.
-
-        returns:
-        --------
-        Bool. If True, the two templates should be merged. False, otherwise.
-        """
-        
-        # get n_sample of cleaned spikes per template.
-        spt1_idx = np.where(self.spike_train[:, 1] == unit1)[0][:n_samples]
-        spt2_idx = np.where(self.spike_train[:, 1] == unit2)[0][:n_samples]
-        spt1 = self.spike_train[spt1_idx, :]
-        spt2 = self.spike_train[spt2_idx, :]
-
-        # TODO(Cat): this filename and Config somehow
-        spikes_1 = read_spikes(
-            self.filename, unit1, self.templates.transpose([2, 1, 0]), spt1,
-            self.CONFIG, residual_flag=True).transpose([0, 2, 1])
-        spikes_2 = read_spikes(
-            self.filename, unit2, self.templates.transpose([2, 1, 0]), spt2,
-            self.CONFIG, residual_flag=True).transpose([0, 2, 1])
-        spike_ids = np.append(
-            np.ones(len(spikes_1)), np.zeros(len(spikes_2)), axis=0)
-        l2_features = template_spike_dist(
-            self.templates[[unit1, unit2], :, :],
-            np.append(spikes_1, spikes_2, axis=0),
-            jitter=self.jitter, upsample=self.upsample)
-        
-        try:
-            if test_unimodality(np.log(l2_features).T, spike_ids) > threshold:
-                return True
-        except:
-            return False
-        return False
         
 def binary_reader_waveforms(filename, n_channels, n_times, spikes, channels=None, data_type='float32'):
     ''' Reader for loading raw binaries
