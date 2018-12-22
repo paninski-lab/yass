@@ -2061,6 +2061,7 @@ def make_CONFIG2(CONFIG):
     CONFIG2 = empty()
     CONFIG2.recordings=empty()
     CONFIG2.resources=empty()
+    CONFIG2.deconvolution=empty()
     CONFIG2.data=empty()
     CONFIG2.cluster=empty()
     CONFIG2.cluster.prior=empty()
@@ -2090,6 +2091,8 @@ def make_CONFIG2(CONFIG):
     CONFIG2.merge_threshold = CONFIG.cluster.merge_threshold
 
     CONFIG2.path_to_output_directory = CONFIG.path_to_output_directory
+
+    CONFIG2.deconvolution.max_spikes = CONFIG.deconvolution.max_spikes
 
     return CONFIG2
 

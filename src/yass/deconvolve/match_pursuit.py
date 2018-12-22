@@ -779,8 +779,7 @@ class MatchPursuit_objectiveUpsample(object):
         verbose = False
         self.idx_list = data_in[0][0]
         self.seg_ctr = data_in[0][1]
-        self.chunk_ctr = data_in[1]
-        self.buffer_size = data_in[2]
+        self.buffer_size = data_in[1]
         
         # ********* run deconv ************
         fname_out = (self.deconv_dir+"/seg_{}_deconv.npz".format(
@@ -805,8 +804,8 @@ class MatchPursuit_objectiveUpsample(object):
         # compute objective function
         start_time = time.time()
         self.compute_objective()
-        print ('  deconv chunk {0}, seg {1}, objective matrix took: {2:.2f}'.
-                format(self.chunk_ctr,self.seg_ctr, time.time()-start_time))
+        print ('  deconv seg {0}, objective matrix took: {1:.2f}'.
+                format(self.seg_ctr, time.time()-start_time))
                 
         ctr = 0
         tot_max = np.inf
@@ -830,9 +829,9 @@ class MatchPursuit_objectiveUpsample(object):
 
             ctr += 1
 
-        print ('  deconv chunk {0}, seg {1}, # iter: {2}, tot_spikes: {3}, tot_time: {4:.2f}'.
+        print ('  deconv seg {0}, # iter: {1}, tot_spikes: {2}, tot_time: {3:.2f}'.
                 format(
-                self.chunk_ctr,self.seg_ctr, ctr, self.dec_spike_train.shape[0],
+                self.seg_ctr, ctr, self.dec_spike_train.shape[0],
                 time.time()-start_time))
 
         # ******** ADJUST SPIKE TIMES TO REMOVE BUFFER AND OFSETS *******
@@ -859,7 +858,7 @@ class MatchPursuit_objectiveUpsample(object):
 # *************** RESIDUAL COMPUTATION FUNCTION **********************
 # ********************************************************************
 
-class MatchPursuitWaveforms(object):
+class Residual(object):
     
     def __init__(self, 
                  temps,
@@ -867,7 +866,6 @@ class MatchPursuitWaveforms(object):
                  buffer_size, 
                  n_processors, 
                  deconv_chunk_dir, 
-                 chunk_size, 
                  n_sec_chunk,
                  idx_list_local,
                  standardized_filename):
@@ -882,7 +880,6 @@ class MatchPursuitWaveforms(object):
         self.dec_spike_train = dec_spike_train
         self.n_processors = n_processors
         self.deconv_chunk_dir = deconv_chunk_dir
-        self.chunk_size = chunk_size
         self.n_sec_chunk = n_sec_chunk
         self.idx_list_local = idx_list_local
 
