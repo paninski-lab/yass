@@ -82,219 +82,236 @@ def run(spike_train_cluster,
                   'spike_index_cluster.shape: {}'.format(templates.shape,
                                                  spike_train_cluster.shape))
 
-    ''' 
-    ******************************************
-    ************** LOAD PARAMETERS ***********
-    ******************************************
-    ''' 
-    # compute chunk and segment lists for parallel processing below
-    idx_list = compute_idx_list(templates, 
-                                CONFIG, 
-                                output_directory,
-                                recordings_filename)
-           
-    # make deconv directory
-    deconv_dir = os.path.join(CONFIG.path_to_output_directory,  'deconv')
-    if not os.path.isdir(deconv_dir):
-        os.makedirs(deconv_dir)
 
-    # read recording chunk and share as global variable
-    # Cat: TODO: recording_chunk should be a shared variable in 
-    #            multiprocessing module;
-    buffer_size = 200
-    standardized_filename = os.path.join(CONFIG.path_to_output_directory,
-                                         'preprocess', 
-                                         recordings_filename)
 
-    # compute pairwise convolution filter outside match pursuit
-    # Cat: TODO: make sure you don't miss chunks at end
-    # Cat: TODO: do we want to do 10sec chunks in deconv?
-    n_seconds_initial = 1200
-    initial_chunk = int(n_seconds_initial//CONFIG.resources.n_sec_chunk) 
+    deconv = Deconv(spike_train_cluster,
+                    templates,
+                    output_directory,
+                    recordings_filename,
+                    CONFIG)
+
+class Deconv(object):
+
+    def __init__(self, spike_train, templates, output_directory, 
+                 recordings_filename, CONFIG):
+
+        self.spike_train = spike_train
+        self.templates = templates.swapaxes(1,2).swapaxes(0,1)
+        self.output_directory = output_directory
+        self.recordings_filename = recordings_filename
+        self.CONFIG = CONFIG2
+        
+        # initialize 
+        self.initialize()
+        
+        # run iterative deconv-clustering on initial chunk - OPTIONAL
+        if self.n_iterations>0: 
+            self.deconv_iterative()
+        
+        # run deconv on all data
+        self.deconv()
+        
+    def initialize(self): 
+        
+        # compute chunk and segment lists for parallel processing
+        self.idx_list = self.compute_idx_list(self.templates, 
+                                    self.CONFIG, 
+                                    self.output_directory,
+                                    self.recordings_filename)
+               
+        # make deconv directory
+        deconv_dir = os.path.join(CONFIG.path_to_output_directory,  'deconv')
+        if not os.path.isdir(deconv_dir):
+            os.makedirs(deconv_dir)
+
+        self.standardized_filename = os.path.join(self.CONFIG.path_to_output_directory,
+                                             'preprocess', 
+                                             self.recordings_filename)
+
+        # ********************************************
+        # ****** Initialize parameters for deconv ****
+        # ********************************************
+        # Cat: TODO: read from CONFIG
+        self.threshold = 10.
+        self.conv_approx_rank = 10
+        self.default_upsample_value=0
+        self.upsample_max_val = 32.
+
+        # Cat: TODO: max iteration not currently used
+        self.max_iter = 5000
+        self.buffer_size = 200
+        
+        
+        # set the number of cluster iterations to be done
+        # Cat: TODO: read from CONFIG
+        self.n_iterations_deconv = 0
+        self.n_iterations_merge = 1
+        self.n_seconds_initial = 1200
+        initial_chunk = int(self.n_seconds_initial//self.CONFIG.resources.n_sec_chunk) 
+
+        if self.n_iterations_deconv>0: 
+            if not os.path.isdir(deconv_dir+'/initial/'):
+                os.makedirs(deconv_dir+'/initial/')
+
+
+    def compute_idx_list(self):
     
-    chunk_ctr = 0
-    max_iter = 5000
-    
-    # Cat: TODO: read both from CONFIG
-    threshold = 10.
-    conv_approx_rank = 10
-    
+        # necessary parameters
+        n_channels, n_temporal_big, n_templates = self.templates.shape
+        templates = np.transpose(templates, (2, 1, 0))
 
-    # compute pairwise convolution filter outside match pursuit
-    # Cat: TODO: make sure you don't miss chunks at end
-    # Cat: TODO: do we want to do 10sec chunks in deconv?
-    
-    n_iterations = 0
-    if n_iterations>0: 
-        if not os.path.isdir(deconv_dir+'/initial/'):
-            os.makedirs(deconv_dir+'/initial/')
+        sampling_rate = self.CONFIG.recordings.sampling_rate
+        max_spikes = self.CONFIG.deconvolution.max_spikes
+        n_processors = self.CONFIG.resources.n_processors
+        n_sec_chunk = self.CONFIG.resources.n_sec_chunk
 
+        # Cat: TODO: read from CONFIG file
+        buffer_size = 200
 
-    # modify templates for steps below
-    if True:
-        templates = templates.swapaxes(1,2).swapaxes(0,1)
-    else:
-        print (" >>>>>> LOADING MANUALLY RECOMPUTED TEMPLATES  <<<<<")
-        templates = np.load('/media/cat/256GB/liam/49channels/synthetic_003/tmp/templates_recomputed.npy')
+        # Grab length of .dat file to compute chunk indexes below
+        standardized_filename = os.path.join(self.CONFIG.path_to_output_directory,
+                                             'preprocess', 
+                                             self.recordings_filename)
 
+        fp = np.memmap(self.standardized_filename, dtype='float32', mode='r')
+        fp_len = fp.shape[0]
 
-    ''' 
-    ***********************************************************
-    *********** RECOMPUTE/RESIZE TEMPLATES ********************
-    ***********************************************************
-    '''
-    if False: 
-        n_channels = CONFIG.recordings.n_channels
-        template_len = 50
-        idx_list_local = idx_list[:initial_chunk]
-        idx = [idx_list_local[0][0], idx_list_local[-1][1], 
-               idx_list_local[0][2], idx_list_local[0][3]]
+        # Generate indexes in chunks (units of seconds); usually 10-60sec
+        indexes = np.arange(0, fp_len / n_channels, sampling_rate * n_sec_chunk)
+        if indexes[-1] != fp_len / n_channels:
+            indexes = np.hstack((indexes, fp_len / n_channels))
 
-        spike_index_filename = os.path.join(CONFIG.data.root_folder,
-                                             output_directory,
-                                             'spike_train_cluster.npy')
+        # Make the 4 parameter list to be sent to deconvolution algorithm
+        idx_list = []
+        for k in range(len(indexes) - 1):
+            idx_list.append([
+                indexes[k], indexes[k + 1], buffer_size,
+                indexes[k + 1] - indexes[k] + buffer_size
+            ])
 
-        print (templates.shape)
-        templates = recompute_templates(idx,
-                                     templates,
-                                     spike_index_filename,
-                                     buffer_size, 
-                                     standardized_filename, 
-                                     n_channels,
-                                     CONFIG,
-                                     template_len)
-        templates = np.float32(templates).swapaxes(0,1).swapaxes(1,2)
-        print (templates.shape)
+        self.idx_list = np.int64(np.vstack(idx_list)) #[:2]
 
+    def deconv_iterative():
 
-    ''' 
-    ***********************************************************
-    ****** DECONV + RECLUSTER ON INITIAL CHUNK - OPTIONAL *****
-    ***********************************************************
-    '''
-    chunk_size = initial_chunk
-    for chunk_ctr, c in enumerate(range(0, len(idx_list), chunk_size)):
-
-        # exit after number of iterations; redo this pythonically
-        if chunk_ctr==n_iterations:
-            break
-
-        print ("  iterative deconv not fully implemented yet...(need to fix abs_max_dist without padding fro deconv templates")
-        # decide how many deconv+recluster iterations will do before exiting
-
-        # select segments and chunk to be processed
-        #idx_list_local = idx_list[c:c+chunk_size]
-        idx_list_local = idx_list[c:c+chunk_size]
+        idx_list_local = self.idx_list[:chunk_size]
         deconv_chunk_dir = os.path.join(CONFIG.data.root_folder,
-                          'tmp/deconv/initial/chunk_'+str(chunk_ctr).zfill(6))
+                                        'tmp/deconv/initial/')
         if not os.path.isdir(deconv_chunk_dir):
             os.makedirs(deconv_chunk_dir)
-            os.makedirs(deconv_chunk_dir+'/lost_units/')
-       
-        # temporary test: check same chunk repeatedly:
-        idx_list_local = idx_list[:chunk_size]
         
-        ''' 
-        # **** RUN MATCH PURSUIT & RESIDUAL COMP ****
-        '''
-        (sparse_upsampled_templates, 
-         dec_spike_train, 
-         deconv_id_sparse_temp_map, 
-         spike_train_cluster_prev_iteration) = match_pursuit_function(
-                                        CONFIG, 
-                                        templates, 
-                                        spike_train_cluster,
-                                        deconv_chunk_dir,
-                                        standardized_filename,
-                                        max_iter,
-                                        threshold,
-                                        conv_approx_rank,
-                                        idx_list_local, 
-                                        chunk_ctr,
-                                        buffer_size)
-        
-        '''
-        # *** COMPUTE RESIDUAL BY DERASTERIZING ***
-        '''
-        compute_residual_function(CONFIG, 
-                                  idx_list_local,
-                                  buffer_size,
-                                  standardized_filename,
-                                  dec_spike_train,
-                                  sparse_upsampled_templates,
-                                  deconv_chunk_dir,
-                                  deconv_id_sparse_temp_map,
-                                  chunk_size,
-                                  CONFIG.resources.n_sec_chunk)
+        # loop over iterations
+        for k in range(self.n_iterations_deconv): 
+
+            # run match pursuit and return templates and spike_trains
+            (sparse_upsampled_templates, 
+             dec_spike_train, 
+             deconv_id_sparse_temp_map, 
+             spike_train_cluster_prev_iteration) = self.match_pursuit_function()
+            
+            # run post-deconv merge
+            self.merge()
+            
+            # OPTIONAL residual + reclustering steps
+            # compute residual
+            #self.compute_residual_function()
+
+            # recluster 
+            #self.templates, spike_train_cluster = reclustering_function()
+                                                  # CONFIG,
+                                                  # templates,
+                                                  # deconv_chunk_dir,
+                                                  # spike_train_cluster_prev_iteration,
+                                                  # idx_list_local,
+                                                  # initial_chunk,
+                                                  # output_directory, 
+                                                  # recordings_filename)
 
 
-        '''
-        # ************** RECLUSTERING *************
-        '''
-        templates, spike_train_cluster = reclustering_function(
-                                              CONFIG,
-                                              templates,
-                                              deconv_chunk_dir,
-                                              spike_train_cluster_prev_iteration,
-                                              idx_list_local,
-                                              initial_chunk,
-                                              output_directory, 
-                                              recordings_filename)
+    def deconv_final(self):
 
-
-    ''' 
-    ***********************************************************
-    ************ RUN MATCH PURSUIT OVER ALL DATA **************
-    ***********************************************************
-    '''
-
-    # # process only white noise, first 30 mins
-    # white_noise_only = False
-    # if white_noise_only:
-        # print ("  DECONV ONLY OVER WHITE NOISE STIMULUS ")
-        # max_time = 30*60*CONFIG.recordings.sampling_rate
-        # idx = np.where(np.array(idx_list)[:,0]<max_time)[0]
-        # idx_list = idx_list[idx]
-
-    # Cat: TODO: no need to use chunks anymore, just run all data over single
-    #      temporariy fix: run over rest of data in single chunk run:
-    chunk_size = len(idx_list)
-    for chunk_ctr, c in enumerate(range(0, len(idx_list), chunk_size)):
- 
+        # Cat: TODO: no need to use chunks anymore, just run all data over single
+        #      temporariy fix: run over rest of data in single chunk run:
         # select segments and chunk to be processed
-        idx_list_local = idx_list[c:c+chunk_size]
+        idx_list_local = idx_list
         deconv_chunk_dir = os.path.join(CONFIG.data.root_folder,
-                          'tmp/deconv/chunk_'+str(chunk_ctr).zfill(6))
+                                        'tmp/deconv/final/')
         if not os.path.isdir(deconv_chunk_dir):
             os.makedirs(deconv_chunk_dir)
-            os.makedirs(deconv_chunk_dir+'/lost_units/')
 
         # Cat: TODO: don't recomp temp_temp for final step if prev. computed
-        (sparse_upsampled_templates, 
-         dec_spike_train, 
-         deconv_id_sparse_temp_map, 
-         spike_train_cluster_prev_iteration) = match_pursuit_function(
-                                                CONFIG, 
-                                                templates, 
-                                                spike_train_cluster,
-                                                deconv_chunk_dir,
-                                                standardized_filename,
-                                                max_iter,
-                                                threshold,
-                                                conv_approx_rank,
-                                                idx_list_local, 
-                                                chunk_ctr,
-                                                buffer_size)
+        self.match_pursuit_function()
+            
+        # run post-deconv merge
+        self.merge() 
+
+    def post_deconv_processing(self, location):
+
+        # reload all spike trains and concatenate them:
+        self.spike_train = np.zeros((0,2),'int32')
+        for c in range(len(self.idx_list)):
+
+            # make deconv chunk directory
+            deconv_chunk_dir = os.path.join(self.CONFIG.data.root_folder,
+                                            'tmp/deconv/'+location)
+
+            deconv_results = np.load(deconv_chunk_dir+'/deconv_results.npz')
+            temp_train = deconv_results['spike_train']
+            idx = np.argsort(temp_train[:,0])
+            self.spike_train = np.vstack((spike_train, temp_train))
+
+        # Cat: TODO: reorder spike train by time
+        print ("  TODO: reorder spike train by time")
+        print ("Deconv spike train (pre-merge): ", self.spike_train.shape)
+        print ("Deconv templates (pre-merge): ", self.templates.shape)
+
+        logger.info('  Templates: {}'.format(self.templates.shape))
+        logger.info('  Spike_train: {}'.format(self.spike_train.shape))
+
+
+    def merge(self): 
+
+                            
+        print ("Post-deconv merge...")
+        print ("  computing residual to generate clean spikes")
+        self.compute_residual_function()
+
+    
+        jitter=5
+        upsample = 5
+        CONFIG2 = make_CONFIG2(self.CONFIG)
         
-        
-    ''' 
-    ***********************************************************
-    *********** RECOMPUTE/RESIZE TEMPLATES ********************
-    ***********************************************************
-    '''
-    if False: 
-        n_channels = CONFIG.recordings.n_channels
-        template_len = 50
+        for i in range(self.n_iterations_merge):
+            print ("  running merge iteration: ", i+1 , "/", self.n_iterations_merge)
+            tm = TemplateMerger(self.templates, self.spike_train, 
+                                jitter, upsample,
+                                CONFIG2, iteration=i, recompute=False)
+           
+            merge_list = tm.get_merge_pairs()
+            
+            (self.spike_train, 
+             self.templates,
+             connected_components) = merge_pairs(self.templates, 
+                                                 self.spike_train, 
+                                                 merge_list, 
+                                                 CONFIG2)
+
+            self.templates = templates.transpose(1,2,0)
+
+            # save spike train
+            np.savez(os.path.join(CONFIG.path_to_output_directory,
+                            'results_post_deconv_post_merge_'+str(i)),
+                     templates=self.templates,
+                     spike_train=self.spike_train,
+                     connected_components=connected_components)
+                 
+            print ("  deconv templates (post-merge): ", self.templates.shape)
+    
+        return spike_train, self.templates
+
+
+    def resize_templates(self, template_len=50):
+
+        n_channels = self.CONFIG.recordings.n_channels
         idx_list_local = idx_list[:initial_chunk]
         idx = [idx_list_local[0][0], idx_list_local[-1][1], 
                idx_list_local[0][2], idx_list_local[0][3]]
@@ -303,7 +320,7 @@ def run(spike_train_cluster,
                                              output_directory,
                                              'spike_train_cluster.npy')
 
-        print (templates.shape)
+        print ("  original templates: ", templates.shape)
         templates = recompute_templates(idx,
                                      templates,
                                      spike_index_filename,
@@ -311,89 +328,106 @@ def run(spike_train_cluster,
                                      standardized_filename, 
                                      n_channels,
                                      CONFIG,
-                                     template_len)
+                                     self.template_len)
+                                     
         templates = np.float32(templates).swapaxes(0,1).swapaxes(1,2)
-        print (templates.shape)
+        print ("  resized templates: ", templates.shape)
 
 
-    ''' 
-    *********************************************************
-    ************* COMPUTE AND SAVE RESIDUAL *****************
-    *********************************************************
-    '''
- 
-    if False:
-        print ("  OPTIONAL: computing residual...")
-        compute_residual_function(CONFIG, 
-                              idx_list,     # compute residual over entire dataset
-                              buffer_size,
-                              standardized_filename,
-                              dec_spike_train,
-                              sparse_upsampled_templates,
-                              deconv_chunk_dir,
-                              deconv_id_sparse_temp_map,
-                              chunk_size,
-                              CONFIG.resources.n_sec_chunk)
 
-        #quit()
+    def match_pursuit_function(self):
+                            
+        print ("")
+        print ("Initializing Match Pursuit, # segments: ", 
+                self.idx_list_local.shape[0], 
+                " start: ", self.idx_list_local[0][0], " end: ", 
+                self.idx_list_local[-1][1], " start(sec): ", 
+                round(self.idx_list_local[0][0]/float(self.CONFIG.recordings.sampling_rate),1),
+                " end(sec): ", 
+                round(self.idx_list_local[-1][1]/float(self.CONFIG.recordings.sampling_rate),1))
 
-
-    ''' 
-    *********************************************************
-    **************** POST DECONV CLEAN UP *******************
-    *********************************************************
-    '''
-
-    # reload all spike trains and concatenate them:
-    spike_train = np.zeros((0,2),'int32')
-    for chunk_ctr, c in enumerate(range(0, len(idx_list), chunk_size)):
-
-        # make deconv chunk directory
-        deconv_chunk_dir = os.path.join(CONFIG.data.root_folder,
-                          'tmp/deconv/chunk_'+str(chunk_ctr).zfill(6))
-
-        deconv_results = np.load(deconv_chunk_dir+'/deconv_results.npz')
-        temp_train = deconv_results['spike_train']
-        idx = np.argsort(temp_train[:,0])
-        spike_train = np.vstack((spike_train, temp_train))
-
-    # Cat: TODO: reorder spike train by time
-    print ("Final deconv spike train: ", spike_train.shape)
-    print ("Final deconv templates: ", templates.shape)
-
-    logger.info('spike_train.shape: {}'.format(spike_train.shape))
-
-
-    ''' 
-    *********************************************************
-    **************** POST DECONV MERGE **********************
-    *********************************************************
-    '''
-    
-    np.save(os.path.join(CONFIG.path_to_output_directory,
-                        'templates_post_deconv_pre_merge'),
-                        templates)
-                        
-    np.save(os.path.join(CONFIG.path_to_output_directory,
-                        'spike_train_post_deconv_pre_merge'), 
-                        spike_train)
-    if False: 
-        print ("Post-deconv merge...")
-        align_jitter=5
-        upsample = 5
-        CONFIG2 = make_CONFIG2(CONFIG)
-        tm = TemplateMerger(templates, spike_train, 
-                            align_jitter, upsample,
-                            CONFIG2)
-       
-        merge_list = tm.get_merge_pairs()
+        # initialize match pursuit
+        mp_object = MatchPursuit_objectiveUpsample(
+                                  temps=self.templates,
+                                  deconv_chunk_dir=self.deconv_chunk_dir,
+                                  standardized_filename=self.standardized_filename,
+                                  max_iter=self.max_iter,
+                                  upsample=self.upsample_max_val,
+                                  threshold=self.threshold,
+                                  conv_approx_rank=self.conv_approx_rank,
+                                  n_processors=self.CONFIG.resources.n_processors,
+                                  multi_processing=self.CONFIG.resources.multi_processing)
         
-        spike_train, templates = merge_pairs(templates, 
-                                             spike_train, 
-                                             merge_list, 
-                                             CONFIG2)
+        print ("  running Match Pursuit...")
+
+        # find which sections within current chunk not complete
+        args_in = []
+        for k in range(len(self.idx_list_local)):
+            fname_out = (self.deconv_chunk_dir+
+                         "/seg_{}_deconv.npz".format(
+                         str(k).zfill(6)))
+            if os.path.exists(fname_out)==False:
+                args_in.append([[self.idx_list_local[k], k],
+                                self.buffer_size])
+
+        if len(args_in)>0:
+            if self.CONFIG.resources.multi_processing:
+                p = mp.Pool(processes = self.CONFIG.resources.n_processors)
+                p.map_async(mp_object.run, args_in).get(988895)
+                p.close()
+            else:
+                for k in range(len(args_in)):
+                    mp_object.run(args_in[k])
         
-    return spike_train, templates
+        # collect spikes
+        res = []
+        for k in range(len(self.idx_list_local)):
+            fname_out = (self.deconv_chunk_dir+
+                         "/seg_{}_deconv.npz".format(
+                         str(k).zfill(6)))
+                         
+            data = np.load(fname_out)
+            res.append(data['spike_train'])
+
+        print ("  gathering spike trains")
+        dec_spike_train = np.vstack(res)
+        
+        # get corrected spike trains first
+        self.dec_spike_train = mp_object.correct_shift_deconv_spike_train(dec_spike_train)
+        print ("  initial deconv spike train: ", self.dec_spike_train.shape)
+
+        '''
+        # ********************************************
+        # * LOAD CORRECT TEMPLATES FOR RESIDUAL COMP *
+        # ********************************************
+        '''
+        # get upsampled templates and mapping for computing residual
+        self.sparse_upsampled_templates, self.deconv_id_sparse_temp_map = (
+                                mp_object.get_sparse_upsampled_templates())
+
+
+        # save original spike ids (before upsampling
+        # Cat: TODO: get this value from global/CONFIG
+        spike_train_noupsample = dec_spike_train.copy()
+        spike_train_noupsample[:, 1] = np.int32(spike_train_noupsample[:, 1]/
+                                                self.upsample_max_val)
+        np.savez(self.deconv_chunk_dir + "/deconv_results.npz",
+                 spike_train=spike_train_noupsample,
+                 templates=self.templates,
+                 spike_train_upsampled=self.dec_spike_train,
+                 templates_upsampled=self.sparse_upsampled_templates)
+
+        np.save(os.path.join(self.CONFIG.path_to_output_directory,
+                            'templates_post_deconv_pre_merge'),
+                            self.templates)
+                            
+        np.save(os.path.join(self.CONFIG.path_to_output_directory,
+                            'spike_train_post_deconv_pre_merge'), 
+                            temp_spike_train)
+            
+        #return (self.sparse_upsampled_templates, self.dec_spike_train,
+        #        deconv_id_sparse_temp_map, spike_train_cluster_prev_iteration)
+
 
 def merge_pairs(templates, spike_train, merge_list, CONFIG2):
     
@@ -403,31 +437,36 @@ def merge_pairs(templates, spike_train, merge_list, CONFIG2):
             merge_matrix[merge_pair[0],merge_pair[1]]=1
 
     # compute graph based on pairwise connectivity
-    print ("Computing connectivity") 
     G = nx.from_numpy_matrix(merge_matrix)
     
     # merge spikes and templates
+    print ("  merging units")
     final_spike_indexes = []
     templates_final = []
     ctr=0
+    merge_array=[]
     for cc in nx.connected_components(G):
-        
         # gather spikes 
         sic = np.zeros(0, dtype = int)
+        weights=[]
+        merge_array.append(list(cc))
         for j in cc:
             idx = np.where(spike_train[:,1]==j)[0]
             sic = np.concatenate([sic, spike_train[:,0][idx]])
+            weights.append(idx.shape[0])
         temp = np.concatenate([sic[:,np.newaxis], ctr*np.ones([sic.size,1],dtype = 'int32')],axis = 1)
         final_spike_indexes.append(temp)
         
         # gather templates
-        temp_ = templates[:,:,list(cc)].mean(2)
+        #temp_ = templates[:,:,list(cc)].mean(2)
+        temp_ = np.average(templates[:,:,list(cc)], weights=weights,axis=2)
         templates_final.append(temp_)
         
         ctr+=1
     
     final_spike_indexes = np.vstack(final_spike_indexes)
-    return final_spike_indexes, templates_final
+    return (final_spike_indexes, np.array(templates_final), 
+            merge_array)
     
 def delete_spikes(templates, spike_train):
 
@@ -489,45 +528,7 @@ def align_singletrace_lastchan(wf, CONFIG, upsample_factor = 5, nshifts = 15,
 
     return np.float32(wf_final[:,::upsample_factor]), best_shifts
     
-def compute_idx_list(templates, CONFIG, output_directory, 
-                                        recordings_filename):
-    
-    # necessary parameters
-    n_channels, n_temporal_big, n_templates = templates.shape
-    templates = np.transpose(templates, (2, 1, 0))
 
-    sampling_rate = CONFIG.recordings.sampling_rate
-    max_spikes = CONFIG.deconvolution.max_spikes
-    n_processors = CONFIG.resources.n_processors
-    n_sec_chunk = CONFIG.resources.n_sec_chunk
-    
-    # Cat: TODO: read from CONFIG file
-    buffer_size = 200
-
-    # Grab length of .dat file to compute chunk indexes below
-    standardized_filename = os.path.join(CONFIG.path_to_output_directory,
-                                         'preprocess', 
-                                         recordings_filename)
-    
-    fp = np.memmap(standardized_filename, dtype='float32', mode='r')
-    fp_len = fp.shape[0]
-
-    # Generate indexes in chunks (units of seconds); usually 10-60sec
-    indexes = np.arange(0, fp_len / n_channels, sampling_rate * n_sec_chunk)
-    if indexes[-1] != fp_len / n_channels:
-        indexes = np.hstack((indexes, fp_len / n_channels))
-
-    # Make the 4 parameter list to be sent to deconvolution algorithm
-    idx_list = []
-    for k in range(len(indexes) - 1):
-        idx_list.append([
-            indexes[k], indexes[k + 1], buffer_size,
-            indexes[k + 1] - indexes[k] + buffer_size
-        ])
-
-    idx_list = np.int64(np.vstack(idx_list)) #[:2]
-
-    return idx_list
 
 def reclustering_function(CONFIG,
                           templates,
@@ -720,13 +721,13 @@ def recompute_templates_from_raw(templates,
 
 
 def recompute_templates(idx,
-                     templates,
-                     spike_index_filename,
-                     buffer_size, 
-                     standardized_filename, 
-                     n_channels,
-                     CONFIG,
-                     template_len):
+                         templates,
+                         spike_index_filename,
+                         buffer_size, 
+                         standardized_filename, 
+                         n_channels,
+                         CONFIG,
+                         template_len):
                                      
     '''
         Function that reloads templates 
@@ -735,8 +736,6 @@ def recompute_templates(idx,
     # Cat: TODO: data_start is not 0, should be
     data_start = 0
     offset = 200
-    #spike_size = int(CONFIG.recordings.spike_size_ms * 2
-    #                 * CONFIG.recordings.sampling_rate / 1000) + 1
     
     spike_size = template_len*2+1
     
@@ -918,75 +917,57 @@ def raw_templates_parallel(unit,
 
 
 
-def compute_residual_function(CONFIG, idx_list_local,
-                              buffer_size,
-                              standardized_filename,
-                              dec_spike_train,
-                              sparse_upsampled_templates,
-                              deconv_chunk_dir,
-                              deconv_id_sparse_temp_map,
-                              chunk_size,
-                              n_sec_chunk):
+def compute_residual_function(self):
                               
+    # Note: this uses spike times occuring at beginning of spike
+    fname = os.path.join(self.CONFIG.path_to_output_directory, 
+                                     'deconv',
+                                     'residual.bin')
+    if os.path.exists(fname)==True:
+        return
+
     # re-read entire block to get waveforms 
     # get indexes for entire chunk from local chunk list
-    idx_chunk = [idx_list_local[0][0], idx_list_local[-1][1], 
-                 idx_list_local[0][2], idx_list_local[0][3]]
+    idx_chunk = [self.idx_list_local[0][0], self.idx_list_local[-1][1], 
+                 self.idx_list_local[0][2], self.idx_list_local[0][3]]
                  
     # read data block using buffer
-    n_channels = CONFIG.recordings.n_channels
+    n_channels = self.CONFIG.recordings.n_channels
     
     #print (standardized_filename)
-    # Cat: TODO: this is 
-    recording_chunk = binary_reader(idx_chunk, 
-                                    buffer_size, 
-                                    standardized_filename, 
-                                    n_channels)
+    recording_chunk = binary_reader(self.idx_chunk, 
+                                    self.buffer_size, 
+                                    self.standardized_filename, 
+                                    self.n_channels)
 
     # compute residual for data chunk and save to disk
     # Cat TODO: parallelize this and also figure out a faster way to 
     #           process this data
     # Note: offset spike train to account for recording_chunk buffer size
     # this also enables working with spikes that are near the edges
-    dec_spike_train_offset = dec_spike_train
-    dec_spike_train_offset[:,0] += buffer_size
-    np.save(deconv_chunk_dir+'/dec_spike_train_offset_upsampled.npy',
-            dec_spike_train_offset)
+    dec_spike_train_offset = self.dec_spike_train
+    dec_spike_train_offset[:,0] += self.buffer_size
+    #np.save(deconv_chunk_dir+'/dec_spike_train_offset_upsampled.npy',
+    #        dec_spike_train_offset)
 
     print ("  init residual object")
-    wf_object = MatchPursuitWaveforms(sparse_upsampled_templates,
-                                      dec_spike_train_offset,
-                                      buffer_size,
-                                      CONFIG.resources.n_processors,
-                                      deconv_chunk_dir,
-                                      chunk_size,
-                                      n_sec_chunk,
-                                      idx_list_local,
-                                      standardized_filename)
+    wf_object = MatchPursuitWaveforms(self.sparse_upsampled_templates,
+                                      self.dec_spike_train_offset,
+                                      self.buffer_size,
+                                      self.CONFIG.resources.n_processors,
+                                      self.deconv_chunk_dir,
+                                      self.chunk_size,
+                                      self.n_sec_chunk,
+                                      self.idx_list_local,
+                                      self.standardized_filename)
 
 
     # compute residual using initial templates obtained above
-    # Note: this uses spike times occuring at beginning of spike
-    fname = os.path.join(CONFIG.path_to_output_directory, 
-                                     'deconv',
-                                     'residual.npy')
-                                     
     min_ptp = 0.0
-    #print ("  residual computation excludes units < ", min_ptp, "SU")
-    if os.path.exists(fname)==False:
-        wf_object.compute_residual_new(CONFIG, min_ptp)
-        np.save(fname, wf_object.data[buffer_size:-buffer_size])
-        print (" TODO: currently saving both .npy and .bin residuals, to change")
-        wf_object.data = wf_object.data[buffer_size:-buffer_size].reshape(-1)
-        wf_object.data.tofile(fname[:-4]+'.bin')
-        
-    else:
-        wf_object.data = np.load(fname)
-
-    # save spike train set back to original shifts;
-    # note: do not alter dec_spike_train_offset here; needed below
-    dec_spike_train_offset_save = offset_spike_train(CONFIG, dec_spike_train_offset)
-    np.save(deconv_chunk_dir+'/dec_spike_train_offset.npy',dec_spike_train_offset_save)
+    print ("  residual computation excludes units < ", min_ptp, "SU")
+    wf_object.compute_residual_new(self.CONFIG, min_ptp)
+    wf_object.data = wf_object.data[buffer_size:-buffer_size].reshape(-1)
+    wf_object.data.tofile(fname[:-4]+'.bin')
 
 
 def offset_spike_train(CONFIG, dec_spike_train_offset):
@@ -1011,116 +992,6 @@ def offset_spike_train(CONFIG, dec_spike_train_offset):
     dec_spike_train_offset[:,1] = np.int32(dec_spike_train_offset[:,1]/upsample_max_val)
 
     return dec_spike_train_offset
-
-
-def match_pursuit_function(CONFIG, 
-                templates, 
-                spike_train_cluster_prev_iteration,
-                deconv_chunk_dir,
-                standardized_filename,
-                max_iter,
-                threshold,
-                conv_approx_rank,
-                idx_list_local,
-                chunk_ctr,
-                buffer_size):
-                        
-   # global pairwise_conv
-
-    print ("")
-    print ("Initializing Match Pursuit for chunk: ", chunk_ctr, ", # segments: ", 
-            idx_list_local.shape[0], 
-            " start: ", idx_list_local[0][0], " end: ", 
-            idx_list_local[-1][1], " start(sec): ", 
-            round(idx_list_local[0][0]/float(CONFIG.recordings.sampling_rate),1),
-            " end(sec): ", 
-            round(idx_list_local[-1][1]/float(CONFIG.recordings.sampling_rate),1))
-       
-    # delete templates below certain treshold; and collision templates
-    #templates, spike_train_cluster_prev_iteration = clean_templates(templates,
-    #                                                    spike_train_cluster_prev_iteration,
-    #                                                    CONFIG)
-    
-    # initialize match pursuit
-    # Cat: TODO: to read from CONFIG
-    # this value sets dynamic upsampling for MP object
-    default_upsample_value=0
-    upsample_max_val = 32.
-
-    mp_object = MatchPursuit_objectiveUpsample(
-                              temps=templates,
-                              deconv_chunk_dir=deconv_chunk_dir,
-                              standardized_filename=standardized_filename,
-                              max_iter=max_iter,
-                              upsample=upsample_max_val,
-                              threshold=threshold,
-                              conv_approx_rank=conv_approx_rank,
-                              n_processors=CONFIG.resources.n_processors,
-                              multi_processing=CONFIG.resources.multi_processing)
-    
-    print ("  running Match Pursuit...")
-
-    # find which sections within current chunk not complete
-    args_in = []
-    for k in range(len(idx_list_local)):
-        fname_out = (deconv_chunk_dir+
-                     "/seg_{}_deconv.npz".format(
-                     str(k).zfill(6)))
-        if os.path.exists(fname_out)==False:
-            args_in.append([[idx_list_local[k], k],
-                            chunk_ctr,
-                            buffer_size])
-
-    if len(args_in)>0:
-        if CONFIG.resources.multi_processing:
-            p = mp.Pool(processes = CONFIG.resources.n_processors)
-            p.map_async(mp_object.run, args_in).get(988895)
-            p.close()
-        else:
-            for k in range(len(args_in)):
-                mp_object.run(args_in[k])
-    
-    # collect spikes
-    res = []
-    for k in range(len(idx_list_local)):
-        fname_out = (deconv_chunk_dir+
-                     "/seg_{}_deconv.npz".format(
-                     str(k).zfill(6)))
-                     
-        data = np.load(fname_out)
-        res.append(data['spike_train'])
-
-    print ("  gathering spike trains")
-    dec_spike_train = np.vstack(res)
-    
-    # get corrected spike trains first
-    dec_spike_train = mp_object.correct_shift_deconv_spike_train(dec_spike_train)
-    print ("  initial deconv spike train: ", dec_spike_train.shape)
-
-    '''
-    # ********************************************
-    # * LOAD CORRECT TEMPLATES FOR RESIDUAL COMP *
-    # ********************************************
-    '''
-    
-    # get upsampled templates and mapping for computing residual
-    sparse_upsampled_templates, deconv_id_sparse_temp_map = (
-                            mp_object.get_sparse_upsampled_templates())
-
-
-    # save original spike ids (before upsampling
-    # Cat: TODO: get this value from global/CONFIG
-    temp_spike_train = dec_spike_train.copy()
-    temp_spike_train[:, 1] = np.int32(dec_spike_train[:, 1] / upsample_max_val)
-    np.savez(deconv_chunk_dir + "/deconv_results.npz",
-             spike_train=temp_spike_train,
-             templates=templates,
-             spike_train_upsampled=dec_spike_train,
-             templates_upsampled=sparse_upsampled_templates)
-
-
-    return (sparse_upsampled_templates, dec_spike_train,
-            deconv_id_sparse_temp_map, spike_train_cluster_prev_iteration)
 
     
 
@@ -1410,7 +1281,6 @@ def fix_spiketrains(up_up_map, spike_train):
         print ("  ", k, up_up_map[k], idx.shape, ctr)
 
     return spike_train_fixed
-        
 
     
 def template_spike_dist(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **kwargs):
@@ -1437,7 +1307,6 @@ def template_spike_dist(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **k
         templates = scipy.signal.resample(templates, n_t * upsample, axis=-1)
         spikes = scipy.signal.resample(spikes, n_t * upsample, axis=-1)
         
-    
     n_times = templates.shape[-1]
     n_chan = templates.shape[1]
     n_unit = templates.shape[0]
@@ -1462,8 +1331,6 @@ def template_spike_dist(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **k
     if jitter > 0:
         return dist.reshape([n_unit, n_spikes, jitter]).min(axis=-1)
     return dist
-
-
 
 
 def template_spike_dist_align(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **kwargs):
@@ -1543,7 +1410,8 @@ def template_spike_dist_align(templates, spikes, jitter=0, upsample=1, vis_ptp=2
 
 class TemplateMerger(object):
 
-    def __init__(self, templates, spike_train, align_jitter, upsample, CONFIG):
+    def __init__(self, templates, spike_train, jitter, upsample, CONFIG,
+                 iteration=0, recompute=False):
         """
         parameters:
         -----------
@@ -1562,9 +1430,12 @@ class TemplateMerger(object):
                                      'deconv',
                                      'residual.bin')
         self.CONFIG = CONFIG
-        
+        self.iteration = iteration
+        self.jitter, self.upsample = jitter, upsample
+
+        print (" templates in: ", templates.shape)
         self.templates = templates.transpose(2,1,0)
-        print (" templates: ", self.templates.shape)
+        self.recompute=recompute
         self.spike_train = spike_train
         self.n_unit = self.templates.shape[0]
         
@@ -1572,22 +1443,21 @@ class TemplateMerger(object):
         # get temp vs. temp affinity, use for merge proposals
         fname = os.path.join(CONFIG.path_to_output_directory, 
                              'deconv', 
-                             'affinity.npy')
+                             'affinity_'+str(self.iteration)+'.npy')
                              
-        if os.path.exists(fname)==False:
+        if os.path.exists(fname)==False or self.recompute:
             self.affinity_matrix = template_spike_dist(
                 self.templates, self.templates,
-                jitter=align_jitter, upsample=upsample)
+                jitter=self.jitter, upsample=self.upsample)
             np.save(fname, self.affinity_matrix)
         else:
             self.affinity_matrix = np.load(fname)
             
-        self.jitter, self.upsample = align_jitter, upsample
         
         # Template norms
         self.norms = template_spike_dist(
             self.templates, self.templates[:1, :, :] * 0,
-            jitter=4, upsample=5, vis_ptp=0.).flatten()
+            jitter=self.jitter, upsample=self.upsample, vis_ptp=0.).flatten()
         
         # Distance metric with diagonal set to large numbers
         dist_mat = np.zeros_like(self.affinity_matrix)
@@ -1598,6 +1468,11 @@ class TemplateMerger(object):
         # proposed merge pairs
         self.merge_candidate = scipy.optimize.linear_sum_assignment(dist_mat)[1]
         
+        fname = os.path.join(CONFIG.path_to_output_directory, 
+                             'deconv', 
+                             'merge_candidate_'+str(self.iteration)+'.npy')
+        np.save(fname, self.merge_candidate)
+        
         # Check the ratio of distance between proposed pairs compared to
         # their norms, if the value is greater that .3 then test the unimodality
         # test on the distribution of distinces of residuals.
@@ -1605,15 +1480,20 @@ class TemplateMerger(object):
             range(self.n_unit),
             self.merge_candidate] / (self.norms[self.merge_candidate] + self.norms)
 
+        fname = os.path.join(CONFIG.path_to_output_directory, 
+                             'deconv', 
+                             'dist_norm_ratio_'+str(self.iteration)+'.npy')
+        np.save(fname, self.dist_norm_ratio)
+        
     def get_merge_pairs(self):
         
         units = np.where(self.dist_norm_ratio < 0.5)[0]
         
         fname = os.path.join(self.CONFIG.path_to_output_directory, 
                              'deconv',
-                             'merge_list.npy')
+                             'merge_list_'+str(self.iteration)+'.npy')
                              
-        if os.path.exists(fname)==False:
+        if os.path.exists(fname)==False or self.recompute:
             if self.CONFIG.resources.multi_processing:
                 merge_list = parmap.map(self.merge_templates_parallel, 
                              list(zip(units, self.merge_candidate[units])),
@@ -1632,7 +1512,7 @@ class TemplateMerger(object):
             
         return merge_list
 
-    def merge_templates_parallel(self, data_in, threshold=0.99, n_samples=500):
+    def merge_templates_parallel(self, data_in, threshold=0.9, n_samples=1000):
         """Whether to merge two templates or not.
 
         parameters:
@@ -1653,78 +1533,51 @@ class TemplateMerger(object):
         unit1 = data_in[0]
         unit2 = data_in[1]
         
-        # get n_sample of cleaned spikes per template.
-        spt1_idx = np.where(self.spike_train[:, 1] == unit1)[0][:n_samples]
-        spt2_idx = np.where(self.spike_train[:, 1] == unit2)[0][:n_samples]
-        spt1 = self.spike_train[spt1_idx, :]
-        spt2 = self.spike_train[spt2_idx, :]
-
-        # TODO(Cat): this filename and Config somehow
-        spikes_1 = read_spikes(
-            self.filename, unit1, self.templates.transpose([2, 1, 0]), spt1,
-            self.CONFIG, residual_flag=True).transpose([0, 2, 1])
-        spikes_2 = read_spikes(
-            self.filename, unit2, self.templates.transpose([2, 1, 0]), spt2,
-            self.CONFIG, residual_flag=True).transpose([0, 2, 1])
-        spike_ids = np.append(
-            np.ones(len(spikes_1)), np.zeros(len(spikes_2)), axis=0)
-        l2_features = template_spike_dist(
-            self.templates[[unit1, unit2], :, :],
-            np.append(spikes_1, spikes_2, axis=0),
-            jitter=self.jitter, upsample=self.upsample)
+        fname = os.path.join(self.CONFIG.path_to_output_directory, 
+                    'deconv', 
+                    'l2features_'+str(unit1)+'_'+str(unit2)+'_'+str(self.iteration))
+                    
+        if os.path.exists(fname)==False or self.recompute:
         
-        try:
-            if test_unimodality(np.log(l2_features).T, spike_ids) > threshold:
-                return (unit1, unit2)
-        except:
-            return None
+            # get n_sample of cleaned spikes per template.
+            spt1_idx = np.where(self.spike_train[:, 1] == unit1)[0][:n_samples]
+            spt2_idx = np.where(self.spike_train[:, 1] == unit2)[0][:n_samples]
+            spt1 = self.spike_train[spt1_idx, :]
+            spt2 = self.spike_train[spt2_idx, :]
+
+            # TODO(Cat): this filename and Config somehow
+            spikes_1 = read_spikes(
+                self.filename, unit1, self.templates.transpose([2, 1, 0]), spt1,
+                self.CONFIG, residual_flag=True).transpose([0, 2, 1])
+            spikes_2 = read_spikes(
+                self.filename, unit2, self.templates.transpose([2, 1, 0]), spt2,
+                self.CONFIG, residual_flag=True).transpose([0, 2, 1])
+            spike_ids = np.append(
+                np.ones(len(spikes_1)), np.zeros(len(spikes_2)), axis=0)
+            l2_features = template_spike_dist(
+                self.templates[[unit1, unit2], :, :],
+                np.append(spikes_1, spikes_2, axis=0),
+                jitter=self.jitter, upsample=self.upsample)
+                        
+            dp_val = test_unimodality(np.log(l2_features).T, spike_ids)
+            #print (" units: ", unit1, unit2, " dp_val: ", dp_val)
+            # save data
+            np.savez(fname,
+                     #spt1_idx=spt1_idx, spt2_idx=spt2_idx,
+                     #spikes_1=spikes_1, spikes_2=spikes_2,
+                     spike_ids=spike_ids,
+                     l2_features=l2_features,
+                     dp_val=dp_val)
+
+        else:
+            data = np.load(fname)
+            dp_val = data['dp_val']
+        
+        if dp_val > threshold:
+            return (unit1, unit2)
+
         return None
-        
-    def merge_templates(self, unit1, unit2, threshold=0.99, n_samples=200):
-        """Whether to merge two templates or not.
 
-        parameters:
-        -----------
-        unit1: int
-            Index of the first template
-        unit2: int
-            Index of the second template
-        threshold: float
-            The threshold for the unimodality test.
-        n_samples: int
-            Maximum number of cleaned spikes from each unit.
-
-        returns:
-        --------
-        Bool. If True, the two templates should be merged. False, otherwise.
-        """
-        
-        # get n_sample of cleaned spikes per template.
-        spt1_idx = np.where(self.spike_train[:, 1] == unit1)[0][:n_samples]
-        spt2_idx = np.where(self.spike_train[:, 1] == unit2)[0][:n_samples]
-        spt1 = self.spike_train[spt1_idx, :]
-        spt2 = self.spike_train[spt2_idx, :]
-
-        # TODO(Cat): this filename and Config somehow
-        spikes_1 = read_spikes(
-            self.filename, unit1, self.templates.transpose([2, 1, 0]), spt1,
-            self.CONFIG, residual_flag=True).transpose([0, 2, 1])
-        spikes_2 = read_spikes(
-            self.filename, unit2, self.templates.transpose([2, 1, 0]), spt2,
-            self.CONFIG, residual_flag=True).transpose([0, 2, 1])
-        spike_ids = np.append(
-            np.ones(len(spikes_1)), np.zeros(len(spikes_2)), axis=0)
-        l2_features = template_spike_dist(
-            self.templates[[unit1, unit2], :, :],
-            np.append(spikes_1, spikes_2, axis=0),
-            jitter=self.jitter, upsample=self.upsample)
-        
-        try:
-            if test_unimodality(np.log(l2_features).T, spike_ids) > threshold:
-                return True
-        except:
-            return False
-        return False
         
 def binary_reader_waveforms(filename, n_channels, n_times, spikes, channels=None, data_type='float32'):
     ''' Reader for loading raw binaries

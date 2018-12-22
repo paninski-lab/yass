@@ -287,7 +287,7 @@ def run_neural_network(standardized_path, standardized_params,
         neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
         
         # compute len of recording
-        fp = np.memmap(standardized_path, dtype='int16', mode='r')
+        fp = np.memmap(standardized_path, dtype='float32', mode='r')
         fp_len = fp.shape[0] / n_channels
 
         # compute batch indexes
@@ -312,11 +312,11 @@ def run_neural_network(standardized_path, standardized_params,
                 indexes[k + 1] - indexes[k] + buffer_size
             ])
 
-        idx_list = np.int64(np.vstack(idx_list))[:20]
+        idx_list = np.int64(np.vstack(idx_list))#[:20]
 
         #idx_list = idx_list
         
-        logger.info("# of chunks: %i", len(idx_list))
+        logger.info("# of chunks: %i of %i sec each", len(idx_list), n_sec_chunk)
         
         logger.info (idx_list)
         
