@@ -5,7 +5,8 @@ import parmap
 import copy
 from tqdm import tqdm
 import time
-from yass.cluster.util import (binary_reader, load_waveforms_from_memory)
+
+from yass.cluster.util import binary_reader
 
 # ********************************************************
 # ********************************************************
@@ -62,6 +63,47 @@ def parallel_conv_filter(data_in,
 
 
 
+#def binary_reader(idx_list, buffer_size, standardized_filename,
+                  #n_channels):
+
+    ## New indexes
+    #idx_start = idx_list[0]
+    #idx_stop = idx_list[1]
+    #idx_local = idx_list[2]
+
+    #data_start = idx_start
+    #data_end = idx_stop
+    #offset = idx_local
+
+    ## ***** LOAD RAW RECORDING *****
+    #with open(standardized_filename, "rb") as fin:
+        #if data_start == 0:
+            ## Seek position and read N bytes
+            #recordings_1D = np.fromfile(
+                #fin,
+                #dtype='float32',
+                #count=(data_end + buffer_size) * n_channels)
+            #recordings_1D = np.hstack((np.zeros(
+                #buffer_size * n_channels, dtype='float32'), recordings_1D))
+        #else:
+            #fin.seek((data_start - buffer_size) * 4 * n_channels, os.SEEK_SET)
+            #recordings_1D = np.fromfile(
+                #fin,
+                #dtype='float32',
+                #count=((data_end - data_start + buffer_size * 2) * n_channels))
+
+        #if len(recordings_1D) != (
+              #(data_end - data_start + buffer_size * 2) * n_channels):
+            #recordings_1D = np.hstack((recordings_1D,
+                                       #np.zeros(
+                                           #buffer_size * n_channels,
+                                           #dtype='float32')))
+    #fin.close()
+
+    ## Convert to 2D array
+    #recording = recordings_1D.reshape(-1, n_channels)
+    
+    #return recording
 # ********************************************************
 # ********************************************************
 # ********************************************************

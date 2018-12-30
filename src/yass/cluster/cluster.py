@@ -103,11 +103,17 @@ class Cluster(object):
         
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', # spikes: '+ str(current_indices.shape[0]))
+
+        # hack to equalize deconv and clustering as they load data
+        # differently
+        if local: 
+            self.loaded_channels = self.neighbor_chans
         
         # generation 0 steps
         if gen==0:
-            # load waveforms
-            self.load_waveforms(local)
+            # load waveforms for channel based clustering only
+            if self.deconv_flag==False:
+                self.load_waveforms(local)
             # align waveforms
             self.align_step(local)
             # denoise waveforms on active channels
@@ -192,7 +198,6 @@ class Cluster(object):
         # this indicates channel-wise clustering - NOT postdeconv recluster
         self.deconv_flag = data_in[0]
         self.channel = data_in[1]
-
         self.CONFIG = data_in[2]
 
         # spikes in the current chunk
@@ -201,22 +206,29 @@ class Cluster(object):
 
         # Check if channel alreedy clustered
         self.filename_postclustering = (self.chunk_dir + "/channel_"+
-                                                        str(self.channel).zfill(6)+".npz")
+                                            str(self.channel).zfill(6)+".npz")
 
         # additional parameters if doing deconv:
         if self.deconv_flag:
-            self.spike_train_cluster_original = data_in[5]
-            self.template_original = data_in[6]
+            self.unit = self.channel.copy()
+            self.spike_train_deconv = self.spike_indexes_chunk
+            
+            #self.spike_train_cluster_original = data_in[5]
+            self.templates_deconv = data_in[5]
+            self.template_original = self.templates_deconv[:,:,self.unit]
 
             self.deconv_max_spikes = 3000
-            self.unit = self.channel.copy()
-            self.filename_postclustering = (self.chunk_dir + "/recluster/unit_"+
+            self.filename_postclustering = (self.chunk_dir + "/unit_"+
                                                         str(self.unit).zfill(6)+".npz")
 
+            self.filename_residual = os.path.join(self.chunk_dir.replace(
+                                                    'recluster',''),
+                                                  "residual.bin")
+
             # check to see if 'result/' folder exists otherwise make it
-            recluster_dir = self.chunk_dir+'/recluster'
-            if not os.path.isdir(recluster_dir):
-                os.makedirs(recluster_dir)
+            #recluster_dir = self.chunk_dir+'/recluster'
+            #if not os.path.isdir(recluster_dir):
+                #os.makedirs(recluster_dir)
 
         if os.path.exists(self.filename_postclustering):
             return True
@@ -319,60 +331,24 @@ class Cluster(object):
         # Cat: TODO: is this necessary?
         #self.wf_global = self.wf_global.clip(min=-1000, max=1000)
 
-
     def load_data_units(self):
 
-        if self.verbose:
-            print("unit " + str(self.unit) + " loading data")
+        self.wf_global = read_spikes(self.filename_residual, 
+                                     self.unit, 
+                                     self.templates_deconv, 
+                                     self.spike_train_deconv,
+                                     self.CONFIG, 
+                                     self.deconv_flag)
 
-        # select deconv spikes and read waveforms
-        self.indexes = np.where(self.spike_indexes_chunk[:, 1] == self.unit)[0]
+        neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
+        self.neighbor_chans = np.where(neighbors[self.channel])[0]
 
-        # If there are no spikes assigned to unit, exit
-        if self.indexes.shape[0] == 0:
-            print("  unit: ", str(self.unit), " has no spikes...")
-            np.savez(deconv_filename, spike_index=[],
-                     templates=[],
-                     templates_std=[],
-                     weights=[])
-            return
+        self.loaded_channels = np.arange(self.CONFIG.recordings.n_channels)
+            
+            
+        #print (self.wf_global)
+        #quit()
 
-        if self.indexes.shape[0] != np.unique(self.indexes).shape[0]:
-            print("  unit: ", self.unit, " non unique spikes found...")
-            idx_unique = np.unique(self.indexes[:, 0], return_index=True)[1]
-            self.indexes = self.indexes[idx_unique]
-
-        # Cat: TODO read this from disk
-        if self.indexes.shape[0] > self.deconv_max_spikes:
-            idx_subsampled = np.random.choice(np.arange(self.indexes.shape[0]),
-                                          size=self.deconv_max_spikes,
-                                          replace=False)
-            self.indexes = self.indexes[idx_subsampled]
-
-        # check that all spike indexes are inbounds
-        # Cat: TODO: this should be solved inside the waveform reader!
-        fp = np.memmap(self.standardized_filename, dtype='float32', mode='r')
-        fp_len = fp.shape[0] / self.n_channels
-
-        # limit indexes away from edge of recording
-        idx_inbounds = np.where(np.logical_and(
-                        self.spike_indexes_chunk[self.indexes,0]>=self.spike_size//2,
-                        self.spike_indexes_chunk[self.indexes,0]<(fp_len-self.spike_size//2)))[0]
-        self.indexes = self.indexes[idx_inbounds]
-
-        # set global spike indexes for all downstream analysis:
-        self.sic_global = self.spike_indexes_chunk[self.indexes]
-
-        # sets up initial array of indexes
-        self.starting_indexes = np.arange(self.indexes.shape[0])
-
-        # Cat: TODO: here we add additional offset for buffer inside residual matrix
-        # read waveforms by adding templates to residual
-        self.wf_global = self.load_waveforms_from_residual()
-
-        # make sure no artifacts in data, clip to 1000
-        # Cat: TODO: this should not be required; to test
-        self.wf_global = self.wf_global.clip(min=-1000, max=1000)
 
 
     def initialize(self, initial_spt, local):
@@ -1526,7 +1502,7 @@ def align_get_shifts_with_ref(wf, ref, upsample_factor = 5, nshifts = 7):
         Returns: superresolution shifts required to align all waveforms
                  - used downstream for linear interpolation alignment
     '''
-    
+    print (wf.shape, ref.shape)
     # convert nshifts from timesamples to  #of times in upsample_factor
     nshifts = (nshifts*upsample_factor)
     if nshifts%2==0:
@@ -1606,25 +1582,6 @@ def upsample_resample(wf, upsample_factor):
     return traces
 
 
-def shift_chans(wf, best_shifts):
-    # use template feat_channel shifts to interpolate shift of all spikes on all other chans
-    # Cat: TODO read this from CNOFIG
-    wf_shifted = []
-    wfs_final=[]
-    for k, shift_ in enumerate(best_shifts):
-        if int(shift_)==shift_:
-            ceil = int(shift_)
-            temp = np.roll(wf[k],ceil,axis=0)
-        else:
-            ceil = int(math.ceil(shift_))
-            floor = int(math.floor(shift_))
-            temp = np.roll(wf[k],ceil,axis=0)*(shift_-floor)+np.roll(wf[k],floor, axis=0)*(ceil-shift_)
-        wfs_final.append(temp)
-    wf_shifted = np.array(wfs_final)
-    
-    return wf_shifted
-
-
 def knn_dist(pca_wf):
     tree = cKDTree(pca_wf)
     dist, ind = tree.query(pca_wf, k=30)
@@ -1652,3 +1609,51 @@ def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, 
     return wfs
     
            
+
+def read_spikes(filename, unit, templates, spike_train, CONFIG, residual_flag=False):
+    ''' Function to read spikes from raw binaries
+        
+        filename: name of raw binary to be loaded
+        unit: template # to be loaded
+        templates:  [n_times, n_chans, n_templates] array holding all templates
+        spike_train:  [times, ids] array holding all spike times
+    '''
+
+    # load spikes for particular unit
+    spikes = spike_train[spike_train[:,1]==unit,0]
+
+    # set load parameters
+    n_channels = CONFIG.recordings.n_channels
+    spike_size = int(CONFIG.recordings.spike_size_ms*CONFIG.recordings.sampling_rate//1000*2+1)
+    channels = np.arange(CONFIG.recordings.n_channels)
+
+    spike_waveforms = binary_reader_waveforms(filename,
+                                         n_channels,
+                                         spike_size,
+                                         spikes, #- spike_size//2,  # can use this for centering
+                                         channels)
+
+    # if loading residual need to add template back into 
+    if residual_flag:
+        spike_waveforms+=templates[:,:,unit]
+
+    return spike_waveforms
+    
+
+def shift_chans(wf, best_shifts):
+    # use template feat_channel shifts to interpolate shift of all spikes on all other chans
+    # Cat: TODO read this from CNOFIG
+    wf_shifted = []
+    wfs_final=[]
+    for k, shift_ in enumerate(best_shifts):
+        if int(shift_)==shift_:
+            ceil = int(shift_)
+            temp = np.roll(wf[k],ceil,axis=0)
+        else:
+            ceil = int(math.ceil(shift_))
+            floor = int(math.floor(shift_))
+            temp = np.roll(wf[k],ceil,axis=0)*(shift_-floor)+np.roll(wf[k],floor, axis=0)*(ceil-shift_)
+        wfs_final.append(temp)
+    wf_shifted = np.array(wfs_final)
+    
+    return wf_shifted
