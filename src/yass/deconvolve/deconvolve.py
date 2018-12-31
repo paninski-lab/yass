@@ -22,7 +22,8 @@ from yass.cluster.util import (binary_reader,
                                global_merge_max_dist, PCA, 
                                load_waveforms_from_memory,
                                make_CONFIG2, upsample_parallel, 
-                               clean_templates, find_clean_templates)
+                               clean_templates, find_clean_templates,
+                               global_merge_max_dist)
 
 from yass.cluster.cluster import Cluster
 
@@ -90,7 +91,7 @@ class Deconv(object):
         self.n_iterations_merge = 1
 
         # iterative deconv parameters
-        self.n_iterations_deconv = 1
+        self.n_iterations_deconv = 3
         self.n_seconds_initial = 240
         self.initial_chunk = int(self.n_seconds_initial//self.CONFIG.resources.n_sec_chunk) 
 
@@ -145,33 +146,33 @@ class Deconv(object):
                 os.makedirs(self.deconv_chunk_dir)
 
             # run match pursuit and return templates and spike_trains
-            #(sparse_upsampled_templates, 
-            # dec_spike_train, 
-            # deconv_id_sparse_temp_map, 
-            # spike_train_cluster_prev_iteration) = 
             self.match_pursuit_function()
 
             # run post-deconv merge; recomputes self.templates and self.spike_train
             self.merge()
+
+            # reclusters and loads a new self.templates structure
+            self.reclustering_function()
+ 
+            # # clean templates
+            # weights = np.arange(self.spike_train.shape[0])
+            # self.templates, self.spike_train, weights = clean_templates(
+                                                # self.templates.swapaxes(0,1),
+                                                # self.spike_train,
+                                                # weights,
+                                                # self.CONFIG)
             
-            # OPTIONAL residual + reclustering steps
-            # don't need to compute residual array as merge() already does
-            #self.compute_residual_function()
-
-            # recluster 
-            self.templates, spike_train_cluster = self.reclustering_function()
-                                                  # CONFIG,
-                                                  # templates,
-                                                  # deconv_chunk_dir,
-                                                  # spike_train_cluster_prev_iteration,
-                                                  # idx_list_local,
-                                                  # initial_chunk,
-                                                  # output_directory, 
-                                                  # recordings_filename)
-
-
-
-
+            # post recluster merge
+            units = np.arange(self.templates.shape[2])
+            out_dir = 'deconv'
+            final_spike_train, templates = global_merge_max_dist(
+                                        self.deconv_chunk_dir+'/recluster/',
+                                        self.CONFIG,
+                                        out_dir,
+                                        units)
+            self.templates = templates.transpose(1,2,0)
+            
+            
     def deconv_final(self):
 
         # Cat: TODO: no need to use chunks anymore, just run all data over single
@@ -222,8 +223,7 @@ class Deconv(object):
                                                  self.CONFIG)
 
             # save spike train
-            np.savez(os.path.join(self.CONFIG.path_to_output_directory,
-                            'deconv',
+            np.savez(os.path.join(self.deconv_chunk_dir,
                             'results_post_deconv_post_merge_'+str(i)),
                      templates=self.templates,
                      spike_train=self.spike_train,
@@ -233,10 +233,10 @@ class Deconv(object):
     
             # Note: new self.templates and self.spike_train is computed above
             # no need to return them to deconv
-            np.save(os.path.join(self.CONFIG.path_to_output_directory,
+            np.save(os.path.join(self.deconv_chunk_dir,
                             'spike_train_post_deconv_post_merge.npy'),
                     self.spike_train)
-            np.save(os.path.join(self.CONFIG.path_to_output_directory,
+            np.save(os.path.join(self.deconv_chunk_dir,
                             'templates_post_deconv_post_merge.npy'),
                     self.templates)
                     
@@ -422,8 +422,7 @@ class Deconv(object):
                               
         # flag to indicate whether clustering original data or post-deconv
         deconv_flag = True
-        channel = 1E10
-        
+       
         self.recluster_dir = os.path.join(self.deconv_chunk_dir,
                                     "recluster")
              
@@ -434,6 +433,7 @@ class Deconv(object):
             fname_out = (self.recluster_dir+
                          "/unit_{}.npz".format(
                          str(unit).zfill(6)))
+
             if os.path.exists(fname_out)==False:
                 args_in.append([
                     deconv_flag,
@@ -453,9 +453,9 @@ class Deconv(object):
                 p.close()
             else:
                 for unit in range(len(args_in)):
-                    print ("computing unit; ", unit)
                     Cluster(args_in[unit])
-
+                       
+                         
 
 def merge_pairs(templates, spike_train, merge_list, CONFIG2):
     

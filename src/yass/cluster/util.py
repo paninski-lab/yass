@@ -2354,7 +2354,7 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
                 templates.append(temp_temp)
                 temp = data['spike_index']
                 for s in range(len(temp)):
-                    spike_times = temp[s][:,0]
+                    spike_times = temp[s] #[:,0]
                     spike_indexes.append(spike_times)
                     weights.append(spike_times.shape[0])
 
@@ -2362,7 +2362,7 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     templates = np.vstack(templates)
     weights = np.hstack(weights)
 
-    print ("  templates: ", templates.shape)
+    print ("  templates going into merge: ", templates.shape)
     
     # rearange spike indees from id 0..N
     spike_train = np.zeros((0,2),'int32')
