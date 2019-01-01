@@ -70,6 +70,7 @@ class Cluster(object):
         else:
             print("\nchan "+str(self.channel)+", START LOCAL CLUSTERING")
 
+        # neighbour channel clustering
         self.initialize(initial_spt=self.spike_indexes_chunk[:, 0], local=True)
         self.cluster(current_indices=self.starting_indices, gen=0, local=True)
         self.finish(fname='channel_{}'.format(self.channel))
@@ -410,7 +411,7 @@ class Cluster(object):
 
         # load waveforms from raw data 
         if self.deconv_flag==False:
-            self.wf_global = binary_reader_waveforms(self.standardized_filename,
+            self.wf_global, self.skipped_idx = binary_reader_waveforms(self.standardized_filename,
                             self.CONFIG.recordings.n_channels,
                             self.spike_size,
                             self.spt_global.astype('int32')-(self.spike_size//2),
