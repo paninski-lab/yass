@@ -2315,7 +2315,9 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
 
     ''' Function that cleans low spike count templates and merges the rest 
     '''
-   
+    print ("\nPost-clustering merge... ")
+
+
     n_channels = CONFIG.recordings.n_channels
 
     # convert clusters to templates; keep track of weights
@@ -2362,8 +2364,14 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     templates = np.vstack(templates)
     weights = np.hstack(weights)
 
-    print ("  templates going into merge: ", templates.shape)
+    # Clip tempaltes and only work with default spike_size templates going forward
+    spike_size_default = int(CONFIG.recordings.spike_size_ms*
+                                  CONFIG.recordings.sampling_rate//1000*2+1)
+    offset = templates.shape[1]-spike_size_default
+    templates = templates[:, offset//2:offset//2+spike_size_default]
     
+    print ("  templates loaded: ", templates.shape)
+            
     # rearange spike indees from id 0..N
     spike_train = np.zeros((0,2),'int32')
     for k in range(spike_indexes.shape[0]):    
@@ -2374,126 +2382,82 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     spike_indexes = spike_train
 
 
-    #np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/temps_align.npy', templates)
-    #np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/spike_times_align.npy', spike_indexes)
-
-    # delete templates below certain treshold; and collision templates
-    # Cat: TODO: note, can't centre post-deconv rclustered tempaltes as they are tooshort
-    
-    
-    # # centre spikes
-    # if False:
-    #     # centre spikes in case misaligned and centre
-    #     # Cat: TODO read from CONFIG
-    #     spike_padding = 25
-    #     templates, spike_indexes = centre_templates(templates,
-    #                                                 spike_indexes,
-    #                                                 CONFIG,
-    #                                                 spike_padding,
-    #                                                 spike_width)
-    #
-    #     np.save(chunk_dir  + '/templates_centred.npy', templates)
-
-    # delete templates below certain treshold; and collision templates
-    if True: 
-        templates, spike_indexes, weights = clean_templates(templates.swapaxes(0,2),
-                                                            spike_indexes,
-                                                            weights,
-                                                            CONFIG)
-        templates = templates.swapaxes(0,2).swapaxes(1,2)
+    # Clean templates
+    templates, spike_indexes, weights = clean_templates(templates.swapaxes(0,2),
+                                                        spike_indexes,
+                                                        weights,
+                                                        CONFIG)
+    templates = templates.swapaxes(0,2).swapaxes(1,2)
 
     print("  "+out_dir+ " templates/spiketrain before merge: ", templates.shape, spike_indexes.shape)
 
     np.save(chunk_dir  + '/templates_post_'+out_dir+'_before_merge.npy', templates)
     np.save(chunk_dir + '/spike_train_post_'+out_dir+'_before_merge.npy', spike_indexes)
 
-    # option to skip merge step
-    if True:
-        ''' ************************************************
-            ********** COMPUTE SIMILARITY METRICS **********
-            ************************************************
-        '''
-        # ************** GET SIM_MAT ****************
-        # initialize cos-similarty matrix and boolean version 
-        # Cat: TODO: it seems most safe for this matrix to be recomputed 
-        #            everytime whenever templates.npy file doesn't exist
-        # Cat: TODO: this should be parallized, takes several mintues for 49chans, 
-        #            should take much less
+    ''' ************************************************
+        ********** COMPUTE SIMILARITY METRICS **********
+        ************************************************
+    '''
+    # ************** GET SIM_MAT ****************
+    abs_max_file = (chunk_dir+'/abs_max_vector_post_cluster.npy')
+    if os.path.exists(abs_max_file)==False:
+
+        temps_denoised, shift_allowance = get_denoised_templates(templates, CONFIG)
+        np.save(chunk_dir  + '/denoised_templates.npy', temps_denoised)
+
+        # run merge algorithm
+        sim_mat = abs_max_dist(temps_denoised, CONFIG)
+        np.save(abs_max_file, sim_mat)
         
-        abs_max_file = (chunk_dir+'/abs_max_vector_post_cluster.npy')
-        if os.path.exists(abs_max_file)==False:
-            # first denoise/smooth all templates in global template space;
-            # then use temps_PCA for cos_sim_test; this removes many bumps
-#             spike_width = templates.shape[1]
-#             temps_stack = np.swapaxes(templates, 1,0)
-#             temps_stack = np.reshape(temps_stack, (temps_stack.shape[0], 
-#                                      temps_stack.shape[1]*temps_stack.shape[2])).T
-#             _, temps_PCA, pca_object = PCA(temps_stack, n_pca)
-
-#             temps_PCA = temps_PCA.reshape(templates.shape[0],templates.shape[2],templates.shape[1])
-#             temps_PCA = np.swapaxes(temps_PCA,1,2)
-
-            temps_denoised, shift_allowance = get_denoised_templates(templates, CONFIG)
-            np.save(chunk_dir  + '/denoised_templates.npy', temps_denoised)
-            #temps_denoised = np.copy(templates)
-
-            # run merge algorithm
-            sim_mat = abs_max_dist(temps_denoised, CONFIG)
-            np.save(abs_max_file, sim_mat)
-            
-        else:
-            sim_mat = np.load(abs_max_file)        
-
-        ''' ************************************************
-            ************* MERGE SELECTED UNITS *************
-            ************************************************
-        '''
-
-        # compute connected nodes and sum spikes over them
-        #G = nx.from_numpy_array(sim_mat_sum)
-        G = nx.from_numpy_array(sim_mat)
-        final_spike_indexes = []
-        final_template_indexes = []
-        for i, cc in enumerate(nx.connected_components(G)):
-            final_template_indexes.append(list(cc))
-            sic = np.zeros(0, dtype = int)
-            for j in cc:
-                idx = np.where(spike_indexes[:,1]==j)[0]
-                sic = np.concatenate([sic, spike_indexes[:,0][idx]])
-            temp = np.concatenate([sic[:,np.newaxis], i*np.ones([sic.size,1],dtype = int)],axis = 1)
-            final_spike_indexes.append(temp)
-
-        np.save(chunk_dir+'/final_template_indexes.npy', final_template_indexes)
-        final_spike_train = np.vstack(final_spike_indexes)
-        
-        # recompute tmp_loc from weighted templates
-        templates_final = []
-        weights_final = []
-        for t in final_template_indexes:
-            # compute average weighted template and find peak
-            idx = np.int32(t)
-
-            # compute weighted template
-            if len(idx) > 1:
-                weighted_average = merge_templates(templates[idx], weights[idx])
-            else:
-                weighted_average = templates[idx[0]]
-            templates_final.append(weighted_average)
-
-        # convert templates to : (n_channels, waveform_size, n_templates)
-        templates = np.float32(templates_final)
-        #templates = np.swapaxes(templates, 1,2)
-         
-        np.save(chunk_dir+'/templates_post_'+out_dir+'_post_merge.npy', templates)
-        np.save(chunk_dir+'/spike_train_post_'+out_dir+'_post_merge.npy', final_spike_train)
-
-        print("  "+out_dir+" templates/spike train after merge : ", templates.shape, final_spike_train.shape)
-
     else:
-        print ("  *** Skipped merge step *** ")
-        final_spike_train = spike_indexes
-        templates = templates
+        sim_mat = np.load(abs_max_file)        
+
+
+    ''' ************************************************
+        ************* MERGE SELECTED UNITS *************
+        ************************************************
+    '''
+
+    # compute connected nodes and sum spikes over them
+    #G = nx.from_numpy_array(sim_mat_sum)
+    G = nx.from_numpy_array(sim_mat)
+    final_spike_indexes = []
+    final_template_indexes = []
+    for i, cc in enumerate(nx.connected_components(G)):
+        final_template_indexes.append(list(cc))
+        sic = np.zeros(0, dtype = int)
+        for j in cc:
+            idx = np.where(spike_indexes[:,1]==j)[0]
+            sic = np.concatenate([sic, spike_indexes[:,0][idx]])
+        temp = np.concatenate([sic[:,np.newaxis], i*np.ones([sic.size,1],dtype = int)],axis = 1)
+        final_spike_indexes.append(temp)
+
+    np.save(chunk_dir+'/final_template_indexes.npy', final_template_indexes)
+    final_spike_train = np.vstack(final_spike_indexes)
     
+    # recompute tmp_loc from weighted templates
+    templates_final = []
+    weights_final = []
+    for t in final_template_indexes:
+        # compute average weighted template and find peak
+        idx = np.int32(t)
+
+        # compute weighted template
+        if len(idx) > 1:
+            weighted_average = merge_templates(templates[idx], weights[idx])
+        else:
+            weighted_average = templates[idx[0]]
+        templates_final.append(weighted_average)
+
+    # convert templates to : (n_channels, waveform_size, n_templates)
+    templates = np.float32(templates_final)
+    #templates = np.swapaxes(templates, 1,2)
+     
+    np.save(chunk_dir+'/templates_post_'+out_dir+'_post_merge.npy', templates)
+    np.save(chunk_dir+'/spike_train_post_'+out_dir+'_post_merge.npy', final_spike_train)
+
+    print("  "+out_dir+" templates/spike train after merge : ", templates.shape, final_spike_train.shape)
+
     if out_dir=='cluster':
         fname = CONFIG.path_to_output_directory + '/spike_train_cluster.npy'
         np.save(fname, final_spike_train)
@@ -2736,7 +2700,8 @@ def abs_max_dist(temp, CONFIG):
     dist_max = np.zeros((temp.shape[0],temp.shape[0]), 'float32')
     
     if CONFIG.resources.multi_processing:
-        ids = np.array_split(np.arange(temp.shape[0]), CONFIG.resources.n_processors)
+        #ids = np.array_split(np.arange(temp.shape[0]), CONFIG.resources.n_processors)
+        ids = np.array_split(np.arange(temp.shape[0]), temp.shape[0]//2)
         res = parmap.map(parallel_abs_max_dist, ids, temp, 
                          processes=CONFIG.resources.n_processors,
                          pm_pbar=True)                

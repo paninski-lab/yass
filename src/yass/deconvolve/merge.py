@@ -145,7 +145,7 @@ class TemplateMerge(object):
         unit2 = data_in[1]
         
         fname = os.path.join(self.deconv_chunk_dir, 
-                    'l2features_'+str(unit1)+'_'+str(unit2)+'_'+str(self.iteration))
+                    'l2features_'+str(unit1)+'_'+str(unit2)+'_'+str(self.iteration)+'.npz')
                     
         if os.path.exists(fname)==False or self.recompute:
         
@@ -367,21 +367,34 @@ def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, 
     else:
         wfs = np.zeros((spikes.shape[0], n_times, channels.shape[0]), 'float32')
 
+    skipped_idx = []
     with open(standardized_filename, "rb") as fin:
-        for ctr,s in enumerate(spikes):
+        ctr_wfs=0
+        ctr_skipped=0
+        for spike in spikes:
             # index into binary file: time steps * 4  4byte floats * n_channels
-            fin.seek(s * 4 * n_channels, os.SEEK_SET)
-            wfs[ctr] = np.fromfile(
-                fin,
-                dtype='float32',
-                count=(n_times * n_channels)).reshape(n_times, n_channels)[:,channels]
+            fin.seek(spike * 4 * n_channels, os.SEEK_SET)
+            try:
+                wfs[ctr_wfs] = np.fromfile(
+                    fin,
+                    dtype='float32',
+                    count=(n_times * n_channels)).reshape(
+                                            n_times, n_channels)[:,channels]
+                ctr_wfs+=1
+            except:
+                # skip loading of spike and decrease wfs array size by 1
+                #print ("  spike to close to end, skipping and deleting array")
+                wfs=np.delete(wfs, wfs.shape[0]-1,axis=0)
+                skipped_idx.append(ctr_skipped)
 
+            ctr_skipped+=1
     fin.close()
-    return wfs
     
-           
+    return wfs, skipped_idx
 
-def read_spikes(filename, unit, templates, spike_train, CONFIG, residual_flag=False):
+    
+def read_spikes(filename, unit, templates, spike_train, CONFIG, 
+                channels=None, residual_flag=False, spike_size=None):
     ''' Function to read spikes from raw binaries
         
         filename: name of raw binary to be loaded
@@ -391,22 +404,39 @@ def read_spikes(filename, unit, templates, spike_train, CONFIG, residual_flag=Fa
     '''
 
     # load spikes for particular unit
-    spikes = spike_train[spike_train[:,1]==unit,0]
-
-    # set load parameters
+    if len(spike_train.shape)>1:
+        spikes = spike_train[spike_train[:,1]==unit,0]
+    else:
+        spikes = spike_train
+        
+    # always load all channels and then index into subset otherwise
+    # order won't be correct
     n_channels = CONFIG.recordings.n_channels
-    spike_size = int(CONFIG.recordings.spike_size_ms*CONFIG.recordings.sampling_rate//1000*2+1)
-    channels = np.arange(CONFIG.recordings.n_channels)
-
-    spike_waveforms = binary_reader_waveforms(filename,
-                                         n_channels,
-                                         spike_size,
-                                         spikes, #- spike_size//2,  # can use this for centering
-                                         channels)
-
-    # if loading residual need to add template back into 
-    if residual_flag:
-        spike_waveforms+=templates[:,:,unit]
-
-    return spike_waveforms
     
+    # load default spike_size unless otherwise inidcated
+    if spike_size==None:
+        spike_size = int(CONFIG.recordings.spike_size_ms*CONFIG.recordings.sampling_rate//1000*2+1)
+
+    if channels == None:
+        channels = np.arange(n_channels)
+
+    spike_waveforms, skipped_idx = binary_reader_waveforms(filename,
+                                             n_channels,
+                                             spike_size,
+                                             spikes, #- spike_size//2,  # can use this for centering
+                                             channels)
+    
+    # if loading residual need to add template back into 
+    # Cat: TODO: this is bit messy; loading extrawide noise, but only adding
+    #           narrower templates
+    if residual_flag:
+        if spike_size is None:
+            spike_waveforms+=templates[:,channels,unit]
+        # need to add templates in middle of noise wfs which are wider
+        else:
+            spike_size_default = int(CONFIG.recordings.spike_size_ms*
+                                      CONFIG.recordings.sampling_rate//1000*2+1)
+            offset = spike_size - spike_size_default
+            spike_waveforms[:,offset//2:offset//2+spike_size_default]+=templates[:,channels,unit]
+        
+    return spike_waveforms #, skipped_idx

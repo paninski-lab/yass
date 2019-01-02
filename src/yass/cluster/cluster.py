@@ -6,16 +6,12 @@ import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
-from sklearn.decomposition import PCA
 from scipy import signal
 from scipy import stats
 from scipy.signal import argrelmax
 from scipy.spatial import cKDTree
 from copy import deepcopy
-from sklearn.mixture import GaussianMixture
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from diptest import diptest as dp
-from sklearn.cluster import AgglomerativeClustering
 import networkx as nx
 
 from yass.explore.explorers import RecordingExplorer
@@ -25,6 +21,16 @@ from yass.util import absolute_path_to_asset
 
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
+
+def warn(*args, **kwargs):
+    pass
+warnings.warn = warn
+
+from sklearn.mixture import GaussianMixture
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+from sklearn.decomposition import PCA
+
 
 colors = np.array([
 'black','blue','red','green','cyan','magenta','brown','pink',
@@ -66,7 +72,7 @@ class Cluster(object):
 
         # local channel clustering
         if self.deconv_flag: 
-            print("\nchan "+str(self.channel)+", unit: "+str(self.unit) +", START LOCAL CLUSTERING")
+            print("\nunit: "+str(self.unit) + ", chan "+str(self.channel)+ ", START LOCAL CLUSTERING")
         else:
             print("\nchan "+str(self.channel)+", START LOCAL CLUSTERING")
 
@@ -216,7 +222,6 @@ class Cluster(object):
         # additional parameters if doing deconv:
         if self.deconv_flag:
             self.unit = self.channel.copy()
-            print ("  reclustering unit: ", self.unit)
 
             #self.spike_train_cluster_original = data_in[5]
             self.templates_deconv = data_in[5]
@@ -1438,7 +1443,7 @@ def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, 
            
 
 def read_spikes(filename, unit, templates, spike_train, CONFIG, 
-                channels, residual_flag=False, spike_size=None):
+                channels=None, residual_flag=False, spike_size=None):
     ''' Function to read spikes from raw binaries
         
         filename: name of raw binary to be loaded
@@ -1461,6 +1466,9 @@ def read_spikes(filename, unit, templates, spike_train, CONFIG,
     if spike_size==None:
         spike_size = int(CONFIG.recordings.spike_size_ms*CONFIG.recordings.sampling_rate//1000*2+1)
 
+    if channels is None:
+        channels = np.arange(n_channels)
+
     spike_waveforms, skipped_idx = binary_reader_waveforms(filename,
                                              n_channels,
                                              spike_size,
@@ -1475,9 +1483,10 @@ def read_spikes(filename, unit, templates, spike_train, CONFIG,
             spike_waveforms+=templates[:,channels,unit]
         # need to add templates in middle of noise wfs which are wider
         else:
-            offset = spike_size - int(CONFIG.recordings.spike_size_ms*
+            spike_size_default = int(CONFIG.recordings.spike_size_ms*
                                       CONFIG.recordings.sampling_rate//1000*2+1)
-            spike_waveforms[:,offset//2:-offset//2]+=templates[:,channels,unit]
+            offset = spike_size - spike_size_default
+            spike_waveforms[:,offset//2:offset//2+spike_size_default]+=templates[:,channels,unit]
         
     return spike_waveforms, skipped_idx
     

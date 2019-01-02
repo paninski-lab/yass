@@ -61,6 +61,15 @@ class Deconv(object):
         
         # run deconv on all data
         self.deconv_final()
+        
+        # save final output in main directory
+        np.save(os.path.join(self.CONFIG.path_to_output_directory,
+                            'spike_train_post_deconv_post_merge.npy'),
+                    self.spike_train)
+        np.save(os.path.join(self.CONFIG.path_to_output_directory,
+                            'templates_post_deconv_post_merge.npy'),
+                    self.templates)
+                    
                 
     def initialize(self): 
         
@@ -73,7 +82,9 @@ class Deconv(object):
         self.n_processors = self.CONFIG.resources.n_processors
         self.n_sec_chunk = self.CONFIG.resources.n_sec_chunk
         self.buffer_size = 200
-        
+        self.spike_size_default = int(self.CONFIG.recordings.spike_size_ms*
+                                      self.CONFIG.recordings.sampling_rate//1000*2+1)
+                                      
         # compute segment list for parallel processing
         self.compute_idx_list()
 
@@ -91,8 +102,8 @@ class Deconv(object):
         self.n_iterations_merge = 1
 
         # iterative deconv parameters
-        self.n_iterations_deconv = 3
-        self.n_seconds_initial = 240
+        self.n_iterations_deconv = 1
+        self.n_seconds_initial = 1200
         self.initial_chunk = int(self.n_seconds_initial//self.CONFIG.resources.n_sec_chunk) 
 
         # make deconv directory
@@ -153,25 +164,17 @@ class Deconv(object):
 
             # reclusters and loads a new self.templates structure
             self.reclustering_function()
- 
-            # # clean templates
-            # weights = np.arange(self.spike_train.shape[0])
-            # self.templates, self.spike_train, weights = clean_templates(
-                                                # self.templates.swapaxes(0,1),
-                                                # self.spike_train,
-                                                # weights,
-                                                # self.CONFIG)
             
             # post recluster merge
-            units = np.arange(self.templates.shape[2])
-            out_dir = 'deconv'
-            final_spike_train, templates = global_merge_max_dist(
+            _, templates = global_merge_max_dist(
                                         self.deconv_chunk_dir+'/recluster/',
                                         self.CONFIG,
-                                        out_dir,
-                                        units)
-            self.templates = templates.transpose(1,2,0)
+                                        'deconv',
+                                        np.arange(self.templates.shape[2]))
             
+            # reshape templates
+            self.templates = templates.transpose(1,2,0)
+
             
     def deconv_final(self):
 
@@ -195,7 +198,7 @@ class Deconv(object):
 
     def merge(self): 
                             
-        print ("Post-deconv merge...")
+        print ("\nPost-deconv merge...")
 
         # first compute residual
         print ("  computing residual to generate clean spikes")
@@ -419,14 +422,14 @@ class Deconv(object):
 
 
     def reclustering_function(self):
-                              
+                         
+        print ("\nPost-deconv reclustering...")
         # flag to indicate whether clustering original data or post-deconv
         deconv_flag = True
        
         self.recluster_dir = os.path.join(self.deconv_chunk_dir,
                                     "recluster")
              
-        print ('templates: ', self.templates.shape)
         units = np.arange(self.templates.shape[2])
         args_in = []
         for unit in units:
@@ -456,6 +459,7 @@ class Deconv(object):
                     Cluster(args_in[unit])
                        
                          
+        print ("  reclustering complete")
 
 def merge_pairs(templates, spike_train, merge_list, CONFIG2):
     
@@ -477,17 +481,26 @@ def merge_pairs(templates, spike_train, merge_list, CONFIG2):
         # gather spikes 
         sic = np.zeros(0, dtype = int)
         weights=[]
+        temp_idx=[]
         merge_array.append(list(cc))
         for j in cc:
             idx = np.where(spike_train[:,1]==j)[0]
-            sic = np.concatenate([sic, spike_train[:,0][idx]])
-            weights.append(idx.shape[0])
-        temp = np.concatenate([sic[:,np.newaxis], ctr*np.ones([sic.size,1],dtype = 'int32')],axis = 1)
-        final_spike_indexes.append(temp)
+            if idx.shape[0]>0:
+                weights.append(idx.shape[0])
+                sic = np.concatenate([sic, spike_train[:,0][idx]])
+                temp_idx.append(j)
         
-        # gather templates
-        #temp_ = templates[:,:,list(cc)].mean(2)
-        temp_ = np.average(templates[:,:,list(cc)], weights=weights,axis=2)
+        # Note some templates may have zero spikes assigned, exclude those
+        if len(temp_idx)==0:
+            continue
+
+        # stack spikes
+        spikes = np.concatenate([sic[:,np.newaxis], ctr*np.ones([sic.size,1],dtype = 'int32')],axis = 1)
+        final_spike_indexes.append(spikes)
+
+        # recmpute weighted templates; 
+        #temp_ = np.average(templates[:,:,list(cc)], weights=weights,axis=2)
+        temp_ = np.average(templates[:,:,temp_idx], weights=weights,axis=2)
         templates_final.append(temp_)
         
         ctr+=1
