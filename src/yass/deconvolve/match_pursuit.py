@@ -824,7 +824,7 @@ class MatchPursuit_objectiveUpsample(object):
         self.buffer_size = data_in[1]
         
         # ********* run deconv ************
-        fname_out = (self.deconv_dir+"/seg_{}_deconv.npz".format(
+        fname_out = (self.deconv_dir+"/segs/seg_{}_deconv.npz".format(
                                             str(self.seg_ctr).zfill(6)))
 
         # read raw data for segment using idx_list vals

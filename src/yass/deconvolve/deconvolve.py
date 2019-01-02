@@ -112,9 +112,9 @@ class Deconv(object):
         if not os.path.isdir(self.deconv_dir):
             os.makedirs(self.deconv_dir)
             
-        if self.n_iterations_deconv>0: 
-            if not os.path.isdir(self.deconv_dir+'/initial/'):
-                os.makedirs(self.deconv_dir+'/initial/')
+        # if self.n_iterations_deconv>0: 
+            # if not os.path.isdir(self.deconv_dir+'/initial/'):
+                # os.makedirs(self.deconv_dir+'/initial/')
        
     def compute_idx_list(self):
     
@@ -153,6 +153,7 @@ class Deconv(object):
             # initialize recluster directory
             self.deconv_chunk_dir = os.path.join(deconv_chunk_dir,
                                                 str(k))
+
             if not os.path.isdir(self.deconv_chunk_dir):
                 os.makedirs(self.deconv_chunk_dir)
 
@@ -205,6 +206,9 @@ class Deconv(object):
         self.compute_residual_function()
 
         # iterate over template-based merge step
+        if not os.path.isdir(self.deconv_chunk_dir+'/merge'):
+            os.makedirs(self.deconv_chunk_dir+'/merge')
+        
         jitter=5
         upsample = 5
         for i in range(self.n_iterations_merge):
@@ -212,7 +216,7 @@ class Deconv(object):
             tm = TemplateMerge(self.templates, self.spike_train, 
                                 jitter, upsample,
                                 self.CONFIG, 
-                                self.deconv_chunk_dir,
+                                self.deconv_chunk_dir+'/merge',
                                 iteration=i, 
                                 recompute=False)
            
@@ -236,15 +240,13 @@ class Deconv(object):
     
             # Note: new self.templates and self.spike_train is computed above
             # no need to return them to deconv
+            # also, this will be overwritten for multiple iterations of merge function
             np.save(os.path.join(self.deconv_chunk_dir,
                             'spike_train_post_deconv_post_merge.npy'),
                     self.spike_train)
             np.save(os.path.join(self.deconv_chunk_dir,
                             'templates_post_deconv_post_merge.npy'),
                     self.templates)
-                    
-            
-        #return spike_train, self.templates
 
 
     def resize_templates(self, template_len=50):
@@ -297,10 +299,13 @@ class Deconv(object):
         
         print ("  running Match Pursuit...")
 
+        if not os.path.isdir(self.deconv_chunk_dir+'/segs'):
+            os.makedirs(self.deconv_chunk_dir+'/segs')
+
         # collect segments not yet completed
         args_in = []
         for k in range(len(self.idx_list_local)):
-            fname_out = (self.deconv_chunk_dir+
+            fname_out = (self.deconv_chunk_dir+'/segs'+
                          "/seg_{}_deconv.npz".format(
                          str(k).zfill(6)))
             if os.path.exists(fname_out)==False:
@@ -320,7 +325,7 @@ class Deconv(object):
         res = []
         for k in range(len(self.idx_list_local)):
             fname_out = (self.deconv_chunk_dir+
-                         "/seg_{}_deconv.npz".format(
+                         "/segs//seg_{}_deconv.npz".format(
                          str(k).zfill(6)))
                          
             data = np.load(fname_out)
@@ -356,17 +361,14 @@ class Deconv(object):
                  spike_train_upsampled=self.dec_spike_train,
                  templates_upsampled=self.sparse_upsampled_templates)
 
-        np.save(os.path.join(self.CONFIG.path_to_output_directory,
+        np.save(os.path.join(self.deconv_chunk_dir,
                             'templates_post_deconv_pre_merge'),
                             self.templates)
                             
-        np.save(os.path.join(self.CONFIG.path_to_output_directory,
-                            'spike_train_post_deconv_pre_merge'), 
+        np.save(os.path.join(self.deconv_chunk_dir,
+                            'spike_train_post_deconv_pre_merge'),
                             self.spike_train)
             
-        #return (self.sparse_upsampled_templates, self.dec_spike_train,
-        #        deconv_id_sparse_temp_map, spike_train_cluster_prev_iteration)
-
 
     def compute_residual_function(self):
                                   

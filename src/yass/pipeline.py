@@ -12,8 +12,8 @@ matplotlib.use('Agg')
 
 # supress PCA unpickle userwarning 
 # Cat: TODO: this is dangersous, may wish to fix the problem in cluster.py
-import warnings
-warnings.filterwarnings("ignore", category=UserWarning)
+# import warnings
+# warnings.filterwarnings("ignore", category=UserWarning)
 
 try:
     # py3

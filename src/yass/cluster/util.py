@@ -4015,8 +4015,7 @@ def clean_templates(templates, spike_train_cluster, weights, CONFIG):
 
     # need to transpose axes for analysis below
     templates = templates.swapaxes(0,1)
-    print ("")
-    print ("Cleaning templates (time, chan, temps): ", templates.shape)
+    print ("  cleaning templates (time, chan, temps): ", templates.shape)
     ptps = templates.ptp(0).max(0)
     idx = np.where(ptps>=template_threshold)[0]
     print ("  deleted # clusters < 3SU: ", templates.shape[2]-idx.shape[0])

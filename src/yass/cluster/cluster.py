@@ -376,10 +376,17 @@ class Cluster(object):
     def initialize_template_space(self):
 
         # load template space related files
-        self.pca_main = pickle.load(open(absolute_path_to_asset(
-            os.path.join('template_space', 'pca_main.pkl')), 'rb'))
-        self.pca_sec = pickle.load(open(absolute_path_to_asset(
-            os.path.join('template_space', 'pca_sec.pkl')), 'rb'))
+        #self.pca_main = pickle.load(open(absolute_path_to_asset(
+        #    os.path.join('template_space', 'pca_main.pkl')), 'rb'))
+        #self.pca_sec = pickle.load(open(absolute_path_to_asset(
+        #    os.path.join('template_space', 'pca_sec.pkl')), 'rb'))
+
+        # Cat: TODO: loading PCA componnets directly from npy arrays
+        self.pca_main_components_= np.load(absolute_path_to_asset(
+            os.path.join('template_space', 'pca_main_components.npy')))
+        self.pca_sec_components_ = np.load(absolute_path_to_asset(
+            os.path.join('template_space', 'pca_sec_components.npy')))
+
         self.pca_main_noise_std = np.load(absolute_path_to_asset(
             os.path.join('template_space', 'pca_main_noise_std.npy')))
         self.pca_sec_noise_std = np.load(absolute_path_to_asset(
@@ -391,10 +398,10 @@ class Cluster(object):
 
         # turn off edges for less collision
         window = [15, 40]
-        self.pca_main.components_[:, :window[0]] = 0
-        self.pca_main.components_[:, window[1]:] = 0
-        self.pca_sec.components_[:, :window[0]] = 0
-        self.pca_sec.components_[:, window[1]:] = 0
+        self.pca_main_components_[:, :window[0]] = 0
+        self.pca_main_components_[:, window[1]:] = 0
+        self.pca_sec_components_[:, :window[0]] = 0
+        self.pca_sec_components_[:, window[1]:] = 0
 
 
     def load_waveforms(self, local):
@@ -479,18 +486,18 @@ class Cluster(object):
         # Alignment: upsample max chan only; linear shift other chans
 
         n_data, _, n_chans = self.wf_global.shape
-        self.denoised_wf = np.zeros((n_data, self.pca_main.components_.shape[0], n_chans),
+        self.denoised_wf = np.zeros((n_data, self.pca_main_components_.shape[0], n_chans),
                                     dtype='float32')
 
         for ii in range(n_chans):
             if self.loaded_channels[ii] == self.channel:
                 self.denoised_wf[:, :, ii] = np.matmul(
                     self.wf_global[:, self.shift_allowance:-self.shift_allowance, ii],
-                    self.pca_main.components_.T)/self.pca_main_noise_std[np.newaxis]
+                    self.pca_main_components_.T)/self.pca_main_noise_std[np.newaxis]
             else:
                 self.denoised_wf[:, :, ii] = np.matmul(
                     self.wf_global[:, self.shift_allowance:-self.shift_allowance, ii],
-                    self.pca_sec.components_.T)/self.pca_sec_noise_std[np.newaxis]
+                    self.pca_sec_components_.T)/self.pca_sec_noise_std[np.newaxis]
 
         self.denoised_wf = np.reshape(self.denoised_wf, [n_data, -1])
 
