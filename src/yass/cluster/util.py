@@ -2316,8 +2316,6 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     ''' Function that cleans low spike count templates and merges the rest 
     '''
     print ("\nPost-clustering merge... ")
-
-
     n_channels = CONFIG.recordings.n_channels
 
     # convert clusters to templates; keep track of weights
@@ -2365,10 +2363,10 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     weights = np.hstack(weights)
 
     # Clip tempaltes and only work with default spike_size templates going forward
-    spike_size_default = int(CONFIG.recordings.spike_size_ms*
-                                  CONFIG.recordings.sampling_rate//1000*2+1)
-    offset = templates.shape[1]-spike_size_default
-    templates = templates[:, offset//2:offset//2+spike_size_default]
+    # spike_size_default = int(CONFIG.recordings.spike_size_ms*
+                                  # CONFIG.recordings.sampling_rate//1000*2+1)
+    # offset = templates.shape[1]-spike_size_default
+    # templates = templates[:, offset//2:offset//2+spike_size_default]
     
     print ("  templates loaded: ", templates.shape)
             
@@ -2381,7 +2379,6 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         spike_train = np.vstack((spike_train, temp))
     spike_indexes = spike_train
 
-
     # Clean templates
     templates, spike_indexes, weights = clean_templates(templates.swapaxes(0,2),
                                                         spike_indexes,
@@ -2391,8 +2388,8 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
 
     print("  "+out_dir+ " templates/spiketrain before merge: ", templates.shape, spike_indexes.shape)
 
-    np.save(chunk_dir  + '/templates_post_'+out_dir+'_before_merge.npy', templates)
-    np.save(chunk_dir + '/spike_train_post_'+out_dir+'_before_merge.npy', spike_indexes)
+    np.save(chunk_dir  + '/templates_post_'+out_dir+'_pre_merge.npy', templates)
+    np.save(chunk_dir + '/spike_train_post_'+out_dir+'_pre_merge.npy', spike_indexes)
 
     ''' ************************************************
         ********** COMPUTE SIMILARITY METRICS **********
@@ -2404,6 +2401,7 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
 
         temps_denoised, shift_allowance = get_denoised_templates(templates, CONFIG)
         np.save(chunk_dir  + '/denoised_templates.npy', temps_denoised)
+        np.save(chunk_dir  + '/shift_allowance.npy', shift_allowance)
 
         # run merge algorithm
         sim_mat = abs_max_dist(temps_denoised, CONFIG)
@@ -2417,12 +2415,12 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         ************* MERGE SELECTED UNITS *************
         ************************************************
     '''
-
     # compute connected nodes and sum spikes over them
     #G = nx.from_numpy_array(sim_mat_sum)
     G = nx.from_numpy_array(sim_mat)
     final_spike_indexes = []
     final_template_indexes = []
+    connected_components = []
     for i, cc in enumerate(nx.connected_components(G)):
         final_template_indexes.append(list(cc))
         sic = np.zeros(0, dtype = int)
@@ -2431,8 +2429,11 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
             sic = np.concatenate([sic, spike_indexes[:,0][idx]])
         temp = np.concatenate([sic[:,np.newaxis], i*np.ones([sic.size,1],dtype = int)],axis = 1)
         final_spike_indexes.append(temp)
+        connected_components.append(list(cc))
+    np.save(chunk_dir+'/connected_components.npy', connected_components)
 
-    np.save(chunk_dir+'/final_template_indexes.npy', final_template_indexes)
+    np.save(chunk_dir+'/final_template_indexes.npy', 
+                                                final_template_indexes)
     final_spike_train = np.vstack(final_spike_indexes)
     
     # recompute tmp_loc from weighted templates
@@ -2449,9 +2450,8 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
             weighted_average = templates[idx[0]]
         templates_final.append(weighted_average)
 
-    # convert templates to : (n_channels, waveform_size, n_templates)
+    # convert templates to array
     templates = np.float32(templates_final)
-    #templates = np.swapaxes(templates, 1,2)
      
     np.save(chunk_dir+'/templates_post_'+out_dir+'_post_merge.npy', templates)
     np.save(chunk_dir+'/spike_train_post_'+out_dir+'_post_merge.npy', final_spike_train)
@@ -2462,10 +2462,11 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         fname = CONFIG.path_to_output_directory + '/spike_train_cluster.npy'
         np.save(fname, final_spike_train)
         
+        shift_allowance = np.load(chunk_dir  + '/shift_allowance.npy')
         fname = CONFIG.path_to_output_directory + '/templates_cluster.npy'
         templates = templates[:, shift_allowance:-shift_allowance].swapaxes(0,2).swapaxes(1,2)
         np.save(fname, templates)
-    
+
     return final_spike_train, templates
 
 
@@ -2580,8 +2581,9 @@ def get_shift_per_channel(fits, mid_point, window):
 def denoise(templates, pca_main, pca_sec):
 
     n_templates, n_times, n_channels = templates.shape
+    print (n_templates, n_times, n_channels)
     shift_allowance = (n_times - len(pca_main.mean_))//2
-
+    print (" shift_allowance: ", shift_allowance)
     max_channels = templates.ptp(1).argmax(1)
 
     norms = np.linalg.norm(templates, axis=1)
@@ -3979,23 +3981,6 @@ def get_template_PCA_rotation(wf_shifted=None, n_pca=3):
         print (" insufficient spikes in get_tempalte_PCA_rotation...")
         pca_object2 = pca_object1
 
-    #if True: 
-        ## plot all 
-        #ax=plt.subplot(221)
-        #plt.plot(templates_maxchan_normalized[:100].T)
-
-        #ax=plt.subplot(222)
-        #plt.plot(templates_maxchan_normalized[idx][:100].T)
-
-        #ax=plt.subplot(223)
-        #plt.plot(pca_object1.components_.T)
-
-
-        #ax=plt.subplot(224)
-        #plt.plot(pca_object2.components_.T)
-
-        #plt.show()
-    
 
     return pca_object1, pca_object2
 
@@ -4115,7 +4100,6 @@ def find_clean_templates(templates, CONFIG):
             template_ids.append(k)
             
     return np.array(template_ids)
-
 
 
 #def binary_reader_waveforms(filename, n_channels, n_times, spikes, channels=None, data_type='float32'):

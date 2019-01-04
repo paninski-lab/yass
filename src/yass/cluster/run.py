@@ -242,22 +242,22 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     
     # Cat: TODO: this logic isn't quite correct; should merge with above
     fname = os.path.join(CONFIG.path_to_output_directory, 
-                         'cluster/spike_train_post_cluster_post_merge_post_cutoff.npy')
+                         'cluster/spike_train_post_cluster_post_merge.npy')
     if os.path.exists(fname)==False: 
 
-        # reload recording chunk if not already in memory
-        if recording_chunk is None: 
-            buffer_size = 200
-            standardized_filename = os.path.join(CONFIG.path_to_output_directory,
-                                                'preprocess',
-                                                'standardized.bin')
+        # # reload recording chunk if not already in memory
+        # if recording_chunk is None: 
+            # buffer_size = 200
+            # standardized_filename = os.path.join(CONFIG.path_to_output_directory,
+                                                # 'preprocess',
+                                                # 'standardized.bin')
             
-            n_channels = CONFIG.recordings.n_channels
+            # n_channels = CONFIG.recordings.n_channels
 
-            recording_chunk = binary_reader(idx, 
-                                            buffer_size, 
-                                            standardized_filename, 
-                                            n_channels)
+            # recording_chunk = binary_reader(idx, 
+                                            # buffer_size, 
+                                            # standardized_filename, 
+                                            # n_channels)
                     
         # run global merge function
         # Cat: TODO: may wish to clean up these flags; goal is to use same

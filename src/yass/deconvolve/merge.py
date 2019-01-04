@@ -23,7 +23,8 @@ class TemplateMerge(object):
 
     def __init__(self, templates, spike_train, jitter, upsample, CONFIG,
                  deconv_chunk_dir,
-                 iteration=0, recompute=False):
+                 iteration=0, recompute=False, affinity_only=False):
+                     
         """
         parameters:
         -----------
@@ -59,14 +60,18 @@ class TemplateMerge(object):
                              'affinity_'+str(self.iteration)+'.npy')
                              
         if os.path.exists(fname)==False or self.recompute:
-            print ("  computing affinity matrix") 
+            print ("  computing affinity matrix...") 
             self.affinity_matrix = template_spike_dist(
                 self.templates, self.templates,
                 jitter=self.jitter, upsample=self.upsample)
+            print ("  done computing affinity matrix")
             np.save(fname, self.affinity_matrix)
         else:
             self.affinity_matrix = np.load(fname)
-            
+        
+        if affinity_only:
+            return 
+        
         
         # Template norms
         self.norms = template_spike_dist(

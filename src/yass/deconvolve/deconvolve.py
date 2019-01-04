@@ -484,7 +484,6 @@ def merge_pairs(templates, spike_train, merge_list, CONFIG2):
         sic = np.zeros(0, dtype = int)
         weights=[]
         temp_idx=[]
-        merge_array.append(list(cc))
         for j in cc:
             idx = np.where(spike_train[:,1]==j)[0]
             if idx.shape[0]>0:
@@ -495,6 +494,8 @@ def merge_pairs(templates, spike_train, merge_list, CONFIG2):
         # Note some templates may have zero spikes assigned, exclude those
         if len(temp_idx)==0:
             continue
+
+        merge_array.append(list(cc))
 
         # stack spikes
         spikes = np.concatenate([sic[:,np.newaxis], ctr*np.ones([sic.size,1],dtype = 'int32')],axis = 1)
