@@ -2346,6 +2346,7 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
                     weights.append(spike_times.shape[0])
  
     else: 
+        unit_list = []
         for unit in units:
             data = np.load(chunk_dir+'/unit_'+str(unit).zfill(6)+'.npz')
             temp_temp = data['templates']
@@ -2458,13 +2459,17 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
 
     print("  "+out_dir+" templates/spike train after merge : ", templates.shape, final_spike_train.shape)
 
+    # clip templates 
+    shift_allowance = np.load(chunk_dir  + '/shift_allowance.npy')
+    templates = templates[:, shift_allowance:-shift_allowance]
+    
+    # save data for clustering step
     if out_dir=='cluster':
         fname = CONFIG.path_to_output_directory + '/spike_train_cluster.npy'
         np.save(fname, final_spike_train)
         
-        shift_allowance = np.load(chunk_dir  + '/shift_allowance.npy')
+        templates = templates.swapaxes(0,2).swapaxes(1,2)
         fname = CONFIG.path_to_output_directory + '/templates_cluster.npy'
-        templates = templates[:, shift_allowance:-shift_allowance].swapaxes(0,2).swapaxes(1,2)
         np.save(fname, templates)
 
     return final_spike_train, templates

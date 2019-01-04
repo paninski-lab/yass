@@ -42,7 +42,7 @@ class TemplateMerge(object):
         self.deconv_chunk_dir = deconv_chunk_dir
         
         # set filename to residual file
-        self.filename_residual = os.path.join(deconv_chunk_dir, 
+        self.filename_residual = os.path.join(deconv_chunk_dir.replace('merge',''), 
                                      'residual.bin')
         self.CONFIG = CONFIG
         self.iteration = iteration
@@ -108,7 +108,7 @@ class TemplateMerge(object):
         
         fname = os.path.join(self.deconv_chunk_dir,
                              'merge_list_'+str(self.iteration)+'.npy')
-                             
+        print ("  computing l2features and distances in parallel")
         if os.path.exists(fname)==False or self.recompute:
             if self.CONFIG.resources.multi_processing:
                 merge_list = parmap.map(self.merge_templates_parallel, 

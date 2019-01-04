@@ -86,7 +86,7 @@ class Cluster(object):
         spike_train_final = []
         templates_final = []
         for ii, spike_train_k in enumerate(spike_train_local):
-            print("\nchan {}, START CLUSTERING UNIT {}/{}".format(self.channel, ii, len(spike_train_local)))
+            print("\nchan/unit {}, START CLUSTERING UNIT {}/{}".format(self.channel, ii, len(spike_train_local)))
 
             self.initialize(initial_spt=spike_train_k, local=False)
             self.cluster(current_indices=self.starting_indices, gen=0, local=False)
