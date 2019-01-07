@@ -80,7 +80,10 @@ class Cluster(object):
         self.initialize(initial_spt=self.spike_indexes_chunk[:, 0], local=True)
         self.cluster(current_indices=self.starting_indices, gen=0, local=True)
         self.finish(fname='channel_{}'.format(self.channel))
+        fname = (self.chunk_dir + "/channel_"+ str(self.channel).zfill(6)+"_plotting_data.npz")
+        self.save_plotting_data(fname)
 
+        
         # distant channel clustering
         spike_train_local = np.copy(self.spike_train)
         spike_train_final = []
@@ -91,6 +94,9 @@ class Cluster(object):
             self.initialize(initial_spt=spike_train_k, local=False)
             self.cluster(current_indices=self.starting_indices, gen=0, local=False)
             self.finish(fname='channel_{}_local_unit_{}'.format(self.channel, ii))
+            fname = self.chunk_dir + "/channel_{}_local_unit_{}_plotting_data.npz".format(self.channel, ii)
+            self.save_plotting_data(fname = fname)
+            
             
             spike_train_final += self.spike_train
             templates_final += self.templates
@@ -107,6 +113,17 @@ class Cluster(object):
             sic = spike_indices of spikes on current channel
             gen = generation of cluster; increases with each clustering step        
         '''
+        if gen==0:
+            self.pca_pre_triage = []
+            self.pca_post_triage_pre_recovery = []
+            self.pca_post_triage_post_recovery = []
+            self.vbPar_rhat = []
+            self.vbPar_Vhat = []
+            self.vbPar_invVhat = []
+            self.vbPar_nuhat = []
+            self.vbPar_muhat = []
+            self.vbPar_lambdahat = []
+            self.vbPar_ahat = []
 
         # Exit if cluster too small
         if current_indices.shape[0] <= self.CONFIG.cluster.min_spikes: return
@@ -124,6 +141,20 @@ class Cluster(object):
             # denoise waveforms on active channels
             self.denoise_step(local)
 
+        if self.x[gen] == 0:
+            self.pca_pre_triage.append([])
+            self.pca_post_triage_pre_recovery.append([])
+            self.pca_post_triage_post_recovery.append([])
+            self.vbPar_rhat.append([])
+            self.vbPar_muhat.append([])
+            self.vbPar_Vhat.append([])
+            self.vbPar_invVhat.append([])
+            self.vbPar_nuhat.append([])
+            self.vbPar_ahat.append([])
+            self.vbPar_lambdahat.append([])
+
+            
+            
         #np.save('/media/cat/500GB/liam/49channels/data1_set1_5mins/tmp/deconv/initial/0/recluster/wf_global_'+str(local)+
         #        '_'+str(self.unit)+'.npy', self.wf_global)
 
@@ -133,6 +164,7 @@ class Cluster(object):
             current_indices = np.delete(current_indices, self.skipped_idx, axis=0)
             
         pca_wf = self.featurize_step(gen, current_indices, local, save_pca)
+        self.pca_pre_triage[gen].append(pca_wf)
         
         # knn triage
         idx_keep = self.knn_triage_step(gen, pca_wf)
@@ -147,6 +179,18 @@ class Cluster(object):
         # run initial cluster step
         vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
 
+        self.pca_post_triage_post_recovery[gen].append(pca_wf)
+        self.vbPar_rhat[gen].append(vbParam.rhat)
+        self.vbPar_muhat[gen].append(vbParam.muhat)
+        self.vbPar_Vhat[gen].append(vbParam.Vhat)
+        self.vbPar_invVhat[gen].append(vbParam.invVhat)
+        self.vbPar_nuhat[gen].append(vbParam.nuhat)
+        self.vbPar_ahat[gen].append(vbParam.ahat)
+        self.vbPar_lambdahat[gen].append(vbParam.lambdahat)
+
+
+        
+        
         ##### TRIAGE 1 #####
         # adaptive knn triage
         #idx_keep = self.knn_triage_dynamic(gen, vbParam, pca_wf)
@@ -964,7 +1008,19 @@ class Cluster(object):
                 self.fig2.savefig(os.path.join(self.figures_dir,fname+'_template.png'))
             #plt.close(self.fig2)
             plt.close('all')
-
+            
+    def save_plotting_data(self, fname):
+        
+        np.savez(fname,
+                 pca_post_triage_post_recovery = self.pca_post_triage_post_recovery,
+                 vbPar_rhat = self.vbPar_rhat,
+                 vbPar_muhat = self.muhat,
+                 vbPar_Vhat = self.vbPar_Vhat,
+                 vbPar_invVhat = self.vbPar_invVhat,
+                 vbPar_nuhat = self.vbPar_nuhat,
+                 vbPar_lambdahat = self.vbPar_lambdahat,
+                 vbPar_ahat = self.vbPar_ahat,
+                )
 
     def save_result(self, spike_train=None, templates=None):
 
