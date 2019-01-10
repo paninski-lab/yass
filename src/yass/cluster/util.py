@@ -2324,29 +2324,28 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     spike_ids = []
     spike_indexes = []
     channels = np.arange(n_channels)
-    
-    # Cat: TODO: load from config
-    n_pca = 3
-    
+
     # this step loads either cluster or unit data so that both clustering 
     # and post-deconv unit-based reclusteirng can work with same routine
-    # Cat: TODO: make sure this step is correct
+
+    # this list tracks the post-clustering ids before the cleaning step
+    unit_recluster_list=[]
+    
     if out_dir == 'cluster':
         for channel in range(CONFIG.recordings.n_channels):
-#         for channel in [0]:
             data = np.load(chunk_dir+'/channel_'+str(channel).zfill(6)+'.npz')
             temp_temp = data['templates']
 
             if (temp_temp.shape[0]) !=0:
                 templates.append(temp_temp)
                 temp = data['spiketime']
+                unit_recluster_list.append(len(temp))
                 for s in range(len(temp)):
                     spike_times = temp[s]
                     spike_indexes.append(spike_times)
                     weights.append(spike_times.shape[0])
  
-    else: 
-        unit_list = []
+    else:
         for unit in units:
             data = np.load(chunk_dir+'/unit_'+str(unit).zfill(6)+'.npz')
             temp_temp = data['templates']
@@ -2354,8 +2353,9 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
             if (temp_temp.shape[0]) !=0:
                 templates.append(temp_temp)
                 temp = data['spike_index']
+                unit_recluster_list.append(len(temp))
                 for s in range(len(temp)):
-                    spike_times = temp[s] #[:,0]
+                    spike_times = temp[s]
                     spike_indexes.append(spike_times)
                     weights.append(spike_times.shape[0])
 
@@ -2369,7 +2369,6 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     # offset = templates.shape[1]-spike_size_default
     # templates = templates[:, offset//2:offset//2+spike_size_default]
     
-    print ("  templates loaded: ", templates.shape)
             
     # rearange spike indees from id 0..N
     spike_train = np.zeros((0,2),'int32')
@@ -2380,17 +2379,27 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         spike_train = np.vstack((spike_train, temp))
     spike_indexes = spike_train
 
-    # Clean templates
-    templates, spike_indexes, weights = clean_templates(templates.swapaxes(0,2),
+    print ("  templates loaded: ", templates.shape)
+    np.save(chunk_dir  + '/templates_post_'+out_dir+'_pre_cleaning.npy', templates)
+    np.save(chunk_dir  + '/spike_train_post_'+out_dir+'_pre_cleaning.npy', spike_indexes)
+
+    ''' ************************************************
+        **************** CLEAN TEMPLATES  **************
+        ************************************************
+    '''
+    # Clean templates; return index of templates that were deleted
+    templates, spike_indexes, weights, idx_kept = clean_templates(templates.swapaxes(0,2),
                                                         spike_indexes,
                                                         weights,
                                                         CONFIG)
     templates = templates.swapaxes(0,2).swapaxes(1,2)
-
-    print("  "+out_dir+ " templates/spiketrain before merge: ", templates.shape, spike_indexes.shape)
-
     np.save(chunk_dir  + '/templates_post_'+out_dir+'_pre_merge.npy', templates)
     np.save(chunk_dir + '/spike_train_post_'+out_dir+'_pre_merge.npy', spike_indexes)
+    np.save(chunk_dir + '/idx_kept.npy', idx_kept)
+    np.save(chunk_dir + '/unit_recluster_list.npy', unit_recluster_list)
+
+    print("  "+out_dir+ " templates/spiketrain before merge: ", 
+                                        templates.shape, spike_indexes.shape)
 
     ''' ************************************************
         ********** COMPUTE SIMILARITY METRICS **********
@@ -2586,9 +2595,7 @@ def get_shift_per_channel(fits, mid_point, window):
 def denoise(templates, pca_main, pca_sec):
 
     n_templates, n_times, n_channels = templates.shape
-    print (n_templates, n_times, n_channels)
     shift_allowance = (n_times - len(pca_main.mean_))//2
-    print (" shift_allowance: ", shift_allowance)
     max_channels = templates.ptp(1).argmax(1)
 
     norms = np.linalg.norm(templates, axis=1)
@@ -3993,61 +4000,40 @@ def get_template_PCA_rotation(wf_shifted=None, n_pca=3):
 
 def clean_templates(templates, spike_train_cluster, weights, CONFIG):
 
-    ''' ***************************************************
-        ************* DELETE SMALL TEMPLATES **************
-        ***************************************************
-    '''
-    # remove templates < 3SU
-
-    #print (" cleaning templates: ", templates.shape)
+    # find units < 3SU 
     # Cat: TODO: read this threshold and flag from CONFIG
     template_threshold = 3
 
-    # need to transpose axes for analysis below
     templates = templates.swapaxes(0,1)
     print ("  cleaning templates (time, chan, temps): ", templates.shape)
     ptps = templates.ptp(0).max(0)
-    idx = np.where(ptps>=template_threshold)[0]
-    print ("  deleted # clusters < 3SU: ", templates.shape[2]-idx.shape[0])
+    idx1 = np.where(ptps>=template_threshold)[0]
+    print ("  deleted clusters < 3SU: ", templates.shape[2]-idx1.shape[0])
     
-    templates = templates[:,:,idx]
-    weights = weights[idx]
+    # find units with large peaks off-centre
+    idx2 = find_clean_templates(templates, CONFIG)
+    print ("  deleted collision clusters: ", templates.shape[2]-idx2.shape[0])
 
-    spike_train_cluster_new = []
-    for ctr,k in enumerate(idx):
+    # merge all units to be deleted
+    idx_all = np.intersect1d(idx1, idx2)
+    
+    # redundant step to order indexes
+    idx = np.argsort(idx_all)
+    idx_all = idx_all[idx]
+    
+    # remerge keep units 
+    templates = templates[:,:,idx_all]
+    weights = weights[idx_all]
+    spike_train_cluster_new2 = []
+    for ctr,k in enumerate(list(idx_all)):
         temp = np.where(spike_train_cluster[:,1]==k)[0]
         temp_train = spike_train_cluster[temp]
         temp_train[:,1]=ctr
-        spike_train_cluster_new.append(temp_train)
+        spike_train_cluster_new2.append(temp_train)
         
-    spike_train_cluster_new = np.vstack(spike_train_cluster_new)
-    
-    
-    ''' ***************************************************
-        ************* DELETE COLLISION TEMPLATES **********
-        ***************************************************
-    '''
-    if True:
-        idx = find_clean_templates(templates, CONFIG)
-        print ("  deleted # collsion clusters: ", templates.shape[2]-idx.shape[0])
-        
-        templates = templates[:,:,idx]
-        weights = weights[idx]
-        spike_train_cluster_new2 = []
-        for ctr,k in enumerate(idx):
-            temp = np.where(spike_train_cluster_new[:,1]==k)[0]
-            temp_train = spike_train_cluster_new[temp]
-            temp_train[:,1]=ctr
-            spike_train_cluster_new2.append(temp_train)
-            
-        spike_train_cluster_new2 = np.vstack(spike_train_cluster_new2)
-    else:
-        print ("  not deleting collision clusters ")
-        
-        
-    #quit()
-    
-    return templates, spike_train_cluster_new2, weights
+    spike_train_cluster_new2 = np.vstack(spike_train_cluster_new2)
+
+    return templates, spike_train_cluster_new2, weights, idx_all
 
 
 def find_clean_templates(templates, CONFIG):

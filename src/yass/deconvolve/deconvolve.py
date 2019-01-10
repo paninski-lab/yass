@@ -460,7 +460,6 @@ class Deconv(object):
             else:
                 for unit in range(len(args_in)):
                     Cluster(args_in[unit])
-                       
                          
         print ("  reclustering complete")
 

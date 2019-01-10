@@ -2,6 +2,8 @@ import logging
 import datetime
 import numpy as np
 import os
+import tqdm
+import parmap
 
 from yass import read_config
 from yass.util import file_loader, check_for_files, LoadFile
@@ -186,7 +188,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     # select which spike index to use:
     if True:
         print ("  using spike_index_all for clustering step")
-        print (spike_index_all.shape)
         spike_index = spike_index_all.copy()
     else:
         print ("  using spike_index_clear for clustering step")
@@ -205,9 +206,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
         # Cat: TODO: this parallelization may not be optimally asynchronous
         # make arg list first
-        #for channel in [4,6,22,23]:
         args_in = []
-        #for channel in [4]:
         channels = np.arange(CONFIG.recordings.n_channels)
         for channel in channels:
 
@@ -223,14 +222,16 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
 
         print ("  starting clustering")
         if CONFIG.resources.multi_processing:
-            p = mp.Pool(CONFIG.resources.n_processors)
-            res = p.map_async(Cluster, args_in).get(988895)
-            p.close()
+            #p = mp.Pool(CONFIG.resources.n_processors)
+            #p.map_async(Cluster, args_in).get(988895)
+            #p.close()
+            parmap.map(Cluster, args_in, 
+                       processes=CONFIG.resources.n_processors,
+                       pm_pbar=True)
 
         else:
-            res = []
             for arg_in in args_in:
-                res.append(Cluster(arg_in))
+                Cluster(arg_in)
 
         ## save simple flag that chunk is done
         ## Cat: TODO: fix this; or run chunk wise-global merge
@@ -245,21 +246,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                          'cluster/spike_train_post_cluster_post_merge.npy')
     if os.path.exists(fname)==False: 
 
-        # # reload recording chunk if not already in memory
-        # if recording_chunk is None: 
-            # buffer_size = 200
-            # standardized_filename = os.path.join(CONFIG.path_to_output_directory,
-                                                # 'preprocess',
-                                                # 'standardized.bin')
-            
-            # n_channels = CONFIG.recordings.n_channels
-
-            # recording_chunk = binary_reader(idx, 
-                                            # buffer_size, 
-                                            # standardized_filename, 
-                                            # n_channels)
-                    
-        # run global merge function
         # Cat: TODO: may wish to clean up these flags; goal is to use same
         #            merge function for both clustering and deconv
         out_dir='cluster'
