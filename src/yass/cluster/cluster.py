@@ -248,6 +248,8 @@ class Cluster(object):
         self.pca_wf_allchans = None
         self.original_idx = None
         self.data_to_fit = None
+        self.pca_wf_gen0 = None
+
 
         # list that holds all the final clustered indices for the premerge clusters
         self.clustered_indices_local = []
