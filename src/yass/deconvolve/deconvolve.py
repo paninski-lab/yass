@@ -102,7 +102,8 @@ class Deconv(object):
         self.n_iterations_merge = 1
 
         # iterative deconv parameters
-        self.n_iterations_deconv = 1
+        # Cat: TODO: read from CONFIG
+        self.n_iterations_deconv = 0
         self.n_seconds_initial = 1200
         self.initial_chunk = int(self.n_seconds_initial//self.CONFIG.resources.n_sec_chunk) 
 

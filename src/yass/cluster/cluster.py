@@ -1561,7 +1561,7 @@ def read_spikes(filename, unit, templates, spike_train, CONFIG,
     n_channels = CONFIG.recordings.n_channels
     
     # load default spike_size unless otherwise inidcated
-    if spike_size==None:
+    if spike_size is None:
         spike_size = int(CONFIG.recordings.spike_size_ms*CONFIG.recordings.sampling_rate//1000*2+1)
 
     if channels is None:
