@@ -7,6 +7,8 @@ from scipy import signal
 from scipy import stats
 from scipy.signal import argrelmax
 from scipy.spatial import cKDTree
+import scipy.sparse
+
 from copy import deepcopy
 import math
 from sklearn.cluster import AgglomerativeClustering
@@ -16,7 +18,7 @@ from yass.templates.util import strongly_connected_components_iterative
 from yass.geometry import n_steps_neigh_channels
 from yass import mfm
 from yass.empty import empty
-from yass.cluster.cluster import shift_chans
+from yass.cluster.cluster import (shift_chans, align_get_shifts_with_ref)
 from yass.util import absolute_path_to_asset
 
 from scipy.sparse import lil_matrix
@@ -2409,12 +2411,18 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     abs_max_file = (chunk_dir+'/abs_max_vector_post_cluster.npy')
     if os.path.exists(abs_max_file)==False:
 
-        temps_denoised, shift_allowance = get_denoised_templates(templates, CONFIG)
-        np.save(chunk_dir  + '/denoised_templates.npy', temps_denoised)
-        np.save(chunk_dir  + '/shift_allowance.npy', shift_allowance)
+        # Cat: TODO: parallelize this step
+        if os.path.exists(chunk_dir  + '/denoised_templates.npy'):
+            temps_denoised = np.load(chunk_dir  + '/denoised_templates.npy')
+            shift_allowance = np.load(chunk_dir  + '/shift_allowance.npy')
+            
+        else:
+            temps_denoised, shift_allowance = get_denoised_templates(templates, CONFIG)
+            np.save(chunk_dir  + '/denoised_templates.npy', temps_denoised)
+            np.save(chunk_dir  + '/shift_allowance.npy', shift_allowance)
 
         # run merge algorithm
-        sim_mat = abs_max_dist(temps_denoised, CONFIG)
+        sim_mat = abs_max_dist(temps_denoised, CONFIG, chunk_dir)
         np.save(abs_max_file, sim_mat)
         
     else:
@@ -2426,7 +2434,6 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         ************************************************
     '''
     # compute connected nodes and sum spikes over them
-    #G = nx.from_numpy_array(sim_mat_sum)
     G = nx.from_numpy_array(sim_mat)
     final_spike_indexes = []
     final_template_indexes = []
@@ -2441,12 +2448,12 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         final_spike_indexes.append(temp)
         connected_components.append(list(cc))
     np.save(chunk_dir+'/connected_components.npy', connected_components)
-
     np.save(chunk_dir+'/final_template_indexes.npy', 
                                                 final_template_indexes)
     final_spike_train = np.vstack(final_spike_indexes)
     
     # recompute tmp_loc from weighted templates
+    print ("  merging units (TODO parallelize and update align function)...")
     templates_final = []
     weights_final = []
     for t in final_template_indexes:
@@ -2634,8 +2641,11 @@ def merge_templates(templates, weights):
 
     largest_unit = np.argmax(weights)
     mc = templates[largest_unit].ptp(0).argmax()
+
     wf_out = align_mc_templates(templates, mc, spike_padding=15,
                                 upsample_factor = 5, nshifts = 15)
+
+
 
     weights = np.float32(weights) 
     weights /= np.sum(weights)
@@ -2697,7 +2707,7 @@ def merge_templates(templates, weights):
 #     return templates_centred, spike_train_cluster_new
 
 
-def abs_max_dist(temp, CONFIG):
+def abs_max_dist(temp, CONFIG, chunk_dir):
         
     ''' Compute absolute max distance using denoised templates
         Distances are computed between absolute value templates, but
@@ -2711,76 +2721,100 @@ def abs_max_dist(temp, CONFIG):
     print ("Computing merge matrix")
     print ("  temp shape (temps, times, chans):" , temp.shape)
     
-    dist_max = np.zeros((temp.shape[0],temp.shape[0]), 'float32')
+    #dist_max = np.zeros((temp.shape[0],temp.shape[0]), 'float32')
+    
+    merge_dir = chunk_dir+'/merge/'
+    if not os.path.isdir(merge_dir):
+        os.makedirs(merge_dir)
+    
+    # make ids to be loaded
+    ids=[]
+    for k in range(temp.shape[0]):
+        fname = (merge_dir+'/unit_'+str(k)+'.npy')
+        if os.path.exists(fname)==False:
+            ids.append(k)        
     
     if CONFIG.resources.multi_processing:
-        #ids = np.array_split(np.arange(temp.shape[0]), CONFIG.resources.n_processors)
-        ids = np.array_split(np.arange(temp.shape[0]), temp.shape[0]//2)
-        res = parmap.map(parallel_abs_max_dist, ids, temp, 
+        parmap.map(parallel_abs_max_dist, ids, temp, merge_dir,
                          processes=CONFIG.resources.n_processors,
                          pm_pbar=True)                
     else:
-        ids = np.arange(temp.shape[0])
-        res = parallel_abs_max_dist(ids, temp)
+        for id_ in ids:
+            parallel_abs_max_dist(id_, temp, merge_dir)
 
-    # sum all results
-    for k in range(len(res)):
-        dist_max +=res[k]
-           
+    # reload all saved data
+    res=[]
+    for k in range(temp.shape[0]):
+        fname = (merge_dir+'/unit_'+str(k)+'.npy')
+        res.append(np.load(fname))
+
+    dist_max=np.vstack(res)
     return dist_max
 
-def parallel_abs_max_dist(ids, temp):
+def parallel_abs_max_dist(id1, temp, merge_dir):
+    
+    fname = merge_dir+'/unit_'+str(id1)+'.npy'
+    if os.path.exists(fname):
+        return
     
     # Cat: TODO: read spike_padding from CONFIG
     spike_padding = 15
     
-    dist_max = np.zeros((temp.shape[0],temp.shape[0]),'float32')
+    dist_max = np.zeros(temp.shape[0],'float32')
 
-    # Cat: TODO read the overlap # of chans from CONFIG    
+    # Cat: TODO read the overlap # of chans from CONFIG
+    # number of largest amplitude channels to search for overlap
     n_chans = 3
-    for id1 in ids:
-        max_chans_id1 = temp[id1].ptp(0).argsort(0)[::-1][:n_chans]
-        for id2 in range(id1+1,temp.shape[0],1):
-            max_chans_id2 = temp[id2].ptp(0).argsort(0)[::-1][:n_chans]
-            if np.intersect1d(max_chans_id1, max_chans_id2).shape[0]==0: 
-                continue
+    max_chans_id1 = temp[id1].ptp(0).argsort(0)[::-1][:n_chans]
+    for id2 in range(id1+1,temp.shape[0],1):
+        max_chans_id2 = temp[id2].ptp(0).argsort(0)[::-1][:n_chans]
+        if np.intersect1d(max_chans_id1, max_chans_id2).shape[0]==0: 
+            continue
 
-            # load both templates into an array and align them to the max
-            temps = []
-            template1 = temp[id1]
-            temps.append(template1)
-            ptp_1=template1.ptp(0).max(0)
+        # load both templates into an array and align them to the max
+        temps = []
+        template1 = temp[id1]
+        temps.append(template1)
+        ptp_1=template1.ptp(0).max(0)
 
-            template2 = temp[id2]
-            ptp_2=template2.ptp(0).max(0)
-            temps.append(template2)
-                        
-            if ptp_1>=ptp_2:
-                mc = template1.ptp(0).argmax(0)
-            else:
-                mc = template2.ptp(0).argmax(0)
-                
-            temps = np.array(temps)
+        template2 = temp[id2]
+        ptp_2=template2.ptp(0).max(0)
+        temps.append(template2)
+                    
+        if ptp_1>=ptp_2:
+            mc = template1.ptp(0).argmax(0)
+        else:
+            mc = template2.ptp(0).argmax(0)
             
-            wf_out = align_mc_templates(temps, mc, spike_padding, 
-                                        upsample_factor = 5, nshifts = 15)
-            
-            # Cat: TODO: is ravel step required?
-            len1 = wf_out[0].T.ravel()
-            len2 = wf_out[1].T.ravel()
-            
-            # compute distances and noramlize by largest template ptp
-            # note this makes sense for max distance, but not sum;
-            #  for sum should be dividing by total area
-            diff = len1-len2
-            diff = diff/(max(ptp_1,ptp_2))
+        temps = np.array(temps)
 
-            # compute max distance
-            dist_m = np.max(abs(diff),axis=0)
-            if dist_m < 0.15:
-                dist_max[id1,id2] = 1.0
-                
-    return dist_max
+        # ref template
+        ref_template = np.load(absolute_path_to_asset(
+            os.path.join('template_space', 'ref_template.npy')))
+            
+        # get shifts
+        best_shifts = align_get_shifts_with_ref(
+                        temps[:, 10:-10, mc],  ref_template)
+
+        wf_out = shift_chans(temps, best_shifts)
+
+        # Cat: TODO: is ravel step required?
+        len1 = wf_out[0].T.ravel()
+        len2 = wf_out[1].T.ravel()
+        
+        # compute distances and noramlize by largest template ptp
+        # note this makes sense for max distance, but not sum;
+        #  for sum should be dividing by total area
+        diff = len1-len2
+        diff = diff/(max(ptp_1,ptp_2))
+
+        # compute max distance
+        dist_m = np.max(abs(diff),axis=0)
+        if dist_m < 0.15:
+            dist_max[id2] = 1.0
+    
+    np.save(fname, dist_max)
+    #return dist_max
 
 def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG, min_spikes,
                          out_dir, units):
