@@ -1027,7 +1027,7 @@ class Residual(object):
         # new method: append to end of file rather than accumulate in memory
         fname_out = os.path.join(self.deconv_chunk_dir, 'residual.bin')
         #f = open(fname_out, 'ab')
-        f = open(fname_out)
+        f = open(fname_out,'wb')
         for k in range(len(self.indexes)):
             fname = self.deconv_chunk_dir+ '/residual_seg_'+str(self.indexes[k][2])+'.npy'
             res = np.load(fname)
