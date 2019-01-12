@@ -48,8 +48,8 @@ class TemplateMerge(object):
         self.iteration = iteration
         self.jitter, self.upsample = jitter, upsample
 
-        print ("  templates in: ", templates.shape)
         self.templates = templates.transpose(2,1,0)
+        print ("  templates in: ", templates.shape)
         self.recompute=recompute
         self.spike_train = spike_train
         self.n_unit = self.templates.shape[0]
@@ -61,23 +61,23 @@ class TemplateMerge(object):
                              
         if os.path.exists(fname)==False or self.recompute:
             print ("  computing affinity matrix...") 
-            self.affinity_matrix = template_spike_dist(
+            self.affinity_matrix = template_spike_dist_linear_align(
                 self.templates, self.templates,
                 jitter=self.jitter, upsample=self.upsample)
             print ("  done computing affinity matrix")
             np.save(fname, self.affinity_matrix)
         else:
+            print ("  affinity matrix prev computed...loading")
             self.affinity_matrix = np.load(fname)
         
         if affinity_only:
             return 
-        
-        
+                
         # Template norms
-        self.norms = template_spike_dist(
+        self.norms = template_spike_dist_linear_align(
             self.templates, self.templates[:1, :, :] * 0,
             jitter=self.jitter, upsample=self.upsample, vis_ptp=0.).flatten()
-        
+
         # Distance metric with diagonal set to large numbers
         dist_mat = np.zeros_like(self.affinity_matrix)
         for i in range(self.n_unit):
@@ -85,11 +85,20 @@ class TemplateMerge(object):
         dist_mat += self.affinity_matrix
         
         # proposed merge pairs
-        self.merge_candidate = scipy.optimize.linear_sum_assignment(dist_mat)[1]
-        
+        #print ("  computing hungarian alg assignment...")
         fname = os.path.join(deconv_chunk_dir,
                              'merge_candidate_'+str(self.iteration)+'.npy')
-        np.save(fname, self.merge_candidate)
+
+        if os.path.exists(fname)==False:
+            print ( "  TODO: write faster merge algorithm...")
+            
+            self.merge_candidate = scipy.optimize.linear_sum_assignment(dist_mat)[1]
+            #self.merge_candidate = self.find_merge_candidates()
+
+            np.save(fname, self.merge_candidate)
+        else:
+            self.merge_candidate = np.load(fname)
+       
         
         # Check the ratio of distance between proposed pairs compared to
         # their norms, if the value is greater that .3 then test the unimodality
@@ -101,13 +110,22 @@ class TemplateMerge(object):
         fname = os.path.join(deconv_chunk_dir,
                              'dist_norm_ratio_'+str(self.iteration)+'.npy')
         np.save(fname, self.dist_norm_ratio)
+
+    def find_merge_candidates(self):
+        print ( "  TODO: write serial merging algorithm...")
         
+        pass
+
+
     def get_merge_pairs(self):
+        ''' Run all pairs of merge candidates through the l2 feature computation        
+        '''
         
         units = np.where(self.dist_norm_ratio < 0.5)[0]
         
         fname = os.path.join(self.deconv_chunk_dir,
                              'merge_list_'+str(self.iteration)+'.npy')
+                             
         print ("  computing l2features and distances in parallel")
         if os.path.exists(fname)==False or self.recompute:
             if self.CONFIG.resources.multi_processing:
@@ -127,6 +145,41 @@ class TemplateMerge(object):
             merge_list = np.load(fname)
             
         return merge_list
+
+
+    def get_merge_pairs_units(self):
+        ''' Check all units against nearest units in increasing distance.
+            This algorithm does not use hugnarian algorithm to assign 
+            candidates; rather, check until diptests start to become too low
+        '''
+        
+        units = np.where(self.dist_norm_ratio < 0.5)[0]
+        
+        fname = os.path.join(self.deconv_chunk_dir,
+                             'merge_list_'+str(self.iteration)+'.npy')
+                             
+        print ("  computing l2features and distances in parallel")
+        if os.path.exists(fname)==False or self.recompute:
+            if self.CONFIG.resources.multi_processing:
+                merge_list = parmap.map(self.merge_templates_parallel, 
+                             list(zip(units, self.merge_candidate[units])),
+                             processes=self.CONFIG.resources.n_processors,
+                             pm_pbar=True)
+            # single core version
+            else:
+                merge_list = []
+                for unit in units:
+                    temp = self.merge_templates_parallel(
+                                        [unit, self.merge_candidate[unit]])
+                    merge_list.append(temp)
+            np.save(fname, merge_list)
+        else:
+            merge_list = np.load(fname)
+            
+        return merge_list
+
+
+
 
     def merge_templates_parallel(self, data_in, threshold=0.9, n_samples=1000):
         """Whether to merge two templates or not.
@@ -169,7 +222,7 @@ class TemplateMerge(object):
                 self.CONFIG, residual_flag=True).transpose([0, 2, 1])
             spike_ids = np.append(
                 np.ones(len(spikes_1)), np.zeros(len(spikes_2)), axis=0)
-            l2_features = template_spike_dist(
+            l2_features = template_spike_dist_linear_align(
                 self.templates[[unit1, unit2], :, :],
                 np.append(spikes_1, spikes_2, axis=0),
                 jitter=self.jitter, upsample=self.upsample)
@@ -194,6 +247,10 @@ class TemplateMerge(object):
         return None
 
         
+    def merge_templates_parallel_units(self):
+        
+        pass
+
 
 def test_unimodality(pca_wf, assignment, max_spikes = 10000):
 
@@ -256,6 +313,7 @@ def template_spike_dist(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **k
     spikes = spikes[:, vis_chan, :]
     spikes_old = spikes.copy()
 
+    print ("  upsampling")
     # Upsample the templates
     if upsample > 1:
         n_t = templates.shape[-1]
@@ -276,19 +334,21 @@ def template_spike_dist(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **k
         spikes = spikes[:, :, idx].transpose([0, 2, 1, 3]).reshape(
             [-1, n_chan, n_times - jitter])
 
+    print ("  cdist computation")
     # Pairwise distance of templates and spikes
     dist = scipy.spatial.distance.cdist(
             templates.reshape([n_unit, -1]),
             spikes.reshape([n_spikes * max(jitter, 1), -1]),
             **kwargs)
-            
+    print ("  done cdist computation")
+
     # Get best jitter distance
     if jitter > 0:
         return dist.reshape([n_unit, n_spikes, jitter]).min(axis=-1)
     return dist
 
 
-def template_spike_dist_align(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **kwargs):
+def template_spike_dist_linear_align(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **kwargs):
     """compares the templates and spikes.
 
     parameters:
@@ -303,65 +363,52 @@ def template_spike_dist_align(templates, spikes, jitter=0, upsample=1, vis_ptp=2
 
     from yass.cluster.cluster import align_get_shifts_with_ref, upsample_resample, shift_chans
 
-    # Only use the channels that the template has visibility.
-    vis_chan = templates.ptp(-1).max(0) >= vis_ptp
-    templates = templates[:, vis_chan, :]
-    spikes = spikes[:, vis_chan, :]
+    # new way using alignment only on max channel
+    # maek reference template based on templates
+    max_idx = templates.ptp(2).max(1).argmax(0)
+    ref_template = templates[max_idx]
+    max_chan = ref_template.ptp(1).argmax(0)
+    ref_template = ref_template[max_chan]
 
-    print (templates.shape)
-    max_chans = templates.ptp(2).argmax(1)
-    print ("max chans: ", max_chans)
+    # find template shifts
+    max_chans = templates.ptp(1).argmax(1)
+    temps = []
+    for k in range(max_chans.shape[0]):
+        temps.append(templates[k,max_chans[k]])
+    temps = np.vstack(temps)
 
-    waveforms = np.vstack((spikes[:500,max_chans[0]], 
-                           spikes[500:,max_chans[1]]))
-                           
-    print (waveforms.shape)
-    waveforms = np.vstack(templates[:,max_chans], waveforms)
-    print (waveforms.shape)
+    upsample_factor=25
+    best_shifts = align_get_shifts_with_ref(
+                    temps, ref_template, upsample_factor)
     
-    shifts = align_get_shifts_with_ref(waveforms, templates[0,max_chans[0]])
-    print ("sfhits: ", shifts)
-    #best_shifts = align_get_shifts_with_ref()
-    #self.spt_global -= best_shifts
-    waveforms = shift_chans(waveforms, shifts)
+    templates_aligned = shift_chans(templates, best_shifts)
+    #print ("  new aligned templates: ", templates_aligned.shape)
 
-    templates = waveforms[:2]
-    spikes = waveforms[2:]
+    # find spike shifts
+    max_chans = spikes.ptp(1).argmax(1)
+    spikes_aligned = []
+    for k in range(max_chans.shape[0]):
+        spikes_aligned.append(spikes[k,max_chans[k]])
+    spikes_aligned = np.vstack(spikes_aligned)
+
+    best_shifts = align_get_shifts_with_ref(
+                            spikes_aligned, ref_template, upsample_factor)
     
-    # # Upsample the templates
-    # if upsample > 1:
-        # n_t = templates.shape[-1]
-        # templates = scipy.signal.resample(templates, n_t * upsample, axis=-1)
-        # spikes = scipy.signal.resample(spikes, n_t * upsample, axis=-1)
+    spikes_aligned = shift_chans(spikes, best_shifts)
+    #print ("  new aligned spikes: ", spikes_aligned.shape)
+    
+    n_unit = templates_aligned.shape[0]
+    n_spikes = spikes_aligned.shape[0]
 
-    # n_times = templates.shape[-1]
-    # n_chan = templates.shape[1]
-    # n_unit = templates.shape[0]
-    # n_spikes = spikes.shape[0]
-
-    # # Get a smaller window around the templates.
-    # if jitter > 0:
-        # jitter = jitter * upsample
-        # templates = templates[:, :, jitter // 2:-jitter // 2]
-        # idx = np.arange(n_times - jitter) + np.arange(jitter)[:, None]
-        # # indices: [spike number, channel, jitter, time]
-        # spikes = spikes[:, :, idx].transpose([0, 2, 1, 3]).reshape(
-            # [-1, n_chan, n_times - jitter])
-
-    # templates = [2 , 49,  61+/- clipping]
-    # spikes = [n_spikes, 49, 61 +/- clipping]
-    # then flatten over 2nd and 3rd dimensions
-
+    #print ("  start cdist computation")
     # Pairwise distance of templates and spikes
     dist = scipy.spatial.distance.cdist(
-            templates.reshape([n_unit, -1]),
-            spikes.reshape([n_spikes * max(jitter, 1), -1]),
-            **kwargs)
+           templates_aligned.reshape([n_unit, -1]),
+           spikes_aligned.reshape([n_spikes, -1]),
+           **kwargs)
 
-    # Get best jitter distance
-    if jitter > 0:
-        return dist.reshape([n_unit, n_spikes, jitter]).min(axis=-1)
     return dist
+    
 
 
 def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, channels=None):

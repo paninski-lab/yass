@@ -389,10 +389,10 @@ class Deconv(object):
         n_channels = self.CONFIG.recordings.n_channels
         
         #print (standardized_filename)
-        recording_chunk = binary_reader(idx_chunk, 
-                                        self.buffer_size, 
-                                        self.standardized_filename, 
-                                        self.n_channels)
+        # recording_chunk = binary_reader(idx_chunk, 
+                                        # self.buffer_size, 
+                                        # self.standardized_filename, 
+                                        # self.n_channels)
 
         # compute residual for data chunk and save to disk
         # Cat TODO: parallelize this and also figure out a faster way to 
@@ -420,8 +420,11 @@ class Deconv(object):
         min_ptp = 0.0
         print ("  residual computation excludes units < ", min_ptp, "SU")
         wf_object.compute_residual_new(self.CONFIG, min_ptp)
-        wf_object.data = wf_object.data[self.buffer_size:-self.buffer_size].reshape(-1)
-        wf_object.data.tofile(fname[:-4]+'.bin')
+    
+        # new method for saving residuals
+        wf_object.save_residual()
+        #wf_object.data = wf_object.data[self.buffer_size:-self.buffer_size].reshape(-1)
+        #wf_object.data.tofile(fname)
 
 
 

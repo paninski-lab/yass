@@ -957,7 +957,6 @@ class Residual(object):
                 buffer zones. 
         '''
         
-        print ("  Computing residual in parallel ")
 
         # compute residual only with tempaltes > min_ptp
         self.min_ptp = min_ptp
@@ -970,6 +969,7 @@ class Residual(object):
         end_index = self.idx_list_local[-1][1]
         spike_times=[]
         indexes=[]
+        print ("  computing chunk indexes for parallel processing ")
         for ctr,k in enumerate(range(0, end_index, len_chunks)):
             start = k
             end = k+len_chunks
@@ -988,9 +988,13 @@ class Residual(object):
             spikes_in_chunk[:,0] = spikes_in_chunk[:,0] - start #+ self.buffer_size
             spike_times.append(spikes_in_chunk)
 
+        self.indexes = indexes.copy()
+
+        # Cat: TODO: is this required? Does it take time?
         spike_times = np.array(spike_times)
 
         # Cat: TODO: read multiprocessing flag from CONFIG
+        print ("  Computing residual in parallel (TODO: remove completed indexes)")
         if CONFIG.resources.multi_processing:
             parmap.map(self.subtract_parallel, 
                          list(zip(indexes,spike_times)), 
@@ -1006,12 +1010,38 @@ class Residual(object):
                            self.deconv_chunk_dir)
         
         # initilize residual array with buffers; 
-        self.data = np.zeros((end_index+self.buffer_size*2,self.n_chan),dtype=np.float32)
-        for k in range(len(indexes)):
-            fname = self.deconv_chunk_dir+ '/residual_seg_'+str(indexes[k][2])+'.npy'
+        # Cat: TODO: This is the incorrect way to save this data set; it will crash on memory limitations
+        #print ("  saving residual (todo: write serial binary append)")
+        
+        # current method
+        if False:
+            self.data = np.zeros((end_index+self.buffer_size*2,self.n_chan),dtype=np.float32)
+            for k in range(len(indexes)):
+                fname = self.deconv_chunk_dir+ '/residual_seg_'+str(indexes[k][2])+'.npy'
+                res = np.load(fname)
+                os.remove(fname)
+                self.data[indexes[k][0]+self.buffer_size:indexes[k][1]+self.buffer_size]+= res[self.buffer_size:-self.buffer_size]
+
+    def save_residual(self):
+    
+        # new method: append to end of file rather than accumulate in memory
+        fname_out = os.path.join(self.deconv_chunk_dir, 'residual.bin')
+        #f = open(fname_out, 'ab')
+        f = open(fname_out)
+        for k in range(len(self.indexes)):
+            fname = self.deconv_chunk_dir+ '/residual_seg_'+str(self.indexes[k][2])+'.npy'
             res = np.load(fname)
+
+            # clip buffers from each datafile and reshape to 1D
+            res = res[self.buffer_size:-self.buffer_size].reshape(-1)
+            f.write(res)
+        
+        f.close()
+        
+        # delete residual chunks after successful merging/save
+        for k in range(len(self.indexes)):
+            fname = self.deconv_chunk_dir+ '/residual_seg_'+str(self.indexes[k][2])+'.npy'
             os.remove(fname)
-            self.data[indexes[k][0]+self.buffer_size:indexes[k][1]+self.buffer_size]+= res[self.buffer_size:-self.buffer_size]
 
 
     def subtract_parallel(self, data_in, n_unit, n_time, 
@@ -1028,7 +1058,7 @@ class Residual(object):
             return
 
         # note only derasterize up to last bit, don't remove spikes from 
-        # buffer_size.. end because those will be looked at by next chunk
+        # buffer_size end because those will be looked at by next chunk
         # load indexes and then index into original data
 
         idx_chunk = [indexes[0], indexes[1], self.buffer_size]
@@ -1038,6 +1068,7 @@ class Residual(object):
                              self.n_chan)
         data_blank = np.zeros(data.shape)
 
+        # Cat: TODO: try using shared memory for these
         deconv_id_sparse_temp_map = np.load(deconv_chunk_dir+'/deconv_id_sparse_temp_map.npy')
         sparse_templates = np.load(deconv_chunk_dir+'/sparse_templates.npy')
 
