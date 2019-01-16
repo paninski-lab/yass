@@ -124,7 +124,7 @@ class Cluster(object):
         # if anything is triaged, re-featurize and re-cluster
         if idx_keep.shape[0] < pca_wf.shape[0]:
             current_indices = current_indices[idx_keep]
-            pca_wf = self.featurize_step(gen, current_indices)
+            pca_wf = self.featurize_step(gen, current_indices, local)
             vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
 
         # recover spikes using soft-assignments
