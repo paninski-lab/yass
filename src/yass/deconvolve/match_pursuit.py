@@ -846,8 +846,9 @@ class MatchPursuit_objectiveUpsample(object):
         # compute objective function
         start_time = time.time()
         self.compute_objective()
-        print ('  deconv seg {0}, objective matrix took: {1:.2f}'.
-                format(self.seg_ctr, time.time()-start_time))
+        if verbose:
+            print ('  deconv seg {0}, objective matrix took: {1:.2f}'.
+                    format(self.seg_ctr, time.time()-start_time))
                 
         ctr = 0
         tot_max = np.inf
@@ -871,7 +872,8 @@ class MatchPursuit_objectiveUpsample(object):
 
             ctr += 1
 
-        print ('  deconv seg {0}, # iter: {1}, tot_spikes: {2}, tot_time: {3:.2f}'.
+        if verbose:
+            print ('  deconv seg {0}, # iter: {1}, tot_spikes: {2}, tot_time: {3:.2f}'.
                 format(
                 self.seg_ctr, ctr, self.dec_spike_train.shape[0],
                 time.time()-start_time))
@@ -988,7 +990,7 @@ class Residual(object):
             spikes_in_chunk[:,0] = spikes_in_chunk[:,0] - start #+ self.buffer_size
             spike_times.append(spikes_in_chunk)
 
-        self.indexes = indexes.copy()
+        self.indexes = np.array(indexes).copy()
 
         # Cat: TODO: is this required? Does it take time?
         spike_times = np.array(spike_times)

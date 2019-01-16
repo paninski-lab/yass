@@ -315,9 +315,14 @@ class Deconv(object):
 
         if len(args_in)>0:
             if self.CONFIG.resources.multi_processing:
-                p = mp.Pool(processes = self.CONFIG.resources.n_processors)
-                p.map_async(mp_object.run, args_in).get(988895)
-                p.close()
+                parmap.map(mp_object.run,
+                            args_in,
+                            processes=self.CONFIG.resources.n_processors,
+                            pm_pbar=True)
+
+                #p = mp.Pool(processes = self.CONFIG.resources.n_processors)
+                #p.map_async(mp_object.run, args_in).get(988895)
+                #p.close()
             else:
                 for k in range(len(args_in)):
                     mp_object.run(args_in[k])
