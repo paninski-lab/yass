@@ -118,7 +118,7 @@ class Cluster(object):
         vbParam1 = self.run_mfm(gen, pca_wf_subsample)
 
         # adaptive knn triage
-        idx_keep = self.knn_triage_dynamic(gen, vbParam, pca_wf)
+        idx_keep = self.knn_triage_dynamic(gen, vbParam1, pca_wf)
         if idx_keep.shape[0] <= self.CONFIG.cluster.min_spikes: return
 
         # if anything is triaged, re-featurize and re-cluster
