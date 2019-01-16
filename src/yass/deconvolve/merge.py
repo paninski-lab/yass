@@ -385,7 +385,8 @@ def template_spike_dist_linear_align(templates, spikes, jitter=0, upsample=1, vi
     #print ("  new aligned templates: ", templates_aligned.shape)
 
     # find spike shifts
-    max_chans = spikes.ptp(1).argmax(1)
+    max_chans = spikes.ptp(2).argmax(1)
+
     spikes_aligned = []
     for k in range(max_chans.shape[0]):
         spikes_aligned.append(spikes[k,max_chans[k]])
