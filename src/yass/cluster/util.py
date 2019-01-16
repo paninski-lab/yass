@@ -2631,8 +2631,8 @@ def denoise(templates, pca_main_mean, pca_main_components, pca_sec_mean, pca_sec
     return denoised_templates*norms[:, np.newaxis]
 
 def pca_denoise(data, pca_mean, pca_components):
-    data_pca = (data - pca_mean)@pca_components.T
-    return data_pca@pca_components + pca_mean
+    data_pca = np.matmul(data-pca_mean, pca_components.T)
+    return np.matmul(data_pca, pca_components+pca_mean)
 
 def undo_denoise(templates, denoised_templates, shifts, ptp_threshold):
 
