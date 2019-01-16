@@ -20,6 +20,7 @@ from yass import mfm
 from yass.empty import empty
 from yass.cluster.cluster import (shift_chans, align_get_shifts_with_ref)
 from yass.util import absolute_path_to_asset
+from yass.detect.run import deduplicate
 
 from scipy.sparse import lil_matrix
 from statsmodels import robust
@@ -2478,6 +2479,9 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     shift_allowance = np.load(chunk_dir  + '/shift_allowance.npy')
     templates = templates[:, shift_allowance:-shift_allowance]
     
+    templates, collisions = remove_collision_templates(templates, CONFIG.neigh_channels)
+    np.save(chunk_dir+'/collisions.npy', collisions)
+
     # save data for clustering step
     if out_dir=='cluster':
         fname = CONFIG.path_to_output_directory + '/spike_train_cluster.npy'
@@ -2551,6 +2555,27 @@ def get_denoised_templates(templates, CONFIG):
 
     return denoised_templates, shift_allowance
 
+
+def remove_collision_templates(templates, neigh_channels):
+
+    collision = np.zeros(templates.shape[0], 'bool')
+    for k in range(templates.shape[0]):
+
+        th = np.min((templates[k].min()*0.1, -1))
+
+        local_mins = argrelmin(templates[k], axis=0, order=2)
+        val = templates[k][local_mins[0], local_mins[1]]
+        times = local_mins[0][val < th]
+        chans = local_mins[1][val < th]
+        val = val[val < th]
+
+        data_in = (np.hstack((times[:, np.newaxis], chans[:, np.newaxis])), np.abs(val), None, None)
+        idx_survive, _ = deduplicate(data_in, neigh_channels)
+        if np.sum(idx_survive) > 1:
+            collision[k] = 1
+
+    return templates[~collision], collision
+    
 
 def get_fits(templates, ref_template):
 
