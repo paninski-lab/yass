@@ -103,13 +103,13 @@ class Cluster(object):
         pca_wf = self.featurize_step(gen, current_indices, local)
         
         # knn triage
-        idx_keep = self.knn_triage_step(gen, pca_wf)
-        if self.min(idx_keep.shape[0]): return
+#         idx_keep = self.knn_triage_step(gen, pca_wf)
+#         if self.min(idx_keep.shape[0]): return
  
         # featurize #2 (if outliers triaged)
-        if idx_keep.shape[0] < pca_wf.shape[0]:
-            current_indices = current_indices[idx_keep]
-            pca_wf = self.featurize_step(gen, current_indices, local)
+#         if idx_keep.shape[0] < pca_wf.shape[0]:
+#             current_indices = current_indices[idx_keep]
+#             pca_wf = self.featurize_step(gen, current_indices, local)
 
         # subsample before clustering
         pca_wf_subsample = self.subsample_step(gen, pca_wf)
@@ -118,14 +118,14 @@ class Cluster(object):
         vbParam1 = self.run_mfm(gen, pca_wf_subsample)
 
         # adaptive knn triage
-        #idx_keep = self.knn_triage_dynamic(gen, vbParam, pca_wf)
-        #if idx_keep.shape[0] <= self.CONFIG.cluster.min_spikes: return
+        idx_keep = self.knn_triage_dynamic(gen, vbParam, pca_wf)
+        if idx_keep.shape[0] <= self.CONFIG.cluster.min_spikes: return
 
         # if anything is triaged, re-featurize and re-cluster
-        #if idx_keep.shape[0] < pca_wf.shape[0]:
-        #    current_indices = current_indices[idx_keep]
-        #    pca_wf = self.featurize_step(gen, current_indices)
-        #    vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
+        if idx_keep.shape[0] < pca_wf.shape[0]:
+            current_indices = current_indices[idx_keep]
+            pca_wf = self.featurize_step(gen, current_indices)
+            vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
 
         # recover spikes using soft-assignments
         idx_recovered, vbParam2 = self.recover_step(gen, vbParam1, pca_wf)
@@ -743,35 +743,41 @@ class Cluster(object):
 
 
     def knn_triage_dynamic(self, gen, vbParam, pca_wf):
-
-        muhat = vbParam.muhat[:,:,0].T
-        cov = vbParam.invVhat[:,:,:,0].T / vbParam.nuhat[:,np.newaxis, np.newaxis]
-
-        if cov.shape[0] == 1:
+        
+        ids = ids = np.where(vbParam.nuhat > self.CONFIG.cluster.min_spikes)[0]
+        
+        if ids.size <= 1:
             self.triage_value = 0
             idx_keep = np.arange(pca_wf.shape[0])
+            return np.where(idx_keep)[0]
+            
 
-        else:
-            # Cat: TODO: move to CONFIG/init function
-            min_spikes = 1200
+        muhat = vbParam.muhat[:,ids,0].T
+        cov = vbParam.invVhat[:,:,ids,0].T / vbParam.nuhat[ids,np.newaxis, np.newaxis]
 
-            pca_wf_temp = np.zeros([min_spikes*cov.shape[0], cov.shape[1]])
-            assignment_temp = np.zeros(min_spikes*cov.shape[0], dtype = int)
-            for i in range(cov.shape[0]):
-                pca_wf_temp[i*min_spikes:(i+1)*min_spikes]= np.random.multivariate_normal(muhat[i], cov[i], min_spikes)
-                assignment_temp[i*min_spikes:(i+1)*min_spikes] = i
 
-            kdist_temp = knn_dist(pca_wf_temp)
-            kdist_temp = kdist_temp[:,1:]
+        # Cat: TODO: move to CONFIG/init function
+        min_spikes = min(1200, pca_wf.shape[0]//ids.size)  ##needs more systematic testing, working on it
 
-            median_distances = np.zeros([cov.shape[0]])
-            for i in range(median_distances.shape[0]):
-                #median_distances[i] = np.median(np.median(kdist_temp[i*min_spikes:(i+1)*min_spikes], axis = 0), axis = 0)
-                median_distances[i] = np.percentile(np.median(kdist_temp[i*min_spikes:(i+1)*min_spikes], axis = 1), 90)
+        pca_wf_temp = np.zeros([min_spikes*cov.shape[0], cov.shape[1]])
+        assignment_temp = np.zeros(min_spikes*cov.shape[0], dtype = int)
+        for i in range(cov.shape[0]):
+            pca_wf_temp[i*min_spikes:(i+1)*min_spikes]= np.random.multivariate_normal(muhat[i], cov[i], min_spikes)
+            assignment_temp[i*min_spikes:(i+1)*min_spikes] = i
 
-            kdist = knn_dist(pca_wf)
-            idx_keep = np.median(kdist[:,1:], axis = 1) < 1 * np.median(median_distances)
-            self.triage_value = 1.0 - idx_keep.sum()/idx_keep.size
+        kdist_temp = knn_dist(pca_wf_temp)
+        kdist_temp = kdist_temp[:,1:]
+
+        median_distances = np.zeros([cov.shape[0]])
+        for i in range(median_distances.shape[0]):
+            #median_distances[i] = np.median(np.median(kdist_temp[i*min_spikes:(i+1)*min_spikes], axis = 0), axis = 0)
+            median_distances[i] = np.percentile(np.median(kdist_temp[i*min_spikes:(i+1)*min_spikes], axis = 1), 50)
+
+        ## The percentile value also needs to be tested, value of 50 and scale of 1.2 works well
+
+        kdist = knn_dist(pca_wf)
+        idx_keep = np.median(kdist[:,1:], axis = 1) < 1.2 * np.median(median_distances)
+        self.triage_value = 1.0 - idx_keep.sum()/idx_keep.size
 
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', '+str(np.round(self.triage_value*100))+'% triaged from adaptive knn triage')
