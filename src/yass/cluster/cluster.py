@@ -3,7 +3,6 @@
 import os
 import math
 import numpy as np
-import pickle
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from scipy import signal
@@ -423,12 +422,6 @@ class Cluster(object):
     def initialize_template_space(self):
 
         # load template space related files
-        #self.pca_main = pickle.load(open(absolute_path_to_asset(
-        #    os.path.join('template_space', 'pca_main.pkl')), 'rb'))
-        #self.pca_sec = pickle.load(open(absolute_path_to_asset(
-        #    os.path.join('template_space', 'pca_sec.pkl')), 'rb'))
-
-        # Cat: TODO: loading PCA componnets directly from npy arrays
         self.pca_main_components_= np.load(absolute_path_to_asset(
             os.path.join('template_space', 'pca_main_components.npy')))
         self.pca_sec_components_ = np.load(absolute_path_to_asset(

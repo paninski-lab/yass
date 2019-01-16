@@ -26,7 +26,6 @@ from statsmodels import robust
 from scipy.signal import argrelmin
 import matplotlib
 from sklearn.mixture import GaussianMixture
-import pickle
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pandas as pd
@@ -2495,10 +2494,14 @@ def get_denoised_templates(templates, CONFIG):
 
     ref_template = np.load(absolute_path_to_asset(
         os.path.join('template_space', 'ref_template.npy')))
-    pca_main = pickle.load(open(absolute_path_to_asset(
-        os.path.join('template_space', 'pca_main.pkl')), 'rb'))
-    pca_sec = pickle.load(open(absolute_path_to_asset(
-        os.path.join('template_space', 'pca_sec.pkl')), 'rb'))
+    pca_main_mean = np.load(absolute_path_to_asset(
+        os.path.join('template_space', 'pca_main_mean.npy')))
+    pca_sec_mean = np.load(absolute_path_to_asset(
+        os.path.join('template_space', 'pca_sec_mean.npy')))
+    pca_main_components = np.load(absolute_path_to_asset(
+        os.path.join('template_space', 'pca_main_components.npy')))
+    pca_sec_components = np.load(absolute_path_to_asset(
+        os.path.join('template_space', 'pca_sec_components.npy')))
 
     n_templates, n_times, n_channels = templates.shape
     n_times_ref = len(ref_template)
@@ -2528,10 +2531,12 @@ def get_denoised_templates(templates, CONFIG):
 
 
     # step 4. denoise templates
-    aligned_denoised_templates = denoise(aligned_templates, pca_main, pca_sec)
+    aligned_denoised_templates = denoise(aligned_templates,
+        pca_main_mean, pca_main_components,
+        pca_sec_mean, pca_sec_components)
 
 
-    # step 3. shift aligned templates back to its original location
+    # step 5. shift aligned templates back to its original location
     reshaped_aligned_denoised_templates = np.reshape(
         aligned_denoised_templates.transpose((0, 2, 1)), [-1, n_times])
     reshaped_denoised_templates = shift_chans(reshaped_aligned_denoised_templates, -reshaped_shifts)
@@ -2539,7 +2544,7 @@ def get_denoised_templates(templates, CONFIG):
         reshaped_denoised_templates, [n_templates, n_channels, n_times]).transpose((0, 2, 1))
 
 
-    # step 4. undo denoising on channels with small ptp
+    # step 6. undo denoising on channels with small ptp
     ptp_threshold = 0.5
     denoised_templates = undo_denoise(
         templates, denoised_templates, shifts, ptp_threshold)
@@ -2599,10 +2604,10 @@ def get_shift_per_channel(fits, mid_point, window):
     
 
 
-def denoise(templates, pca_main, pca_sec):
+def denoise(templates, pca_main_mean, pca_main_components, pca_sec_mean, pca_sec_components):
 
     n_templates, n_times, n_channels = templates.shape
-    shift_allowance = (n_times - len(pca_main.mean_))//2
+    shift_allowance = (n_times - len(pca_main_mean))//2
     max_channels = templates.ptp(1).argmax(1)
 
     norms = np.linalg.norm(templates, axis=1)
@@ -2610,20 +2615,24 @@ def denoise(templates, pca_main, pca_sec):
     denoised_templates = np.copy(normalized_templates)
 
     for k in range(n_templates):
-
+        
         # denoise max channels
-        denoised_temp = pca_main.inverse_transform(pca_main.transform(
-            normalized_templates[k][shift_allowance:-shift_allowance][:, max_channels[k]][np.newaxis]))[0]
+        main_chan_template = normalized_templates[k][
+        shift_allowance:-shift_allowance][:, max_channels[k]][np.newaxis]
+        denoised_temp = pca_denoise(main_chan_template, pca_main_mean, pca_main_components)[0]
         denoised_templates[k][shift_allowance:-shift_allowance][:, max_channels[k]] = denoised_temp
 
         # denoise non max channels
         off_chans_idx = np.arange(n_channels) != max_channels[k]
-        denoised_temp = pca_sec.inverse_transform(pca_sec.transform(
-            normalized_templates[k][shift_allowance:-shift_allowance][:, off_chans_idx].T))
+        sec_chan_templates = normalized_templates[k][shift_allowance:-shift_allowance][:, off_chans_idx].T
+        denoised_temp = pca_denoise(sec_chan_templates, pca_sec_mean, pca_sec_components)
         denoised_templates[k][shift_allowance:-shift_allowance][:, off_chans_idx] = denoised_temp.T
 
     return denoised_templates*norms[:, np.newaxis]
 
+def pca_denoise(data, pca_mean, pca_components):
+    data_pca = (data - pca_mean)@pca_components.T
+    return data_pca@pca_components + pca_mean
 
 def undo_denoise(templates, denoised_templates, shifts, ptp_threshold):
 
