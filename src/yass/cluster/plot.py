@@ -4,6 +4,7 @@ from yass.util import absolute_path_to_asset
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+matplotlib.use('Agg')
 
 
 def plot_normalized_templates(templates_dir, neigh_channels):
