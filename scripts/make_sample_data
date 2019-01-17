@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Sample data for testing
+Use this script to generate sample data
 """
 from copy import deepcopy
 import shutil
