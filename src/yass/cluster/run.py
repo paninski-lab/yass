@@ -249,4 +249,4 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                               out_dir,
                               units)
                               
-    plot_normalized_templates(chunk_dir, CONFIG2.neigh_channels)
+    # plot_normalized_templates(chunk_dir, CONFIG2.neigh_channels)
