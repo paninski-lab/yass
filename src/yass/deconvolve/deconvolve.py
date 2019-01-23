@@ -211,7 +211,7 @@ class Deconv(object):
             os.makedirs(self.deconv_chunk_dir+'/merge')
         
         jitter=5
-        upsample = 5
+        upsample = 10
         for i in range(self.n_iterations_merge):
             print ("  running merge iteration: ", i+1 , "/", self.n_iterations_merge)
             tm = TemplateMerge(self.templates, self.spike_train, 

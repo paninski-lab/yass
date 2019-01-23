@@ -370,16 +370,16 @@ def template_spike_dist_linear_align(templates, spikes, jitter=0, upsample=1, vi
     max_chan = ref_template.ptp(1).argmax(0)
     ref_template = ref_template[max_chan]
 
-    # find template shifts
-    max_chans = templates.ptp(1).argmax(1)
+    # stack template max chan waveforms only
+    max_chans = templates.ptp(2).argmax(1)
     temps = []
     for k in range(max_chans.shape[0]):
         temps.append(templates[k,max_chans[k]])
     temps = np.vstack(temps)
 
-    upsample_factor=25
+    #upsample_factor=5
     best_shifts = align_get_shifts_with_ref(
-                    temps, ref_template, upsample_factor)
+                    temps, ref_template, upsample)
     
     templates_aligned = shift_chans(templates, best_shifts)
     #print ("  new aligned templates: ", templates_aligned.shape)

@@ -12,6 +12,9 @@ from scipy.spatial import cKDTree
 from copy import deepcopy
 from diptest import diptest as dp
 import networkx as nx
+import multiprocessing, logging
+mpl = multiprocessing.log_to_stderr()
+mpl.setLevel(logging.INFO)
 
 from yass.explore.explorers import RecordingExplorer
 from yass.geometry import n_steps_neigh_channels
@@ -119,7 +122,7 @@ class Cluster(object):
 
         # adaptive knn triage
         idx_keep = self.knn_triage_dynamic(gen, vbParam1, pca_wf)
-        if idx_keep.shape[0] <= self.CONFIG.cluster.min_spikes: return
+        if self.min(idx_keep.shape[0]): return
 
         # if anything is triaged, re-featurize and re-cluster
         if idx_keep.shape[0] < pca_wf.shape[0]:
