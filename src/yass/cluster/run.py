@@ -13,8 +13,8 @@ from yass.cluster.coreset import coreset
 from yass.cluster.mask import getmask
 from yass.cluster.util import (make_CONFIG2, binary_reader, 
                                 global_merge_max_dist)
-
 from yass.cluster.cluster import Cluster
+from yass.cluster.plot import plot_normalized_templates
 
 from yass.mfm import get_core_data
 import multiprocessing as mp
@@ -87,22 +87,16 @@ def run(spike_index_clear,
     # start timer
     _b = datetime.datetime.now()
 
-    # voltage space feature clustering
-    fname = os.path.join(CONFIG.path_to_output_directory,
-                              'spike_train_cluster.npy')
-    
-    if os.path.exists(fname)==False:
+    # check to see if 'result/' folder exists otherwise make it
+    result_dir = os.path.join(CONFIG.path_to_output_directory,
+                              'cluster')
+    if not os.path.isdir(result_dir):
+        os.makedirs(result_dir)
 
-        # check to see if 'result/' folder exists otherwise make it
-        result_dir = os.path.join(CONFIG.path_to_output_directory,
-                                  'cluster')
-        if not os.path.isdir(result_dir):
-            os.makedirs(result_dir)
-
-        # run new voltage features-based clustering - chunk the data
-        run_cluster_features_chunks(spike_index_clear, 
-                                    spike_index_all, 
-                                    CONFIG)
+    # run new voltage features-based clustering - chunk the data
+    run_cluster_features_chunks(spike_index_clear, 
+                                spike_index_all, 
+                                CONFIG)
      
 
 
@@ -243,7 +237,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     
     # Cat: TODO: this logic isn't quite correct; should merge with above
     fname = os.path.join(CONFIG.path_to_output_directory, 
-                         'cluster/spike_train_post_cluster_post_merge.npy')
+                         'spike_train_cluster.npy')
     if os.path.exists(fname)==False: 
 
         # Cat: TODO: may wish to clean up these flags; goal is to use same
@@ -255,3 +249,4 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                               out_dir,
                               units)
                               
+    # plot_normalized_templates(chunk_dir, CONFIG2.neigh_channels)

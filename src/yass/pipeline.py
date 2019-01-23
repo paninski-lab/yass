@@ -156,12 +156,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # cluster
     start=time.time()
+    cluster.run(spike_index_clear, spike_index_all)
+    
     path_to_spike_train_cluster = path.join(TMP_FOLDER, 'spike_train_cluster.npy')
-    if os.path.exists(path_to_spike_train_cluster)==False:
-        cluster.run(spike_index_clear, spike_index_all)
-    else:
-        print ("\nClustering completed previously...\n\n")
-
     spike_train_cluster = np.load(path_to_spike_train_cluster)
     templates_cluster = np.load(os.path.join(TMP_FOLDER,'templates_cluster.npy'))    
 
