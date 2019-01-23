@@ -158,22 +158,24 @@ class Cluster(object):
                                     pca_wf, vbParam2)
 
     def initialize_metadata(self):
+        self.pca_post_triage_post_recovery=[]
+        self.vbPar_rhat=[]
+        self.vbPar_muhat=[]
+
         #self.pca_pre_triage.append([])
         #self.pca_post_triage_pre_recovery.append([])
-        self.pca_post_triage_post_recovery = []
-        
-        #self.vbPar_rhat.append([])
-        #self.vbPar_muhat.append([])
         #self.vbPar_Vhat.append([])
         #self.vbPar_invVhat.append([])
         #self.vbPar_nuhat.append([])
         #self.vbPar_ahat.append([])
         #self.vbPar_lambdahat.append([])
 
-    def save_metadata(self, vbParam1, pca_wf_all, current_indices, gen, 
+    def save_metadata(self, vbParam2, pca_wf_all, current_indices, gen, 
                                                                 local):
         
         self.pca_post_triage_post_recovery.append(pca_wf_all)
+        self.vbPar_rhat.append(vbParam2.rhat)
+        self.vbPar_muhat.append(vbParam2.muhat)
         
         if gen==0 and local:
             #self.pca_wf_allchans = self.pca_wf_allchans#[current_indices]
@@ -205,8 +207,9 @@ class Cluster(object):
         # denoise waveforms on active channels
         self.denoise_step(local)
 
-        # initialize lists to hold metatdata
-        self.initialize_metadata()
+        # initialize lists to hold metatdata only once during local gen0
+        if local:
+            self.initialize_metadata()
 
     def load_data(self, data_in):
         
@@ -1129,7 +1132,9 @@ class Cluster(object):
                         pca_wf_gen0_allchans=self.pca_wf_allchans,
                         clustered_indices_local=self.clustered_indices_local,
                         clustered_indices_distant=self.clustered_indices_distant,
-
+                        pca_post_triage_post_recovery = self.pca_post_triage_post_recovery,
+                        vbPar_rhat = self.vbPar_rhat,
+                        vbPar_muhat = self.vbPar_muhat,                        
                         original_idx=self.original_idx,
                         spike_index_prerecluster=spikes_original,
                         templates_prerecluster=self.template_original)
@@ -1142,6 +1147,9 @@ class Cluster(object):
                      pca_wf_gen0_allchans=self.pca_wf_allchans,
                      clustered_indices_local=self.clustered_indices_local,
                      clustered_indices_distant=self.clustered_indices_distant,
+                     pca_post_triage_post_recovery = self.pca_post_triage_post_recovery,
+                     vbPar_rhat = self.vbPar_rhat,
+                     vbPar_muhat = self.vbPar_muhat,   
                      original_idx=self.original_idx,
                      global_shifts=self.global_shifts,
                      spiketime_detect=self.spiketime_detect)
