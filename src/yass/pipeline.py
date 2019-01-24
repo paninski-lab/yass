@@ -27,7 +27,7 @@ import yaml
 
 import yass
 from yass import set_config
-from yass import preprocess, detect, cluster, deconvolve
+from yass import preprocess, detect, cluster, deconvolve, rf, visual
 from yass import read_config
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
@@ -37,7 +37,7 @@ from yass.threshold import dimensionality_reduction as dim_red
 
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
-        complete=False, set_zero_seed=False):
+        complete=False, calculate_rf=False, visualize=False, set_zero_seed=False):
     """Run YASS built-in pipeline
 
     Parameters
@@ -188,7 +188,21 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     np.save(path_to_templates, postdeconv_templates)
     logger.info('Templates saved in: {}'.format(path_to_templates))
     
+
+    ''' **********************************************
+        ************** RF / VISUALIZE ****************
+        **********************************************
+    '''
     
+    if calculate_rf:
+        rf.run() 
+        
+    if visualize:
+        visual.run()
+        
+        
+    
+        
     ''' **********************************************
         ************** POST PROCESSING****************
         **********************************************

@@ -21,6 +21,14 @@ data:
     geometry:
       type: string
       required: True
+    stimulus:
+      type: string
+      required: False
+      default: None
+    triggers:
+      type: string
+      required: False
+      default: None
 
 resources:
   type: dict
