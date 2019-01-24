@@ -363,6 +363,8 @@ def template_spike_dist_linear_align(templates, spikes, jitter=0, upsample_facto
 
     from yass.cluster.cluster import align_get_shifts_with_ref, upsample_resample, shift_chans
 
+    #print ("templates: ", templates.shape)
+    #print ("spikes: ", spikes.shape)
     # new way using alignment only on max channel
     # maek reference template based on templates
     max_idx = templates.ptp(2).max(1).argmax(0)
@@ -376,22 +378,23 @@ def template_spike_dist_linear_align(templates, spikes, jitter=0, upsample_facto
     for k in range(max_chans.shape[0]):
         temps.append(templates[k,max_chans[k]])
     temps = np.vstack(temps)
+    #print ("tempsl stacked: ", temps.shape)
 
     #upsample_factor=5
     best_shifts = align_get_shifts_with_ref(
                     temps, ref_template, upsample_factor)
-    
+    #print (" best shifts: ", best_shifts.shape)
     templates_aligned = shift_chans(templates, best_shifts)
     #print ("  new aligned templates: ", templates_aligned.shape)
 
     # find spike shifts
     max_chans = spikes.ptp(2).argmax(1)
-
+    #print ("max chans: ", max_chans.shape)
     spikes_aligned = []
     for k in range(max_chans.shape[0]):
         spikes_aligned.append(spikes[k,max_chans[k]])
     spikes_aligned = np.vstack(spikes_aligned)
-
+    #print ("spikes aligned max chan: ", spikes_aligned.shape)
     best_shifts = align_get_shifts_with_ref(
                             spikes_aligned, ref_template, upsample_factor)
     
@@ -405,8 +408,7 @@ def template_spike_dist_linear_align(templates, spikes, jitter=0, upsample_facto
     # Pairwise distance of templates and spikes
     dist = scipy.spatial.distance.cdist(
            templates_aligned.reshape([n_unit, -1]),
-           spikes_aligned.reshape([n_spikes, -1]),
-           **kwargs)
+           spikes_aligned.reshape([n_spikes, -1]))
 
     return dist
     
