@@ -106,13 +106,13 @@ class Cluster(object):
         pca_wf = self.featurize_step(gen, current_indices, local)
         
         # knn triage
-#         idx_keep = self.knn_triage_step(gen, pca_wf)
-#         if self.min(idx_keep.shape[0]): return
+        idx_keep = self.knn_triage_step(gen, pca_wf)
+        if self.min(idx_keep.shape[0]): return
  
         # featurize #2 (if outliers triaged)
-#         if idx_keep.shape[0] < pca_wf.shape[0]:
-#             current_indices = current_indices[idx_keep]
-#             pca_wf = self.featurize_step(gen, current_indices, local)
+        if idx_keep.shape[0] < pca_wf.shape[0]:
+            current_indices = current_indices[idx_keep]
+            pca_wf = self.featurize_step(gen, current_indices, local)
 
         # subsample before clustering
         pca_wf_subsample = self.subsample_step(gen, pca_wf)
@@ -121,14 +121,14 @@ class Cluster(object):
         vbParam1 = self.run_mfm(gen, pca_wf_subsample)
 
         # adaptive knn triage
-        idx_keep = self.knn_triage_dynamic(gen, vbParam1, pca_wf)
-        if self.min(idx_keep.shape[0]): return
+#        idx_keep = self.knn_triage_dynamic(gen, vbParam1, pca_wf)
+#        if self.min(idx_keep.shape[0]): return
 
         # if anything is triaged, re-featurize and re-cluster
-        if idx_keep.shape[0] < pca_wf.shape[0]:
-            current_indices = current_indices[idx_keep]
-            pca_wf = self.featurize_step(gen, current_indices, local)
-            vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
+#        if idx_keep.shape[0] < pca_wf.shape[0]:
+#            current_indices = current_indices[idx_keep]
+#            pca_wf = self.featurize_step(gen, current_indices, local)
+#            vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
 
         # recover spikes using soft-assignments
         idx_recovered, vbParam2 = self.recover_step(gen, vbParam1, pca_wf)
@@ -169,9 +169,7 @@ class Cluster(object):
         #self.vbPar_lambdahat.append([])
 
     def save_metadata(self, vbParam2, pca_wf_all, current_indices, gen, 
-                                                                local):
-        
-        print (" pca appended:  ", pca_wf_all.shape)
+                                                                local):        
         self.pca_post_triage_post_recovery.append(pca_wf_all)
         self.vbPar_rhat.append(vbParam2.rhat)
         self.vbPar_muhat.append(vbParam2.muhat)
@@ -216,7 +214,7 @@ class Cluster(object):
         
         # CAT: todo read params below from file:
         self.plotting = False
-        self.verbose = True
+        self.verbose = False
         self.starting_gen = 0
         self.knn_triage_threshold = 0.95 * 100
         self.knn_triage_flag = True
@@ -404,7 +402,6 @@ class Cluster(object):
 
         # save detected spike times for channel 
         if local:
-            print ("Initial_spt: ", initial_spt.shape)
             self.spiketime_detect = initial_spt.copy()
             
         self.spt_global = initial_spt.astype('float64')

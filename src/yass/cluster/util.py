@@ -2479,8 +2479,9 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     shift_allowance = np.load(chunk_dir  + '/shift_allowance.npy')
     templates = templates[:, shift_allowance:-shift_allowance]
     
-    templates, collisions = remove_collision_templates(templates, CONFIG.neigh_channels)
-    np.save(chunk_dir+'/collisions.npy', collisions)
+    #neigh_channels = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+    #templates, collisions = remove_collision_templates(templates, neigh_channels)
+    #np.save(chunk_dir+'/collisions.npy', collisions)
 
     # save data for clustering step
     if out_dir=='cluster':
@@ -4079,11 +4080,15 @@ def clean_templates(templates, spike_train_cluster, weights, CONFIG):
     print ("  deleted clusters < 3SU: ", templates.shape[2]-idx1.shape[0])
     
     # find units with large peaks off-centre
-    idx2 = find_clean_templates(templates, CONFIG)
-    print ("  deleted collision clusters: ", templates.shape[2]-idx2.shape[0])
+    if False:
+        idx2 = find_clean_templates(templates, CONFIG)
+        print ("  deleted collision clusters: ", templates.shape[2]-idx2.shape[0])
 
-    # merge all units to be deleted
-    idx_all = np.intersect1d(idx1, idx2)
+        # merge all units to be deleted
+        idx_all = np.intersect1d(idx1, idx2)
+
+    else:
+        idx_all = np.copy(idx1)
     
     # redundant step to order indexes
     idx = np.argsort(idx_all)
