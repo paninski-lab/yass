@@ -160,11 +160,6 @@ class Cluster(object):
             self.multi_cluster_step(gen, current_indices, local,
                                     pca_wf, vbParam2)
 
-    def initialize_metadata(self):
-        self.pca_post_triage_post_recovery=[]
-        self.vbPar_rhat=[]
-        self.vbPar_muhat=[]
-
         #self.pca_pre_triage.append([])
         #self.pca_post_triage_pre_recovery.append([])
         #self.vbPar_Vhat.append([])
@@ -210,9 +205,6 @@ class Cluster(object):
         # denoise waveforms on active channels
         self.denoise_step(local)
 
-        # initialize lists to hold metatdata only once during local gen0
-        if local:
-            self.initialize_metadata()
 
     def load_data(self, data_in):
         
@@ -223,7 +215,7 @@ class Cluster(object):
         
         # CAT: todo read params below from file:
         self.plotting = False
-        self.verbose = False
+        self.verbose = True
         self.starting_gen = 0
         self.knn_triage_threshold = 0.95 * 100
         self.knn_triage_flag = True
@@ -324,7 +316,14 @@ class Cluster(object):
         self.figures_dir = self.chunk_dir+'/figures/'
         if not os.path.isdir(self.figures_dir):
             os.makedirs(self.figures_dir)
-                
+        
+        
+        # initialize metadata saves; easier to do here than using local flags + conditional
+        self.pca_post_triage_post_recovery=[]
+        self.vbPar_rhat=[]
+        self.vbPar_muhat=[]
+        
+
         ''' ********************************************
             ***** MORE DEFAULT PARAMETERS **************
             ******************************************** 
