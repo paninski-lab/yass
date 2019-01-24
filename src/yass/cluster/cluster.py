@@ -171,6 +171,7 @@ class Cluster(object):
     def save_metadata(self, vbParam2, pca_wf_all, current_indices, gen, 
                                                                 local):
         
+        print (" pca appended:  ", pca_wf_all.shape)
         self.pca_post_triage_post_recovery.append(pca_wf_all)
         self.vbPar_rhat.append(vbParam2.rhat)
         self.vbPar_muhat.append(vbParam2.muhat)
@@ -403,6 +404,7 @@ class Cluster(object):
 
         # save detected spike times for channel 
         if local:
+            print ("Initial_spt: ", initial_spt.shape)
             self.spiketime_detect = initial_spt.copy()
             
         self.spt_global = initial_spt.astype('float64')
@@ -1142,11 +1144,17 @@ class Cluster(object):
                         clustered_indices_distant=self.clustered_indices_distant,
                         pca_post_triage_post_recovery = self.pca_post_triage_post_recovery,
                         vbPar_rhat = self.vbPar_rhat,
-                        vbPar_muhat = self.vbPar_muhat,                        
+                        #vbPar_muhat = self.vbPar_muhat,                        
                         original_idx=self.original_idx,
                         spike_index_prerecluster=spikes_original,
                         templates_prerecluster=self.template_original)
         else:
+            
+            # for k in range(len(self.vbPar_rhat)):
+                # print (self.vbPar_rhat[k].shape)
+                # print (self.vbPar_muhat[k].shape)
+                # print (self.pca_post_triage_post_recovery[k].shape)
+                
             np.savez(self.filename_postclustering,
                      spiketime=spike_train,
                      templates=templates,
@@ -1157,7 +1165,7 @@ class Cluster(object):
                      clustered_indices_distant=self.clustered_indices_distant,
                      pca_post_triage_post_recovery = self.pca_post_triage_post_recovery,
                      vbPar_rhat = self.vbPar_rhat,
-                     vbPar_muhat = self.vbPar_muhat,   
+                     #vbPar_muhat = self.vbPar_muhat,   
                      original_idx=self.original_idx,
                      global_shifts=self.global_shifts,
                      spiketime_detect=self.spiketime_detect)
