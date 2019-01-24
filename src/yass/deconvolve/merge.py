@@ -348,7 +348,7 @@ def template_spike_dist(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **k
     return dist
 
 
-def template_spike_dist_linear_align(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **kwargs):
+def template_spike_dist_linear_align(templates, spikes, jitter=0, upsample_factor=1, vis_ptp=2., **kwargs):
     """compares the templates and spikes.
 
     parameters:
@@ -379,7 +379,7 @@ def template_spike_dist_linear_align(templates, spikes, jitter=0, upsample=1, vi
 
     #upsample_factor=5
     best_shifts = align_get_shifts_with_ref(
-                    temps, ref_template, upsample)
+                    temps, ref_template, upsample_factor)
     
     templates_aligned = shift_chans(templates, best_shifts)
     #print ("  new aligned templates: ", templates_aligned.shape)
