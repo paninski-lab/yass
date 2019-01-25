@@ -2,7 +2,7 @@ import logging
 import datetime
 import numpy as np
 import os
-import tqdm
+from tqdm import tqdm
 import parmap
 
 from yass import read_config
@@ -224,8 +224,10 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                        pm_pbar=True)
 
         else:
-            for arg_in in args_in:
-                Cluster(arg_in)
+            with tqdm(total=len(args_in)) as pbar:
+                for arg_in in args_in:
+                    Cluster(arg_in)
+                    pbar.update()
 
         ## save simple flag that chunk is done
         ## Cat: TODO: fix this; or run chunk wise-global merge
@@ -247,6 +249,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         global_merge_max_dist(chunk_dir,
                               CONFIG2,
                               out_dir,
+                              
                               units)
                               
     # plot_normalized_templates(chunk_dir, CONFIG2.neigh_channels)

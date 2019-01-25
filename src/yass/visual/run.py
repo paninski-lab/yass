@@ -8,6 +8,7 @@ import yaml
 from tqdm import tqdm
 
 from yass.visual.correlograms_phy import compute_correlogram
+from yass.visual.util import compute_neighbours2, compute_neighbours_rf2 
 from yass.geometry import parse, find_channel_neighbors
 from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans, binary_reader_waveforms
 from yass.util import absolute_path_to_asset
@@ -180,14 +181,17 @@ class Visualizer(object):
         self.make_firing_rate_plot()
         self.make_normalized_templates_plot()
         
-    def individiual_cell_plot(self):
+    def individiual_cell_plot(self, units=None):
         
+        if units is None:
+            units = np.arange(self.n_units)
+
         # saving directory location
         save_dir_ind = os.path.join(self.save_dir,'individual')
         if not os.path.isdir(save_dir_ind):
             os.makedirs(save_dir_ind)
 
-        for unit in tqdm(range(self.n_units)):
+        for unit in tqdm(units):
             
             # plotting parameters
             self.fontsize = 20
@@ -614,3 +618,73 @@ class Visualizer(object):
         fname = os.path.join(self.save_dir, 'res_qq_plot.png')
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close()
+        
+class CompareSpikeTrains(Visualizer):
+    
+    def __init__(self, fname_templates, fname_spike_train, rf_dir,
+                 fname_recording, recording_dtype, 
+                 fname_geometry, sampling_rate, save_dir,
+                 fname_templates2=None, fname_spike_train2=None, rf_dir2=None,
+                 fname_set1_idx=None):
+        
+        if fname_set1_idx == None and (fname_templates2==None or fname_spike_train2==None or rf_dir2==None):
+            raise ValueError('something is not right!!')
+        
+        # TODO: Finish it!!!
+        if fname_set1_idx == None:
+            # saving directory location
+            tmp_dir = os.path.join(save_dir,'tmp')
+            if not os.path.isdir(tmp_dir):
+                os.makedirs(tmp_dir)
+        
+        else:
+            set1_idx = np.load(fname_set1_idx)
+            
+        Visualizer.__init__(self, fname_templates, fname_spike_train, rf_dir,
+                 fname_recording, recording_dtype, 
+                 fname_geometry, sampling_rate, save_dir)
+        
+        self.set1_idx = set1_idx
+        
+        # fix nearest units!
+        self.fix_nearest_units()
+        
+
+    def fix_nearest_units(self):
+        
+        templates1 = self.templates[:, :, self.set1_idx].transpose(2,0,1)
+        templates2 = self.templates[:, :, ~self.set1_idx].transpose(2,0,1)
+        
+        STAs1 = self.STAs[self.set1_idx]
+        STAs2 = self.STAs[~self.set1_idx]
+        
+        nearest_units1, nearest_units2 = compute_neighbours2(
+            templates1, templates2, self.n_neighbours)
+        nearest_units_rf1, nearest_units_rf2 = compute_neighbours_rf2(
+            STAs1, STAs2, self.n_neighbours)
+        
+        set1_idx = np.where(self.set1_idx)[0]
+        set2_idx = np.where(~self.set1_idx)[0]
+        
+        nearest_units = np.copy(self.nearest_units)
+        nearest_units_rf = np.copy(self.nearest_units_rf)
+        
+        for k in range(self.n_units):
+            
+            if np.any(set1_idx==k):
+                ii = np.where(set1_idx == k)[0]
+                temp = nearest_units1[ii]
+                nearest_units[k] = set2_idx[temp]
+                
+                temp = nearest_units_rf1[ii]
+                nearest_units_rf[k] = set2_idx[temp]
+            else:
+                ii = np.where(set2_idx == k)[0]
+                temp = nearest_units2[ii]
+                nearest_units[k] = set1_idx[temp]
+                
+                temp = nearest_units_rf2[ii]
+                nearest_units_rf[k] = set1_idx[temp]
+        
+        self.nearest_units = nearest_units
+        self.nearest_units_rf = nearest_units_rf
