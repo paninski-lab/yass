@@ -195,7 +195,7 @@ class Deconv(object):
         self.match_pursuit_function()
         
         # run post-deconv merge
-        self.merge() 
+        self.merge()
 
 
     def merge(self): 
