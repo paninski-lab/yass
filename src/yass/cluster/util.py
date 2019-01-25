@@ -2479,9 +2479,9 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     shift_allowance = np.load(chunk_dir  + '/shift_allowance.npy')
     templates = templates[:, shift_allowance:-shift_allowance]
     
-    #neigh_channels = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-    #templates, collisions = remove_collision_templates(templates, neigh_channels)
-    #np.save(chunk_dir+'/collisions.npy', collisions)
+    neigh_channels = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+    templates, collisions = remove_collision_templates(templates, neigh_channels)
+    np.save(chunk_dir+'/collisions.npy', collisions)
 
     # save data for clustering step
     if out_dir=='cluster':
@@ -2562,7 +2562,8 @@ def remove_collision_templates(templates, neigh_channels):
     collision = np.zeros(templates.shape[0], 'bool')
     for k in range(templates.shape[0]):
 
-        th = np.min((templates[k].min()*0.1, -1))
+        th = np.min((templates[k].min()*0.1, -0.5))
+        th_big = -2
 
         local_mins = argrelmin(templates[k], axis=0, order=2)
         val = templates[k][local_mins[0], local_mins[1]]
@@ -2570,10 +2571,17 @@ def remove_collision_templates(templates, neigh_channels):
         chans = local_mins[1][val < th]
         val = val[val < th]
 
-        data_in = (np.hstack((times[:, np.newaxis], chans[:, np.newaxis])), np.abs(val), None, None)
-        idx_survive, _ = deduplicate(data_in, neigh_channels)
-        if np.sum(idx_survive) > 1:
-            collision[k] = 1
+        no_dendrites = templates[k][:, chans].max(0) < -templates[k][:, chans].min(0)
+        if np.any(no_dendrites == True):
+            times = times[no_dendrites]
+            chans = chans[no_dendrites]
+            val = val[no_dendrites]
+
+            data_in = (np.hstack((times[:, np.newaxis], chans[:, np.newaxis])), np.abs(val), None, None)
+            idx_survive, _ = deduplicate(data_in, neigh_channels)
+
+            if np.sum(val[idx_survive] < th_big) > 1:
+                collision[k] = 1
 
     return templates[~collision], collision
     
@@ -2658,7 +2666,7 @@ def denoise(templates, pca_main_mean, pca_main_components, pca_sec_mean, pca_sec
 
 def pca_denoise(data, pca_mean, pca_components):
     data_pca = np.matmul(data-pca_mean, pca_components.T)
-    return np.matmul(data_pca, pca_components+pca_mean)
+    return np.matmul(data_pca, pca_components)+pca_mean
 
 def undo_denoise(templates, denoised_templates, shifts, ptp_threshold):
 
