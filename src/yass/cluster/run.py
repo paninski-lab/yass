@@ -249,6 +249,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         global_merge_max_dist(chunk_dir,
                               CONFIG2,
                               out_dir,
+                              
                               units)
                               
     # plot_normalized_templates(chunk_dir, CONFIG2.neigh_channels)
