@@ -8,7 +8,7 @@ import yaml
 from tqdm import tqdm
 
 from yass.visual.correlograms_phy import compute_correlogram
-from yass.visual.util import compute_neighbours2, compute_neighbours_rf2 
+from yass.visual.util import compute_neighbours2, compute_neighbours_rf2, combine_two_spike_train, combine_two_rf
 from yass.geometry import parse, find_channel_neighbors
 from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans, binary_reader_waveforms
 from yass.util import absolute_path_to_asset
@@ -264,7 +264,9 @@ class Visualizer(object):
         
         idx = np.where(self.spike_train[:,1]==unit)[0]
         spt = self.spike_train[idx,0]
-        spt = np.random.choice(spt, n_examples, False)
+        spt = np.random.choice(spt, 
+                               np.min((n_examples, len(spt))),
+                               False)
         spike_size = self.templates.shape[0]
         mc = self.templates[:, :, unit].ptp(0).argmax()
         
@@ -618,7 +620,8 @@ class Visualizer(object):
         fname = os.path.join(self.save_dir, 'res_qq_plot.png')
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close()
-        
+
+
 class CompareSpikeTrains(Visualizer):
     
     def __init__(self, fname_templates, fname_spike_train, rf_dir,
@@ -636,9 +639,42 @@ class CompareSpikeTrains(Visualizer):
             tmp_dir = os.path.join(save_dir,'tmp')
             if not os.path.isdir(tmp_dir):
                 os.makedirs(tmp_dir)
+                
+            templates1 = np.load(fname_templates)
+            spike_train1 = np.load(fname_spike_train)
+            templates2 = np.load(fname_templates2)
+            spike_train2 = np.load(fname_spike_train2)
+            
+            STAs1 = np.load(os.path.join(rf_dir, 'STA_spatial.npy'))
+            Gaussian_params1 = np.load(os.path.join(rf_dir, 'Gaussian_params.npy'))
+            STAs2 = np.load(os.path.join(rf_dir2, 'STA_spatial.npy'))
+            Gaussian_params2 = np.load(os.path.join(rf_dir2, 'Gaussian_params.npy'))
+            
+            templates, spike_train = combine_two_spike_train(
+                templates1, templates2, spike_train1, spike_train2)
+            
+            STAs, Gaussian_params = combine_two_rf(
+                STAs1, STAs2, Gaussian_params1, Gaussian_params2)
+            
+            K1 = templates1.shape[2]
+            K2 = templates2.shape[2]
+            set1_idx = np.zeros(K1+K2, 'bool')
+            set1_idx[:K1] = 1
+            
+            fname_templates = os.path.join(tmp_dir, 'templates_combined.npy')
+            fname_spike_train = os.path.join(tmp_dir, 'spike_train_combined.npy')
+
+            rf_dir = tmp_dir
+
+            fname_set1_idx = os.path.join(tmp_dir, 'set1_idx.npy')
+            
+            np.save(fname_templates, templates)
+            np.save(fname_spike_train, spike_train)
+            np.save(fname_set1_idx, set1_idx)
+            np.save(os.path.join(rf_dir, 'STA_spatial.npy'), STAs)
+            np.save(os.path.join(rf_dir, 'Gaussian_params.npy'), Gaussian_params)            
         
-        else:
-            set1_idx = np.load(fname_set1_idx)
+        set1_idx = np.load(fname_set1_idx)
             
         Visualizer.__init__(self, fname_templates, fname_spike_train, rf_dir,
                  fname_recording, recording_dtype, 

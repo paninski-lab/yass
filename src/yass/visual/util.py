@@ -10,15 +10,15 @@ def two_templates_dist_linear_align(templates1, templates2):
     temps_max = template_on_max_chan(templates)
 
     ref_template = temps_max[temps_max.ptp(1).argmax()]
-    
+
     best_shifts = align_get_shifts_with_ref(temps_max, ref_template)    
     templates_aligned = shift_chans(templates, best_shifts)
-    
+
     idx1 = np.zeros(templates.shape[0], 'bool')
     idx1[:templates1.shape[0]] = 1
     templates_aligned1 = templates_aligned[idx1].reshape([templates1.shape[0], -1])
     templates_aligned2 = templates_aligned[~idx1].reshape([templates2.shape[0], -1])
-    
+
     dist = scipy.spatial.distance.cdist(templates_aligned1, templates_aligned2)
 
     return dist
@@ -71,3 +71,30 @@ def pre_process_sta(STAs, th=0.05):
     STAs_th = STAs_th.reshape(STAs.shape[0], -1)
 
     return STAs_th
+
+def combine_two_spike_train(templates1, templates2, spike_train1, spike_train2):
+    
+    K1 = templates1.shape[2]
+    K2 = templates2.shape[2]
+    
+    templates = np.concatenate((templates1, templates2), axis=2)
+    
+
+    spike_train2_new_id = np.copy(spike_train2)    
+    new_id2 = np.arange(K2) + K1
+    for j in range(spike_train2.shape[0]):
+        spike_train2_new_id[j,1] = new_id2[spike_train2[j,1]]
+    
+    spike_train = np.concatenate((spike_train1, spike_train2_new_id))
+    spike_train = spike_train[np.argsort(spike_train[:,0])]
+    
+    return templates, spike_train
+
+
+def combine_two_rf(STAs1, STAs2, Gaussian_params1, Gaussian_params2):
+
+    STAs = np.concatenate((STAs1, STAs2), axis=0)
+    Gaussian_params = np.concatenate((Gaussian_params1, Gaussian_params2), axis=0)
+    
+    return STAs, Gaussian_params
+

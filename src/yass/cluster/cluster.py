@@ -106,13 +106,13 @@ class Cluster(object):
         pca_wf = self.featurize_step(gen, current_indices, local)
         
         # knn triage
-        idx_keep = self.knn_triage_step(gen, pca_wf)
-        if self.min(idx_keep.shape[0]): return
+#        idx_keep = self.knn_triage_step(gen, pca_wf)
+#        if self.min(idx_keep.shape[0]): return
  
         # featurize #2 (if outliers triaged)
-        if idx_keep.shape[0] < pca_wf.shape[0]:
-            current_indices = current_indices[idx_keep]
-            pca_wf = self.featurize_step(gen, current_indices, local)
+#        if idx_keep.shape[0] < pca_wf.shape[0]:
+#            current_indices = current_indices[idx_keep]
+#            pca_wf = self.featurize_step(gen, current_indices, local)
 
         # subsample before clustering
         pca_wf_subsample = self.subsample_step(gen, pca_wf)
@@ -121,14 +121,14 @@ class Cluster(object):
         vbParam1 = self.run_mfm(gen, pca_wf_subsample)
 
         # adaptive knn triage
-#        idx_keep = self.knn_triage_dynamic(gen, vbParam1, pca_wf)
-#        if self.min(idx_keep.shape[0]): return
+        idx_keep = self.knn_triage_dynamic(gen, vbParam1, pca_wf)
+        if self.min(idx_keep.shape[0]): return
 
         # if anything is triaged, re-featurize and re-cluster
-#        if idx_keep.shape[0] < pca_wf.shape[0]:
-#            current_indices = current_indices[idx_keep]
-#            pca_wf = self.featurize_step(gen, current_indices, local)
-#            vbParam = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
+        if idx_keep.shape[0] < pca_wf.shape[0]:
+            current_indices = current_indices[idx_keep]
+            pca_wf = self.featurize_step(gen, current_indices, local)
+            vbParam1 = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
 
         # recover spikes using soft-assignments
         idx_recovered, vbParam2 = self.recover_step(gen, vbParam1, pca_wf)

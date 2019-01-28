@@ -162,7 +162,7 @@ class Deconv(object):
             self.match_pursuit_function()
 
             # run post-deconv merge; recomputes self.templates and self.spike_train
-            self.merge()
+            #self.merge()
 
             # reclusters and loads a new self.templates structure
             self.reclustering_function()
@@ -195,7 +195,7 @@ class Deconv(object):
         self.match_pursuit_function()
         
         # run post-deconv merge
-        self.merge()
+        # self.merge()
 
 
     def merge(self): 
