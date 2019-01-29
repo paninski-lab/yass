@@ -1546,6 +1546,7 @@ def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, 
     # ***** LOAD RAW RECORDING *****
     if channels is None:
         wfs = np.zeros((spikes.shape[0], n_times, n_channels), 'float32')
+        channels = np.arange(n_channels)
     else:
         wfs = np.zeros((spikes.shape[0], n_times, channels.shape[0]), 'float32')
 
