@@ -48,7 +48,7 @@ class TemplateMerge(object):
         self.iteration = iteration
         self.jitter, self.upsample = jitter, upsample
 
-        self.templates = templates.transpose(2,1,0)
+        self.templates = templates.transpose(2,0,1)
         print ("  templates in: ", templates.shape)
         self.recompute=recompute
         self.spike_train = spike_train
@@ -92,8 +92,9 @@ class TemplateMerge(object):
         if os.path.exists(fname)==False:
             print ( "  TODO: write faster merge algorithm...")
             
-            self.merge_candidate = scipy.optimize.linear_sum_assignment(dist_mat)[1]
+            #self.merge_candidate = scipy.optimize.linear_sum_assignment(dist_mat)[1]
             #self.merge_candidate = self.find_merge_candidates()
+            self.merge_candidate = np.argsort(dist_mat, axis=1)[:,0]
 
             np.save(fname, self.merge_candidate)
         else:
@@ -181,7 +182,7 @@ class TemplateMerge(object):
 
 
 
-    def merge_templates_parallel(self, data_in, threshold=0.9, n_samples=1000):
+    def merge_templates_parallel(self, data_in, threshold=0.99, n_samples=1000):
         """Whether to merge two templates or not.
 
         parameters:
@@ -215,11 +216,11 @@ class TemplateMerge(object):
 
             # TODO(Cat): this filename and Config somehow
             spikes_1 = read_spikes(
-                self.filename_residual, unit1, self.templates.transpose([2, 1, 0]), spt1,
-                self.CONFIG, residual_flag=True).transpose([0, 2, 1])
+                self.filename_residual, unit1, self.templates, spt1,
+                self.CONFIG, residual_flag=True)
             spikes_2 = read_spikes(
-                self.filename_residual, unit2, self.templates.transpose([2, 1, 0]), spt2,
-                self.CONFIG, residual_flag=True).transpose([0, 2, 1])
+                self.filename_residual, unit2, self.templates, spt2,
+                self.CONFIG, residual_flag=True)
             spike_ids = np.append(
                 np.ones(len(spikes_1)), np.zeros(len(spikes_2)), axis=0)
             l2_features = template_spike_dist_linear_align(
@@ -227,7 +228,7 @@ class TemplateMerge(object):
                 np.append(spikes_1, spikes_2, axis=0),
                 jitter=self.jitter, upsample=self.upsample)
                         
-            dp_val = test_unimodality(np.log(l2_features).T, spike_ids)
+            dp_val, _, _ = test_unimodality(np.log(l2_features).T, spike_ids)
             #print (" units: ", unit1, unit2, " dp_val: ", dp_val)
             # save data
             np.savez(fname,
@@ -292,7 +293,7 @@ def test_unimodality(pca_wf, assignment, max_spikes = 10000):
     #y1 = np.histogram(trans, bins = n_bins)
     #normtest = stats.normaltest(y1[0])
 
-    return diptest[1] #, normtest[1]
+    return diptest[1], trans.ravel(), assignment[idx_total]#, normtest[1]
 
 
 def template_spike_dist(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **kwargs):
@@ -348,13 +349,13 @@ def template_spike_dist(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **k
     return dist
 
 
-def template_spike_dist_linear_align(templates, spikes, jitter=0, upsample_factor=1, vis_ptp=2., **kwargs):
+def template_spike_dist_linear_align(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **kwargs):
     """compares the templates and spikes.
 
     parameters:
     -----------
-    templates: numpy.array shape (K, C, T)
-    spikes: numpy.array shape (M, C, T)
+    templates: numpy.array shape (K, T, C)
+    spikes: numpy.array shape (M, T, C)
     jitter: int
         Align jitter amount between the templates and the spikes.
     upsample int
@@ -367,42 +368,48 @@ def template_spike_dist_linear_align(templates, spikes, jitter=0, upsample_facto
     #print ("spikes: ", spikes.shape)
     # new way using alignment only on max channel
     # maek reference template based on templates
-    max_idx = templates.ptp(2).max(1).argmax(0)
+    max_idx = templates.ptp(1).max(1).argmax(0)
     ref_template = templates[max_idx]
-    max_chan = ref_template.ptp(1).argmax(0)
-    ref_template = ref_template[max_chan]
+    max_chan = ref_template.ptp(0).argmax(0)
+    ref_template = ref_template[:, max_chan]
 
     # stack template max chan waveforms only
-    max_chans = templates.ptp(2).argmax(1)
-    temps = []
-    for k in range(max_chans.shape[0]):
-        temps.append(templates[k,max_chans[k]])
-    temps = np.vstack(temps)
+    #max_chans = templates.ptp(2).argmax(1)
+    #temps = []
+    #for k in range(max_chans.shape[0]):
+    #    temps.append(templates[k,max_chans[k]])
+    #temps = np.vstack(temps)
+    temps = templates[:, :, max_chan]
     #print ("tempsl stacked: ", temps.shape)
-
+    
     #upsample_factor=5
     best_shifts = align_get_shifts_with_ref(
-                    temps, ref_template, upsample_factor)
+                    temps, ref_template, upsample)
     #print (" best shifts: ", best_shifts.shape)
     templates_aligned = shift_chans(templates, best_shifts)
     #print ("  new aligned templates: ", templates_aligned.shape)
 
     # find spike shifts
-    max_chans = spikes.ptp(2).argmax(1)
+    #max_chans = spikes.ptp(2).argmax(1)
     #print ("max chans: ", max_chans.shape)
-    spikes_aligned = []
-    for k in range(max_chans.shape[0]):
-        spikes_aligned.append(spikes[k,max_chans[k]])
-    spikes_aligned = np.vstack(spikes_aligned)
+    #spikes_aligned = []
+    #for k in range(max_chans.shape[0]):
+    #    spikes_aligned.append(spikes[k,max_chans[k]])
+    #spikes_aligned = np.vstack(spikes_aligned)
     #print ("spikes aligned max chan: ", spikes_aligned.shape)
+    spikes_aligned = spikes[:,:,max_chan]
     best_shifts = align_get_shifts_with_ref(
-                            spikes_aligned, ref_template, upsample_factor)
+                            spikes_aligned, ref_template, upsample)
     
     spikes_aligned = shift_chans(spikes, best_shifts)
     #print ("  new aligned spikes: ", spikes_aligned.shape)
     
     n_unit = templates_aligned.shape[0]
     n_spikes = spikes_aligned.shape[0]
+
+    vis_chan = templates.ptp(1).max(0) >= vis_ptp
+    templates = templates[:, :, vis_chan]
+    spikes = spikes[:, :, vis_chan]
 
     #print ("  start cdist computation")
     # Pairwise distance of templates and spikes
@@ -480,18 +487,18 @@ def read_spikes(filename, unit, templates, spike_train, CONFIG,
                                              spike_size,
                                              spikes, #- spike_size//2,  # can use this for centering
                                              channels)
-    
+
     # if loading residual need to add template back into 
     # Cat: TODO: this is bit messy; loading extrawide noise, but only adding
     #           narrower templates
     if residual_flag:
         if spike_size is None:
-            spike_waveforms+=templates[:,channels,unit]
+            spike_waveforms+=templates[unit, :, channels]
         # need to add templates in middle of noise wfs which are wider
         else:
             spike_size_default = int(CONFIG.recordings.spike_size_ms*
                                       CONFIG.recordings.sampling_rate//1000*2+1)
             offset = spike_size - spike_size_default
-            spike_waveforms[:,offset//2:offset//2+spike_size_default]+=templates[:,channels,unit]
+            spike_waveforms[:,offset//2:offset//2+spike_size_default]+=templates[unit][:, channels]
         
     return spike_waveforms #, skipped_idx

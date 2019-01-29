@@ -11,6 +11,7 @@ from yass.visual.correlograms_phy import compute_correlogram
 from yass.visual.util import compute_neighbours2, compute_neighbours_rf2, combine_two_spike_train, combine_two_rf
 from yass.geometry import parse, find_channel_neighbors
 from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans, binary_reader_waveforms
+from yass.deconvolve.merge import template_spike_dist_linear_align, test_unimodality
 from yass.util import absolute_path_to_asset
 from yass import read_config
 
@@ -102,7 +103,6 @@ class Visualizer(object):
         if not os.path.isdir(self.save_dir):
             os.makedirs(self.save_dir)
             
-            
         # compute firing rates
         self.compute_firing_rates()
 
@@ -122,7 +122,7 @@ class Visualizer(object):
         unique, n_spikes = np.unique(self.spike_train[:,1], return_counts=True)
         self.f_rates = n_spikes/rec_len
         self.ptps = self.templates.ptp(0).max(0)
-        
+
     def compute_neighbours(self):
         
         dist = self.template_dist_linear_align()
@@ -132,7 +132,7 @@ class Visualizer(object):
             idx = np.argsort(dist[k])[1:self.n_neighbours+1]
             nearest_units.append(idx)
         self.nearest_units = np.array(nearest_units)
-        
+
     def template_dist_linear_align(self):
 
         templates = self.templates.transpose(2,0,1)
@@ -158,7 +158,7 @@ class Visualizer(object):
         dist = scipy.spatial.distance.cdist(templates_reshaped, templates_reshaped)
 
         return dist
-    
+
     def compute_neighbours_rf(self):
         
         th = 0.05
@@ -180,7 +180,7 @@ class Visualizer(object):
         self.make_raster_plot()
         self.make_firing_rate_plot()
         self.make_normalized_templates_plot()
-        
+
     def individiual_cell_plot(self, units=None):
         
         if units is None:
@@ -195,10 +195,10 @@ class Visualizer(object):
             
             # plotting parameters
             self.fontsize = 20
-            self.figsize = [80, 40]
+            self.figsize = [100, 40]
         
             fig=plt.figure(figsize=self.figsize)
-            gs = gridspec.GridSpec(self.n_neighbours+4, 8, fig)  
+            gs = gridspec.GridSpec(self.n_neighbours+4, 10, fig)  
             
             ## Main Unit ##
             # add template
@@ -229,6 +229,10 @@ class Visualizer(object):
                 
                 gs = self.add_xcorr_plot(gs, ctr+1, 3, unit, neigh)
 
+                if self.residual_recording is not None:
+                    gs = self.add_l2_feature_plot(gs, ctr+1, 4, unit, neigh,
+                                                 [self.colors[c] for c in [0,ctr+1]])
+
             # add contour plots
             gs = self.add_contour_plot(
                 gs, self.n_neighbours+1, 2,
@@ -239,16 +243,20 @@ class Visualizer(object):
             neighbor_units = self.nearest_units_rf[unit]
             for ctr, neigh in enumerate(neighbor_units):
                 
-                gs = self.add_template_plot(gs, ctr+1, slice(4,6), 
+                gs = self.add_template_plot(gs, ctr+1, slice(5,7), 
                                         np.hstack((unit, neigh)),
                                         [self.colors[c] for c in [0,ctr+1]])
                 
-                gs = self.add_RF_plot(gs, ctr+1, 6, neigh)
+                gs = self.add_RF_plot(gs, ctr+1, 7, neigh)
 
-                gs = self.add_xcorr_plot(gs, ctr+1, 7, unit, neigh)
+                gs = self.add_xcorr_plot(gs, ctr+1, 8, unit, neigh)
+                
+                if self.residual_recording is not None:
+                    gs = self.add_l2_feature_plot(gs, ctr+1, 9, unit, neigh,
+                                                 [self.colors[c] for c in [0,ctr+1]])
                 
             gs = self.add_contour_plot(
-                gs, self.n_neighbours+1, 6,
+                gs, self.n_neighbours+1, 7,
                 np.hstack((unit, neighbor_units)),
                 self.colors[:self.n_neighbours+1])
             
@@ -418,48 +426,53 @@ class Visualizer(object):
         return gs
     
     
-    def add_l2features_plots(self):
-        # CMOPUTE L2 PLOTS w. NEIGHBOURS
-        affinity_only = True
-        recompute = False
-        jitter=upsample=5
-        iteration = 0
-
-        # compute affinity matrix
-        merge = TemplateMerge(self.templates,self.spike_train,jitter, upsample, self.CONFIG, self.save_dir, 
-                              iteration, recompute, affinity_only)
-        merge.filename_residual = self.residual_dir+'/residual.bin'
-
-        # compute l2 distance across pairs:
-        for ctr, comparison_unit in enumerate(self.units[1:]):
-
-            unit1 = self.unit
-            unit2 = comparison_unit
-            
-            print (unit1, unit2)
-            # compute l2 features
-            merge.merge_templates_parallel([unit1,unit2])
-            # load features from disk
-            fname = os.path.join( self.save_dir + 'l2features_'+str(unit1)+'_'+str(unit2)+'_'+str(0)+'.npz')
-            data= np.load(fname)
-            features =data['l2_features']
-            spike_ids = data['spike_ids']    
-            dp_val = data['dp_val']
-            # plot results
-            clr_array=[]
-            for i in range(spike_ids.shape[0]):
-                clr_array.append(colors[0])
-
-            idx = np.where(spike_ids==0)[0]
-            for id_ in idx:
-                clr_array[id_]=self.colors[ctr+1]
-
-            ax = plt.subplot(self.gs[1:2,ctr+1:ctr+2])
-
-            ax.scatter(features[0,:], features[1,:], c=clr_array, alpha=.5)
-            ax.plot([0,np.max(features[0])], [0,np.max(features[1])],'r--')
-            ax.set_title("DP: "+str(np.round(dp_val,3)),fontsize=12)
+    def add_l2_feature_plot(self, gs, x_loc, y_loc, unit1, unit2, colors):
         
+        n_samples = 1000
+        spike_size = self.templates.shape[0]
+        
+        # get n_sample of cleaned spikes per template.
+        spt1_idx = np.where(self.spike_train[:, 1] == unit1)[0][:n_samples]
+        spt2_idx = np.where(self.spike_train[:, 1] == unit2)[0][:n_samples]
+        spt1 = self.spike_train[spt1_idx, 0]
+        spt2 = self.spike_train[spt2_idx, 0]
+
+        wf1, _ = binary_reader_waveforms(self.residual_recording,
+                             self.n_channels,
+                             spike_size,
+                             spt1.astype('int32'))
+        wf1 += self.templates[:,:, unit1][np.newaxis]
+        
+        wf2, _ = binary_reader_waveforms(self.residual_recording,
+                             self.n_channels,
+                             spike_size,
+                             spt2.astype('int32'))
+        wf2 += self.templates[:,:, unit2][np.newaxis]
+        
+        l2_features = template_spike_dist_linear_align(
+            self.templates[:, :, [unit1, unit2]].transpose(2,0,1),
+            np.append(wf1, wf2, axis=0), upsample=5)
+        
+        spike_ids = np.append(
+            np.ones(len(wf1), 'bool'),
+            np.zeros(len(wf2), 'bool'), axis=0)
+        dp_val, feat, ids = test_unimodality(np.log(l2_features).T, spike_ids)
+
+        #l2_1d_features = np.diff(l2_features, axis=0)[0]
+        n_bins = int(len(feat)/20)
+        steps = (np.max(feat) - np.min(feat))/n_bins
+        bins = np.arange(np.min(feat), np.max(feat)+steps, steps)
+
+        ax = plt.subplot(gs[x_loc, y_loc])
+        plt.hist(feat, bins, color='slategrey')
+        plt.hist(feat[ids], bins, color=colors[0], alpha=0.7)
+        plt.hist(feat[~ids], bins, color=colors[1], alpha=0.7)
+        plt.title(
+            'Dip Test: {}'.format(np.round(dp_val,4)), 
+            fontsize=self.fontsize)
+        
+        return gs
+
 
     def get_normalized_templates(self, templates, neigh_channels, ref_template):
 

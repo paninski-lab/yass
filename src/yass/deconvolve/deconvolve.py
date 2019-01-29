@@ -193,25 +193,25 @@ class Deconv(object):
 
         # Cat: TODO: don't recomp temp_temp for final step if prev. computed
         self.match_pursuit_function()
-        
+
+        # first compute residual
+        print ("  computing residual to generate clean spikes")
+        self.compute_residual_function()
+
         # run post-deconv merge
-        # self.merge()
+        self.merge()
 
 
     def merge(self): 
                             
         print ("\nPost-deconv merge...")
 
-        # first compute residual
-        print ("  computing residual to generate clean spikes")
-        self.compute_residual_function()
-
         # iterate over template-based merge step
         if not os.path.isdir(self.deconv_chunk_dir+'/merge'):
             os.makedirs(self.deconv_chunk_dir+'/merge')
         
         jitter=5
-        upsample = 10
+        upsample=5
         for i in range(self.n_iterations_merge):
             print ("  running merge iteration: ", i+1 , "/", self.n_iterations_merge)
             tm = TemplateMerge(self.templates, self.spike_train, 
