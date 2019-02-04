@@ -91,10 +91,10 @@ class NeuralNetTriage(Model):
         self.train_step_size = train_step_size
         self.n_iter = n_iter
 
-        self.idx_clean = self._make_graph(threshold, input_tensor,
-                                          filters_size,
-                                          waveform_length,
-                                          n_neighbors)
+        self.proba = self._make_graph(input_tensor,
+                                      filters_size,
+                                      waveform_length,
+                                      n_neighbors)
 
         if load_test_set:
             self._load_test_set()
@@ -110,10 +110,9 @@ class NeuralNetTriage(Model):
         # load necessary parameters
         path_to_params = change_extension(path_to_model, 'yaml')
         params = load_yaml(path_to_params)
-
         return cls(path_to_model=path_to_model,
-                   filters_size=params['filters_size'],
-                   waveform_length=params['waveform_length'],
+                   filters_size=params['filters'],
+                   waveform_length=params['size'],
                    n_neighbors=params['n_neighbors'],
                    threshold=threshold,
                    input_tensor=input_tensor, load_test_set=load_test_set)
@@ -150,7 +149,7 @@ class NeuralNetTriage(Model):
 
         return o_layer, vars_dict
 
-    def _make_graph(self, threshold, input_tensor, filters_size,
+    def _make_graph(self, input_tensor, filters_size,
                     waveform_length, n_neighbors):
         """Builds graph for triage
 
@@ -184,7 +183,8 @@ class NeuralNetTriage(Model):
         self.saver = tf.train.Saver(vars_dict)
 
         # thrshold it
-        return self.o_layer[:, 0, 0, 0] > np.log(threshold / (1 - threshold))
+        #return self.o_layer[:, 0, 0, 0] > np.log(threshold / (1 - threshold))
+        return self.o_layer[:, 0, 0, 0]
 
     def restore(self, sess):
         """Restore tensor values
@@ -197,16 +197,34 @@ class NeuralNetTriage(Model):
         """Triage waveforms
         """
         _, waveform_length, n_neighbors = waveforms.shape
+        threshold = self.threshold
+
+        # self._validate_dimensions(waveform_length, n_neighbors)
+        with tf.Session() as sess:
+            self.restore(sess)
+
+            proba = sess.run(self.proba,
+                                 feed_dict={self.x_tf: waveforms})
+        
+        return proba > np.log(threshold / (1 - threshold))
+    
+    def predict_proba(self, waveforms):
+        """Triage waveforms
+        """
+        _, waveform_length, n_neighbors = waveforms.shape
 
         # self._validate_dimensions(waveform_length, n_neighbors)
 
         with tf.Session() as sess:
             self.restore(sess)
 
-            idx_clean = sess.run(self.idx_clean,
+            proba = sess.run(self.proba,
                                  feed_dict={self.x_tf: waveforms})
+            
+            proba_exp = np.exp(proba)
+            
 
-        return idx_clean
+        return proba_exp/(1+proba_exp)
 
     def fit(self, x_train, y_train, test_size=0.3, save_test_set=False):
         """Trains the triage network
