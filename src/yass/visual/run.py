@@ -11,7 +11,10 @@ from yass.visual.correlograms_phy import compute_correlogram
 from yass.visual.util import compute_neighbours2, compute_neighbours_rf2, combine_two_spike_train, combine_two_rf
 from yass.geometry import parse, find_channel_neighbors
 from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans, binary_reader_waveforms
-from yass.deconvolve.merge import template_spike_dist_linear_align, test_unimodality
+from yass.cluster.util import pca_denoise
+from yass.deconvolve.merge import (template_dist_linear_align, 
+                                   template_spike_dist_linear_align, 
+                                   test_unimodality, get_l2_features, read_spikes)
 from yass.util import absolute_path_to_asset
 from yass import read_config
 
@@ -41,15 +44,14 @@ def run():
     
     # only for yass
     template_space_dir = absolute_path_to_asset('template_space')
-    fname_residual_recording = os.path.join(CONFIG.path_to_output_directory,
-                                            'deconv', 'final', 'residual.bin')
-    residual_dtype = 'float32'
+    deconv_dir = os.path.join(CONFIG.path_to_output_directory,
+                              'deconv', 'final')
 
     vis = Visualizer(fname_templates, fname_spike_train, rf_dir,
                      fname_recording, recording_dtype, 
                      fname_geometry, sampling_rate, save_dir,
                      template_space_dir,
-                     fname_residual_recording, residual_dtype)
+                     deconv_dir)
 
     vis.population_level_plot()
     vis.individiual_cell_plot()
@@ -61,7 +63,7 @@ class Visualizer(object):
                  fname_recording, recording_dtype, 
                  fname_geometry, sampling_rate, save_dir,
                  template_space_dir=None,
-                 fname_residual_recording=None, residual_dtype=None):
+                 deconv_dir=None):
         
         # load spike train and templates
         self.spike_train = np.load(fname_spike_train)
@@ -78,17 +80,25 @@ class Visualizer(object):
         
         # get geometry
         self.geom = parse(fname_geometry, self.n_channels)
-        
+        # compute neighboring channels
+        self.neigh_channels = find_channel_neighbors(self.geom, 70)
+
         # location of standardized recording
         self.fname_recording = fname_recording
         self.recording_dtype = recording_dtype
         
         # residual recording
-        self.residual_recording = fname_residual_recording
-        self.residual_dtype = residual_dtype
+        self.deconv_dir = deconv_dir
+        if deconv_dir is not None:
+            self.residual_recording = os.path.join(deconv_dir, 'residual.bin')
+            temp = np.load(os.path.join(deconv_dir, 'deconv_results.npz'))
+            self.templates_upsampled = temp['templates_upsampled']
+            self.spike_train_upsampled = temp['spike_train_upsampled']
 
         # template space directory
         self.template_space_dir = template_space_dir
+        if template_space_dir is not None:
+            self.get_template_pca()
         
         # get colors
         self.colors = colors = [
@@ -109,7 +119,28 @@ class Visualizer(object):
         # compute neighbors for each unit
         self.compute_neighbours()
         self.compute_neighbours_rf()
-            
+
+    def get_template_pca(self):
+                    
+        self.pca_main_components = np.load(os.path.join(
+            self.template_space_dir, 'pca_main_components.npy'))
+        self.pca_sec_components = np.load(os.path.join(
+            self.template_space_dir, 'pca_sec_components.npy'))
+        self.pca_main_mean = np.load(os.path.join(
+            self.template_space_dir, 'pca_main_mean.npy'))
+        self.pca_sec_mean = np.load(os.path.join(
+            self.template_space_dir, 'pca_sec_mean.npy'))
+
+        window = [15, 40]
+        self.pca_main_components[:, :window[0]] = 0
+        self.pca_main_components[:, window[1]:] = 0
+        self.pca_sec_components[:, :window[0]] = 0
+        self.pca_sec_components[:, window[1]:] = 0
+        self.pca_main_mean[:window[0]] = 0
+        self.pca_main_mean[:window[0]] = 0
+        self.pca_sec_mean[window[1]:] = 0
+        self.pca_sec_mean[:window[1]:] = 0
+
     def compute_firing_rates(self):
         
         # COMPUTE FIRING RATES
@@ -125,39 +156,13 @@ class Visualizer(object):
 
     def compute_neighbours(self):
         
-        dist = self.template_dist_linear_align()
+        dist = template_dist_linear_align(self.templates.transpose(2,0,1))
         
         nearest_units = []
         for k in range(dist.shape[0]):
             idx = np.argsort(dist[k])[1:self.n_neighbours+1]
             nearest_units.append(idx)
         self.nearest_units = np.array(nearest_units)
-
-    def template_dist_linear_align(self):
-
-        templates = self.templates.transpose(2,0,1)
-        
-        # find template shifts
-        max_chans = templates.ptp(1).argmax(1)
-
-        # new way using alignment only on max channel
-        # maek reference template based on templates
-        max_idx = templates.ptp(1).max(1).argmax(0)
-        ref_template = templates[max_idx, :,max_chans[max_idx]]
-
-        temps = []
-        for k in range(max_chans.shape[0]):
-            temps.append(templates[k, :, max_chans[k]])
-        temps = np.vstack(temps)
-
-        best_shifts = align_get_shifts_with_ref(temps, ref_template)    
-        templates_aligned = shift_chans(templates, best_shifts)
-
-        n_unit = templates_aligned.shape[0]
-        templates_reshaped = templates_aligned.reshape([n_unit, -1])
-        dist = scipy.spatial.distance.cdist(templates_reshaped, templates_reshaped)
-
-        return dist
 
     def compute_neighbours_rf(self):
         
@@ -180,6 +185,7 @@ class Visualizer(object):
         self.make_raster_plot()
         self.make_firing_rate_plot()
         self.make_normalized_templates_plot()
+        self.add_residual_qq_plot()
 
     def individiual_cell_plot(self, units=None):
         
@@ -198,44 +204,57 @@ class Visualizer(object):
             self.figsize = [100, 40]
         
             fig=plt.figure(figsize=self.figsize)
-            gs = gridspec.GridSpec(self.n_neighbours+4, 10, fig)  
+            gs = gridspec.GridSpec(self.n_neighbours+5, 10, fig)  
             
             ## Main Unit ##
+            start_row = 0
+            # add example waveforms
+            gs, wf, idx = self.add_example_waveforms(gs, start_row, unit)
+            start_row += 1
+
+            # add denoised waveforms
+            if self.template_space_dir is not None:
+                gs = self.add_denoised_waveforms(gs, start_row, unit, wf)
+                start_row += 1
+
+            # add residual + template
+            if self.deconv_dir is not None:
+                gs = self.add_residual_template(gs, start_row, unit, idx)
+                start_row += 1
+            
             # add template
-            gs = self.add_template_plot(gs, 0, slice(2), 
+            gs = self.add_template_plot(gs, start_row, slice(2), 
                                         [unit], [self.colors[0]])
             # add rf
-            gs = self.add_RF_plot(gs, 0, 2, unit)
+            gs = self.add_RF_plot(gs, start_row, 2, unit)
             
             # add autocorrelogram
-            gs = self.add_xcorr_plot(gs, 0, 3, unit, unit)
-            
-            # add example waveforms
-            gs = self.add_example_waveforms(gs, 0, 4, unit)
+            gs = self.add_xcorr_plot(gs, start_row, 3, unit, unit)
             
             # single unit raster plot
-            gs = self.add_single_unit_raster(gs, 0, slice(5,7), unit)
+            gs = self.add_single_unit_raster(gs, start_row, slice(4,5), unit)
             
-            
+            start_row += 1
+
             ## Neighbor Units by templates ##
             neighbor_units = self.nearest_units[unit]
             for ctr, neigh in enumerate(neighbor_units):
                 
-                gs = self.add_template_plot(gs, ctr+1, slice(0,2), 
+                gs = self.add_template_plot(gs, ctr+start_row, slice(0,2), 
                                         np.hstack((unit, neigh)),
                                         [self.colors[c] for c in [0,ctr+1]])
                 
-                gs = self.add_RF_plot(gs, ctr+1, 2, neigh)
+                gs = self.add_RF_plot(gs, ctr+start_row, 2, neigh)
                 
-                gs = self.add_xcorr_plot(gs, ctr+1, 3, unit, neigh)
+                gs = self.add_xcorr_plot(gs, ctr+start_row, 3, unit, neigh)
 
-                if self.residual_recording is not None:
-                    gs = self.add_l2_feature_plot(gs, ctr+1, 4, unit, neigh,
+                if self.deconv_dir is not None:
+                    gs = self.add_l2_feature_plot(gs, ctr+start_row, 4, unit, neigh,
                                                  [self.colors[c] for c in [0,ctr+1]])
 
             # add contour plots
             gs = self.add_contour_plot(
-                gs, self.n_neighbours+1, 2,
+                gs, self.n_neighbours+start_row, 2,
                 np.hstack((unit, neighbor_units)),
                 self.colors[:self.n_neighbours+1])
             
@@ -243,54 +262,114 @@ class Visualizer(object):
             neighbor_units = self.nearest_units_rf[unit]
             for ctr, neigh in enumerate(neighbor_units):
                 
-                gs = self.add_template_plot(gs, ctr+1, slice(5,7), 
+                gs = self.add_template_plot(gs, ctr+start_row, slice(5,7), 
                                         np.hstack((unit, neigh)),
                                         [self.colors[c] for c in [0,ctr+1]])
                 
-                gs = self.add_RF_plot(gs, ctr+1, 7, neigh)
+                gs = self.add_RF_plot(gs, ctr+start_row, 7, neigh)
 
-                gs = self.add_xcorr_plot(gs, ctr+1, 8, unit, neigh)
+                gs = self.add_xcorr_plot(gs, ctr+start_row, 8, unit, neigh)
                 
-                if self.residual_recording is not None:
-                    gs = self.add_l2_feature_plot(gs, ctr+1, 9, unit, neigh,
+                if self.deconv_dir is not None:
+                    gs = self.add_l2_feature_plot(gs, ctr+start_row, 9, unit, neigh,
                                                  [self.colors[c] for c in [0,ctr+1]])
                 
             gs = self.add_contour_plot(
-                gs, self.n_neighbours+1, 7,
+                gs, self.n_neighbours+start_row, 7,
                 np.hstack((unit, neighbor_units)),
                 self.colors[:self.n_neighbours+1])
             
             fname = os.path.join(save_dir_ind, 'unit_{}.png'.format(unit))
             fig.savefig(fname, bbox_inches='tight', dpi=100)
             plt.close()
-            
-            
-    def add_example_waveforms(self, gs, x_loc, y_loc, unit):
-        
-        # default parameter
-        n_examples = 100
+
+    def get_waveforms(self, unit, n_examples=100):
         
         idx = np.where(self.spike_train[:,1]==unit)[0]
-        spt = self.spike_train[idx,0]
-        spt = np.random.choice(spt, 
-                               np.min((n_examples, len(spt))),
+        idx = np.random.choice(idx, 
+                               np.min((n_examples, len(idx))),
                                False)
-        spike_size = self.templates.shape[0]
+        spt = self.spike_train[idx,0]
         mc = self.templates[:, :, unit].ptp(0).argmax()
-        
+        neigh_chans = np.where(self.neigh_channels[mc])[0]
+
         wf, _ = binary_reader_waveforms(self.fname_recording,
                                      self.n_channels,
-                                     spike_size,
-                                     spt, np.array([mc]))
-        wf = wf[:, :, 0]
+                                     self.templates.shape[0],
+                                     spt, neigh_chans)
         
-        ax = plt.subplot(gs[x_loc, y_loc])
-        ax.plot(wf.T, color='k', alpha=0.1)
-        title = "Unit: {}, Max Channel: {}".format(unit, mc)
-        ax.set_title(title, fontsize=self.fontsize)
+        return wf, idx
+
+    def add_example_waveforms(self, gs, x_loc, unit):
+        
+        wf, idx = self.get_waveforms(unit)
+        mc = self.templates[:, :, unit].ptp(0).argmax()
+        neigh_chans = np.where(self.neigh_channels[mc])[0]
+        
+        for j, chan in enumerate(neigh_chans):
+            ax = plt.subplot(gs[x_loc, j])
+            ax.plot(wf[:, :, j].T, color='k', alpha=0.1)
+            ax.plot(self.templates[:, chan, unit].T, color='r', linewidth=2)
+            title = "Channel: {}".format(chan)
+            if chan == mc:
+                title += ', MAX CHAN'
+            if j == 0:
+                title = 'Raw Waveforms, Unit: {}, '.format(unit) + title
+            ax.set_title(title, fontsize=self.fontsize)
+        
+        return gs, wf, idx
+
+    def add_denoised_waveforms(self, gs, x_loc, unit, wf=None):
+        
+        mc = self.templates[:, :, unit].ptp(0).argmax()
+        neigh_chans = np.where(self.neigh_channels[mc])[0]
+
+        if wf is None:
+            wf, idx = self.get_waveforms(unit)
+            
+        denoised_wf = np.zeros(wf.shape)
+        for ii in range(wf.shape[2]):
+            if neigh_chans[ii] == mc:
+                denoised_wf[:,:,ii] = pca_denoise(
+                    wf[:,:,ii], self.pca_main_mean, self.pca_main_components)
+            else:
+                denoised_wf[:,:,ii] = pca_denoise(
+                    wf[:,:,ii], self.pca_sec_mean, self.pca_sec_components)
+
+        for j, chan in enumerate(neigh_chans):
+            ax = plt.subplot(gs[x_loc, j])
+            ax.plot(denoised_wf[:, :, j].T, color='k', alpha=0.1)
+            ax.plot(self.templates[:, chan, unit].T, color='r', linewidth=2)
+            if j == 0:
+                title = 'Denoised Waveforms'
+                ax.set_title(title, fontsize=self.fontsize)
         
         return gs
     
+    def add_residual_template(self, gs, x_loc, unit, idx=None):
+
+        mc = self.templates[:, :, unit].ptp(0).argmax()
+        neigh_chans = np.where(self.neigh_channels[mc])[0]
+
+        spt = self.spike_train[idx, 0]
+        units = self.spike_train_upsampled[idx, 1]
+
+        wf = read_spikes(
+            self.residual_recording, spt, self.n_channels,
+            self.templates.shape[0], units,
+            self.templates_upsampled.transpose(2,0,1),
+            channels=neigh_chans,
+            residual_flag=True)            
+
+        for j, chan in enumerate(neigh_chans):
+            ax = plt.subplot(gs[x_loc, j])
+            ax.plot(wf[:, :, j].T, color='k', alpha=0.1)
+            ax.plot(self.templates[:, chan, unit].T, color='r', linewidth=2)
+            if j == 0:
+                title = 'Residual + Template'
+                ax.set_title(title, fontsize=self.fontsize)
+        
+        return gs
 
     def add_template_plot(self, gs, x_loc, y_loc, units, colors):
         
@@ -429,34 +508,14 @@ class Visualizer(object):
     def add_l2_feature_plot(self, gs, x_loc, y_loc, unit1, unit2, colors):
         
         n_samples = 1000
-        spike_size = self.templates.shape[0]
-        
-        # get n_sample of cleaned spikes per template.
-        spt1_idx = np.where(self.spike_train[:, 1] == unit1)[0][:n_samples]
-        spt2_idx = np.where(self.spike_train[:, 1] == unit2)[0][:n_samples]
-        spt1 = self.spike_train[spt1_idx, 0]
-        spt2 = self.spike_train[spt2_idx, 0]
+        l2_features, spike_ids = get_l2_features(
+            self.residual_recording, self.spike_train,
+            self.spike_train_upsampled,
+            self.templates.transpose(2,0,1),
+            self.templates_upsampled.transpose(2,0,1),
+            unit1, unit2, n_samples)
 
-        wf1, _ = binary_reader_waveforms(self.residual_recording,
-                             self.n_channels,
-                             spike_size,
-                             spt1.astype('int32'))
-        wf1 += self.templates[:,:, unit1][np.newaxis]
-        
-        wf2, _ = binary_reader_waveforms(self.residual_recording,
-                             self.n_channels,
-                             spike_size,
-                             spt2.astype('int32'))
-        wf2 += self.templates[:,:, unit2][np.newaxis]
-        
-        l2_features = template_spike_dist_linear_align(
-            self.templates[:, :, [unit1, unit2]].transpose(2,0,1),
-            np.append(wf1, wf2, axis=0), upsample=5)
-        
-        spike_ids = np.append(
-            np.ones(len(wf1), 'bool'),
-            np.zeros(len(wf2), 'bool'), axis=0)
-        dp_val, feat, ids = test_unimodality(np.log(l2_features).T, spike_ids)
+        dp_val, feat, ids = test_unimodality(np.log(l2_features), spike_ids)
 
         #l2_1d_features = np.diff(l2_features, axis=0)[0]
         n_bins = int(len(feat)/20)
@@ -465,8 +524,8 @@ class Visualizer(object):
 
         ax = plt.subplot(gs[x_loc, y_loc])
         plt.hist(feat, bins, color='slategrey')
-        plt.hist(feat[ids], bins, color=colors[0], alpha=0.7)
-        plt.hist(feat[~ids], bins, color=colors[1], alpha=0.7)
+        plt.hist(feat[ids==0], bins, color=colors[0], alpha=0.7)
+        plt.hist(feat[ids==1], bins, color=colors[1], alpha=0.7)
         plt.title(
             'Dip Test: {}'.format(np.round(dp_val,4)), 
             fontsize=self.fontsize)
@@ -529,11 +588,9 @@ class Visualizer(object):
                 os.path.join(self.template_space_dir,
                              'ref_template.npy'))
             
-            pca_main = np.load(os.path.join(
-                self.template_space_dir, 'pca_main_components.npy'))
-            pca_sec = np.load(os.path.join(
-                self.template_space_dir, 'pca_sec_components.npy'))
-            
+            pca_main = self.pca_main_components
+            pca_sec = self.pca_sec_components
+
             add_row = 1
         else:
             # template with the largest amplitude will be ref_template
@@ -543,12 +600,10 @@ class Visualizer(object):
             
             add_row = 0
         
-        neigh_channels = find_channel_neighbors(self.geom, 70)
-        
         (templates_mc, templates_sec, 
          ptp_mc, ptp_sec) = self.get_normalized_templates(
             self.templates.transpose(2, 0, 1), 
-            neigh_channels, ref_template)
+            self.neigh_channels, ref_template)
         
         plt.figure(figsize=(23, 5*(add_row+1)))
         plt.subplot(1+add_row,4,1)
@@ -613,9 +668,9 @@ class Visualizer(object):
         ncol = int(np.ceil(self.n_channels/nrow))
         
         sample_size = 10000
-
+        
         res = np.memmap(self.residual_recording, 
-                        dtype=self.residual_dtype, mode='r')
+                        dtype='float32', mode='r')
         res = np.reshape(res, [-1, self.n_channels])
         
         th = np.sort(np.random.normal(size = sample_size))

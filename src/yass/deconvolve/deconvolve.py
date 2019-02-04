@@ -9,6 +9,7 @@ import networkx as nx
 import logging
 
 from yass import read_config
+from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans
 
 from statsmodels import robust
 from scipy.signal import argrelmin
@@ -199,7 +200,7 @@ class Deconv(object):
         self.compute_residual_function()
 
         # run post-deconv merge
-        self.merge()
+        #self.merge()
 
 
     def merge(self): 
@@ -210,16 +211,16 @@ class Deconv(object):
         if not os.path.isdir(self.deconv_chunk_dir+'/merge'):
             os.makedirs(self.deconv_chunk_dir+'/merge')
         
-        jitter=5
-        upsample=5
         for i in range(self.n_iterations_merge):
             print ("  running merge iteration: ", i+1 , "/", self.n_iterations_merge)
-            tm = TemplateMerge(self.templates, self.spike_train, 
-                                jitter, upsample,
-                                self.CONFIG, 
-                                self.deconv_chunk_dir+'/merge',
-                                iteration=i, 
-                                recompute=False)
+
+            tm = TemplateMerge(self.templates, self.spike_train,
+                               self.sparse_upsampled_templates,
+                               self.spike_train_upsampled,
+                               self.CONFIG, 
+                               self.deconv_chunk_dir+'/merge',
+                               iteration=i, 
+                               recompute=False)
            
             merge_list = tm.get_merge_pairs()
 
@@ -361,10 +362,13 @@ class Deconv(object):
         self.spike_train = self.dec_spike_train.copy()
         self.spike_train[:, 1] = np.int32(self.spike_train[:, 1]/
                                                 self.upsample_max_val)
+        self.spike_train_upsampled = self.dec_spike_train.copy()
+        self.spike_train_upsampled[:, 1] = self.deconv_id_sparse_temp_map[
+            self.spike_train_upsampled[:, 1]]
         np.savez(self.deconv_chunk_dir + "/deconv_results.npz",
                  spike_train=self.spike_train,
                  templates=self.templates,
-                 spike_train_upsampled=self.dec_spike_train,
+                 spike_train_upsampled=self.spike_train_upsampled,
                  templates_upsampled=self.sparse_upsampled_templates)
 
         np.save(os.path.join(self.deconv_chunk_dir,
@@ -389,7 +393,7 @@ class Deconv(object):
         # get indexes for entire chunk from local chunk list
         idx_chunk = [self.idx_list_local[0][0], self.idx_list_local[-1][1], 
                      self.idx_list_local[0][2], self.idx_list_local[0][3]]
-                     
+
         # read data block using buffer
         n_channels = self.CONFIG.recordings.n_channels
         
@@ -512,7 +516,8 @@ def merge_pairs(templates, spike_train, merge_list, CONFIG2):
 
         # recmpute weighted templates; 
         #temp_ = np.average(templates[:,:,list(cc)], weights=weights,axis=2)
-        temp_ = np.average(templates[:,:,temp_idx], weights=weights,axis=2)
+        aligned_temps = align_templates(templates[:,:,temp_idx])
+        temp_ = np.average(aligned_temps, weights=weights,axis=2)
         templates_final.append(temp_)
         
         ctr+=1
@@ -523,6 +528,23 @@ def merge_pairs(templates, spike_train, merge_list, CONFIG2):
 
     return (final_spike_indexes, templates_final, 
             merge_array)
+
+def align_templates(templates):
+    
+    templates = templates.transpose(2,0,1)
+    max_idx = templates.ptp(1).max(1).argmax(0)
+    ref_template = templates[max_idx]
+    max_chan = ref_template.ptp(0).argmax(0)
+    ref_template = ref_template[:, max_chan]
+
+    temps = templates[:, :, max_chan]
+
+    best_shifts = align_get_shifts_with_ref(
+                    temps, ref_template)
+
+    aligned_templates = shift_chans(templates, best_shifts)
+    
+    return aligned_templates.transpose(1,2,0)
     
 def delete_spikes(templates, spike_train):
 
