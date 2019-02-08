@@ -90,7 +90,7 @@ class Deconv(object):
         self.compute_idx_list()
 
         # Cat: TODO: read from CONFIG
-        self.threshold = 10.
+        self.threshold = 50.
         self.conv_approx_rank = 10
         self.default_upsample_value=0
         self.upsample_max_val = 32.
@@ -200,7 +200,7 @@ class Deconv(object):
         self.compute_residual_function()
 
         # run post-deconv merge
-        #self.merge()
+        self.merge()
 
 
     def merge(self): 
@@ -378,7 +378,6 @@ class Deconv(object):
         np.save(os.path.join(self.deconv_chunk_dir,
                             'spike_train_post_deconv_pre_merge'),
                             self.spike_train)
-            
 
     def compute_residual_function(self):
                                   
@@ -486,47 +485,31 @@ def merge_pairs(templates, spike_train, merge_list, CONFIG2):
     # compute graph based on pairwise connectivity
     G = nx.from_numpy_matrix(merge_matrix)
     
-    # merge spikes and templates
-    print ("  merging units")
-    final_spike_indexes = []
-    templates_final = []
-    ctr=0
     merge_array=[]
     for cc in nx.connected_components(G):
-        # gather spikes 
-        sic = np.zeros(0, dtype = int)
-        weights=[]
-        temp_idx=[]
-        for j in cc:
-            idx = np.where(spike_train[:,1]==j)[0]
-            if idx.shape[0]>0:
-                weights.append(idx.shape[0])
-                sic = np.concatenate([sic, spike_train[:,0][idx]])
-                temp_idx.append(j)
-        
-        # Note some templates may have zero spikes assigned, exclude those
-        if len(temp_idx)==0:
-            continue
-
         merge_array.append(list(cc))
 
-        # stack spikes
-        spikes = np.concatenate([sic[:,np.newaxis], ctr*np.ones([sic.size,1],dtype = 'int32')],axis = 1)
-        final_spike_indexes.append(spikes)
-
-        # recmpute weighted templates; 
-        #temp_ = np.average(templates[:,:,list(cc)], weights=weights,axis=2)
-        aligned_temps = align_templates(templates[:,:,temp_idx])
-        temp_ = np.average(aligned_temps, weights=weights,axis=2)
-        templates_final.append(temp_)
+    weights = np.zeros(templates.shape[2])
+    unique_ids, n_spikes = np.unique(spike_train[:,1], return_counts=True)
+    weights[unique_ids] = n_spikes
+    
+    spike_train_new = np.copy(spike_train)
+    templates_new = np.zeros((templates.shape[0], templates.shape[1], len(merge_array)))
+    
+    for new_id, units in enumerate(merge_array):
+        for unit in units:
+            idx = spike_train[:,1] == unit
+            spike_train_new[idx,1] = new_id
         
-        ctr+=1
-    
-    final_spike_indexes = np.vstack(final_spike_indexes)
-    
-    templates_final = np.array(templates_final).transpose(1,2,0)
+        if len(units) > 1:
+            aligned_temps = align_templates(templates[:,:, units])
+            temp_ = np.average(aligned_temps, weights=weights[units], axis=2)
+            templates_new[:,:,new_id] = temp_
 
-    return (final_spike_indexes, templates_final, 
+        elif len(units) == 1:
+            templates_new[:,:,new_id] = templates[:,:,units[0]]
+
+    return (spike_train_new, templates_new, 
             merge_array)
 
 def align_templates(templates):

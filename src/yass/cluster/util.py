@@ -2479,9 +2479,9 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     shift_allowance = np.load(chunk_dir  + '/shift_allowance.npy')
     templates = templates[:, shift_allowance:-shift_allowance]
     
-    neigh_channels = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-    templates, collisions = remove_collision_templates(templates, neigh_channels)
-    np.save(chunk_dir+'/collisions.npy', collisions)
+    #neigh_channels = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+    #templates, collisions = remove_collision_templates(templates, neigh_channels)
+    #np.save(chunk_dir+'/collisions.npy', collisions)
 
     # save data for clustering step
     if out_dir=='cluster':

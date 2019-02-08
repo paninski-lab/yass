@@ -6,6 +6,7 @@ import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
 import yaml
 from tqdm import tqdm
+import parmap
 
 from yass.visual.correlograms_phy import compute_correlogram
 from yass.visual.util import compute_neighbours2, compute_neighbours_rf2, combine_two_spike_train, combine_two_rf
@@ -67,6 +68,7 @@ class Visualizer(object):
         
         # load spike train and templates
         self.spike_train = np.load(fname_spike_train)
+        # load templates
         self.templates = np.load(fname_templates)
 
         # necessary numbers
@@ -120,6 +122,10 @@ class Visualizer(object):
         self.compute_neighbours()
         self.compute_neighbours_rf()
 
+        # plotting parameters
+        self.fontsize = 20
+        self.figsize = [100, 40]
+
     def get_template_pca(self):
                     
         self.pca_main_components = np.load(os.path.join(
@@ -151,7 +157,9 @@ class Visualizer(object):
 
         # compute firing rates and ptps
         unique, n_spikes = np.unique(self.spike_train[:,1], return_counts=True)
-        self.f_rates = n_spikes/rec_len
+        
+        self.f_rates = np.zeros(self.templates.shape[2])
+        self.f_rates[unique] = n_spikes/rec_len
         self.ptps = self.templates.ptp(0).max(0)
 
     def compute_neighbours(self):
@@ -173,7 +181,8 @@ class Visualizer(object):
         
         norms = np.linalg.norm(STAs_th.T, axis=0)[:, np.newaxis]
         cos = np.matmul(STAs_th, STAs_th.T)/np.matmul(norms, norms.T)
-        
+        cos[np.isnan(cos)] = 0
+
         nearest_units_rf = np.zeros((self.n_units, self.n_neighbours), 'int32')
         for k in range(self.n_units):
             nearest_units_rf[k] = np.argsort(cos[k])[-self.n_neighbours-1:-1][::-1]
@@ -193,19 +202,27 @@ class Visualizer(object):
             units = np.arange(self.n_units)
 
         # saving directory location
-        save_dir_ind = os.path.join(self.save_dir,'individual')
-        if not os.path.isdir(save_dir_ind):
-            os.makedirs(save_dir_ind)
+        self.save_dir_ind = os.path.join(self.save_dir,'individual')
+        if not os.path.isdir(self.save_dir_ind):
+            os.makedirs(self.save_dir_ind)
 
-        for unit in tqdm(units):
-            
-            # plotting parameters
-            self.fontsize = 20
-            self.figsize = [100, 40]
+        #for unit in tqdm(units):
+        parmap.map(self.make_individual_cell_plot, 
+                   list(units),
+                   processes=6,
+                   pm_pbar=True)    
         
-            fig=plt.figure(figsize=self.figsize)
-            gs = gridspec.GridSpec(self.n_neighbours+5, 10, fig)  
-            
+
+    def make_individual_cell_plot(self, unit):
+
+        fname = os.path.join(self.save_dir_ind, 'unit_{}.png'.format(unit))
+        if os.path.exists(fname):
+            return
+
+        fig=plt.figure(figsize=self.figsize)
+        gs = gridspec.GridSpec(self.n_neighbours+5, 10, fig)  
+
+        if np.sum(self.spike_train[:,1] == unit) > 0:
             ## Main Unit ##
             start_row = 0
             # add example waveforms
@@ -221,31 +238,31 @@ class Visualizer(object):
             if self.deconv_dir is not None:
                 gs = self.add_residual_template(gs, start_row, unit, idx)
                 start_row += 1
-            
+
             # add template
             gs = self.add_template_plot(gs, start_row, slice(2), 
                                         [unit], [self.colors[0]])
             # add rf
             gs = self.add_RF_plot(gs, start_row, 2, unit)
-            
+
             # add autocorrelogram
             gs = self.add_xcorr_plot(gs, start_row, 3, unit, unit)
-            
+
             # single unit raster plot
             gs = self.add_single_unit_raster(gs, start_row, slice(4,5), unit)
-            
+
             start_row += 1
 
             ## Neighbor Units by templates ##
             neighbor_units = self.nearest_units[unit]
             for ctr, neigh in enumerate(neighbor_units):
-                
+
                 gs = self.add_template_plot(gs, ctr+start_row, slice(0,2), 
                                         np.hstack((unit, neigh)),
                                         [self.colors[c] for c in [0,ctr+1]])
-                
+
                 gs = self.add_RF_plot(gs, ctr+start_row, 2, neigh)
-                
+
                 gs = self.add_xcorr_plot(gs, ctr+start_row, 3, unit, neigh)
 
                 if self.deconv_dir is not None:
@@ -257,33 +274,92 @@ class Visualizer(object):
                 gs, self.n_neighbours+start_row, 2,
                 np.hstack((unit, neighbor_units)),
                 self.colors[:self.n_neighbours+1])
-            
+
             ## Neighbor Units by RF ##
             neighbor_units = self.nearest_units_rf[unit]
             for ctr, neigh in enumerate(neighbor_units):
-                
+
                 gs = self.add_template_plot(gs, ctr+start_row, slice(5,7), 
                                         np.hstack((unit, neigh)),
                                         [self.colors[c] for c in [0,ctr+1]])
-                
+
                 gs = self.add_RF_plot(gs, ctr+start_row, 7, neigh)
 
                 gs = self.add_xcorr_plot(gs, ctr+start_row, 8, unit, neigh)
-                
+
                 if self.deconv_dir is not None:
                     gs = self.add_l2_feature_plot(gs, ctr+start_row, 9, unit, neigh,
                                                  [self.colors[c] for c in [0,ctr+1]])
-                
+
             gs = self.add_contour_plot(
                 gs, self.n_neighbours+start_row, 7,
                 np.hstack((unit, neighbor_units)),
                 self.colors[:self.n_neighbours+1])
-            
-            fname = os.path.join(save_dir_ind, 'unit_{}.png'.format(unit))
-            fig.savefig(fname, bbox_inches='tight', dpi=100)
-            plt.close()
 
-    def get_waveforms(self, unit, n_examples=100):
+        fig.savefig(fname, bbox_inches='tight', dpi=100)
+        plt.close()
+
+    def pairwise_plot(self, pairs):
+
+        # saving directory location
+        save_dir_ind = os.path.join(self.save_dir,'pairs')
+        if not os.path.isdir(save_dir_ind):
+            os.makedirs(save_dir_ind)
+
+        max_pairs = 20
+        count = -1
+        n_pages = 1
+        
+        # plotting parameters
+        self.fontsize = 20
+        self.figsize = [60, 100]
+
+        fig=plt.figure(figsize=self.figsize)
+        gs = gridspec.GridSpec(max_pairs, 6, fig)
+
+        checked = np.zeros((self.n_units, self.n_units), 'bool')
+        for ii in tqdm(range(len(pairs))):
+
+            unit1 = pairs[ii][0]
+            unit2 = pairs[ii][1]
+            
+            if not checked[unit1, unit2]:
+
+                count += 1
+                checked[unit1, unit2] = 1
+                checked[unit2, unit1] = 1
+
+                if count == max_pairs or ii == (len(pairs)-1):
+
+                    fname = os.path.join(save_dir_ind, 'page_{}.png'.format(n_pages))
+                    fig.savefig(fname, bbox_inches='tight', dpi=100)
+                    plt.close()
+
+                    if ii < len(pairs)-1:
+                        fig=plt.figure(figsize=self.figsize)
+                        gs = gridspec.GridSpec(max_pairs, 6, fig)
+
+                        count = 0
+                        n_pages += 1
+
+                gs = self.add_template_plot(gs, count, slice(0,2), 
+                                            np.hstack((unit1, unit2)),
+                                            self.colors[:2])
+
+                gs = self.add_RF_plot(gs, count, 2, unit1)
+                gs = self.add_RF_plot(gs, count, 3, unit2)
+
+                gs = self.add_xcorr_plot(gs, count, 4, unit1, unit2)
+
+                if self.deconv_dir is not None:
+                    gs = self.add_l2_feature_plot(gs, count, 5, unit1, unit2, self.colors[:2])
+                    
+        fname = os.path.join(save_dir_ind, 'page_{}.png'.format(n_pages))
+        fig.savefig(fname, bbox_inches='tight', dpi=100)
+        plt.close()
+          
+
+    def get_waveforms(self, unit, n_examples=500):
         
         idx = np.where(self.spike_train[:,1]==unit)[0]
         idx = np.random.choice(idx, 
@@ -350,6 +426,9 @@ class Visualizer(object):
 
         mc = self.templates[:, :, unit].ptp(0).argmax()
         neigh_chans = np.where(self.neigh_channels[mc])[0]
+
+        if idx is None:
+            _, idx = self.get_waveforms(unit)
 
         spt = self.spike_train[idx, 0]
         units = self.spike_train_upsampled[idx, 1]
@@ -507,29 +586,32 @@ class Visualizer(object):
     
     def add_l2_feature_plot(self, gs, x_loc, y_loc, unit1, unit2, colors):
         
-        n_samples = 1000
+        #n_samples = 5000
         l2_features, spike_ids = get_l2_features(
             self.residual_recording, self.spike_train,
             self.spike_train_upsampled,
             self.templates.transpose(2,0,1),
             self.templates_upsampled.transpose(2,0,1),
-            unit1, unit2, n_samples)
+            unit1, unit2)
+        try:
+            dp_val, feat = test_unimodality(l2_features, spike_ids)
 
-        dp_val, feat, ids = test_unimodality(np.log(l2_features), spike_ids)
+            #l2_1d_features = np.diff(l2_features, axis=0)[0]
+            n_bins = int(len(feat)/20)
+            steps = (np.max(feat) - np.min(feat))/n_bins
+            bins = np.arange(np.min(feat), np.max(feat)+steps, steps)
 
-        #l2_1d_features = np.diff(l2_features, axis=0)[0]
-        n_bins = int(len(feat)/20)
-        steps = (np.max(feat) - np.min(feat))/n_bins
-        bins = np.arange(np.min(feat), np.max(feat)+steps, steps)
+            ax = plt.subplot(gs[x_loc, y_loc])
+            plt.hist(feat, bins, color='slategrey')
+            plt.hist(feat[spike_ids==0], bins, color=colors[0], alpha=0.7)
+            plt.hist(feat[spike_ids==1], bins, color=colors[1], alpha=0.7)
+            plt.title(
+                'Dip Test: {}'.format(np.round(dp_val,4)), 
+                fontsize=self.fontsize)
+        except:
+            print ("Diptest error for unit {} and {} with size {}".format(
+                unit1, unit2, l2_features.shape[0]))
 
-        ax = plt.subplot(gs[x_loc, y_loc])
-        plt.hist(feat, bins, color='slategrey')
-        plt.hist(feat[ids==0], bins, color=colors[0], alpha=0.7)
-        plt.hist(feat[ids==1], bins, color=colors[1], alpha=0.7)
-        plt.title(
-            'Dip Test: {}'.format(np.round(dp_val,4)), 
-            fontsize=self.fontsize)
-        
         return gs
 
 
@@ -582,6 +664,10 @@ class Visualizer(object):
         return templates_mc, templates_sec, ptp_mc, ptp_sec
 
     def make_normalized_templates_plot(self):
+        
+        fname = os.path.join(self.save_dir, 'normalized_templates.png')
+        if os.path.exists(fname):
+            return
 
         if self.template_space_dir is not None:
             ref_template = np.load(
@@ -629,11 +715,15 @@ class Visualizer(object):
             
     
         plt.suptitle('Aligned Templates on Their Main/Secondary Channels', fontsize=30)
-        fname = os.path.join(self.save_dir, 'normalized_templates.png')
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close()
 
     def make_raster_plot(self):
+        
+        fname = os.path.join(self.save_dir, 'raster.png')
+        if os.path.exists(fname):
+            return
+        
         plt.figure(figsize=(30,15))
         ptps = self.ptps
         order = np.argsort(ptps)
@@ -647,21 +737,28 @@ class Visualizer(object):
         plt.ylabel('ptps', fontsize=self.fontsize)
         plt.xlabel('time (seconds)', fontsize=self.fontsize)
         plt.title('rater plot sorted by PTP', fontsize=self.fontsize)
-        fname = os.path.join(self.save_dir, 'raster.png')
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close()
 
     def make_firing_rate_plot(self):
+        
+        fname = os.path.join(self.save_dir, 'firing_rates.png')
+        if os.path.exists(fname):
+            return
+        
         plt.figure(figsize=(20,10))
         plt.scatter(np.log(self.ptps), self.f_rates, color='k')
         plt.xlabel('log ptps', fontsize=self.fontsize)
         plt.ylabel('firing rates', fontsize=self.fontsize)
         plt.title('Firing Rates vs. PTP', fontsize=self.fontsize)
-        fname = os.path.join(self.save_dir, 'firing_rates.png')
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close()
         
     def add_residual_qq_plot(self):
+        
+        fname = os.path.join(self.save_dir, 'res_qq_plot.png')
+        if os.path.exists(fname):
+            return
         
         plt.figure(figsize=(20,23))
         nrow = int(np.sqrt(self.n_channels))

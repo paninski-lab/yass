@@ -109,7 +109,7 @@ class RF(object):
             self.sps = np.load(spike_train_fname)
 
         # Get number of cells/units
-        self.Ncells = np.unique(self.sps[:,1]).shape[0]    
+        self.Ncells = int(np.max(self.sps[:,1])+1)
     
     def calculate_STA(self):
 
@@ -129,11 +129,11 @@ class RF(object):
         STA_temporal = np.zeros((Ncells,n_color_channels,STA_temporal_length))
         STA_spatial_colorcat = np.zeros((Ncells,stim_size[0]*stim_size[1]))
         STA_temporal_colorcat = np.zeros((Ncells,n_color_channels,STA_temporal_length))
+        STA_array = np.zeros((Ncells,STA_temporal_length,n_color_channels,stim_size[0]*stim_size[1]))
         n_spikes = np.zeros((Ncells,))
 
-        STA_array = []
-
-        for i_cell in tqdm(range(Ncells)):
+        unique_ids = np.unique(self.sps[:,1])
+        for i_cell in tqdm(unique_ids):
 
             ##################################
             ### Get spikes in stimulus bins ##
@@ -167,7 +167,7 @@ class RF(object):
             # full sta
             if np.sum(binned_spikes[STA_temporal_length:])>0:
                 STA = STA/np.sum(binned_spikes[STA_temporal_length:])
-            STA_array.append(STA)
+            STA_array[i_cell] = STA
             n_spikes[i_cell] = np.sum(binned_spikes[STA_temporal_length:])
 
             ###########################################
@@ -197,8 +197,6 @@ class RF(object):
             STA_temporal_colorcat[i_cell,1] = sign_mult*U[30:60,1]
             STA_temporal_colorcat[i_cell,2] = sign_mult*U[60:,1]
             STA_spatial_colorcat[i_cell] = sign_mult*V[1]
-
-        STA_array = np.asarray(STA_array)
 
         # Save arrays files
         np.save(self.save_dir+'STA_spatial.npy',STA_spatial)

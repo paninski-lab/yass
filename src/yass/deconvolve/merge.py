@@ -117,11 +117,22 @@ class TemplateMerge(object):
     def get_merge_pairs(self):
         ''' Run all pairs of merge candidates through the l2 feature computation        
         '''
+
+        units_1 = np.tile(np.arange(self.n_unit)[:, np.newaxis], [1, self.n_check])
+        units_2 = self.merge_candidate
+
+        # exclude when distance between the pair is large
+        idx1 = self.dist_norm_ratio < 0.5
         
-        idx = self.dist_norm_ratio < 0.5
-        units_1 = np.tile(np.arange(self.n_unit)[:, np.newaxis], [1, self.n_check])[idx]
-        units_2 = self.merge_candidate[idx]
-        
+        # exclude when one of the pair has ptp less than 4
+        ptps = self.templates.ptp(1).max(1)
+        big_units = (ptps > 4)
+        idx2 = np.logical_and(big_units[units_1], big_units[units_2])
+
+        idx = np.logical_and(idx1, idx2)
+        units_1 = units_1[idx]
+        units_2 = units_2[idx]
+
         fname = os.path.join(self.deconv_chunk_dir,
                              'merge_list_'+str(self.iteration)+'.npy')
                              
@@ -178,9 +189,7 @@ class TemplateMerge(object):
         return merge_list
 
 
-
-
-    def merge_templates_parallel(self, data_in, threshold=0.99, n_samples=1000):
+    def merge_templates_parallel(self, data_in, threshold=0.5):
         """Whether to merge two templates or not.
 
         parameters:
@@ -210,9 +219,9 @@ class TemplateMerge(object):
                 self.filename_residual, self.spike_train,
                 self.spike_train_upsampled,
                 self.templates, self.templates_upsampled,
-                unit1, unit2, n_samples)
+                unit1, unit2)
 
-            dp_val, _, _ = test_unimodality(np.log(l2_features), spike_ids)
+            dp_val, _ = test_unimodality(l2_features, spike_ids)
             #print (" units: ", unit1, unit2, " dp_val: ", dp_val)
             # save data
             np.savez(fname,
@@ -238,13 +247,33 @@ class TemplateMerge(object):
 
 
 def get_l2_features(filename_residual, spike_train, spike_train_upsampled,
-                    templates, templates_upsampled, unit1, unit2, n_samples):
+                    templates, templates_upsampled, unit1, unit2):
     
     _, spike_size, n_channels = templates.shape
+    
+    
 
     # get n_sample of cleaned spikes per template.
-    spt1_idx = np.where(spike_train[:, 1] == unit1)[0][:n_samples]
-    spt2_idx = np.where(spike_train[:, 1] == unit2)[0][:n_samples]
+    spt1_idx = np.where(spike_train[:, 1] == unit1)[0]
+    spt2_idx = np.where(spike_train[:, 1] == unit2)[0]
+    
+    # subsample
+    #ratio = len(spt1_idx)/(len(spt1_idx)+len(spt2_idx))
+    #n_samples1 = int(n_samples*ratio)
+    #n_samples2 = n_samples - n_samples1
+    
+    #if n_samples1 > len(spt1_idx):
+    #    n_samples1 = len(spt1_idx)
+    #    n_samples2 = int((1-ratio)/ratio*n_samples1)
+    #if n_samples2 > len(spt2_idx):
+    #    n_samples2 = len(spt2_idx)
+    #    n_samples1 = int(ratio/(1-ratio)*n_samples2)
+    
+    #spt1_idx = np.random.choice(
+    #    spt1_idx, n_samples1, False)
+    #spt2_idx = np.random.choice(
+    #    spt2_idx, n_samples2, False)
+    
     spt1 = spike_train[spt1_idx, 0]
     spt2 = spike_train[spt2_idx, 0]
     units1 = spike_train_upsampled[spt1_idx, 1]
@@ -279,27 +308,28 @@ def test_unimodality(pca_wf, assignment, max_spikes = 10000):
     max_spikes: optional
     '''
 
-    n_samples = np.max(np.unique(assignment, return_counts=True)[1])
+    #n_samples = np.max(np.unique(assignment, return_counts=True)[1])
 
     # compute diptest metric on current assignment+LDA
 
     
     ## find indexes of data
-    idx1 = np.where(assignment==0)[0]
-    idx2 = np.where(assignment==1)[0]
-    min_spikes = min(idx1.shape, idx2.shape)[0]
+    #idx1 = np.where(assignment==0)[0]
+    #idx2 = np.where(assignment==1)[0]
+    #min_spikes = min(idx1.shape, idx2.shape)[0]
 
     # limit size difference between clusters to maximum of 5 times
-    ratio = 1
-    idx1=idx1[:min_spikes*ratio][:max_spikes]
-    idx2=idx2[:min_spikes*ratio][:max_spikes]
+    #ratio = 1
+    #idx1=idx1[:min_spikes*ratio][:max_spikes]
+    #idx2=idx2[:min_spikes*ratio][:max_spikes]
 
-    idx_total = np.concatenate((idx1,idx2))
+    #idx_total = np.concatenate((idx1,idx2))
 
     ## run LDA on remaining data
     lda = LDA(n_components = 1)
     #print (pca_wf[idx_total].shape, assignment[idx_total].shape) 
-    trans = lda.fit_transform(pca_wf[idx_total], assignment[idx_total])
+    #trans = lda.fit_transform(pca_wf[idx_total], assignment[idx_total])
+    trans = lda.fit_transform(pca_wf, assignment)
     diptest = dp(trans.ravel())
 
     ## also compute gaussanity of distributions
@@ -309,7 +339,7 @@ def test_unimodality(pca_wf, assignment, max_spikes = 10000):
     #y1 = np.histogram(trans, bins = n_bins)
     #normtest = stats.normaltest(y1[0])
 
-    return diptest[1], trans.ravel(), assignment[idx_total]#, normtest[1]
+    return diptest[1], trans.ravel()#, assignment[idx_total]#, normtest[1]
 
 
 def template_spike_dist(templates, spikes, jitter=0, upsample=1, vis_ptp=2., **kwargs):
@@ -393,14 +423,13 @@ def template_spike_dist_linear_align(templates, spikes, vis_ptp=2., **kwargs):
     #for k in range(max_chans.shape[0]):
     #    temps.append(templates[k,max_chans[k]])
     #temps = np.vstack(temps)
-    temps = templates[:, :, max_chan]
     #print ("tempsl stacked: ", temps.shape)
     
     #upsample_factor=5
     best_shifts = align_get_shifts_with_ref(
-                    temps, ref_template)
+                    templates[:, :, max_chan], ref_template)
     #print (" best shifts: ", best_shifts.shape)
-    templates_aligned = shift_chans(templates, best_shifts)
+    templates = shift_chans(templates, best_shifts)
     #print ("  new aligned templates: ", templates_aligned.shape)
 
     # find spike shifts
@@ -411,29 +440,27 @@ def template_spike_dist_linear_align(templates, spikes, vis_ptp=2., **kwargs):
     #    spikes_aligned.append(spikes[k,max_chans[k]])
     #spikes_aligned = np.vstack(spikes_aligned)
     #print ("spikes aligned max chan: ", spikes_aligned.shape)
-    spikes_aligned = spikes[:,:,max_chan]
     best_shifts = align_get_shifts_with_ref(
-                            spikes_aligned, ref_template)
-    
-    spikes_aligned = shift_chans(spikes, best_shifts)
+        spikes[:,:,max_chan], ref_template)
+    spikes = shift_chans(spikes, best_shifts)
     #print ("  new aligned spikes: ", spikes_aligned.shape)
     
-    n_unit = templates_aligned.shape[0]
-    n_spikes = spikes_aligned.shape[0]
+    n_unit = templates.shape[0]
+    n_spikes = spikes.shape[0]
 
     vis_chan = templates.ptp(1).max(0) >= vis_ptp
-    templates = templates[:, :, vis_chan]
-    spikes = spikes[:, :, vis_chan]
+    templates = templates[:, :, vis_chan].reshape([n_unit, -1])
+    spikes = spikes[:, :, vis_chan].reshape([n_spikes, -1])
 
-    #print ("  start cdist computation")
-    # Pairwise distance of templates and spikes
-    dist = scipy.spatial.distance.cdist(
-           templates_aligned.reshape([n_unit, -1]),
-           spikes_aligned.reshape([n_spikes, -1]))
+    diffs = np.abs(np.diff(templates, axis=0)[0])
+    n_points = np.sum(vis_chan)*3
+    idx = np.argsort(diffs)[-n_points:]
+
+    dist = scipy.spatial.distance.cdist(templates[:,idx], spikes[:,idx])
 
     return dist
 
-def template_dist_linear_align(templates, distance=None, units=None, max_shift=5, step=1):
+def template_dist_linear_align(templates, distance=None, units=None, max_shift=5, step=0.5):
 
     K, R, C = templates.shape
 
@@ -524,6 +551,8 @@ def read_spikes(filename, spikes, n_channels, spike_size, units=None, templates=
                                              spike_size,
                                              spikes, #- spike_size//2,  # can use this for centering
                                              channels)
+    if len(skipped_idx) > 0:
+        units = np.delete(units, skipped_idx)
 
     # if loading residual need to add template back into 
     # Cat: TODO: this is bit messy; loading extrawide noise, but only adding
