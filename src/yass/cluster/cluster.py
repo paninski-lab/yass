@@ -111,13 +111,6 @@ class Cluster(object):
         
         # featurize #1
         pca_wf = self.featurize_step(gen, current_indices, current_indices, local)
-        if pca_wf is None:
-            vbParam, pca_wf = self.pca_wf_none_step(current_indices)
-            self.save_metadata(vbParam, pca_wf, current_indices, local, 
-                               gen, branch, hist)
-            self.single_cluster_step(current_indices, pca_wf, local, 
-                         gen, branch, hist)
-            return
             
         # knn triage
 #        idx_keep = self.knn_triage_step(gen, pca_wf)
@@ -141,15 +134,7 @@ class Cluster(object):
         # if anything is triaged, re-featurize and re-cluster
         if idx_keep.shape[0] < pca_wf.shape[0]:
             pca_wf = self.featurize_step(gen, current_indices[idx_keep], current_indices, local)
-            if pca_wf is None:
-                vbParam, pca_wf = self.pca_wf_none_step(current_indices)
-                self.save_metadata(vbParam, pca_wf, current_indices, local, 
-                                   gen, branch, hist)
-                self.single_cluster_step(current_indices, pca_wf, local, 
-                             gen, branch, hist)
-                return
-            else:
-                vbParam1 = self.run_mfm(gen, self.subsample_step(gen, pca_wf[idx_keep]))
+            vbParam1 = self.run_mfm(gen, self.subsample_step(gen, pca_wf[idx_keep]))
 
         # recover spikes using soft-assignments
         idx_recovered, vbParam2 = self.recover_step(gen, vbParam1, pca_wf)
@@ -589,7 +574,10 @@ class Cluster(object):
 
         self.denoised_wf = np.reshape(self.denoised_wf, [n_data, -1])
 
-        good_features = np.median(np.square(self.denoised_wf), axis=0) > 0.5
+        energy = np.median(np.square(self.denoised_wf), axis=0)
+        good_features = np.where(energy > 0.5)[0]
+        if len(good_features) == 0:
+            good_features = [np.argmax(energy)]
         self.denoised_wf = self.denoised_wf[:, good_features]
 
 
@@ -598,6 +586,7 @@ class Cluster(object):
         energy = np.median(self.wf_global, axis=0)
         max_energy = np.min(energy, axis=0)
 
+        # max_energy_loc is n x 2 matrix, where each row has time point and channel info
         th = np.max((-0.5, max_energy[self.channel]))
         max_energy_loc_c = np.where(max_energy <= th)[0]
         max_energy_loc_t = energy.argmin(axis=0)
@@ -618,6 +607,8 @@ class Cluster(object):
         else:
             max_energy_loc = max_energy_loc[max_energy_loc[:,1]==main_channel_loc]
 
+        # denoised wf in distant channel clustering is 
+        # the most active time point in each active channels
         self.denoised_wf = np.zeros((self.wf_global.shape[0], len(max_energy_loc)), dtype='float32')
         for ii in range(len(max_energy_loc)):
             self.denoised_wf[:, ii] = self.wf_global[:, max_energy_loc[ii,0], max_energy_loc[ii,1]]
@@ -651,23 +642,19 @@ class Cluster(object):
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', featurizing')
 
-        if self.denoised_wf.shape[1] > self.selected_PCA_rank:
-            stds = np.std(self.denoised_wf[indices_to_feat], axis=0)
-            good_d = np.where(stds > 1.05)[0]
-            if len(good_d) == 0:
-                return None
-            data_to_fit = self.denoised_wf[indices_to_feat][:, good_d]
-
-            n_samples, n_features = data_to_fit.shape
-            pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
-            pca.fit(data_to_fit)
-            
-            data_to_transform = self.denoised_wf[indices_to_transform][:, good_d]
-            pca_wf = pca.transform(data_to_transform)
-           
+        # find high variance area. 
+        # Including low variance dimensions can lead to overfitting 
+        # (splitting based on collisions)
+        stds = np.std(self.denoised_wf[indices_to_feat], axis=0)
+        good_d = np.where(stds > 1.05)[0]
+        if len(good_d) == 0:
+            pca_wf = None
         else:
-            pca_wf = self.denoised_wf[indices_to_transform].copy()
-        
+            data_to_fit = self.denoised_wf[indices_to_feat][:, good_d]
+            pca = PCA(n_components=min(self.selected_PCA_rank, len(good_d)))
+            pca.fit(data_to_fit)
+            pca_wf = pca.transform(self.denoised_wf[indices_to_transform][:, good_d])
+
         if gen==0 and local:
             # save gen0 distributions before triaging
             #data_to_fit = self.denoised_wf[:, good_d]
@@ -706,19 +693,6 @@ class Cluster(object):
             self.pca_wf_allchans = pca.fit_transform(data_to_fit)
             
         return pca_wf.astype('float32')
-    
-    def pca_wf_none_step(self, indices):
-        data_to_fit = self.denoised_wf[indices]
-
-        n_samples, n_features = data_to_fit.shape
-        pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
-        pca_wf = pca.fit_transform(data_to_fit)
-
-        vbParam = mfm.vbPar(np.zeros((n_samples, 1)))
-        vbParam.muhat = np.mean(pca_wf, axis=0)[:, np.newaxis, np.newaxis]
-        
-        return vbParam, pca_wf
-     
         
     def denoise_step_distant_all_chans(self):
         '''  Peter's local denoise step applied to all channels
@@ -983,7 +957,7 @@ class Cluster(object):
         N, K = vbParam.rhat.shape
 
         stability = self.calculate_stability(vbParam.rhat)
-        if (K <= 2) or np.all(stability > 0.9):
+        if (K == 2) or np.all(stability > 0.9):
             return vbParam.rhat.argmax(1), stability
 
         maha = mfm.calc_mahalonobis(vbParam, vbParam.muhat.transpose((1,0,2)))
@@ -1022,8 +996,9 @@ class Cluster(object):
         # exclude units whose maximum channel is not on the current 
         # clustered channel; but only during clustering, not during deconv
         #template = np.median(self.wf_global[current_indices], axis=0)
-        
-        template = np.mean(self.wf_global[current_indices], axis=0)
+        template = stats.trim_mean(self.wf_global[current_indices],
+                                   0.1, axis=0)
+        #template = np.mean(self.wf_global[current_indices], axis=0)
         assignment = np.zeros(len(current_indices))
         mc = self.loaded_channels[np.argmax(template.ptp(0))]
         if mc != self.channel and (self.deconv_flag==False): 
@@ -1453,9 +1428,12 @@ class Cluster(object):
             ax = self.fig1.add_subplot(self.grid1[gen, self.x[gen]])
             self.x[gen] += 1
 
-            clusters, sizes = np.unique(assignment, return_counts=True)
-            if len(clusters) != len(stability):
-               raise ValueError('there is an empty cluster!')
+            assignment = assignment.astype('int32')
+
+            clusters = np.arange(len(stability))
+            sizes = np.zeros(len(stability), 'int32')
+            unique_id, unique_sizes = np.unique(assignment, return_counts=True)
+            sizes[unique_id] = unique_sizes
 
             # make legend
             labels = []
@@ -1467,7 +1445,7 @@ class Cluster(object):
             # make scater plots
             if pca_wf.shape[1]>1:
                 ax.scatter(pca_wf[:,0], pca_wf[:,1], 
-                    c = colors[assignment.astype(int)%30] ,alpha=0.05)
+                    c = colors[assignment%30] ,alpha=0.05)
 
                 # add red dot for converged clusters; cyan to off-channel
                 if end_point!='false':

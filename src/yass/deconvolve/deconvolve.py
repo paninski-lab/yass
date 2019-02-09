@@ -47,7 +47,7 @@ class Deconv(object):
                  recordings_filename, CONFIG):
 
         self.spike_train = spike_train
-        self.templates = templates.swapaxes(1,2).swapaxes(0,1)
+        self.templates = templates.transpose(1,2,0)
         self.output_directory = output_directory
         self.recordings_filename = recordings_filename
         self.CONFIG = make_CONFIG2(CONFIG)
