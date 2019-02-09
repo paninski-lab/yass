@@ -70,6 +70,10 @@ def diptest(x, min_is_0=True, boot_pval=False, n_boot=2000):
         The Annals of Statistics.
     """
     n = x.shape[0]
+    if n > N[-1]:
+        x = np.random.choice(x, N[-1], False)
+        n = x.shape[0]
+
     D = dip(x, full_output=False, min_is_0=min_is_0)
 
     if n <= 3:

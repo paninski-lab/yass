@@ -644,16 +644,18 @@ class Visualizer(object):
 
         # get secdonary channel templates
         templates_sec = np.zeros((0, R))
+        best_shifts_sec = np.zeros(0)
         for k in range(K):
             neighs = np.copy(neigh_channels[mc[k]])
             neighs[mc[k]] = False
             neighs = np.where(neighs)[0]
             templates_sec = np.concatenate((templates_sec, templates[k, :, neighs]), axis=0)
+            best_shifts_sec = np.hstack((best_shifts_sec, np.repeat(best_shifts_mc[k], len(neighs))))
 
         # shift templates_sec
-        best_shifts_sec = align_get_shifts_with_ref(
-                        templates_sec,
-                        ref_template)
+        #best_shifts_sec = align_get_shifts_with_ref(
+        #                templates_sec,
+        #                ref_template)
         templates_sec = shift_chans(templates_sec, best_shifts_sec)
         ptp_sec = templates_sec.ptp(1)
 
