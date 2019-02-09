@@ -109,8 +109,15 @@ class Cluster(object):
             current_indices = np.delete(current_indices, self.skipped_idx, axis=0)
         
         # featurize #1
-        pca_wf = self.featurize_step(gen, current_indices, local)
-        
+        pca_wf = self.featurize_step(gen, current_indices, current_indices, local)
+        if pca_wf is None:
+            vbParam, pca_wf = self.pca_wf_none_step(current_indices)
+            self.save_metadata(vbParam, pca_wf, current_indices, local, 
+                               gen, branch, hist)
+            self.single_cluster_step(current_indices, pca_wf, local, 
+                         gen, branch, hist)
+            return
+            
         # knn triage
 #        idx_keep = self.knn_triage_step(gen, pca_wf)
 #        if self.min(idx_keep.shape[0]): return
@@ -132,9 +139,16 @@ class Cluster(object):
 
         # if anything is triaged, re-featurize and re-cluster
         if idx_keep.shape[0] < pca_wf.shape[0]:
-            current_indices = current_indices[idx_keep]
-            pca_wf = self.featurize_step(gen, current_indices, local)
-            vbParam1 = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
+            pca_wf = self.featurize_step(gen, current_indices[idx_keep], current_indices, local)
+            if pca_wf is None:
+                vbParam, pca_wf = self.pca_wf_none_step(current_indices)
+                self.save_metadata(vbParam, pca_wf, current_indices, local, 
+                                   gen, branch, hist)
+                self.single_cluster_step(current_indices, pca_wf, local, 
+                             gen, branch, hist)
+                return
+            else:
+                vbParam1 = self.run_mfm(gen, self.subsample_step(gen, pca_wf[idx_keep]))
 
         # recover spikes using soft-assignments
         idx_recovered, vbParam2 = self.recover_step(gen, vbParam1, pca_wf)
@@ -629,7 +643,7 @@ class Cluster(object):
             # self.denoised_wf
     
 
-    def featurize_step(self, gen, indices, local):
+    def featurize_step(self, gen, indices_to_feat, indices_to_transform, local):
         ''' Indices hold the index of the current spike times relative all spikes
         '''
         
@@ -637,30 +651,30 @@ class Cluster(object):
             print("chan "+str(self.channel)+', gen '+str(gen)+', featurizing')
 
         if self.denoised_wf.shape[1] > self.selected_PCA_rank:
-            stds = np.std(self.denoised_wf[indices], axis=0)
+            stds = np.std(self.denoised_wf[indices_to_feat], axis=0)
             good_d = np.where(stds > 1.05)[0]
-            if len(good_d) < self.selected_PCA_rank:
-                good_d = np.argsort(stds)[::-1][:self.selected_PCA_rank]
-
-            data_to_fit = self.denoised_wf[indices][:, good_d]
+            if len(good_d) == 0:
+                return None
+            data_to_fit = self.denoised_wf[indices_to_feat][:, good_d]
 
             n_samples, n_features = data_to_fit.shape
             pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
-
-            pca_wf = pca.fit_transform(data_to_fit)
+            pca.fit(data_to_fit)
+            
+            data_to_transform = self.denoised_wf[indices_to_transform][:, good_d]
+            pca_wf = pca.transform(data_to_transform)
            
         else:
-            pca_wf = self.denoised_wf[indices].copy()
-            good_d = np.arange(self.denoised_wf.shape[1])
-
+            pca_wf = self.denoised_wf[indices_to_transform].copy()
         
         if gen==0 and local:
             # save gen0 distributions before triaging
-            data_to_fit = self.denoised_wf[:, good_d]
-            n_samples, n_features = data_to_fit.shape
-            pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
-            pca_wf_gen0 = pca.fit_transform(data_to_fit)
-            self.pca_wf_gen0 = pca_wf_gen0.copy()
+            #data_to_fit = self.denoised_wf[:, good_d]
+            #n_samples, n_features = data_to_fit.shape
+            #pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
+            #pca_wf_gen0 = pca.fit_transform(data_to_fit)
+            #self.pca_wf_gen0 = pca_wf_gen0.copy()
+            self.pca_wf_gen0 = pca_wf.copy()
         
         if self.ari_flag and gen==0 and local:
             # Cat: TODO: do this only once per channel
@@ -691,6 +705,18 @@ class Cluster(object):
             self.pca_wf_allchans = pca.fit_transform(data_to_fit)
             
         return pca_wf.astype('float32')
+    
+    def pca_wf_none_step(self, indices):
+        data_to_fit = self.denoised_wf[indices]
+
+        n_samples, n_features = data_to_fit.shape
+        pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
+        pca_wf = pca.fit_transform(data_to_fit)
+
+        vbParam = mfm.vbPar(np.zeros((n_samples, 1)))
+        vbParam.muhat = np.mean(pca_wf, axis=0)[:, np.newaxis, np.newaxis]
+        
+        return vbParam, pca_wf
      
         
     def denoise_step_distant_all_chans(self):
