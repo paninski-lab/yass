@@ -117,7 +117,7 @@ class Visualizer(object):
 
         # saving directory location
         self.save_dir = save_dir
-        if not os.path.isdir(self.save_dir):
+        if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
             
         # compute firing rates
@@ -198,7 +198,7 @@ class Visualizer(object):
 
         # saving directory location
         self.save_dir_ind = os.path.join(self.save_dir,'individual')
-        if not os.path.isdir(self.save_dir_ind):
+        if not os.path.exists(self.save_dir_ind):
             os.makedirs(self.save_dir_ind)
 
         #for unit in tqdm(units):
@@ -298,7 +298,7 @@ class Visualizer(object):
 
         # saving directory location
         save_dir_ind = os.path.join(self.save_dir,'pairs')
-        if not os.path.isdir(save_dir_ind):
+        if not os.path.exists(save_dir_ind):
             os.makedirs(save_dir_ind)
 
         max_pairs = 20
@@ -753,7 +753,7 @@ class CompareSpikeTrains(Visualizer):
         if fname_set1_idx == None:
             # saving directory location
             tmp_dir = os.path.join(save_dir,'tmp')
-            if not os.path.isdir(tmp_dir):
+            if not os.path.exists(tmp_dir):
                 os.makedirs(tmp_dir)
                 
             templates1 = np.load(fname_templates)
