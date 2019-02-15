@@ -52,7 +52,7 @@ class TemplateMerge(object):
         self.spike_train = spike_train
         self.spike_train_upsampled = spike_train_upsampled
         self.n_unit = self.templates.shape[0]
-        self.n_check = 10
+        self.n_check = min(10, self.n_unit)
         
         # TODO find pairs that for proposing merges
         # get temp vs. temp affinity, use for merge proposals
