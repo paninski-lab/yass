@@ -17,7 +17,7 @@ import parmap
 import numpy as np
 from sklearn.decomposition import PCA
 
-from yass import read_config, GPU_ENABLED
+from yass import read_config
 from yass.batch import BatchProcessor, RecordingsReader
 from yass.threshold.detect import _threshold2
 from yass.threshold import detect
@@ -26,7 +26,7 @@ from yass import neuralnetwork
 from yass.neuralnetwork import NeuralNetDetector, AutoEncoder, KerasModel
 from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
-from yass.util import file_loader, save_numpy_object
+from yass.util import file_loader, save_numpy_object, running_on_gpu
 from keras import backend as K
 from collections import defaultdict
 from yass.threshold.detect import threshold
@@ -267,6 +267,7 @@ def run_neural_network(standardized_path, standardized_params,
 
     if (if_file_exists == 'overwrite' or not any(exists)):
 
+        GPU_ENABLED = running_on_gpu()
         max_memory = (CONFIG.resources.max_memory_gpu if GPU_ENABLED else
                       CONFIG.resources.max_memory)
 

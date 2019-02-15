@@ -65,7 +65,7 @@ class Visualizer(object):
                  fname_recording, recording_dtype, 
                  fname_geometry, sampling_rate, save_dir,
                  template_space_dir=None,
-                 deconv_dir=None):
+                 deconv_dir=None, post_deconv_merge=True):
         
         # load spike train and templates
         self.spike_train = np.load(fname_spike_train)
@@ -94,7 +94,11 @@ class Visualizer(object):
         self.deconv_dir = deconv_dir
         if deconv_dir is not None:
             self.residual_recording = os.path.join(deconv_dir, 'residual.bin')
-            temp = np.load(os.path.join(deconv_dir, 'deconv_results.npz'))
+            post_merge_loc = os.path.join(deconv_dir, 'results_post_deconv_post_merge_0.npz')
+            if not os.path.exists(post_merge_loc) or (not post_deconv_merge):
+                post_merge_loc = os.path.join(deconv_dir, 'deconv_results.npz')
+            
+            temp = np.load(post_merge_loc)
             self.templates_upsampled = temp['templates_upsampled']
             self.spike_train_upsampled = temp['spike_train_upsampled']
 

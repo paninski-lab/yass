@@ -588,11 +588,11 @@ def check_for_files(filenames, mode, relative_to=None, auto_save=False):
 def running_on_gpu():
     """Determines whether tensorflow is running on GPU or not
     """
-    # list local devices
-    devices = device_lib.list_local_devices()
-
-    # get only gpus
     try:
+        # list local devices
+        devices = device_lib.list_local_devices()
+
+        # get only gpus
         gpus = [device for device in devices if 'GPU' in device.name]
     except TypeError:
         logger.info('Failed to get Tensorflow devices, this is ok when '
