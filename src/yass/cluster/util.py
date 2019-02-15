@@ -2390,11 +2390,11 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         ************************************************
     '''
     # Clean templates; return index of templates that were deleted
-    templates, spike_indexes, weights, idx_kept = clean_templates(templates.swapaxes(0,2),
+    templates, spike_indexes, weights, idx_kept = clean_templates(templates,
                                                         spike_indexes,
                                                         weights,
                                                         CONFIG)
-    templates = templates.swapaxes(0,2).swapaxes(1,2)
+
     np.save(chunk_dir  + '/templates_post_'+out_dir+'_pre_merge.npy', templates)
     np.save(chunk_dir + '/spike_train_post_'+out_dir+'_pre_merge.npy', spike_indexes)
     np.save(chunk_dir + '/idx_kept.npy', idx_kept)
@@ -2488,7 +2488,6 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         fname = CONFIG.path_to_output_directory + '/spike_train_cluster.npy'
         np.save(fname, final_spike_train)
         
-        templates = templates.swapaxes(0,2).swapaxes(1,2)
         fname = CONFIG.path_to_output_directory + '/templates_cluster.npy'
         np.save(fname, templates)
 
@@ -4081,19 +4080,18 @@ def clean_templates(templates, spike_train_cluster, weights, CONFIG):
     # Cat: TODO: read this threshold and flag from CONFIG
     template_threshold = 3
 
-    templates = templates.swapaxes(0,1)
-    print ("  cleaning templates (time, chan, temps): ", templates.shape)
-    ptps = templates.ptp(0).max(0)
+    print ("  cleaning templates (temps, time, chan): ", templates.shape)
+    ptps = templates.ptp(1).max(1)
     idx1 = np.where(ptps>=template_threshold)[0]
-    print ("  deleted clusters < 3SU: ", templates.shape[2]-idx1.shape[0])
+    print ("  deleted clusters < 3SU: ", templates.shape[0]-idx1.shape[0])
     
     # find units with large peaks off-centre
     if False:
-        idx2 = find_clean_templates(templates, CONFIG)
-        print ("  deleted collision clusters: ", templates.shape[2]-idx2.shape[0])
-
+        idx2 = find_clean_templates2(templates, CONFIG)
+        
         # merge all units to be deleted
         idx_all = np.intersect1d(idx1, idx2)
+        print ("  deleted collision clusters: ", idx1.shape[0]-idx_all.shape[0])
 
     else:
         idx_all = np.copy(idx1)
@@ -4103,7 +4101,7 @@ def clean_templates(templates, spike_train_cluster, weights, CONFIG):
     idx_all = idx_all[idx]
     
     # remerge keep units 
-    templates = templates[:,:,idx_all]
+    templates = templates[idx_all]
     weights = weights[idx_all]
     spike_train_cluster_new2 = []
     for ctr,k in enumerate(list(idx_all)):
@@ -4120,6 +4118,7 @@ def clean_templates(templates, spike_train_cluster, weights, CONFIG):
 def find_clean_templates(templates, CONFIG):
     
     # normalize templates on max channels:
+    templates = templates.transpose(1,2,0)
     print ("  clean_templates collisions shape (time, chan, temps): ", templates.shape)
     max_chans = templates.ptp(0).argmax(0)
     temps_normalized=[]
@@ -4172,6 +4171,100 @@ def find_clean_templates(templates, CONFIG):
             template_ids.append(k)
             
     return np.array(template_ids)
+
+def find_clean_templates2(templates, CONFIG):
+    
+    # normalize templates on max channels:
+    print ("  clean_templates collisions shape (temps, time, chan): ", templates.shape)
+    
+    pca_main_components = np.load(absolute_path_to_asset(
+        os.path.join('template_space', 'pca_main_components.npy')))
+    pca_sec_components = np.load(absolute_path_to_asset(
+        os.path.join('template_space', 'pca_sec_components.npy')))
+    pca_main_mean = np.load(absolute_path_to_asset(
+        os.path.join('template_space', 'pca_main_mean.npy')))
+    pca_sec_mean = np.load(absolute_path_to_asset(
+        os.path.join('template_space', 'pca_sec_mean.npy')))
+
+    ref_template = np.load(absolute_path_to_asset(
+        os.path.join('template_space', 'ref_template.npy')))
+    
+    buffer = (templates.shape[1] - pca_main_components.shape[1])//2
+    (templates_mc, templates_sec, 
+     ptp_mc, ptp_sec, ids_sec) = get_normalized_templates(
+        templates[:, buffer:-buffer], 
+        CONFIG.neigh_channels, ref_template)
+
+    denoised_templates_mc = pca_denoise(
+        templates_mc, pca_main_mean, pca_main_components)
+    denoised_templates_sec = pca_denoise(
+        templates_sec, pca_sec_mean, pca_sec_components)
+    
+    diff_mc = np.linalg.norm(templates_mc - denoised_templates_mc, axis=1)
+    diff_sec = np.linalg.norm(templates_sec - denoised_templates_sec, axis=1)
+
+    ptp_th = 3
+    mc_th = 0.3
+    sec_th = 0.5
+    idx_remove_mc = np.where(np.logical_and(diff_mc > mc_th, ptp_mc > ptp_th))[0]
+    idx_remove_sec = np.unique(ids_sec[np.logical_and(diff_sec > sec_th, ptp_sec > ptp_th)])
+    idx_remove = np.unique(np.hstack((idx_remove_mc, idx_remove_sec)))
+
+    idx_keep = np.delete(np.arange(templates.shape[0], dtype='int16'), idx_remove)
+    
+    return idx_keep
+
+def get_normalized_templates(templates, neigh_channels, ref_template):
+
+    """
+    plot normalized templates on their main channels and secondary channels
+    templates: number of channels x temporal window x number of units
+    geometry: number of channels x 2
+    """
+
+    K, R, C = templates.shape
+    mc = np.argmax(templates.ptp(1), 1)
+
+    # get main channel templates
+    templates_mc = np.zeros((K, R))
+    for k in range(K):
+        templates_mc[k] = templates[k, :, mc[k]]
+
+    # shift templates_mc
+    best_shifts_mc = align_get_shifts_with_ref(
+                    templates_mc,
+                    ref_template)
+    templates_mc = shift_chans(templates_mc, best_shifts_mc)
+    ptp_mc = templates_mc.ptp(1)
+
+    # normalize templates
+    norm_mc = np.linalg.norm(templates_mc, axis=1, keepdims=True)
+    templates_mc /= norm_mc
+
+    # get secdonary channel templates
+    templates_sec = np.zeros((0, R))
+    best_shifts_sec = np.zeros(0)
+    unit_ids_sec = np.zeros((0), 'int32')
+    for k in range(K):
+        neighs = np.copy(neigh_channels[mc[k]])
+        neighs[mc[k]] = False
+        neighs = np.where(neighs)[0]
+        templates_sec = np.concatenate((templates_sec, templates[k, :, neighs]), axis=0)
+        best_shifts_sec = np.hstack((best_shifts_sec, np.repeat(best_shifts_mc[k], len(neighs))))
+        unit_ids_sec = np.hstack((unit_ids_sec, np.ones(len(neighs), 'int32')*k))
+
+    # shift templates_sec
+    #best_shifts_sec = align_get_shifts_with_ref(
+    #                templates_sec,
+    #                ref_template)
+    templates_sec = shift_chans(templates_sec, best_shifts_sec)
+    ptp_sec = templates_sec.ptp(1)
+
+    # normalize templates
+    norm_sec = np.linalg.norm(templates_sec, axis=1, keepdims=True)
+    templates_sec /= norm_sec
+
+    return templates_mc, templates_sec, ptp_mc, ptp_sec, unit_ids_sec
 
 
 #def binary_reader_waveforms(filename, n_channels, n_times, spikes, channels=None, data_type='float32'):

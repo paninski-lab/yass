@@ -60,7 +60,8 @@ class Cluster(object):
             gen=0, branch=0, hist=[])
         if self.plotting:
             self.finish_plotting(fname='channel_{}'.format(self.channel))
-
+        if self.verbose:
+            print('local chananel clustering is done')
         # distant channel clustering
         spike_train_local = np.copy(self.spike_train)
         spike_train_final = []
@@ -78,7 +79,9 @@ class Cluster(object):
             
             spike_train_final += self.spike_train
             templates_final += self.templates
-
+        
+        #spike_train_final = self.spike_train
+        #templates_final = self.templates
         # save clusters
         self.save_result(spike_train_final, templates_final)
 
@@ -101,7 +104,7 @@ class Cluster(object):
                 str(branch)+', # spikes: '+ str(current_indices.shape[0]))
 
         # gen 0 initialization
-        if self.read_data: self.gen0_step(local)
+        if self.read_data: self.gen0_step(local, gen)
 
         # Cat: TODO: remove this conditional: delete spike_indexes near boundaries 
         #     before calling binary waveform reader
@@ -109,8 +112,8 @@ class Cluster(object):
             current_indices = np.delete(current_indices, self.skipped_idx, axis=0)
         
         # featurize #1
-        pca_wf = self.featurize_step(gen, current_indices, local)
-        
+        pca_wf = self.featurize_step(gen, current_indices, current_indices, local)
+
         # knn triage
 #        idx_keep = self.knn_triage_step(gen, pca_wf)
 #        if self.min(idx_keep.shape[0]): return
@@ -133,8 +136,10 @@ class Cluster(object):
         # if anything is triaged, re-featurize and re-cluster
         if idx_keep.shape[0] < pca_wf.shape[0]:
             current_indices = current_indices[idx_keep]
-            pca_wf = self.featurize_step(gen, current_indices, local)
+            pca_wf = self.featurize_step(gen, current_indices, current_indices, local)
             vbParam1 = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
+            #pca_wf = self.featurize_step(gen, current_indices[idx_keep], current_indices, local)
+            #vbParam1 = self.run_mfm(gen, self.subsample_step(gen, pca_wf[idx_keep]))
 
         # recover spikes using soft-assignments
         idx_recovered, vbParam2 = self.recover_step(gen, vbParam1, pca_wf)
@@ -194,13 +199,13 @@ class Cluster(object):
         return False
 
 
-    def gen0_step(self, local):
+    def gen0_step(self, local, gen):
         # load waveforms for channel based clustering only
-        self.load_waveforms(local)
+        self.load_waveforms(local, gen)
         # align waveforms
-        self.align_step(local)
+        self.align_step(local, gen)
         # denoise waveforms on active channels
-        self.denoise_step(local)
+        self.denoise_step(local, gen)
 
 
     def load_data(self, data_in):
@@ -452,13 +457,13 @@ class Cluster(object):
         self.pca_sec_components_[:, window[1]:] = 0
 
 
-    def load_waveforms(self, local):
+    def load_waveforms(self, local, gen):
         
         '''  Waveforms only loaded once in gen0 before local clustering starts
         '''
 
         if self.verbose:
-            print ("chan "+str(self.channel)+", gen 0, loading waveforms")
+            print ("chan "+str(self.channel)+", gen "+str(gen)+", loading waveforms")
         
         neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
         self.neighbor_chans = np.where(neighbors[self.channel])[0]
@@ -514,9 +519,9 @@ class Cluster(object):
         # turn read flag off
         self.read_data = False
 
-    def align_step(self, local):
+    def align_step(self, local, gen):
         if self.verbose:
-            print ("chan "+str(self.channel)+", gen 0, aligning")
+            print ("chan "+str(self.channel)+", gen "+str(gen)+", aligning")
 
         # delete any spikes that could not be loaded in previous step
         if len(self.skipped_idx)>0:
@@ -541,7 +546,7 @@ class Cluster(object):
             #self.wf_global_allchans = shift_chans(self.wf_global_allchans, 
             #                                         best_shifts)
 
-    def denoise_step(self, local):
+    def denoise_step(self, local, gen):
 
         if local:
             self.denoise_step_local()
@@ -549,7 +554,7 @@ class Cluster(object):
             self.denoise_step_distant()
 
         if self.verbose:
-            print ("chan "+str(self.channel)+", gen 0, waveorms denoised to {} dimensions".format(self.denoised_wf.shape[1]))
+            print ("chan "+str(self.channel)+", gen "+str(gen)+", waveorms denoised to {} dimensions".format(self.denoised_wf.shape[1]))
 
 
     def denoise_step_local(self):
@@ -574,7 +579,10 @@ class Cluster(object):
 
         self.denoised_wf = np.reshape(self.denoised_wf, [n_data, -1])
 
-        good_features = np.median(np.square(self.denoised_wf), axis=0) > 0.5
+        energy = np.median(np.square(self.denoised_wf), axis=0)
+        good_features = np.where(energy > 0.5)[0]
+        if len(good_features) == 0:
+            good_features = [np.argmax(energy)]
         self.denoised_wf = self.denoised_wf[:, good_features]
 
 
@@ -583,6 +591,7 @@ class Cluster(object):
         energy = np.median(self.wf_global, axis=0)
         max_energy = np.min(energy, axis=0)
 
+        # max_energy_loc is n x 2 matrix, where each row has time point and channel info
         th = np.max((-0.5, max_energy[self.channel]))
         max_energy_loc_c = np.where(max_energy <= th)[0]
         max_energy_loc_t = energy.argmin(axis=0)
@@ -603,6 +612,8 @@ class Cluster(object):
         else:
             max_energy_loc = max_energy_loc[max_energy_loc[:,1]==main_channel_loc]
 
+        # denoised wf in distant channel clustering is 
+        # the most active time point in each active channels
         self.denoised_wf = np.zeros((self.wf_global.shape[0], len(max_energy_loc)), dtype='float32')
         for ii in range(len(max_energy_loc)):
             self.denoised_wf[:, ii] = self.wf_global[:, max_energy_loc[ii,0], max_energy_loc[ii,1]]
@@ -627,40 +638,36 @@ class Cluster(object):
         # Cat: TODO: what was this for?
         # if local:
             # self.denoised_wf
-    
 
-    def featurize_step(self, gen, indices, local):
+    def featurize_step(self, gen, indices_to_feat, indices_to_transform, local):
         ''' Indices hold the index of the current spike times relative all spikes
         '''
         
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', featurizing')
 
-        if self.denoised_wf.shape[1] > self.selected_PCA_rank:
-            stds = np.std(self.denoised_wf[indices], axis=0)
-            good_d = np.where(stds > 1.05)[0]
-            if len(good_d) < self.selected_PCA_rank:
-                good_d = np.argsort(stds)[::-1][:self.selected_PCA_rank]
+        # find high variance area. 
+        # Including low variance dimensions can lead to overfitting 
+        # (splitting based on collisions)
+        rank = min(self.denoised_wf.shape[1], self.selected_PCA_rank)
+        stds = np.std(self.denoised_wf[indices_to_feat], axis=0)
+        good_d = np.where(stds > 1.05)[0]
+        if len(good_d) < rank:
+            good_d = np.argsort(stds)[::-1][:rank]
 
-            data_to_fit = self.denoised_wf[indices][:, good_d]
+        pca = PCA(n_components=rank)
+        pca.fit(self.denoised_wf[indices_to_feat][:, good_d])
+        pca_wf = pca.transform(
+            self.denoised_wf[indices_to_transform][:, good_d]).astype('float32')
 
-            n_samples, n_features = data_to_fit.shape
-            pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
-
-            pca_wf = pca.fit_transform(data_to_fit)
-           
-        else:
-            pca_wf = self.denoised_wf[indices].copy()
-            good_d = np.arange(self.denoised_wf.shape[1])
-
-        
         if gen==0 and local:
             # save gen0 distributions before triaging
-            data_to_fit = self.denoised_wf[:, good_d]
-            n_samples, n_features = data_to_fit.shape
-            pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
-            pca_wf_gen0 = pca.fit_transform(data_to_fit)
-            self.pca_wf_gen0 = pca_wf_gen0.copy()
+            #data_to_fit = self.denoised_wf[:, good_d]
+            #n_samples, n_features = data_to_fit.shape
+            #pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
+            #pca_wf_gen0 = pca.fit_transform(data_to_fit)
+            #self.pca_wf_gen0 = pca_wf_gen0.copy()
+            self.pca_wf_gen0 = pca_wf.copy()
         
         if self.ari_flag and gen==0 and local:
             # Cat: TODO: do this only once per channel
@@ -690,9 +697,25 @@ class Cluster(object):
             # compress data to selectd pca rank
             self.pca_wf_allchans = pca.fit_transform(data_to_fit)
             
-        return pca_wf.astype('float32')
-     
+        return pca_wf
+
+    
+    def pca_wf_none_step(self, current_indices, local, gen, branch, hist):
+        data_to_fit = self.denoised_wf[current_indices]
+
+        n_samples, n_features = data_to_fit.shape
+        pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
+        pca_wf = pca.fit_transform(data_to_fit)
+
+        vbParam = mfm.vbPar(np.zeros((n_samples, 1)))
+        vbParam.muhat = np.mean(pca_wf, axis=0)[:, np.newaxis, np.newaxis]
         
+        self.save_metadata(vbParam, pca_wf, current_indices, local, 
+                   gen, branch, hist)
+
+        self.single_cluster_step(current_indices, pca_wf, local, 
+                     gen, branch, hist)
+    
     def denoise_step_distant_all_chans(self):
         '''  Peter's local denoise step applied to all channels
              
@@ -780,12 +803,12 @@ class Cluster(object):
         median_distances = np.zeros([cov.shape[0]])
         for i in range(median_distances.shape[0]):
             #median_distances[i] = np.median(np.median(kdist_temp[i*min_spikes:(i+1)*min_spikes], axis = 0), axis = 0)
-            median_distances[i] = np.percentile(np.median(kdist_temp[i*min_spikes:(i+1)*min_spikes], axis = 1), 50)
+            median_distances[i] = np.percentile(np.sum(kdist_temp[i*min_spikes:(i+1)*min_spikes], axis = 1), 80)
 
         ## The percentile value also needs to be tested, value of 50 and scale of 1.2 works well
 
         kdist = knn_dist(pca_wf)
-        idx_keep = np.median(kdist[:,1:], axis = 1) < 1.2 * np.median(median_distances)
+        idx_keep = np.sum(kdist[:,1:], axis = 1) < np.median(median_distances)
         self.triage_value = 1.0 - idx_keep.sum()/idx_keep.size
 
         if self.verbose:
@@ -956,7 +979,7 @@ class Cluster(object):
         N, K = vbParam.rhat.shape
 
         stability = self.calculate_stability(vbParam.rhat)
-        if (K <= 2) or np.all(stability > 0.9):
+        if (K == 2) or np.all(stability > 0.9):
             return vbParam.rhat.argmax(1), stability
 
         maha = mfm.calc_mahalonobis(vbParam, vbParam.muhat.transpose((1,0,2)))
@@ -995,8 +1018,9 @@ class Cluster(object):
         # exclude units whose maximum channel is not on the current 
         # clustered channel; but only during clustering, not during deconv
         #template = np.median(self.wf_global[current_indices], axis=0)
-        
-        template = np.mean(self.wf_global[current_indices], axis=0)
+        template = stats.trim_mean(self.wf_global[current_indices],
+                                   0.1, axis=0)
+        #template = np.mean(self.wf_global[current_indices], axis=0)
         assignment = np.zeros(len(current_indices))
         mc = self.loaded_channels[np.argmax(template.ptp(0))]
         if mc != self.channel and (self.deconv_flag==False): 
@@ -1006,7 +1030,7 @@ class Cluster(object):
             
             # always plot scatter distributions
             if self.plotting and gen<20:
-                split_type = 'mfm non_max-chan'
+                split_type = 'non_max-chan'
                 end_flag = 'cyan'
                 self.plot_clustering_scatter(gen, 
                             pca_wf, assignment, [1], split_type, end_flag)             
@@ -1041,7 +1065,7 @@ class Cluster(object):
 
                 # always plot scatter distributions
                 if gen<20:
-                    split_type = 'mfm single unit'
+                    split_type = 'single unit'
                     end_flag = 'red'
                     self.plot_clustering_scatter(gen,  
                             pca_wf, assignment, [1], split_type, end_flag)
@@ -1053,7 +1077,7 @@ class Cluster(object):
         cc_assignment, stability = self.cluster_annealing(vbParam2)
         if self.plotting and gen<20:
             self.plot_clustering_scatter(gen, pca_wf_all, cc_assignment,
-                                         stability, 'mfm multi split')
+                                         stability, 'multi split')
 
         # Cat: TODO: unclear how much memory this saves
         pca_wf_all = pca_subsampled = vbParam2 = None
@@ -1187,7 +1211,7 @@ class Cluster(object):
                      original_idx=self.original_idx,
                      global_shifts=self.global_shifts,
                      spiketime_detect=self.spiketime_detect)
-                     
+
         if self.verbose:
             if self.deconv_flag==False:
                 print ("**** Channel: ", str(self.channel), " starting spikes: ",
@@ -1426,9 +1450,12 @@ class Cluster(object):
             ax = self.fig1.add_subplot(self.grid1[gen, self.x[gen]])
             self.x[gen] += 1
 
-            clusters, sizes = np.unique(assignment, return_counts=True)
-            if len(clusters) != len(stability):
-               raise ValueError('there is an empty cluster!')
+            assignment = assignment.astype('int32')
+
+            clusters = np.arange(len(stability))
+            sizes = np.zeros(len(stability), 'int32')
+            unique_id, unique_sizes = np.unique(assignment, return_counts=True)
+            sizes[unique_id] = unique_sizes
 
             # make legend
             labels = []
@@ -1440,7 +1467,7 @@ class Cluster(object):
             # make scater plots
             if pca_wf.shape[1]>1:
                 ax.scatter(pca_wf[:,0], pca_wf[:,1], 
-                    c = colors[assignment.astype(int)%30] ,alpha=0.05)
+                    c = colors[assignment%30] ,alpha=0.05)
 
                 # add red dot for converged clusters; cyan to off-channel
                 if end_point!='false':
@@ -1450,7 +1477,7 @@ class Cluster(object):
                     ax.hist(pca_wf[np.where(assignment==clust)[0]], 100)
 
             # finish plotting
-            ax.legend(handles = labels, fontsize=10, bbox_to_anchor=(1.05, 1),loc=2, borderaxespad=0.)
+            ax.legend(handles = labels, fontsize=10, bbox_to_anchor=(0, -0.3), loc=2, borderaxespad=0.)
             ax.set_title(split_type+': '+str(sizes.sum())+' spikes, triage %: '+ str(np.round(self.triage_value*100,2)), fontsize = 10) 
 
           

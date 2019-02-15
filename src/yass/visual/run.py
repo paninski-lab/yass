@@ -12,6 +12,7 @@ from yass.visual.correlograms_phy import compute_correlogram
 from yass.visual.util import compute_neighbours2, compute_neighbours_rf2, combine_two_spike_train, combine_two_rf
 from yass.geometry import parse, find_channel_neighbors
 from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans, binary_reader_waveforms
+from yass.cluster.util import get_normalized_templates
 from yass.cluster.util import pca_denoise
 from yass.deconvolve.merge import (template_dist_linear_align, 
                                    template_spike_dist_linear_align, 
@@ -64,7 +65,7 @@ class Visualizer(object):
                  fname_recording, recording_dtype, 
                  fname_geometry, sampling_rate, save_dir,
                  template_space_dir=None,
-                 deconv_dir=None):
+                 deconv_dir=None, post_deconv_merge=True):
         
         # load spike train and templates
         self.spike_train = np.load(fname_spike_train)
@@ -93,7 +94,11 @@ class Visualizer(object):
         self.deconv_dir = deconv_dir
         if deconv_dir is not None:
             self.residual_recording = os.path.join(deconv_dir, 'residual.bin')
-            temp = np.load(os.path.join(deconv_dir, 'deconv_results.npz'))
+            post_merge_loc = os.path.join(deconv_dir, 'results_post_deconv_post_merge_0.npz')
+            if not os.path.exists(post_merge_loc) or (not post_deconv_merge):
+                post_merge_loc = os.path.join(deconv_dir, 'deconv_results.npz')
+            
+            temp = np.load(post_merge_loc)
             self.templates_upsampled = temp['templates_upsampled']
             self.spike_train_upsampled = temp['spike_train_upsampled']
 
@@ -136,16 +141,6 @@ class Visualizer(object):
             self.template_space_dir, 'pca_main_mean.npy'))
         self.pca_sec_mean = np.load(os.path.join(
             self.template_space_dir, 'pca_sec_mean.npy'))
-
-        window = [15, 40]
-        self.pca_main_components[:, :window[0]] = 0
-        self.pca_main_components[:, window[1]:] = 0
-        self.pca_sec_components[:, :window[0]] = 0
-        self.pca_sec_components[:, window[1]:] = 0
-        self.pca_main_mean[:window[0]] = 0
-        self.pca_main_mean[:window[0]] = 0
-        self.pca_sec_mean[window[1]:] = 0
-        self.pca_sec_mean[:window[1]:] = 0
 
     def compute_firing_rates(self):
         
@@ -402,15 +397,20 @@ class Visualizer(object):
 
         if wf is None:
             wf, idx = self.get_waveforms(unit)
-            
+        
+        norms = np.linalg.norm(wf, axis=1)[:,np.newaxis]
+        normalized_wf = wf/norms
         denoised_wf = np.zeros(wf.shape)
         for ii in range(wf.shape[2]):
             if neigh_chans[ii] == mc:
-                denoised_wf[:,:,ii] = pca_denoise(
-                    wf[:,:,ii], self.pca_main_mean, self.pca_main_components)
+                temp = pca_denoise(normalized_wf[:,:,ii],
+                                   self.pca_main_mean,
+                                   self.pca_main_components)
             else:
-                denoised_wf[:,:,ii] = pca_denoise(
-                    wf[:,:,ii], self.pca_sec_mean, self.pca_sec_components)
+                temp = pca_denoise(normalized_wf[:,:,ii],
+                                   self.pca_sec_mean,
+                                   self.pca_sec_components)
+            denoised_wf[:,:,ii] = temp*norms[:,:,ii]
 
         for j, chan in enumerate(neigh_chans):
             ax = plt.subplot(gs[x_loc, j])
@@ -614,57 +614,6 @@ class Visualizer(object):
 
         return gs
 
-
-    def get_normalized_templates(self, templates, neigh_channels, ref_template):
-
-        """
-        plot normalized templates on their main channels and secondary channels
-        templates: number of channels x temporal window x number of units
-        geometry: number of channels x 2
-        """
-
-        K, R, C = templates.shape
-        mc = np.argmax(templates.ptp(1), 1)
-
-        # get main channel templates
-        templates_mc = np.zeros((K, R))
-        for k in range(K):
-            templates_mc[k] = templates[k, :, mc[k]]
-
-        # shift templates_mc
-        best_shifts_mc = align_get_shifts_with_ref(
-                        templates_mc,
-                        ref_template)
-        templates_mc = shift_chans(templates_mc, best_shifts_mc)
-        ptp_mc = templates_mc.ptp(1)
-
-        # normalize templates
-        norm_mc = np.linalg.norm(templates_mc, axis=1, keepdims=True)
-        templates_mc /= norm_mc
-
-        # get secdonary channel templates
-        templates_sec = np.zeros((0, R))
-        best_shifts_sec = np.zeros(0)
-        for k in range(K):
-            neighs = np.copy(neigh_channels[mc[k]])
-            neighs[mc[k]] = False
-            neighs = np.where(neighs)[0]
-            templates_sec = np.concatenate((templates_sec, templates[k, :, neighs]), axis=0)
-            best_shifts_sec = np.hstack((best_shifts_sec, np.repeat(best_shifts_mc[k], len(neighs))))
-
-        # shift templates_sec
-        #best_shifts_sec = align_get_shifts_with_ref(
-        #                templates_sec,
-        #                ref_template)
-        templates_sec = shift_chans(templates_sec, best_shifts_sec)
-        ptp_sec = templates_sec.ptp(1)
-
-        # normalize templates
-        norm_sec = np.linalg.norm(templates_sec, axis=1, keepdims=True)
-        templates_sec /= norm_sec
-
-        return templates_mc, templates_sec, ptp_mc, ptp_sec
-
     def make_normalized_templates_plot(self):
         
         fname = os.path.join(self.save_dir, 'normalized_templates.png')
@@ -689,7 +638,7 @@ class Visualizer(object):
             add_row = 0
         
         (templates_mc, templates_sec, 
-         ptp_mc, ptp_sec) = self.get_normalized_templates(
+         ptp_mc, ptp_sec, _) = get_normalized_templates(
             self.templates.transpose(2, 0, 1), 
             self.neigh_channels, ref_template)
         

@@ -47,7 +47,7 @@ class Deconv(object):
                  recordings_filename, CONFIG):
 
         self.spike_train = spike_train
-        self.templates = templates.swapaxes(1,2).swapaxes(0,1)
+        self.templates = templates.transpose(1,2,0)
         self.output_directory = output_directory
         self.recordings_filename = recordings_filename
         self.CONFIG = make_CONFIG2(CONFIG)
@@ -226,16 +226,20 @@ class Deconv(object):
 
             (self.spike_train, 
              self.templates,
-             self.connected_components) = merge_pairs(self.templates, 
-                                                 self.spike_train, 
-                                                 merge_list, 
-                                                 self.CONFIG)
+             self.spike_train_upsampled,
+             self.sparse_upsampled_templates,
+             self.connected_components) = merge_pairs(
+                self.templates, self.spike_train,
+                self.sparse_upsampled_templates, self.spike_train_upsampled,
+                merge_list, self.CONFIG)
 
             # save spike train
             np.savez(os.path.join(self.deconv_chunk_dir,
                             'results_post_deconv_post_merge_'+str(i)),
                      templates=self.templates,
                      spike_train=self.spike_train,
+                     templates_upsampled=self.sparse_upsampled_templates,
+                     spike_train_upsampled=self.spike_train_upsampled,
                      connected_components=self.connected_components)
                  
             print ("  deconv templates (post-merge): ", self.templates.shape)
@@ -475,12 +479,13 @@ class Deconv(object):
                          
         print ("  reclustering complete")
 
-def merge_pairs(templates, spike_train, merge_list, CONFIG2):
+def merge_pairs(templates, spike_train, templates_upsampled, spike_train_upsampled, merge_list, CONFIG2):
     
     merge_matrix = np.zeros((templates.shape[2], templates.shape[2]),'int32')
     for merge_pair in merge_list:
         if merge_pair != None:
             merge_matrix[merge_pair[0],merge_pair[1]]=1
+            merge_matrix[merge_pair[1],merge_pair[0]]=1
 
     # compute graph based on pairwise connectivity
     G = nx.from_numpy_matrix(merge_matrix)
@@ -497,19 +502,45 @@ def merge_pairs(templates, spike_train, merge_list, CONFIG2):
     templates_new = np.zeros((templates.shape[0], templates.shape[1], len(merge_array)))
     
     for new_id, units in enumerate(merge_array):
-        for unit in units:
-            idx = spike_train[:,1] == unit
-            spike_train_new[idx,1] = new_id
         
+        # update templates
         if len(units) > 1:
-            aligned_temps = align_templates(templates[:,:, units])
+            # align first
+            aligned_temps, shifts = align_templates(templates[:,:, units])
             temp_ = np.average(aligned_temps, weights=weights[units], axis=2)
             templates_new[:,:,new_id] = temp_
-
+            
         elif len(units) == 1:
             templates_new[:,:,new_id] = templates[:,:,units[0]]
 
+        # update spike train id
+        # also update time and upsampled templates based on the shift
+        for ii, unit in enumerate(units):
+            
+            idx = spike_train[:,1] == unit
+
+            # updated spike train id
+            spike_train_new[idx,1] = new_id
+
+            if len(units) > 1:
+                
+                # update spike train time
+                spt_old = spike_train[idx,0]
+                shift_int = int(np.round(shifts[ii]))
+                spike_train_new[idx,0] = spt_old - shift_int
+                spike_train_upsampled[idx,0] = spt_old - shift_int
+                
+                # update upsampled templates
+                upsampled_ids = np.unique(spike_train_upsampled[idx,1])
+                aligned_upsampled_temps = shift_chans(
+                    templates_upsampled[:, :, upsampled_ids].transpose(2,0,1), 
+                    np.ones(len(upsampled_ids))*shift_int).transpose(1,2,0)
+                templates_upsampled[:, :, upsampled_ids] = aligned_upsampled_temps
+                
+                
+
     return (spike_train_new, templates_new, 
+            spike_train_upsampled, templates_upsampled,
             merge_array)
 
 def align_templates(templates):
@@ -527,7 +558,7 @@ def align_templates(templates):
 
     aligned_templates = shift_chans(templates, best_shifts)
     
-    return aligned_templates.transpose(1,2,0)
+    return aligned_templates.transpose(1,2,0), best_shifts
     
 def delete_spikes(templates, spike_train):
 

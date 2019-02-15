@@ -4,34 +4,32 @@ import scipy
 from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans
 
 
-def two_templates_dist_linear_align(templates1, templates2):
-    
-    templates = np.concatenate((templates1, templates2), axis=0)
-    temps_max = template_on_max_chan(templates)
+def two_templates_dist_linear_align(templates1, templates2, max_shift=5, step=0.5):
 
-    ref_template = temps_max[temps_max.ptp(1).argmax()]
+    K1, R, C = templates1.shape
+    K2 = templates2.shape[0]
 
-    best_shifts = align_get_shifts_with_ref(temps_max, ref_template)    
-    templates_aligned = shift_chans(templates, best_shifts)
+    shifts = np.arange(-max_shift,max_shift+step,step)
+    ptps1 = templates1.ptp(1)
+    max_chans1 = np.argmax(ptps1, 1)
+    ptps2 = templates2.ptp(1)
+    max_chans2 = np.argmax(ptps2, 1)
 
-    idx1 = np.zeros(templates.shape[0], 'bool')
-    idx1[:templates1.shape[0]] = 1
-    templates_aligned1 = templates_aligned[idx1].reshape([templates1.shape[0], -1])
-    templates_aligned2 = templates_aligned[~idx1].reshape([templates2.shape[0], -1])
+    shifted_templates = np.zeros((len(shifts), K2, R, C))
+    for ii, s in enumerate(shifts):
+        shifted_templates[ii] = shift_chans(templates2, np.ones(K2)*s)
 
-    dist = scipy.spatial.distance.cdist(templates_aligned1, templates_aligned2)
-
-    return dist
-
-def template_on_max_chan(templates):
-    
-    max_chans = templates.ptp(1).argmax(1)
-    temps = []
-    for k in range(max_chans.shape[0]):
-        temps.append(templates[k, :, max_chans[k]])
-    temps = np.vstack(temps)
-
-    return temps
+    distance = np.ones((K1, K2))*1e4
+    for k in range(K1):
+        candidates = np.abs(ptps2[:, max_chans1[k]] - ptps1[k, max_chans1[k]])/ptps1[k,max_chans1[k]] < 0.5
+        
+        dist = np.min(np.sum(np.square(
+            templates1[k][np.newaxis, np.newaxis] - shifted_templates[:, candidates]),
+                             axis=(2,3)), 0)
+        dist = np.sqrt(dist)
+        distance[k, candidates] = dist
+        
+    return distance
     
 def compute_neighbours2(templates1, templates2, n_neighbours=3):
     
@@ -54,6 +52,8 @@ def compute_neighbours_rf2(STAs1, STAs2, n_neighbours=3):
     norms1 = np.linalg.norm(STAs_th1.T, axis=0)[:, np.newaxis]
     norms2 = np.linalg.norm(STAs_th2.T, axis=0)[:, np.newaxis]
     cos = np.matmul(STAs_th1, STAs_th2.T)/np.matmul(norms1, norms2.T)
+    cos[np.isnan(cos)] = 0
+
     nearest_units_rf1 = np.zeros((cos.shape[0], n_neighbours), 'int32')
     for k in range(cos.shape[0]):
         nearest_units_rf1[k] = np.argsort(cos[k])[-n_neighbours:][::-1]

@@ -37,12 +37,12 @@ __version__ = '0.10dev'
 CONFIG = None
 
 
-GPU_ENABLED = running_on_gpu()
+#GPU_ENABLED = running_on_gpu()
 
-if GPU_ENABLED:
-    logger.debug('Tensorflow GPU configuration detected')
-else:
-    logger.debug('No Tensorflow GPU configuration detected')
+#if GPU_ENABLED:
+#    logger.debug('Tensorflow GPU configuration detected')
+#else:
+#    logger.debug('No Tensorflow GPU configuration detected')
 
 
 # reduce tensorflow logger verbosity, ignore DEBUG and INFO
