@@ -49,10 +49,10 @@ def run():
     deconv_dir = os.path.join(CONFIG.path_to_output_directory,
                               'deconv', 'final')
 
-    vis = Visualizer(fname_templates, fname_spike_train, rf_dir,
+    vis = Visualizer(fname_templates, fname_spike_train,
                      fname_recording, recording_dtype, 
                      fname_geometry, sampling_rate, save_dir,
-                     template_space_dir,
+                     rf_dir, template_space_dir,
                      deconv_dir)
 
     vis.population_level_plot()
@@ -61,10 +61,10 @@ def run():
 
 class Visualizer(object):
 
-    def __init__(self, fname_templates, fname_spike_train, rf_dir,
+    def __init__(self, fname_templates, fname_spike_train,
                  fname_recording, recording_dtype, 
                  fname_geometry, sampling_rate, save_dir,
-                 template_space_dir=None,
+                 rf_dir=None, template_space_dir=None,
                  deconv_dir=None, post_deconv_merge=True):
         
         # load spike train and templates
@@ -78,8 +78,9 @@ class Visualizer(object):
         self.sampling_rate = sampling_rate
  
         # rf files
-        self.STAs = np.load(os.path.join(rf_dir, 'STA_spatial.npy'))
-        self.Gaussian_params = np.load(os.path.join(rf_dir, 'Gaussian_params.npy'))
+        if rf_dir is not None:
+            self.STAs = np.load(os.path.join(rf_dir, 'STA_spatial.npy'))
+            self.Gaussian_params = np.load(os.path.join(rf_dir, 'Gaussian_params.npy'))
         
         # get geometry
         self.geom = parse(fname_geometry, self.n_channels)
@@ -125,7 +126,9 @@ class Visualizer(object):
 
         # compute neighbors for each unit
         self.compute_neighbours()
-        self.compute_neighbours_rf()
+        
+        if rf_dir is not None:
+            self.compute_neighbours_rf()
 
         # plotting parameters
         self.fontsize = 20
@@ -189,7 +192,8 @@ class Visualizer(object):
         self.make_raster_plot()
         self.make_firing_rate_plot()
         self.make_normalized_templates_plot()
-        self.add_residual_qq_plot()
+        if self.deconv_dir is not None:
+            self.add_residual_qq_plot()
 
     def individiual_cell_plot(self, units=None):
         

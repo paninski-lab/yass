@@ -104,7 +104,7 @@ class Deconv(object):
 
         # iterative deconv parameters
         # Cat: TODO: read from CONFIG
-        self.n_iterations_deconv = 0
+        self.n_iterations_deconv = 1
         self.n_seconds_initial = 1200
         self.initial_chunk = int(self.n_seconds_initial//self.CONFIG.resources.n_sec_chunk) 
 
@@ -445,11 +445,17 @@ class Deconv(object):
         print ("\nPost-deconv reclustering...")
         # flag to indicate whether clustering original data or post-deconv
         deconv_flag = True
-       
+        full_run = True
+
         self.recluster_dir = os.path.join(self.deconv_chunk_dir,
                                     "recluster")
              
         units = np.arange(self.templates.shape[2])
+        
+        # shift spike time back to the center
+        half_spike_size = (self.templates.shape[0] - 1)//2
+        self.spike_train[:, 0] += half_spike_size
+
         args_in = []
         for unit in units:
             fname_out = (self.recluster_dir+
@@ -464,15 +470,19 @@ class Deconv(object):
                     self.spike_train,
                     self.recluster_dir, 
                     #self.spike_train_cluster,  #MIGHT WISH TO EXCLUDE THIS FOR NOW
+                    full_run,
                     self.templates]
                     )
                 
         # run residual-reclustering function
         if len(args_in)>0:
             if self.CONFIG.resources.multi_processing:
-                p = mp.Pool(processes = self.CONFIG.resources.n_processors)
-                p.map_async(Cluster, args_in).get(988895)
-                p.close()
+                #p = mp.Pool(processes = self.CONFIG.resources.n_processors)
+                #p.map_async(Cluster, args_in).get(988895)
+                #p.close()
+                parmap.map(Cluster, args_in, 
+                       processes=self.CONFIG.resources.n_processors,
+                       pm_pbar=True)
             else:
                 for unit in range(len(args_in)):
                     Cluster(args_in[unit])
