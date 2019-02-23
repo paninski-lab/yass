@@ -3,10 +3,12 @@ import sys, os, math
 import matplotlib.pyplot as plt
 import datetime as dt
 import scipy, scipy.signal
-import torch
-from torch import nn
-from torch.autograd import Variable
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+
+#import torch
+#from torch import nn
+#from torch.autograd import Variable
+#device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Ian's module to be imported later
 #import deconv
