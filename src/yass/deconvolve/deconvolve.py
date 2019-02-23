@@ -7,6 +7,7 @@ import parmap
 import scipy
 import networkx as nx
 import logging
+import datetime as dt
 
 from yass import read_config
 from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans
@@ -27,8 +28,9 @@ from yass.cluster.util import (binary_reader,
                                global_merge_max_dist)
 
 from yass.cluster.cluster import Cluster
-
 from yass.deconvolve.merge import TemplateMerge
+
+from yass.deconvolve.match_pursuit_gpu import deconvGPU
 
 from diptest import diptest as dp
 
@@ -74,6 +76,9 @@ class Deconv(object):
                 
     def initialize(self): 
         
+        # 
+        self.root_dir = self.CONFIG.data.root_folder
+
         # location of standardized .bin file
         self.standardized_filename = os.path.join(self.CONFIG.path_to_output_directory,
                                              'preprocess', 
@@ -91,10 +96,10 @@ class Deconv(object):
 
         # Cat: TODO: read from CONFIG
         self.threshold = 50.
-        self.conv_approx_rank = 10
+        self.conv_approx_rank = 5
         self.default_upsample_value=0
         self.upsample_max_val = 32.
-
+        
         # Cat: TODO: max iteration not currently used
         self.max_iter = 5000
         
@@ -105,7 +110,16 @@ class Deconv(object):
         # iterative deconv parameters
         # Cat: TODO: read from CONFIG
         self.n_iterations_deconv = 1
-        self.n_seconds_initial = 1200
+        
+        # compute length of recording in seconds
+        fp_len = np.memmap(self.standardized_filename, 
+                   dtype='float32', mode='r').shape[0]
+        
+        self.rec_len_sec = fp_len/(self.sampling_rate*self.n_channels)
+        print ("  recording len (sec): ", self.rec_len_sec)
+
+        # if doing iterative deconv, how many seconds for initial deoncovlution
+        self.n_seconds_initial = self.rec_len_sec
         self.initial_chunk = int(self.n_seconds_initial//self.CONFIG.resources.n_sec_chunk) 
 
         # make deconv directory
@@ -113,13 +127,26 @@ class Deconv(object):
                                   'deconv')
         if not os.path.isdir(self.deconv_dir):
             os.makedirs(self.deconv_dir)
-            
+
+
+        # ********************************************
+        # GPU Deconv flags and parameters
+        self.deconv_gpu = False
+
+        # Cat: TODO: set size of time chunk to be deconvolved over
+        # value to be dynamically set depending on GPU memory available
+        self.n_sec_deconv_gpu=5
+        
+        #root_dir = '/media/cat/1TB/liam/49channels/data1_allset'
+        # ********************************************
+
         # if self.n_iterations_deconv>0: 
             # if not os.path.isdir(self.deconv_dir+'/initial/'):
                 # os.makedirs(self.deconv_dir+'/initial/')
        
     def compute_idx_list(self):
     
+        # Cat: TODO: not sure this is memory safe for low-memory computers
         fp_len = np.memmap(self.standardized_filename, 
                    dtype='float32', mode='r').shape[0]
 
@@ -160,7 +187,11 @@ class Deconv(object):
                 os.makedirs(self.deconv_chunk_dir)
 
             # run match pursuit and return templates and spike_trains
-            self.match_pursuit_function()
+            if self.deconv_gpu:
+                self.match_pursuit_function_gpu()
+            else:
+                self.match_pursuit_function_cpu()
+
 
             # run post-deconv merge; recomputes self.templates and self.spike_train
             #self.merge()
@@ -193,7 +224,10 @@ class Deconv(object):
             os.makedirs(self.deconv_chunk_dir)
 
         # Cat: TODO: don't recomp temp_temp for final step if prev. computed
-        self.match_pursuit_function()
+        if self.deconv_gpu:
+            self.match_pursuit_function_gpu()
+        else:
+            self.match_pursuit_function_cpu()
 
         # first compute residual
         print ("  computing residual to generate clean spikes")
@@ -279,8 +313,90 @@ class Deconv(object):
         templates = np.float32(templates).swapaxes(0,1).swapaxes(1,2)
         print ("  resized templates: ", templates.shape)
 
+    def match_pursuit_function_gpu(self):
 
-    def match_pursuit_function(self):
+        # *********** MAKE DECONV OBJECT ************
+        d_gpu = deconvGPU(self.n_sec_deconv_gpu, self.root_dir)
+
+        # set parameters at run time
+        d_gpu.max_iter=1000
+        d_gpu.deconv_thresh=10
+
+        # Cat: TODO: make sure svd recomputed for higher rank etc.
+        d_gpu.svd_flag = True
+        d_gpu.RANK = 5
+
+        # upsampling params
+        d_gpu.upsample_flag = False
+        d_gpu.up_factor = 32
+        d_gpu.save_objective = False
+        d_gpu.dynamic_thresh = False
+        d_gpu.cpp_subtract = False
+        d_gpu.print_iterations = True
+
+        chunks = []
+        for k in range(0,int(self.rec_len_sec),d_gpu.n_sec):
+            chunks.append([k,k+d_gpu.n_sec])
+
+        # Cat: TODO: this may not be correct
+        # add last chunk back; 
+        chunks.append([k,self.rec_len_sec])
+                            
+        # *********** INIT DECONV ****************
+        begin=dt.datetime.now().timestamp()
+        d_gpu.initialize()
+        init_time = np.round((dt.datetime.now().timestamp()-begin),4)
+        print ("-------------------------------------------")
+        print ("Total load/obj function time for "+str(d_gpu.n_sec)+" sec of data: ", init_time, 'sec')
+        print ("-------------------------------------------\n")
+
+        # ************ RUN DECONV ***************
+        print ("Subtraction step...")
+        begin=dt.datetime.now().timestamp()
+            
+        for ctr, chunk in enumerate(chunks[:2]):
+            print ("\n\n")
+            print ("CHUNK: ", ctr, " / ", len(chunks), " block in seconds: ", chunk, "\n")
+            d_gpu.offset = chunk[0]
+            d_gpu.run(chunk)
+
+        subtract_time = np.round((dt.datetime.now().timestamp()-begin),4)
+
+        print ("-------------------------------------------")
+        print ("Total subtract time for:"+str(d_gpu.n_iter)+ " iterations (", d_gpu.relmax_peaks_idx.shape[0], "spk/iteration): ", 
+               np.round(subtract_time,4), "sec.\n",
+              # "Ave. time for computing peaks: ", np.round(np.mean(peaks),4), "sec.\n"
+              # "Ave. time subtraction: ", np.round(np.mean(subtraction),4), " sec.\n",
+              # "Array subtraction step only: ", np.round(np.mean(np.hstack(times_array)*torch.unique(deconv.gpu_argmax[deconv.out3]).shape[0]),4), "sec."
+              )
+        print ("-------------------------------------------")
+        print ("Total Deconv Speed ", np.round(d_gpu.n_sec/(init_time+subtract_time),2), " x Realtime")
+
+
+        # gather all spikes from deconv_gpu
+        print ("  finished deconv_gpu, gathering spike trains from # epochs: ", len(d_gpu.spike_list))
+
+        spike_train = [np.zeros((0,2),'int32')]
+        for k in range(len(d_gpu.spike_list)):
+            if k%100==0:
+                print (" gathering gpu epoch: ", k)
+            temp=np.zeros((d_gpu.spike_list[k][1].shape[0],2), 'int32')
+            temp[:,0]=d_gpu.spike_list[k][1].cpu().data.numpy()+d_gpu.spike_list[k][0]*20000
+            temp[:,1]=d_gpu.spike_list[k][2].cpu().data.numpy()
+
+            spike_train.append(temp)
+
+        spike_train = np.vstack(spike_train)
+        print (spike_train.shape)
+
+        np.save(self.root_dir + '/spike_train_deconv_gpu.npy', spike_train)
+
+        self.spike_train = spike_train
+        self.dec_spike_train = spike_train
+        self.sparse_upsampled_templates = d_gpu.temps 
+        print ("self.sparse_upsampled_templates: ", self.sparse_upsampled_templates.shape)
+        
+    def match_pursuit_function_cpu(self):
                             
         print ("")
         print ("Initializing Match Pursuit, # segments: ", 
