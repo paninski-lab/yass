@@ -508,7 +508,7 @@ class deconvGPU(object):
         # use SVD to make objective:
         else:
          
-            print ("  computing objective function (TODO: speed up loops)")
+            print ("  computing objective function ")
             # ****************************************
 
             # move data to gpu
@@ -899,7 +899,9 @@ class deconvGPU(object):
         spike_times = self.relmax_peaks_idx.squeeze()-self.lockout_window
         spike_temps = self.gpu_argmax[self.relmax_peaks_idx].squeeze()
         
+        # Cat: TODO: this drops last spike in sort; to fix
         if self.relmax_peaks_idx.size()[0]==1:
+            print ("  dropping last spike (TODO: fix this)"
             return dt.datetime.now().timestamp()-start, False
         
         #t0 = time.time()
