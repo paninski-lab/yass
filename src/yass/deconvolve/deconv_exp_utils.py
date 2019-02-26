@@ -174,8 +174,8 @@ def plot_spatial_fill(geom, temp, ax, color='C0', scale=10., squeeze=8.):
     for c in range(temp.shape[1]):
         ax.fill_between(
             np.arange(0, leng, 1) / squeeze + geom[c, 0],
-            temp_[:, c] - scale / 2  + geom[c, 1],
-            temp_[:, c] + scale / 2 + geom[c, 1], color=color, alpha=0.3)
+            temp_[:, c] - scale + geom[c, 1],
+            temp_[:, c] + scale + geom[c, 1], color=color, alpha=0.2)
 
 
 def plot_chan_numbers(geom, ax, offset=10):
