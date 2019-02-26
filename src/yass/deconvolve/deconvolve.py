@@ -591,8 +591,6 @@ def delete_spikes(templates, spike_train):
     return spike_train
 
 
-    
-
 def align_singletrace_lastchan(wf, CONFIG, upsample_factor = 5, nshifts = 15, 
          ref = None):
 
