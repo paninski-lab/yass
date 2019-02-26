@@ -197,6 +197,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         
         # flag to indicate whether clusteirng or post-deconv reclustering
         deconv_flag = False
+        full_run = True
 
         # Cat: TODO: this parallelization may not be optimally asynchronous
         # make arg list first
@@ -212,7 +213,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                 continue 
 
             args_in.append([deconv_flag, channel, CONFIG2,
-                            spike_index_chunk, chunk_dir])
+                            spike_index_chunk, chunk_dir, full_run])
 
         print ("  starting clustering")
         if CONFIG.resources.multi_processing:
@@ -249,7 +250,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         global_merge_max_dist(chunk_dir,
                               CONFIG2,
                               out_dir,
-                              
                               units)
                               
     # plot_normalized_templates(chunk_dir, CONFIG2.neigh_channels)
