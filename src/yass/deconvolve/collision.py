@@ -167,5 +167,7 @@ def collision_templates(templates, get_unit_spike_fun):
     mad_collision_picks = np.setdiff1d(
             mad_collision_picks, np.array(elemental))
 
-    return deconv_collision_picks, mad_collision_picks
+    return np.union1d(
+            np.array(deconv_collision_picks),
+            np.array(mad_collision_picks))
 
