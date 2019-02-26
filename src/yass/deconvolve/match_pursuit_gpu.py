@@ -901,7 +901,7 @@ class deconvGPU(object):
         
         # Cat: TODO: this drops last spike in sort; to fix
         if self.relmax_peaks_idx.size()[0]==1:
-            print ("  dropping last spike (TODO: fix this)"
+            print ("  dropping last spike (TODO: fix this)")
             return dt.datetime.now().timestamp()-start, False
         
         #t0 = time.time()
