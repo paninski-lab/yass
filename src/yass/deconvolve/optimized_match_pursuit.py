@@ -1,7 +1,6 @@
 import copy
 import numpy as np
 import scipy
-import matplotlib.pyplot as plt
 
 
 class OptimizedMatchPursuit(object):

@@ -4,8 +4,8 @@ import copy as copy
 import numpy as np
 from tqdm import tqdm
 
-from optimized_match_pursuit import OptimizedMatchPursuit
-from template import WaveForms
+from yass.deconvolve.optimized_match_pursuit import OptimizedMatchPursuit
+from yass.deconvolve.template import WaveForms
 
 
 def MAD_bernoulli_two_uniforms(a, b):
