@@ -430,8 +430,8 @@ class OptimizedMatchPursuit(object):
         self.compute_objective()
         while tot_max > self.threshold and ctr < max_iter:
             spt, dist_met = self.find_peaks()
-            print "Iteration {0} Found {1} spikes with {2:.2f} energy reduction.".format(
-                ctr, spt.shape[0], np.sum(dist_met))
+            print("Iteration {0} Found {1} spikes with {2:.2f} energy reduction.".format(
+                ctr, spt.shape[0], np.sum(dist_met)))
             if len(spt) == 0:
                 break
             self.dec_spike_train = np.append(self.dec_spike_train, spt, axis=0)
