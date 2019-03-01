@@ -49,18 +49,33 @@ def MAD_bernoulli_two_uniforms(a, b):
     return same_sign_indicator * out + (1 - same_sign_indicator) * m
 
 
-def collision_templates(templates, get_unit_spike_fun):
+def collision_templates(
+        templates, get_unit_spike_fun, mad_gap=0.8, mad_gap_breach=4,
+        residual_max_norm=1.):
     """Given templates and spikes determines collision templates.
 
     params:
     -------
     templates: np.ndarray
-        Has shape (# units, # channels, # number of time samples).
+        Has shape (# units, # channels, # number of samples).
+    get_unit_spike_fun: function
+        Function that as parameter gets a unit id which is int, and returns
+        spikes that have shape (#spikes, #channels, # time samples).
+    mad_gap: float
+        The threshold between analytical MAD of templates  and MAD statistics
+        of spikes.
+    mad_gap_breach: int
+        Total number of allowable time points-channels that must not satisfy
+        the gap between analytical MAD and computed MAD so that a template is
+        classified as collision.
+    residual_max_norm: float
+        Threshold for residual of reconstructed template using deconvolution
+        below which the templates is classified as collision.
 
     returns:
     --------
-    tuple of np.array. First is list of unit ids that are determined to be
-    collisions using deconvolution. Second, is the list of unit ids that
+    np.array of int. List of unit ids that are determined to be
+    collisions using deconvolution. Second, and unit ids that
     have unexpected MAD values.
     """
     n_unit, n_chan, n_time = templates.shape
@@ -114,7 +129,7 @@ def collision_templates(templates, get_unit_spike_fun):
     res_max_norm = np.abs(unit_residuals).max(axis=-1).max(axis=-1)
     # Get those templates that have residual max norm of no more that 1.
     # as collision templates.
-    candidates = np.where(res_max_norm < 1.)[0]
+    candidates = np.where(res_max_norm < residual_max_norm)[0]
 
     # Keep track of elemental units necessary to reconstruct collision
     # templates.
@@ -160,9 +175,9 @@ def collision_templates(templates, get_unit_spike_fun):
     high_mad_counts = []
     for unit in range(n_unit):
         high_mad_counts.append(
-                ((unit_mads[unit] - unit_emads[unit]) > 0.8).sum())
+                ((unit_mads[unit] - unit_emads[unit]) > mad_gap).sum())
     high_mad_counts = np.array(high_mad_counts)
-    mad_collision_picks = np.where(high_mad_counts > 3)[0]
+    mad_collision_picks = np.where(high_mad_counts > mad_gap_breach)[0]
     # remove elemental units
     mad_collision_picks = np.setdiff1d(
             mad_collision_picks, np.array(elemental))
