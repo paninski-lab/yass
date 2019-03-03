@@ -12,7 +12,7 @@ import multiprocessing as mp
 from diptest import diptest as dp
 
 from yass import read_config
-from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans
+from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans, read_spikes
 
 from statsmodels import robust
 from scipy.signal import argrelmin
@@ -195,7 +195,7 @@ class TemplateMerge(object):
         return merge_list
 
 
-    def merge_templates_parallel(self, data_in, threshold=0.9):
+    def merge_templates_parallel(self, data_in, threshold=0.95):
         """Whether to merge two templates or not.
 
         parameters:
@@ -285,10 +285,10 @@ def get_l2_features(filename_residual, spike_train, spike_train_upsampled,
     units1 = spike_train_upsampled[spt1_idx, 1]
     units2 = spike_train_upsampled[spt2_idx, 1]
 
-    spikes_1 = read_spikes(
+    spikes_1, _ = read_spikes(
         filename_residual, spt1, n_channels, spike_size,
         units1, templates_upsampled, residual_flag=True)
-    spikes_2 = read_spikes(
+    spikes_2, _ = read_spikes(
         filename_residual, spt2, n_channels, spike_size,
         units2, templates_upsampled, residual_flag=True)
 
@@ -515,86 +515,3 @@ def template_dist_linear_align(templates, distance=None, units=None, max_shift=5
         distance[candidates, k] = dist
         
     return distance
-
-
-def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, channels=None):
-
-    # ***** LOAD RAW RECORDING *****
-    if channels is None:
-        wfs = np.zeros((spikes.shape[0], n_times, n_channels), 'float32')
-    else:
-        wfs = np.zeros((spikes.shape[0], n_times, channels.shape[0]), 'float32')
-
-    skipped_idx = []
-    with open(standardized_filename, "rb") as fin:
-        ctr_wfs=0
-        ctr_skipped=0
-        for spike in spikes:
-            # index into binary file: time steps * 4  4byte floats * n_channels
-            fin.seek(spike * 4 * n_channels, os.SEEK_SET)
-            try:
-                wfs[ctr_wfs] = np.fromfile(
-                    fin,
-                    dtype='float32',
-                    count=(n_times * n_channels)).reshape(
-                                            n_times, n_channels)[:,channels]
-                ctr_wfs+=1
-            except:
-                # skip loading of spike and decrease wfs array size by 1
-                #print ("  spike to close to end, skipping and deleting array")
-                wfs=np.delete(wfs, wfs.shape[0]-1,axis=0)
-                skipped_idx.append(ctr_skipped)
-
-            ctr_skipped+=1
-    fin.close()
-    
-    return wfs, skipped_idx
-
-    
-def read_spikes(filename, spikes, n_channels, spike_size, units=None, templates=None, 
-                channels=None, residual_flag=False):
-    ''' Function to read spikes from raw binaries
-        
-        filename: name of raw binary to be loaded
-        spikes:  [times,] array holding all spike times
-        units: [times,] unit id of each spike
-        templates:  [n_templates, n_times, n_chans] array holding all templates
-    '''
-        
-    # always load all channels and then index into subset otherwise
-    # order won't be correct
-    #n_channels = CONFIG.recordings.n_channels
-
-    # load default spike_size unless otherwise inidcated
-    # PETER: turned off. Let me know if you need this..
-    #if spike_size==None:
-    #    spike_size = int(CONFIG.recordings.spike_size_ms*CONFIG.recordings.sampling_rate//1000*2+1)
-
-    if channels is None:
-        channels = np.arange(n_channels)
-
-    spike_waveforms, skipped_idx = binary_reader_waveforms(filename,
-                                             n_channels,
-                                             spike_size,
-                                             spikes, #- spike_size//2,  # can use this for centering
-                                             channels)
-    if len(skipped_idx) > 0:
-        units = np.delete(units, skipped_idx)
-
-    # if loading residual need to add template back into 
-    # Cat: TODO: this is bit messy; loading extrawide noise, but only adding
-    #           narrower templates
-    if residual_flag:
-        #if spike_size is None:
-        #    spike_waveforms+=templates[:,:,channels][units]
-        # need to add templates in middle of noise wfs which are wider
-        #else:
-        #    spike_size_default = int(CONFIG.recordings.spike_size_ms*
-        #                              CONFIG.recordings.sampling_rate//1000*2+1)
-        #    offset = spike_size - spike_size_default
-        #    spike_waveforms[:,offset//2:offset//2+spike_size_default]+=templates[:,:,channels][units]
-        
-        offset = spike_size - templates.shape[1]
-        spike_waveforms[:,offset//2:offset//2+templates.shape[1]]+=templates[:,:,channels][units]
-
-    return spike_waveforms #, skipped_idx

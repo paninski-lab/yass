@@ -11,12 +11,12 @@ import parmap
 from yass.visual.correlograms_phy import compute_correlogram
 from yass.visual.util import compute_neighbours2, compute_neighbours_rf2, combine_two_spike_train, combine_two_rf
 from yass.geometry import parse, find_channel_neighbors
-from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans, binary_reader_waveforms
+from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans, binary_reader_waveforms, read_spikes
 from yass.cluster.util import get_normalized_templates
 from yass.cluster.util import pca_denoise
 from yass.deconvolve.merge import (template_dist_linear_align, 
                                    template_spike_dist_linear_align, 
-                                   test_unimodality, get_l2_features, read_spikes)
+                                   test_unimodality, get_l2_features)
 from yass.util import absolute_path_to_asset
 from yass import read_config
 
@@ -97,7 +97,7 @@ class Visualizer(object):
             self.residual_recording = os.path.join(deconv_dir, 'residual.bin')
             post_merge_loc = os.path.join(deconv_dir, 'results_post_deconv_post_merge_0.npz')
             if not os.path.exists(post_merge_loc) or (not post_deconv_merge):
-                post_merge_loc = os.path.join(deconv_dir, 'deconv_results.npz')
+                post_merge_loc = os.path.join(deconv_dir, 'results_post_deconv_pre_merge.npz')
             
             temp = np.load(post_merge_loc)
             self.templates_upsampled = temp['templates_upsampled']
@@ -437,7 +437,7 @@ class Visualizer(object):
         spt = self.spike_train[idx, 0]
         units = self.spike_train_upsampled[idx, 1]
 
-        wf = read_spikes(
+        wf, _ = read_spikes(
             self.residual_recording, spt, self.n_channels,
             self.templates.shape[0], units,
             self.templates_upsampled.transpose(2,0,1),

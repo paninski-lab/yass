@@ -18,7 +18,7 @@ from yass.templates.util import strongly_connected_components_iterative
 from yass.geometry import n_steps_neigh_channels
 from yass import mfm
 from yass.empty import empty
-from yass.cluster.cluster import (shift_chans, align_get_shifts_with_ref)
+from yass.cluster.cluster import (shift_chans, align_get_shifts_with_ref, binary_reader_waveforms)
 from yass.util import absolute_path_to_asset
 from yass.detect.run import deduplicate
 
@@ -2311,66 +2311,47 @@ def connected_channels(channel_list, ref_channel, neighbors, keep=None):
         
 #     return wf_final_mc[:,::upsample_factor]
 
-    
 
-def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
+def gather_clustering_result(chunk_dir, out_dir, units):
 
-    ''' Function that cleans low spike count templates and merges the rest 
+    '''load clustering results
     '''
-    print ("\nPost-clustering merge... ")
-    n_channels = CONFIG.recordings.n_channels
 
     # convert clusters to templates; keep track of weights
     templates = []
-    weights = []
-    spike_ids = []
     spike_indexes = []
-    channels = np.arange(n_channels)
-
-    # this step loads either cluster or unit data so that both clustering 
-    # and post-deconv unit-based reclusteirng can work with same routine
 
     # this list tracks the post-clustering ids before the cleaning step
     unit_recluster_list=[]
-    
+
+    # this step loads either cluster or unit data so that both clustering 
+    # and post-deconv unit-based reclusteirng can work with same routine
     if out_dir == 'cluster':
-        for channel in range(CONFIG.recordings.n_channels):
-            data = np.load(chunk_dir+'/channel_'+str(channel).zfill(6)+'.npz')
-            temp_temp = data['templates']
-
-            if (temp_temp.shape[0]) !=0:
-                templates.append(temp_temp)
-                temp = data['spiketime']
-                unit_recluster_list.append(len(temp))
-                for s in range(len(temp)):
-                    spike_times = temp[s]
-                    spike_indexes.append(spike_times)
-                    weights.append(spike_times.shape[0])
- 
+        fname = chunk_dir+'/channel_'
     else:
-        for unit in units:
-            data = np.load(chunk_dir+'/unit_'+str(unit).zfill(6)+'.npz')
-            temp_temp = data['templates']
+        fname = chunk_dir+'/unit_'
 
-            if (temp_temp.shape[0]) !=0:
-                templates.append(temp_temp)
-                temp = data['spike_index']
-                unit_recluster_list.append(len(temp))
-                for s in range(len(temp)):
-                    spike_times = temp[s]
-                    spike_indexes.append(spike_times)
-                    weights.append(spike_times.shape[0])
+    for unit in units:
+        data = np.load(fname+str(unit).zfill(6)+'.npz')
+        temp_temp = data['templates']
+        if (temp_temp.shape[0]) !=0:
+            templates.append(temp_temp)
+            temp = data['spiketime']
+            unit_recluster_list.append(len(temp))
+            for s in range(len(temp)):
+                spike_times = temp[s]
+                spike_indexes.append(spike_times)
+        else:
+            unit_recluster_list.append(0)
 
     spike_indexes = np.array(spike_indexes)
     templates = np.vstack(templates)
-    weights = np.hstack(weights)
 
     # Clip tempaltes and only work with default spike_size templates going forward
     # spike_size_default = int(CONFIG.recordings.spike_size_ms*
                                   # CONFIG.recordings.sampling_rate//1000*2+1)
     # offset = templates.shape[1]-spike_size_default
     # templates = templates[:, offset//2:offset//2+spike_size_default]
-    
             
     # rearange spike indees from id 0..N
     spike_train = np.zeros((0,2),'int32')
@@ -2379,11 +2360,100 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
         temp[:,0] = spike_indexes[k]
         temp[:,1] = k
         spike_train = np.vstack((spike_train, temp))
-    spike_indexes = spike_train
 
     print ("  templates loaded: ", templates.shape)
     np.save(chunk_dir  + '/templates_post_'+out_dir+'_pre_cleaning.npy', templates)
-    np.save(chunk_dir  + '/spike_train_post_'+out_dir+'_pre_cleaning.npy', spike_indexes)
+    np.save(chunk_dir  + '/spike_train_post_'+out_dir+'_pre_cleaning.npy', spike_train)
+    np.save(chunk_dir + '/unit_recluster_list.npy', unit_recluster_list)
+
+    return templates, spike_train
+
+def recompute_templates(templates, spike_train, CONFIG, chunk_dir):
+
+    print('Recomputing templates..')
+
+    # get shape
+    n_units, n_timepoints, n_channels = templates.shape
+
+    # raw recording
+    fname_recording = os.path.join(CONFIG.path_to_output_directory,
+                               'preprocess', 'standardized.bin')
+
+    # make a list of spike time
+    spike_times = {k: [] for k in range(n_units)}
+    for j in range(spike_train.shape[0]):
+        tt, ii = spike_train[j]
+        spike_times[ii].append(tt)
+
+    # gather input arguments
+    args_in = []
+    for unit in range(n_units):
+        fname_out = os.path.join(
+            chunk_dir,
+            "template_unit_{}.npy".format(str(unit).zfill(6)))
+
+        args_in.append([
+            fname_recording,
+            spike_times[unit],
+            n_channels,
+            n_timepoints,
+            fname_out])
+
+    # run computing function
+    if CONFIG.resources.multi_processing:
+        #p = mp.Pool(processes = self.CONFIG.resources.n_processors)
+        #p.map_async(Cluster, args_in).get(988895)
+        #p.close()
+        parmap.map(recompute_templates_parallel,
+                   args_in,
+                   processes=CONFIG.resources.n_processors,
+                   pm_pbar=True)
+    else:
+        for unit in range(len(args_in)):
+            recompute_templates_parallel(args_in[unit])
+
+    # gather all info
+    templates_new = np.zeros((n_units, n_timepoints, n_channels))
+    for unit in range(n_units):
+        templates_new[unit] = np.load(args_in[unit][-1])
+
+    return templates_new
+
+def recompute_templates_parallel(arg_in):
+    fname_recording = arg_in[0]
+    spike_times = np.array(arg_in[1])
+    n_channels = arg_in[2]
+    spike_size = arg_in[3]
+    fname_out = arg_in[4]
+
+    if not os.path.exists(fname_out):
+        wf, _ = binary_reader_waveforms(
+            fname_recording, n_channels,
+            spike_size, spike_times - spike_size//2)
+
+        ref_template = np.load(absolute_path_to_asset(
+                os.path.join('template_space', 'ref_template.npy')))
+
+        cut_edge = (spike_size - len(ref_template))//2
+
+        mc = np.mean(wf, axis=0).ptp(0).argmax()
+        best_shifts = align_get_shifts_with_ref(
+            wf[:, cut_edge:-cut_edge, mc],
+            ref_template)
+        wf = shift_chans(wf, best_shifts)
+        template = np.median(wf, 0)
+
+        np.save(fname_out,template)
+
+def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
+
+    ''' Function that cleans low spike count templates and merges the rest
+    '''
+    print ("\nPost-clustering merge... ")
+
+    weights = np.zeros(templates.shape[0], 'int32')
+    unique_ids, unique_weights = np.unique(spike_indexes[:,1], return_counts=True)
+    weights[unique_ids] = unique_weights
 
     ''' ************************************************
         **************** CLEAN TEMPLATES  **************
@@ -2398,7 +2468,6 @@ def global_merge_max_dist(chunk_dir, CONFIG, out_dir, units):
     np.save(chunk_dir  + '/templates_post_'+out_dir+'_pre_merge.npy', templates)
     np.save(chunk_dir + '/spike_train_post_'+out_dir+'_pre_merge.npy', spike_indexes)
     np.save(chunk_dir + '/idx_kept.npy', idx_kept)
-    np.save(chunk_dir + '/unit_recluster_list.npy', unit_recluster_list)
 
     print("  "+out_dir+ " templates/spiketrain before merge: ", 
                                         templates.shape, spike_indexes.shape)
@@ -2847,12 +2916,11 @@ def parallel_abs_max_dist(id1, temp, merge_dir):
         # compute distances and noramlize by largest template ptp
         # note this makes sense for max distance, but not sum;
         #  for sum should be dividing by total area
-        diff = len1-len2
-        diff = diff/(max(ptp_1,ptp_2))
+        diff = np.max(np.abs(len1-len2))
+        diff_rel = diff/(max(ptp_1,ptp_2))
 
         # compute max distance
-        dist_m = np.max(abs(diff),axis=0)
-        if dist_m < 0.15:
+        if diff<1 or diff_rel<0.1:
             dist_max[id2] = 1.0
     
     np.save(fname, dist_max)

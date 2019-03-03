@@ -9,25 +9,18 @@ import networkx as nx
 import logging
 import datetime as dt
 
-from yass import read_config
-from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans
-
 from statsmodels import robust
 from scipy.signal import argrelmin
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 
-
+from yass import read_config
+from yass.cluster.cluster import Cluster, align_get_shifts_with_ref, shift_chans, read_spikes
+from yass.cluster.util import (binary_reader,
+                               load_waveforms_from_memory,
+                               make_CONFIG2, upsample_parallel, recompute_templates,
+                               global_merge_max_dist, gather_clustering_result)
 from yass.deconvolve.match_pursuit import (MatchPursuit_objectiveUpsample, 
                                             Residual)
-                                                                                        
-from yass.cluster.util import (binary_reader,
-                               global_merge_max_dist, PCA, 
-                               load_waveforms_from_memory,
-                               make_CONFIG2, upsample_parallel, 
-                               clean_templates, find_clean_templates,
-                               global_merge_max_dist)
-
-from yass.cluster.cluster import Cluster
 from yass.deconvolve.merge import TemplateMerge
 
 from yass.deconvolve.match_pursuit_gpu import deconvGPU
@@ -96,7 +89,7 @@ class Deconv(object):
 
         # Cat: TODO: read from CONFIG
         self.threshold = 50.
-        self.conv_approx_rank = 5
+        self.conv_approx_rank = 10
         self.default_upsample_value=0
         self.upsample_max_val = 32.
         
@@ -173,6 +166,7 @@ class Deconv(object):
         deconv_chunk_dir = os.path.join(self.CONFIG.path_to_output_directory,
                                         'deconv',
                                         'initial/')
+
         if not os.path.isdir(deconv_chunk_dir):
             os.makedirs(deconv_chunk_dir)
         
@@ -192,23 +186,14 @@ class Deconv(object):
             else:
                 self.match_pursuit_function_cpu()
 
+            # compute residuals
+            self.compute_residual_function()
 
             # run post-deconv merge; recomputes self.templates and self.spike_train
             #self.merge()
 
             # reclusters and loads a new self.templates structure
             self.reclustering_function()
-            
-            # post recluster merge
-            _, templates = global_merge_max_dist(
-                                        self.deconv_chunk_dir+'/recluster/',
-                                        self.CONFIG,
-                                        'deconv',
-                                        np.arange(self.templates.shape[2]))
-            
-            # reshape templates
-            self.templates = templates.transpose(1,2,0)
-
             
     def deconv_final(self):
 
@@ -220,6 +205,7 @@ class Deconv(object):
         self.deconv_chunk_dir = os.path.join(self.CONFIG.path_to_output_directory,
                                         'deconv',
                                         'final/')
+
         if not os.path.isdir(self.deconv_chunk_dir):
             os.makedirs(self.deconv_chunk_dir)
 
@@ -485,7 +471,7 @@ class Deconv(object):
         self.spike_train_upsampled = self.dec_spike_train.copy()
         self.spike_train_upsampled[:, 1] = self.deconv_id_sparse_temp_map[
             self.spike_train_upsampled[:, 1]]
-        np.savez(self.deconv_chunk_dir + "/deconv_results.npz",
+        np.savez(self.deconv_chunk_dir + "/results_post_deconv_pre_merge.npz",
                  spike_train=self.spike_train,
                  templates=self.templates,
                  spike_train_upsampled=self.spike_train_upsampled,
@@ -503,7 +489,7 @@ class Deconv(object):
                                   
         # Note: this uses spike times occuring at beginning of spike
         fname = os.path.join(self.deconv_chunk_dir,
-                                         'residual.bin')
+                             'residual.bin')
                                          
         if os.path.exists(fname)==True:
             return
@@ -535,13 +521,13 @@ class Deconv(object):
 
         print ("  init residual object")
         wf_object = Residual(self.sparse_upsampled_templates,
-                                          dec_spike_train_offset,
-                                          self.buffer_size,
-                                          self.CONFIG.resources.n_processors,
-                                          self.deconv_chunk_dir,
-                                          self.n_sec_chunk,
-                                          self.idx_list_local,
-                                          self.standardized_filename)
+                             dec_spike_train_offset,
+                             self.buffer_size,
+                             self.CONFIG.resources.n_processors,
+                             self.deconv_chunk_dir,
+                             self.n_sec_chunk,
+                             self.idx_list_local,
+                             self.standardized_filename)
 
 
         # compute residual using initial templates obtained above
@@ -563,8 +549,8 @@ class Deconv(object):
         deconv_flag = True
         full_run = True
 
-        self.recluster_dir = os.path.join(self.deconv_chunk_dir,
-                                    "recluster")
+        self.recluster_dir = os.path.join(
+            self.deconv_chunk_dir, "recluster")
              
         units = np.arange(self.templates.shape[2])
         
@@ -584,12 +570,14 @@ class Deconv(object):
                     unit, 
                     self.CONFIG,
                     self.spike_train,
-                    self.recluster_dir, 
+                    self.recluster_dir,
                     #self.spike_train_cluster,  #MIGHT WISH TO EXCLUDE THIS FOR NOW
                     full_run,
-                    self.templates]
-                    )
-                
+                    self.sparse_upsampled_templates,
+                    self.spike_train_upsampled,
+                    self.templates
+                ])
+
         # run residual-reclustering function
         if len(args_in)>0:
             if self.CONFIG.resources.multi_processing:
@@ -602,7 +590,31 @@ class Deconv(object):
             else:
                 for unit in range(len(args_in)):
                     Cluster(args_in[unit])
-                         
+        
+        # gather clustering result info
+        chunk_dir = self.deconv_chunk_dir+'/recluster/'
+        out_dir = 'recluster'
+        units = np.arange(self.templates.shape[2])
+        templates, spike_train = gather_clustering_result(chunk_dir,
+                                                          out_dir,
+                                                          units)
+
+        # recompute templates using raw data
+        templates = recompute_templates(templates,
+                                        spike_train,
+                                        self.CONFIG,
+                                        chunk_dir)
+
+        # post recluster merge
+        _, templates = global_merge_max_dist(templates,
+                                             spike_train,
+                                             self.CONFIG,
+                                             chunk_dir,
+                                             out_dir)
+        
+        # reshape templates
+        self.templates = templates.transpose(1,2,0)
+
         print ("  reclustering complete")
 
 def merge_pairs(templates, spike_train, templates_upsampled, spike_train_upsampled, merge_list, CONFIG2):
@@ -807,7 +819,7 @@ def recompute_templates_from_raw(templates,
             spike_size,
             CONFIG)
 
-
+'''
 def recompute_templates(idx,
                          templates,
                          spike_index_filename,
@@ -817,9 +829,9 @@ def recompute_templates(idx,
                          CONFIG,
                          template_len):
                                      
-    '''
+    
         Function that reloads templates 
-    '''
+    
 
     # Cat: TODO: data_start is not 0, should be
     data_start = 0
@@ -855,7 +867,7 @@ def recompute_templates(idx,
             spike_size)                              
 
     return new_templates
-
+'''
 def resize_templates_parallel(unit, 
                               spike_index_filename,
                               data_start,

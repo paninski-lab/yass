@@ -391,6 +391,7 @@ def filter_standardize(data_in, low_frequency, high_factor, order,
     else:
         sd = np.load(fname)
         standardized = np.divide(res, sd)
+        standardized = res - np.median(res, axis=0, keepdims=True)
         np.save(os.path.join(
                      output_directory,
                      "filtered_files/standardized_"+

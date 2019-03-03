@@ -12,7 +12,9 @@ from yass.cluster.triage import triage
 from yass.cluster.coreset import coreset
 from yass.cluster.mask import getmask
 from yass.cluster.util import (make_CONFIG2, binary_reader, 
-                                global_merge_max_dist)
+                               global_merge_max_dist,
+                               gather_clustering_result
+                              )
 from yass.cluster.cluster import Cluster
 from yass.cluster.plot import plot_normalized_templates
 
@@ -237,19 +239,23 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     else:
         print ("... clustering previously completed...")
 
-    
     # Cat: TODO: this logic isn't quite correct; should merge with above
     fname = os.path.join(CONFIG.path_to_output_directory, 
                          'spike_train_cluster.npy')
     if os.path.exists(fname)==False: 
 
+        # this flag is for deconvolution reclusters
+        out_dir = 'cluster'
+
+        # first gather clustering result
+        templates, spike_train = gather_clustering_result(chunk_dir,
+                                                          out_dir,
+                                                          np.arange(n_channels))
+
         # Cat: TODO: may wish to clean up these flags; goal is to use same
         #            merge function for both clustering and deconv
-        out_dir='cluster'
-        units = None    # this flag is for deconvolution clusters
-        global_merge_max_dist(chunk_dir,
+        global_merge_max_dist(templates,
+                              spike_train,
                               CONFIG2,
-                              out_dir,
-                              units)
-                              
-    # plot_normalized_templates(chunk_dir, CONFIG2.neigh_channels)
+                              chunk_dir,
+                              out_dir)
