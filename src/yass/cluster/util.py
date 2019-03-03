@@ -2345,8 +2345,7 @@ def gather_clustering_result(chunk_dir, out_dir, units):
             unit_recluster_list.append(0)
 
     spike_indexes = np.array(spike_indexes)    
-    if len(templates) > 0:
-        templates = np.vstack(templates)
+    templates = np.vstack(templates)
 
     # Clip tempaltes and only work with default spike_size templates going forward
     # spike_size_default = int(CONFIG.recordings.spike_size_ms*
