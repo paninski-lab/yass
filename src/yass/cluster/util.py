@@ -2920,7 +2920,7 @@ def parallel_abs_max_dist(id1, temp, merge_dir):
         diff_rel = diff/(max(ptp_1,ptp_2))
 
         # compute max distance
-        if diff<1 or diff_rel<0.1:
+        if diff<0.5 or diff_rel<0.1:
             dist_max[id2] = 1.0
     
     np.save(fname, dist_max)

@@ -291,7 +291,7 @@ class Cluster(object):
             self.channel = self.template_original.ptp(0).argmax(0)
 
             # max number of spikes to be used for reclustering postdeconv
-            self.max_cluster_spikes = 5000
+            #self.max_cluster_spikes = 5000
             self.min_fr = 1200
 
             self.filename_postclustering = (self.chunk_dir + "/unit_"+
