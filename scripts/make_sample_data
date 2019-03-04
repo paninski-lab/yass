@@ -27,7 +27,7 @@ def main():
 
     path_to_retina_folder = Path(path_to_data_storage, 'retina')
     path_to_retina_config = Path(path_to_retina_folder, 'config.yaml')
-    path_to_retina_data = Path(path_to_retina_folder, 'ej49_data1_set1.bin')
+    path_to_retina_data = Path(path_to_retina_folder, 'ej49_data1_allset.bin')
     path_to_retina_geom = Path(path_to_retina_folder, 'ej49_geometry1.txt')
 
     path_to_output_folder = Path(path_to_data_storage, 'yass-testing-data',
