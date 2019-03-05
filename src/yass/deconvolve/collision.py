@@ -50,8 +50,8 @@ def MAD_bernoulli_two_uniforms(a, b):
 
 
 def collision_templates(
-        templates, get_unit_spike_fun, mad_gap=0.8, mad_gap_breach=4,
-        residual_max_norm=1.):
+        templates, get_unit_spike_fun, mad_gap=1, mad_gap_breach=4,
+        residual_max_norm=1):
     """Given templates and spikes determines collision templates.
 
     params:
@@ -156,6 +156,7 @@ def collision_templates(
         wf = get_unit_spike_fun(unit)
         wf = wf[:, visch[unit], :]
         mean = wf.mean(axis=0)
+
         # Compute the approximate expected MAD of normali looking spikes.
         wf = WaveForms(wf).align(jitter=jitter)
         # Clipp the mean so that it is the same shape as the aligned
@@ -182,7 +183,8 @@ def collision_templates(
     mad_collision_picks = np.setdiff1d(
             mad_collision_picks, np.array(elemental))
 
-    return np.union1d(
-            np.array(deconv_collision_picks),
-            np.array(mad_collision_picks))
+    return np.array(deconv_collision_picks), np.array(mad_collision_picks), unit_factors, res_max_norm
+    #return np.union1d(
+    #        np.array(deconv_collision_picks),
+    #        np.array(mad_collision_picks))
 

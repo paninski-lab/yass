@@ -34,8 +34,6 @@ from yass.util import (load_yaml, save_metadata, load_logging_config_file,
                        human_readable_time)
 from yass.explore import RecordingExplorer
 from yass.threshold import dimensionality_reduction as dim_red
-from yass.deconvolve.collision import collision_templates
-from yass.cluster.cluster import binary_reader_waveforms
 
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
@@ -173,25 +171,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         ************** DECONVOLUTION *****************
         **********************************************
     '''
-    # detect and remove collision templates
-    # wrapper function for getting waveforms that is passed to collision
-    # detection
-    def get_unit_wave_forms(uid):
-        spt = spike_train_cluster[spike_train_cluster[:, 1] == uid, 0] - 81//2
-        spikes_ =  binary_reader_waveforms(
-                standardized_filename=standardized_path,
-                n_channels=standardized_params['n_channels'],
-                n_times=81, spikes=spt,
-                channels=None)[0].transpose([0, 2, 1])
-        return spikes_
-
-    collision_units = collision_templates(
-            templates_cluster.transpose([0, 2, 1]),
-            get_unit_wave_forms).astype(np.int)
-
-    logger.info('Collision units: {} units removed.'.format(
-        len(collision_units)))
-    templates_cluster = templates_cluster[collision_units, :, :]
 
     # run deconvolution
     start=time.time()
@@ -208,22 +187,18 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     path_to_templates = path.join(TMP_FOLDER, 'templates_post_deconv_post_merge.npy')
     np.save(path_to_templates, postdeconv_templates)
     logger.info('Templates saved in: {}'.format(path_to_templates))
-    
 
     ''' **********************************************
         ************** RF / VISUALIZE ****************
         **********************************************
     '''
-    
+
     if calculate_rf:
         rf.run() 
-        
+
     if visualize:
         visual.run()
-        
-        
-    
-        
+
     ''' **********************************************
         ************** POST PROCESSING****************
         **********************************************

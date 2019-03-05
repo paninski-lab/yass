@@ -53,7 +53,7 @@ def run(spike_train_cluster,
                                                  spike_train_cluster.shape))
 
     Deconv(spike_train_cluster,
-            templates,
+            templates.transpose(1,2,0),
             output_directory,
             recordings_filename,
             CONFIG)

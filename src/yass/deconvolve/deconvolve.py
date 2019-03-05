@@ -14,7 +14,7 @@ from scipy.signal import argrelmin
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 
 from yass import read_config
-from yass.cluster.cluster import Cluster, align_get_shifts_with_ref, shift_chans, read_spikes
+from yass.cluster.cluster import Cluster, align_get_shifts_with_ref, shift_chans, binary_reader_waveforms
 from yass.cluster.util import (binary_reader,
                                load_waveforms_from_memory,
                                make_CONFIG2, upsample_parallel, recompute_templates,
@@ -22,7 +22,7 @@ from yass.cluster.util import (binary_reader,
 from yass.deconvolve.match_pursuit import (MatchPursuit_objectiveUpsample, 
                                             Residual)
 from yass.deconvolve.merge import TemplateMerge
-
+from yass.deconvolve.collision import collision_templates
 from yass.deconvolve.match_pursuit_gpu import deconvGPU
 
 from diptest import diptest as dp
@@ -42,7 +42,7 @@ class Deconv(object):
                  recordings_filename, CONFIG):
 
         self.spike_train = spike_train
-        self.templates = templates.transpose(1,2,0)
+        self.templates = templates
         self.output_directory = output_directory
         self.recordings_filename = recordings_filename
         self.CONFIG = make_CONFIG2(CONFIG)
@@ -180,6 +180,9 @@ class Deconv(object):
             if not os.path.isdir(self.deconv_chunk_dir):
                 os.makedirs(self.deconv_chunk_dir)
 
+            # remove collision units
+            self.remove_collisions()
+
             # run match pursuit and return templates and spike_trains
             if self.deconv_gpu:
                 self.match_pursuit_function_gpu()
@@ -209,6 +212,9 @@ class Deconv(object):
         if not os.path.isdir(self.deconv_chunk_dir):
             os.makedirs(self.deconv_chunk_dir)
 
+        # remove collision units
+        self.remove_collisions()
+
         # Cat: TODO: don't recomp temp_temp for final step if prev. computed
         if self.deconv_gpu:
             self.match_pursuit_function_gpu()
@@ -221,6 +227,51 @@ class Deconv(object):
 
         # run post-deconv merge
         self.merge()
+        
+    def remove_collisions(self):
+
+        print ("\n Removing Collision Units...")
+
+        # detect and remove collision templates
+        # wrapper function for getting waveforms that is passed to collision
+        # detection
+        def get_unit_wave_forms(uid):
+            n_times = self.templates.shape[0] + 20
+            n_channels = self.templates.shape[1]
+            spt = self.spike_train[self.spike_train[:, 1] == uid, 0] - n_times//2
+            standardized_filename = os.path.join(
+                self.CONFIG.path_to_output_directory,
+                'preprocess', 'standardized.bin')
+            spikes_ =  binary_reader_waveforms(
+                    standardized_filename=standardized_filename,
+                    n_channels=n_channels,
+                    n_times=n_times, spikes=spt,
+                    channels=None)[0].transpose([0, 2, 1])
+            return spikes_
+
+        path_to_collision_units1 = os.path.join(self.deconv_chunk_dir, 'collision_units1.npy')
+        path_to_collision_units2 = os.path.join(self.deconv_chunk_dir, 'collision_units2.npy')
+        if not os.path.exists(path_to_collision_units1):
+            (collision_units1, collision_units2,
+             unit_factors, res_max_norm) = collision_templates(
+                self.templates.transpose([2, 1, 0]),
+                get_unit_wave_forms)
+            np.save(path_to_collision_units1, collision_units1)
+            np.save(path_to_collision_units2, collision_units2)
+            np.save(os.path.join(self.deconv_chunk_dir, 'collision_deconv_factors.npy'),
+                    unit_factors)
+            np.save(os.path.join(self.deconv_chunk_dir, 'collision_deconv_norm.npy'),
+                    res_max_norm)
+        else:
+            collision_units1 = np.load(path_to_collision_units1)
+            collision_units2 = np.load(path_to_collision_units2)
+
+        collision_units = np.union1d(collision_units1, collision_units2).astype(np.int)
+
+        print('Collision units: {} units removed.'.format(
+            len(collision_units)))
+        clean_units = np.where(~np.in1d(np.arange(self.templates.shape[2]), collision_units))[0]
+        self.templates = self.templates[:, :, clean_units]
 
 
     def merge(self): 
@@ -606,7 +657,7 @@ class Deconv(object):
                                         chunk_dir)
 
         # post recluster merge
-        _, templates = global_merge_max_dist(templates,
+        spike_train, templates = global_merge_max_dist(templates,
                                              spike_train,
                                              self.CONFIG,
                                              chunk_dir,
@@ -614,6 +665,7 @@ class Deconv(object):
         
         # reshape templates
         self.templates = templates.transpose(1,2,0)
+        self.spike_train = spike_train
 
         print ("  reclustering complete")
 
