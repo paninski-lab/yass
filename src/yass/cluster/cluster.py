@@ -1290,12 +1290,17 @@ class Cluster(object):
                     len(spike_train))
 
         # Cat: TODO: are these redundant?
-        self.wf_global = None
-        self.wf_global_allchans = None
-        self.pca_wf_allchans = None
-        self.denoised_wf = None
-        self.indices_train = None
-        self.templates = None
+        keys = []
+        for key in self.__dict__:
+            keys.append(key)
+        for key in keys:
+            delattr(self, key)
+        #self.wf_global = None
+        #self.wf_global_allchans = None
+        #self.pca_wf_allchans = None
+        #self.denoised_wf = None
+        #self.indices_train = None
+        #self.templates = None
 
     def robust_stds(self, wf_align):
         
