@@ -17,16 +17,22 @@ def get_soft_assignments(templates, templates_upsampled, spike_train,
     params:
     -------
     templates: np.ndarray
-        Has shape (# units, # channels, # time samples).
+        Has shape (# units, # time samples, # channels).
     n_similar_units: int
         Number of similar units that the spikes should be compare against.
     """
+    def softmax(x):
+        """Sape must be (N, d)"""
+        e = np.exp(x)
+        return e / e.sum(axis=1)[:, None]
 
     n_spikes = spike_train.shape[0]
-    temp = WaveForms(templates.transpose([0, 2, 1])
+    temp = WaveForms(templates.transpose([0, 2, 1]))
     pdist = temp.pair_dist() 
 
     soft_assignments = np.zeros([n_spikes, n_similar_units])
+    # By default assign each spike to its own cluster
+    soft_assignments[:, 0] = 1
     sim_unit_map = np.zeros([temp.n_unit, n_similar_units]).astype(np.int)
 
     for unit in tqdm(range(temp.n_unit), "Computing soft assignments"):
@@ -35,10 +41,15 @@ def get_soft_assignments(templates, templates_upsampled, spike_train,
         spt = spike_train[spt_idx, 0]
         # Get all upsampled ids
         units = spike_train_upsampled[spt_idx, 1]
-
-        spikes, success_idx = read_spikes(
-            filename_residual, spt, temp.n_channel, spike_size=temp.n_time,
-            units, templates_upsampled, residual_flag=True)
+        n_unit_spikes = len(spt)
+        spikes, skipped_idx = read_spikes(
+            filename=filename_residual,
+            spikes=spt,
+            n_channels=temp.n_channel,
+            spike_size=temp.n_time,
+            units=units,
+            templates=templates_upsampled,
+            residual_flag=True)
 
         sim_units = pdist[unit].argsort()[:n_similar_units]
         sim_unit_map[unit] = sim_units
@@ -48,12 +59,12 @@ def get_soft_assignments(templates, templates_upsampled, spike_train,
                 templates=templates[sim_units],
                 spikes=spikes)
 
-        def softmax(x):
-            """Sape must be (N, d)"""
-            e = np.exp(x)
-            return e / e.sum(axis=1)[:, None]
         # Note that we are actually doing soft-min by using negative distance.
         assignments = softmax(- dist_features.T)
+
+        success_idx = np.setdiff1d(
+                np.arange(n_unit_spikes), np.array(skipped_idx))
+
         soft_assignments[spt_idx[success_idx], :] = assignments
 
     return soft_assignments, sim_unit_map

@@ -541,6 +541,7 @@ class Deconv(object):
         # Note: this uses spike times occuring at beginning of spike
         fname = os.path.join(self.deconv_chunk_dir,
                              'residual.bin')
+        self.residual_fname = fname
                                          
         if os.path.exists(fname)==True:
             return
