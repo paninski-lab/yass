@@ -1,14 +1,19 @@
 import h5py
+import parmap
 import numpy as np
 import scipy.io as sio
 import os
 from tqdm import tqdm
+import scipy
+import scipy.io
 import scipy.optimize as opt
 from scipy.spatial.distance import cdist
 from scipy.ndimage import gaussian_filter
 import networkx as nx
+from pkg_resources import resource_filename
 
 from yass import read_config
+from yass.cluster.cluster import upsample_resample, shift_chans
 
 def run():
     """RF computation
@@ -24,12 +29,11 @@ def run():
     
     rf = RF(stim_movie_file, triggers_fname, spike_train_fname, saving_dir)
     rf.calculate_STA()
-    rf.fit_gaussian()
     rf.detect_multi_rf()
 
 
 class RF(object):
-    def __init__(self, stim_movie_file, triggers_fname, spike_train_fname, saving_dir):
+    def __init__(self, stim_movie_file, triggers_fname, spike_train_fname, saving_dir, matlab_bin='matlab'):
         
         # default parameter
         self.n_color_channels = 3
@@ -46,7 +50,9 @@ class RF(object):
             os.makedirs(self.save_dir)
         if self.save_dir[-1] != '/':
             self.save_dir += '/'
-             
+
+        self.matlab_bin = matlab_bin
+
         print("spike train:\t{}".format(self.sps.shape))
         print("Number of units:\t{}".format(self.Ncells))
 
@@ -117,29 +123,39 @@ class RF(object):
     
     def calculate_STA(self):
 
-        if not os.path.exists(self.save_dir+'STA.npy'):
+        self.load_stimulus_trigger(self.stim_movie_file, self.triggers_fname)
+        self.calculate_frame_times()
 
-            self.load_stimulus_trigger(self.stim_movie_file, self.triggers_fname)
-            self.calculate_frame_times()
+        tmp_dir = os.path.join(self.save_dir, 'tmp')
+        if not os.path.exists(tmp_dir):
+            os.makedirs(tmp_dir)
+        
+        tmp_dir_sta = os.path.join(tmp_dir, 'sta')
+        if not os.path.exists(tmp_dir_sta):
+            os.makedirs(tmp_dir_sta)
+        
+        tmp_dir_rgc = os.path.join(tmp_dir, 'rgc')
+        if not os.path.exists(tmp_dir_rgc):
+            os.makedirs(tmp_dir_rgc)
 
-            print('Calculating STA...')
+        print('Calculating STA...')
 
-            ############################################
-            ## Get full STAs and spatial/temporal STA ##
-            ############################################
+        ############################################
+        ## Get full STAs and spatial/temporal STA ##
+        ############################################
 
-            STA_temporal_length = 30 # how many bins/frames to include in STA
-            Ncells = self.Ncells
-            stim_size = self.stim_size
-            n_color_channels = self.n_color_channels
-            n_pixels = stim_size[0]*stim_size[1]
+        STA_temporal_length = 30 # how many bins/frames to include in STA
+        Ncells = self.Ncells
+        stim_size = self.stim_size
+        n_color_channels = self.n_color_channels
+        n_pixels = stim_size[0]*stim_size[1]
 
-            # Set up arrays
-            STA_array = np.zeros((Ncells,STA_temporal_length,n_color_channels,n_pixels))
-            n_spikes = np.zeros((Ncells,))
-
-            unique_ids = np.unique(self.sps[:,1])
-            for i_cell in tqdm(unique_ids):
+        unique_ids = np.unique(self.sps[:,1])
+        
+        args_in = []
+        for i_cell in unique_ids:
+            fname = os.path.join(tmp_dir_sta, 'unit_'+str(i_cell)+'.mat')
+            if not os.path.exists(fname):
 
                 ##################################
                 ### Get spikes in stimulus bins ##
@@ -155,92 +171,58 @@ class RF(object):
                 binned_spikes, rr = np.histogram(these_sps,self.frame_times)
                 which_spikes = np.where(binned_spikes>0)[0]
                 which_spikes = which_spikes[which_spikes>STA_temporal_length]
-                # I don't use spikes in first 30 bins to build STA so don't have to deal with padding, probably ok anyway for ignoring transients
-
-                ####################
-                ### Calculate STA ##
-                ####################
-
-                ## Swap out fastest version here 
-                STA = np.zeros((STA_temporal_length,n_color_channels,n_pixels))
-                for i in range(which_spikes.shape[0]):
-                    bin_number = which_spikes[i]
-                    if binned_spikes[bin_number] == 1:
-                        STA += self.WN_stim[bin_number-(STA_temporal_length-1):bin_number+1]
-                    else:
-                        STA += binned_spikes[bin_number]*self.WN_stim[bin_number-(STA_temporal_length-1):bin_number+1]
-
-                # full sta
-                if np.sum(binned_spikes[STA_temporal_length:])>0:
-                    STA = STA/np.sum(binned_spikes[STA_temporal_length:])
-                STA_array[i_cell] = STA
-                n_spikes[i_cell] = np.sum(binned_spikes[STA_temporal_length:])
-
-            np.save(self.save_dir+'STA.npy',STA_array)
-            np.save(self.save_dir+'n_spikes.npy',n_spikes)
-
-        else:
-
-            STA_array = np.load(self.save_dir+'STA.npy')  
-            self.stim_size = np.load(self.save_dir+'stim_size.npy')
-            unique_ids = np.unique(self.sps[:,1])
-            Ncells, STA_temporal_length, n_color_channels, n_pixels = STA_array.shape
             
-        if not os.path.exists(self.save_dir+'STA_spatial.npy'):
-            
-            ###########################################
-            ### Get separate spatial & temporal STAs ##
-            ###########################################
-            
-            STA_spatial = np.zeros((Ncells, n_color_channels, n_pixels))
-            STA_temporal = np.zeros((Ncells, n_color_channels, STA_temporal_length))
-            STA_spatial_colorcat = np.zeros((Ncells, n_pixels))
-            STA_temporal_colorcat = np.zeros((Ncells, n_color_channels, STA_temporal_length))
-            
-            # first center STA
-            STA_array = STA_array - np.mean(STA_array)
-            # then denoise STA
-            STA_array = denoise_STA(STA_array)
-
-            # Get spatial and temporal components of each color channel separately
-            for i_cell in tqdm(unique_ids):
-                for i_channel in range(n_color_channels):
-                    (STA_temporal[i_cell, i_channel],
-                     STA_spatial[i_cell, i_channel]) = get_temp_spat_filters(
-                        STA_array[i_cell, :, i_channel])
-            
-                temp_filt, spat_filt = get_temp_spat_filters(
-                    STA_array[i_cell].transpose(1,0,2).reshape(-1, STA_array.shape[3]))
-
-                STA_temporal_colorcat[i_cell,0] = temp_filt[:30]
-                STA_temporal_colorcat[i_cell,1] = temp_filt[30:60]
-                STA_temporal_colorcat[i_cell,2] = temp_filt[60:]
-                STA_spatial_colorcat[i_cell] = spat_filt
-
-            # Save arrays files
-            np.save(self.save_dir+'STA_spatial.npy',STA_spatial)
-            np.save(self.save_dir+'STA_temporal.npy',STA_temporal)
-            np.save(self.save_dir+'STA_spatial_colorcat.npy',STA_spatial_colorcat)
-            np.save(self.save_dir+'STA_temporal_colorcat.npy',STA_temporal_colorcat)
+                args_in.append([
+                    self.WN_stim,
+                    binned_spikes,
+                    which_spikes,
+                    STA_temporal_length,
+                    stim_size,
+                    fname
+                ])
         
-    
+        if False:
+            n_processors = 6
+            parmap.map(sta_calculation_parallel,
+                       args_in,
+                       processes=n_processors,
+                       pm_pbar=True)
+        else:
+            for unit in tqdm(range(len(args_in))):
+                sta_calculation_parallel(args_in[unit])
+
+        # run matlab code
+        rf_matlab_loc = resource_filename('yass', 'rf/rf_matlab')
+        command = '{} -nodisplay -r \"cd(\'{}\'); fit_sta_liam_parallel(\'{}\', \'{}\'); exit\"'.format(
+            self.matlab_bin, rf_matlab_loc, tmp_dir_sta, tmp_dir_rgc)
+        os.system(command)
+
+        STA_spatial = np.zeros((self.Ncells, stim_size[0], stim_size[1], n_color_channels))
+        STA_temporal = np.zeros((self.Ncells, STA_temporal_length, n_color_channels))
+        gaussian_fits = np.zeros((self.Ncells, 5))
+        for unit in unique_ids:
+            fname = os.path.join(tmp_dir_rgc, 'rgc_{}.mat'.format(unit))
+            data = scipy.io.loadmat(fname)
+            if 'temp_rf' in data.keys():
+                STA_spatial[unit] = data['temp_rf']
+                STA_temporal[unit] = data['fit_tc']
+                gaussian_fits[unit] = data['temp_fit_params']['fit_params'][0][0][0][:5]
+        
+        np.save(os.path.join(self.save_dir, 'STA_spatial.npy'), STA_spatial)
+        np.save(os.path.join(self.save_dir, 'STA_temporal.npy'), STA_temporal)
+        np.save(os.path.join(self.save_dir, 'gaussian_fits.npy'), gaussian_fits)
+
     def detect_multi_rf(self):
         
         STA_spatial = np.load(self.save_dir+'STA_spatial.npy')
-        STA_spatial = STA_spatial.reshape(STA_spatial.shape[0],STA_spatial.shape[1],64,32)
-        
-        # find units with duplicate RFs
-        units = np.arange(STA_spatial.shape[0])
-        #print (" total # of neurons: ", units.shape[0])
 
-        # search for STAs with n_rfs number of RFs
         n_rf = 1
 
         # loop over all units and compute 
         rfs_array = []
         units = np.arange(STA_spatial.shape[0])
         for unit in units:
-            img = STA_spatial[unit,1]
+            img = STA_spatial[unit,:,:,1]
 
             # smooth out img; seems to help overall
             img_smooth = gaussian_filter(img, sigma=1)
@@ -275,6 +257,60 @@ class RF(object):
         idx = np.where(np.array(rfs_array)==n_rf)[0]
         np.save(self.save_dir+'idx_single_rf.npy', idx)
         
+        
+    def classification(self):
+
+        # load data
+        STA_temporal = np.load(self.save_dir+'STA_temporal.npy')
+        gaussian_fits = np.load(self.save_dir+'gaussian_fits.npy')
+        idx_single_rf = np.load(self.save_dir+'idx_single_rf.npy')
+        
+        # remove double rf and think contours
+        idx_keep = np.zeros(STA_temporal.shape[0], 'bool')
+        areas = np.zeros(STA_temporal.shape[0])
+        for unit in idx_single_rf:
+
+            center = gaussian_fits[unit, :2]
+            rad_sd = gaussian_fits[unit, 2:4]
+            rot_angle = gaussian_fits[unit,4]
+
+            # skip neurons with very thin contours
+            if not ((rad_sd[0]<rad_sd[1]/5.) or (rad_sd[1]<rad_sd[0]/5.)):
+                idx_keep[unit] = True
+                areas[unit] = np.pi * rad_sd[0] * rad_sd[1]
+        idx_keep = np.where(idx_keep)[0]
+        
+        # load saved feature spca and gmm params
+        path_to_assets = resource_filename('yass', 'rf/classification')
+        ref = np.load(os.path.join(path_to_assets, 'ref.npy'))
+        temp_pca_compoents = np.load(os.path.join(path_to_assets, 'temp_pca_compoents.npy'))
+        temp_pca_mean = np.load(os.path.join(path_to_assets, 'temp_pca_mean.npy'))
+        pca_compoents = np.load(os.path.join(path_to_assets, 'pca_compoents.npy'))
+        pca_mean = np.load(os.path.join(path_to_assets, 'pca_mean.npy'))
+        gmm_covs = np.load(os.path.join(path_to_assets, 'gmm_covs.npy'))
+        gmm_means = np.load(os.path.join(path_to_assets, 'gmm_means.npy'))
+        
+        # get features
+        STA_temporal = align_tc(STA_temporal, ref)
+        STA_temporal = STA_temporal.reshape(STA_temporal.shape[0], -1)
+
+        temp_pc = np.matmul(STA_temporal - temp_pca_mean[None], temp_pca_compoents.T)
+        features = np.hstack((temp_pc[:, :2], np.log(areas[:, None])))
+        features = np.matmul(features - pca_mean[None], pca_compoents.T)
+        features = features[idx_keep]
+        
+        # do classification based on mahalanobis distance
+        feat_centered = (features[None] - gmm_means[:,None])
+        inv_gmm_covs = np.linalg.inv(gmm_covs)
+        maha_dist = np.sqrt(np.sum(np.matmul(feat_centered, inv_gmm_covs)*feat_centered, -1))
+        
+        labels = np.ones(STA_temporal.shape[0], 'int32')*-1
+        labels_tmp = np.argmin(maha_dist, 0)
+        idx_close = maha_dist.min(0) < 4
+        labels[idx_keep[idx_close]] = labels_tmp[idx_close]
+        
+        np.save(os.path.join(self.save_dir, 'labels.npy'), labels)
+
     def twoD_Gaussian(self, xdata_tuple, amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
         ## Define 2D Gaussian that we'll fit to spatial STAs
         (x, y) = xdata_tuple
@@ -378,3 +414,86 @@ def get_temp_spat_filters(STA):
         spatial_filter *= -1.0
     
     return temp_filter, spatial_filter
+
+
+def sta_calculation_parallel(arg_in):
+    
+    WN_stim = arg_in[0]
+    binned_spikes = arg_in[1]
+    which_spikes = arg_in[2]
+    STA_temporal_length = arg_in[3]
+    stim_size = arg_in[4]
+    fname = arg_in[5]
+        
+    ####################
+    ### Calculate STA ##
+    ####################
+
+    ## Swap out fastest version here 
+    _, n_color_channels, n_pixels = WN_stim.shape
+    STA = np.zeros((STA_temporal_length, n_color_channels, n_pixels))
+    for i in range(which_spikes.shape[0]):
+        bin_number = which_spikes[i]
+        if binned_spikes[bin_number] == 1:
+            STA += WN_stim[bin_number-(STA_temporal_length-1):bin_number+1]
+        else:
+            STA += binned_spikes[bin_number]*WN_stim[bin_number-(STA_temporal_length-1):bin_number+1]
+
+    # full sta
+    if np.sum(binned_spikes[STA_temporal_length:])>0:
+        STA = STA/np.sum(binned_spikes[STA_temporal_length:])
+    STA = STA.reshape(STA_temporal_length, n_color_channels,
+                      stim_size[0], stim_size[1])
+    STA = STA.transpose(2,3,1,0)
+
+    scipy.io.savemat(fname, mdict={'temp_stas': STA})
+
+def align_tc(tc, ref):
+    n_units, n_timepoints, n_channels = tc.shape
+
+    max_channels = np.abs(tc).max(1).argmax(1)
+
+    main_tc = np.zeros((n_units, n_timepoints))
+    for j in range(n_units):
+        main_tc[j] = np.abs(tc[j][:,max_channels[j]])
+    
+        
+    best_shifts = align_get_shifts_tc(main_tc, ref, upsample_factor=1)
+    shifted_tc = shift_chans(tc, best_shifts)
+
+    return shifted_tc
+
+def align_get_shifts_tc(wf, ref, upsample_factor = 5, nshifts = 21):
+
+    ''' Align all waveforms on a single channel
+    
+        wf = selected waveform matrix (# spikes, # samples)
+        max_channel: is the last channel provided in wf 
+        
+        Returns: superresolution shifts required to align all waveforms
+                 - used downstream for linear interpolation alignment
+    '''
+    # convert nshifts from timesamples to  #of times in upsample_factor
+    nshifts = (nshifts*upsample_factor)
+    if nshifts%2==0:
+        nshifts+=1    
+    
+    # or loop over every channel and parallelize each channel:
+    #wf_up = []
+    wf_up = upsample_resample(wf, upsample_factor)
+
+    wf_start = 15*upsample_factor
+    wf_trunc = wf_up[:,wf_start:]
+    wlen_trunc = wf_trunc.shape[1]
+    
+    # align to last chanenl which is largest amplitude channel appended
+    ref_upsampled = upsample_resample(ref[np.newaxis], upsample_factor)[0]
+    ref_shifted = np.zeros([wf_trunc.shape[1], nshifts])
+    
+    for i,s in enumerate(range(-int((nshifts-1)/2), int((nshifts-1)/2+1))):
+        ref_shifted[:,i] = np.roll(ref_upsampled, -s)[wf_start:]
+
+    bs_indices = np.matmul(wf_trunc[:,np.newaxis], ref_shifted).squeeze(1).argmax(1)
+    best_shifts = (np.arange(-int((nshifts-1)/2), int((nshifts-1)/2+1)))[bs_indices]
+
+    return best_shifts/np.float32(upsample_factor)

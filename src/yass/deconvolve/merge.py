@@ -134,10 +134,15 @@ class TemplateMerge(object):
         units_2 = units_2[idx]
 
         # get unique pairs
-        pairs = np.zeros((self.n_unit, self.n_unit), 'bool')
-        pairs[units_1, units_2] = True
-        pairs[units_2, units_1] = True
-        units_1, units_2 = np.where(np.triu(pairs))
+        unique_pairs = []
+        for x,y in zip(units_1, units_2):
+            if [x, y] not in unique_pairs and [y, x] not in unique_pairs:
+                unique_pairs.append([x, y])
+    
+        #pairs = np.zeros((self.n_unit, self.n_unit), 'bool')
+        #pairs[units_1, units_2] = True
+        #pairs[units_2, units_1] = True
+        #units_1, units_2 = np.where(np.triu(pairs))
         
         fname = os.path.join(self.deconv_chunk_dir,
                              'merge_list_'+str(self.iteration)+'.npy')
@@ -146,7 +151,7 @@ class TemplateMerge(object):
         if os.path.exists(fname)==False or self.recompute:
             if self.CONFIG.resources.multi_processing:
                 merge_list = parmap.map(self.merge_templates_parallel, 
-                             list(zip(units_1, units_2)),
+                             unique_pairs,
                              processes=self.CONFIG.resources.n_processors,
                              pm_pbar=True)
             # single core version
@@ -253,7 +258,7 @@ class TemplateMerge(object):
 
 
 def get_l2_features(filename_residual, spike_train, spike_train_upsampled,
-                    templates, templates_upsampled, unit1, unit2):
+                    templates, templates_upsampled, unit1, unit2, n_samples=2000):
     
     _, spike_size, n_channels = templates.shape
     
@@ -264,24 +269,20 @@ def get_l2_features(filename_residual, spike_train, spike_train_upsampled,
     spt2_idx = np.where(spike_train[:, 1] == unit2)[0]
     
     # subsample
-    #ratio = len(spt1_idx)/(len(spt1_idx)+len(spt2_idx))
-    #n_samples1 = int(n_samples*ratio)
-    #n_samples2 = n_samples - n_samples1
-    
-    #if n_samples1 > len(spt1_idx):
-    #    n_samples1 = len(spt1_idx)
-    #    n_samples2 = int((1-ratio)/ratio*n_samples1)
-    #if n_samples2 > len(spt2_idx):
-    #    n_samples2 = len(spt2_idx)
-    #    n_samples1 = int(ratio/(1-ratio)*n_samples2)
-    
-    #spt1_idx = np.random.choice(
-    #    spt1_idx, n_samples1, False)
-    #spt2_idx = np.random.choice(
-    #    spt2_idx, n_samples2, False)
+    if len(spt1_idx) + len(spt2_idx) > n_samples:
+        ratio = len(spt1_idx)/(len(spt1_idx)+len(spt2_idx))
+        
+        n_samples1 = int(n_samples*ratio)
+        n_samples2 = n_samples - n_samples1
+
+        spt1_idx = np.random.choice(
+            spt1_idx, n_samples1, False)
+        spt2_idx = np.random.choice(
+            spt2_idx, n_samples2, False)
     
     spt1 = spike_train[spt1_idx, 0]
     spt2 = spike_train[spt2_idx, 0]
+
     units1 = spike_train_upsampled[spt1_idx, 1]
     units2 = spike_train_upsampled[spt2_idx, 1]
 
@@ -310,7 +311,7 @@ def test_unimodality(pca_wf, assignment, max_spikes = 10000):
     Parameters
     ----------
     pca_wf:  pca projected data
-    assignment:  spike assignments
+    ssignment:  spike assignments
     max_spikes: optional
     '''
 

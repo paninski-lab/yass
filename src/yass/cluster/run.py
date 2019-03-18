@@ -199,7 +199,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         
         # flag to indicate whether clusteirng or post-deconv reclustering
         deconv_flag = False
-        full_run = True
+        full_run = False
 
         # Cat: TODO: this parallelization may not be optimally asynchronous
         # make arg list first

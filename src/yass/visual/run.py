@@ -78,9 +78,12 @@ class Visualizer(object):
         self.sampling_rate = sampling_rate
  
         # rf files
+        self.rf_dir = rf_dir
         if rf_dir is not None:
             self.STAs = np.load(os.path.join(rf_dir, 'STA_spatial.npy'))
-            self.Gaussian_params = np.load(os.path.join(rf_dir, 'Gaussian_params.npy'))
+            self.gaussian_fits = np.load(os.path.join(rf_dir, 'gaussian_fits.npy'))
+            self.idx_single_rf = np.load(os.path.join(rf_dir, 'idx_single_rf.npy'))
+            self.rf_labels = np.load(os.path.join(rf_dir, 'labels.npy'))
         
         # get geometry
         self.geom = parse(fname_geometry, self.n_channels)
@@ -192,8 +195,14 @@ class Visualizer(object):
         self.make_raster_plot()
         self.make_firing_rate_plot()
         self.make_normalized_templates_plot()
+        
+        if self.rf_dir is not None:
+            self.make_rf_plots()
+            self.cell_classification_plots()
+
         if self.deconv_dir is not None:
             self.add_residual_qq_plot()
+            self.add_raw_deno_resid_plot()            
 
     def individiual_cell_plot(self, units=None):
         
@@ -209,8 +218,7 @@ class Visualizer(object):
         parmap.map(self.make_individual_cell_plot, 
                    list(units),
                    processes=6,
-                   pm_pbar=True)    
-        
+                   pm_pbar=True)
 
     def make_individual_cell_plot(self, unit):
 
@@ -494,7 +502,7 @@ class Visualizer(object):
         ax.set_title("Unit: "+str(unit)+", "+str(np.round(self.f_rates[unit],1))+
              "Hz, "+str(np.round(self.ptps[unit],1))+"SU", fontsize=self.fontsize)
         
-        img = self.STAs[unit,1].reshape(64,32).T
+        img = self.STAs[unit,:,:,1].T
         vmax = np.max(np.abs(img))
         vmin = -vmax
         ax.imshow(img, vmin=vmin, vmax=vmax)
@@ -516,7 +524,7 @@ class Visualizer(object):
         for ii, unit in enumerate(units):
             # also plot all in one plot
             plotting_data = self.get_circle_plotting_data(unit,
-                                                  self.Gaussian_params)
+                                                  self.gaussian_fits)
             ax.plot(plotting_data[1],plotting_data[0],
                     color=colors[ii], linewidth=3)
 
@@ -550,10 +558,10 @@ class Visualizer(object):
         y_circle = np.sin(circle_samples)
 
         # Get Gaussian parameters
-        angle = Gaussian_params[i_cell,5]
-        sd = Gaussian_params[i_cell,3:5]
-        x_shift=Gaussian_params[i_cell,1]
-        y_shift = Gaussian_params[i_cell,2]
+        angle = Gaussian_params[i_cell,4]
+        sd = Gaussian_params[i_cell,2:4]
+        x_shift=Gaussian_params[i_cell,0]
+        y_shift = Gaussian_params[i_cell,1]
 
         R = np.asarray([[np.cos(angle), np.sin(angle)],[-np.sin(angle), np.cos(angle)]])
         L = np.asarray([[sd[0], 0],[0, sd[1]]])
@@ -646,30 +654,51 @@ class Visualizer(object):
             self.templates.transpose(2, 0, 1), 
             self.neigh_channels, ref_template)
         
-        plt.figure(figsize=(23, 5*(add_row+1)))
-        plt.subplot(1+add_row,4,1)
-        plt.plot(templates_mc.T, color='k', alpha=0.02)
-        plt.xlabel('Main Channel', fontsize=self.fontsize//2)
+        plt.figure(figsize=(14, 4*(add_row+2)))
 
-        ths = [0,1,3]
-        for j in range(3):
-            for ii, th in enumerate(ths):
-                plt.subplot(1+add_row, 4, ii+2)
-                idx = ptp_sec > th
-                plt.plot(templates_sec[idx].T, color='k', alpha=0.02)
-                plt.xlabel('Sec. Chan., PTP > {}'.format(th), fontsize=self.fontsize//2)
+        ths = [0,2,3]
+        for ii, th in enumerate(ths):
+            plt.subplot(2+add_row, 3, ii+1)
+
+            if ii < 2:
+                idx = np.logical_and(ptp_mc >= th, ptp_mc < ths[ii+1])
+            else:
+                idx = ptp_mc >= th
+            if sum(idx) > 0:
+                plt.plot(templates_mc[idx].T, color='k', alpha=0.2)
+
+            if ii < 2:
+                plt.xlabel('Main Chan., {} < PTP < {}'.format(th, ths[ii+1]), fontsize=self.fontsize//2)
+            else:
+                plt.xlabel('Main Chan., {} < PTP'.format(th), fontsize=self.fontsize//2)
                 
+        for ii, th in enumerate(ths):
+            plt.subplot(2+add_row, 3, ii+4)
+
+            if ii < 2:
+                idx = np.logical_and(ptp_sec >= th, ptp_sec < ths[ii+1])
+            else:
+                idx = ptp_sec >= th
+
+            if sum(idx) > 0:
+                plt.plot(templates_sec[idx].T, color='k', alpha=0.05)
+
+            if ii < 2:
+                plt.xlabel('Sec. Chan., {} < PTP < {}'.format(th, ths[ii+1]), fontsize=self.fontsize//2)
+            else:
+                plt.xlabel('Sec. Chan., {} < PTP'.format(th), fontsize=self.fontsize//2)
+
         if add_row == 1:
-            plt.subplot(2, 4, 5)
+            plt.subplot(3, 3, 7)
             plt.plot(pca_main.T, color='k')
             plt.xlabel('PCs for main chan. denoise', fontsize=self.fontsize//2)
             
-            plt.subplot(2, 4, 6)
+            plt.subplot(3, 3, 8)
             plt.plot(pca_sec.T, color='k')
             plt.xlabel('PCs for sec chan. denoise', fontsize=self.fontsize//2)
             
     
-        plt.suptitle('Aligned Templates on Their Main/Secondary Channels', fontsize=30)
+        plt.suptitle('Aligned Templates on Their Main/Secondary Channels', fontsize=20)
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close()
 
@@ -741,6 +770,144 @@ class Visualizer(object):
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close()
 
+    def add_raw_deno_resid_plot(self):
+        
+        fname = os.path.join(self.save_dir, 'raw_denoised_residual.png')
+        if os.path.exists(fname):
+            return
+        
+        t_start = 1000
+        t_end = t_start+1000
+        idx_temp = np.where(np.logical_and(
+            self.spike_train_upsampled[:,0] < t_end, self.spike_train_upsampled[:,0] > t_start-61))[0]
+        spike_train_temp = self.spike_train_upsampled[idx_temp]
+
+        t_tics = np.arange(t_start, t_end)/20
+        channels = np.arange(20)
+        summed_templates = np.zeros((t_end-t_start+61*2, len(channels)))
+        for j in range(spike_train_temp.shape[0]):
+            tt, ii = spike_train_temp[j]
+            tt -= (t_start-61)
+            summed_templates[tt:tt+61] += self.templates_upsampled[:,channels][:,:,ii]
+        summed_templates = summed_templates[61:-61]
+
+        raw = np.memmap(self.fname_recording, 
+                        dtype='float32', mode='r')
+        raw = np.reshape(raw, [-1, self.n_channels])[t_start:t_end][:, channels]
+
+        res = np.memmap(self.residual_recording, 
+                        dtype='float32', mode='r')
+        res = np.reshape(res, [-1, self.n_channels])[t_start:t_end][:, channels]
+
+        spread = np.arange(len(channels))*30
+        plt.figure(figsize=(40,10))
+        ax = plt.subplot(111)
+        ax.set_facecolor((0.1,0.1,0.1))
+        ax.plot(t_tics,raw+spread[None], 'r')
+        ax.plot(t_tics,summed_templates+spread[None], 'b')
+        ax.plot(t_tics,res+spread[None], 'white')
+        ax.set_xlabel('Time (ms)', fontsize=30)
+        ax.set_xlim([min(t_tics), max(t_tics)])
+
+        labels_legend=[]
+        colors = ['r','b','white']
+        names = ['raw recording', 'denoised', 'residual']
+        for k in range(3):
+            patch_j = mpatches.Patch(color=colors[k], label=names[k])
+            labels_legend.append(patch_j)
+
+        plt.legend(handles = labels_legend, bbox_to_anchor=[1,1], fontsize=20)
+        plt.savefig(fname, bbox_inches='tight', dpi=100)
+        plt.close() 
+        
+    def cell_classification_plots(self):
+
+        fname = os.path.join(self.save_dir, 'contours.png')
+        if os.path.exists(fname):
+            return
+        
+        type_names = ['off-midget','off-parasol',
+               'off-sm',
+               'on-midget','on-parasol',
+               'unknown','multiple/no rf']
+
+        idx_per_type = []
+        for j in range(5):
+            idx_per_type.append(np.where(self.rf_labels == j)[0])
+        idx_per_type.append(self.idx_single_rf[self.rf_labels[self.idx_single_rf] == -1]) 
+        all_units = np.arange(self.n_units)
+        idx_per_type.append(all_units[~np.in1d(all_units, self.idx_single_rf)])
+
+        plt.figure(figsize=(22,6))
+        for ii, idx in enumerate(idx_per_type):
+            plt.subplot(1,7,ii+1)
+            for unit in idx:
+                # also plot all in one plot
+                plotting_data = self.get_circle_plotting_data(unit, self.gaussian_fits)
+                plt.plot(plotting_data[0],plotting_data[1], 'k')
+                plt.xlim([0,32])
+                plt.ylim([0,64])
+            plt.title(type_names[ii])
+        plt.savefig(fname, bbox_inches='tight', dpi=100)
+        plt.close()         
+        
+    def make_rf_plots(self):
+
+        fname = os.path.join(self.save_dir, 'all_rfs.png')
+        if os.path.exists(fname):
+            return
+
+        n_units = self.STAs.shape[0]
+        
+        type_names = ['off-midget','off-parasol',
+                       'off-sm',
+                       'on-midget','on-parasol',
+                       'unknown','multiple/no rf']
+
+        idx_per_type = []
+        for j in range(5):
+            idx_per_type.append(np.where(self.rf_labels == j)[0])
+        idx_per_type.append(self.idx_single_rf[self.rf_labels[self.idx_single_rf] == -1]) 
+        all_units = np.arange(n_units)
+        idx_per_type.append(all_units[~np.in1d(all_units, self.idx_single_rf)])
+        
+        n_rows_per_type = []
+        for idx in idx_per_type:
+            n_rows_per_type.append(int(np.ceil(len(idx)/10.)))
+        
+        fig=plt.figure(figsize=(50, 100))
+        gs = gridspec.GridSpec(sum(n_rows_per_type)+7, 10, fig)
+
+        row = 0
+        for ii, idx in enumerate(idx_per_type):
+
+            col = 0
+
+            # add label
+            ax = plt.subplot(gs[row, 0])
+            plt.text(0.5, 0.5, type_names[ii],
+                     horizontalalignment='center',
+                     verticalalignment='center',
+                     fontsize=40,
+                     transform=ax.transAxes)
+            ax.set_axis_off()
+            
+            row += 1
+
+            idx_sort = idx[np.argsort(self.ptps[idx])[::-1]]
+            for unit in idx_sort:
+                gs = self.add_RF_plot(gs, row, col, unit)
+                if col == 9:
+                    col = 0
+                    row += 1
+                else:
+                    col += 1
+            if col != 0:
+                row += 1
+
+        fig.savefig(fname, bbox_inches='tight', dpi=100)
+        plt.close()
+
 
 class CompareSpikeTrains(Visualizer):
     
@@ -766,9 +933,9 @@ class CompareSpikeTrains(Visualizer):
             spike_train2 = np.load(fname_spike_train2)
             
             STAs1 = np.load(os.path.join(rf_dir, 'STA_spatial.npy'))
-            Gaussian_params1 = np.load(os.path.join(rf_dir, 'Gaussian_params.npy'))
+            Gaussian_params1 = np.load(os.path.join(rf_dir, 'gaussian_fits.npy'))
             STAs2 = np.load(os.path.join(rf_dir2, 'STA_spatial.npy'))
-            Gaussian_params2 = np.load(os.path.join(rf_dir2, 'Gaussian_params.npy'))
+            Gaussian_params2 = np.load(os.path.join(rf_dir2, 'gaussian_fits.npy'))
             
             templates, spike_train = combine_two_spike_train(
                 templates1, templates2, spike_train1, spike_train2)
@@ -792,7 +959,7 @@ class CompareSpikeTrains(Visualizer):
             np.save(fname_spike_train, spike_train)
             np.save(fname_set1_idx, set1_idx)
             np.save(os.path.join(rf_dir, 'STA_spatial.npy'), STAs)
-            np.save(os.path.join(rf_dir, 'Gaussian_params.npy'), Gaussian_params)            
+            np.save(os.path.join(rf_dir, 'gaussian_fits.npy'), Gaussian_params)            
         
         set1_idx = np.load(fname_set1_idx)
             

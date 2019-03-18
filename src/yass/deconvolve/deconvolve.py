@@ -22,7 +22,7 @@ from yass.cluster.util import (binary_reader,
 from yass.deconvolve.match_pursuit import (MatchPursuit_objectiveUpsample, 
                                             Residual)
 from yass.deconvolve.merge import TemplateMerge
-from yass.deconvolve.collision import collision_templates
+#from yass.deconvolve.collision import collision_templates
 from yass.deconvolve.match_pursuit_gpu import deconvGPU
 
 from diptest import diptest as dp
@@ -181,7 +181,7 @@ class Deconv(object):
                 os.makedirs(self.deconv_chunk_dir)
 
             # remove collision units
-            self.remove_collisions()
+            #self.remove_collisions()
 
             # run match pursuit and return templates and spike_trains
             if self.deconv_gpu:
@@ -213,7 +213,7 @@ class Deconv(object):
             os.makedirs(self.deconv_chunk_dir)
 
         # remove collision units
-        self.remove_collisions()
+        #self.remove_collisions()
 
         # Cat: TODO: don't recomp temp_temp for final step if prev. computed
         if self.deconv_gpu:
@@ -255,6 +255,7 @@ class Deconv(object):
             (collision_units1, collision_units2,
              unit_factors, res_max_norm) = collision_templates(
                 self.templates.transpose([2, 1, 0]),
+                self.spike_train,
                 get_unit_wave_forms)
             np.save(path_to_collision_units1, collision_units1)
             np.save(path_to_collision_units2, collision_units2)
@@ -267,6 +268,7 @@ class Deconv(object):
             collision_units2 = np.load(path_to_collision_units2)
 
         collision_units = np.union1d(collision_units1, collision_units2).astype(np.int)
+        #collision_units = collision_units1.astype(np.int)
 
         print('Collision units: {} units removed.'.format(
             len(collision_units)))
@@ -654,7 +656,8 @@ class Deconv(object):
         templates = recompute_templates(templates,
                                         spike_train,
                                         self.CONFIG,
-                                        chunk_dir)
+                                        chunk_dir,
+                                        out_dir)
 
         # post recluster merge
         spike_train, templates = global_merge_max_dist(templates,

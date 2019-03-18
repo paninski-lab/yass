@@ -19,6 +19,7 @@ from yass.geometry import n_steps_neigh_channels
 from yass import mfm
 from yass.empty import empty
 from yass.cluster.cluster import (shift_chans, align_get_shifts_with_ref, binary_reader_waveforms)
+from yass.cluster.template import WaveForms 
 from yass.util import absolute_path_to_asset
 from yass.detect.run import deduplicate
 
@@ -2362,13 +2363,13 @@ def gather_clustering_result(chunk_dir, out_dir, units):
         spike_train = np.vstack((spike_train, temp))
 
     print ("  templates loaded: ", templates.shape)
-    np.save(chunk_dir  + '/templates_post_'+out_dir+'_pre_cleaning.npy', templates)
-    np.save(chunk_dir  + '/spike_train_post_'+out_dir+'_pre_cleaning.npy', spike_train)
+    np.save(chunk_dir  + '/templates_post_'+out_dir+'.npy', templates)
+    np.save(chunk_dir  + '/spike_train_post_'+out_dir+'.npy', spike_train)
     np.save(chunk_dir + '/unit_recluster_list.npy', unit_recluster_list)
 
     return templates, spike_train
 
-def recompute_templates(templates, spike_train, CONFIG, chunk_dir):
+def recompute_templates(templates, spike_train, CONFIG, chunk_dir, out_dir):
 
     print('Recomputing templates..')
 
@@ -2391,13 +2392,13 @@ def recompute_templates(templates, spike_train, CONFIG, chunk_dir):
         fname_out = os.path.join(
             chunk_dir,
             "template_unit_{}.npy".format(str(unit).zfill(6)))
-
-        args_in.append([
-            fname_recording,
-            spike_times[unit],
-            n_channels,
-            n_timepoints,
-            fname_out])
+        if not os.path.exists(fname_out):
+            args_in.append([
+                fname_recording,
+                spike_times[unit],
+                n_channels,
+                n_timepoints,
+                fname_out])
 
     # run computing function
     if CONFIG.resources.multi_processing:
@@ -2415,7 +2416,12 @@ def recompute_templates(templates, spike_train, CONFIG, chunk_dir):
     # gather all info
     templates_new = np.zeros((n_units, n_timepoints, n_channels))
     for unit in range(n_units):
-        templates_new[unit] = np.load(args_in[unit][-1])
+        fname_out = os.path.join(
+            chunk_dir,
+            "template_unit_{}.npy".format(str(unit).zfill(6)))
+        templates_new[unit] = np.load(fname_out)
+
+    np.save(chunk_dir  + '/templates_post_'+out_dir+'_recomputed.npy', templates_new)
 
     return templates_new
 
@@ -2425,31 +2431,36 @@ def recompute_templates_parallel(arg_in):
     n_channels = arg_in[2]
     spike_size = arg_in[3]
     fname_out = arg_in[4]
+    
+    max_spikes = 1000
+    if len(spike_times) > max_spikes:
+        spike_times = np.random.choice(a=spike_times,
+                                       size=max_spikes,
+                                       replace=False)
 
-    if not os.path.exists(fname_out):
-        wf, _ = binary_reader_waveforms(
-            fname_recording, n_channels,
-            spike_size, spike_times - spike_size//2)
+    wf, _ = binary_reader_waveforms(
+        fname_recording, n_channels,
+        spike_size, spike_times - spike_size//2)
 
-        ref_template = np.load(absolute_path_to_asset(
-                os.path.join('template_space', 'ref_template.npy')))
+    ref_template = np.load(absolute_path_to_asset(
+            os.path.join('template_space', 'ref_template.npy')))
 
-        cut_edge = (spike_size - len(ref_template))//2
+    cut_edge = (spike_size - len(ref_template))//2
 
-        mc = np.mean(wf, axis=0).ptp(0).argmax()
-        best_shifts = align_get_shifts_with_ref(
-            wf[:, cut_edge:-cut_edge, mc],
-            ref_template)
-        wf = shift_chans(wf, best_shifts)
-        template = np.median(wf, 0)
+    mc = np.mean(wf, axis=0).ptp(0).argmax()
+    best_shifts = align_get_shifts_with_ref(
+        wf[:, cut_edge:-cut_edge, mc],
+        ref_template)
+    wf = shift_chans(wf, best_shifts)
+    template = np.median(wf, 0)
 
-        np.save(fname_out,template)
+    np.save(fname_out,template)
 
 def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
 
     ''' Function that cleans low spike count templates and merges the rest
     '''
-    print ("\nPost-clustering merge... ")
+    print ("\nCleaning Templates... ")
 
     weights = np.zeros(templates.shape[0], 'int32')
     unique_ids, unique_weights = np.unique(spike_indexes[:,1], return_counts=True)
@@ -2460,47 +2471,56 @@ def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
         ************************************************
     '''
     # Clean templates; return index of templates that were deleted
-    templates, spike_indexes, weights, idx_kept = clean_templates(templates,
+    templates, spike_train, weights, idx_kept = clean_templates(templates,
                                                         spike_indexes,
                                                         weights,
                                                         CONFIG)
 
-    np.save(chunk_dir  + '/templates_post_'+out_dir+'_pre_merge.npy', templates)
-    np.save(chunk_dir + '/spike_train_post_'+out_dir+'_pre_merge.npy', spike_indexes)
+    np.save(chunk_dir  + '/templates_post_'+out_dir+'_post_cleaning.npy', templates)
+    np.save(chunk_dir + '/spike_train_post_'+out_dir+'_post_cleaning.npy', spike_train)
     np.save(chunk_dir + '/idx_kept.npy', idx_kept)
 
-    print("  "+out_dir+ " templates/spiketrain before merge: ", 
-                                        templates.shape, spike_indexes.shape)
+    print("  "+out_dir+ " templates/spiketrain before merge: ",
+                                        templates.shape, spike_train.shape)
+
+    print ("\nPost-clustering merge... ")
+
+    merge_dir = chunk_dir+'/merge'
+    if not os.path.isdir(merge_dir):
+        os.makedirs(merge_dir)
 
     ''' ************************************************
         ********** COMPUTE SIMILARITY METRICS **********
         ************************************************
     '''
     # ************** GET SIM_MAT ****************
-    abs_max_file = (chunk_dir+'/abs_max_vector_post_cluster.npy')
+    abs_max_file = (merge_dir+'/abs_max_vector_post_cluster.npy')
     if os.path.exists(abs_max_file)==False:
 
         # Cat: TODO: parallelize this step
-        if os.path.exists(chunk_dir  + '/denoised_templates.npy'):
-            temps_denoised = np.load(chunk_dir  + '/denoised_templates.npy')
-            shift_allowance = np.load(chunk_dir  + '/shift_allowance.npy')
-            
-        else:
-            temps_denoised, shift_allowance = get_denoised_templates(templates, CONFIG)
-            np.save(chunk_dir  + '/denoised_templates.npy', temps_denoised)
-            np.save(chunk_dir  + '/shift_allowance.npy', shift_allowance)
+        #fname_denoised = merge_dir  + '/denoised_templates.npy'
+        #if os.path.exists(fname_denoised):
+        #    temps_denoised = np.load(fname_denoised)
+        #    shift_allowance = np.load(merge_dir  + '/shift_allowance.npy')
+
+        #else:
+        #    temps_denoised, shift_allowance = get_denoised_templates(templates, CONFIG)
+        #    np.save(fname_denoised, temps_denoised)
+        #    np.save(merge_dir  + '/shift_allowance.npy', shift_allowance)
 
         # run merge algorithm
-        sim_mat = abs_max_dist(temps_denoised, CONFIG, chunk_dir)
+        sim_mat = abs_max_dist(templates, CONFIG, merge_dir)
         np.save(abs_max_file, sim_mat)
-        
+
     else:
-        sim_mat = np.load(abs_max_file)        
+        sim_mat = np.load(abs_max_file)
+        #shift_allowance = np.load(merge_dir  + '/shift_allowance.npy')
 
 
     ''' ************************************************
         ************* MERGE SELECTED UNITS *************
         ************************************************
+    '''
     '''
     # compute connected nodes and sum spikes over them
     G = nx.from_numpy_array(sim_mat)
@@ -2516,11 +2536,11 @@ def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
         temp = np.concatenate([sic[:,np.newaxis], i*np.ones([sic.size,1],dtype = int)],axis = 1)
         final_spike_indexes.append(temp)
         connected_components.append(list(cc))
-    np.save(chunk_dir+'/connected_components.npy', connected_components)
-    np.save(chunk_dir+'/final_template_indexes.npy', 
+    np.save(merge_dir+'/connected_components.npy', connected_components)
+    np.save(merge_dir+'/final_template_indexes.npy',
                                                 final_template_indexes)
     final_spike_train = np.vstack(final_spike_indexes)
-    
+
     # recompute tmp_loc from weighted templates
     print ("  merging units (TODO parallelize and update align function)...")
     templates_final = []
@@ -2529,38 +2549,410 @@ def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
         # compute average weighted template and find peak
         idx = np.int32(t)
 
+        highest_fr_unit = idx[weights[idx].argmax()]
+        templates_final.append(templates[highest_fr_unit])
+        weights_final.append(weights[highest_fr_unit])
+
         # compute weighted template
-        if len(idx) > 1:
-            weighted_average = merge_templates(templates[idx], weights[idx])
-        else:
-            weighted_average = templates[idx[0]]
-        templates_final.append(weighted_average)
+        #if len(idx) > 1:
+        #    weighted_average = merge_templates(templates[idx], weights[idx])
+        #else:
+        #    weighted_average = templates[idx[0]]
+        #templates_final.append(weighted_average)
+        #weights_final.append(np.sum(weights[idx]))
 
     # convert templates to array
     templates = np.float32(templates_final)
-     
-    np.save(chunk_dir+'/templates_post_'+out_dir+'_post_merge.npy', templates)
-    np.save(chunk_dir+'/spike_train_post_'+out_dir+'_post_merge.npy', final_spike_train)
+    spike_train = final_spike_train
+    weights = np.array(weights_final).astype('int32')
+    '''
+    merge_pairs = np.vstack(np.where(sim_mat))
+    unit_killed = np.zeros(templates.shape[0], 'bool')
+    for j in range(merge_pairs.shape[1]):
+        k1, k2 = merge_pairs[:,j]
+        if weights[k1] > weights[k2]:
+            unit_killed[k2] = True
+        else:
+            unit_killed[k1] = True
+    unit_keep = np.where(~unit_killed)[0]
 
-    print("  "+out_dir+" templates/spike train after merge : ", templates.shape, final_spike_train.shape)
+    templates = templates[unit_keep]
+    weights = weights[unit_keep]
 
-    # clip templates 
-    shift_allowance = np.load(chunk_dir  + '/shift_allowance.npy')
-    templates = templates[:, shift_allowance:-shift_allowance]
-    
+    spike_train_new = np.copy(spike_train)
+    spike_train_new = spike_train_new[
+        np.in1d(spike_train[:,1], unit_keep)]
+    dics = {unit: ii for ii, unit in enumerate(unit_keep)}
+    for j in range(spike_train_new.shape[0]):
+        spike_train_new[j,1] = dics[spike_train_new[j,1]]
+    spike_train = spike_train_new
+
+    np.save(merge_dir+'/templates_post_'+out_dir+'_post_merge.npy', templates)
+    np.save(merge_dir+'/spike_train_post_'+out_dir+'_post_merge.npy', spike_train)
+
+    print("  "+out_dir+" templates/spike train after merge : ", templates.shape, spike_train.shape)
+
+
     #neigh_channels = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
     #templates, collisions = remove_collision_templates(templates, neigh_channels)
     #np.save(chunk_dir+'/collisions.npy', collisions)
 
+    np.save(chunk_dir+'/templates_post_'+out_dir+'_post_merge.npy', templates)
+    np.save(chunk_dir+'/spike_train_post_'+out_dir+'_post_merge.npy', spike_train)
+
+
+    ''' ************************************************
+        ************ REMOVE COLLISION UNITS ************
+        ************************************************
+    '''
+    temp_deconv_dir = os.path.join(chunk_dir,'temp_deconv')
+    if not os.path.isdir(temp_deconv_dir):
+        os.makedirs(temp_deconv_dir)
+        
+    templates, spike_train, idx_kept = deconvolve_template(
+        templates, spike_train, CONFIG, temp_deconv_dir)
+    weights = weights[idx_kept]
+
+    mad_collision_dir = os.path.join(chunk_dir,'mad_collision')
+    if not os.path.isdir(mad_collision_dir):
+        os.makedirs(mad_collision_dir)
+        
+    templates, spike_train, weights = mad_based_unit_kill(
+        templates, spike_train, weights, CONFIG, mad_collision_dir)
+
+    np.save(chunk_dir+'/templates_post_'+out_dir+'_post_merge_post_collision_kill.npy',
+            templates)
+    np.save(chunk_dir+'/spike_train_post_'+out_dir+'_post_merge_post_collision_kill.npy',
+            spike_train)
+
+    print("  "+out_dir+ " templates/spiketrain after removing collisions: ",
+                                        templates.shape, spike_train.shape)
+    # clip templates
+    shift_allowance = 10
+    templates = templates[:, shift_allowance:-shift_allowance]
+
     # save data for clustering step
     if out_dir=='cluster':
         fname = CONFIG.path_to_output_directory + '/spike_train_cluster.npy'
-        np.save(fname, final_spike_train)
-        
+        np.save(fname, spike_train)
+
         fname = CONFIG.path_to_output_directory + '/templates_cluster.npy'
         np.save(fname, templates)
 
-    return final_spike_train, templates
+    return spike_train, templates
+
+def mad_based_unit_kill(templates, spike_train, weights, CONFIG, save_dir):
+
+    print('\nMad based Collision Detection...')
+
+    ids=[]
+    for k in range(templates.shape[0]):
+        fname = os.path.join(save_dir,'unit_{}.npz'.format(k))
+        if os.path.exists(fname)==False:
+            ids.append(k)        
+ 
+    standardized_filename = os.path.join(CONFIG.path_to_output_directory,
+                                         'preprocess', 
+                                         'standardized.bin')
+    if CONFIG.resources.multi_processing:
+        parmap.map(mad_based_unit_kill_parallel, ids, templates, spike_train,
+                   standardized_filename, save_dir,
+                   processes=CONFIG.resources.n_processors,
+                   pm_pbar=True)                
+    else:
+        for id_ in ids:
+            mad_based_unit_kill_parallel(id_, templates, spike_train,
+                                     standardized_filename,
+                                     save_dir)
+
+    # reload all saved data
+    pairs = []
+    for k in range(templates.shape[0]):
+        fname = os.path.join(save_dir,'unit_{}.npz'.format(k))
+        tmp = np.load(fname)
+        if tmp['kill']:
+            pairs.append([k, tmp['unit_matched']])
+
+    unique_pairs = []
+    non_unique_pairs = []    
+    for x, y in pairs:
+        if [y, x] not in pairs:
+            unique_pairs.append([x,y])
+        elif [y, x] not in non_unique_pairs:
+            non_unique_pairs.append([x,y])
+
+    collision_units = [k for k, k_ in unique_pairs]
+
+    for x, y in non_unique_pairs:
+        if weights[x] > weights[y]:
+            collision_units.append(x)
+        else:
+            collision_units.append(y)
+    collision_units = np.array(collision_units)
+
+    print(' MAD collision detector: {} units removed'.format(len(collision_units)))
+
+    # which ones are beign kept
+    idx_kept = np.arange(templates.shape[0])
+    idx_kept = idx_kept[~np.in1d(idx_kept, collision_units)]
+    np.save(os.path.join(save_dir,'idx_kept.npy'), idx_kept)
+
+    # update templates
+    templates = templates[idx_kept]
+    weights = weights[idx_kept]
+
+    # update spike train
+    spike_train_new = np.copy(spike_train)
+    spike_train_new = spike_train_new[
+        np.in1d(spike_train[:,1], idx_kept)]
+    dics = {unit: ii for ii, unit in enumerate(idx_kept)}
+    for j in range(spike_train_new.shape[0]):
+        spike_train_new[j,1] = dics[spike_train_new[j,1]]
+    spike_train = spike_train_new
+    
+    return templates, spike_train, weights
+
+def mad_based_unit_kill_parallel(unit, templates, spike_train, standardized_filename, save_dir,
+                        mad_gap=0.8, mad_gap_breach=4, up_factor=8, residual_max_norm=1.2):
+    jitter = 1
+    n_units, n_times, n_channels = templates.shape
+    visch = np.where(templates[unit].ptp(axis=0) > 2.)[0]
+    if len(visch) == 0:
+        visch = np.array([templates[unit].ptp(axis=0).argmax()])
+
+    spt = spike_train[spike_train[:, 1] == unit, 0] - n_times//2
+    wf =  binary_reader_waveforms(
+        standardized_filename=standardized_filename,
+        n_channels=n_channels,
+        n_times=n_times, spikes=spt,
+        channels=None)[0]
+    wf = wf[:, :, visch]
+
+    ref_template = np.load(absolute_path_to_asset(
+            os.path.join('template_space', 'ref_template.npy')))
+
+    mc = np.mean(wf, axis=0).ptp(0).argmax()
+    cut_edge = (n_times - len(ref_template))//2
+    best_shifts = align_get_shifts_with_ref(
+        wf[:, cut_edge:-cut_edge, mc],
+        ref_template, nshifts=jitter)
+    wf = shift_chans(wf, best_shifts)
+
+    t_mad = np.median(
+            np.abs(np.median(wf, axis=0)[None, :, :] - wf), axis=0)
+
+    col_loc = t_mad > mad_gap
+    #mean_clipped = mean[:, jitter:-jitter]
+    #delta_minus = np.abs(mean_clipped - mean[:, :-2])
+    #delta_plus = np.abs(mean_clipped - mean[:, 2:])
+    #emad = MAD_bernoulli_two_uniforms(delta_minus, delta_plus)
+
+    t_mad = np.median(
+            np.abs(np.median(wf, axis=0)[None, :, :] - wf), axis=0)
+
+    col_loc = t_mad > mad_gap
+    
+    kill = False
+    max_diff = None
+    unit_matched = None
+    if np.sum(col_loc) > mad_gap_breach:
+        idx_no_target = np.arange(n_units)
+        idx_no_target = np.delete(idx_no_target, unit)
+        residual, unit_matched = run_deconv(templates[unit],
+                                            templates[idx_no_target], up_factor)
+
+        if unit_matched is not None:
+            unit_matched = idx_no_target[unit_matched]
+            visch_matched = np.where(templates[unit_matched].ptp(axis=0) > 2.)[0]
+            visch_all = np.union1d(visch, visch_matched)
+
+            ii = np.where(col_loc.sum(0)>mad_gap_breach)[0]
+            cc = np.unique(visch[ii])
+            visch_all = visch_all[~np.in1d(visch_all, cc)]
+
+            if len(visch_all) > 0:
+                max_diff = np.max(np.abs(residual[:, visch_all]))
+            else:
+                max_diff = 0
+
+            if max_diff < residual_max_norm:
+                kill = True
+    
+    fname = os.path.join(save_dir,'unit_{}.npz'.format(unit))
+    np.savez(fname,
+             kill=kill,
+             unit_matched=unit_matched,
+             max_diff=max_diff)
+
+def MAD_bernoulli_two_uniforms(a, b):
+    """Analytical MAD of a addition of uniform drawn according to Bernoulli rv.
+
+    i ~ Bernoulli(0.5)
+    x ~ uniform(0., a)
+    y ~ uniform(0., b)
+    z = ix + (1-i)y
+    This functions computes the analytical median absolute deviation
+    of the resulting z random variable.
+
+    params:
+    -------
+    a: int or np.ndarray
+    b: int or np.ndarray
+
+    returns:
+    --------
+    float or np.ndarray
+    """
+    same_sign_indicator = np.array(a * b > 0.).astype(np.float)
+    a, b = np.abs(a), np.abs(b)
+    # Make sure that a , b on all elements of the arrays
+    concat = np.array([a, b])
+    a, b = concat.min(axis=0), concat.max(axis=0)
+    # Median of the random variable
+    a_inv, b_inv = 1. / a, 1. / b
+    a_inv_plus_b_inv = a_inv + b_inv
+    m = 1. / a_inv_plus_b_inv
+    t1 = (a - m) * a_inv_plus_b_inv
+    t2 = (2 * m - a) * (a_inv / 2. + b_inv)
+    # remainder is t3 = (b - 2*m) * 1/b / 2. where t1 + t2 + t3 = 1
+
+    # handle two where t1 less than or greater than 0.5
+    indicator = np.array(t1 > 0.5).astype(np.float)
+    opt1 = (.5 / t1) * (a - m)
+    opt2 = (a - m) + (0.5 - t1) / t2 * (2 * m - a)
+    out = indicator * opt1 + (1 - indicator) * opt2
+    # handle two cases where a and b have different signs
+    return same_sign_indicator * out + (1 - same_sign_indicator) * m
+
+def deconvolve_template(templates, spike_train, CONFIG, save_dir):
+
+    print('\nDeconvolve on Templates...')
+
+    ids=[]
+    for k in range(templates.shape[0]):
+        fname = (save_dir+'/unit_{}.npz'.format(k))
+        if os.path.exists(fname)==False:
+            ids.append(k)        
+ 
+    up_factor=8
+    residual_max_norm=1.2
+    if CONFIG.resources.multi_processing:
+        parmap.map(deconv_template_parallel, ids, templates, up_factor,
+                   residual_max_norm, save_dir,
+                   processes=CONFIG.resources.n_processors,
+                   pm_pbar=True)                
+    else:
+        for id_ in ids:
+            deconv_template_parallel(id_, templates,
+                                     up_factor, residual_max_norm,
+                                     save_dir)
+
+    # reload all saved data
+    res=[]
+    for k in range(templates.shape[0]):
+        fname = (save_dir+'/unit_{}.npz'.format(k))
+        res.append(np.load(fname)['collision'])
+    collision_units = np.hstack(res)
+
+    print(' Templates Deconvolution: {} units removed'.format(sum(collision_units)))
+
+    # which ones are beign kept
+    idx_kept = np.where(~collision_units)[0]
+    np.save(save_dir+'/idx_kept.npy', idx_kept)
+
+    # update templates
+    templates = templates[idx_kept]
+
+    # update spike train
+    spike_train_new = np.copy(spike_train)
+    spike_train_new = spike_train_new[
+        np.in1d(spike_train[:,1], idx_kept)]
+    dics = {unit: ii for ii, unit in enumerate(idx_kept)}
+    for j in range(spike_train_new.shape[0]):
+        spike_train_new[j,1] = dics[spike_train_new[j,1]]
+    spike_train = spike_train_new
+    
+    return templates, spike_train, idx_kept
+
+def deconv_template_parallel(unit, templates, up_factor, residual_max_norm, save_dir):
+
+    n_units = templates.shape[0]
+
+    it = 0
+    max_it = 3
+    run = True
+    collision = False
+    data = templates[unit]
+    idx_no_target = np.arange(n_units)
+    idx_no_target = np.delete(idx_no_target, unit)
+    deconv_units = []
+    while it < max_it and run:
+        residual, best_fit_unit = run_deconv(data, templates[idx_no_target], up_factor)
+        if best_fit_unit is None:
+            run = False
+        elif np.max(np.abs(residual)) < residual_max_norm:
+            best_fit_unit = idx_no_target[best_fit_unit]
+            deconv_units.append(best_fit_unit)
+            collision = True
+            run = False
+        else:
+            data = residual
+            best_fit_unit = idx_no_target[best_fit_unit]
+            deconv_units.append(best_fit_unit)
+            idx_no_target = np.arange(n_units)
+            idx_no_target = np.delete(idx_no_target,
+                                      np.hstack((deconv_units, unit)))
+
+            it += 1
+    
+    fname = (save_dir+'/unit_{}.npz'.format(unit))
+    np.savez(fname,
+             collision=collision,
+             residual=residual,
+             deconv_units = deconv_units)
+
+
+def run_deconv(data, templates, up_factor):
+    n_units, n_times, n_chans = templates.shape
+
+    # norm of templates
+    norm_temps = np.square(templates).sum(axis=(1,2))
+
+    # calculate objective function in deconv
+    temps = np.flip(templates, axis=1)
+    obj = np.zeros((n_units, n_times))
+    for j in range(n_units):
+        for c in range(n_chans):
+            obj[j] += np.convolve(temps[j,:,c], data[:,c], 'same')
+    obj = 2*obj - norm_temps[:, np.newaxis]
+
+    if np.max(obj) > 0:
+        best_fit_unit = np.max(obj, axis=1).argmax()
+        best_fit_time = obj[best_fit_unit].argmax()
+        shift = best_fit_time - n_times//2
+        shifted_temp = np.roll(templates[best_fit_unit], shift, axis=0)
+
+        up_temp = scipy.signal.resample(
+            x=shifted_temp,
+            num=n_times * up_factor,
+            axis=0)
+
+        up_shifted_temps = up_temp[(np.arange(0,n_times)[:,None]*up_factor + np.arange(up_factor))]
+        up_shifted_temps = np.concatenate((up_shifted_temps, np.roll(up_shifted_temps, shift=1, axis=0)), 1)
+        if shift > 0:
+            up_shifted_temps[:shift+1] = 0
+        elif shift < 0:
+            up_shifted_temps[shift-1:] = 0
+        elif shift == 0:
+            up_shifted_temps[[0,-1]] = 0
+
+        idx_best_fit = np.max(np.abs(data[:,None] - up_shifted_temps), (0,2)).argmin()
+        residual = data - up_shifted_temps[:,idx_best_fit]
+    else:
+        residual = data
+        best_fit_unit = None
+
+    return residual, best_fit_unit
 
 
 def get_denoised_templates(templates, CONFIG):
@@ -2717,7 +3109,7 @@ def denoise(templates, pca_main_mean, pca_main_components, pca_sec_mean, pca_sec
     denoised_templates = np.copy(normalized_templates)
 
     for k in range(n_templates):
-        
+
         # denoise max channels
         main_chan_template = normalized_templates[k][
         shift_allowance:-shift_allowance][:, max_channels[k]][np.newaxis]
@@ -2755,8 +3147,6 @@ def merge_templates(templates, weights):
 
     wf_out = align_mc_templates(templates, mc, spike_padding=15,
                                 upsample_factor = 5, nshifts = 15)
-
-
 
     weights = np.float32(weights) 
     weights /= np.sum(weights)
@@ -2818,7 +3208,7 @@ def merge_templates(templates, weights):
 #     return templates_centred, spike_train_cluster_new
 
 
-def abs_max_dist(temp, CONFIG, chunk_dir):
+def abs_max_dist(temp, CONFIG, merge_dir):
         
     ''' Compute absolute max distance using denoised templates
         Distances are computed between absolute value templates, but
@@ -2828,15 +3218,10 @@ def abs_max_dist(temp, CONFIG, chunk_dir):
     # Cat: TODO: don't compare all pair-wise templates, but just those
     #           with main chan + next 3-6 largest shared channels
     #      - not sure if this is necessary though, may be already fast enough
-    print ("")
-    print ("Computing merge matrix")
+    print ("  Computing merge matrix")
     print ("  temp shape (temps, times, chans):" , temp.shape)
     
     #dist_max = np.zeros((temp.shape[0],temp.shape[0]), 'float32')
-    
-    merge_dir = chunk_dir+'/merge/'
-    if not os.path.isdir(merge_dir):
-        os.makedirs(merge_dir)
     
     # make ids to be loaded
     ids=[]
@@ -2844,7 +3229,7 @@ def abs_max_dist(temp, CONFIG, chunk_dir):
         fname = (merge_dir+'/unit_'+str(k)+'.npy')
         if os.path.exists(fname)==False:
             ids.append(k)        
-    
+    '''
     if CONFIG.resources.multi_processing:
         parmap.map(parallel_abs_max_dist, ids, temp, merge_dir,
                          processes=CONFIG.resources.n_processors,
@@ -2852,6 +3237,16 @@ def abs_max_dist(temp, CONFIG, chunk_dir):
     else:
         for id_ in ids:
             parallel_abs_max_dist(id_, temp, merge_dir)
+    '''
+    up_factor = 16
+    if CONFIG.resources.multi_processing:
+        parmap.map(parallel_abs_max_dist2, ids, temp, up_factor, merge_dir,
+                         processes=CONFIG.resources.n_processors,
+                         pm_pbar=True)                
+    else:
+        for id_ in ids:
+            parallel_abs_max_dist2(id_, temp, up_factor, merge_dir)
+
 
     # reload all saved data
     res=[]
@@ -2875,10 +3270,11 @@ def parallel_abs_max_dist(id1, temp, merge_dir):
 
     # Cat: TODO read the overlap # of chans from CONFIG
     # number of largest amplitude channels to search for overlap
-    n_chans = 3
-    max_chans_id1 = temp[id1].ptp(0).argsort(0)[::-1][:n_chans]
+    threshold = 0.3*temp[id1].ptp(0).max()
+    vis_chans = temp.ptp(1) > threshold
+    max_chans_id1 = np.where(vis_chans[id1])[0]
     for id2 in range(id1+1,temp.shape[0],1):
-        max_chans_id2 = temp[id2].ptp(0).argsort(0)[::-1][:n_chans]
+        max_chans_id2 = np.where(vis_chans[id2])[0]
         if np.intersect1d(max_chans_id1, max_chans_id2).shape[0]==0: 
             continue
 
@@ -2896,7 +3292,7 @@ def parallel_abs_max_dist(id1, temp, merge_dir):
             mc = template1.ptp(0).argmax(0)
         else:
             mc = template2.ptp(0).argmax(0)
-            
+
         temps = np.array(temps)
 
         # ref template
@@ -2904,27 +3300,82 @@ def parallel_abs_max_dist(id1, temp, merge_dir):
             os.path.join('template_space', 'ref_template.npy')))
             
         # get shifts
+        upsample_factor = 16
+        nshifts = 21
         best_shifts = align_get_shifts_with_ref(
-                        temps[:, 10:-10, mc],  ref_template)
+            temps[:, 10:-10, mc],
+            ref_template, upsample_factor, nshifts)
 
         wf_out = shift_chans(temps, best_shifts)
+        wf_out = wf_out[:,10:-10]
 
-        # Cat: TODO: is ravel step required?
-        len1 = wf_out[0].T.ravel()
-        len2 = wf_out[1].T.ravel()
-        
         # compute distances and noramlize by largest template ptp
         # note this makes sense for max distance, but not sum;
         #  for sum should be dividing by total area
-        diff = np.max(np.abs(len1-len2))
+        diff = np.max(np.abs(np.diff(wf_out, axis=0)))
         diff_rel = diff/(max(ptp_1,ptp_2))
 
         # compute max distance
-        if diff<0.5 or diff_rel<0.1:
+        if diff<1 or diff_rel<0.15:
             dist_max[id2] = 1.0
     
     np.save(fname, dist_max)
     #return dist_max
+    
+def parallel_abs_max_dist2(unit, templates, up_factor, merge_dir, residual_max_norm=1.2):
+    
+    fname = merge_dir+'/unit_'+str(unit)+'.npy'
+    if os.path.exists(fname):
+        return
+
+    n_units, n_times, n_chans = templates.shape
+    
+    max_ptp = templates[unit].ptp(0).max()
+    threshold = 0.5*max_ptp
+    vis_chans = templates.ptp(1) > threshold
+    vis_chan_unit1 = np.where(vis_chans[unit])[0]
+    candidates = np.where(np.any(vis_chans[:, vis_chan_unit1], axis=1))[0]
+    candidates = candidates[candidates > unit]
+
+    temps = np.flip(templates[candidates], axis=1)
+    data = templates[unit]
+    max_diff = np.zeros(len(candidates))
+    for j in range(len(candidates)):
+        obj = np.zeros(n_times)
+        for c in range(n_chans):
+            obj += np.convolve(temps[j,:,c], data[:,c], 'same')
+
+        best_fit_time = obj.argmax()
+        shift = best_fit_time - n_times//2
+        shifted_temp = np.roll(templates[candidates[j]], shift, axis=0)
+
+        up_temp = scipy.signal.resample(
+            x=shifted_temp,
+            num=n_times * up_factor,
+            axis=0)
+
+        up_shifted_temps = up_temp[(np.arange(0,n_times)[:,None]*up_factor + np.arange(up_factor))]
+        up_shifted_temps = np.concatenate((up_shifted_temps, np.roll(up_shifted_temps, shift=1, axis=0)), 1)
+        if shift > 0:
+            up_shifted_temps[:shift+1] = 0
+        elif shift < 0:
+            up_shifted_temps[shift-1:] = 0
+        elif shift == 0:
+            up_shifted_temps[[0,-1]] = 0
+
+        idx_best_fit = np.max(np.abs(data[:,None] - up_shifted_temps), (0,2)).argmin()
+        residual = data - up_shifted_temps[:,idx_best_fit]
+
+        max_diff[j] = np.max(np.abs(residual))
+
+    ptp_candidates = templates[candidates].ptp(1).max(1)
+    ptp_candidates[ptp_candidates < max_ptp] = max_ptp
+    max_diff_rel = max_diff/ptp_candidates
+
+    dist_max = np.zeros(n_units)
+    dist_max[candidates[np.logical_or(max_diff < residual_max_norm, max_diff_rel < 0.15)]] = 1
+
+    np.save(fname, dist_max)
 
 def global_merge_all_ks(chunk_dir, recording_chunk, CONFIG, min_spikes,
                          out_dir, units):
@@ -3850,8 +4301,6 @@ def calc_sim_all_chan(channel, base_temp, com_temp, CONFIG, merge_threshold=0.8,
             #plt.savefig("data/tmp3/temp_match_yass_ks_aclean/match_ks_template_{}.png".format(where[i]))
             #plt.close('all')
     return sim_mat, temp, feat_channels
-
-
     
     
 # functions for finding groups
@@ -4141,18 +4590,17 @@ def get_template_PCA_rotation(wf_shifted=None, n_pca=3):
     return pca_object1, pca_object2
 
 
-
 def clean_templates(templates, spike_train_cluster, weights, CONFIG):
 
     # find units < 3SU 
     # Cat: TODO: read this threshold and flag from CONFIG
-    template_threshold = 3
+    template_threshold = 2
 
     print ("  cleaning templates (temps, time, chan): ", templates.shape)
     ptps = templates.ptp(1).max(1)
     idx1 = np.where(ptps>=template_threshold)[0]
-    print ("  deleted clusters < 3SU: ", templates.shape[0]-idx1.shape[0])
-    
+    print ("  deleted clusters < {}SU: ".format(template_threshold), templates.shape[0]-idx1.shape[0])
+
     # find units with large peaks off-centre
     if False:
         idx2 = find_clean_templates2(templates, CONFIG)
@@ -4322,9 +4770,9 @@ def get_normalized_templates(templates, neigh_channels, ref_template):
         unit_ids_sec = np.hstack((unit_ids_sec, np.ones(len(neighs), 'int32')*k))
 
     # shift templates_sec
-    #best_shifts_sec = align_get_shifts_with_ref(
-    #                templates_sec,
-    #                ref_template)
+    best_shifts_sec = align_get_shifts_with_ref(
+                    templates_sec,
+                    ref_template)
     templates_sec = shift_chans(templates_sec, best_shifts_sec)
     ptp_sec = templates_sec.ptp(1)
 
@@ -4364,4 +4812,3 @@ def get_normalized_templates(templates, neigh_channels, ref_template):
 
     #fin.close()
     #return wfs
-

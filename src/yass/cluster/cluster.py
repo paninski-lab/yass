@@ -292,7 +292,7 @@ class Cluster(object):
 
             # max number of spikes to be used for reclustering postdeconv
             #self.max_cluster_spikes = 5000
-            self.min_fr = 1200
+            self.min_fr = int(1200*0.1)
 
             self.filename_postclustering = (self.chunk_dir + "/unit_"+
                                                         str(self.unit).zfill(6)+".npz")
@@ -571,19 +571,23 @@ class Cluster(object):
     def denoise_step_distant2(self):
 
         # active locations with negative energy
-        energy = np.median(np.square(self.wf_global), axis=0)
+        #energy = np.median(np.square(self.wf_global), axis=0)
+        #template = np.median(self.wf_global, axis=0)
+        #good_t, good_c = np.where(np.logical_and(energy > 0.5, template < - 0.5))
         template = np.median(self.wf_global, axis=0)
-        good_t, good_c = np.where(np.logical_and(energy > 0.5, template < - 0.5))
+        good_t, good_c = np.where(template < - 0.5)
 
         # need to have connection from the max channel
         neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
         t_diff = 1
-        main_channel = np.where(self.loaded_channels == self.channel)[0][0]
-        # lowest point in the main channel
-        main_c_loc = np.where(good_c==self.channel)[0]
-        max_chan_energy = energy[good_t[main_c_loc]][:,self.channel]
-        index = main_c_loc[np.argmax(max_chan_energy)]
+        # lowest among all
+        #main_c_loc = np.where(good_c==self.channel)[0]
+        #max_chan_energy = energy[good_t[main_c_loc]][:,self.channel]
+        #index = main_c_loc[np.argmax(max_chan_energy)]
+        index = template[good_t, good_c].argmin()
         keep = connecting_points(np.vstack((good_t, good_c)).T, index, neighbors, t_diff)
+        good_t = good_t[keep]
+        good_c = good_c[keep]
 
         # limit to max_timepoints per channel
         max_timepoints = 3
@@ -592,11 +596,9 @@ class Cluster(object):
         for channel in unique_channels:
             idx_temp = np.where(good_c == channel)[0]
             if len(idx_temp) > max_timepoints:
-                highest_idx = np.argsort(energy[:, channel][good_t[idx_temp]])[-max_timepoints:]
-                idx_keep[idx_temp[highest_idx]] = True
-            else:
-                idx_keep[idx_temp] = True
-
+                idx_temp = idx_temp[np.argsort(
+                    template[good_t[idx_temp], good_c[idx_temp]])[:max_timepoints]]
+            idx_keep[idx_temp] = True
         good_t = good_t[idx_keep]
         good_c = good_c[idx_keep]
 
@@ -1661,7 +1663,7 @@ def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, 
                 ctr_wfs+=1
             except:
                 # skip loading of spike and decrease wfs array size by 1
-                print ("  spike to close to end, skipping and deleting array")
+                # print ("  spike to close to end, skipping and deleting array")
                 wfs=np.delete(wfs, wfs.shape[0]-1,axis=0)
                 skipped_idx.append(ctr_skipped)
 

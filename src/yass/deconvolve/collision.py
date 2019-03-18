@@ -50,7 +50,7 @@ def MAD_bernoulli_two_uniforms(a, b):
 
 
 def collision_templates(
-        templates, get_unit_spike_fun, mad_gap=1, mad_gap_breach=4,
+        templates, spike_train, get_unit_spike_fun, mad_gap=1, mad_gap_breach=4,
         residual_max_norm=1):
     """Given templates and spikes determines collision templates.
 
@@ -80,6 +80,12 @@ def collision_templates(
     """
     n_unit, n_chan, n_time = templates.shape
 
+    # number of spikes for each unit
+    n_spikes = np.zeros(n_unit, 'int32')
+    unique_units, n_spikes_unique_units = np.unique(spike_train[:, 1],
+                                                    return_counts=True)
+    n_spikes[unique_units] = n_spikes_unique_units
+    
     # First step is to deconvolve given templates using the rest of them.
     # This steps gets rid of templates that are reconstructed very well using
     # the rest.
@@ -135,7 +141,8 @@ def collision_templates(
     # templates.
     elemental = []
     deconv_collision_picks = []
-    for unit in candidates:
+    cadidates_ordered = candidates[np.argsort(n_spikes[candidates])]
+    for unit in cadidates_ordered:
         if unit not in elemental:
             deconv_collision_picks.append(unit)
             for e in unit_factors[unit]:
