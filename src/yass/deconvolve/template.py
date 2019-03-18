@@ -31,6 +31,26 @@ class WaveForms(object):
         """
         self.wave_forms = wave_forms
         self.n_unit, self.n_channel, self.n_time = self.wave_forms.shape
+        self.unit_overlap = None
+        self.pdist = None
+
+    def pair_dist(self):
+        """Pairwise distance of templates to each other."""
+        if self.pdist is None: 
+            # Align all waveforms to the one with largest peak to peak.
+            self.pdist = np.zeros([self.n_unit, self.n_unit]) + np.inf
+            max_ptp_unit = self.ptp().argmax()
+            vis_chan = self.vis_chan()
+            al_wf = self.align(
+                    ref_wave_form=self.wave_forms[max_ptp_unit])
+            for unit in range(self.n_unit):
+                # Iterate over all units to find the best match.
+                over_units = self.overlap()[unit]
+                diff = al_wf[[unit]] - al_wf[over_units]
+                diff = np.sqrt(np.square(diff).sum(axis=-1).sum(axis=-1))
+                self.pdist[unit, over_units] = diff 
+
+        return self.pdist
 
     def __getitem__(self, key):
         return self.wave_forms.__getitem__(key)
@@ -71,6 +91,25 @@ class WaveForms(object):
         """
         return self.wave_forms.ptp(axis=-1) > threshold
 
+    def overlap(self, threshold=2.):
+        """Computes boolean spatial overlap of templates.
+
+        params:
+        -------
+        threshold: float
+            Threshold of visibility in terms of standard unit (SU).
+
+        return:
+        -------
+        numpy.ndarray of shape (N, N).
+        """
+        if self.unit_overlap is None:
+            vis = self.vis_chan()
+            self.unit_overlap = np.sum(
+                np.logical_and(vis[:, None, :], vis[None, :, :]), axis=2)
+            self.unit_overlap = self.unit_overlap > 0
+        return self.unit_overlap
+ 
     def ptp(self):
         """Returns ptp of wave forms in standard units.
 

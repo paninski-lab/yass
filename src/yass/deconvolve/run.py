@@ -4,6 +4,7 @@ import numpy as np
 
 from yass import read_config
 from yass.deconvolve.deconvolve import Deconv
+from yass.deconvolve.soft_assignment import get_soft_assignments
 
 def run(spike_train_cluster,
         templates,
@@ -52,7 +53,7 @@ def run(spike_train_cluster,
                   'spike_index_cluster.shape: {}'.format(templates.shape,
                                                  spike_train_cluster.shape))
 
-    Deconv(spike_train_cluster,
+    deconv_obj = Deconv(spike_train_cluster,
             templates.transpose(1,2,0),
             output_directory,
             recordings_filename,
@@ -65,5 +66,17 @@ def run(spike_train_cluster,
 
     templates = np.load(os.path.join(CONFIG.path_to_output_directory,
                     'templates_post_deconv_post_merge.npy'))
+
+    # Compute soft assignments
+    soft_assignments, assignment_map = get_soft_assignments(
+            templates=templates.transpose([2, 0, 1]),
+            templates_upsampled=templates.transpose([2, 0, 1]),
+            spike_train=spike_train,
+            spike_train_upsampled=spike_train,
+            filename_residual=deconv_obj.residual_fname,
+            n_similar_units=2)
+
+    np.save(deconv_obj.root_dir + '/soft_assignment.npy', soft_assignments)
+    np.save(deconv_obj.root_dir + '/soft_assignment_map.npy', assignment_map)
 
     return spike_train, templates
