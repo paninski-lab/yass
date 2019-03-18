@@ -473,8 +473,16 @@ def template_spike_dist_linear_align(templates, spikes, vis_ptp=2.):
 
     if templates.shape[0] == 1:
         idx = np.arange(templates.shape[1])
-    else:
+    elif templates.shape[0] == 2:
         diffs = np.abs(np.diff(templates, axis=0)[0])
+        
+        idx = np.where(diffs > 1.5)[0]
+        min_diff_points = 5
+        if len(idx) < 5:
+            idx = np.argsort(diffs)[-min_diff_points:]
+    else:
+        diffs = np.mean(np.abs(
+            templates-templates[max_idx][None]), axis=0)
         
         idx = np.where(diffs > 1.5)[0]
         min_diff_points = 5
