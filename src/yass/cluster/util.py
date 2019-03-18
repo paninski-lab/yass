@@ -19,7 +19,6 @@ from yass.geometry import n_steps_neigh_channels
 from yass import mfm
 from yass.empty import empty
 from yass.cluster.cluster import (shift_chans, align_get_shifts_with_ref, binary_reader_waveforms)
-from yass.cluster.template import WaveForms 
 from yass.util import absolute_path_to_asset
 from yass.detect.run import deduplicate
 
