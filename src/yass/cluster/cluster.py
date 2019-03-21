@@ -223,7 +223,6 @@ class Cluster(object):
         self.recluster_on_raw = False
         
         # Cat: TODO: this is wrong
-        print ("  insert rec_len variable TODO: ")
         #  SHOULD REPLACE BY: compute length of recording in seconds
         #fp_len = np.memmap(self.standardized_filename, 
         #           dtype='float32', mode='r').shape[0]

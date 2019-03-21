@@ -2602,11 +2602,11 @@ def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
     # save data for clustering step
     if out_dir=='cluster':
         fname = os.path.join(CONFIG.path_to_output_directory,
-                    '/spike_train_cluster.npy')
+                    'spike_train_cluster.npy')
         np.save(fname, spike_train)
 
         fname = os.path.join(CONFIG.path_to_output_directory,
-                            '/templates_cluster.npy')
+                            'templates_cluster.npy')
         np.save(fname, templates)
 
     return spike_train, templates
