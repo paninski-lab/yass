@@ -222,7 +222,6 @@ class Deconv(object):
             self.match_pursuit_function_cpu()
 
         # first compute residual
-        print ("  computing residual to generate clean spikes")
         self.compute_residual_function()
 
         # run post-deconv merge
@@ -287,9 +286,11 @@ class Deconv(object):
         for i in range(self.n_iterations_merge):
             print ("  running merge iteration: ", i+1 , "/", self.n_iterations_merge)
 
-            tm = TemplateMerge(self.templates, self.spike_train,
-                               self.sparse_upsampled_templates,
-                               self.spike_train_upsampled,
+
+            # Cat: Pass only filenames in: 
+
+            tm = TemplateMerge(self.templates, 
+                               self.results_fname,
                                self.CONFIG, 
                                self.deconv_chunk_dir+'/merge',
                                iteration=i, 
@@ -511,41 +512,60 @@ class Deconv(object):
         # * LOAD CORRECT TEMPLATES FOR RESIDUAL COMP *
         # ********************************************
         '''
-        # get upsampled templates and mapping for computing residual
-        self.sparse_upsampled_templates, self.deconv_id_sparse_temp_map = (
-                                mp_object.get_sparse_upsampled_templates())
+        
+        self.results_fname = os.path.join(self.deconv_chunk_dir, 
+                                  "results_post_deconv_pre_merge.npz")
+        
+        if os.path.exists(self.results_fname)==False:
+            # get upsampled templates and mapping for computing residual
+            self.sparse_upsampled_templates, self.deconv_id_sparse_temp_map = (
+                                    mp_object.get_sparse_upsampled_templates())
 
 
-        # save original spike ids (before upsampling
-        # Cat: TODO: get this value from global/CONFIG
-        self.spike_train = self.dec_spike_train.copy()
-        self.spike_train[:, 1] = np.int32(self.spike_train[:, 1]/
-                                                self.upsample_max_val)
-        self.spike_train_upsampled = self.dec_spike_train.copy()
-        self.spike_train_upsampled[:, 1] = self.deconv_id_sparse_temp_map[
-            self.spike_train_upsampled[:, 1]]
-        np.savez(self.deconv_chunk_dir + "/results_post_deconv_pre_merge.npz",
-                 spike_train=self.spike_train,
-                 templates=self.templates,
-                 spike_train_upsampled=self.spike_train_upsampled,
-                 templates_upsampled=self.sparse_upsampled_templates)
+            # save original spike ids (before upsampling
+            # Cat: TODO: get this value from global/CONFIG
+            self.spike_train = self.dec_spike_train.copy()
+            self.spike_train[:, 1] = np.int32(self.spike_train[:, 1]/
+                                                    self.upsample_max_val)
+            self.spike_train_upsampled = self.dec_spike_train.copy()
+            self.spike_train_upsampled[:, 1] = self.deconv_id_sparse_temp_map[
+                self.spike_train_upsampled[:, 1]]
+            np.savez(self.results_fname,
+                     spike_train=self.spike_train,
+                     templates=self.templates,
+                     spike_train_upsampled=self.spike_train_upsampled,
+                     templates_upsampled=self.sparse_upsampled_templates)
 
-        np.save(os.path.join(self.deconv_chunk_dir,
-                            'templates_post_deconv_pre_merge'),
-                            self.templates)
-                            
-        np.save(os.path.join(self.deconv_chunk_dir,
-                            'spike_train_post_deconv_pre_merge'),
-                            self.spike_train)
+            np.save(os.path.join(self.deconv_chunk_dir,
+                                'templates_post_deconv_pre_merge'),
+                                self.templates)
+                                
+            np.save(os.path.join(self.deconv_chunk_dir,
+                                'spike_train_post_deconv_pre_merge'),
+                                self.spike_train)
+
+        else:
+            print ("  reading sorted data from disk...")
+            data = np.load(self.results_fname)
+            self.spike_train = data['spike_train']
+            self.templates = data['templates']
+            self.spike_train_upsampled = data['spike_train_upsampled']
+            self.sparse_upsampled_templates = data['templates_upsampled']
+
+        print ("  ... done match pursuit...")
 
     def compute_residual_function(self):
-                                  
+        
+        print ("\n\nComputing residual")
+
+
         # Note: this uses spike times occuring at beginning of spike
         fname = os.path.join(self.deconv_chunk_dir,
                              'residual.bin')
         self.residual_fname = fname
                                          
         if os.path.exists(fname)==True:
+            print ("  previously computed, reloading")
             return
 
         # re-read entire block to get waveforms 
@@ -612,6 +632,13 @@ class Deconv(object):
         half_spike_size = (self.templates.shape[0] - 1)//2
         self.spike_train[:, 0] += half_spike_size
 
+
+        # pass upsampled data .npz file name and have each core load
+        #   the data directly rather the pickling during 
+        self.fname_upsampled_data = os.path.join(self.deconv_chunk_dir,
+                                  'results_post_deconv_pre_merge.npz')
+        #print (self.deconv_chunk_dir)
+        #print (self.fname_upsampled_data)
         args_in = []
         for unit in units:
             fname_out = (self.recluster_dir+
@@ -627,8 +654,10 @@ class Deconv(object):
                     self.recluster_dir,
                     #self.spike_train_cluster,  #MIGHT WISH TO EXCLUDE THIS FOR NOW
                     full_run,
-                    self.sparse_upsampled_templates,
-                    self.spike_train_upsampled,
+                    #self.sparse_upsampled_templates,
+                    #self.spike_train_upsampled,
+                    self.fname_upsampled_data,
+                    self.fname_upsampled_data,
                     self.templates
                 ])
 
@@ -645,21 +674,36 @@ class Deconv(object):
                 for unit in range(len(args_in)):
                     Cluster(args_in[unit])
         
+        print ("  reclustering complete")
+
         # gather clustering result info
         chunk_dir = self.deconv_chunk_dir+'/recluster/'
         out_dir = 'recluster'
-        units = np.arange(self.templates.shape[2])
-        templates, spike_train = gather_clustering_result(chunk_dir,
-                                                          out_dir,
-                                                          units)
 
+        temp_fname = os.path.join(chunk_dir,'templates_post_'+out_dir+'.npy')
+        if os.path.exists(temp_fname)==False:
+            units = np.arange(self.templates.shape[2])
+            templates, spike_train = gather_clustering_result(chunk_dir,
+                                                              out_dir,
+                                                              units)
+        else:
+            templates = np.load(os.path.join(chunk_dir,'templates_post_'+
+                                                            out_dir+'.npy'))
+            spike_train = np.load(os.path.join(chunk_dir,'spike_train_post_'+
+                                                out_dir+'.npy'))
+    
         # recompute templates using raw data
-        templates = recompute_templates(templates,
-                                        spike_train,
-                                        self.CONFIG,
-                                        chunk_dir,
-                                        out_dir)
-
+        temp_fname = os.path.join(chunk_dir,'templates_post_'+
+                                            out_dir+'_recomputed.npy')
+        if os.path.exists(temp_fname)==False:
+            templates = recompute_templates(templates,
+                                            spike_train,
+                                            self.CONFIG,
+                                            chunk_dir,
+                                            out_dir)
+        else:
+            templates = np.load(temp_fname)
+            
         # post recluster merge
         spike_train, templates = global_merge_max_dist(templates,
                                              spike_train,
@@ -671,13 +715,13 @@ class Deconv(object):
         self.templates = templates.transpose(1,2,0)
         self.spike_train = spike_train
 
-        print ("  reclustering complete")
 
 def merge_pairs(templates, spike_train, templates_upsampled, spike_train_upsampled, merge_list, CONFIG2):
     
     merge_matrix = np.zeros((templates.shape[2], templates.shape[2]),'int32')
     for merge_pair in merge_list:
         if merge_pair != None:
+            merge_pair = merge_pair[0]
             merge_matrix[merge_pair[0],merge_pair[1]]=1
             merge_matrix[merge_pair[1],merge_pair[0]]=1
 

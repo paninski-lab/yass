@@ -22,11 +22,14 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 
 class TemplateMerge(object):
 
-    def __init__(self, templates, spike_train, 
-                 templates_upsampled, spike_train_upsampled,
-                 CONFIG, deconv_chunk_dir,
+    def __init__(self, 
+                 templates, 
+                 results_fname,
+                 CONFIG, 
+                 deconv_chunk_dir,
                  iteration=0, recompute=False, affinity_only=False):
-                     
+      
+                               
         """
         parameters:
         -----------
@@ -38,6 +41,7 @@ class TemplateMerge(object):
         
         # 
         self.deconv_chunk_dir = deconv_chunk_dir
+        self.results_fname = results_fname
         
         # set filename to residual file
         self.filename_residual = os.path.join(deconv_chunk_dir.replace('merge',''), 
@@ -46,13 +50,16 @@ class TemplateMerge(object):
         self.iteration = iteration
 
         self.templates = templates.transpose(2,0,1)
-        self.templates_upsampled = templates_upsampled.transpose(2,0,1)
         print ("  templates in: ", templates.shape)
         self.recompute=recompute
-        self.spike_train = spike_train
-        self.spike_train_upsampled = spike_train_upsampled
         self.n_unit = self.templates.shape[0]
         self.n_check = min(10, self.n_unit)
+
+        # # Cat: Pass only filenames in: 
+        # self.templates_upsampled = templates_upsampled.transpose(2,0,1)
+        # self.spike_train = spike_train
+        # self.spike_train_upsampled = spike_train_upsampled
+
         
         # TODO find pairs that for proposing merges
         # get temp vs. temp affinity, use for merge proposals
@@ -133,123 +140,178 @@ class TemplateMerge(object):
         units_1 = units_1[idx]
         units_2 = units_2[idx]
 
-        # get unique pairs
+        # get unique pairs only for comparison
         unique_pairs = []
         for x,y in zip(units_1, units_2):
             if [x, y] not in unique_pairs and [y, x] not in unique_pairs:
                 unique_pairs.append([x, y])
-    
-        #pairs = np.zeros((self.n_unit, self.n_unit), 'bool')
-        #pairs[units_1, units_2] = True
-        #pairs[units_2, units_1] = True
-        #units_1, units_2 = np.where(np.triu(pairs))
         
         fname = os.path.join(self.deconv_chunk_dir,
                              'merge_list_'+str(self.iteration)+'.npy')
                              
         print ("  computing l2features and distances in parallel")
+        # Cat: TODO: does python2 like list(zip())?
         if os.path.exists(fname)==False or self.recompute:
             if self.CONFIG.resources.multi_processing:
-                merge_list = parmap.map(self.merge_templates_parallel, 
-                             unique_pairs,
+                merge_list = parmap.map(self.merge_templates_parallel2, 
+                             list(zip(unique_pairs)),
                              processes=self.CONFIG.resources.n_processors,
                              pm_pbar=True)
             # single core version
             else:
                 merge_list = []
                 for ii in range(len(units_1)):
-                    temp = self.merge_templates_parallel(
-                                        [units_1[ii], units_2[ii]])
+                    print (" unit: ", ii)
+                    temp = self.merge_templates_parallel2([unique_pairs[ii]])
                     merge_list.append(temp)
-            np.save(fname, merge_list)
+            np.save(fname, np.array(merge_list))
         else:
             merge_list = np.load(fname)
             
         return merge_list
 
 
-    def get_merge_pairs_units(self):
-        ''' Check all units against nearest units in increasing distance.
-            This algorithm does not use hugnarian algorithm to assign 
-            candidates; rather, check until diptests start to become too low
-        '''
+    # def get_merge_pairs_units(self):
+        # ''' Check all units against nearest units in increasing distance.
+            # This algorithm does not use hugnarian algorithm to assign 
+            # candidates; rather, check until diptests start to become too low
+        # '''
         
-        units = np.where(self.dist_norm_ratio < 0.5)[0]
+        # units = np.where(self.dist_norm_ratio < 0.5)[0]
         
-        fname = os.path.join(self.deconv_chunk_dir,
-                             'merge_list_'+str(self.iteration)+'.npy')
+        # fname = os.path.join(self.deconv_chunk_dir,
+                             # 'merge_list_'+str(self.iteration)+'.npy')
                              
-        print ("  computing l2features and distances in parallel")
-        if os.path.exists(fname)==False or self.recompute:
-            if self.CONFIG.resources.multi_processing:
-                merge_list = parmap.map(self.merge_templates_parallel, 
-                             list(zip(units, self.merge_candidate[units])),
-                             processes=self.CONFIG.resources.n_processors,
-                             pm_pbar=True)
-            # single core version
-            else:
-                merge_list = []
-                for unit in units:
-                    temp = self.merge_templates_parallel(
-                                        [unit, self.merge_candidate[unit]])
-                    merge_list.append(temp)
-            np.save(fname, merge_list)
-        else:
-            merge_list = np.load(fname)
+        # print ("  computing l2features and distances in parallel")
+        # print (units.shape)
+        # print (self.merge_candidate.shape)
+        # if os.path.exists(fname)==False or self.recompute:
+            # if self.CONFIG.resources.multi_processing:
+                # merge_list = parmap.map(self.merge_templates_parallel, 
+                             # list(zip(units, self.merge_candidate[units])),
+                             # processes=self.CONFIG.resources.n_processors,
+                             # pm_pbar=True)
+            # # single core version
+            # else:
+                # merge_list = []
+                # for unit in units:
+                    # temp = self.merge_templates_parallel(
+                                        # [unit, self.merge_candidate[unit]])
+                    # merge_list.append(temp)
+            # np.save(fname, merge_list)
+        # else:
+            # merge_list = np.load(fname)
             
-        return merge_list
+        # return merge_list
 
 
-    def merge_templates_parallel(self, data_in, threshold=0.95):
+    # def merge_templates_parallel(self, data_in):
+        # """Whether to merge two templates or not.
+
+        # parameters:
+        # -----------
+        # unit1: int
+            # Index of the first template
+        # unit2: int
+            # Index of the second template
+        # threshold: float
+            # The threshold for the unimodality test.
+        # n_samples: int
+            # Maximum number of cleaned spikes from each unit.
+
+        # returns:
+        # --------
+        # Bool. If True, the two templates should be merged. False, otherwise.
+        # """
+        
+        # # Cat: TODO: read from CONFIG
+        # threshold=0.95
+        
+        # unit1 = data_in[0]
+        # unit2 = data_in[1]
+
+        # fname = os.path.join(self.deconv_chunk_dir, 
+                    # 'l2features_'+str(unit1)+'_'+str(unit2)+'_'+str(self.iteration)+'.npz')
+        # print (fname)
+        # if os.path.exists(fname)==False or self.recompute:
+        
+            # l2_features, spike_ids = get_l2_features(
+                # self.filename_residual, self.spike_train,
+                # self.spike_train_upsampled,
+                # self.templates, self.templates_upsampled,
+                # unit1, unit2)
+
+            # dp_val, _ = test_unimodality(l2_features, spike_ids)
+            # #print (" units: ", unit1, unit2, " dp_val: ", dp_val)
+            # # save data
+            # np.savez(fname,
+                     # #spt1_idx=spt1_idx, spt2_idx=spt2_idx,
+                     # #spikes_1=spikes_1, spikes_2=spikes_2,
+                     # spike_ids=spike_ids,
+                     # l2_features=l2_features,
+                     # dp_val=dp_val)
+
+        # else:
+            # data = np.load(fname)
+            # dp_val = data['dp_val']
+        
+        # if dp_val > threshold:
+            # return (unit1, unit2)
+
+        # return None
+
+
+
+    def merge_templates_parallel2(self, data_in):
         """Whether to merge two templates or not.
-
-        parameters:
-        -----------
-        unit1: int
-            Index of the first template
-        unit2: int
-            Index of the second template
-        threshold: float
-            The threshold for the unimodality test.
-        n_samples: int
-            Maximum number of cleaned spikes from each unit.
-
-        returns:
-        --------
-        Bool. If True, the two templates should be merged. False, otherwise.
         """
-        unit1 = data_in[0]
-        unit2 = data_in[1]
-
-        fname = os.path.join(self.deconv_chunk_dir, 
-                    'l2features_'+str(unit1)+'_'+str(unit2)+'_'+str(self.iteration)+'.npz')
+        
+        # Cat: TODO: read from CONFIG
+        threshold=0.95
+        
+        # load these data arrays on each core (don't pass them into pipeline)
+        # Cat: TODO: maybe also want to read templates ...
+        data = np.load(self.results_fname)
+        templates_upsampled = data['templates_upsampled'].transpose(2,0,1)
+        spike_train = data['spike_train']
+        spike_train_upsampled = data['spike_train_upsampled']
                     
-        if os.path.exists(fname)==False or self.recompute:
+        return_vals = []
+        for data_ in data_in:
+            unit1 = data_[0]
+            unit2 = data_[1]
+            
+            fname = os.path.join(self.deconv_chunk_dir, 
+                        'l2features_'+str(unit1)+'_'+str(unit2)+'_'+str(self.iteration)+'.npz')
+            if os.path.exists(fname)==False or self.recompute:
+                
+                l2_features, spike_ids = get_l2_features(
+                    self.filename_residual,
+                    spike_train,
+                    spike_train_upsampled,
+                    self.templates,
+                    templates_upsampled,
+                    unit1, unit2)
+
+                dp_val, _ = test_unimodality(l2_features, spike_ids)
+
+                # save data
+                np.savez(fname,
+                         spike_ids=spike_ids,
+                         l2_features=l2_features,
+                         dp_val=dp_val)
+
+            else:
+                data = np.load(fname)
+                dp_val = data['dp_val']
         
-            l2_features, spike_ids = get_l2_features(
-                self.filename_residual, self.spike_train,
-                self.spike_train_upsampled,
-                self.templates, self.templates_upsampled,
-                unit1, unit2)
+            if dp_val > threshold:
+                return_vals.append([unit1, unit2])
+            else:
+                return_vals.append(None)
 
-            dp_val, _ = test_unimodality(l2_features, spike_ids)
-            #print (" units: ", unit1, unit2, " dp_val: ", dp_val)
-            # save data
-            np.savez(fname,
-                     #spt1_idx=spt1_idx, spt2_idx=spt2_idx,
-                     #spikes_1=spikes_1, spikes_2=spikes_2,
-                     spike_ids=spike_ids,
-                     l2_features=l2_features,
-                     dp_val=dp_val)
+        return (return_vals)
 
-        else:
-            data = np.load(fname)
-            dp_val = data['dp_val']
-        
-        if dp_val > threshold:
-            return (unit1, unit2)
-
-        return None
 
         
     def merge_templates_parallel_units(self):
@@ -262,8 +324,6 @@ def get_l2_features(filename_residual, spike_train, spike_train_upsampled,
     
     _, spike_size, n_channels = templates.shape
     
-    
-
     # get n_sample of cleaned spikes per template.
     spt1_idx = np.where(spike_train[:, 1] == unit1)[0]
     spt2_idx = np.where(spike_train[:, 1] == unit2)[0]

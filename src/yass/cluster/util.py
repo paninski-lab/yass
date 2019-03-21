@@ -2317,6 +2317,8 @@ def gather_clustering_result(chunk_dir, out_dir, units):
     '''load clustering results
     '''
 
+    print ("  gathering clustering results")
+
     # convert clusters to templates; keep track of weights
     templates = []
     spike_indexes = []
@@ -2459,7 +2461,6 @@ def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
 
     ''' Function that cleans low spike count templates and merges the rest
     '''
-    print ("\nCleaning Templates... ")
 
     weights = np.zeros(templates.shape[0], 'int32')
     unique_ids, unique_weights = np.unique(spike_indexes[:,1], return_counts=True)
@@ -2470,21 +2471,33 @@ def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
         ************************************************
     '''
     # Clean templates; return index of templates that were deleted
-    templates, spike_train, weights, idx_kept = clean_templates(templates,
+    print ("Cleaning templates ")
+    temp_fname = os.path.join(chunk_dir,'templates_post_'+out_dir+'_post_cleaning.npy')
+    if os.path.exists(temp_fname)==False:
+        templates, spike_train, weights, idx_kept = clean_templates(templates,
                                                         spike_indexes,
                                                         weights,
                                                         CONFIG)
 
-    np.save(chunk_dir  + '/templates_post_'+out_dir+'_post_cleaning.npy', templates)
-    np.save(chunk_dir + '/spike_train_post_'+out_dir+'_post_cleaning.npy', spike_train)
-    np.save(chunk_dir + '/idx_kept.npy', idx_kept)
+        np.save(os.path.join(chunk_dir,'templates_post_'+out_dir+
+                            '_post_cleaning.npy', templates))
+        np.save(os.path.join(chunk_dir,'spike_train_post_'+out_dir+
+                            '_post_cleaning.npy', spike_train))
+        np.save(os.path.join(chunk_dir,'idx_kept.npy', idx_kept))
+
+    else:
+        templates = np.load(os.path.join(chunk_dir,'templates_post_'+
+                                out_dir+'_post_cleaning.npy'))
+        spike_train = np.load(os.path.join(chunk_dir,'spike_train_post_'+out_dir+
+                                '_post_cleaning.npy'))
+        idx_kept = np.load(os.path.join(chunk_dir,'idx_kept.npy'))
 
     print("  "+out_dir+ " templates/spiketrain before merge: ",
                                         templates.shape, spike_train.shape)
 
     print ("\nPost-clustering merge... ")
 
-    merge_dir = chunk_dir+'/merge'
+    merge_dir = os.path.join(chunk_dir,'merge')
     if not os.path.isdir(merge_dir):
         os.makedirs(merge_dir)
 
@@ -2493,19 +2506,8 @@ def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
         ************************************************
     '''
     # ************** GET SIM_MAT ****************
-    abs_max_file = (merge_dir+'/abs_max_vector_post_cluster.npy')
+    abs_max_file = os.path.join(merge_dir,'abs_max_vector_post_cluster.npy')
     if os.path.exists(abs_max_file)==False:
-
-        # Cat: TODO: parallelize this step
-        #fname_denoised = merge_dir  + '/denoised_templates.npy'
-        #if os.path.exists(fname_denoised):
-        #    temps_denoised = np.load(fname_denoised)
-        #    shift_allowance = np.load(merge_dir  + '/shift_allowance.npy')
-
-        #else:
-        #    temps_denoised, shift_allowance = get_denoised_templates(templates, CONFIG)
-        #    np.save(fname_denoised, temps_denoised)
-        #    np.save(merge_dir  + '/shift_allowance.npy', shift_allowance)
 
         # run merge algorithm
         sim_mat = abs_max_dist(templates, CONFIG, merge_dir)
@@ -2513,93 +2515,51 @@ def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
 
     else:
         sim_mat = np.load(abs_max_file)
-        #shift_allowance = np.load(merge_dir  + '/shift_allowance.npy')
+   
+    temp_fname = os.path.join(merge_dir,'templates_post_'+out_dir+
+                                '_post_merge.npy')
+                                
+    if os.path.exists(temp_fname)==False:
+
+        merge_pairs = np.vstack(np.where(sim_mat))
+        unit_killed = np.zeros(templates.shape[0], 'bool')
+        for j in range(merge_pairs.shape[1]):
+            k1, k2 = merge_pairs[:,j]
+            if weights[k1] > weights[k2]:
+                unit_killed[k2] = True
+            else:
+                unit_killed[k1] = True
+        unit_keep = np.where(~unit_killed)[0]
+
+        templates = templates[unit_keep]
+        weights = weights[unit_keep]
+
+        spike_train_new = np.copy(spike_train)
+        spike_train_new = spike_train_new[
+            np.in1d(spike_train[:,1], unit_keep)]
+        dics = {unit: ii for ii, unit in enumerate(unit_keep)}
+        for j in range(spike_train_new.shape[0]):
+            spike_train_new[j,1] = dics[spike_train_new[j,1]]
+        spike_train = spike_train_new
+
+        np.save(merge_dir+'/templates_post_'+out_dir+'_post_merge.npy', templates)
+        np.save(merge_dir+'/spike_train_post_'+out_dir+'_post_merge.npy', spike_train)
 
 
-    ''' ************************************************
-        ************* MERGE SELECTED UNITS *************
-        ************************************************
-    '''
-    '''
-    # compute connected nodes and sum spikes over them
-    G = nx.from_numpy_array(sim_mat)
-    final_spike_indexes = []
-    final_template_indexes = []
-    connected_components = []
-    for i, cc in enumerate(nx.connected_components(G)):
-        final_template_indexes.append(list(cc))
-        sic = np.zeros(0, dtype = int)
-        for j in cc:
-            idx = np.where(spike_indexes[:,1]==j)[0]
-            sic = np.concatenate([sic, spike_indexes[:,0][idx]])
-        temp = np.concatenate([sic[:,np.newaxis], i*np.ones([sic.size,1],dtype = int)],axis = 1)
-        final_spike_indexes.append(temp)
-        connected_components.append(list(cc))
-    np.save(merge_dir+'/connected_components.npy', connected_components)
-    np.save(merge_dir+'/final_template_indexes.npy',
-                                                final_template_indexes)
-    final_spike_train = np.vstack(final_spike_indexes)
+        # Cat: TODO: why are we saving these twice?
+        np.save(chunk_dir+'/templates_post_'+out_dir+'_post_merge.npy', templates)
+        np.save(chunk_dir+'/spike_train_post_'+out_dir+'_post_merge.npy', spike_train)
 
-    # recompute tmp_loc from weighted templates
-    print ("  merging units (TODO parallelize and update align function)...")
-    templates_final = []
-    weights_final = []
-    for t in final_template_indexes:
-        # compute average weighted template and find peak
-        idx = np.int32(t)
+    else:
+        
+        templates = np.load(os.path.join(merge_dir,'templates_post_'+out_dir+
+                            '_post_merge.npy'))
+        spike_train = np.load(os.path.join(merge_dir,'spike_train_post_'+out_dir+
+                                '_post_merge.npy'))
 
-        highest_fr_unit = idx[weights[idx].argmax()]
-        templates_final.append(templates[highest_fr_unit])
-        weights_final.append(weights[highest_fr_unit])
-
-        # compute weighted template
-        #if len(idx) > 1:
-        #    weighted_average = merge_templates(templates[idx], weights[idx])
-        #else:
-        #    weighted_average = templates[idx[0]]
-        #templates_final.append(weighted_average)
-        #weights_final.append(np.sum(weights[idx]))
-
-    # convert templates to array
-    templates = np.float32(templates_final)
-    spike_train = final_spike_train
-    weights = np.array(weights_final).astype('int32')
-    '''
-    merge_pairs = np.vstack(np.where(sim_mat))
-    unit_killed = np.zeros(templates.shape[0], 'bool')
-    for j in range(merge_pairs.shape[1]):
-        k1, k2 = merge_pairs[:,j]
-        if weights[k1] > weights[k2]:
-            unit_killed[k2] = True
-        else:
-            unit_killed[k1] = True
-    unit_keep = np.where(~unit_killed)[0]
-
-    templates = templates[unit_keep]
-    weights = weights[unit_keep]
-
-    spike_train_new = np.copy(spike_train)
-    spike_train_new = spike_train_new[
-        np.in1d(spike_train[:,1], unit_keep)]
-    dics = {unit: ii for ii, unit in enumerate(unit_keep)}
-    for j in range(spike_train_new.shape[0]):
-        spike_train_new[j,1] = dics[spike_train_new[j,1]]
-    spike_train = spike_train_new
-
-    np.save(merge_dir+'/templates_post_'+out_dir+'_post_merge.npy', templates)
-    np.save(merge_dir+'/spike_train_post_'+out_dir+'_post_merge.npy', spike_train)
-
-    print("  "+out_dir+" templates/spike train after merge : ", templates.shape, spike_train.shape)
-
-
-    #neigh_channels = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-    #templates, collisions = remove_collision_templates(templates, neigh_channels)
-    #np.save(chunk_dir+'/collisions.npy', collisions)
-
-    np.save(chunk_dir+'/templates_post_'+out_dir+'_post_merge.npy', templates)
-    np.save(chunk_dir+'/spike_train_post_'+out_dir+'_post_merge.npy', spike_train)
-
-
+    print("  "+out_dir+" templates/spike train after merge : ", 
+                                templates.shape, spike_train.shape)
+    
     ''' ************************************************
         ************ REMOVE COLLISION UNITS ************
         ************************************************
@@ -2608,37 +2568,49 @@ def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
     if not os.path.isdir(temp_deconv_dir):
         os.makedirs(temp_deconv_dir)
         
-    templates, spike_train, idx_kept = deconvolve_template(
-        templates, spike_train, CONFIG, temp_deconv_dir)
-    weights = weights[idx_kept]
+    temp_fname = os.path.join(chunk_dir,'templates_post_'+out_dir+
+                        '_post_merge_post_collision_kill.npy')
+    if os.path.exists(temp_fname)==False:
+        templates, spike_train, idx_kept = deconvolve_template(
+            templates, spike_train, CONFIG, temp_deconv_dir)
+        weights = weights[idx_kept]
 
-    mad_collision_dir = os.path.join(chunk_dir,'mad_collision')
-    if not os.path.isdir(mad_collision_dir):
-        os.makedirs(mad_collision_dir)
-        
-    templates, spike_train, weights = mad_based_unit_kill(
-        templates, spike_train, weights, CONFIG, mad_collision_dir)
+        mad_collision_dir = os.path.join(chunk_dir,'mad_collision')
+        if not os.path.isdir(mad_collision_dir):
+            os.makedirs(mad_collision_dir)
+            
+        templates, spike_train, weights = mad_based_unit_kill(
+            templates, spike_train, weights, CONFIG, mad_collision_dir)
 
-    np.save(chunk_dir+'/templates_post_'+out_dir+'_post_merge_post_collision_kill.npy',
-            templates)
-    np.save(chunk_dir+'/spike_train_post_'+out_dir+'_post_merge_post_collision_kill.npy',
-            spike_train)
+        np.save(chunk_dir+'/templates_post_'+out_dir+'_post_merge_post_collision_kill.npy',
+                templates)
+        np.save(chunk_dir+'/spike_train_post_'+out_dir+'_post_merge_post_collision_kill.npy',
+                spike_train)
+    else:
+        templates = np.load(os.path.join(chunk_dir,'templates_post_'+out_dir+
+                            '_post_merge_post_collision_kill.npy'))
+        spike_train = np.load(os.path.join(chunk_dir,'spike_train_post_'+
+                            out_dir+'_post_merge_post_collision_kill.npy'))
 
     print("  "+out_dir+ " templates/spiketrain after removing collisions: ",
                                         templates.shape, spike_train.shape)
     # clip templates
+    # Cat: TODO: This value needs to be read from CONFIG
     shift_allowance = 10
     templates = templates[:, shift_allowance:-shift_allowance]
 
     # save data for clustering step
     if out_dir=='cluster':
-        fname = CONFIG.path_to_output_directory + '/spike_train_cluster.npy'
+        fname = os.path.join(CONFIG.path_to_output_directory,
+                    '/spike_train_cluster.npy')
         np.save(fname, spike_train)
 
-        fname = CONFIG.path_to_output_directory + '/templates_cluster.npy'
+        fname = os.path.join(CONFIG.path_to_output_directory,
+                            '/templates_cluster.npy')
         np.save(fname, templates)
 
     return spike_train, templates
+    
 
 def mad_based_unit_kill(templates, spike_train, weights, CONFIG, save_dir):
 
