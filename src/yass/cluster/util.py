@@ -2480,10 +2480,10 @@ def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
                                                         CONFIG)
 
         np.save(os.path.join(chunk_dir,'templates_post_'+out_dir+
-                            '_post_cleaning.npy', templates))
+                            '_post_cleaning.npy'), templates)
         np.save(os.path.join(chunk_dir,'spike_train_post_'+out_dir+
-                            '_post_cleaning.npy', spike_train))
-        np.save(os.path.join(chunk_dir,'idx_kept.npy', idx_kept))
+                            '_post_cleaning.npy'), spike_train)
+        np.save(os.path.join(chunk_dir,'idx_kept.npy'), idx_kept)
 
     else:
         templates = np.load(os.path.join(chunk_dir,'templates_post_'+
