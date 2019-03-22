@@ -720,8 +720,9 @@ def merge_pairs(templates, spike_train, templates_upsampled, spike_train_upsampl
     
     merge_matrix = np.zeros((templates.shape[2], templates.shape[2]),'int32')
     for merge_pair in merge_list:
-        if merge_pair != None:
+        if merge_pair[0] != None:
             merge_pair = merge_pair[0]
+            
             merge_matrix[merge_pair[0],merge_pair[1]]=1
             merge_matrix[merge_pair[1],merge_pair[0]]=1
 
