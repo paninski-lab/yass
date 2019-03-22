@@ -313,8 +313,8 @@ class Cluster(object):
             self.min_fr = int(1200*0.1)
 
             self.filename_postclustering = os.path.join(self.chunk_dir,
-                                                        "unit_",
-                                                        str(self.unit).zfill(6),
+                                                        "unit_"+
+                                                        str(self.unit).zfill(6)+
                                                         ".npz")
 
             self.filename_residual = os.path.join(self.chunk_dir.replace('recluster',''),
