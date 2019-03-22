@@ -167,13 +167,13 @@ def make_bar_plot(fname_templates, fname_spike_train,
 
     # **************** BAR PLOTS *******************
     ax=plt.subplot(2,1,1)
-    _, make_purity_complete_plots(
+    make_purity_complete_plots(
         ax, idx_sorted, all_matched_spikes,
         all_unmatched_spikes, n_spikes_gt, title)
     
     # ************ PTP and Firing rates ************
     ax=plt.subplot(2,1,2)
-    _, make_ptp_fr_plot(ax, idx_sorted, ptps, n_spikes_gt)
+    make_ptp_fr_plot(ax, idx_sorted, ptps, n_spikes_gt)
  
 
     fname_fig = os.path.join(save_dir, 'bar_plot.png')
@@ -300,7 +300,7 @@ def make_multiple_bar_plot(fname_templates_list, fname_spike_train_list, runs_to
         os.makedirs(save_dir)
 
     units = np.arange(n_units_gt)
-    purity_threshold = 0.1
+    purity_threshold = 0.01
     cos_sim_thresh = 0.5
     
     for j in runs_to_compare:
@@ -344,14 +344,14 @@ def make_multiple_bar_plot(fname_templates_list, fname_spike_train_list, runs_to
 
         # **************** BAR PLOTS *******************
         ax=plt.subplot(n_runs+1,1,ii+1)
-        _, make_purity_complete_plots(
+        make_purity_complete_plots(
             ax, idx_sorted, all_matched_spikes,
             all_unmatched_spikes, n_spikes_gt, titles_list[j])
 
 
     # ************ PTP and Firing rates ************
     ax=plt.subplot(n_runs+1,1,n_runs+1)
-    _, make_ptp_fr_plot(ax, idx_sorted, ptps, n_spikes_gt)
+    make_ptp_fr_plot(ax, idx_sorted, ptps, n_spikes_gt)
  
 
     fname_fig = os.path.join(save_dir, 'bar_plot.png')

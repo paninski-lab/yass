@@ -64,7 +64,7 @@ def compute_neighbours_rf2(STAs1, STAs2, n_neighbours=3):
 
     return nearest_units_rf1, nearest_units_rf2
     
-def pre_process_sta(STAs, th=0.05):
+def pre_process_sta(STAs, th=0.002):
 
     STAs_th = np.copy(STAs)
     STAs_th[np.abs(STAs_th) < th] = 0

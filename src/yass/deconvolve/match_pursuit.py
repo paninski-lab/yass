@@ -204,25 +204,28 @@ class MatchPursuit_objectiveUpsample(object):
         # matching indeces of peaks to indices of upsampled templates
         factor = self.up_factor
         radius = factor // 2 + factor % 2
-        self.up_window = np.arange(-radius - 1, radius + 1)[:, None]
+        self.up_window = np.arange(-radius, radius + 1)[:, None]
         self.up_window_len = len(self.up_window)
         off = (factor + 1) % 2
         
         # Indices of single time window the window around peak after upsampling
-        self.zoom_index = (radius + 1) * factor + np.arange(-factor // 2, radius)
-        peak_to_template_idx = np.append(
-                np.arange(radius + off, factor),
-                np.arange(radius + off))
-        self.peak_to_template_idx = np.pad(
-                peak_to_template_idx, (1, 0), 'edge')
-        if off:
-            self.peak_to_template_idx[0] -= 1
-        peak_time_jitter = np.array([1, 0]).repeat(radius)
-        peak_time_jitter[radius - 1] = 0
-        self.peak_time_jitter = np.pad(peak_time_jitter, (1, 0), 'edge')
-        
+        self.zoom_index = radius * factor + np.arange(-radius, radius+1)
+        self.peak_to_template_idx = np.append(np.arange(radius, -1, -1),
+                                              (factor-1)-np.arange(radius))
+        #peak_to_template_idx = np.append(
+        #        np.arange(radius + off, factor),
+        #        np.arange(radius + off))
+        #self.peak_to_template_idx = np.pad(
+        #        peak_to_template_idx, (1, 0), 'edge')
+        #if off:
+        #    self.peak_to_template_idx[0] -= 1
+        #peak_time_jitter = np.array([1, 0]).repeat(radius)
+        #peak_time_jitter[radius - 1] = 0
+        #self.peak_time_jitter = np.pad(peak_time_jitter, (1, 0), 'edge')
+        self.peak_time_jitter = np.append([0],np.array([0, 1]).repeat(radius))
         # Refractory Perios Setup.
-        self.refrac_radius = refrac_period
+        # DO NOT MAKE IT SMALLER THAN self.n_time - 1 !!!
+        self.refrac_radius = self.n_time - 1
         
         # Account for upsampling window so that np.inf does not fall into the
         # window around peak for valid spikes.
@@ -277,7 +280,7 @@ class MatchPursuit_objectiveUpsample(object):
         else:
                 # Upsample and downsample time shifted versions
                 self.up_factor = upsample
-                self.unit_up_factor = upsample
+                self.unit_up_factor = np.ones(self.n_unit)
                 self.up_up_map = range(self.n_unit * self.up_factor)
 
         fname = self.deconv_dir + "/up_up_maps.npz"
@@ -335,7 +338,7 @@ class MatchPursuit_objectiveUpsample(object):
         fname = self.deconv_dir+"/svd.npz"
         if os.path.exists(fname)==False:
             self.temporal, self.singular, self.spatial = np.linalg.svd(
-                np.transpose(np.flipud(self.temps), (2, 0, 1)))
+                np.transpose(self.temps, (2, 0, 1)))
             # Keep only the strongest components
             self.temporal = self.temporal[:, :, :self.approx_rank]
             self.singular = self.singular[:, :self.approx_rank]
@@ -346,12 +349,15 @@ class MatchPursuit_objectiveUpsample(object):
             if self.up_factor == 1:
                 # No upsampling is needed.
                 self.temporal_up = self.temporal
-                return
-            self.temporal_up = scipy.signal.resample(
-                    self.temporal, self.n_time * self.up_factor, axis=1)
-            idx = np.arange(0, self.n_time * self.up_factor, self.up_factor) + np.arange(self.up_factor)[:, None]
-            self.temporal_up = np.reshape(
-                    self.temporal_up[:, idx, :], [-1, self.n_time, self.approx_rank]).astype(np.float32)
+            else:
+                self.temporal_up = scipy.signal.resample(
+                        self.temporal, self.n_time * self.up_factor, axis=1)
+                idx = np.arange(0, self.n_time * self.up_factor, self.up_factor) + np.arange(self.up_factor)[:, None]
+                self.temporal_up = np.reshape(
+                        self.temporal_up[:, idx, :], [-1, self.n_time, self.approx_rank]).astype(np.float32)
+
+            self.temporal = np.flip(self.temporal, axis=1)
+            self.temporal_up = np.flip(self.temporal_up, axis=1)
 
             np.savez(fname,
                      temporal_up = self.temporal_up,
@@ -523,7 +529,7 @@ class MatchPursuit_objectiveUpsample(object):
                         self.orig_temps[:, :, i],
                         self.n_time * self.up_factor)[down_sample_idx, :]
                 up_temps = up_temps.transpose([1, 2, 0])
-                up_temps = up_temps[:, :, reorder_idx]
+                #up_temps = up_temps[:, :, reorder_idx]
                 skip = self.up_factor // self.unit_up_factor[i]
                 keep_upsample_idx = np.arange(0, self.up_factor, skip).astype(np.int32)
                 deconv_id_sparse_temp_map.append(np.arange(
@@ -750,15 +756,11 @@ class MatchPursuit_objectiveUpsample(object):
         """Finds peaks in subtraction differentials of spikes."""
         max_across_temp = np.max(self.obj, axis=0)
         spike_times = scipy.signal.argrelmax(
-                max_across_temp, order=self.refrac_radius)[0]
+            max_across_temp[self.n_time-1:self.obj.shape[1] - self.n_time],
+            order=self.refrac_radius)[0] + self.n_time - 1
         spike_times = spike_times[max_across_temp[spike_times] > self.threshold]
         dist_metric = max_across_temp[spike_times]
-        # TODO(hooshmand): this requires a check of the last element(s)
-        # of spike_times only not of all of them since spike_times
-        # is sorted already.
-        valid_idx = spike_times < self.data_len - self.n_time
-        dist_metric = dist_metric[valid_idx]
-        spike_times = spike_times[valid_idx]
+
         # Upsample the objective and find the best shift (upsampled)
         # template.
         spike_ids = np.argmax(self.obj[:, spike_times], axis=0)
@@ -769,7 +771,7 @@ class MatchPursuit_objectiveUpsample(object):
         spike_ids *= self.up_factor
         if np.sum(valid_idx) > 0:
             spike_ids[valid_idx] += upsampled_template_idx
-            spike_times[valid_idx] -= time_shift
+            spike_times[valid_idx] += time_shift
         # Note that we shift the discovered spike times from convolution
         # Space to actual raw voltate space by subtracting self.n_time
         result = np.append(
@@ -781,7 +783,7 @@ class MatchPursuit_objectiveUpsample(object):
         
     def enforce_refractory(self, spike_train):
         """Enforces refractory period for units."""
-        window = np.arange(- self.adjusted_refrac_radius, self.adjusted_refrac_radius)
+        window = np.arange(-self.adjusted_refrac_radius, self.adjusted_refrac_radius+1)
         n_spikes = spike_train.shape[0]
         win_len = len(window)
         # The offset self.n_time - 1 is necessary to revert the spike times
@@ -798,14 +800,18 @@ class MatchPursuit_objectiveUpsample(object):
         """Substracts a spike train from the original spike_train."""
         present_units = np.unique(spt[:, 1])
         for i in present_units:
-            conv_res_len = self.n_time * 2 - 1
+            conv_res_len = self.n_time*2 - 1
             unit_sp = spt[spt[:, 1] == i, :]
             spt_idx = np.arange(0, conv_res_len) + unit_sp[:, :1] 
             # Grid idx of subset of channels and times
             unit_idx = self.unit_overlap[i]
-            idx = np.ix_(unit_idx, spt_idx.ravel())
+            idx = np.ix_(unit_idx, spt_idx[::2].ravel())
             self.obj[idx] -= np.tile(
-                    2 * self.pairwise_conv[self.up_up_map[i]], len(unit_sp))
+                    2 * self.pairwise_conv[self.up_up_map[i]], len(unit_sp[::2]))
+
+            idx = np.ix_(unit_idx, spt_idx[1::2].ravel())
+            self.obj[idx] -= np.tile(
+                    2 * self.pairwise_conv[self.up_up_map[i]], len(unit_sp[1::2]))
 
         self.enforce_refractory(spt)
         

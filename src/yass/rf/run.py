@@ -153,7 +153,7 @@ class RF(object):
         unique_ids = np.unique(self.sps[:,1])
         
         args_in = []
-        for i_cell in unique_ids:
+        for i_cell in np.arange(Ncells):
             fname = os.path.join(tmp_dir_sta, 'unit_'+str(i_cell)+'.mat')
             if not os.path.exists(fname):
 

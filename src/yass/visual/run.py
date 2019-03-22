@@ -58,7 +58,7 @@ def run():
     vis.population_level_plot()
     vis.individiual_cell_plot()
 
-
+        
 class Visualizer(object):
 
     def __init__(self, fname_templates, fname_spike_train,
@@ -175,7 +175,7 @@ class Visualizer(object):
 
     def compute_neighbours_rf(self):
         
-        th = 0.05
+        th = 0.002
         STAs_th = np.copy(self.STAs)
         STAs_th[np.abs(STAs_th) < th] = 0
         STAs_th = STAs_th.reshape(self.n_units, -1)
@@ -773,31 +773,39 @@ class Visualizer(object):
     def add_raw_deno_resid_plot(self):
         
         fname = os.path.join(self.save_dir, 'raw_denoised_residual.png')
-        if os.path.exists(fname):
-            return
+        #if os.path.exists(fname):
+        #    return
+
+        raw = np.memmap(self.fname_recording, 
+                        dtype='float32', mode='r')
+        raw = np.reshape(raw, [-1, self.n_channels])
+        res = np.memmap(self.residual_recording, 
+                        dtype='float32', mode='r')
+        res = np.reshape(res, [-1, self.n_channels])
         
-        t_start = 1000
-        t_end = t_start+1000
+        t_max = np.abs(res[1000:-1000]).max(1).argmax() + 1000
+
+        t_start = t_max - 500
+        t_end = t_max + 500
+
+        c_max = res[t_max].argmax()
+        dist_to_max_c = np.linalg.norm(self.geom - self.geom[c_max][None], axis=1)
+        channels = dist_to_max_c.argsort()[:20]
+
         idx_temp = np.where(np.logical_and(
             self.spike_train_upsampled[:,0] < t_end, self.spike_train_upsampled[:,0] > t_start-61))[0]
         spike_train_temp = self.spike_train_upsampled[idx_temp]
 
         t_tics = np.arange(t_start, t_end)/20
-        channels = np.arange(20)
         summed_templates = np.zeros((t_end-t_start+61*2, len(channels)))
         for j in range(spike_train_temp.shape[0]):
             tt, ii = spike_train_temp[j]
             tt -= (t_start-61)
             summed_templates[tt:tt+61] += self.templates_upsampled[:,channels][:,:,ii]
         summed_templates = summed_templates[61:-61]
-
-        raw = np.memmap(self.fname_recording, 
-                        dtype='float32', mode='r')
-        raw = np.reshape(raw, [-1, self.n_channels])[t_start:t_end][:, channels]
-
-        res = np.memmap(self.residual_recording, 
-                        dtype='float32', mode='r')
-        res = np.reshape(res, [-1, self.n_channels])[t_start:t_end][:, channels]
+        
+        raw = raw[t_start:t_end][:, channels]
+        res = res[t_start:t_end][:, channels]
 
         spread = np.arange(len(channels))*30
         plt.figure(figsize=(40,10))
@@ -937,16 +945,26 @@ class CompareSpikeTrains(Visualizer):
             STAs2 = np.load(os.path.join(rf_dir2, 'STA_spatial.npy'))
             Gaussian_params2 = np.load(os.path.join(rf_dir2, 'gaussian_fits.npy'))
             
+            idx_single_rf1 = np.load(os.path.join(rf_dir, 'idx_single_rf.npy'))
+            rf_labels1 = np.load(os.path.join(rf_dir, 'labels.npy'))
+            
+            idx_single_rf2 = np.load(os.path.join(rf_dir2, 'idx_single_rf.npy'))
+            rf_labels2 = np.load(os.path.join(rf_dir2, 'labels.npy'))
+            
             templates, spike_train = combine_two_spike_train(
                 templates1, templates2, spike_train1, spike_train2)
             
             STAs, Gaussian_params = combine_two_rf(
                 STAs1, STAs2, Gaussian_params1, Gaussian_params2)
-            
+
             K1 = templates1.shape[2]
             K2 = templates2.shape[2]
             set1_idx = np.zeros(K1+K2, 'bool')
             set1_idx[:K1] = 1
+            
+            idx_single_rf = np.hstack((idx_single_rf1, idx_single_rf2+K1))
+            rf_labels = np.hstack((rf_labels1, rf_labels2))
+            
             
             fname_templates = os.path.join(tmp_dir, 'templates_combined.npy')
             fname_spike_train = os.path.join(tmp_dir, 'spike_train_combined.npy')
@@ -959,13 +977,15 @@ class CompareSpikeTrains(Visualizer):
             np.save(fname_spike_train, spike_train)
             np.save(fname_set1_idx, set1_idx)
             np.save(os.path.join(rf_dir, 'STA_spatial.npy'), STAs)
-            np.save(os.path.join(rf_dir, 'gaussian_fits.npy'), Gaussian_params)            
+            np.save(os.path.join(rf_dir, 'gaussian_fits.npy'), Gaussian_params)    
+            np.save(os.path.join(rf_dir, 'idx_single_rf.npy'), idx_single_rf)
+            np.save(os.path.join(rf_dir, 'labels.npy'), rf_labels)
         
         set1_idx = np.load(fname_set1_idx)
             
-        Visualizer.__init__(self, fname_templates, fname_spike_train, rf_dir,
+        Visualizer.__init__(self, fname_templates, fname_spike_train,
                  fname_recording, recording_dtype, 
-                 fname_geometry, sampling_rate, save_dir)
+                 fname_geometry, sampling_rate, save_dir, rf_dir)
         
         self.set1_idx = set1_idx
         

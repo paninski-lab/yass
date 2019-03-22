@@ -88,7 +88,7 @@ class Deconv(object):
         self.compute_idx_list()
 
         # Cat: TODO: read from CONFIG
-        self.threshold = 50.
+        self.threshold = 20.
         self.conv_approx_rank = 10
         self.default_upsample_value=0
         self.upsample_max_val = 32.
@@ -501,8 +501,8 @@ class Deconv(object):
         self.dec_spike_train = np.vstack(res)
         
         # corrected spike trains using shift due to deconv tricks
-        self.dec_spike_train = mp_object.correct_shift_deconv_spike_train(
-                                                    self.dec_spike_train)
+        #self.dec_spike_train = mp_object.correct_shift_deconv_spike_train(
+        #                                            self.dec_spike_train)
         print ("  initial deconv spike train: ", 
                             self.dec_spike_train.shape)
 

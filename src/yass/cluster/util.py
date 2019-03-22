@@ -4593,7 +4593,7 @@ def clean_templates(templates, spike_train_cluster, weights, CONFIG):
 
     # find units < 3SU 
     # Cat: TODO: read this threshold and flag from CONFIG
-    template_threshold = 2
+    template_threshold = 3
 
     print ("  cleaning templates (temps, time, chan): ", templates.shape)
     ptps = templates.ptp(1).max(1)
