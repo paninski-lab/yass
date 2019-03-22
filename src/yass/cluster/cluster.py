@@ -60,7 +60,7 @@ class Cluster(object):
                      gen=0,
                      branch=0,
                      hist=[])
-        self.finish_plotting()
+        #self.finish_plotting()
 
         if self.verbose:
             print('local chananel clustering is done')
@@ -79,7 +79,7 @@ class Cluster(object):
                              gen=self.history_local_final[ii][0]+1, 
                              branch=self.history_local_final[ii][1], 
                              hist=self.history_local_final[ii][1:])
-                self.finish_plotting(local_unit_id=ii)
+                #self.finish_plotting(local_unit_id=ii)
 
                 indices_train_final += self.indices_train
                 templates_final += self.templates
@@ -203,7 +203,7 @@ class Cluster(object):
         '''
 
         # CAT: todo read params below from file:
-        self.plotting = False
+        #self.plotting = False # permanently disable online plotting
         self.verbose = False
         self.starting_gen = 0
         self.knn_triage_threshold = 0.95 * 100
@@ -221,6 +221,13 @@ class Cluster(object):
         self.shift_allowance = 10
         self.max_cluster_spikes = 50000
         self.recluster_on_raw = False
+        
+        # Cat: TODO: this is wrong
+        #  SHOULD REPLACE BY: compute length of recording in seconds
+        #fp_len = np.memmap(self.standardized_filename, 
+        #           dtype='float32', mode='r').shape[0]
+        #self.rec_len_sec = fp_len/(self.sampling_rate*self.n_channels)
+        
         self.min_fr = 1200*3
 
         # threshold at which to set soft assignments to 0
@@ -276,9 +283,20 @@ class Cluster(object):
         if self.deconv_flag:
             self.unit = self.channel.copy()
 
-            self.upsampled_templates = data_in[6].transpose(2,0,1)
-            self.upsampled_spike_train = data_in[7]
+            # Peter's original code
+            # self.upsampled_templates = data_in[6].transpose(2,0,1)
+            # self.upsampled_spike_train = data_in[7]
+            # self.template_original = data_in[8][:,:,self.unit]
+
+            # load upsampled templates from disk
+            fname_upsampled_templates = data_in[6]
+            self.upsampled_templates = np.load(fname_upsampled_templates)['templates_upsampled'].transpose(2,0,1)
+            
+            # load upsampled templates from disk
+            fname_upsampled_spike_train = data_in[7]
+            self.upsampled_spike_train = np.load(fname_upsampled_spike_train)['spike_train_upsampled']
             self.template_original = data_in[8][:,:,self.unit]
+
 
             # keep track of this for possible debugging later
             self.spike_train_cluster_original = self.spike_indexes_chunk
@@ -294,8 +312,10 @@ class Cluster(object):
             #self.max_cluster_spikes = 5000
             self.min_fr = int(1200*0.1)
 
-            self.filename_postclustering = (self.chunk_dir + "/unit_"+
-                                                        str(self.unit).zfill(6)+".npz")
+            self.filename_postclustering = os.path.join(self.chunk_dir,
+                                                        "unit_"+
+                                                        str(self.unit).zfill(6)+
+                                                        ".npz")
 
             self.filename_residual = os.path.join(self.chunk_dir.replace('recluster',''),
                                                   "residual.bin")
@@ -380,7 +400,7 @@ class Cluster(object):
         self.spike_times_original = self.spike_indexes_chunk[indexes,0]
         self.shifts = np.zeros(len(self.spike_times_original))
         if self.deconv_flag:
-            self.upsampled_units_original = self.upsampled_spike_train[indexes,1]
+            self.spike_times_upsampled = self.upsampled_spike_train[indexes,1]
 
     def initialize(self, indices_in, local):
 
@@ -402,16 +422,16 @@ class Cluster(object):
         #if local:
         #    self.spiketime_detect = initial_spt.copy()
             
-        if self.plotting:
-            self.x = np.zeros(100, dtype = int)
-            self.fig1 = plt.figure(figsize =(60,60))
-            self.grid1 = plt.GridSpec(20,20,wspace = 1,hspace = 2)
+        # if self.plotting:
+            # self.x = np.zeros(100, dtype = int)
+            # self.fig1 = plt.figure(figsize =(60,60))
+            # self.grid1 = plt.GridSpec(20,20,wspace = 1,hspace = 2)
 
-            # setup template plot; scale based on electrode array layout
-            xlim = self.CONFIG.geom[:,0].ptp(0)
-            ylim = self.CONFIG.geom[:,1].ptp(0)#/float(xlim)
-            self.fig2 = plt.figure(figsize =(100,max(ylim/float(xlim)*100,10)))
-            self.ax2 = self.fig2.add_subplot(111)
+            # # setup template plot; scale based on electrode array layout
+            # xlim = self.CONFIG.geom[:,0].ptp(0)
+            # ylim = self.CONFIG.geom[:,1].ptp(0)#/float(xlim)
+            # self.fig2 = plt.figure(figsize =(100,max(ylim/float(xlim)*100,10)))
+            # self.ax2 = self.fig2.add_subplot(111)
 
     def initialize_template_space(self):
 
@@ -464,7 +484,7 @@ class Cluster(object):
                 self.loaded_channels)
         # or from residual and add templates
         else:
-            units = self.upsampled_units_original[self.indices_in].astype('int32')
+            units = self.spike_times_upsampled[self.indices_in].astype('int32')
             self.wf_global, skipped_idx = read_spikes(
                 self.filename_residual,
                 spike_times-(self.spike_size//2),
@@ -493,7 +513,7 @@ class Cluster(object):
                     self.loaded_channels)
             # or from residual and add templates
             else:
-                units = self.upsampled_units_original[self.indices_in].astype('int32')
+                units = self.spike_times_upsampled[self.indices_in].astype('int32')
                 self.wf_global, skipped_idx = read_spikes(
                     self.filename_residual,
                     spike_times,
@@ -1075,12 +1095,12 @@ class Cluster(object):
                 print ("  chan "+str(self.channel)+", template has maxchan "+str(mc), 
                         " skipping ...")
             
-            # always plot scatter distributions
-            if self.plotting and gen<20:
-                split_type = 'non_max-chan'
-                end_flag = 'cyan'
-                self.plot_clustering_scatter(gen, 
-                            pca_wf, assignment, [1], split_type, end_flag)             
+            # # always plot scatter distributions
+            # if self.plotting and gen<20:
+                # split_type = 'non_max-chan'
+                # end_flag = 'cyan'
+                # self.plot_clustering_scatter(gen, 
+                            # pca_wf, assignment, [1], split_type, end_flag)             
         else:         
             N = len(self.indices_train)
             if self.verbose:
@@ -1105,17 +1125,17 @@ class Cluster(object):
                 self.clustered_indices_distant.append(
                     self.clustered_indices_local[self.distant_ii][current_indices])
 
-            # plot template if done
-            if self.plotting:
-                self.plot_clustering_template(gen, template, 
-                                              len(current_indices), N)
+            # # plot template if done
+            # if self.plotting:
+                # self.plot_clustering_template(gen, template, 
+                                              # len(current_indices), N)
 
-                # always plot scatter distributions
-                if gen<20:
-                    split_type = 'single unit'
-                    end_flag = 'red'
-                    self.plot_clustering_scatter(gen,  
-                            pca_wf, assignment, [1], split_type, end_flag)
+                # # always plot scatter distributions
+                # if gen<20:
+                    # split_type = 'single unit'
+                    # end_flag = 'red'
+                    # self.plot_clustering_scatter(gen,  
+                            # pca_wf, assignment, [1], split_type, end_flag)
              
     def multi_cluster_step(self, current_indices, pca_wf, local, vbParam2,
                                 gen, branch_current, hist):
@@ -1131,9 +1151,9 @@ class Cluster(object):
                                      gen, branch_current, hist)
 
         else:
-            if self.plotting and gen<20:
-                self.plot_clustering_scatter(gen, pca_wf, cc_assignment,
-                                             stability, 'multi split')
+            # if self.plotting and gen<20:
+                # self.plot_clustering_scatter(gen, pca_wf, cc_assignment,
+                                             # stability, 'multi split')
 
             # Cat: TODO: unclear how much memory this saves
             pca_wf = pca_subsampled = vbParam2 = None
@@ -1164,69 +1184,69 @@ class Cluster(object):
         
         return template
 
-    def finish_plotting(self, local_unit_id=None):
+    # def finish_plotting(self, local_unit_id=None):
 
-        if not self.plotting:
-            return
+        # if not self.plotting:
+            # return
 
-        if self.deconv_flag:
-            fname = 'unit_{}'.format(self.unit)
-        else:
-            fname = 'channel_{}'.format(self.channel)
+        # if self.deconv_flag:
+            # fname = 'unit_{}'.format(self.unit)
+        # else:
+            # fname = 'channel_{}'.format(self.channel)
 
-        if local_unit_id is not None:
-            fname = fname+'_local_unit_{}'.format(local_unit_id)
+        # if local_unit_id is not None:
+            # fname = fname+'_local_unit_{}'.format(local_unit_id)
 
-        ####### finish cluster plots #######
-        max_chan = self.channel
+        # ####### finish cluster plots #######
+        # max_chan = self.channel
 
-        self.fig1.suptitle(fname, fontsize=100)
-        self.fig1.savefig(os.path.join(self.figures_dir,fname+'_scatter.png'))
-        #plt.close(self.fig1)
+        # self.fig1.suptitle(fname, fontsize=100)
+        # self.fig1.savefig(os.path.join(self.figures_dir,fname+'_scatter.png'))
+        # #plt.close(self.fig1)
 
-        ####### finish template plots #######
-        # plot channel numbers and shading
-        for i in self.loaded_channels:
-            self.ax2.text(self.CONFIG.geom[i,0], self.CONFIG.geom[i,1],
-                          str(i), alpha=0.4, fontsize=10)
+        # ####### finish template plots #######
+        # # plot channel numbers and shading
+        # for i in self.loaded_channels:
+            # self.ax2.text(self.CONFIG.geom[i,0], self.CONFIG.geom[i,1],
+                          # str(i), alpha=0.4, fontsize=10)
                           
-            # fill bewteen 2SUs on each channel
-            self.ax2.fill_between(self.CONFIG.geom[i,0] +
-                 np.arange(-self.spike_size,0,1)/self.xscale, -self.yscale +
-                 self.CONFIG.geom[i,1], self.yscale + self.CONFIG.geom[i,1],
-                 color='black', alpha=0.05)
+            # # fill bewteen 2SUs on each channel
+            # self.ax2.fill_between(self.CONFIG.geom[i,0] +
+                 # np.arange(-self.spike_size,0,1)/self.xscale, -self.yscale +
+                 # self.CONFIG.geom[i,1], self.yscale + self.CONFIG.geom[i,1],
+                 # color='black', alpha=0.05)
             
-        # plot max chan with big red dot
-        self.ax2.scatter(self.CONFIG.geom[max_chan,0],
-                          self.CONFIG.geom[max_chan,1], s = 2000,
-                          color = 'red')
+        # # plot max chan with big red dot
+        # self.ax2.scatter(self.CONFIG.geom[max_chan,0],
+                          # self.CONFIG.geom[max_chan,1], s = 2000,
+                          # color = 'red')
 
-        labels = []
+        # labels = []
 
-        # plot original templates for post-deconv reclustering
-        if self.deconv_flag:
-            self.ax2.plot(self.CONFIG.geom[:, 0] +
-                      np.arange(-self.template_original.shape[0] // 2,
-                      self.template_original.shape[0] // 2, 1)[:, np.newaxis] / self.xscale,
-                      self.CONFIG.geom[:, 1] + self.template_original * self.yscale,
-                      'r--', c='darkgreen', linewidth = 10)
+        # # plot original templates for post-deconv reclustering
+        # if self.deconv_flag:
+            # self.ax2.plot(self.CONFIG.geom[:, 0] +
+                      # np.arange(-self.template_original.shape[0] // 2,
+                      # self.template_original.shape[0] // 2, 1)[:, np.newaxis] / self.xscale,
+                      # self.CONFIG.geom[:, 1] + self.template_original * self.yscale,
+                      # 'r--', c='darkgreen', linewidth = 10)
 
-            patch_j = mpatches.Patch(color='darkgreen', label="size = {}".format(len(self.spike_times_original)))
-            labels.append(patch_j)
+            # patch_j = mpatches.Patch(color='darkgreen', label="size = {}".format(len(self.spike_times_original)))
+            # labels.append(patch_j)
 
-        # if at least 1 cluster is found, plot the template
-        if len(self.indices_train)>0:
-            for clust in range(len(self.indices_train)):
-                patch_j = mpatches.Patch(color = colors[clust%30],
-                                         label = "size = {}".format(len(self.indices_train[clust])))
-                labels.append(patch_j)
-        self.ax2.legend(handles=labels, fontsize=100)
+        # # if at least 1 cluster is found, plot the template
+        # if len(self.indices_train)>0:
+            # for clust in range(len(self.indices_train)):
+                # patch_j = mpatches.Patch(color = colors[clust%30],
+                                         # label = "size = {}".format(len(self.indices_train[clust])))
+                # labels.append(patch_j)
+        # self.ax2.legend(handles=labels, fontsize=100)
 
-        # plot title
-        self.fig2.suptitle(fname, fontsize=100)
-        self.fig2.savefig(os.path.join(self.figures_dir,fname+'_template.png'))
-        #plt.close(self.fig2)
-        plt.close('all')
+        # # plot title
+        # self.fig2.suptitle(fname, fontsize=100)
+        # self.fig2.savefig(os.path.join(self.figures_dir,fname+'_template.png'))
+        # #plt.close(self.fig2)
+        # plt.close('all')
 
 
     def save_result(self, indices_train, templates):
@@ -1715,6 +1735,8 @@ def read_spikes(filename, spikes, n_channels, spike_size, units=None, templates=
         #    offset = spike_size - spike_size_default
         #    spike_waveforms[:,offset//2:offset//2+spike_size_default]+=templates[:,:,channels][units]
         
+        #print ("templates added: ", templates.shape)
+        #print ("units: ", units)
         offset = spike_size - templates.shape[1]
         spike_waveforms[:,offset//2:offset//2+templates.shape[1]]+=templates[:,:,channels][units]
 
