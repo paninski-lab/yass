@@ -8,7 +8,8 @@ import yaml
 from tqdm import tqdm
 import parmap
 
-from yass.visual.correlograms_phy import compute_correlogram
+from yass.deconvolve.correlograms_phy import compute_correlogram
+from yass.deconvolve.notch import notch_finder
 from yass.visual.util import compute_neighbours2, compute_neighbours_rf2, combine_two_spike_train, combine_two_rf
 from yass.geometry import parse, find_channel_neighbors
 from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans, binary_reader_waveforms, read_spikes
@@ -584,7 +585,11 @@ class Visualizer(object):
             result = result[0,0]
         elif result.shape[0] > 1:
             result = result[1,0]
-        
+
+        notch, pval1, pval2 = notch_finder(result)
+        pval1 = np.round(pval1, 2)
+        pval2 = np.round(pval2, 2)
+
         ax = plt.subplot(gs[x_loc, y_loc])
         plt.plot(result,color='black', linewidth=2)
         plt.ylim(0, np.max(result*1.5))
@@ -592,6 +597,7 @@ class Visualizer(object):
         plt.xlim(0,101)
         plt.xticks([])
         plt.tick_params(axis='both', which='major', labelsize=6)
+        plt.title('pval1: {}, pval2: {}'.format(pval1, pval2), fontsize=self.fontsize)
        
         return gs
     

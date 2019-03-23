@@ -226,7 +226,7 @@ def correlograms(spike_times,
         return correlograms
 
 
-def compute_correlogram(units, spike_train, sample_rate=20000, bin_width = 0.005, window_size = 0.5):
+def compute_correlogram(units, spike_train, sample_rate=20000, bin_width = 0.001, window_size = 0.1):
 
     #Reduce spike_train to two units; ensure to keep order of spikes 
     spike_train_temp = []

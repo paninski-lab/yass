@@ -2446,12 +2446,18 @@ def recompute_templates_parallel(arg_in):
     ref_template = np.load(absolute_path_to_asset(
             os.path.join('template_space', 'ref_template.npy')))
 
-    cut_edge = (spike_size - len(ref_template))//2
-
     mc = np.mean(wf, axis=0).ptp(0).argmax()
-    best_shifts = align_get_shifts_with_ref(
-        wf[:, cut_edge:-cut_edge, mc],
-        ref_template)
+
+    cut_edge = (spike_size - len(ref_template))//2
+    if cut_edge > 0:
+        best_shifts = align_get_shifts_with_ref(
+            wf[:, cut_edge:-cut_edge, mc],
+            ref_template)
+    else:
+        best_shifts = align_get_shifts_with_ref(
+            wf[:, :, mc],
+            ref_template)
+        
     wf = shift_chans(wf, best_shifts)
     template = np.median(wf, 0)
 
@@ -2636,30 +2642,40 @@ def mad_based_unit_kill(templates, spike_train, weights, CONFIG, save_dir):
                                      standardized_filename,
                                      save_dir)
 
-    # reload all saved data
-    pairs = []
+    collision_units = []
     for k in range(templates.shape[0]):
         fname = os.path.join(save_dir,'unit_{}.npz'.format(k))
         tmp = np.load(fname)
         if tmp['kill']:
-            pairs.append([k, tmp['unit_matched']])
-
-    unique_pairs = []
-    non_unique_pairs = []    
-    for x, y in pairs:
-        if [y, x] not in pairs:
-            unique_pairs.append([x,y])
-        elif [y, x] not in non_unique_pairs:
-            non_unique_pairs.append([x,y])
-
-    collision_units = [k for k, k_ in unique_pairs]
-
-    for x, y in non_unique_pairs:
-        if weights[x] > weights[y]:
-            collision_units.append(x)
-        else:
-            collision_units.append(y)
+            collision_units.append(k)
     collision_units = np.array(collision_units)
+
+
+    # reload all saved data
+    #pairs = []
+    #for k in range(templates.shape[0]):
+    #    fname = os.path.join(save_dir,'unit_{}.npz'.format(k))
+    #    tmp = np.load(fname)
+    #    if tmp['kill']:
+    #        pairs.append([k, tmp['unit_matched']])
+
+    #unique_pairs = []
+    #non_unique_pairs = []    
+    #for x, y in pairs:
+    #    if [y, x] not in pairs:
+    #        unique_pairs.append([x,y])
+    #    elif [y, x] not in non_unique_pairs:
+    #        non_unique_pairs.append([x,y])
+
+    #collision_units = [k for k, k_ in unique_pairs]
+
+    #for x, y in non_unique_pairs:
+    #    if weights[x] > weights[y]:
+    #        collision_units.append(x)
+    #    else:
+    #        collision_units.append(y)
+    #collision_units = np.array(collision_units)
+
 
     print(' MAD collision detector: {} units removed'.format(len(collision_units)))
 
@@ -2709,10 +2725,6 @@ def mad_based_unit_kill_parallel(unit, templates, spike_train, standardized_file
         ref_template, nshifts=jitter)
     wf = shift_chans(wf, best_shifts)
 
-    t_mad = np.median(
-            np.abs(np.median(wf, axis=0)[None, :, :] - wf), axis=0)
-
-    col_loc = t_mad > mad_gap
     #mean_clipped = mean[:, jitter:-jitter]
     #delta_minus = np.abs(mean_clipped - mean[:, :-2])
     #delta_plus = np.abs(mean_clipped - mean[:, 2:])
@@ -2721,39 +2733,44 @@ def mad_based_unit_kill_parallel(unit, templates, spike_train, standardized_file
     t_mad = np.median(
             np.abs(np.median(wf, axis=0)[None, :, :] - wf), axis=0)
 
-    col_loc = t_mad > mad_gap
-    
-    kill = False
-    max_diff = None
-    unit_matched = None
+    col_loc = t_mad[cut_edge:-cut_edge] > mad_gap
+
+    #kill = False
+    #max_diff = None
+    #unit_matched = None
+    #if np.sum(col_loc) > mad_gap_breach:
+    #    idx_no_target = np.arange(n_units)
+    #    idx_no_target = np.delete(idx_no_target, unit)
+    #    residual, unit_matched = run_deconv(templates[unit],
+    #                                        templates[idx_no_target], up_factor)
+
+    #    if unit_matched is not None:
+    #        unit_matched = idx_no_target[unit_matched]
+    #        visch_matched = np.where(templates[unit_matched].ptp(axis=0) > 2.)[0]
+    #        visch_all = np.union1d(visch, visch_matched)
+
+    #        ii = np.where(col_loc.sum(0)>mad_gap_breach)[0]
+    #        cc = np.unique(visch[ii])
+    #        visch_all = visch_all[~np.in1d(visch_all, cc)]
+
+    #        if len(visch_all) > 0:
+    #            max_diff = np.max(np.abs(residual[:, visch_all]))
+    #        else:
+    #            max_diff = 0
+
+    #        if max_diff < residual_max_norm:
+    #            kill = True
+
     if np.sum(col_loc) > mad_gap_breach:
-        idx_no_target = np.arange(n_units)
-        idx_no_target = np.delete(idx_no_target, unit)
-        residual, unit_matched = run_deconv(templates[unit],
-                                            templates[idx_no_target], up_factor)
-
-        if unit_matched is not None:
-            unit_matched = idx_no_target[unit_matched]
-            visch_matched = np.where(templates[unit_matched].ptp(axis=0) > 2.)[0]
-            visch_all = np.union1d(visch, visch_matched)
-
-            ii = np.where(col_loc.sum(0)>mad_gap_breach)[0]
-            cc = np.unique(visch[ii])
-            visch_all = visch_all[~np.in1d(visch_all, cc)]
-
-            if len(visch_all) > 0:
-                max_diff = np.max(np.abs(residual[:, visch_all]))
-            else:
-                max_diff = 0
-
-            if max_diff < residual_max_norm:
-                kill = True
+        kill = True
+    else:
+        kill = False
     
     fname = os.path.join(save_dir,'unit_{}.npz'.format(unit))
     np.savez(fname,
-             kill=kill,
-             unit_matched=unit_matched,
-             max_diff=max_diff)
+             kill=kill)
+             #unit_matched=unit_matched,
+             #max_diff=max_diff)
 
 def MAD_bernoulli_two_uniforms(a, b):
     """Analytical MAD of a addition of uniform drawn according to Bernoulli rv.

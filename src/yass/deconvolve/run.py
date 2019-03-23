@@ -68,15 +68,15 @@ def run(spike_train_cluster,
                     'templates_post_deconv_post_merge.npy'))
 
     # Compute soft assignments
-    soft_assignments, assignment_map = get_soft_assignments(
-            templates=templates.transpose([2, 0, 1]),
-            templates_upsampled=templates.transpose([2, 0, 1]),
-            spike_train=spike_train,
-            spike_train_upsampled=spike_train,
-            filename_residual=deconv_obj.residual_fname,
-            n_similar_units=2)
+    #soft_assignments, assignment_map = get_soft_assignments(
+    #        templates=templates.transpose([2, 0, 1]),
+    #        templates_upsampled=templates.transpose([2, 0, 1]),
+    #        spike_train=spike_train,
+    #        spike_train_upsampled=spike_train,
+    #        filename_residual=deconv_obj.residual_fname,
+    #        n_similar_units=2)
 
-    np.save(deconv_obj.root_dir + '/soft_assignment.npy', soft_assignments)
-    np.save(deconv_obj.root_dir + '/soft_assignment_map.npy', assignment_map)
+    #np.save(deconv_obj.root_dir + '/soft_assignment.npy', soft_assignments)
+    #np.save(deconv_obj.root_dir + '/soft_assignment_map.npy', assignment_map)
 
     return spike_train, templates

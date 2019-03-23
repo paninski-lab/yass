@@ -13,6 +13,8 @@ from diptest import diptest as dp
 
 from yass import read_config
 from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans, read_spikes
+from yass.deconvolve.correlograms_phy import compute_correlogram
+from yass.deconvolve.notch import notch_finder
 
 from statsmodels import robust
 from scipy.signal import argrelmin
@@ -285,18 +287,34 @@ class TemplateMerge(object):
                         'l2features_'+str(unit1)+'_'+str(unit2)+'_'+str(self.iteration)+'.npz')
             if os.path.exists(fname)==False or self.recompute:
                 
-                l2_features, spike_ids = get_l2_features(
-                    self.filename_residual,
-                    spike_train,
-                    spike_train_upsampled,
-                    self.templates,
-                    templates_upsampled,
-                    unit1, unit2)
+                xcor = compute_correlogram(
+                    np.hstack((unit1, unit2)), spike_train)
+                if xcor.shape[0] == 1:
+                    xcor = xcor[0,0]
+                elif xcor.shape[0] > 1:
+                    xcor = xcor[1,0]
+                    
+                notch, pval1, pval2 = notch_finder(xcor)
 
-                dp_val, _ = test_unimodality(l2_features, spike_ids)
+                if pval1 < 0.05:
+                    l2_features, spike_ids = get_l2_features(
+                        self.filename_residual,
+                        spike_train,
+                        spike_train_upsampled,
+                        self.templates,
+                        templates_upsampled,
+                        unit1, unit2)
+
+                    dp_val, _ = test_unimodality(l2_features, spike_ids)
+                    
+                else:
+                    dp_val = 0
+                    spike_ids = None
+                    l2_features = None
 
                 # save data
                 np.savez(fname,
+                         notch_pval=pval1,
                          spike_ids=spike_ids,
                          l2_features=l2_features,
                          dp_val=dp_val)
@@ -583,4 +601,4 @@ def template_dist_linear_align(templates, distance=None, units=None, max_shift=5
         distance[k, candidates] = dist
         distance[candidates, k] = dist
         
-    return distance
+    return distance    

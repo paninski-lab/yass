@@ -88,7 +88,7 @@ class Deconv(object):
         self.compute_idx_list()
 
         # Cat: TODO: read from CONFIG
-        self.threshold = 20.
+        self.threshold = 50.
         self.conv_approx_rank = 10
         self.default_upsample_value=0
         self.upsample_max_val = 32.
@@ -614,8 +614,6 @@ class Deconv(object):
         #wf_object.data = wf_object.data[self.buffer_size:-self.buffer_size].reshape(-1)
         #wf_object.data.tofile(fname)
 
-
-
     def reclustering_function(self):
                          
         print ("\nPost-deconv reclustering...")
@@ -654,10 +652,10 @@ class Deconv(object):
                     self.recluster_dir,
                     #self.spike_train_cluster,  #MIGHT WISH TO EXCLUDE THIS FOR NOW
                     full_run,
-                    #self.sparse_upsampled_templates,
-                    #self.spike_train_upsampled,
-                    self.fname_upsampled_data,
-                    self.fname_upsampled_data,
+                    self.sparse_upsampled_templates,
+                    self.spike_train_upsampled,
+                    #self.fname_upsampled_data,
+                    #self.fname_upsampled_data,
                     self.templates
                 ])
 

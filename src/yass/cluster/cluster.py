@@ -284,17 +284,16 @@ class Cluster(object):
             self.unit = self.channel.copy()
 
             # Peter's original code
-            # self.upsampled_templates = data_in[6].transpose(2,0,1)
-            # self.upsampled_spike_train = data_in[7]
-            # self.template_original = data_in[8][:,:,self.unit]
+            self.upsampled_templates = data_in[6].transpose(2,0,1)
+            self.upsampled_spike_train = data_in[7]
 
             # load upsampled templates from disk
-            fname_upsampled_templates = data_in[6]
-            self.upsampled_templates = np.load(fname_upsampled_templates)['templates_upsampled'].transpose(2,0,1)
+            #fname_upsampled_templates = data_in[6]
+            #self.upsampled_templates = np.load(fname_upsampled_templates)['templates_upsampled'].transpose(2,0,1)
             
             # load upsampled templates from disk
-            fname_upsampled_spike_train = data_in[7]
-            self.upsampled_spike_train = np.load(fname_upsampled_spike_train)['spike_train_upsampled']
+            #fname_upsampled_spike_train = data_in[7]
+            #self.upsampled_spike_train = np.load(fname_upsampled_spike_train)['spike_train_upsampled']
             self.template_original = data_in[8][:,:,self.unit]
 
 
