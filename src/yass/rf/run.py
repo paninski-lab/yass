@@ -30,6 +30,7 @@ def run():
     rf = RF(stim_movie_file, triggers_fname, spike_train_fname, saving_dir)
     rf.calculate_STA()
     rf.detect_multi_rf()
+    rf.classification()
 
 
 class RF(object):
@@ -192,10 +193,12 @@ class RF(object):
                 sta_calculation_parallel(args_in[unit])
 
         # run matlab code
+        print('running matlab code')
         rf_matlab_loc = resource_filename('yass', 'rf/rf_matlab')
         command = '{} -nodisplay -r \"cd(\'{}\'); fit_sta_liam_parallel(\'{}\', \'{}\'); exit\"'.format(
             self.matlab_bin, rf_matlab_loc, tmp_dir_sta, tmp_dir_rgc)
         os.system(command)
+        print('done running matlab code')
 
         STA_spatial = np.zeros((self.Ncells, stim_size[0], stim_size[1], n_color_channels))
         STA_temporal = np.zeros((self.Ncells, STA_temporal_length, n_color_channels))
@@ -260,11 +263,14 @@ class RF(object):
         
     def classification(self):
 
+        # wether the dataset is from 2017 or 2007
+        run_2017 = False
+
         # load data
         STA_temporal = np.load(self.save_dir+'STA_temporal.npy')
         gaussian_fits = np.load(self.save_dir+'gaussian_fits.npy')
         idx_single_rf = np.load(self.save_dir+'idx_single_rf.npy')
-        
+
         # remove double rf and think contours
         idx_keep = np.zeros(STA_temporal.shape[0], 'bool')
         areas = np.zeros(STA_temporal.shape[0])
@@ -283,12 +289,21 @@ class RF(object):
         # load saved feature spca and gmm params
         path_to_assets = resource_filename('yass', 'rf/classification')
         ref = np.load(os.path.join(path_to_assets, 'ref.npy'))
-        temp_pca_compoents = np.load(os.path.join(path_to_assets, 'temp_pca_compoents.npy'))
-        temp_pca_mean = np.load(os.path.join(path_to_assets, 'temp_pca_mean.npy'))
-        pca_compoents = np.load(os.path.join(path_to_assets, 'pca_compoents.npy'))
-        pca_mean = np.load(os.path.join(path_to_assets, 'pca_mean.npy'))
-        gmm_covs = np.load(os.path.join(path_to_assets, 'gmm_covs.npy'))
-        gmm_means = np.load(os.path.join(path_to_assets, 'gmm_means.npy'))
+        if run_2017:
+            temp_pca_compoents = np.load(os.path.join(path_to_assets, 'temp_pca_compoents_2017.npy'))
+            temp_pca_mean = np.load(os.path.join(path_to_assets, 'temp_pca_mean_2017.npy'))
+            pca_compoents = np.load(os.path.join(path_to_assets, 'pca_compoents_2017.npy'))
+            pca_mean = np.load(os.path.join(path_to_assets, 'pca_mean_2017.npy'))
+            gmm_covs = np.load(os.path.join(path_to_assets, 'gmm_covs_2017.npy'))
+            gmm_means = np.load(os.path.join(path_to_assets, 'gmm_means_2017.npy'))
+        else:
+            temp_pca_compoents = np.load(os.path.join(path_to_assets, 'temp_pca_compoents.npy'))
+            temp_pca_mean = np.load(os.path.join(path_to_assets, 'temp_pca_mean.npy'))
+            pca_compoents = np.load(os.path.join(path_to_assets, 'pca_compoents.npy'))
+            pca_mean = np.load(os.path.join(path_to_assets, 'pca_mean.npy'))
+            gmm_covs = np.load(os.path.join(path_to_assets, 'gmm_covs.npy'))
+            gmm_means = np.load(os.path.join(path_to_assets, 'gmm_means.npy'))
+
         
         # get features
         STA_temporal = align_tc(STA_temporal, ref)

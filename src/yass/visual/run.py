@@ -134,10 +134,6 @@ class Visualizer(object):
         if rf_dir is not None:
             self.compute_neighbours_rf()
 
-        # plotting parameters
-        self.fontsize = 20
-        self.figsize = [100, 40]
-
     def get_template_pca(self):
                     
         self.pca_main_components = np.load(os.path.join(
@@ -222,6 +218,10 @@ class Visualizer(object):
                    pm_pbar=True)
 
     def make_individual_cell_plot(self, unit):
+
+        # plotting parameters
+        self.fontsize = 20
+        self.figsize = [100, 40]
 
         fname = os.path.join(self.save_dir_ind, 'unit_{}.png'.format(unit))
         if os.path.exists(fname):
@@ -337,6 +337,19 @@ class Visualizer(object):
                 checked[unit1, unit2] = 1
                 checked[unit2, unit1] = 1
 
+                gs = self.add_template_plot(gs, count, slice(0,2), 
+                                            np.hstack((unit1, unit2)),
+                                            self.colors[:2])
+
+                gs = self.add_RF_plot(gs, count, 2, unit1)
+                gs = self.add_RF_plot(gs, count, 3, unit2)
+
+                gs = self.add_xcorr_plot(gs, count, 4, unit1, unit2)
+
+                if self.deconv_dir is not None:
+                    gs = self.add_l2_feature_plot(gs, count, 5, unit1, unit2, self.colors[:2])
+
+
                 if count == max_pairs or ii == (len(pairs)-1):
 
                     fname = os.path.join(save_dir_ind, 'page_{}.png'.format(n_pages))
@@ -349,18 +362,6 @@ class Visualizer(object):
 
                         count = 0
                         n_pages += 1
-
-                gs = self.add_template_plot(gs, count, slice(0,2), 
-                                            np.hstack((unit1, unit2)),
-                                            self.colors[:2])
-
-                gs = self.add_RF_plot(gs, count, 2, unit1)
-                gs = self.add_RF_plot(gs, count, 3, unit2)
-
-                gs = self.add_xcorr_plot(gs, count, 4, unit1, unit2)
-
-                if self.deconv_dir is not None:
-                    gs = self.add_l2_feature_plot(gs, count, 5, unit1, unit2, self.colors[:2])
                     
         fname = os.path.join(save_dir_ind, 'page_{}.png'.format(n_pages))
         fig.savefig(fname, bbox_inches='tight', dpi=100)
