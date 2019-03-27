@@ -88,7 +88,7 @@ class Deconv(object):
         self.compute_idx_list()
 
         # Cat: TODO: read from CONFIG
-        self.threshold = 50.
+        self.threshold = 20.
         self.conv_approx_rank = 10
         self.default_upsample_value=0
         self.upsample_max_val = 32.
@@ -703,11 +703,9 @@ class Deconv(object):
             templates = np.load(temp_fname)
             
         # post recluster merge
-        spike_train, templates = global_merge_max_dist(templates,
-                                             spike_train,
-                                             self.CONFIG,
-                                             chunk_dir,
-                                             out_dir)
+        spike_train, templates = global_merge_max_dist(
+            templates, spike_train, full_run,
+            self.CONFIG, chunk_dir, out_dir)
         
         # reshape templates
         self.templates = templates.transpose(1,2,0)
