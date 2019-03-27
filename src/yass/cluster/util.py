@@ -2463,7 +2463,7 @@ def recompute_templates_parallel(arg_in):
 
     np.save(fname_out,template)
 
-def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
+def global_merge_max_dist(templates, spike_indexes, full_run, CONFIG, chunk_dir, out_dir):
 
     ''' Function that cleans low spike count templates and merges the rest
     '''
@@ -2585,8 +2585,9 @@ def global_merge_max_dist(templates, spike_indexes, CONFIG, chunk_dir, out_dir):
         if not os.path.isdir(mad_collision_dir):
             os.makedirs(mad_collision_dir)
             
-        templates, spike_train, weights = mad_based_unit_kill(
-            templates, spike_train, weights, CONFIG, mad_collision_dir)
+        if full_run:
+            templates, spike_train, weights = mad_based_unit_kill(
+                templates, spike_train, weights, CONFIG, mad_collision_dir)
 
         np.save(chunk_dir+'/templates_post_'+out_dir+'_post_merge_post_collision_kill.npy',
                 templates)
@@ -2632,25 +2633,60 @@ def mad_based_unit_kill(templates, spike_train, weights, CONFIG, save_dir):
                                          'preprocess', 
                                          'standardized.bin')
     if CONFIG.resources.multi_processing:
-        parmap.map(mad_based_unit_kill_parallel, ids, templates, spike_train,
+        parmap.map(mad_based_unit_kill_parallel3, ids, templates, spike_train,
                    standardized_filename, save_dir,
                    processes=CONFIG.resources.n_processors,
                    pm_pbar=True)                
     else:
         for id_ in ids:
-            mad_based_unit_kill_parallel(id_, templates, spike_train,
+            mad_based_unit_kill_parallel3(id_, templates, spike_train,
                                      standardized_filename,
                                      save_dir)
 
+    #collision_units = []
+    #for k in range(templates.shape[0]):
+    #    fname = os.path.join(save_dir,'unit_{}.npz'.format(k))
+    #    tmp = np.load(fname)
+    #    if tmp['kill']:
+    #        collision_units.append(k)
+
+    # logic:
+    # 1. if tmp['kill'] is True, it is a collision
+    # 2. if tmp['kill'] is Fale and no matched unit, then clean unit
+    # 3. if tmp['kill'] is Fale and matched to a clean unit, then collision
+    # 4. if tmp['kill'] is False and matched to non-clean, kill smaller of two
     collision_units = []
+    clean_units = []
+    matched_pairs = []
     for k in range(templates.shape[0]):
         fname = os.path.join(save_dir,'unit_{}.npz'.format(k))
         tmp = np.load(fname)
+        # logic #1
         if tmp['kill']:
             collision_units.append(k)
+        # logic #2
+        elif tmp['unit_matched'] == None:
+            clean_units.append(k)
+        else:
+            matched_pairs.append([k, tmp['unit_matched']])
     collision_units = np.array(collision_units)
+    clean_units = np.array(clean_units)
+    matched_pairs = np.array(matched_pairs)
 
+    # logic #3
+    matched_to_clean = np.in1d(matched_pairs[:,1], clean_units)
+    collision_units = np.hstack((collision_units,
+                                 matched_pairs[matched_to_clean, 0]))
 
+    # logic #4
+    collision_pairs = matched_pairs[~matched_to_clean]
+    for j in range(collision_pairs.shape[0]):
+        k, k_ = collision_pairs[j]
+        if weights[k] > weights[k_]:
+            collision_units = np.append(collision_units, k_)
+        else:
+            collision_units = np.append(collision_units, k_)
+    print(len(collision_units))
     # reload all saved data
     #pairs = []
     #for k in range(templates.shape[0]):
@@ -2735,31 +2771,31 @@ def mad_based_unit_kill_parallel(unit, templates, spike_train, standardized_file
 
     col_loc = t_mad[cut_edge:-cut_edge] > mad_gap
 
-    #kill = False
-    #max_diff = None
-    #unit_matched = None
-    #if np.sum(col_loc) > mad_gap_breach:
-    #    idx_no_target = np.arange(n_units)
-    #    idx_no_target = np.delete(idx_no_target, unit)
-    #    residual, unit_matched = run_deconv(templates[unit],
-    #                                        templates[idx_no_target], up_factor)
+    kill = False
+    max_diff = None
+    unit_matched = None
+    if np.sum(col_loc) > mad_gap_breach:
+        idx_no_target = np.arange(n_units)
+        idx_no_target = np.delete(idx_no_target, unit)
+        residual, unit_matched = run_deconv(templates[unit],
+                                            templates[idx_no_target], up_factor)
 
-    #    if unit_matched is not None:
-    #        unit_matched = idx_no_target[unit_matched]
-    #        visch_matched = np.where(templates[unit_matched].ptp(axis=0) > 2.)[0]
-    #        visch_all = np.union1d(visch, visch_matched)
+        if unit_matched is not None:
+            unit_matched = idx_no_target[unit_matched]
+            visch_matched = np.where(templates[unit_matched].ptp(axis=0) > 2.)[0]
+            visch_all = np.union1d(visch, visch_matched)
 
-    #        ii = np.where(col_loc.sum(0)>mad_gap_breach)[0]
-    #        cc = np.unique(visch[ii])
-    #        visch_all = visch_all[~np.in1d(visch_all, cc)]
+            ii = np.where(col_loc.sum(0)>mad_gap_breach)[0]
+            cc = np.unique(visch[ii])
+            visch_all = visch_all[~np.in1d(visch_all, cc)]
 
-    #        if len(visch_all) > 0:
-    #            max_diff = np.max(np.abs(residual[:, visch_all]))
-    #        else:
-    #            max_diff = 0
+            if len(visch_all) > 0:
+                max_diff = np.max(np.abs(residual[:, visch_all]))
+            else:
+                max_diff = 0
 
-    #        if max_diff < residual_max_norm:
-    #            kill = True
+            if max_diff < residual_max_norm:
+                kill = True
 
     if np.sum(col_loc) > mad_gap_breach:
         kill = True
@@ -2768,9 +2804,162 @@ def mad_based_unit_kill_parallel(unit, templates, spike_train, standardized_file
     
     fname = os.path.join(save_dir,'unit_{}.npz'.format(unit))
     np.savez(fname,
+             kill=kill,
+             unit_matched=unit_matched,
+             max_diff=max_diff)
+
+def mad_based_unit_kill_parallel2(unit, templates, spike_train, standardized_filename, save_dir,
+                        mad_gap=0.9, mad_gap_breach=10, up_factor=16, residual_max_norm=1.2):
+    jitter = 1
+    n_units, n_times, n_channels = templates.shape
+    visch = np.where(templates[unit].ptp(axis=0) > 2.)[0]
+    if len(visch) == 0:
+        visch = np.array([templates[unit].ptp(axis=0).argmax()])
+
+    if templates[unit].ptp(axis=0).max() > 30:
+        mad_gap += 0.1
+
+    # get spike times and waveforms
+    spt = spike_train[spike_train[:, 1] == unit, 0] - n_times//2
+    max_spikes = 500
+    if len(spt) > max_spikes:
+        spt = np.random.choice(a=spt,
+                               size=max_spikes,
+                               replace=False)
+    wf =  binary_reader_waveforms(
+        standardized_filename=standardized_filename,
+        n_channels=n_channels,
+        n_times=n_times, spikes=spt,
+        channels=None)[0]
+    # limit to visible channels
+    wf = wf[:, :, visch]
+    # max channel within visible channels
+    mc = np.mean(wf, axis=0).ptp(0).argmax()
+
+    # upsample waveforms and aligne them
+    wf_up = scipy.signal.resample(wf, n_times * up_factor, axis=1)
+    mean_up = np.mean(wf_up[:,:,mc],0)
+
+    n_times_up = wf_up.shape[1]
+    t_start = n_times_up//4
+    t_end = n_times_up - n_times_up//4
+
+    shifts = np.arange(-up_factor//2, up_factor//2+1)
+    fits = np.zeros((wf.shape[0], len(shifts)))
+    for j, shift in enumerate(shifts):
+        fits[:,j] = np.sum(wf_up[:,t_start+shift:t_end+shift,mc]*mean_up[t_start:t_end], 1)
+    best_shifts = shifts[fits.argmax(1)]
+
+    wf_aligned = np.zeros(wf_up.shape)
+    for j in range(wf.shape[0]):
+        wf_aligned[j] = np.roll(wf_up[j], -best_shifts[j], axis=0)
+
+    wf_aligned = wf_aligned[:,t_start:t_end]
+    wf_aligned = wf_aligned[:,np.arange(0, wf_aligned.shape[1], up_factor)]
+
+    # mad value for aligned waveforms
+    t_mad = np.median(
+            np.abs(np.median(wf_aligned, axis=0)[None, :, :] - wf_aligned), axis=0)
+
+    if np.sum(t_mad > mad_gap) > mad_gap_breach:
+        kill = True
+    else:
+        kill = False
+
+    fname = os.path.join(save_dir,'unit_{}.npz'.format(unit))
+    np.savez(fname,
              kill=kill)
-             #unit_matched=unit_matched,
-             #max_diff=max_diff)
+
+def mad_based_unit_kill_parallel3(unit, templates, spike_train, standardized_filename, save_dir,
+                        mad_gap=0.8, mad_gap_breach=3, up_factor=16, residual_max_norm=1.2):
+    jitter = 1
+    n_units, n_times, n_channels = templates.shape
+    visch = np.where(templates[unit].ptp(axis=0) > 2.)[0]
+    if len(visch) == 0:
+        visch = np.array([templates[unit].ptp(axis=0).argmax()])
+
+    # get spike times and waveforms
+    spt = spike_train[spike_train[:, 1] == unit, 0] - n_times//2
+    max_spikes = 500
+    if len(spt) > max_spikes:
+        spt = np.random.choice(a=spt,
+                               size=max_spikes,
+                               replace=False)
+    wf =  binary_reader_waveforms(
+        standardized_filename=standardized_filename,
+        n_channels=n_channels,
+        n_times=n_times, spikes=spt,
+        channels=None)[0]
+    # limit to visible channels
+    wf = wf[:, :, visch]
+    # max channel within visible channels
+    mc = np.mean(wf, axis=0).ptp(0).argmax()
+
+    # upsample waveforms and aligne them
+    wf_up = scipy.signal.resample(wf, n_times * up_factor, axis=1)
+    mean_up = np.mean(wf_up[:,:,mc],0)
+
+    n_times_up = wf_up.shape[1]
+    t_start = n_times_up//4
+    t_end = n_times_up - n_times_up//4
+
+    shifts = np.arange(-up_factor//2, up_factor//2+1)
+    fits = np.zeros((wf.shape[0], len(shifts)))
+    for j, shift in enumerate(shifts):
+        fits[:,j] = np.sum(wf_up[:,t_start+shift:t_end+shift,mc]*mean_up[t_start:t_end], 1)
+    best_shifts = shifts[fits.argmax(1)]
+
+    wf_aligned = np.zeros(wf_up.shape)
+    for j in range(wf.shape[0]):
+        wf_aligned[j] = np.roll(wf_up[j], -best_shifts[j], axis=0)
+
+    wf_aligned = wf_aligned[:,t_start:t_end]
+    wf_aligned = wf_aligned[:,np.arange(0, wf_aligned.shape[1], up_factor)]
+
+    # mad value for aligned waveforms
+    t_mad = np.median(
+            np.abs(np.median(wf_aligned, axis=0)[None, :, :] - wf_aligned), axis=0)
+
+    mad_loc = t_mad > mad_gap
+
+    # if every visible channels are mad channels, kill it
+    if np.all(mad_loc.sum(0) > mad_gap_breach):
+        kill = True
+        unit_matched = None
+
+    # if no mad chanels, keep it
+    elif np.all(mad_loc.sum(0) <= mad_gap_breach):
+        kill = False
+        unit_matched = None
+
+    # if not, but if there is a unit that matches on
+    # non mad channels, hold off
+    # if there is no matching unit, keep it
+    else:
+        kill = False
+
+        mad_channels = visch[mad_loc.sum(0) > mad_gap_breach]
+        non_mad_channels = np.setdiff1d(np.arange(n_channels), mad_channels)
+
+        idx_no_target = np.arange(n_units)
+        idx_no_target = np.delete(idx_no_target, unit)
+        
+        # run deconv without channels with high collisions
+        residual, unit_matched = run_deconv(templates[unit][:,non_mad_channels],
+                                            templates[idx_no_target][:,:,non_mad_channels],
+                                            up_factor)
+        
+        if np.max(np.abs(residual)) > residual_max_norm:
+            unit_matched = None
+        else:
+            unit_matched = idx_no_target[unit_matched]
+
+    fname = os.path.join(save_dir,'unit_{}.npz'.format(unit))
+    np.savez(fname,
+             kill=kill,
+             unit_matched=unit_matched
+            )
+
 
 def MAD_bernoulli_two_uniforms(a, b):
     """Analytical MAD of a addition of uniform drawn according to Bernoulli rv.

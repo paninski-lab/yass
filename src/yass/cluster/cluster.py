@@ -581,11 +581,11 @@ class Cluster(object):
 
         self.denoised_wf = np.reshape(self.denoised_wf, [n_data, -1])
 
-        energy = np.median(np.square(self.denoised_wf), axis=0)
-        good_features = np.where(energy > 0.5)[0]
-        if len(good_features) < self.selected_PCA_rank:
-            good_features = np.argsort(energy)[-self.selected_PCA_rank:]
-        self.denoised_wf = self.denoised_wf[:, good_features]
+        #energy = np.median(np.square(self.denoised_wf), axis=0)
+        #good_features = np.where(energy > 0.5)[0]
+        #if len(good_features) < self.selected_PCA_rank:
+        #    good_features = np.argsort(energy)[-self.selected_PCA_rank:]
+        #self.denoised_wf = self.denoised_wf[:, good_features]
 
     def denoise_step_distant2(self):
 
@@ -687,15 +687,20 @@ class Cluster(object):
         # Including low variance dimensions can lead to overfitting 
         # (splitting based on collisions)
         rank = min(len(indices_to_feat), self.denoised_wf.shape[1], self.selected_PCA_rank)
-        stds = np.std(self.denoised_wf[indices_to_feat], axis=0)
-        good_d = np.where(stds > 1.05)[0]
-        if len(good_d) < rank:
-            good_d = np.argsort(stds)[::-1][:rank]
+        #stds = np.std(self.denoised_wf[indices_to_feat], axis=0)
+        #good_d = np.where(stds > 1.05)[0]
+        #if len(good_d) < rank:
+        #    good_d = np.argsort(stds)[::-1][:rank]
 
         pca = PCA(n_components=rank)
-        pca.fit(self.denoised_wf[indices_to_feat][:, good_d])
+        #pca.fit(self.denoised_wf[indices_to_feat][:, good_d])
+        #pca_wf = pca.transform(
+        #    self.denoised_wf[indices_to_transform][:, good_d]).astype('float32')
+
+        pca.fit(self.denoised_wf[indices_to_feat])
         pca_wf = pca.transform(
-            self.denoised_wf[indices_to_transform][:, good_d]).astype('float32')
+            self.denoised_wf[indices_to_transform]).astype('float32')
+
 
         if gen==0 and local:
             # save gen0 distributions before triaging

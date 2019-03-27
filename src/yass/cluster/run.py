@@ -188,7 +188,11 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
     else:
         print ("  using spike_index_clear for clustering step")
         spike_index = spike_index_clear.copy()
-    
+
+    # flag to indicate whether clusteirng or post-deconv reclustering
+    deconv_flag = False
+    full_run = False
+
     if os.path.exists(chunk_dir+'/complete.npy')==False:
    
         # select only spike_index_clear that is in the chunk
@@ -196,10 +200,6 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                     np.logical_and(spike_index[:,0]>=idx[0], 
                     spike_index[:,0]<idx[1]))[0]
         spike_index_chunk = spike_index[indexes_chunk]
-        
-        # flag to indicate whether clusteirng or post-deconv reclustering
-        deconv_flag = False
-        full_run = False
 
         # Cat: TODO: this parallelization may not be optimally asynchronous
         # make arg list first
@@ -256,6 +256,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         #            merge function for both clustering and deconv
         global_merge_max_dist(templates,
                               spike_train,
+                              full_run,
                               CONFIG2,
                               chunk_dir,
                               out_dir)
