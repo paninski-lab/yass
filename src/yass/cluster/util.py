@@ -2674,19 +2674,20 @@ def mad_based_unit_kill(templates, spike_train, weights, CONFIG, save_dir):
     matched_pairs = np.array(matched_pairs)
 
     # logic #3
-    matched_to_clean = np.in1d(matched_pairs[:,1], clean_units)
-    collision_units = np.hstack((collision_units,
-                                 matched_pairs[matched_to_clean, 0]))
+    if len(matched_pairs) > 0:
+        matched_to_clean = np.in1d(matched_pairs[:,1], clean_units)
+        collision_units = np.hstack((collision_units,
+                                     matched_pairs[matched_to_clean, 0]))
 
-    # logic #4
-    collision_pairs = matched_pairs[~matched_to_clean]
-    for j in range(collision_pairs.shape[0]):
-        k, k_ = collision_pairs[j]
-        if weights[k] > weights[k_]:
-            collision_units = np.append(collision_units, k_)
-        else:
-            collision_units = np.append(collision_units, k_)
-    print(len(collision_units))
+        # logic #4
+        collision_pairs = matched_pairs[~matched_to_clean]
+        if len(collision_pairs) > 0:
+            for j in range(collision_pairs.shape[0]):
+                k, k_ = collision_pairs[j]
+                if weights[k] > weights[k_]:
+                    collision_units = np.append(collision_units, k_)
+                else:
+                    collision_units = np.append(collision_units, k_)
     # reload all saved data
     #pairs = []
     #for k in range(templates.shape[0]):
