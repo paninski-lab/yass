@@ -1,5 +1,6 @@
 # Class to do parallelized clustering
 
+import sys
 import os
 import math
 import numpy as np
@@ -51,17 +52,18 @@ class Cluster(object):
         """
         # load data and check if prev completed
         if self.load_data(data_in):  return
-        
+
         # neighbour channel clustering
         self.initialize(indices_in=np.arange(len(self.spike_times_original)),
                         local=True)
+
         self.cluster(current_indices=np.arange(len(self.indices_in)),
                      local=True,
                      gen=0,
                      branch=0,
                      hist=[])
         #self.finish_plotting()
-
+        
         if self.verbose:
             print('local chananel clustering is done')
         
@@ -206,18 +208,18 @@ class Cluster(object):
         #self.plotting = False # permanently disable online plotting
         self.verbose = False
         self.starting_gen = 0
-        self.knn_triage_threshold = 0.95 * 100
-        self.knn_triage_flag = True
+        #self.knn_triage_threshold = 0.95 * 100
+        #self.knn_triage_flag = True
         self.selected_PCA_rank = 5
-        self.yscale = 10.
-        self.xscale = 2.
-        self.triageflag = True
-        self.n_feat_chans = 5
-        self.mfm_threshold = 0.90
-        self.upsample_factor = 5
-        self.nshifts = 15
-        self.n_dim_pca = 3
-        self.n_dim_pca_compression = 5
+        #self.yscale = 10.
+        #self.xscale = 2.
+        #self.triageflag = True
+        #self.n_feat_chans = 5
+        #self.mfm_threshold = 0.90
+        #self.upsample_factor = 5
+        #self.nshifts = 15
+        #self.n_dim_pca = 3
+        #self.n_dim_pca_compression = 5
         self.shift_allowance = 10
         self.max_cluster_spikes = 50000
         self.recluster_on_raw = False
@@ -264,7 +266,7 @@ class Cluster(object):
         self.CONFIG = data_in[2]
 
         # spikes in the current chunk
-        self.spike_indexes_chunk = data_in[3]
+        self.spike_times_original = data_in[3]
         self.chunk_dir = data_in[4]
 
         # Check if channel alreedy clustered
@@ -285,7 +287,7 @@ class Cluster(object):
 
             # Peter's original code
             self.upsampled_templates = data_in[6].transpose(2,0,1)
-            self.upsampled_spike_train = data_in[7]
+            self.upsampled_ids= data_in[7]
 
             # load upsampled templates from disk
             #fname_upsampled_templates = data_in[6]
@@ -294,18 +296,18 @@ class Cluster(object):
             # load upsampled templates from disk
             #fname_upsampled_spike_train = data_in[7]
             #self.upsampled_spike_train = np.load(fname_upsampled_spike_train)['spike_train_upsampled']
-            self.template_original = data_in[8][:,:,self.unit]
+            #self.template_original = data_in[8]
 
 
             # keep track of this for possible debugging later
-            self.spike_train_cluster_original = self.spike_indexes_chunk
+            #self.spike_train_cluster_original = self.spike_indexes_chunk
             
             # offset spike_train 30 timesteps to align with residual
             # Cat: TODO: this must be changed to be a function of wavefomr length
             #self.spike_indexes_chunk[:,0] += (self.template_original.shape[0]-1)//2
                                            
             # reset channel for unit to it's ptp channel
-            self.channel = self.template_original.ptp(0).argmax(0)
+            self.channel = data_in[8]
 
             # max number of spikes to be used for reclustering postdeconv
             #self.max_cluster_spikes = 5000
@@ -367,19 +369,21 @@ class Cluster(object):
 
         # limit clustering to at most 50,000 spikes
         # Cat: TODO: both flag and value should be read from CONFIG
-        if self.deconv_flag==False:
-            indexes = np.where(self.spike_indexes_chunk[:,1]==self.channel)[0]    
+        #if self.deconv_flag==False:
+        #    indexes = np.where(self.spike_indexes_chunk[:,1]==self.channel)[0]    
         # reclustering only done on 5k spikes max
-        else:
-            indexes = np.where(self.spike_indexes_chunk[:,1]==self.unit)[0]
-        self.original_indices = indexes
+        #else:
+        #    indexes = np.where(self.spike_indexes_chunk[:,1]==self.unit)[0]
+        #self.original_indices = indexes
 
-        if indexes.shape[0]>self.max_cluster_spikes:
-            idx = np.random.choice(np.arange(indexes.shape[0]),
-                                   size=self.max_cluster_spikes,
-                                   replace=False
-                                  )
-            indexes = indexes[idx]
+        if len(self.spike_times_original)>self.max_cluster_spikes:
+            idx_sampled = np.random.choice(
+                a=np.arange(len(self.spike_times_original)),
+                size=self.max_cluster_spikes,
+                replace=False)
+            self.spike_times_original = self.spike_times_original[idx_sampled]
+        else:
+            idx_sampled = np.arange(len(self.spike_times_original))
 
         # Cat: TODO
         # check that spkes times not too lcose to edges:
@@ -392,14 +396,14 @@ class Cluster(object):
         # Cat: TODO: does this work properly?
         # limit indexes away from edge of recording
         idx_inbounds = np.where(np.logical_and(
-                        self.spike_indexes_chunk[indexes,0]>=self.spike_size//2,
-                        self.spike_indexes_chunk[indexes,0]<(fp_len-self.spike_size)))[0]
-        indexes = indexes[idx_inbounds]
-        
-        self.spike_times_original = self.spike_indexes_chunk[indexes,0]
+                        self.spike_times_original>=self.spike_size//2,
+                        self.spike_times_original<(fp_len-self.spike_size)))[0]
+        self.spike_times_original = self.spike_times_original[idx_inbounds]
+
+        #self.spike_times_original = self.spike_indexes_chunk[indexes,0]
         self.shifts = np.zeros(len(self.spike_times_original))
         if self.deconv_flag:
-            self.spike_times_upsampled = self.upsampled_spike_train[indexes,1]
+            self.upsampled_ids = self.upsampled_ids[idx_sampled][idx_inbounds]
 
     def initialize(self, indices_in, local):
 
@@ -410,6 +414,8 @@ class Cluster(object):
         self.indices_in = indices_in
 
         # load waveforms
+        self.wf_global = None
+        self.denoised_wf = None
         if len(self.indices_in) > 0:
             self.load_waveforms(local)
             # align waveforms
@@ -462,7 +468,8 @@ class Cluster(object):
         '''
 
         if self.verbose:
-            print ("chan "+str(self.channel)+", loading waveforms")
+            print ("chan "+str(self.channel)+", loading {} waveforms".format(
+                len(self.indices_in)))
         
         neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
         self.neighbor_chans = np.where(neighbors[self.channel])[0]
@@ -483,7 +490,7 @@ class Cluster(object):
                 self.loaded_channels)
         # or from residual and add templates
         else:
-            units = self.spike_times_upsampled[self.indices_in].astype('int32')
+            units = self.upsampled_ids[self.indices_in].astype('int32')
             self.wf_global, skipped_idx = read_spikes(
                 self.filename_residual,
                 spike_times-(self.spike_size//2),
@@ -512,7 +519,7 @@ class Cluster(object):
                     self.loaded_channels)
             # or from residual and add templates
             else:
-                units = self.spike_times_upsampled[self.indices_in].astype('int32')
+                units = self.upsampled_ids[self.indices_in].astype('int32')
                 self.wf_global, skipped_idx = read_spikes(
                     self.filename_residual,
                     spike_times,
@@ -1279,8 +1286,8 @@ class Cluster(object):
                      #vbPar_muhat = self.vbPar_muhat,
                      hist = self.hist,
                      indices_gen0=self.indices_gen0,
-                     spike_index_prerecluster=self.original_indices,
-                     templates_prerecluster=self.template_original
+                     #spike_index_prerecluster=self.original_indices,
+                     #templates_prerecluster=self.template_original
                     )
         else:
             # for k in range(len(self.vbPar_rhat)):
@@ -1308,11 +1315,11 @@ class Cluster(object):
         if self.verbose:
             if self.deconv_flag==False:
                 print ("**** Channel: ", str(self.channel), " starting spikes: ",
-                    len(self.spike_indexes_chunk), ", found # clusters: ",
+                    len(self.spike_times_original), ", found # clusters: ",
                     len(spike_train))
             else:
                 print ("**** Unit: ", str(self.unit), " starting spikes: ",
-                    len(self.spike_indexes_chunk), ", found # clusters: ",
+                    len(self.spike_times_original), ", found # clusters: ",
                     len(spike_train))
 
         # Cat: TODO: are these redundant?
@@ -1723,6 +1730,7 @@ def read_spikes(filename, spikes, n_channels, spike_size, units=None, templates=
                                              spike_size,
                                              spikes, #- spike_size//2,  # can use this for centering
                                              channels)
+
     if len(skipped_idx) > 0:
         units = np.delete(units, skipped_idx)
 
@@ -1750,7 +1758,7 @@ def read_spikes(filename, spikes, n_channels, spike_size, units=None, templates=
 def shift_chans(wf, best_shifts):
     # use template feat_channel shifts to interpolate shift of all spikes on all other chans
     # Cat: TODO read this from CNOFIG
-    wfs_final= np.zeros(wf.shape)
+    wfs_final= np.zeros(wf.shape, 'float32')
     for k, shift_ in enumerate(best_shifts):
         if int(shift_)==shift_:
             ceil = int(shift_)

@@ -2910,7 +2910,7 @@ def mad_based_unit_kill_parallel3(unit, templates, spike_train, standardized_fil
         fits[:,j] = np.sum(wf_up[:,t_start+shift:t_end+shift,mc]*mean_up[t_start:t_end], 1)
     best_shifts = shifts[fits.argmax(1)]
 
-    wf_aligned = np.zeros(wf_up.shape)
+    wf_aligned = np.zeros(wf_up.shape, 'float32')
     for j in range(wf.shape[0]):
         wf_aligned[j] = np.roll(wf_up[j], -best_shifts[j], axis=0)
 
@@ -2919,7 +2919,7 @@ def mad_based_unit_kill_parallel3(unit, templates, spike_train, standardized_fil
 
     # mad value for aligned waveforms
     t_mad = np.median(
-            np.abs(np.median(wf_aligned, axis=0)[None, :, :] - wf_aligned), axis=0)
+            np.abs(np.median(wf_aligned, axis=0)[None] - wf_aligned), axis=0)
 
     mad_loc = t_mad > mad_gap
 

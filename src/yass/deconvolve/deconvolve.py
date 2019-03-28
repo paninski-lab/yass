@@ -624,12 +624,21 @@ class Deconv(object):
         self.recluster_dir = os.path.join(
             self.deconv_chunk_dir, "recluster")
              
-        units = np.arange(self.templates.shape[2])
-        
+        n_units = self.templates.shape[2]
+
         # shift spike time back to the center
         half_spike_size = (self.templates.shape[0] - 1)//2
         self.spike_train[:, 0] += half_spike_size
+        
+        ## spike train and upsampled template id into list format
+        spike_train_list = [[] for uu in range(n_units)]
+        up_temp_id_list = [[] for uu in range(n_units)]
+        for j in range(len(self.spike_train)):
+            tt, iid = self.spike_train[j]
+            up_id = self.spike_train_upsampled[j,1]
 
+            spike_train_list[iid].append(tt)
+            up_temp_id_list[iid].append(up_id)
 
         # pass upsampled data .npz file name and have each core load
         #   the data directly rather the pickling during 
@@ -638,25 +647,39 @@ class Deconv(object):
         #print (self.deconv_chunk_dir)
         #print (self.fname_upsampled_data)
         args_in = []
-        for unit in units:
+        for unit in np.arange(n_units):
             fname_out = (self.recluster_dir+
                          "/unit_{}.npz".format(
                          str(unit).zfill(6)))
 
             if os.path.exists(fname_out)==False:
+                
+                # get upsampled templates related to this unit only
+                # also re-assign unit id according to it
+                unique_up_ids = np.unique(up_temp_id_list[unit])
+                up_templates = self.sparse_upsampled_templates[:, :, unique_up_ids]
+                new_id_map = {iid: ctr for ctr, iid in enumerate(unique_up_ids)}
+                up_temp_id2 = [new_id_map[iid] for iid in up_temp_id_list[unit]]
+
+                # max_channel
+                max_chan = self.templates[:, :, unit].ptp(0).argmax(0)
+
+                # add all input arguments
                 args_in.append([
                     deconv_flag,
                     unit, 
                     self.CONFIG,
-                    self.spike_train,
+                    np.array(spike_train_list[unit]),
                     self.recluster_dir,
                     #self.spike_train_cluster,  #MIGHT WISH TO EXCLUDE THIS FOR NOW
                     full_run,
-                    self.sparse_upsampled_templates,
-                    self.spike_train_upsampled,
+                    up_templates,
+                    np.array(up_temp_id2),
+                    max_chan
+                    #self.sparse_upsampled_templates,
+                    #self.spike_train_upsampled,
                     #self.fname_upsampled_data,
-                    #self.fname_upsampled_data,
-                    self.templates
+                    #self.fname_upsampled_data
                 ])
 
         # run residual-reclustering function

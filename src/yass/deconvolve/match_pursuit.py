@@ -423,7 +423,6 @@ class MatchPursuit_objectiveUpsample(object):
             ctr+=1
         
         pairwise_conv = np.array(pairwise_conv)
-        print (pairwise_conv.shape)
         
         # save to disk, don't keep in memory
         np.save(self.deconv_dir+"/pairwise_conv.npy", pairwise_conv)

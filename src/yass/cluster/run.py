@@ -201,6 +201,12 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                     spike_index[:,0]<idx[1]))[0]
         spike_index_chunk = spike_index[indexes_chunk]
 
+        # organize spike_idnex_chunk into list format
+        spike_index_chunk_list = [[] for cc in range(CONFIG.recordings.n_channels)]
+        for j in range(spike_index_chunk.shape[0]):
+            tt, cc = spike_index_chunk[j]
+            spike_index_chunk_list[cc].append(tt)
+
         # Cat: TODO: this parallelization may not be optimally asynchronous
         # make arg list first
         args_in = []
@@ -212,10 +218,10 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
                                                             str(channel)+".npz")
             # skip 
             if os.path.exists(filename_postclustering):
-                continue 
+                continue
 
             args_in.append([deconv_flag, channel, CONFIG2,
-                            spike_index_chunk, chunk_dir, full_run])
+                            np.array(spike_index_chunk_list[channel]), chunk_dir, full_run])
 
         print ("  starting clustering")
         if CONFIG.resources.multi_processing:
@@ -235,7 +241,7 @@ def run_cluster_features_chunks(spike_index_clear, spike_index_all,
         ## save simple flag that chunk is done
         ## Cat: TODO: fix this; or run chunk wise-global merge
         np.save(chunk_dir+'/complete.npy',np.arange(10))
-    
+
     else:
         print ("... clustering previously completed...")
 
