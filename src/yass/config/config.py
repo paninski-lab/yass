@@ -6,6 +6,7 @@ try:
 except ImportError:
     from pathlib import Path
 import pprint
+import os
 from os import path
 from collections import Mapping, MutableSequence
 import keyword
@@ -199,6 +200,17 @@ class Config:
                                                 self.geom, steps=2)
 
         self._set_param('channel_index', channel_index)
+
+        # compute len of recording
+        filename_dat = os.path.join(
+            self.data.root_folder, self.data.recordings)
+        filesize = os.path.getsize(filename_dat)
+        dtype = np.dtype(self.recordings.dtype)
+        rec_len = int(filesize / 
+                      dtype.itemsize / 
+                      self.recordings.n_channels)
+        self._set_param('rec_len', rec_len)
+
 
     @property
     def path_to_output_directory(self):
