@@ -3,10 +3,10 @@ import numpy as np
 
 class READER(object):
 
-    def __init__(self, bin_file, dtype, CONFIG, buffer=None):
+    def __init__(self, bin_file, dtype, n_sec_chunk, CONFIG, buffer=None):
 
         # frequently used parameters
-        self.n_sec_chunk = CONFIG.resources.n_sec_chunk
+        self.n_sec_chunk = n_sec_chunk
         self.n_channels = CONFIG.recordings.n_channels
         self.sampling_rate = CONFIG.recordings.sampling_rate
         self.rec_len = CONFIG.rec_len

@@ -109,7 +109,8 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     filename_raw = os.path.join(CONFIG.data.root_folder,
                                 CONFIG.data.recordings)
     dtype_raw = CONFIG.recordings.dtype
-    reader = READER(filename_raw, dtype_raw, CONFIG)
+    n_sec_chunk = CONFIG.resources.n_sec_chunk
+    reader = READER(filename_raw, dtype_raw, n_sec_chunk, CONFIG)
 
     logger.info("# of chunks: {}".format(reader.n_batches))
 
