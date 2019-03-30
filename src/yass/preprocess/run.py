@@ -12,7 +12,7 @@ from yass.preprocess.util import *
 from yass.reader import READER
 
 
-def run(if_file_exists='skip'):
+def run(output_directory='tmp/', if_file_exists='skip'):
     """Preprocess pipeline: filtering, standarization and whitening filter
 
     This step (optionally) performs filtering on the data, standarizes it
@@ -71,8 +71,6 @@ def run(if_file_exists='skip'):
     CONFIG = read_config()
 
     # make output directory
-    output_directory = os.path.join(CONFIG.path_to_output_directory,
-                                    'preprocess')
     if not os.path.exists(output_directory):
         logger.info('Creating temporary folder: {}'.format(output_directory))
         os.makedirs(output_directory)
