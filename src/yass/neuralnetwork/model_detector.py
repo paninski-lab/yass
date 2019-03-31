@@ -349,9 +349,7 @@ class NeuralNetDetector(Model):
         -------
         tf tensor (n_spikes, wf_length, n_neigh)
         """
-        print(wf_length)
         R = int((wf_length-1)/2)  # half waveform length
-        print(R)
         T = tf.shape(x_tf)[0]  # length of recording
 
         # get waveform temporally

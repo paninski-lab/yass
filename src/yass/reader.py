@@ -23,8 +23,7 @@ class READER(object):
 
         # batch sizes
         indexes = np.arange(0, self.rec_len, self.sampling_rate*self.n_sec_chunk)
-        if indexes[-1] != self.rec_len:
-            indexes = np.hstack((indexes, self.rec_len))
+        indexes = np.hstack((indexes, self.rec_len))
 
         idx_list = []
         for k in range(len(indexes) - 1):
@@ -90,3 +89,37 @@ class READER(object):
             data = np.concatenate((left_buffer, data, right_buffer), axis=0)
 
         return data
+
+    def read_data_batch_batch(self, batch_id, n_sec_chunk_small, add_buffer=False, channels=None):
+        
+        data = self.read_data_batch(batch_id, add_buffer, channels)
+        
+        T, C = data.shape
+        T_mini = self.sampling_rate*n_sec_chunk_small
+        buffer = self.buffer
+
+        if add_buffer:
+            T = T - 2*buffer
+        else:
+            buffer = 0
+
+        # batch sizes
+        indexes = np.arange(0, T, T_mini)
+        indexes = np.hstack((indexes, T))
+        indexes += buffer
+
+        n_mini_batches = len(indexes) - 1
+
+        if n_mini_batches*T_mini > T:
+            T_left = n_mini_batches*T_mini - T
+
+            pad_zeros = np.zeros((T_left, C),
+                dtype=self.dtype)
+
+            data = np.zeros((data, pad_zeros), axis=1)
+       
+        data_batched = np.zeros((n_mini_batches, T_mini + 2*buffer, C))
+        for k in range(n_mini_batches):
+            data_batched[k] = data[indexes[k]-buffer:indexes[k + 1]+buffer]
+                
+        return data_batched, indexes-buffer

@@ -18,16 +18,14 @@ import numpy as np
 from sklearn.decomposition import PCA
 
 from yass import read_config
-from yass.batch import BatchProcessor, RecordingsReader
+from yass.reader import READER
 from yass.threshold.detect import _threshold2
 from yass.threshold import detect
 from yass.threshold.dimensionality_reduction import pca
 from yass import neuralnetwork
 from yass.neuralnetwork import NeuralNetDetector, AutoEncoder, KerasModel
-from yass.preprocess import whiten
 from yass.geometry import n_steps_neigh_channels
 from yass.util import file_loader, save_numpy_object, running_on_gpu
-from keras import backend as K
 from collections import defaultdict
 from yass.threshold.detect import threshold
 from yass.threshold.dimensionality_reduction import pca
@@ -35,8 +33,7 @@ from yass.templates.util import strongly_connected_components_iterative
 
 
 def run(standardized_path, standardized_params,
-        whiten_filter, output_directory='tmp/',
-        if_file_exists='skip', save_results=False):
+        output_directory='tmp/', if_file_exists='skip'):
 
             
     """Execute detect step
@@ -52,12 +49,6 @@ def run(standardized_path, standardized_params,
     standardized_params: dict, str or pathlib.Path
         Dictionary with standardized data parameters or path to a yaml file
 
-    channel_index: numpy.ndarray, str or pathlib.Path
-        Channel index or path to a npy file
-
-    whiten_filter: numpy.ndarray, str or pathlib.Path
-        Whiten matrix or path to a npy file
-
     output_directory: str, optional
       Location to store partial results, relative to CONFIG.data.root_folder,
       defaults to tmp/
@@ -67,9 +58,6 @@ def run(standardized_path, standardized_params,
       generated file. If 'overwrite' it replaces the files if any exist,
       if 'abort' it raises a ValueError exception if any file exists,
       if 'skip' if skips the operation if any file exists
-
-    save_results: bool, optional
-        Whether to save results to disk, defaults to False
 
     Returns
     -------
@@ -111,24 +99,170 @@ def run(standardized_path, standardized_params,
 
     # load files in case they are strings or Path objects
     standardized_params = file_loader(standardized_params)
-    whiten_filter = file_loader(whiten_filter)
+    
+    # make output directory if not exist
+    if not os.path.exists(output_directory):
+        os.mkdir(output_directory)
 
     # run detection
     if CONFIG.detect.method == 'threshold':
         return run_threshold(standardized_path,
                              standardized_params,
-                             whiten_filter,
                              output_directory,
-                             if_file_exists,
-                             save_results)
+                             if_file_exists)
     elif CONFIG.detect.method == 'nn':
         return run_neural_network(standardized_path,
                                   standardized_params,
-                                  whiten_filter,
                                   output_directory,
-                                  if_file_exists,
-                                  save_results)
+                                  if_file_exists)
 
+
+
+def run_neural_network(standardized_path, standardized_params,
+                       output_directory, if_file_exists):
+                           
+    """Run neural network detection and autoencoder dimensionality reduction
+
+    Returns
+    -------
+    scores
+      Scores for all spikes
+
+    spike_index_clear
+      Spike indexes for clear spikes
+
+    spike_index_all
+      Spike indexes for all spikes
+    """
+    logger = logging.getLogger(__name__)
+
+    CONFIG = read_config()
+
+    fname_spike_index_all = os.path.join(
+        output_directory, 'spike_index_all.npy')
+    if (if_file_exists == 'overwrite' or 
+        not os.path.exists(fname_spike_index_all)):
+
+        GPU_ENABLED = running_on_gpu()
+
+        # make tensorflow tensors and neural net classes
+        detection_th = CONFIG.detect.neural_network_detector.threshold_spike
+        detection_fname = CONFIG.detect.neural_network_detector.filename
+        ae_fname = CONFIG.detect.neural_network_autoencoder.filename
+      
+        # open tensorflow for every chunk
+        NND = NeuralNetDetector.load(detection_fname, detection_th,
+                                     CONFIG.channel_index)
+        NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
+
+        # get data reader
+        n_sec_chunk = 60
+        buffer = NND.waveform_length
+        reader = READER(standardized_path,
+                        standardized_params['dtype'],
+                        n_sec_chunk,
+                        CONFIG,
+                        buffer)
+        
+        # run tensorflow 
+        processing_ctr = 0
+        total_processing = reader.n_batches*n_sec_chunk
+
+        # set tensorflow verbosity level
+        tf.logging.set_verbosity(tf.logging.ERROR)
+
+        # open etsnrflow session
+        with tf.Session() as sess:
+
+            NND.restore(sess)
+            rot = NNAE.load_rotation(sess)
+            
+            # loop over 60 sec chunks
+            for batch_id in range(reader.n_batches): 
+                fname = os.path.join(
+                    output_directory,
+                    "detect_"+str(batch_id).zfill(5)+'.npz')
+                if os.path.exists(fname):
+                    continue
+
+                # get a bach of size n_sec_chunk
+                # but partioned into smaller minibatches of 
+                # size n_sec_small_batch
+                n_sec_small_batch = 1
+                batched_recordings, offset_list = reader.read_data_batch_batch(
+                    batch_id, n_sec_small_batch, add_buffer=True)
+                batch_offset = reader.idx_list[batch_id, 0] - reader.buffer
+                
+                spike_index_list = []
+                energy_list = []
+                for j in range(batched_recordings.shape[0]):
+                    spike_index, wfs = NND.predict_recording(
+                        batched_recordings[j],
+                        sess=sess,
+                        output_names=('spike_index', 'waveform'))
+                    
+                    spike_index[:, 0] += (offset_list[j] + batch_offset)
+                    spike_index_list.append(spike_index)
+
+                    # run AE nn; required for remove_axon function
+                    # Cat: TODO: Do we really need this: can we get energy list faster?
+                    score = NNAE.predict(wfs, sess)
+                    energy_ = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
+                    energy_list.append(energy_)
+                   
+                    logger.info('processed chunk: %s/%s,  # spikes: %s', 
+                      str(processing_ctr), str(total_processing), len(spike_index))
+
+                    processing_ctr+=1
+
+            
+                # save chunk of data in case crashes occur
+                np.savez(fname,
+                         spike_index_list = spike_index_list,
+                         energy_list = energy_list)
+        
+        # load all saved data;
+        spike_index_list = []
+        energy_list = []
+        for batch_id in range(reader.n_batches): 
+            fname = os.path.join(
+                output_directory, "detect_"+str(batch_id).zfill(5)+'.npz')
+            data = np.load(fname)
+            spike_index_list.extend(data['spike_index_list'])
+            energy_list.extend(data['energy_list'])
+
+        # save all detected spikes pre axon_kill
+        spike_index_all_pre_deduplication = np.vstack(spike_index_list)
+        np.save(os.path.join(output_directory,'spike_index_all_pre_deduplication.npy'),
+                spike_index_all_pre_deduplication)
+        
+        # remove axons - compute axons to be killed
+        logger.info(' removing axons in parallel')
+        if CONFIG.resources.multi_processing:
+            keep = parmap.map(deduplicate,
+                              list(zip(spike_index_list,
+                                       energy_list)),
+                              neighbors,
+                              processes=CONFIG.resources.n_processors,
+                              pm_pbar=True)
+        else:
+            keep=[]
+            for k in range(len(energy_list)):
+                keep.append(deduplicate(spike_index_list[k], 
+                                        energy_list[k],
+                                        neighbors))
+
+
+        # Cat: TODO Note that we're killing spike_index_all as well.
+        # remove axons from clear spikes - keep only non-killed+clean events
+        spike_index_all_postkill = []
+        for k in range(len(spike_index_list)):
+            spike_index_all_postkill.append(spike_index_list[k][keep[k]])
+        spike_index_all_postkill = np.vstack(spike_index_all_postkill)
+                
+
+        np.save(fname_spike_index_all,
+                spike_index_all_postkill)
 
 
 def run_threshold(standardized_path, standardized_params,
@@ -229,273 +363,6 @@ def run_threshold(standardized_path, standardized_params,
 
     return clear #, np.copy(clear)
 
-
-
-def run_neural_network(standardized_path, standardized_params,
-                       whiten_filter, output_directory, if_file_exists,
-                       save_results):
-                           
-    """Run neural network detection and autoencoder dimensionality reduction
-
-    Returns
-    -------
-    scores
-      Scores for all spikes
-
-    spike_index_clear
-      Spike indexes for clear spikes
-
-    spike_index_all
-      Spike indexes for all spikes
-    """
-    logger = logging.getLogger(__name__)
-
-    CONFIG = read_config()
-    TMP_FOLDER = CONFIG.path_to_output_directory
-
-    # check if all scores, clear and collision spikes exist..
-    path_to_score = os.path.join(TMP_FOLDER, 'scores_clear.npy')
-    path_to_spike_index_clear = os.path.join(TMP_FOLDER,
-                                             'spike_index_clear.npy')
-    path_to_spike_index_all = os.path.join(TMP_FOLDER, 'spike_index_all.npy')
-    path_to_rotation = os.path.join(TMP_FOLDER, 'rotation.npy')
-
-    path_to_standardized = os.path.join(TMP_FOLDER, 'preprocess', 'standardized.bin')
-
-    paths = [path_to_score, path_to_spike_index_clear, path_to_spike_index_all]
-    exists = [os.path.exists(p) for p in paths]
-
-    if (if_file_exists == 'overwrite' or not any(exists)):
-
-        GPU_ENABLED = running_on_gpu()
-        max_memory = (CONFIG.resources.max_memory_gpu if GPU_ENABLED else
-                      CONFIG.resources.max_memory)
-
-        # make tensorflow tensors and neural net classes
-        detection_th = CONFIG.detect.neural_network_detector.threshold_spike
-        triage_th = CONFIG.detect.neural_network_triage.threshold_collision
-        detection_fname = CONFIG.detect.neural_network_detector.filename
-        ae_fname = CONFIG.detect.neural_network_autoencoder.filename
-        triage_fname = CONFIG.detect.neural_network_triage.filename
-        n_channels = CONFIG.recordings.n_channels
-      
-        # open tensorflow for every chunk
-        NND = NeuralNetDetector.load(detection_fname, detection_th,
-                                     CONFIG.channel_index)
-        NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
-
-        # run nn preprocess batch-wsie
-        neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
-        
-        # compute len of recording
-        fp = np.memmap(standardized_path, dtype='float32', mode='r')
-        fp_len = fp.shape[0] / n_channels
-
-        # compute batch indexes
-        buffer_size = 200       # Cat: to set this in CONFIG file
-        sampling_rate = CONFIG.recordings.sampling_rate
-        #n_sec_chunk = CONFIG.resources.n_sec_chunk
-        
-        # Cat: TODO: Set a different size chunk for clustering vs. detection
-        n_sec_chunk = 60
-        
-        # take chunks
-        indexes = np.arange(0, fp_len, sampling_rate * n_sec_chunk)
-        
-        # add last bit of recording if it's shorter
-        if indexes[-1] != fp_len :
-            indexes = np.hstack((indexes, fp_len ))
-
-        idx_list = []
-        for k in range(len(indexes) - 1):
-            idx_list.append([
-                indexes[k], indexes[k + 1], buffer_size,
-                indexes[k + 1] - indexes[k] + buffer_size
-            ])
-
-        idx_list = np.int64(np.vstack(idx_list))#[:20]
-
-        #idx_list = idx_list
-        
-        logger.info("# of chunks: %i of %i sec each", len(idx_list), n_sec_chunk)
-        
-        logger.info (idx_list)
-        
-        # run tensorflow 
-        processing_ctr = 0
-        #chunk_ctr = 0
-        
-        # chunks to cycle over are 10 x as much as initial chosen data
-        total_processing = len(idx_list)*n_sec_chunk
-
-        # keep tensorflow open
-        # save iteratively
-        fname_detection = os.path.join(CONFIG.path_to_output_directory,
-                                       'detect')
-        if not os.path.exists(fname_detection):
-            os.mkdir(fname_detection)
-        
-        # set tensorflow verbosity level
-        tf.logging.set_verbosity(tf.logging.ERROR)
-
-        # open etsnrflow session
-        with tf.Session() as sess:
-            #K.set_session(sess)
-            NND.restore(sess)
-
-            #triage = KerasModel(triage_fname,
-            #                    allow_longer_waveform_length=True,
-            #                    allow_more_channels=True)
-
-            # read chunks of data first:
-            # read chunk of raw standardized data
-            # Cat: TODO: don't save to lists, might want to use numpy arrays directl
-            #print (os.path.join(fname_detection,"detect_"+
-            #                      str(chunk_ctr).zfill(5)+'.npz'))
-
-            # loop over 10sec or 60 sec chunks
-            for chunk_ctr, idx in enumerate(idx_list): 
-                if os.path.exists(os.path.join(fname_detection,"detect_"+
-                                  str(chunk_ctr).zfill(5)+'.npz')):
-                                           continue
-
-                # reset lists 
-                spike_index_list = []
-                #idx_clean_list = []
-                energy_list = []
-                TC_list = []
-                offset_list = []
-
-                # load chunk of data
-                standardized_recording = binary_reader(idx, buffer_size, path_to_standardized,
-                                          n_channels, CONFIG.data.root_folder)
-                
-                # run detection on smaller chunks of data, e.g. 1 sec
-                # Cat: TODO: add last bit at end in case short
-                indexes = np.arange(0, standardized_recording.shape[0], sampling_rate)
-
-                # run tensorflow over 1sec chunks in general
-                for ctr, index in enumerate(indexes[:-1]): 
-                    
-                    # save absolute index of each subchunk
-                    offset_list.append(idx[0]+indexes[ctr])
-                    
-                    data_temp = standardized_recording[indexes[ctr]:indexes[ctr+1]]
-    
-                    # store size of recordings in case at end of dataset.
-                    TC_list.append(data_temp.shape)
-                    
-                    # run detect nn
-                    res = NND.predict_recording(data_temp, sess=sess,
-                                                output_names=('spike_index',
-                                                              'waveform'))
-                    spike_index, wfs = res
-
-                    #idx_clean = (triage
-                    #             .predict_with_threshold(x=wfs,
-                    #                                     threshold=triage_th))
-
-                    score = NNAE.predict(wfs, sess)
-                    rot = NNAE.load_rotation(sess)
-                    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels,
-                                                       2)
-
-                    # idx_clean is the indexes of clear spikes in all_spikes
-                    spike_index_list.append(spike_index)
-                    #idx_clean_list.append(idx_clean)
-
-                    # run AE nn; required for remove_axon function
-                    # Cat: TODO: Do we really need this: can we get energy list faster?
-                    #rot = NNAE.load_rotation()
-                    energy_ = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
-                    energy_list.append(energy_)
-                   
-                    logger.info('processed chunk: %s/%s,  # spikes: %s', 
-                      str(processing_ctr), str(total_processing), spike_index.shape)
-            
-                    processing_ctr+=1
-            
-                # save chunk of data in case crashes occur
-                np.savez(os.path.join(fname_detection,"detect_"+
-                                       str(chunk_ctr).zfill(5)),
-                                       spike_index_list = spike_index_list,
-                                       energy_list = energy_list, 
-                                       TC_list = TC_list,
-                                       offset_list = offset_list)
-        
-        # load all saved data;
-        spike_index_list = []
-        energy_list = []
-        TC_list = []
-        offset_list = []
-        for ctr, idx in enumerate(idx_list): 
-            data = np.load(fname_detection+'/detect_'+str(ctr).zfill(5)+'.npz')
-            spike_index_list.extend(data['spike_index_list'])
-            energy_list.extend(data['energy_list'])
-            TC_list.extend(data['TC_list'])
-            offset_list.extend(data['offset_list'])
-
-        # save all detected spikes pre axon_kill
-        spike_index_all_pre_deduplication = fix_indexes_firstbatch_3(
-                spike_index_list, 
-                offset_list,
-                buffer_size, 
-                sampling_rate)
-        np.save(os.path.join(TMP_FOLDER,'spike_index_all_pre_deduplication.npy'), 
-                             spike_index_all_pre_deduplication)
-        
-        
-        # remove axons - compute axons to be killed
-        logger.info(' removing axons in parallel')
-        multi_procesing = 1
-        if CONFIG.resources.multi_processing:
-            keep = parmap.map(deduplicate,
-                                list(zip(spike_index_list, 
-                                energy_list, 
-                                TC_list,
-                                np.arange(len(energy_list)))),
-                                neighbors,
-                                processes=CONFIG.resources.n_processors,
-                                pm_pbar=True)
-        else:
-            keep=[]
-            for k in range(len(energy_list)):
-                keep.append(deduplicate((spike_index_list[k], 
-                                                     energy_list[k], 
-                                                     TC_list[k],k),
-                                                     neighbors))
-
-
-        # Cat: TODO Note that we're killing spike_index_all as well.
-        # remove axons from clear spikes - keep only non-killed+clean events
-        spike_index_all_postkill = []
-        for k in range(len(spike_index_list)):
-            spike_index_all_postkill.append(spike_index_list[k][keep[k][0]])
-
-        logger.info(' fixing indexes from batching')
-        spike_index_all = fix_indexes_firstbatch_3(
-                spike_index_all_postkill, 
-                offset_list,
-                buffer_size, 
-                sampling_rate)
-                
-        # get and clean all spikes
-        spikes_all = spike_index_all 
-        
-        #logger.info('Removing all indexes outside the allowed range to '
-        #            'draw a complete waveform...')
-        _n_observations = fp_len
-        spikes_all, _ = detect.remove_incomplete_waveforms(
-            spikes_all, CONFIG.spike_size + CONFIG.templates.max_shift,
-            _n_observations)
-
-        np.save(os.path.join(TMP_FOLDER,'spike_index_all.npy'),spikes_all)
-    
-    else:
-        spikes_all = np.load(os.path.join(TMP_FOLDER,'spike_index_all.npy'))
-
-    return spikes_all
-
 def binary_reader(idx_list, buffer_size, standardized_filename,
                   n_channels, root_folder):
 
@@ -549,7 +416,7 @@ def deduplicate(data_in, neighbors):
     w=5
     
     # print ("removing axons: ", data_in[0].shape)
-    (spike_index, energy, idx) = data_in[0], data_in[1], data_in[3]
+    spike_index, energy = data_in[0], data_in[1]
     #(T,C) = data_in[2][0], data_in[2][1]
     #print (spike_index.shape)
     
