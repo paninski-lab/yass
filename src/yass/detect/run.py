@@ -2,40 +2,29 @@
 Detection pipeline
 """
 import logging
-import os.path
+import os
 try:
     from pathlib2 import Path
 except ImportError:
     from pathlib import Path
-from functools import reduce
-import tensorflow as tf
 
-import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  
-
-import parmap
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import numpy as np
-from sklearn.decomposition import PCA
+import tensorflow as tf
+import parmap
 
 from yass import read_config
 from yass.reader import READER
-from yass.threshold.detect import _threshold2
-from yass.threshold import detect
-from yass.threshold.dimensionality_reduction import pca
-from yass import neuralnetwork
-from yass.neuralnetwork import NeuralNetDetector, AutoEncoder, KerasModel
-from yass.geometry import n_steps_neigh_channels
+from yass.neuralnetwork import NeuralNetDetector, AutoEncoder
 from yass.util import file_loader, save_numpy_object, running_on_gpu
-from collections import defaultdict
 from yass.threshold.detect import threshold
 from yass.threshold.dimensionality_reduction import pca
-from yass.templates.util import strongly_connected_components_iterative
-
+from yass.detect.deduplication import run_deduplication
+from yass.detect.output import gather_result
 
 def run(standardized_path, standardized_params,
-        output_directory='tmp/', if_file_exists='skip'):
-
-            
+        output_directory, if_file_exists='skip'):
+           
     """Execute detect step
 
     Cat: THIS CODE KEEP TENSORFLOW OPEN FOR DETECTION AND THEN COMPUTES 
@@ -95,31 +84,66 @@ def run(standardized_path, standardized_params,
 
     .. literalinclude:: ../../examples/pipeline/detect.py
     """
+
+    logger = logging.getLogger(__name__)
+
     CONFIG = read_config()
 
     # load files in case they are strings or Path objects
     standardized_params = file_loader(standardized_params)
-    
+
     # make output directory if not exist
     if not os.path.exists(output_directory):
         os.mkdir(output_directory)
 
-    # run detection
-    if CONFIG.detect.method == 'threshold':
-        return run_threshold(standardized_path,
-                             standardized_params,
-                             output_directory,
-                             if_file_exists)
-    elif CONFIG.detect.method == 'nn':
-        return run_neural_network(standardized_path,
-                                  standardized_params,
-                                  output_directory,
-                                  if_file_exists)
+    fname_spike_index = os.path.join(
+        output_directory, 'spike_index.npy')
+    if (if_file_exists == 'overwrite' or 
+        not os.path.exists(fname_spike_index)):        
 
+        ##### detection #####
 
+        # save directory for temp files
+        output_temp_files = os.path.join(
+            output_directory, 'batch')
+        if not os.path.exists(output_temp_files):
+            os.mkdir(output_temp_files)
 
+        # run detection
+        if CONFIG.detect.method == 'threshold':
+            run_threshold(standardized_path,
+                          standardized_params,
+                          output_temp_files)
+
+        elif CONFIG.detect.method == 'nn':
+            run_neural_network(standardized_path,
+                               standardized_params,
+                               output_temp_files)
+
+        ###### deduplication #####
+        logger.info('removing axons in parallel')
+
+        # save directory for deduplication
+        dedup_output = os.path.join(
+            output_directory, 'dedup')
+        if not os.path.exists(dedup_output):
+            os.mkdir(dedup_output)
+
+        # run deduplication
+        run_deduplication(output_temp_files,
+                          dedup_output)
+        
+        
+        ##### gather results #####
+        gather_result(output_temp_files,
+                      dedup_output,
+                      fname_spike_index)
+
+    return fname_spike_index
+    
+    
 def run_neural_network(standardized_path, standardized_params,
-                       output_directory, if_file_exists):
+                       output_directory):
                            
     """Run neural network detection and autoencoder dimensionality reduction
 
@@ -138,137 +162,89 @@ def run_neural_network(standardized_path, standardized_params,
 
     CONFIG = read_config()
 
-    fname_spike_index_all = os.path.join(
-        output_directory, 'spike_index_all.npy')
-    if (if_file_exists == 'overwrite' or 
-        not os.path.exists(fname_spike_index_all)):
+    GPU_ENABLED = running_on_gpu()
 
-        GPU_ENABLED = running_on_gpu()
+    # make tensorflow tensors and neural net classes
+    detection_th = CONFIG.detect.neural_network_detector.threshold_spike
+    detection_fname = CONFIG.detect.neural_network_detector.filename
+    ae_fname = CONFIG.detect.neural_network_autoencoder.filename
 
-        # make tensorflow tensors and neural net classes
-        detection_th = CONFIG.detect.neural_network_detector.threshold_spike
-        detection_fname = CONFIG.detect.neural_network_detector.filename
-        ae_fname = CONFIG.detect.neural_network_autoencoder.filename
-      
-        # open tensorflow for every chunk
-        NND = NeuralNetDetector.load(detection_fname, detection_th,
-                                     CONFIG.channel_index)
-        NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
+    # open tensorflow for every chunk
+    NND = NeuralNetDetector.load(detection_fname, detection_th,
+                                 CONFIG.channel_index)
+    NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
-        # get data reader
-        n_sec_chunk = 60
-        buffer = NND.waveform_length
-        reader = READER(standardized_path,
-                        standardized_params['dtype'],
-                        n_sec_chunk,
-                        CONFIG,
-                        buffer)
-        
-        # run tensorflow 
-        processing_ctr = 0
-        total_processing = reader.n_batches*n_sec_chunk
+    # get data reader
+    n_sec_chunk = 60
+    buffer = NND.waveform_length
+    reader = READER(standardized_path,
+                    standardized_params['dtype'],
+                    n_sec_chunk,
+                    CONFIG,
+                    buffer)
 
-        # set tensorflow verbosity level
-        tf.logging.set_verbosity(tf.logging.ERROR)
+    # run tensorflow 
+    processing_ctr = 0
+    total_processing = reader.n_batches*n_sec_chunk
 
-        # open etsnrflow session
-        with tf.Session() as sess:
+    # set tensorflow verbosity level
+    tf.logging.set_verbosity(tf.logging.ERROR)
 
-            NND.restore(sess)
-            rot = NNAE.load_rotation(sess)
-            
-            # loop over 60 sec chunks
-            for batch_id in range(reader.n_batches): 
-                fname = os.path.join(
-                    output_directory,
-                    "detect_"+str(batch_id).zfill(5)+'.npz')
-                if os.path.exists(fname):
-                    continue
+    # open etsnrflow session
+    with tf.Session() as sess:
 
-                # get a bach of size n_sec_chunk
-                # but partioned into smaller minibatches of 
-                # size n_sec_small_batch
-                n_sec_small_batch = 1
-                batched_recordings, offset_list = reader.read_data_batch_batch(
-                    batch_id, n_sec_small_batch, add_buffer=True)
-                batch_offset = reader.idx_list[batch_id, 0] - reader.buffer
-                
-                spike_index_list = []
-                energy_list = []
-                for j in range(batched_recordings.shape[0]):
-                    spike_index, wfs = NND.predict_recording(
-                        batched_recordings[j],
-                        sess=sess,
-                        output_names=('spike_index', 'waveform'))
-                    
-                    spike_index[:, 0] += (offset_list[j] + batch_offset)
-                    spike_index_list.append(spike_index)
+        NND.restore(sess)
+        rot = NNAE.load_rotation(sess)
 
-                    # run AE nn; required for remove_axon function
-                    # Cat: TODO: Do we really need this: can we get energy list faster?
-                    score = NNAE.predict(wfs, sess)
-                    energy_ = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
-                    energy_list.append(energy_)
-                   
-                    logger.info('processed chunk: %s/%s,  # spikes: %s', 
-                      str(processing_ctr), str(total_processing), len(spike_index))
+        # loop over 60 sec chunks
+        for batch_id in range(reader.n_batches):
 
-                    processing_ctr+=1
-
-            
-                # save chunk of data in case crashes occur
-                np.savez(fname,
-                         spike_index_list = spike_index_list,
-                         energy_list = energy_list)
-        
-        # load all saved data;
-        spike_index_list = []
-        energy_list = []
-        for batch_id in range(reader.n_batches): 
+            # skip if the file exists
             fname = os.path.join(
-                output_directory, "detect_"+str(batch_id).zfill(5)+'.npz')
-            data = np.load(fname)
-            spike_index_list.extend(data['spike_index_list'])
-            energy_list.extend(data['energy_list'])
+                output_directory,
+                "detect_"+str(batch_id).zfill(5)+'.npz')
+            if os.path.exists(fname):
+                continue
 
-        # save all detected spikes pre axon_kill
-        spike_index_all_pre_deduplication = np.vstack(spike_index_list)
-        np.save(os.path.join(output_directory,'spike_index_all_pre_deduplication.npy'),
-                spike_index_all_pre_deduplication)
-        
-        # remove axons - compute axons to be killed
-        logger.info(' removing axons in parallel')
-        if CONFIG.resources.multi_processing:
-            keep = parmap.map(deduplicate,
-                              list(zip(spike_index_list,
-                                       energy_list)),
-                              neighbors,
-                              processes=CONFIG.resources.n_processors,
-                              pm_pbar=True)
-        else:
-            keep=[]
-            for k in range(len(energy_list)):
-                keep.append(deduplicate(spike_index_list[k], 
-                                        energy_list[k],
-                                        neighbors))
+            # get a bach of size n_sec_chunk
+            # but partioned into smaller minibatches of 
+            # size n_sec_small_batch
+            n_sec_small_batch = 1
+            batched_recordings, offset_list = reader.read_data_batch_batch(
+                batch_id, n_sec_small_batch, add_buffer=True)
+            batch_offset = reader.idx_list[batch_id, 0] - reader.buffer
+
+            spike_index_list = []
+            energy_list = []
+            for j in range(batched_recordings.shape[0]):
+                spike_index, wfs = NND.predict_recording(
+                    batched_recordings[j],
+                    sess=sess,
+                    output_names=('spike_index', 'waveform'))
+
+                spike_index[:, 0] += (offset_list[j] + batch_offset)
+                spike_index_list.append(spike_index)
+
+                # run AE nn; required for remove_axon function
+                # Cat: TODO: Do we really need this: can we get energy list faster?
+                score = NNAE.predict(wfs, sess)
+                energy_ = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
+                energy_list.append(energy_)
+
+                logger.info('processed chunk: %s/%s,  # spikes: %s', 
+                  str(processing_ctr), str(total_processing), len(spike_index))
+
+                processing_ctr+=1
+
+            # save chunk of data in case crashes occur
+            np.savez(fname,
+                     spike_index = np.vstack(spike_index_list),
+                     energy = np.hstack(energy_list))
 
 
-        # Cat: TODO Note that we're killing spike_index_all as well.
-        # remove axons from clear spikes - keep only non-killed+clean events
-        spike_index_all_postkill = []
-        for k in range(len(spike_index_list)):
-            spike_index_all_postkill.append(spike_index_list[k][keep[k]])
-        spike_index_all_postkill = np.vstack(spike_index_all_postkill)
-                
-
-        np.save(fname_spike_index_all,
-                spike_index_all_postkill)
-
-
+# TODO: PETER, refactor threshold detector
 def run_threshold(standardized_path, standardized_params,
-        whiten_filter, output_directory, if_file_exists,
-        save_results, temporal_features=3,
-        std_factor=4):
+        output_directory, temporal_features=3, std_factor=4):
     """Run threshold detector and dimensionality reduction using PCA
     Returns
     -------
@@ -285,7 +261,7 @@ def run_threshold(standardized_path, standardized_params,
 
     CONFIG = read_config()
 
-    folder = Path(CONFIG.path_to_output_directory, 'detect')
+    folder = output_directory
     folder.mkdir(exist_ok=True)
 
     TMP_FOLDER = str(folder)
@@ -342,15 +318,14 @@ def run_threshold(standardized_path, standardized_params,
     #################
 
     # apply whitening to scores
-    scores = whiten.score(pca_scores, clear[:, 1], whiten_filter)
+    scores = pca_scores
 
-    if save_results:
-        # save spike_index_all (same as spike_index_clear for threshold
-        # detector)
-        path_to_spike_index_all = os.path.join(TMP_FOLDER,
-                                               filename_spike_index_all)
-        save_numpy_object(clear, path_to_spike_index_all, if_file_exists,
-                          name='Spike index all')
+    # save spike_index_all (same as spike_index_clear for threshold
+    # detector)
+    path_to_spike_index_all = os.path.join(TMP_FOLDER,
+                                           filename_spike_index_all)
+    save_numpy_object(clear, path_to_spike_index_all, if_file_exists,
+                      name='Spike index all')
 
     # FIXME: always saving scores since they are loaded by the clustering
     # step, we need to find a better way to do this, since the current
@@ -361,267 +336,28 @@ def run_threshold(standardized_path, standardized_params,
     save_numpy_object(scores, path_to_scores, if_file_exists,
                       name='scores')
 
-    return clear #, np.copy(clear)
 
-def binary_reader(idx_list, buffer_size, standardized_filename,
-                  n_channels, root_folder):
-
-    # prPurple("Processing chunk: "+str(chunk_idx))
-
-    # New indexes
-    idx_start = idx_list[0]
-    idx_stop = idx_list[1]
-    idx_local = idx_list[2]
-
-    data_start = idx_start
-    data_end = idx_stop
-    offset = idx_local
-
-    # ***** LOAD RAW RECORDING *****
-    with open(standardized_filename, "rb") as fin:
-        if data_start == 0:
-            # Seek position and read N bytes
-            recordings_1D = np.fromfile(
-                fin,
-                dtype='float32',
-                count=(data_end + buffer_size) * n_channels)
-            recordings_1D = np.hstack((np.zeros(
-                buffer_size * n_channels, dtype='float32'), recordings_1D))
-        else:
-            fin.seek((data_start - buffer_size) * 4 * n_channels, os.SEEK_SET)
-            recordings_1D = np.fromfile(
-                fin,
-                dtype='float32',
-                count=((data_end - data_start + buffer_size * 2) * n_channels))
-
-        if len(recordings_1D) != (
-              (data_end - data_start + buffer_size * 2) * n_channels):
-            recordings_1D = np.hstack((recordings_1D,
-                                       np.zeros(
-                                           buffer_size * n_channels,
-                                           dtype='float32')))
-
-    fin.close()
-
-    # Convert to 2D array
-    recording = recordings_1D.reshape(-1, n_channels)
-    
-    return recording
-
-                              
-def deduplicate(data_in, neighbors):
-    
-    # default window for deduplication in timesteps
-    # Cat: TODO: read from CONFIG file
-    w=5
-    
-    # print ("removing axons: ", data_in[0].shape)
-    spike_index, energy = data_in[0], data_in[1]
-    #(T,C) = data_in[2][0], data_in[2][1]
-    #print (spike_index.shape)
-    
-            
-    # number of data points
-    n_data = spike_index.shape[0]
-
-    # separate time and channel info
-    TT = spike_index[:, 0]
-    CC = spike_index[:, 1]
-
-    # Index counting
-    # indices in index_counter[t-1]+1 to index_counter[t] have time t
-    T_max = np.max(TT)
-    T_min = np.min(TT)
-    index_counter = np.zeros(T_max + w + 1, 'int32')
-    t_now = T_min
-    for j in range(n_data):
-        if TT[j] > t_now:
-            index_counter[t_now:TT[j]] = j - 1
-            t_now = TT[j]
-    index_counter[T_max:] = n_data - 1
-
-    # connecting edges
-    j_now = 0
-    edges = defaultdict(list)
-    for t in range(T_min, T_max + 1):
-
-        # time of j_now to index_counter[t] is t
-        # j_now to index_counter[t+w] has all index from t to t+w
-        max_index = index_counter[t+w]
-        cc_temporal_neighs = CC[j_now:max_index+1]
-
-        for j in range(index_counter[t]-j_now+1):
-            # check if channels are also neighboring
-            idx_neighs = np.where(
-                neighbors[cc_temporal_neighs[j],
-                          cc_temporal_neighs[j+1:]])[0] + j + 1 + j_now
-
-            # connect edges to neighboring spikes
-            for j2 in idx_neighs:
-                edges[j2].append(j+j_now)
-                edges[j+j_now].append(j2)
-
-        # update j_now
-        j_now = index_counter[t]+1
-
-    # Using scc, build connected components from the graph
-    idx_survive = np.zeros(n_data, 'bool')
-    for scc in strongly_connected_components_iterative(np.arange(n_data),
-                                                       edges):
-        idx = list(scc)
-        idx_survive[idx[np.argmax(energy[idx])]] = 1
-
-    return (idx_survive, idx)
-    
-    
-    
-def remove_axons_parallel(data_in, neighbors):
-
-    # print ("removing axons: ", data_in[0].shape)
-    (spike_index, energy, idx) = data_in[0], data_in[1], data_in[3]
-    (T,C) = data_in[2][0], data_in[2][1]
-
-    # parallelize over spike_index_list chunks
-    n_data = spike_index.shape[0]
-
-    temp = np.ones((T, C), 'int32')*-1
-    temp[spike_index[:, 0], spike_index[:, 1]] = np.arange(n_data)
-
-    kill = np.zeros(n_data, 'bool')
-    energy_killed = np.zeros(n_data, 'float32')
-    search_order = np.argsort(energy)[::-1]
-
-    # loop over all spikes
-    for j in range(n_data):
-        kill, energy_killed = kill_spikes(temp, neighbors, spike_index,
-                                          energy, kill,
-                                          energy_killed, search_order[j])
-
-    # return killed data but also index of chunk to fix indexes
-    #print ("remaining non-killed: ", kill.sum())
-    return (kill, idx)
-
-
-def kill_spikes(temp, neighbors, spike_index, energy, kill,
-                energy_killed, current_idx):
-
-    tt, cc = spike_index[current_idx]
-    energy_threshold = max(energy_killed[current_idx], energy[current_idx])
-    ch_idx = np.where(neighbors[cc])[0]
-    w = 5
-    indices = temp[tt-w:tt+w+1, ch_idx].ravel()
-    indices = indices[indices > -1]
-
-    for j in indices:
-        if energy[j] < energy_threshold:
-            kill[j] = 1
-            energy_killed[j] = energy_threshold
-
-    return kill, energy_killed
-
-#def kill_spikes_old(temp, neighbors, spike_index, energy, kill,
-                #energy_killed, current_idx):
-
-    #tt, cc = spike_index[current_idx]
-    #energy_threshold = max(energy_killed[current_idx], energy[current_idx])
-    #ch_idx = np.where(neighbors[cc])[0]
-    #w = 5
-    #indices = temp[tt-w:tt+w+1, ch_idx].ravel()
-    #indices = indices[indices > -1]
-
-    #for j in indices:
-        #if energy[j] < energy_threshold:
-            #kill[j] = 1
-            #energy_killed[j] = energy_threshold
-
-        #return kill, energy_killed
-
-    #n_data = spike_index.shape[0]
-
-    #temp = np.ones((T, C), 'int32')*-1
-    #temp[spike_index[:, 0], spike_index[:, 1]] = np.arange(n_data)
-
-    #kill = np.zeros(n_data, 'bool')
-    #energy_killed = np.zeros(n_data, 'float32')
-    #search_order = np.argsort(energy)[::-1]
-
-    ## loop over all spikes
-    #for j in range(n_data):
-        #kill, energy_killed = kill_spikes(temp, neighbors, spike_index,
-                                          #energy, kill,
-                                          #energy_killed, search_order[j])
-
-    #return kill
-
-
-
-def fix_indexes_firstbatch(res, buffer_size, chunk_len, offset):
-    
-    """Fixes indexes from the first batch; 
-
-    Parameters
-    ----------
-    res: tuple
-        A tuple with the results from the nnet detector
-    idx_local: slice
-        A slice object indicating the indices for the data (excluding buffer)
-    idx: slice
-        A slice object indicating the absolute location of the data
-    buffer_size: int
-        Buffer size
-    """
-    score, clear, collision = res
+#def fix_indexes_firstbatch_3(spike_index_list,  
+#                             offsets,
+#                             buffer_size, chunk_len):
+#            
+#    """ Fixes indexes from the first batch in the list of data with 
+#        multiple buffer offsets
+#
+#    Parameters
+#
+#    buffer_size: int
+#        Buffer size
+#    """
 
     # get limits for the data (exlude indexes that have buffer data)
-    data_start = buffer_size
-    data_end = buffer_size + chunk_len
-
-    # fix clear spikes
-    clear_times = clear[:, 0]
-    # get only observations outside the buffer
-    idx_not_in_buffer = np.logical_and(clear_times >= data_start,
-                                       clear_times <= data_end)
-    clear_not_in_buffer = clear[idx_not_in_buffer]
-    score_not_in_buffer = score[idx_not_in_buffer]
-
-    # offset spikes depending on the absolute location
-    clear_not_in_buffer[:, 0] = (clear_not_in_buffer[:, 0] + offset
-                                 - buffer_size)
-
-    # fix collided spikes
-    col_times = collision[:, 0]
-    # get only observations outside the buffer
-    col_not_in_buffer = collision[np.logical_and(col_times >= data_start,
-                                                 col_times <= data_end)]
-    # offset spikes depending on the absolute location
-    col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset - buffer_size
-
-
-    return score_not_in_buffer, clear_not_in_buffer, col_not_in_buffer
-
-
-
-def fix_indexes_firstbatch_3(spike_index_list,  
-                             offsets,
-                             buffer_size, chunk_len):
-            
-    """ Fixes indexes from the first batch in the list of data with 
-        multiple buffer offsets
-
-    Parameters
-
-    buffer_size: int
-        Buffer size
-    """
-
-    # get limits for the data (exlude indexes that have buffer data)
-    data_start = buffer_size
-    data_end = buffer_size + chunk_len
+#    data_start = buffer_size
+#    data_end = buffer_size + chunk_len
 
     #fixed_scores = []
     #fixed_clear_spikes = []
-    fixed_allspikes = []
-    for (collision, offset) in zip(spike_index_list, offsets):
+#    fixed_allspikes = []
+#    for (collision, offset) in zip(spike_index_list, offsets):
 
         ## ********** fix clear spikes **********
         ##clear_times = clear[:, 0]
@@ -638,102 +374,45 @@ def fix_indexes_firstbatch_3(spike_index_list,
                                      #- buffer_size)
 
         # ********** fix collided spikes *********
-        col_times = collision[:, 0]
+#        col_times = collision[:, 0]
         
         # get only observations outside the buffer
-        col_not_in_buffer = collision[np.logical_and(col_times >= data_start,
-                                                     col_times <= data_end)]
+#        col_not_in_buffer = collision[np.logical_and(col_times >= data_start,
+#                                                     col_times <= data_end)]
         # offset spikes depending on the absolute location
-        col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset - buffer_size
+#        col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset - buffer_size
 
         #fixed_scores.append(score_not_in_buffer)
         #fixed_clear_spikes.append(clear_not_in_buffer)
-        fixed_allspikes.append(col_not_in_buffer)
+#        fixed_allspikes.append(col_not_in_buffer)
 
     #return score_not_in_buffer, clear_not_in_buffer, col_not_in_buffer
-    return np.vstack(fixed_allspikes)
+#    return np.vstack(fixed_allspikes)
 
 
-def fix_indexes_firstbatch_2(spike_index_list, spike_index_clear_postkill, 
-                             offsets,
-                             buffer_size, chunk_len):
-            
-    """ Fixes indexes from the first batch in the list of data with 
-        multiple buffer offsets
+#def remove_incomplete_waveforms(spike_index, spike_size, recordings_length):
+#    """
 
-    Parameters
+#    Parameters
+#    ----------
+#    spikes: numpy.ndarray
+#        A 2D array of detected spikes as returned from detect.threshold
 
-    buffer_size: int
-        Buffer size
-    """
-
-    # get limits for the data (exlude indexes that have buffer data)
-    data_start = buffer_size
-    data_end = buffer_size + chunk_len
-
-    #fixed_scores = []
-    fixed_clear_spikes = []
-    fixed_allspikes = []
-    for (collision, clear, offset) in zip(spike_index_list, 
-         spike_index_clear_postkill, offsets):
-
-        # ********** fix clear spikes **********
-        clear_times = clear[:, 0]
-
-        # get only observations outside the buffer
-        idx_not_in_buffer = np.logical_and(clear_times >= data_start,
-                                           clear_times <= data_end)
-
-        clear_not_in_buffer = clear[idx_not_in_buffer]
-        #score_not_in_buffer = score[idx_not_in_buffer]
-
-        # offset spikes depending on the absolute location
-        clear_not_in_buffer[:, 0] = (clear_not_in_buffer[:, 0] + offset
-                                     - buffer_size)
-
-        # ********** fix collided spikes *********
-        col_times = collision[:, 0]
-        
-        # get only observations outside the buffer
-        col_not_in_buffer = collision[np.logical_and(col_times >= data_start,
-                                                     col_times <= data_end)]
-        # offset spikes depending on the absolute location
-        col_not_in_buffer[:, 0] = col_not_in_buffer[:, 0] + offset - buffer_size
-
-        #fixed_scores.append(score_not_in_buffer)
-        fixed_clear_spikes.append(clear_not_in_buffer)
-        fixed_allspikes.append(col_not_in_buffer)
-
-    #return score_not_in_buffer, clear_not_in_buffer, col_not_in_buffer
-    return (np.vstack(fixed_clear_spikes), 
-            np.vstack(fixed_allspikes))
-
-
-def remove_incomplete_waveforms(spike_index, spike_size, recordings_length):
-    """
-
-    Parameters
-    ----------
-    spikes: numpy.ndarray
-        A 2D array of detected spikes as returned from detect.threshold
-
-    Returns
-    -------
-    numpy.ndarray
-        A new 2D array with some spikes removed. If the spike index is in a
-        position (beginning or end of the recordings) where it is not possible
-        to draw a complete waveform, it will be removed
-    numpy.ndarray
-        A boolean 1D array with True entries meaning that the index is within
-        the valid range
-    """
-    max_index = recordings_length - 1 - spike_size
-    min_index = spike_size
-    include = np.logical_and(spike_index[:, 0] <= max_index,
-                             spike_index[:, 0] >= min_index)
-    return spike_index[include], include
-
-
+#    Returns
+#    -------
+#    numpy.ndarray
+#        A new 2D array with some spikes removed. If the spike index is in a
+#        position (beginning or end of the recordings) where it is not possible
+#        to draw a complete waveform, it will be removed
+#    numpy.ndarray
+#        A boolean 1D array with True entries meaning that the index is within
+#        the valid range
+#    """
+#    max_index = recordings_length - 1 - spike_size
+#    min_index = spike_size
+#    include = np.logical_and(spike_index[:, 0] <= max_index,
+#                             spike_index[:, 0] >= min_index)
+#    return spike_index[include], include
 
 #
 # def run_threshold(standardized_path, standardized_params,

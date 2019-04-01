@@ -12,7 +12,7 @@ from yass.preprocess.util import *
 from yass.reader import READER
 
 
-def run(output_directory='tmp/', if_file_exists='skip'):
+def run(output_directory, if_file_exists='skip'):
     """Preprocess pipeline: filtering, standarization and whitening filter
 
     This step (optionally) performs filtering on the data, standarizes it
@@ -129,7 +129,6 @@ def run(output_directory='tmp/', if_file_exists='skip'):
     # turn it off
     small_batch = None
 
-    
     # Make directory to hold filtered batch files:
     filtered_location = os.path.join(output_directory, "filtered_files")
     if not os.path.exists(filtered_location):

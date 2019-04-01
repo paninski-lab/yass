@@ -125,27 +125,24 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # preprocess
     start = time.time()
     (standardized_path,
-     standardized_params,
-     whiten_filter) = (preprocess
-                       .run(if_file_exists=CONFIG.preprocess.if_file_exists))
+     standardized_params) = preprocess.run(
+        output_directory=os.path.join(
+            TMP_FOLDER, 'preprocess'),
+        if_file_exists=CONFIG.preprocess.if_file_exists)
 
     time_preprocess = time.time() - start
-
-
 
     ''' **********************************************
         ************** DETECT EVENTS *****************
         **********************************************
     '''
     # detect
-    # Cat: This code now runs with open tensorflow calls
     start = time.time()
-    (spike_index_all) = detect.run(standardized_path,
-                                   standardized_params,
-                                   whiten_filter,
-                                   if_file_exists=CONFIG.detect.if_file_exists,
-                                   save_results=CONFIG.detect.save_results)
-    spike_index_clear = None
+    spike_index_path = detect.run(
+        standardized_path,
+        standardized_params,
+        os.path.join(TMP_FOLDER, 'detect'),
+        if_file_exists=CONFIG.detect.if_file_exists)
     time_detect = time.time() - start
 
 
@@ -156,8 +153,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     # cluster
     start=time.time()
-    cluster.run(spike_index_clear, spike_index_all)
-    
+    init_cluster_dir = 'cluster'
+    cluster.run(init_cluster_dir)
+
     path_to_spike_train_cluster = os.path.join(TMP_FOLDER, 'spike_train_cluster.npy')
     spike_train_cluster = np.load(path_to_spike_train_cluster)
     templates_cluster = np.load(os.path.join(TMP_FOLDER,'templates_cluster.npy'))    

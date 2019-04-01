@@ -111,9 +111,9 @@ class READER(object):
         n_mini_batches = len(indexes) - 1
 
         if n_mini_batches*T_mini > T:
-            T_left = n_mini_batches*T_mini - T
+            T_extra = n_mini_batches*T_mini - T
 
-            pad_zeros = np.zeros((T_left, C),
+            pad_zeros = np.zeros((T_extra, C),
                 dtype=self.dtype)
 
             data = np.zeros((data, pad_zeros), axis=1)
