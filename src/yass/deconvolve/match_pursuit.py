@@ -7,6 +7,7 @@ from tqdm import tqdm
 import time
 
 from yass.cluster.util import binary_reader
+from yass.deconvolve.util import quad_fit, quad_opt
 
 # ********************************************************
 # ********************************************************
@@ -754,15 +755,42 @@ class MatchPursuit_objectiveUpsample(object):
     def find_peaks(self):
         """Finds peaks in subtraction differentials of spikes."""
         max_across_temp = np.max(self.obj, axis=0)
+
         spike_times = scipy.signal.argrelmax(
             max_across_temp[self.n_time-1:self.obj.shape[1] - self.n_time],
             order=self.refrac_radius)[0] + self.n_time - 1
         spike_times = spike_times[max_across_temp[spike_times] > self.threshold]
         dist_metric = max_across_temp[spike_times]
 
+        # Get possible second threshold crossings.
+        arg_part = np.argpartition(
+                self.obj[:, spike_times], self.obj.shape[0] - 2, axis=0)[-2:]
+        # Main peaks and time window of (-1, 0, 1) around them.
+        peaks_orig = self.obj[np.tile(arg_part[1:2].T, 3), np.arange(-1, 2, 1) + spike_times[:, None]]
+        # Second peaks and time window of (-1, 0, 1) around them.
+        peaks_alt = self.obj[np.tile(arg_part[0:1].T, 3), np.arange(-1, 2, 1) + spike_times[:, None]]
+        # TODO: this quad_opt(quad_fit(.)) can replace the fft base upsampling
+        # done in high_res_peaks() funciton.
+        opts_orig = quad_opt(quad_fit(peaks_orig))
+        opts_alt = quad_opt(quad_fit(peaks_alt))
+
+        # Check wether the second peak in high resolution regime is greater than
+        # the main peak in high resolution regime. The maximum should occur
+        # between [-1, 1]. Otherwise, it is not a valid high resolution peak
+        # estimation since we are fitting a quadratic curve to three points
+        # on -1, 0, and 1.
+        alt_peak_idx = np.logical_and(
+                opts_alt[:, 1] > opts_orig[:, 1], np.abs(opts_alt[:, 0]) <= 1)
+
+        # the first line is equivalent to the following
+        # spike_ids = np.argmax(self.obj[:, spike_times], axis=0)
+        spike_ids = arg_part[1]
+        # those alternative peaks that have higher high resolution values will
+        # substitute the original ones.
+        spike_ids[alt_peak_idx] = arg_part[0, alt_peak_idx]
+
         # Upsample the objective and find the best shift (upsampled)
         # template.
-        spike_ids = np.argmax(self.obj[:, spike_times], axis=0)
         upsampled_template_idx, time_shift, valid_idx = self.high_res_peak(
                 spike_times, spike_ids)
         # The spikes that had NAN in the window and could not be updampled
