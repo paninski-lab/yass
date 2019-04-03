@@ -23,7 +23,7 @@ from yass.detect.deduplication import run_deduplication
 from yass.detect.output import gather_result
 
 def run(standardized_path, standardized_params,
-        output_directory, if_file_exists='skip'):
+        output_directory):
            
     """Execute detect step
 
@@ -41,12 +41,6 @@ def run(standardized_path, standardized_params,
     output_directory: str, optional
       Location to store partial results, relative to CONFIG.data.root_folder,
       defaults to tmp/
-
-    if_file_exists: str, optional
-      One of 'overwrite', 'abort', 'skip'. Control de behavior for every
-      generated file. If 'overwrite' it replaces the files if any exist,
-      if 'abort' it raises a ValueError exception if any file exists,
-      if 'skip' if skips the operation if any file exists
 
     Returns
     -------
@@ -98,46 +92,46 @@ def run(standardized_path, standardized_params,
 
     fname_spike_index = os.path.join(
         output_directory, 'spike_index.npy')
-    if (if_file_exists == 'overwrite' or 
-        not os.path.exists(fname_spike_index)):        
+    if os.path.exists(fname_spike_index):
+        return fname_spike_index
 
-        ##### detection #####
+    ##### detection #####
 
-        # save directory for temp files
-        output_temp_files = os.path.join(
-            output_directory, 'batch')
-        if not os.path.exists(output_temp_files):
-            os.mkdir(output_temp_files)
+    # save directory for temp files
+    output_temp_files = os.path.join(
+        output_directory, 'batch')
+    if not os.path.exists(output_temp_files):
+        os.mkdir(output_temp_files)
 
-        # run detection
-        if CONFIG.detect.method == 'threshold':
-            run_threshold(standardized_path,
-                          standardized_params,
-                          output_temp_files)
+    # run detection
+    if CONFIG.detect.method == 'threshold':
+        run_threshold(standardized_path,
+                      standardized_params,
+                      output_temp_files)
 
-        elif CONFIG.detect.method == 'nn':
-            run_neural_network(standardized_path,
-                               standardized_params,
-                               output_temp_files)
+    elif CONFIG.detect.method == 'nn':
+        run_neural_network(standardized_path,
+                           standardized_params,
+                           output_temp_files)
 
-        ###### deduplication #####
-        logger.info('removing axons in parallel')
+    ###### deduplication #####
+    logger.info('removing axons in parallel')
 
-        # save directory for deduplication
-        dedup_output = os.path.join(
-            output_directory, 'dedup')
-        if not os.path.exists(dedup_output):
-            os.mkdir(dedup_output)
+    # save directory for deduplication
+    dedup_output = os.path.join(
+        output_directory, 'dedup')
+    if not os.path.exists(dedup_output):
+        os.mkdir(dedup_output)
 
-        # run deduplication
-        run_deduplication(output_temp_files,
-                          dedup_output)
-        
-        
-        ##### gather results #####
-        gather_result(output_temp_files,
-                      dedup_output,
-                      fname_spike_index)
+    # run deduplication
+    run_deduplication(output_temp_files,
+                      dedup_output)
+
+
+    ##### gather results #####
+    gather_result(output_temp_files,
+                  dedup_output,
+                  fname_spike_index)
 
     return fname_spike_index
     
@@ -175,17 +169,23 @@ def run_neural_network(standardized_path, standardized_params,
     NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
     # get data reader
-    n_sec_chunk = 60
+    n_sec_chunk = CONFIG.resources.n_sec_chunk*CONFIG.resources.n_processors
     buffer = NND.waveform_length
     reader = READER(standardized_path,
                     standardized_params['dtype'],
-                    n_sec_chunk,
                     CONFIG,
+                    n_sec_chunk,
                     buffer)
 
-    # run tensorflow 
+    # number of processed chunks
     processing_ctr = 0
-    total_processing = reader.n_batches*n_sec_chunk
+    if CONFIG.detect.run_sec_chunk == 'full':
+        n_batches = reader.n_batches
+    else:
+        n_batches = int(np.ceil(
+            CONFIG.detect.run_sec_chunk/float(n_sec_chunk)))
+    total_processing = int(
+        n_batches*np.ceil(n_sec_chunk/CONFIG.resources.n_sec_chunk_gpu))
 
     # set tensorflow verbosity level
     tf.logging.set_verbosity(tf.logging.ERROR)
@@ -196,8 +196,8 @@ def run_neural_network(standardized_path, standardized_params,
         NND.restore(sess)
         rot = NNAE.load_rotation(sess)
 
-        # loop over 60 sec chunks
-        for batch_id in range(reader.n_batches):
+        # loop over each chunk
+        for batch_id in range(n_batches):
 
             # skip if the file exists
             fname = os.path.join(
@@ -208,10 +208,11 @@ def run_neural_network(standardized_path, standardized_params,
 
             # get a bach of size n_sec_chunk
             # but partioned into smaller minibatches of 
-            # size n_sec_small_batch
-            n_sec_small_batch = 1
+            # size n_sec_chunk_gpu
             batched_recordings, offset_list = reader.read_data_batch_batch(
-                batch_id, n_sec_small_batch, add_buffer=True)
+                batch_id,
+                CONFIG.resources.n_sec_chunk_gpu,
+                True)
             batch_offset = reader.idx_list[batch_id, 0] - reader.buffer
 
             spike_index_list = []
