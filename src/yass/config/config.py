@@ -186,22 +186,18 @@ class Config:
             self.geom, self.recordings.spatial_radius)
         self._set_param('neigh_channels', neigh_channels)
 
-        channel_groups = geom.make_channel_groups(
-            self.recordings.n_channels, self.neigh_channels, self.geom)
-        self._set_param('channel_groups', channel_groups)
-
-        self._set_param(
-            'spike_size',
-            int(
-                np.round(self.recordings.spike_size_ms *
-                         self.recordings.sampling_rate / (2 * 1000))))
+        spike_size = int(
+                np.round(self.recordings.spike_size_ms*
+                         self.recordings.sampling_rate/1000))
+        if spike_size % 2 == 0:
+            spike_size += 1
+        self._set_param('spike_size', spike_size)
 
         channel_index = geom.make_channel_index(self.neigh_channels,
                                                 self.geom, steps=2)
-
         self._set_param('channel_index', channel_index)
 
-        # compute len of recording
+        # compute the length of recording
         filename_dat = os.path.join(
             self.data.root_folder, self.data.recordings)
         filesize = os.path.getsize(filename_dat)
@@ -210,7 +206,6 @@ class Config:
                       dtype.itemsize / 
                       self.recordings.n_channels)
         self._set_param('rec_len', rec_len)
-
 
     @property
     def path_to_output_directory(self):

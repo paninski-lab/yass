@@ -40,7 +40,7 @@ def validate(mapping, silent=True):
     validator = Validator(schema)
     is_valid = validator.validate(mapping)
 
-    if not is_valid and silent:
+    if not is_valid and not silent:
         raise ValueError('Errors occurred while validating the '
                          'configuration file: {}'
                          .format(validator.errors))
