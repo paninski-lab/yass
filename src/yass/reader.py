@@ -3,10 +3,9 @@ import numpy as np
 
 class READER(object):
 
-    def __init__(self, bin_file, dtype, n_sec_chunk, CONFIG, buffer=None):
+    def __init__(self, bin_file, dtype, CONFIG, n_sec_chunk=None, buffer=None):
 
         # frequently used parameters
-        self.n_sec_chunk = n_sec_chunk
         self.n_channels = CONFIG.recordings.n_channels
         self.sampling_rate = CONFIG.recordings.sampling_rate
         self.rec_len = CONFIG.rec_len
@@ -22,14 +21,16 @@ class READER(object):
             self.buffer = buffer
 
         # batch sizes
-        indexes = np.arange(0, self.rec_len, self.sampling_rate*self.n_sec_chunk)
-        indexes = np.hstack((indexes, self.rec_len))
+        if n_sec_chunk is not None:
+            self.n_sec_chunk = n_sec_chunk
+            indexes = np.arange(0, self.rec_len, self.sampling_rate*self.n_sec_chunk)
+            indexes = np.hstack((indexes, self.rec_len))
 
-        idx_list = []
-        for k in range(len(indexes) - 1):
-            idx_list.append([indexes[k], indexes[k + 1]])
-        self.idx_list = np.int64(np.vstack(idx_list))
-        self.n_batches = len(self.idx_list)
+            idx_list = []
+            for k in range(len(indexes) - 1):
+                idx_list.append([indexes[k], indexes[k + 1]])
+            self.idx_list = np.int64(np.vstack(idx_list))
+            self.n_batches = len(self.idx_list)
 
 
     def read_data(self, data_start, data_end, channels=None):
@@ -91,6 +92,10 @@ class READER(object):
         return data
 
     def read_data_batch_batch(self, batch_id, n_sec_chunk_small, add_buffer=False, channels=None):
+        '''
+        this is for nn detection using gpu
+        get a batch and then make smaller batches
+        '''
         
         data = self.read_data_batch(batch_id, add_buffer, channels)
         
@@ -123,3 +128,63 @@ class READER(object):
             data_batched[k] = data[indexes[k]-buffer:indexes[k + 1]+buffer]
                 
         return data_batched, indexes-buffer
+
+    def read_waveforms(self, spike_times, n_times, channels=None):
+        '''
+        read waveforms from recording
+        '''
+
+        # n_times needs to be odd
+        if n_times % 2 == 0:
+            n_times += 1
+
+        # read all channels
+        if channels is None:
+            channels = np.arange(self.n_channels)
+
+        # ***** LOAD RAW RECORDING *****
+        wfs = np.zeros((len(spike_times), n_times, len(channels)),
+                       'float32')
+
+        skipped_idx = []
+        total_size = n_times*self.n_channels
+        # spike_times are the centers of waveforms
+        spike_times -= n_times//2
+        offsets = spike_times.astype('int64')*self.dtype.itemsize*self.n_channels
+        with open(self.bin_file, "rb") as fin:
+            for ctr, spike in enumerate(spike_times):
+                fin.seek(offsets[ctr], os.SEEK_SET)
+                try:
+                    wf = np.fromfile(fin,
+                                     dtype=self.dtype,
+                                     count=total_size)
+                    wfs[ctr] = wf.reshape(
+                        n_times, self.n_channels)[:,channels]
+                except:
+                    skipped_idx.append(ctr)
+        wfs=np.delete(wfs, skipped_idx, axis=0)
+        fin.close()
+
+        return wfs, skipped_idx
+
+    def read_clean_waveforms(self, spike_times, n_times, unit_ids, templates, channels=None):
+
+        ''' read waveforms from recording and superimpose templates
+        '''
+        # n_times needs to be odd
+        if n_times % 2 == 0:
+            n_times += 1
+
+        wfs, skipped_idx = self.read_waveforms(spike_times, n_times, channels)
+
+        if len(skipped_idx) > 0:
+            units = np.delete(units, skipped_idx)
+
+        if channels is None:
+            channels = np.arange(n_channels)
+
+        # add templates
+        offset = (n_times - templates.shape[1])//2
+        wfs[:,offset:-offset]+=templates[:,:,channels][units]
+
+        return wfs, skipped_idx
