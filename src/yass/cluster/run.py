@@ -1,5 +1,4 @@
 import logging
-import datetime
 import numpy as np
 import os
 from tqdm import tqdm
@@ -7,36 +6,25 @@ import parmap
 
 from yass import read_config
 from yass.util import file_loader, check_for_files, LoadFile
-from yass.cluster.subsample import random_subsample
-from yass.cluster.triage import triage
-from yass.cluster.coreset import coreset
-from yass.cluster.mask import getmask
-from yass.cluster.util import (make_CONFIG2, binary_reader, 
-                               global_merge_max_dist,
-                               gather_clustering_result
-                              )
+from yass.reader import READER
 from yass.cluster.cluster import Cluster
-from yass.cluster.plot import plot_normalized_templates
+from yass.cluster.util import (make_CONFIG2, 
+                               partition_input,
+                               gather_clustering_result,
+                               recompute_templates,
+                               global_merge_max_dist)
 
-from yass.mfm import get_core_data
-import multiprocessing as mp
+def run(fname_spike_index,
+        fname_recording,
+        recording_dtype,
+        output_directory,
+        raw_data=False,
+        full_run=False,
+        chunk_sec=None,
+        fname_residual=None,
+        residual_dtype=None,
+        fname_up=None):
 
-
-#@check_for_files(
-    #filenames=[
-        #LoadFile('spike_train_cluster.npy'),
-        #LoadFile('tmp_loc.npy'),
-        #LoadFile('templates.npy')
-    #],
-    #mode='values',
-    #relative_to=None,
-    #auto_save=True)
-    
-def run(spike_index_clear, 
-        spike_index_all,
-        out_dir='tmp/',
-        if_file_exists='skip',
-        save_results=False):
     """Spike clustering
 
     Parameters
@@ -48,8 +36,8 @@ def run(spike_index_clear,
         (channel whose amplitude is maximum). Or path to an npy file
 
     out_dir: str, optional
-        Location to store/look for the generate spike train, relative to
-        CONFIG.data.root_folder
+        Location to store/look for the generate spike train relative to
+        config output directory
 
     if_file_exists: str, optional
       One of 'overwrite', 'abort', 'skip'. Control de behavior for the
@@ -73,196 +61,111 @@ def run(spike_index_clear,
     .. literalinclude:: ../../examples/pipeline/cluster.py
 
     """
-    # load files in case they are strings or Path objects
-    #spike_index = file_loader(spike_index)
-
-    CONFIG = read_config()
-
-    startTime = datetime.datetime.now()
-
-    Time = {'t': 0, 'c': 0, 'm': 0, 's': 0, 'e': 0}
-
     logger = logging.getLogger(__name__)
 
-    #spike_index_all = np.copy(spike_index)  # this is only spike_index clear
-
-    # start timer
-    _b = datetime.datetime.now()
-
-    # check to see if 'result/' folder exists otherwise make it
-    result_dir = os.path.join(CONFIG.path_to_output_directory,
-                              'cluster')
-    if not os.path.isdir(result_dir):
-        os.makedirs(result_dir)
-
-    # run new voltage features-based clustering - chunk the data
-    run_cluster_features_chunks(spike_index_clear, 
-                                spike_index_all, 
-                                CONFIG)
-     
-
-
-def run_cluster_features_chunks(spike_index_clear, spike_index_all,
-                                CONFIG):
-
-    ''' New voltage feature based clustering; parallel version
-    ''' 
-    
+    CONFIG = read_config()
+    # get CONFIG2 for clustering
     # Cat: TODO: Edu said the CONFIG file can be passed as a dictionary
     CONFIG2 = make_CONFIG2(CONFIG)
-    
-    # loop over chunks 
-    gen = 0     #Set default generation for starting clustering stpe
-    assignment_global = []
-    spike_index = []
-    
-    # parallelize over chunks of data
-    #res_file = CONFIG.data.root_folder+'tmp/spike_train_cluster.npy'
-    #if os.path.exists(res_file)==False: 
-    
-    # Cat: TODO: link spike_size in CONFIG param
 
-    n_channels = CONFIG.recordings.n_channels
-    sampling_rate = CONFIG.recordings.sampling_rate
-    geometry_file = os.path.join(CONFIG.data.root_folder,
-                                 CONFIG.data.geometry)
+    # output folder
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
 
-    # select length of recording to chunk data for processing;
-    # Cat: TODO: read this value from CONFIG; use initial_batch_size
-    n_sec_chunk = 1200
-    #n_sec_chunk = 300
-    
-    # determine length of processing chunk based on lenght of rec
-    standardized_filename = os.path.join(CONFIG.path_to_output_directory,
-                                         'preprocess',
-                                         'standardized.bin')
-    
-    fp = np.memmap(standardized_filename, dtype='float32', mode='r')
-    fp_len = fp.shape[0]
+    # if the output exists and want to skip, just finish
+    fname_templates = os.path.join(output_directory, 'templates.npy')
+    if os.path.exists(fname_templates):
+        return fname_templates
 
-    # make index list for chunk/parallel processing
-    # Cat: TODO: read buffer size from CONFIG file
-    # Cat: TODO: ensure all data read including residuals (there are multiple
-    #                places to fix this)
-    buffer_size = 200
-    indexes = np.arange(0, fp_len / n_channels, sampling_rate * n_sec_chunk)
-    if indexes[-1] != fp_len / n_channels:
-        indexes = np.hstack((indexes, fp_len / n_channels))
-
-    idx_list = []
-    for k in range(len(indexes) - 1):
-        idx_list.append([
-            indexes[k], indexes[k + 1], buffer_size,
-            indexes[k + 1] - indexes[k] + buffer_size
-        ])
-
-    idx_list = np.int64(np.vstack(idx_list))
-    proc_indexes = np.arange(len(idx_list))
-
-    # select first time index to make output_directories for each chunk of clustering
-    chunk_index = proc_indexes[0]
-
-    # Cat: TODO: the logic below is hardcoded for clustering a single chunk
-    idx = idx_list[0]
-
-    # read chunk of data
-    print ("Clustering initial chunk: ", 
-            idx[0]/CONFIG.recordings.sampling_rate, "(sec)  to  ", 
-            idx[1]/CONFIG.recordings.sampling_rate, "(sec)")
-
-    # make chunk directory if not available:
-    # save chunk in own directory to enable cumulative recovery 
-    chunk_dir = CONFIG.path_to_output_directory+"/cluster/chunk_"+ \
-                                                str(chunk_index).zfill(6)
-    if not os.path.isdir(chunk_dir):
-        os.makedirs(chunk_dir)
-       
-    # check to see if chunk is done
-    global recording_chunk
-    recording_chunk = None
-    
-    # select which spike index to use:
-    if True:
-        print ("  using spike_index_all for clustering step")
-        spike_index = spike_index_all.copy()
-    else:
-        print ("  using spike_index_clear for clustering step")
-        spike_index = spike_index_clear.copy()
-
-    # flag to indicate whether clusteirng or post-deconv reclustering
-    deconv_flag = False
-    full_run = False
-
-    if os.path.exists(chunk_dir+'/complete.npy')==False:
-   
-        # select only spike_index_clear that is in the chunk
-        indexes_chunk = np.where(
-                    np.logical_and(spike_index[:,0]>=idx[0], 
-                    spike_index[:,0]<idx[1]))[0]
-        spike_index_chunk = spike_index[indexes_chunk]
-
-        # organize spike_idnex_chunk into list format
-        spike_index_chunk_list = [[] for cc in range(CONFIG.recordings.n_channels)]
-        for j in range(spike_index_chunk.shape[0]):
-            tt, cc = spike_index_chunk[j]
-            spike_index_chunk_list[cc].append(tt)
-
-        # Cat: TODO: this parallelization may not be optimally asynchronous
-        # make arg list first
-        args_in = []
-        channels = np.arange(CONFIG.recordings.n_channels)
-        for channel in channels:
-
-            # check to see if chunk + channel already completed
-            filename_postclustering = (chunk_dir + "/channel_"+
-                                                            str(channel)+".npz")
-            # skip 
-            if os.path.exists(filename_postclustering):
-                continue
-
-            args_in.append([deconv_flag, channel, CONFIG2,
-                            np.array(spike_index_chunk_list[channel]), chunk_dir, full_run])
-
-        print ("  starting clustering")
-        if CONFIG.resources.multi_processing:
-            #p = mp.Pool(CONFIG.resources.n_processors)
-            #p.map_async(Cluster, args_in).get(988895)
-            #p.close()
-            parmap.map(Cluster, args_in, 
-                       processes=CONFIG.resources.n_processors,
-                       pm_pbar=True)
-
-        else:
-            with tqdm(total=len(args_in)) as pbar:
-                for arg_in in args_in:
-                    Cluster(arg_in)
-                    pbar.update()
-
-        ## save simple flag that chunk is done
-        ## Cat: TODO: fix this; or run chunk wise-global merge
-        np.save(chunk_dir+'/complete.npy',np.arange(10))
+    # run cluster on chunk of data
+    if chunk_sec is not None:
+        max_time = CONFIG.recordings.sampling_rate*chunk_sec
+        logger.info("clustering initial {} seconds of chunk".format(chunk_sec))
 
     else:
-        print ("... clustering previously completed...")
+        max_time = CONFIG.recordings.sampling_rate*CONFIG.rec_len
+        logger.info("clustering on full chunk")
 
-    # Cat: TODO: this logic isn't quite correct; should merge with above
-    fname = os.path.join(CONFIG.path_to_output_directory, 
-                         'spike_train_cluster.npy')
-    if os.path.exists(fname)==False: 
+    # partition spike_idnex_chunk using the second column
+    partition_dir = os.path.join(output_directory, 'spt_partition')
+    units, fnames_input = partition_input(partition_dir, 
+                                          max_time,
+                                          fname_spike_index,
+                                          fname_up)
 
-        # this flag is for deconvolution reclusters
-        out_dir = 'cluster'
+    # data reader
+    if raw_data:
+        reader = READER(fname_recording,
+                        recording_dtype,
+                        CONFIG)
+    else:
+        reader = READER(fname_residual,
+                        residual_dtype,
+                        CONFIG)
 
-        # first gather clustering result
-        templates, spike_train = gather_clustering_result(chunk_dir,
-                                                          out_dir,
-                                                          np.arange(n_channels))
+    # save location for intermediate results
+    tmp_save_dir = os.path.join(output_directory, 'cluster_result')
+    if not os.path.exists(tmp_save_dir):
+        os.makedirs(tmp_save_dir)
 
-        # Cat: TODO: may wish to clean up these flags; goal is to use same
-        #            merge function for both clustering and deconv
-        global_merge_max_dist(templates,
-                              spike_train,
-                              full_run,
-                              CONFIG2,
-                              chunk_dir,
-                              out_dir)
+    # Cat: TODO: this parallelization may not be optimally asynchronous
+    # make arg list first
+    args_in = []
+    for ctr, unit in enumerate(units):
+
+        # check to see if chunk + channel already completed
+        filename_postclustering = os.path.join(
+            tmp_save_dir, "cluster_result_{}.npz".format(unit))
+
+        # skip 
+        if os.path.exists(filename_postclustering):
+            continue
+        
+        args_in.append([raw_data,
+                        full_run,
+                        CONFIG2,
+                        reader,
+                        filename_postclustering,
+                        fnames_input[ctr]])
+
+    logger.info("starting clustering")
+    if CONFIG.resources.multi_processing:
+        parmap.map(Cluster, args_in, 
+                   processes=CONFIG.resources.n_processors,
+                   pm_pbar=True)
+
+    else:
+        with tqdm(total=len(args_in)) as pbar:
+            for arg_in in args_in:
+                Cluster(arg_in)
+                pbar.update()
+
+
+    # first gather clustering result
+    fname_templates, fname_spike_train = gather_clustering_result(
+        tmp_save_dir, output_directory)
+    
+
+    # recompute templates if it is not from raw data
+    if not raw_data:
+        reader_raw = READER(fname_recording,
+                            recording_dtype,
+                            CONFIG)
+        fname_templates = recompute_templates(
+            fname_templates,
+            fname_spike_train,
+            reader_raw,
+            output_directory,
+            CONFIG.resources.multi_processing,
+            CONFIG.resources.n_processors)
+        
+    return fname_templates, fname_spike_train
+
+    # Cat: TODO: may wish to clean up these flags; goal is to use same
+    #            merge function for both clustering and deconv
+    global_merge_max_dist(templates,
+                          spike_train,
+                          full_run,
+                          CONFIG2,
+                          save_dir,
+                          out_dir)

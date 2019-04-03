@@ -53,6 +53,9 @@ class Cluster(object):
         # load data and check if prev completed
         if self.load_data(data_in):  return
 
+        # local channel clustering
+        if self.verbose:
+            print("START LOCAL")
         # neighbour channel clustering
         self.initialize(indices_in=np.arange(len(self.spike_times_original)),
                         local=True)
@@ -64,10 +67,9 @@ class Cluster(object):
                      hist=[])
         #self.finish_plotting()
         
-        if self.verbose:
-            print('local chananel clustering is done')
-        
         if self.full_run:
+            if self.verbose:
+                print('START DISTANT')
             # distant channel clustering
             indices_train_local = np.copy(self.indices_train)
             indices_train_final = []
@@ -114,15 +116,6 @@ class Cluster(object):
 
         # featurize #1
         pca_wf = self.featurize_step(gen, current_indices, current_indices, local)
-
-        # knn triage
-#        idx_keep = self.knn_triage_step(gen, pca_wf)
-#        if self.min(idx_keep.shape[0]): return
- 
-        # featurize #2 (if outliers triaged)
-#        if idx_keep.shape[0] < pca_wf.shape[0]:
-#            current_indices = current_indices[idx_keep]
-#            pca_wf = self.featurize_step(gen, current_indices, local)
 
         # subsample before clustering
         pca_wf_subsample = self.subsample_step(gen, pca_wf)
@@ -198,45 +191,64 @@ class Cluster(object):
         return False
 
     def load_data(self, data_in):
-        
-        ''' ********************************************
-            *********** DEFAULT PARAMETERS *************
-            ******************************************** 
+
+        ''' *******************************************
+            ************ LOADED PARAMETERS ************
+            *******************************************
         '''
 
-        # CAT: todo read params below from file:
-        #self.plotting = False # permanently disable online plotting
-        self.verbose = False
-        self.starting_gen = 0
-        #self.knn_triage_threshold = 0.95 * 100
-        #self.knn_triage_flag = True
-        self.selected_PCA_rank = 5
-        #self.yscale = 10.
-        #self.xscale = 2.
-        #self.triageflag = True
-        #self.n_feat_chans = 5
-        #self.mfm_threshold = 0.90
-        #self.upsample_factor = 5
-        #self.nshifts = 15
-        #self.n_dim_pca = 3
-        #self.n_dim_pca_compression = 5
-        self.shift_allowance = 10
-        self.max_cluster_spikes = 50000
-        self.recluster_on_raw = False
+        # load all input
+        self.raw_data = data_in[0]
+        self.full_run = data_in[1]
+        self.CONFIG = data_in[2]
+        self.reader = data_in[3]
+        self.filename_postclustering = data_in[4]
         
-        # Cat: TODO: this is wrong
-        #  SHOULD REPLACE BY: compute length of recording in seconds
-        #fp_len = np.memmap(self.standardized_filename, 
-        #           dtype='float32', mode='r').shape[0]
-        #self.rec_len_sec = fp_len/(self.sampling_rate*self.n_channels)
-        
-        self.min_fr = 1200*3
+        if os.path.exists(self.filename_postclustering):
+            return True
+        else:
+            input_data = np.load(data_in[5])
+            self.spike_times_original = input_data['spike_times']
+            if not self.raw_data:
+                self.upsampled_templates = input_data['up_templates'].transpose(2,0,1)
+                self.upsampled_ids = input_data['up_ids']
 
+        ''' ******************************************
+            *********** FIXED PARAMETERS *************
+            ****************************************** 
+        '''
+        
+        # These are not user/run specific, should be stayed fixed
+        self.verbose = False
+        self.selected_PCA_rank = 5
+        self.shift_allowance = 10
         # threshold at which to set soft assignments to 0
         self.assignment_delete_threshold = 0.001
+        # spike size
+        self.spike_size = int(self.CONFIG.spike_size 
+                              + self.shift_allowance*2)
+        self.neighbors = self.CONFIG.neigh_channels
+        # max number of spikes for each mfm call
+        self.max_mfm_spikes = 5000
+        # TODO: should be merged with min_spikes below
+        if self.raw_data:
+            self.min_fr = int(1200*3)
+        else:
+            self.min_fr = int(1200*0.1)
+        # TODO: eventually, need to be merged with min_fr
+        # should be a function of firing rate
+        # should be in CONFIG file
+        self.min_spikes = 100
+        # load template space
+        self.initialize_template_space()
+        
+        # random subsample, remove edge spikes
+        self.clean_input_data()
 
-        # array to hold shifts; need to initialize 
-        self.global_shifts=None
+        ''' ******************************************
+            *********** SAVING PARAMETERS ************
+            ****************************************** 
+        '''
 
         # flag to load all chans waveforms and featurizat for ari's work
         self.ari_flag = False
@@ -246,7 +258,6 @@ class Cluster(object):
         self.data_to_fit = None
         self.pca_wf_gen0 = None
 
-
         # list that holds all the final clustered indices for the premerge clusters
         self.clustered_indices_local = []
         self.clustered_indices_distant = []
@@ -254,80 +265,6 @@ class Cluster(object):
         # keep track of local idx source for distant clustering in order to 
         # index into original distribution indexes        
         self.distant_ii = None
-                
-        ''' *******************************************
-            ************ LOADED PARAMETERS ************
-            *******************************************
-        '''
-
-        # this indicates channel-wise clustering - NOT postdeconv recluster
-        self.deconv_flag = data_in[0]
-        self.channel = data_in[1]
-        self.CONFIG = data_in[2]
-
-        # spikes in the current chunk
-        self.spike_times_original = data_in[3]
-        self.chunk_dir = data_in[4]
-
-        # Check if channel alreedy clustered
-        self.filename_postclustering = (self.chunk_dir + "/channel_"+
-                                            str(self.channel).zfill(6)+".npz")
-
-        # limit on featurization window;
-        # Cat: TODO this needs to be further set using window based on spike_size and smapling rate
-        self.spike_size = int(self.CONFIG.recordings.spike_size_ms*2
-                              *self.CONFIG.recordings.sampling_rate/1000
-                              + self.shift_allowance*2)+1
-                              
-        self.full_run = data_in[5]
-
-        # additional parameters if doing deconv:
-        if self.deconv_flag:
-            self.unit = self.channel.copy()
-
-            # Peter's original code
-            self.upsampled_templates = data_in[6].transpose(2,0,1)
-            self.upsampled_ids= data_in[7]
-
-            # load upsampled templates from disk
-            #fname_upsampled_templates = data_in[6]
-            #self.upsampled_templates = np.load(fname_upsampled_templates)['templates_upsampled'].transpose(2,0,1)
-            
-            # load upsampled templates from disk
-            #fname_upsampled_spike_train = data_in[7]
-            #self.upsampled_spike_train = np.load(fname_upsampled_spike_train)['spike_train_upsampled']
-            #self.template_original = data_in[8]
-
-
-            # keep track of this for possible debugging later
-            #self.spike_train_cluster_original = self.spike_indexes_chunk
-            
-            # offset spike_train 30 timesteps to align with residual
-            # Cat: TODO: this must be changed to be a function of wavefomr length
-            #self.spike_indexes_chunk[:,0] += (self.template_original.shape[0]-1)//2
-                                           
-            # reset channel for unit to it's ptp channel
-            self.channel = data_in[8]
-
-            # max number of spikes to be used for reclustering postdeconv
-            #self.max_cluster_spikes = 5000
-            self.min_fr = int(1200*0.1)
-
-            self.filename_postclustering = os.path.join(self.chunk_dir,
-                                                        "unit_"+
-                                                        str(self.unit).zfill(6)+
-                                                        ".npz")
-
-            self.filename_residual = os.path.join(self.chunk_dir.replace('recluster',''),
-                                                  "residual.bin")
-
-        if os.path.exists(self.filename_postclustering):
-            return True
-
-        # check to see if 'result/' folder exists otherwise make it
-        self.figures_dir = self.chunk_dir+'/figures/'
-        if not os.path.isdir(self.figures_dir):
-            os.makedirs(self.figures_dir)
 
         # initialize metadata saves; easier to do here than using local flags + conditional
         self.pca_post_triage_post_recovery=[]
@@ -337,106 +274,33 @@ class Cluster(object):
 
         # this list track the first clustering indexes
         self.history_local_final=[]
-
-        ''' ********************************************
-            ***** MORE DEFAULT PARAMETERS **************
-            ******************************************** 
-        '''
-
-        self.n_channels = self.CONFIG.recordings.n_channels
-        self.min_spikes_local = self.CONFIG.cluster.min_spikes
-        self.standardized_filename = os.path.join(self.CONFIG.path_to_output_directory, 'preprocess', 'standardized.bin')
-        self.geometry_file = os.path.join(self.CONFIG.data.root_folder,
-                                          self.CONFIG.data.geometry)
-
-        # load spikes just for current channel
-        self.load_spikes()
-
-        # load template space
-        self.initialize_template_space()
-
-        # local channel clustering
-        if self.verbose:
-            if self.deconv_flag: 
-                print("\nunit: "+str(self.unit) + ", chan "+str(self.channel)+ ", START LOCAL CLUSTERING")
-            else:
-                print("\nchan "+str(self.channel)+", START LOCAL CLUSTERING")
             
         # return flag that clustering not yet complete
         return False
 
-    def load_spikes(self):
+    def clean_input_data(self):
 
         # limit clustering to at most 50,000 spikes
-        # Cat: TODO: both flag and value should be read from CONFIG
-        #if self.deconv_flag==False:
-        #    indexes = np.where(self.spike_indexes_chunk[:,1]==self.channel)[0]    
-        # reclustering only done on 5k spikes max
-        #else:
-        #    indexes = np.where(self.spike_indexes_chunk[:,1]==self.unit)[0]
-        #self.original_indices = indexes
-
-        if len(self.spike_times_original)>self.max_cluster_spikes:
+        if len(self.spike_times_original)>self.CONFIG.cluster.max_n_spikes:
             idx_sampled = np.random.choice(
                 a=np.arange(len(self.spike_times_original)),
-                size=self.max_cluster_spikes,
+                size=self.CONFIG.cluster.max_n_spikes,
                 replace=False)
             self.spike_times_original = self.spike_times_original[idx_sampled]
         else:
             idx_sampled = np.arange(len(self.spike_times_original))
 
-        # Cat: TODO
-        # check that spkes times not too lcose to edges:
-        # first determine length of processing chunk based on lenght of rec
-        #  i.e. divide by 4 byte float and # of chans
-        # Cat: TODO FIX/CHECK THIS;
-        fp_len = int(os.path.getsize(self.standardized_filename)/
-                     4/self.CONFIG.recordings.n_channels)
-
-        # Cat: TODO: does this work properly?
         # limit indexes away from edge of recording
         idx_inbounds = np.where(np.logical_and(
                         self.spike_times_original>=self.spike_size//2,
-                        self.spike_times_original<(fp_len-self.spike_size)))[0]
-        self.spike_times_original = self.spike_times_original[idx_inbounds]
-
-        #self.spike_times_original = self.spike_indexes_chunk[indexes,0]
-        self.shifts = np.zeros(len(self.spike_times_original))
-        if self.deconv_flag:
-            self.upsampled_ids = self.upsampled_ids[idx_sampled][idx_inbounds]
-
-    def initialize(self, indices_in, local):
-
-        # reset spike_train and templates for both local and distant clustering
-        self.indices_train = []
-        self.templates = []
-
-        self.indices_in = indices_in
-
-        # load waveforms
-        self.wf_global = None
-        self.denoised_wf = None
-        if len(self.indices_in) > 0:
-            self.load_waveforms(local)
-            # align waveforms
-            self.align_step(local)
-            # denoise waveforms on active channels
-            self.denoise_step(local)
+                        self.spike_times_original<(self.reader.rec_len-self.spike_size)))[0]
+        self.spike_times_original = self.spike_times_original[
+            idx_inbounds].astype('int32')
         
-        # save detected spike times for channel 
-        #if local:
-        #    self.spiketime_detect = initial_spt.copy()
-            
-        # if self.plotting:
-            # self.x = np.zeros(100, dtype = int)
-            # self.fig1 = plt.figure(figsize =(60,60))
-            # self.grid1 = plt.GridSpec(20,20,wspace = 1,hspace = 2)
-
-            # # setup template plot; scale based on electrode array layout
-            # xlim = self.CONFIG.geom[:,0].ptp(0)
-            # ylim = self.CONFIG.geom[:,1].ptp(0)#/float(xlim)
-            # self.fig2 = plt.figure(figsize =(100,max(ylim/float(xlim)*100,10)))
-            # self.ax2 = self.fig2.add_subplot(111)
+        # clean upsampled ids if available
+        if not self.raw_data:
+            self.upsampled_ids = self.upsampled_ids[
+                idx_sampled][idx_inbounds].astype('int32')
 
     def initialize_template_space(self):
 
@@ -462,6 +326,50 @@ class Cluster(object):
         self.pca_sec_components_[:, :window[0]] = 0
         self.pca_sec_components_[:, window[1]:] = 0
 
+    def initialize(self, indices_in, local):
+
+        # reset spike_train and templates for both local and distant clustering
+        self.indices_train = []
+        self.templates = []
+        if local:
+            # initialize
+            self.shifts = np.zeros(len(self.spike_times_original))
+            self.find_main_channel()
+
+        self.indices_in = indices_in
+
+        # load waveforms
+        if len(self.indices_in) > 0:
+            self.load_waveforms(local)
+            # align waveforms
+            self.align_step(local)
+            # denoise waveforms on active channels
+            self.denoise_step(local)
+       
+    def find_main_channel(self):
+        if len(self.spike_times_original) > 500:
+            idx_sampled = np.random.choice(
+                a=np.arange(len(self.spike_times_original)),
+                size=500,
+                replace=False)
+        else:
+            idx_sampled = np.arange(len(self.spike_times_original))
+
+        smaple_spike_times = self.spike_times_original[idx_sampled]
+
+        if self.raw_data:
+            wf, _ = self.reader.read_waveforms(
+                smaple_spike_times, self.spike_size)
+        # or from residual and add templates
+        else:
+            units_ids_sampled = self.upsampled_ids[idx_sampled]
+            wf, _ = self.reader.read_clean_waveforms(
+                smaple_spike_times, self.spike_size,
+                units_ids_sampled, self.upsampled_templates)
+
+        # find max channel
+        self.channel = np.mean(wf, axis=0).ptp(0).argmax()
+
     def load_waveforms(self, local):
         
         '''  Waveforms only loaded once in gen0 before local clustering starts
@@ -470,65 +378,29 @@ class Cluster(object):
         if self.verbose:
             print ("chan "+str(self.channel)+", loading {} waveforms".format(
                 len(self.indices_in)))
-        
-        neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
-        self.neighbor_chans = np.where(neighbors[self.channel])[0]
-            
+
+        self.neighbor_chans = np.where(self.neighbors[self.channel])[0]
+
         if local:
             self.loaded_channels = self.neighbor_chans
         else:
-            self.loaded_channels = np.arange(self.CONFIG.recordings.n_channels)
+            self.loaded_channels = np.arange(self.reader.n_channels)
 
         # load waveforms from raw data 
-        spike_times = self.spike_times_original[self.indices_in].astype('int32')
-        if (not self.deconv_flag) or (self.recluster_on_raw):
-            self.wf_global, skipped_idx = binary_reader_waveforms(
-                self.standardized_filename,
-                self.CONFIG.recordings.n_channels,
-                self.spike_size,
-                spike_times-(self.spike_size//2),
-                self.loaded_channels)
+        spike_times = self.spike_times_original[self.indices_in]
+        if self.raw_data:
+            self.wf_global, skipped_idx = self.reader.read_waveforms(
+                spike_times, self.spike_size, self.loaded_channels)
         # or from residual and add templates
         else:
-            units = self.upsampled_ids[self.indices_in].astype('int32')
-            self.wf_global, skipped_idx = read_spikes(
-                self.filename_residual,
-                spike_times-(self.spike_size//2),
-                self.CONFIG.recordings.n_channels,
-                self.spike_size,
-                units,
-                self.upsampled_templates,
-                channels=self.loaded_channels,
-                residual_flag=True)
+            units_ids = self.upsampled_ids[self.indices_in]
+            self.wf_global, skipped_idx = self.reader.read_clean_waveforms(
+                spike_times, self.spike_size,
+                unit_ids, self.upsampled_templates,
+                self.loaded_channels)
         
         # clip waveforms; seems necessary for neuropixel probe due to artifacts
         self.wf_global = self.wf_global.clip(min=-1000, max=1000)
-
-        if self.ari_flag:
-            chans = np.arange(self.CONFIG.recordings.n_channels)
-
-            # load waveforms from raw data 
-            spike_times = self.spike_times_original[self.indices_in].astype('int32')
-            #if (not self.deconv_flag) or (self.recluster_on_raw):
-            if True:
-                self.wf_global, skipped_idx = binary_reader_waveforms(
-                    self.standardized_filename,
-                    self.CONFIG.recordings.n_channels,
-                    self.spike_size,
-                    spike_times-(self.spike_size//2),
-                    self.loaded_channels)
-            # or from residual and add templates
-            else:
-                units = self.upsampled_ids[self.indices_in].astype('int32')
-                self.wf_global, skipped_idx = read_spikes(
-                    self.filename_residual,
-                    spike_times,
-                    self.CONFIG.recordings.n_channels,
-                    self.spike_size,
-                    units,
-                    self.upsampled_templates,
-                    channels=self.loaded_channels,
-                    residual_flag=True)
 
         # delete any spikes that could not be loaded in previous step
         if len(skipped_idx)>0:
@@ -603,15 +475,13 @@ class Cluster(object):
         template = np.median(self.wf_global, axis=0)
         good_t, good_c = np.where(template < - 0.5)
 
-        # need to have connection from the max channel
-        neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
         t_diff = 1
         # lowest among all
         #main_c_loc = np.where(good_c==self.channel)[0]
         #max_chan_energy = energy[good_t[main_c_loc]][:,self.channel]
         #index = main_c_loc[np.argmax(max_chan_energy)]
         index = template[good_t, good_c].argmin()
-        keep = connecting_points(np.vstack((good_t, good_c)).T, index, neighbors, t_diff)
+        keep = connecting_points(np.vstack((good_t, good_c)).T, index, self.neighbors, t_diff)
         good_t = good_t[keep]
         good_c = good_c[keep]
 
@@ -642,11 +512,10 @@ class Cluster(object):
         max_energy_loc = np.hstack((max_energy_loc_t[max_energy_loc_c][:, np.newaxis],
                                     max_energy_loc_c[:, np.newaxis]))
 
-        neighbors = n_steps_neigh_channels(self.CONFIG.neigh_channels, 1)
         t_diff = 3
         main_channel_loc = np.where(self.loaded_channels == self.channel)[0][0]
         index = np.where(max_energy_loc[:,1]== main_channel_loc)[0][0]
-        keep = connecting_points(max_energy_loc, index, neighbors, t_diff)
+        keep = connecting_points(max_energy_loc, index, self.neighbors, t_diff)
 
         max_energy_loc = max_energy_loc[keep]
 
@@ -661,27 +530,6 @@ class Cluster(object):
         self.denoised_wf = np.zeros((self.wf_global.shape[0], len(max_energy_loc)), dtype='float32')
         for ii in range(len(max_energy_loc)):
             self.denoised_wf[:, ii] = self.wf_global[:, max_energy_loc[ii,0], max_energy_loc[ii,1]]
-
-
-    def active_chans_step(self, local):
-            
-        if self.verbose:
-                print ("chan "+str(self.channel)+", gen 0, getting active channels")
-
-        energy = np.max(np.median(np.square(self.wf_global), axis=0), axis=0)
-        active_chans = np.where(energy > 0.5)[0]
-        
-        if not local:
-            active_chans = active_chans[~np.in1d(active_chans, self.neighbor_chans)]
-
-        if len(active_chans) == 0:
-            active_chans = np.where(self.loaded_channels==self.channel)[0]
-        
-        self.active_chans = active_chans
-        
-        # Cat: TODO: what was this for?
-        # if local:
-            # self.denoised_wf
 
     def featurize_step(self, gen, indices_to_feat, indices_to_transform, local):
         ''' Indices hold the index of the current spike times relative all spikes
@@ -707,7 +555,6 @@ class Cluster(object):
         pca.fit(self.denoised_wf[indices_to_feat])
         pca_wf = pca.transform(
             self.denoised_wf[indices_to_transform]).astype('float32')
-
 
         if gen==0 and local:
             # save gen0 distributions before triaging
@@ -746,74 +593,29 @@ class Cluster(object):
             # compress data to selectd pca rank
             self.pca_wf_allchans = pca.fit_transform(data_to_fit)
             
-        return pca_wf
+        return pca_wf        
 
-    
-    def pca_wf_none_step(self, current_indices, local, gen, branch, hist):
-        data_to_fit = self.denoised_wf[current_indices]
-
-        n_samples, n_features = data_to_fit.shape
-        pca = PCA(n_components=min(self.selected_PCA_rank, n_features))
-        pca_wf = pca.fit_transform(data_to_fit)
-
-        vbParam = mfm.vbPar(np.zeros((n_samples, 1)))
-        vbParam.muhat = np.mean(pca_wf, axis=0)[:, np.newaxis, np.newaxis]
-        
-        self.save_metadata(vbParam, pca_wf, current_indices, local, 
-                   gen, branch, hist)
-        self.single_cluster_step(current_indices, pca_wf, local, 
-                     gen, branch, hist)
-    
-    def denoise_step_distant_all_chans(self):
-        '''  Peter's local denoise step applied to all channels
-             
-        '''
-        
-        wf_global = self.wf_global_allchans
-
-        n_data, _, n_chans = wf_global.shape
-        denoised_wf = np.zeros((n_data, self.pca_main_components_.shape[0], n_chans),
-                                    dtype='float32')
-
-        for ii in range(n_chans):
-            if ii == self.channel:
-                denoised_wf[:, :, ii] = np.matmul(
-                    wf_global[:, self.shift_allowance:-self.shift_allowance, ii],
-                    self.pca_main_components_.T)/self.pca_main_noise_std[np.newaxis]
-            else:
-                denoised_wf[:, :, ii] = np.matmul(
-                    wf_global[:, self.shift_allowance:-self.shift_allowance, ii],
-                    self.pca_sec_components_.T)/self.pca_sec_noise_std[np.newaxis]
-
-        denoised_wf = np.reshape(denoised_wf, [n_data, -1])
-        good_features = np.median(np.square(denoised_wf), axis=0) > 0.5
-        denoised_wf = denoised_wf[:, good_features]
-        
-        return denoised_wf
-        
-        
     def subsample_step(self, gen, pca_wf):
  
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', random subsample')
        
-        if pca_wf.shape[0]> self.CONFIG.cluster.max_n_spikes:
+        if pca_wf.shape[0]> self.max_mfm_spikes:
             idx_subsampled = np.random.choice(np.arange(pca_wf.shape[0]),
-                             size=self.CONFIG.cluster.max_n_spikes,
+                             size=self.max_mfm_spikes,
                              replace=False)
         
             pca_wf = pca_wf[idx_subsampled]
 
         return pca_wf
-    
-    
+
     def run_mfm(self, gen, pca_wf):
         
         mask = np.ones((pca_wf.shape[0], 1))
         group = np.arange(pca_wf.shape[0])
         vbParam = mfm.spikesort(pca_wf[:,:,np.newaxis],
-                                 mask,
-                                 group,
+                                mask,
+                                group,
                                 self.CONFIG)
         if self.verbose:
             print("chan "+ str(self.channel)+', gen '\
@@ -821,10 +623,9 @@ class Cluster(object):
 
         return vbParam
 
-
     def knn_triage_dynamic(self, gen, vbParam, pca_wf):
 
-        ids = np.where(vbParam.nuhat > self.CONFIG.cluster.min_spikes)[0]
+        ids = np.where(vbParam.nuhat > self.min_spikes)[0]
 
         if ids.size <= 1:
             self.triage_value = 0
@@ -857,35 +658,13 @@ class Cluster(object):
         idx_keep = kdist <= threshold
         self.triage_value = 1.0 - idx_keep.sum()/idx_keep.size
 
-        if np.sum(idx_keep) < self.CONFIG.cluster.min_spikes:
+        if np.sum(idx_keep) < self.min_spikes:
             raise ValueError("{} kept out of {}, min thresh: {}, actual threshold {}, max dist {}".format(idx_keep.sum(),idx_keep.size, min_threshold, threshold, np.max(kdist)))
 
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', '+str(np.round(self.triage_value*100))+'% triaged from adaptive knn triage')
 
         return np.where(idx_keep)[0]
-
-
-    def knn_triage_step(self, gen, pca_wf):
-        
-        idx_keep = self.knn_triage(self.knn_triage_threshold, pca_wf)
-        idx_keep = np.where(idx_keep==1)[0]
-        self.triage_value = self.knn_triage_threshold/100.
-
-        if self.verbose:
-            print("chan "+str(self.channel)+', gen '+str(gen)+', knn triage removed {} from {} spikes'.format(pca_wf.shape[0]-len(idx_keep), pca_wf.shape[0]))
-
-        return idx_keep
-
-
-    def knn_triage(self, th, pca_wf):
-
-        tree = cKDTree(pca_wf)
-        dist, ind = tree.query(pca_wf, k=11)
-        dist = np.sum(dist, 1)
-        idx_keep1 = dist <= np.percentile(dist, th)
-        return idx_keep1
-
 
     def recover_step(self, gen, vbParam, pca_wf_all):
  
@@ -919,38 +698,6 @@ class Cluster(object):
                                              1, keepdims=True)
 
         return idx_recovered, vbParam
-     
-    def kill_small_units(self, gen, vbParam):
- 
-
-        assignment = vbParam.rhat.argmax(1)
-        unique_units, n_data = np.unique(assignment, return_counts=True)
-
-        big_units = unique_units[n_data > self.CONFIG.cluster.min_spikes]
-        n_unit_killed = vbParam.rhat.shape[1] - len(big_units)
-        if len(big_units) > 0:
-            idx_survived = np.where(np.in1d(assignment, big_units))[0]
-
-            vbParam.rhat = vbParam.rhat[idx_survived][:, big_units]
-            vbParam.rhat = vbParam.rhat/vbParam.rhat.sum(axis=1, keepdims=True)
-            vbParam.ahat = vbParam.ahat[big_units]
-            vbParam.lambdahat = vbParam.lambdahat[big_units]
-            vbParam.nuhat = vbParam.nuhat[big_units]
-            vbParam.muhat = vbParam.muhat[:,big_units]
-            vbParam.Vhat = vbParam.Vhat[:,:,big_units]
-            vbParam.invVhat = vbParam.invVhat[:,:,big_units]
-
-        else:
-            idx_survived = np.zeros(0)
-            vbParam.rhat = np.zeros((0,0))
-
-        if self.verbose:
-            print ("chan "+ str(self.channel)+', gen '+str(gen)+", killed ",
-                                                str(n_unit_killed)+' small units')
-
-        if vbParam.rhat.shape[1] != len(big_units):
-            raise ValueError('number of units in rhat is wrong!')
-        return idx_survived, vbParam
 
     def calculate_stability(self, rhat):
         K = rhat.shape[1]
@@ -1018,7 +765,6 @@ class Cluster(object):
         cc = [list(units) for units in nx.strongly_connected_components(G)]
         return cc
 
-
     def cluster_annealing(self, vbParam):
 
         N, K = vbParam.rhat.shape
@@ -1064,8 +810,8 @@ class Cluster(object):
         n_counts[unique_ccs] = n_counts_unique
         idx_keep = np.arange(len(cc_assignment))
 
-        while np.min(n_counts) < self.CONFIG.cluster.min_spikes and np.max(n_counts) >= self.CONFIG.cluster.min_spikes:
-            cc_keep = np.where(n_counts >= self.CONFIG.cluster.min_spikes)[0]
+        while np.min(n_counts) < self.min_spikes and np.max(n_counts) >= self.min_spikes:
+            cc_keep = np.where(n_counts >= self.min_spikes)[0]
             idx_keep_current = np.where(np.in1d(cc_assignment, cc_keep))[0]
             vbParam.rhat = vbParam.rhat[idx_keep_current]
             k_keep = np.hstack([cc[c] for c in cc_keep])
@@ -1101,18 +847,7 @@ class Cluster(object):
         #template = np.mean(self.wf_global[current_indices], axis=0)
         assignment = np.zeros(len(current_indices))
         mc = self.loaded_channels[np.argmax(template.ptp(0))]
-        if not ((mc in self.neighbor_chans) or (self.deconv_flag)):
-            if self.verbose:
-                print ("  chan "+str(self.channel)+", template has maxchan "+str(mc), 
-                        " skipping ...")
-            
-            # # always plot scatter distributions
-            # if self.plotting and gen<20:
-                # split_type = 'non_max-chan'
-                # end_flag = 'cyan'
-                # self.plot_clustering_scatter(gen, 
-                            # pca_wf, assignment, [1], split_type, end_flag)             
-        else:         
+        if (mc in self.neighbor_chans) or (not self.raw_data):        
             N = len(self.indices_train)
             if self.verbose:
                 print("chan "+str(self.channel)+', gen '+str(gen)+", >>> cluster "+
@@ -1135,18 +870,10 @@ class Cluster(object):
                 # if distant cluster step, use indexes from local step 
                 self.clustered_indices_distant.append(
                     self.clustered_indices_local[self.distant_ii][current_indices])
-
-            # # plot template if done
-            # if self.plotting:
-                # self.plot_clustering_template(gen, template, 
-                                              # len(current_indices), N)
-
-                # # always plot scatter distributions
-                # if gen<20:
-                    # split_type = 'single unit'
-                    # end_flag = 'red'
-                    # self.plot_clustering_scatter(gen,  
-                            # pca_wf, assignment, [1], split_type, end_flag)
+        else:
+            if self.verbose:
+                print ("  chan "+str(self.channel)+", template has maxchan "+str(mc), 
+                        " skipping ...")  
              
     def multi_cluster_step(self, current_indices, pca_wf, local, vbParam2,
                                 gen, branch_current, hist):
@@ -1195,71 +922,6 @@ class Cluster(object):
         
         return template
 
-    # def finish_plotting(self, local_unit_id=None):
-
-        # if not self.plotting:
-            # return
-
-        # if self.deconv_flag:
-            # fname = 'unit_{}'.format(self.unit)
-        # else:
-            # fname = 'channel_{}'.format(self.channel)
-
-        # if local_unit_id is not None:
-            # fname = fname+'_local_unit_{}'.format(local_unit_id)
-
-        # ####### finish cluster plots #######
-        # max_chan = self.channel
-
-        # self.fig1.suptitle(fname, fontsize=100)
-        # self.fig1.savefig(os.path.join(self.figures_dir,fname+'_scatter.png'))
-        # #plt.close(self.fig1)
-
-        # ####### finish template plots #######
-        # # plot channel numbers and shading
-        # for i in self.loaded_channels:
-            # self.ax2.text(self.CONFIG.geom[i,0], self.CONFIG.geom[i,1],
-                          # str(i), alpha=0.4, fontsize=10)
-                          
-            # # fill bewteen 2SUs on each channel
-            # self.ax2.fill_between(self.CONFIG.geom[i,0] +
-                 # np.arange(-self.spike_size,0,1)/self.xscale, -self.yscale +
-                 # self.CONFIG.geom[i,1], self.yscale + self.CONFIG.geom[i,1],
-                 # color='black', alpha=0.05)
-            
-        # # plot max chan with big red dot
-        # self.ax2.scatter(self.CONFIG.geom[max_chan,0],
-                          # self.CONFIG.geom[max_chan,1], s = 2000,
-                          # color = 'red')
-
-        # labels = []
-
-        # # plot original templates for post-deconv reclustering
-        # if self.deconv_flag:
-            # self.ax2.plot(self.CONFIG.geom[:, 0] +
-                      # np.arange(-self.template_original.shape[0] // 2,
-                      # self.template_original.shape[0] // 2, 1)[:, np.newaxis] / self.xscale,
-                      # self.CONFIG.geom[:, 1] + self.template_original * self.yscale,
-                      # 'r--', c='darkgreen', linewidth = 10)
-
-            # patch_j = mpatches.Patch(color='darkgreen', label="size = {}".format(len(self.spike_times_original)))
-            # labels.append(patch_j)
-
-        # # if at least 1 cluster is found, plot the template
-        # if len(self.indices_train)>0:
-            # for clust in range(len(self.indices_train)):
-                # patch_j = mpatches.Patch(color = colors[clust%30],
-                                         # label = "size = {}".format(len(self.indices_train[clust])))
-                # labels.append(patch_j)
-        # self.ax2.legend(handles=labels, fontsize=100)
-
-        # # plot title
-        # self.fig2.suptitle(fname, fontsize=100)
-        # self.fig2.savefig(os.path.join(self.figures_dir,fname+'_template.png'))
-        # #plt.close(self.fig2)
-        # plt.close('all')
-
-
     def save_result(self, indices_train, templates):
 
         # Cat: TODO: note clustering is done on PCA denoised waveforms but
@@ -1272,331 +934,34 @@ class Cluster(object):
             len(self.pca_post_triage_post_recovery), dtype=object)
         pca_post_triage_post_recovery[:] = self.pca_post_triage_post_recovery
 
-        if self.deconv_flag:
-            np.savez(self.filename_postclustering,
-                     spiketime=spike_train,
-                     templates=templates,
-                     gen0_fullrank = self.data_to_fit,
-                     pca_wf_gen0=self.pca_wf_gen0,
-                     pca_wf_gen0_allchans=self.pca_wf_allchans,
-                     clustered_indices_local=self.clustered_indices_local,
-                     clustered_indices_distant=self.clustered_indices_distant,
-                     pca_post_triage_post_recovery = pca_post_triage_post_recovery,
-                     #vbPar_rhat = self.vbPar_rhat,
-                     #vbPar_muhat = self.vbPar_muhat,
-                     hist = self.hist,
-                     indices_gen0=self.indices_gen0,
-                     #spike_index_prerecluster=self.original_indices,
-                     #templates_prerecluster=self.template_original
-                    )
-        else:
-            # for k in range(len(self.vbPar_rhat)):
-                # print (self.vbPar_rhat[k].shape)
-                # print (self.vbPar_muhat[k].shape)
-                # print (self.pca_post_triage_post_recovery[k].shape)
-                
-            np.savez(self.filename_postclustering,
-                     spiketime=spike_train,
-                     templates=templates,
-                     gen0_fullrank = self.data_to_fit,
-                     pca_wf_gen0=self.pca_wf_gen0,
-                     pca_wf_gen0_allchans=self.pca_wf_allchans,
-                     clustered_indices_local=self.clustered_indices_local,
-                     clustered_indices_distant=self.clustered_indices_distant,
-                     pca_post_triage_post_recovery = pca_post_triage_post_recovery,
-                     #vbPar_rhat = self.vbPar_rhat,
-                     #vbPar_muhat = self.vbPar_muhat,   
-                     hist = self.hist,
-                     #original_idx=self.original_idx,
-                     global_shifts=self.global_shifts,
-                     #spiketime_detect=self.spiketime_detect
-                    )
+        np.savez(self.filename_postclustering,
+                 spiketime=spike_train,
+                 templates=templates,
+                 gen0_fullrank = self.data_to_fit,
+                 pca_wf_gen0=self.pca_wf_gen0,
+                 pca_wf_gen0_allchans=self.pca_wf_allchans,
+                 clustered_indices_local=self.clustered_indices_local,
+                 clustered_indices_distant=self.clustered_indices_distant,
+                 pca_post_triage_post_recovery = pca_post_triage_post_recovery,
+                 #vbPar_rhat = self.vbPar_rhat,
+                 #vbPar_muhat = self.vbPar_muhat,
+                 hist = self.hist,
+                 indices_gen0=self.indices_gen0,
+                 #spike_index_prerecluster=self.original_indices,
+                 #templates_prerecluster=self.template_original
+                )
 
         if self.verbose:
-            if self.deconv_flag==False:
-                print ("**** Channel: ", str(self.channel), " starting spikes: ",
-                    len(self.spike_times_original), ", found # clusters: ",
-                    len(spike_train))
-            else:
-                print ("**** Unit: ", str(self.unit), " starting spikes: ",
-                    len(self.spike_times_original), ", found # clusters: ",
-                    len(spike_train))
-
+            print(self.filename_postclustering)
+            print("**** starting spikes: {}, found # clusters: {}".format(
+                len(self.spike_times_original), len(spike_train)))
         # Cat: TODO: are these redundant?
         keys = []
         for key in self.__dict__:
             keys.append(key)
         for key in keys:
             delattr(self, key)
-        #self.wf_global = None
-        #self.wf_global_allchans = None
-        #self.pca_wf_allchans = None
-        #self.denoised_wf = None
-        #self.indices_train = None
-        #self.templates = None
-
-    def robust_stds(self, wf_align):
-        
-        stds = np.median(np.abs(wf_align - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
-        return stds
-
-
-    def mfm_binary_split2(self, muhat, assignment_orig, cluster_index=None):
-
-        centers = muhat[:, :, 0].T
-        K, D = centers.shape
-        if cluster_index is None:
-            cluster_index = np.arange(K)
-
-        label = AgglomerativeClustering(n_clusters=2).fit(centers).labels_
-        assignment = np.zeros(len(assignment_orig), 'int16')
-        for j in range(2):
-            print (j)
-            print (np.where(label == j)[0])
-            #clusters = cluster_index[np.where(label == j)[0]]
-            clusters = cluster_index[np.where(label == j)[0]]
-            for k in clusters:
-                assignment[assignment_orig == k] = j
-
-        return assignment
-
-    # def save_step(self, dp_val, mc, gen, idx_recovered,
-                          # pca_wf_all, vbParam2, assignment2, assignment3,
-                          # sic_current, template_current, feat_chans):
-                              
-        # # make sure cluster is on max chan, otherwise omit it
-        # if mc != self.channel and (self.deconv_flag==False): 
-            # print ("  channel: ", self.channel, " template has maxchan: ", mc, 
-                    # " skipping ...")
-            
-            # # always plot scatter distributions
-            # if gen<20:
-                # split_type = 'mfm-binary - non max chan'
-                # end_flag = 'cyan'                       
-                # self.plot_clustering_scatter(gen,  
-                    # assignment3,
-                    # assignment2[idx_recovered],
-                    # pca_wf_all[idx_recovered],
-                    # vbParam2.rhat[idx_recovered],
-                    # split_type,
-                    # end_flag)
-                        
-            # return 
-        
-        # N = len(self.assignment_global)
-        # if self.verbose:
-            # print("chan "+str(self.channel)+' gen: '+str(gen)+" >>> cluster "+
-                  # str(N)+" saved, size: "+str(idx_recovered.shape)+"<<<")
-        
-        # self.assignment_global.append(N * np.ones(assignment3.shape[0]))
-        # self.spike_index.append(sic_current[idx_recovered])
-        # #template = np.median(template_current[idx_recovered],0)
-        # template = np.mean(template_current[idx_recovered],0)
-        # self.templates.append(template)
-
-        # # plot template if done
-        # if self.plotting:
-            # self.plot_clustering_template(gen, template, idx_recovered, 
-                                         # feat_chans, N)
-
-            # # always plot scatter distributions
-            # if gen<20:
-                # # hack to expand the assignments back out to size of original
-                # # data stream
-                # assignment3 = np.zeros(pca_wf_all[idx_recovered].shape[0],'int32')
-                # split_type = 'mfm-binary, dp: '+ str(round(dp_val,5))
-                # end_flag = 'green'
-                # self.plot_clustering_scatter(gen,  
-                    # assignment3,
-                    # assignment2[idx_recovered],
-                    # pca_wf_all[idx_recovered],
-                    # vbParam2.rhat[idx_recovered],
-                    # split_type,
-                    # end_flag)     
-
-
-
-    def connected_channels(self, channel_list, ref_channel, neighbors, keep=None):
-        if keep is None:
-            keep = np.zeros(len(neighbors), 'bool')
-        if keep[ref_channel] == 1:
-            return keep
-        else:
-            keep[ref_channel] = 1
-            chans = channel_list[neighbors[ref_channel][channel_list]]
-            for c in chans:
-                keep = self.connected_channels(channel_list, c, neighbors, keep=keep)
-            return keep
-
-
-    def get_feat_channels_mad(self, wf_align):
-        '''  Function that uses MAD statistic like robust variance estimator
-             to select channels
-        '''
-        # compute robust stds over units
-        #stds = np.median(np.abs(wf_align - np.median(wf_align, axis=0, keepdims=True)), axis=0)*1.4826
-        # trim vesrion of stds
-        #stds = np.std(stats.trimboth(wf_align, 0.025), 0)
-        stds = self.robust_stds(wf_align)
-
-        # max per channel
-        std_max = stds.max(0)
-        
-        # order channels by largest diptest value
-        feat_chans = np.argsort(std_max)[::-1]
-        #feat_chans = feat_chans[std_max[feat_chans] > 1.2]
-
-        max_chan = wf_align.mean(0).ptp(0).argmax(0)
-
-        return feat_chans, max_chan, stds
-
-
-    def featurize(self, wf, robust_stds, feat_chans, max_chan):
-        
-        # select argrelmax of mad metric greater than trehsold
-        #n_feat_chans = 5
-
-        n_features_per_channel = 2
-        wf_final = np.zeros((0,wf.shape[0]), 'float32')
-        # select up to 2 features from max amplitude chan;
-        trace = robust_stds[:,max_chan]
-        idx = argrelmax(trace, axis=0, mode='clip')[0]
-
-        if idx.shape[0]>0:
-            idx_sorted = np.argsort(trace[idx])[::-1]
-            idx_thresh = idx[idx_sorted[:n_features_per_channel]]
-            temp = wf[:,idx_thresh,max_chan]
-            wf_final = np.vstack((wf_final, temp.T))
-            #wf_final.append(wf[:,idx_thresh,max_chan])
-            
-        ## loop over all feat chans and select max 2 argrelmax time points as features
-        n_feat_chans = np.min((self.n_feat_chans, wf.shape[2]))
-        for k in range(n_feat_chans):
-
-            # don't pick max channel again, already picked above
-            if feat_chans[k]==max_chan: continue
-            
-            trace = robust_stds[:,feat_chans[k]]
-            idx = argrelmax(trace, axis=0, mode='clip')[0]
-            if idx.shape[0]>0:
-                idx_sorted = np.argsort(trace[idx])[::-1]
-                idx_thresh = idx[idx_sorted[:n_features_per_channel]]
-                temp = wf[:,idx_thresh,feat_chans[k]]
-                wf_final = np.vstack((wf_final, temp.T))
-
-        # Cat: TODO: this may crash if weird data goes in
-        #print (" len wf arra: ", len(wf_final))
-        #wf_final = np.array(wf_final)
-        #wf_final = wf_final.swapaxes(0,1).reshape(wf.shape[0],-1)
-        wf_final = wf_final.T
-
-        # run PCA on argrelmax points;
-        # Cat: TODO: read this from config
-        pca = PCA(n_components=min(self.selected_PCA_rank, wf_final.shape[1]))
-        pca.fit(wf_final)
-        pca_wf = pca.transform(wf_final)
-
-        # convert boolean to integer indexes
-        idx_keep_feature = np.arange(wf_final.shape[0])
-
-        return idx_keep_feature, pca_wf, wf_final
-
-
-    def test_unimodality(self, pca_wf, assignment, max_spikes = 10000):
-
-        '''
-        Parameters
-        ----------
-        pca_wf:  pca projected data
-        assignment:  spike assignments
-        max_spikes: optional
-        '''
-
-        n_samples = np.max(np.unique(assignment, return_counts=True)[1])
-
-        # compute diptest metric on current assignment+LDA
-
-        
-        ## find indexes of data
-        idx1 = np.where(assignment==0)[0]
-        idx2 = np.where(assignment==1)[0]
-        min_spikes = min(idx1.shape, idx2.shape)[0]
-
-        # limit size difference between clusters to maximum of 5 times
-        ratio = 1
-        idx1=idx1[:min_spikes*ratio][:max_spikes]
-        idx2=idx2[:min_spikes*ratio][:max_spikes]
-
-        idx_total = np.concatenate((idx1,idx2))
-
-        ## run LDA on remaining data
-        lda = LDA(n_components = 1)
-        #print (pca_wf[idx_total].shape, assignment[idx_total].shape) 
-        trans = lda.fit_transform(pca_wf[idx_total], assignment[idx_total])
-        diptest = dp(trans.ravel())
-
-        ## also compute gaussanity of distributions
-        ## first pick the number of bins; this metric is somewhat sensitive to this
-        # Cat: TODO number of bins is dynamically set; need to work on this
-        #n_bins = int(np.log(n_samples)*3)
-        #y1 = np.histogram(trans, bins = n_bins)
-        #normtest = stats.normaltest(y1[0])
-
-        return diptest[1] #, normtest[1]
-
                                 
-    def plot_clustering_scatter(self, gen, pca_wf, assignment, stability,
-                                split_type, end_point='false'):
-
-        if (self.x[gen]<20) and (gen <20):
-
-            # add generation index
-            ax = self.fig1.add_subplot(self.grid1[gen, self.x[gen]])
-            self.x[gen] += 1
-
-            assignment = assignment.astype('int32')
-
-            clusters = np.arange(len(stability))
-            sizes = np.zeros(len(stability), 'int32')
-            unique_id, unique_sizes = np.unique(assignment, return_counts=True)
-            sizes[unique_id] = unique_sizes
-
-            # make legend
-            labels = []
-            for clust in range(len(clusters)):
-                patch_j = mpatches.Patch(color = colors[clust%30], 
-                    label = "size = {}, stability = {}".format(sizes[clust], np.round(stability[clust],2)))
-                labels.append(patch_j)
-            
-            # make scater plots
-            if pca_wf.shape[1]>1:
-                ax.scatter(pca_wf[:,0], pca_wf[:,1], 
-                    c = colors[assignment%30] ,alpha=0.05)
-
-                # add red dot for converged clusters; cyan to off-channel
-                if end_point!='false':
-                    ax.scatter(pca_wf[:,0].mean(), pca_wf[:,1].mean(), c= end_point, s = 2000, alpha=.5)
-            else:
-                for clust in clusters:
-                    ax.hist(pca_wf[np.where(assignment==clust)[0]], 100)
-
-            # finish plotting
-            ax.legend(handles = labels, fontsize=10, bbox_to_anchor=(0, -0.3), loc=2, borderaxespad=0.)
-            ax.set_title(split_type+': '+str(sizes.sum())+' spikes, triage %: '+ str(np.round(self.triage_value*100,2)), fontsize = 10) 
-
-          
-    def plot_clustering_template(self, gen, template, n_data, unit_id):
-        
-        # plot template
-        #local_scale = min
-        geom_loaded = self.CONFIG.geom[self.loaded_channels]
-        R, C = template.shape
-
-        self.ax2.plot(geom_loaded[:, 0]+
-                  np.arange(-R//2, R//2,1)[:, np.newaxis]/self.xscale,
-                  geom_loaded[:, 1] + template*self.yscale, c=colors[unit_id%30],
-                  linewidth = 10,
-                  alpha=min(max(0.4, n_data/1000.), 1))
 
 def connecting_points(points, index, neighbors, t_diff, keep=None):
 
