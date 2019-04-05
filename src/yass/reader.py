@@ -32,6 +32,9 @@ class READER(object):
             self.idx_list = np.int64(np.vstack(idx_list))
             self.n_batches = len(self.idx_list)
 
+        # spike size
+        self.spike_size = CONFIG.spike_size
+       
 
     def read_data(self, data_start, data_end, channels=None):
 
@@ -129,10 +132,13 @@ class READER(object):
                 
         return data_batched, indexes-buffer
 
-    def read_waveforms(self, spike_times, n_times, channels=None):
+    def read_waveforms(self, spike_times, n_times=None, channels=None):
         '''
         read waveforms from recording
         '''
+
+        if n_times is None:
+            n_times = self.spike_size
 
         # n_times needs to be odd
         if n_times % 2 == 0:
@@ -167,10 +173,15 @@ class READER(object):
 
         return wfs, skipped_idx
 
-    def read_clean_waveforms(self, spike_times, n_times, unit_ids, templates, channels=None):
+    def read_clean_waveforms(self, spike_times, unit_ids, templates,
+                             n_times=None, channels=None):
 
         ''' read waveforms from recording and superimpose templates
         '''
+
+        if n_times is None:
+            n_times = self.spike_size
+
         # n_times needs to be odd
         if n_times % 2 == 0:
             n_times += 1
