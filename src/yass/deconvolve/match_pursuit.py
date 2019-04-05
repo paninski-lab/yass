@@ -5,28 +5,27 @@ import parmap
 import copy
 from tqdm import tqdm
 import time
-
-from yass.cluster.util import binary_reader
+import logging
 
 # ********************************************************
 # ********************************************************
 # ********************************************************
 
 def parallel_conv_filter(data_in, 
-                        n_time,
-                        up_up_map,
-                        unit_overlap,
-                        up_factor,
-                        vis_chan,
-                        approx_rank,
-                        deconv_dir):
+                         n_time,
+                         up_up_map,
+                         unit_overlap,
+                         up_factor,
+                         vis_chan,
+                         approx_rank,
+                         deconv_dir):
 
     proc_index = data_in[0]
     unit_array = data_in[1]
 
     # Cat: must load these structures from disk for multiprocessing step; 
     #       where there are many templates; due to multiproc 4gb limit 
-    fname = deconv_dir+"/svd.npz"
+    fname = os.path.join(deconv_dir,"svd.npz")
     data = np.load(fname)
     temporal_up = data['temporal_up']
     temporal = data['temporal']
@@ -59,62 +58,14 @@ def parallel_conv_filter(data_in,
     np.save(deconv_dir+'/temp_temp_chunk_'+str(proc_index), 
                                                 pairwise_conv_array)
 
-    #return pairwise_conv
-
-
-
-#def binary_reader(idx_list, buffer_size, standardized_filename,
-                  #n_channels):
-
-    ## New indexes
-    #idx_start = idx_list[0]
-    #idx_stop = idx_list[1]
-    #idx_local = idx_list[2]
-
-    #data_start = idx_start
-    #data_end = idx_stop
-    #offset = idx_local
-
-    ## ***** LOAD RAW RECORDING *****
-    #with open(standardized_filename, "rb") as fin:
-        #if data_start == 0:
-            ## Seek position and read N bytes
-            #recordings_1D = np.fromfile(
-                #fin,
-                #dtype='float32',
-                #count=(data_end + buffer_size) * n_channels)
-            #recordings_1D = np.hstack((np.zeros(
-                #buffer_size * n_channels, dtype='float32'), recordings_1D))
-        #else:
-            #fin.seek((data_start - buffer_size) * 4 * n_channels, os.SEEK_SET)
-            #recordings_1D = np.fromfile(
-                #fin,
-                #dtype='float32',
-                #count=((data_end - data_start + buffer_size * 2) * n_channels))
-
-        #if len(recordings_1D) != (
-              #(data_end - data_start + buffer_size * 2) * n_channels):
-            #recordings_1D = np.hstack((recordings_1D,
-                                       #np.zeros(
-                                           #buffer_size * n_channels,
-                                           #dtype='float32')))
-    #fin.close()
-
-    ## Convert to 2D array
-    #recording = recordings_1D.reshape(-1, n_channels)
-    
-    #return recording
-# ********************************************************
-# ********************************************************
-# ********************************************************
 
 class MatchPursuit_objectiveUpsample(object):
     """Class for doing greedy matching pursuit deconvolution."""
 
-    def __init__(self, temps, deconv_chunk_dir, standardized_filename, 
-                 max_iter, refrac_period=60, upsample=1, threshold=10., 
-                 conv_approx_rank=10, n_processors=1,multi_processing=False,
-                 vis_su=2., 
+    def __init__(self, fname_templates, save_dir, reader, 
+                 max_iter=1000, upsample=1, threshold=10., 
+                 conv_approx_rank=10, n_processors=1,
+                 multi_processing=False, vis_su=2., 
                  keep_iterations=False):
         """Sets up the deconvolution object.
 
@@ -139,27 +90,28 @@ class MatchPursuit_objectiveUpsample(object):
             does not keep the history.
         """
         
+        logger = logging.getLogger(__name__)
+
+        self.verbose = False
+
+        temps = np.load(fname_templates).transpose(1, 2, 0)
         self.n_time, self.n_chan, self.n_unit = temps.shape
         self.temps = temps.astype(np.float32)
-        self.orig_temps = temps.astype(np.float32)
-        print ("  in match pursuit templates (n_time, n_chan, n_unit): ", self.temps.shape)
-                
-        self.deconv_dir = deconv_chunk_dir
-        self.standardized_filename = standardized_filename
+        self.deconv_dir = save_dir
+        self.reader = reader
         self.max_iter = max_iter
         self.n_processors = n_processors
         self.multi_processing = multi_processing
-
         
         # Upsample and downsample time shifted versions
         # Dynamic Upsampling Setup; function for upsampling based on PTP
         # Cat: TODO find better ptp-> upsample function
+        self.upsample_max_val = upsample
         self.upsample_templates_mp(int(upsample))
             
         self.threshold = threshold
         self.approx_rank = conv_approx_rank
         self.vis_su_threshold = vis_su
-        self.vis_chan = None
         self.visible_chans()
         self.template_overlaps()
         self.spatially_mask_templates()
@@ -168,15 +120,14 @@ class MatchPursuit_objectiveUpsample(object):
         # upsampling them.
         self.orig_n_unit = self.n_unit
         self.n_unit = self.orig_n_unit * self.up_factor
-        self.orig_template_idx = np.arange(0, self.n_unit, self.up_factor)
-        print ("  # upsample templates: ", self.n_unit)
         
+        
+        logger.info("computing SVD on templates")
         # Computing SVD for each template.
-        print ("  computing SVD on templates ")
         self.compress_templates()
         
         # Compute pairwise convolution of filters
-        print ("  computing temp_temp")
+        logger.info("computing temp_temp")
         self.pairwise_filter_conv()
         
         # compute norm of templates
@@ -185,21 +136,14 @@ class MatchPursuit_objectiveUpsample(object):
             self.norm[i] = np.sum(
                     np.square(self.temps[:, self.vis_chan[:, i], i]))
         
-        #fname_out = (self.deconv_dir+"/seg_{}_deconv.npz".format(
-        #                                    str(self.seg_ctr).zfill(6)))
-        
-        # np.save(self.deconv_dir+'/vis_chans.npy', self.vis_chan)
-        # np.save(self.deconv_dir+'/norms.npy', self.norm)
-        # quit()
-        
         # Setting up data properties
         self.keep_iterations = keep_iterations
         #self.update_data(data)
         self.dec_spike_train = np.zeros([0, 2], dtype=np.int32)
-        
+
         # Energey reduction for assigned spikes.
         self.dist_metric = np.array([])
-        
+
         # Single time preperation for high resolution matches
         # matching indeces of peaks to indices of upsampled templates
         factor = self.up_factor
@@ -207,35 +151,20 @@ class MatchPursuit_objectiveUpsample(object):
         self.up_window = np.arange(-radius, radius + 1)[:, None]
         self.up_window_len = len(self.up_window)
         off = (factor + 1) % 2
-        
+
         # Indices of single time window the window around peak after upsampling
         self.zoom_index = radius * factor + np.arange(-radius, radius+1)
         self.peak_to_template_idx = np.append(np.arange(radius, -1, -1),
                                               (factor-1)-np.arange(radius))
-        #peak_to_template_idx = np.append(
-        #        np.arange(radius + off, factor),
-        #        np.arange(radius + off))
-        #self.peak_to_template_idx = np.pad(
-        #        peak_to_template_idx, (1, 0), 'edge')
-        #if off:
-        #    self.peak_to_template_idx[0] -= 1
-        #peak_time_jitter = np.array([1, 0]).repeat(radius)
-        #peak_time_jitter[radius - 1] = 0
-        #self.peak_time_jitter = np.pad(peak_time_jitter, (1, 0), 'edge')
         self.peak_time_jitter = np.append([0],np.array([0, 1]).repeat(radius))
+
         # Refractory Perios Setup.
         # DO NOT MAKE IT SMALLER THAN self.n_time - 1 !!!
         self.refrac_radius = self.n_time - 1
         
         # Account for upsampling window so that np.inf does not fall into the
         # window around peak for valid spikes.
-        #self.adjusted_refrac_radius = max(
-        #        1, self.refrac_radius - self.up_factor // 2)
-        
         self.adjusted_refrac_radius = 10
-        
-        # Stack for turning on invalud units for next iteration
-        self.turn_off_stack = []
 
     def upsample_templates_mp(self, upsample):
         if upsample != 1:
@@ -283,7 +212,7 @@ class MatchPursuit_objectiveUpsample(object):
                 self.unit_up_factor = np.ones(self.n_unit)
                 self.up_up_map = range(self.n_unit * self.up_factor)
 
-        fname = self.deconv_dir + "/up_up_maps.npz"
+        fname = os.path.join(self.deconv_dir, "up_up_maps.npz")
         np.savez(fname,
                  up_up_map = self.up_up_map,
                  unit_up_factor = self.unit_up_factor)
@@ -296,9 +225,6 @@ class MatchPursuit_objectiveUpsample(object):
         
         # Computing SVD for each template.
         self.obj_len = self.data_len + self.n_time - 1
-        self.dot = np.zeros(
-                [self.orig_n_unit, self.obj_len],
-                dtype=np.float32)
                 
         # Indicator for computation of the objective.
         self.obj_computed = False
@@ -310,11 +236,8 @@ class MatchPursuit_objectiveUpsample(object):
 
         
     def visible_chans(self):
-        if self.vis_chan is None:
-            a = np.max(self.temps, axis=0) - np.min(self.temps, 0)
-            self.vis_chan = a > self.vis_su_threshold
-        return self.vis_chan
-
+        a = np.max(self.temps, axis=0) - np.min(self.temps, 0)
+        self.vis_chan = a > self.vis_su_threshold
 
     def template_overlaps(self):
         """Find pairwise units that have overlap between."""
@@ -323,19 +246,17 @@ class MatchPursuit_objectiveUpsample(object):
             np.logical_and(vis[:, None, :], vis[None, :, :]), axis=2)
         self.unit_overlap = self.unit_overlap > 0
         self.unit_overlap = np.repeat(self.unit_overlap, self.up_factor, axis=0)
-    
 
     def spatially_mask_templates(self):
         """Spatially mask templates so that non visible channels are zero."""
         idx = np.logical_xor(
                 np.ones(self.temps.shape, dtype=bool), self.vis_chan)
         self.temps[idx] = 0.
-        
 
     def compress_templates(self):
         """Compresses the templates using SVD and upsample temporal compoents."""
         
-        fname = self.deconv_dir+"/svd.npz"
+        fname = os.path.join(self.deconv_dir, "svd.npz")
         if os.path.exists(fname)==False:
             self.temporal, self.singular, self.spatial = np.linalg.svd(
                 np.transpose(self.temps, (2, 0, 1)))
@@ -348,19 +269,19 @@ class MatchPursuit_objectiveUpsample(object):
             # templates.
             if self.up_factor == 1:
                 # No upsampling is needed.
-                self.temporal_up = self.temporal
+                temporal_up = self.temporal
             else:
-                self.temporal_up = scipy.signal.resample(
+                temporal_up = scipy.signal.resample(
                         self.temporal, self.n_time * self.up_factor, axis=1)
                 idx = np.arange(0, self.n_time * self.up_factor, self.up_factor) + np.arange(self.up_factor)[:, None]
-                self.temporal_up = np.reshape(
-                        self.temporal_up[:, idx, :], [-1, self.n_time, self.approx_rank]).astype(np.float32)
+                temporal_up = np.reshape(
+                        temporal_up[:, idx, :], [-1, self.n_time, self.approx_rank]).astype(np.float32)
 
             self.temporal = np.flip(self.temporal, axis=1)
-            self.temporal_up = np.flip(self.temporal_up, axis=1)
+            temporal_up = np.flip(temporal_up, axis=1)
 
             np.savez(fname,
-                     temporal_up = self.temporal_up,
+                     temporal_up = temporal_up,
                      temporal = self.temporal, 
                      singular = self.singular,
                      spatial = self.spatial)
@@ -406,13 +327,12 @@ class MatchPursuit_objectiveUpsample(object):
         # load temp_temp saved files from disk due to memory overload otherwise
         temp_array = []
         for i in range(len(units)):
-            fname = self.deconv_dir+'/temp_temp_chunk_'+str(i)+'.npy'
+            fname = os.path.join(self.deconv_dir, 'temp_temp_chunk_'+str(i)+'.npy')
             temp_pairwise_conv = np.load(fname)
             temp_array.extend(temp_pairwise_conv)
             os.remove(fname)
 
         # initialize empty list and fill only correct locations
-        print ("  gathering temp_temp results...")
         pairwise_conv=[]
         for i in range(self.n_unit):
             pairwise_conv.append(None)
@@ -425,7 +345,7 @@ class MatchPursuit_objectiveUpsample(object):
         pairwise_conv = np.array(pairwise_conv)
         
         # save to disk, don't keep in memory
-        np.save(self.deconv_dir+"/pairwise_conv.npy", pairwise_conv)
+        np.save(os.path.join(self.deconv_dir, "pairwise_conv.npy"), pairwise_conv)
 
 
 
@@ -433,7 +353,8 @@ class MatchPursuit_objectiveUpsample(object):
     def pairwise_filter_conv(self):
         """Computes pairwise convolution of templates using SVD approximation."""
 
-        if os.path.exists(self.deconv_dir+"/pairwise_conv.npy") == False:
+        if os.path.exists(
+            os.path.join(self.deconv_dir, "pairwise_conv.npy")) == False:
 
             # Cat: TODO: original temp_temp computation, do not erase it, keep
             #           it for debugging and testing pursposes
@@ -473,17 +394,6 @@ class MatchPursuit_objectiveUpsample(object):
 
         #else:
         #    self.pairwise_conv = np.load(self.deconv_dir+'/pairwise_conv.npy')
-    
-    
-    def get_reconstructed_upsampled_templates(self):
-        """Get the reconstructed upsampled versions of the original templates.
-        If no upsampling was requested, returns the SVD reconstructed version
-        of the original templates.
-        """
-        rec = np.matmul(
-                self.temporal_up * np.repeat(self.singular, self.up_factor, axis=0)[:, None, :],
-                np.repeat(self.spatial, self.up_factor, axis=0))
-        return np.fliplr(rec).transpose([1, 2, 0])
 
     def get_sparse_upsampled_templates(self):
         """Returns the fully upsampled sparse version of the original templates.
@@ -497,10 +407,8 @@ class MatchPursuit_objectiveUpsample(object):
         templates.
         """
         
-        fname = self.deconv_dir+"/sparse_templates.npy"
+        fname = os.path.join(self.deconv_dir, "sparse_templates.npy")
         if os.path.exists(fname)==False:
-        
-            print ("  getting sparse upsampled templates (TODO: Parallelize)...")
             down_sample_idx = np.arange(
                     0, self.n_time * self.up_factor, self.up_factor)
             down_sample_idx = down_sample_idx + np.arange(
@@ -525,7 +433,7 @@ class MatchPursuit_objectiveUpsample(object):
                             
             for i in range(self.orig_n_unit):
                 up_temps = scipy.signal.resample(
-                        self.orig_temps[:, :, i],
+                        self.temps[:, :, i],
                         self.n_time * self.up_factor)[down_sample_idx, :]
                 up_temps = up_temps.transpose([1, 2, 0])
                 #up_temps = up_temps[:, :, reorder_idx]
@@ -559,7 +467,7 @@ class MatchPursuit_objectiveUpsample(object):
         i = unit
 
         up_temps = scipy.signal.resample(
-                self.orig_temps[:, :, i],
+                self.temps[:, :, i],
                 self.n_time * self.up_factor)[down_sample_idx, :]
         up_temps = up_temps.transpose([1, 2, 0])
         up_temps = up_temps[:, :, reorder_idx]
@@ -580,14 +488,10 @@ class MatchPursuit_objectiveUpsample(object):
         """Returns the fully upsampled version of the original templates."""
         down_sample_idx = np.arange(0, self.n_time * self.up_factor, self.up_factor)
         down_sample_idx = down_sample_idx + np.arange(0, self.up_factor)[:, None]
-        
-        # original data stream
-        #up_temps = scipy.signal.resample(
-        #        self.orig_temps, self.n_time * self.up_factor)[down_sample_idx, :, :]
-        
+                
         if self.multi_processing:
             res = parmap.map(self.upsample_templates_parallel, 
-                            self.orig_temps.T,
+                            self.temps.T,
                             self.n_time, 
                             self.up_factor,
                             down_sample_idx,
@@ -595,16 +499,14 @@ class MatchPursuit_objectiveUpsample(object):
                             pm_pbar=True)
         else:
             res = []
-            for k in range(self.orig_temps.T.shape[0]):
-                print ("unit : ", k)
+            for k in range(self.temps.T.shape[0]):
                 res.append(self.upsample_templates_parallel(
-                            self.orig_temps.T[k],
+                            self.temps.T[k],
                             self.n_time, 
                             self.up_factor,
                             down_sample_idx))                
                         
         up_temps = np.array(res)
-        print ("  upsampled templates shape: ", up_temps.shape)
         up_temps = up_temps.transpose(
             [2, 3, 0, 1]).reshape([self.n_chan, -1, self.n_time]).transpose([2, 0, 1])
         self.n_unit = self.n_unit * self.up_factor
@@ -643,42 +545,23 @@ class MatchPursuit_objectiveUpsample(object):
         """Computes the objective given current state of recording."""
         if self.obj_computed:
             return self.obj
-        n_rows = self.orig_n_unit * self.approx_rank
+
         conv_result = np.zeros(
-                [n_rows, self.data_len + self.n_time - 1], dtype=np.float32)
-        
-        filters = self.temporal.transpose([0, 2, 1]).reshape([n_rows, -1])
-
-        if True: 
+                [self.orig_n_unit, self.data_len + self.n_time - 1], dtype=np.float32)
+        for rank in range(self.approx_rank):
             matmul_result = np.matmul(
-                    self.spatial.reshape([n_rows, -1]) * self.singular.reshape([-1, 1]),
+                    self.spatial[:, rank] * self.singular[:, [rank]],
                     self.data.T)
 
-            for i in range(n_rows):
-                conv_result[i, :] = np.convolve(
-                        matmul_result[i, :], filters[i, :], mode='full')
-        
-        # this is the lower memory version that runs 3 x slower
-        else:
-            temp_spatial = self.spatial.reshape([n_rows, -1])
-            temp_singular = self.singular.reshape([-1, 1])
-            for i in range(n_rows):
-                temp_matmul = np.matmul(
-                    temp_spatial[i] * temp_singular[i],
-                    self.data.T)
-                conv_result[i, :] = np.convolve(
-                        temp_matmul, filters[i, :], mode='full')
-        
-        for i in range(1, self.approx_rank):
-            conv_result[np.arange(0, n_rows, self.approx_rank), :] +=\
-                    conv_result[np.arange(i, n_rows, self.approx_rank), :]
-        self.obj = 2 * conv_result[np.arange(0, n_rows, self.approx_rank), :] - self.norm
-
+            filters = self.temporal[:, :, rank]
+            for unit in range(self.orig_n_unit):
+                conv_result[unit, :] += np.convolve(
+                        matmul_result[unit, :], filters[unit], mode='full')
+        self.obj = 2 * conv_result - self.norm
         # Set indicator to true so that it no longer is run
         # for future iterations in case subtractions are done
         # implicitly.
         self.obj_computed = True
-        return self.obj
         
         
     def high_res_peak(self, times, unit_ids):
@@ -819,30 +702,22 @@ class MatchPursuit_objectiveUpsample(object):
         return self.iter_spike_train
 
         
-    def run(self, data_in):
+    def run(self, batch_id, fname_out):
 
         start_time = time.time()
-        verbose = False
-        self.idx_list = data_in[0][0]
-        self.seg_ctr = data_in[0][1]
-        self.buffer_size = data_in[1]
         
         # ********* run deconv ************
-        fname_out = (self.deconv_dir+"/segs/seg_{}_deconv.npz".format(
-                                            str(self.seg_ctr).zfill(6)))
 
         # read raw data for segment using idx_list vals
         #self.load_data_from_memory()
-        self.data = binary_reader(self.idx_list, self.buffer_size, 
-                             self.standardized_filename,
-                             self.n_chan).astype(np.float32)
+        self.data = self.reader.read_data_batch(batch_id, add_buffer=True)
 
         #self.data = data.astype(np.float32)
         self.data_len = self.data.shape[0]
         
         # load pairwise conv filter OR TRY TO USE GLOBAL SHARED VARIABLE
-        self.pairwise_conv = np.load(self.deconv_dir+"/pairwise_conv.npy")
-        #self.pairwise_conv = pairwise_conv
+        self.pairwise_conv = np.load(os.path.join(
+            self.deconv_dir, "pairwise_conv.npy"))
 
         # update data
         self.update_data()
@@ -850,9 +725,9 @@ class MatchPursuit_objectiveUpsample(object):
         # compute objective function
         start_time = time.time()
         self.compute_objective()
-        if verbose:
-            print ('  deconv seg {0}, objective matrix took: {1:.2f}'.
-                    format(self.seg_ctr, time.time()-start_time))
+        if self.verbose:
+            logger.info('deconv seg {0}, objective matrix took: {1:.2f}'.
+                    format(batch_id, time.time()-start_time))
                 
         ctr = 0
         tot_max = np.inf
@@ -870,16 +745,16 @@ class MatchPursuit_objectiveUpsample(object):
                 self.iter_spike_train.append(spt)
             self.dist_metric = np.append(self.dist_metric, dist_met)
                         
-            if verbose: 
-                print ("Iteration {0} Found {1} spikes with {2:.2f} energy reduction.".format(
+            if self.verbose: 
+                logger.info("Iteration {0} Found {1} spikes with {2:.2f} energy reduction.".format(
                 ctr, spt.shape[0], np.sum(dist_met)))
 
             ctr += 1
 
-        if verbose:
-            print ('  deconv seg {0}, # iter: {1}, tot_spikes: {2}, tot_time: {3:.2f}'.
+        if self.verbose:
+            logger.info('deconv seg {0}, # iter: {1}, tot_spikes: {2}, tot_time: {3:.2f}'.
                 format(
-                self.seg_ctr, ctr, self.dec_spike_train.shape[0],
+                batch_id, ctr, self.dec_spike_train.shape[0],
                 time.time()-start_time))
 
         # ******** ADJUST SPIKE TIMES TO REMOVE BUFFER AND OFSETS *******
@@ -888,18 +763,18 @@ class MatchPursuit_objectiveUpsample(object):
         self.dec_spike_train = self.dec_spike_train[idx]
 
         # find spikes inside data block, i.e. outside buffers
-        idx = np.where(np.logical_and(self.dec_spike_train[:,0]>=self.idx_list[2],
-                                      self.dec_spike_train[:,0]<self.idx_list[3]))[0]
+        idx = np.where(np.logical_and(
+            self.dec_spike_train[:,0] >= self.reader.buffer,
+            self.dec_spike_train[:,0]< self.data.shape[0] - self.reader.buffer))[0]
         self.dec_spike_train = self.dec_spike_train[idx]
 
         # offset spikes to start of index
-        self.dec_spike_train[:,0]+= self.idx_list[0] - self.idx_list[2]
+        batch_offset = self.reader.idx_list[batch_id, 0] - self.reader.buffer
+        self.dec_spike_train[:,0] += batch_offset
         
-        np.savez(fname_out, spike_train = self.dec_spike_train, 
-                            dist_metric = self.dist_metric)
-
-        self.data = None
-        #return self.dec_spike_train
+        np.savez(fname_out,
+                 spike_train = self.dec_spike_train,
+                 dist_metric = self.dist_metric)
         
     
 # ********************************************************************

@@ -5,8 +5,7 @@ import copy as copy
 import numpy as np
 from tqdm import tqdm
 
-from yass.cluster.cluster import read_spikes
-from yass.deconvolve.template import WaveForms
+from yass.template import WaveForms
 from yass.deconvolve.merge import template_spike_dist_linear_align
 
 

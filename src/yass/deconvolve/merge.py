@@ -12,7 +12,7 @@ import multiprocessing as mp
 from diptest import diptest as dp
 
 from yass import read_config
-from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans, read_spikes
+from yass.template import shift_chans, align_get_shifts_with_ref
 from yass.deconvolve.correlograms_phy import compute_correlogram
 from yass.deconvolve.notch import notch_finder
 

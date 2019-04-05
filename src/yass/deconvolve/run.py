@@ -1,15 +1,17 @@
 import os
 import logging
 import numpy as np
+import parmap
 
 from yass import read_config
-from yass.deconvolve.deconvolve import Deconv
+from yass.reader import READER
+from yass.deconvolve.match_pursuit import MatchPursuit_objectiveUpsample
 from yass.deconvolve.soft_assignment import get_soft_assignments
 
-def run(spike_train_cluster,
-        templates,
-        output_directory='tmp/',
-        recordings_filename='standardized.bin'):
+def run(fname_templates,
+        output_directory,
+        recordings_filename,
+        recording_dtype):
     """Deconvolute spikes
 
     Parameters
@@ -49,23 +51,90 @@ def run(spike_train_cluster,
 
     CONFIG = read_config()
 
-    logging.debug('Starting deconvolution. templates.shape: {}, '
-                  'spike_index_cluster.shape: {}'.format(templates.shape,
-                                                 spike_train_cluster.shape))
+    # output folder
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
 
-    deconv_obj = Deconv(spike_train_cluster,
-            templates.transpose(1,2,0),
-            output_directory,
-            recordings_filename,
-            CONFIG)
+    # parameters
+    # TODO: read from CONFIG
+    threshold = 20.
+    conv_approx_rank = 10
+    upsample_max_val = 32.
+    deconv_gpu = False
+    max_iter = 1000
 
-    # Note: new self.templates and self.spike_train is computed above
-    # no need to return them to deconv
-    spike_train = np.load(os.path.join(CONFIG.path_to_output_directory,
-                    'spike_train_post_deconv_post_merge.npy'))
+    reader = READER(recordings_filename,
+                    recording_dtype,
+                    CONFIG,
+                    CONFIG.resources.n_sec_chunk)
 
-    templates = np.load(os.path.join(CONFIG.path_to_output_directory,
-                    'templates_post_deconv_post_merge.npy'))
+    mp_object = MatchPursuit_objectiveUpsample(
+        fname_templates=fname_templates,
+        save_dir=output_directory,
+        reader=reader,
+        max_iter=max_iter,
+        upsample=upsample_max_val,
+        threshold=threshold,
+        conv_approx_rank=conv_approx_rank,
+        n_processors=CONFIG.resources.n_processors,
+        multi_processing=CONFIG.resources.multi_processing)
+
+    # collect save file name
+    
+    # directory to save results for each segment
+    seg_dir = os.path.join(output_directory, 'seg')
+    if not os.path.exists(seg_dir):
+        os.makedirs(seg_dir)
+
+    fnames_out = []
+    batch_ids = []
+    for batch_id in range(reader.n_batches):
+        fnames_out.append(os.path.join(seg_dir,
+                          "seg_{}_deconv.npz".format(
+                              str(batch_id).zfill(6))))
+        batch_ids.append(batch_id)
+        
+    # run deconv for each batch
+    if CONFIG.resources.multi_processing:
+        parmap.starmap(mp_object.run,
+                       list(zip(batch_ids, fnames_out)),
+                       processes=CONFIG.resources.n_processors,
+                       pm_pbar=True)
+    else:
+        for ctr in range(len(batch_ids)):
+            mp_object.run(batch_ids[ctr], fnames_out[ctr])
+
+    # collect result
+    res = []
+    for fname_out in fnames_out:
+        res.append(np.load(fname_out)['spike_train'])
+    res = np.vstack(res)
+    
+    # get upsampled templates and mapping for computing residual
+    (templates_up,
+     deconv_id_sparse_temp_map) = mp_object.get_sparse_upsampled_templates()
+
+    # get spike train and save
+    spike_train = np.copy(res)
+    # map back to original id
+    spike_train[:, 1] = np.int32(spike_train[:, 1]/mp_object.upsample_max_val)
+    # save
+    fname_spike_train = os.path.join(output_directory,
+                                     'spike_train.npy')
+    np.save(fname_spike_train, spike_train)
+
+
+    # get upsampled data
+    spike_train_up = np.copy(res)
+    spike_train_up[:, 1] = deconv_id_sparse_temp_map[
+                spike_train_up[:, 1]]
+    fname_up = os.path.join(output_directory,
+                            'deconv_up_result.npz')
+    np.savez(fname_up,
+             spike_train_up=spike_train_up,
+             templates_up=templates_up,
+             spike_train=spike_train,
+             templates=mp_object.temps)
 
     # Compute soft assignments
     #soft_assignments, assignment_map = get_soft_assignments(
@@ -79,4 +148,4 @@ def run(spike_train_cluster,
     #np.save(deconv_obj.root_dir + '/soft_assignment.npy', soft_assignments)
     #np.save(deconv_obj.root_dir + '/soft_assignment_map.npy', assignment_map)
 
-    return spike_train, templates
+    return fname_spike_train, fname_up
