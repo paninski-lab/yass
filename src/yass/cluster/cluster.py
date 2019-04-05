@@ -1,45 +1,19 @@
 # Class to do parallelized clustering
-
-import sys
 import os
-import math
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from scipy import signal
-from scipy import stats
-from scipy.signal import argrelmax
-from scipy.spatial import cKDTree
-from copy import deepcopy
-from diptest import diptest as dp
 import networkx as nx
-import multiprocessing, logging
-mpl = multiprocessing.log_to_stderr()
-mpl.setLevel(logging.INFO)
+from sklearn.decomposition import PCA
+from scipy.spatial import cKDTree
 
-from yass.explore.explorers import RecordingExplorer
-from yass.geometry import n_steps_neigh_channels
+from yass.template import shift_chans, align_get_shifts_with_ref
 from yass import mfm
 from yass.util import absolute_path_to_asset
 import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
-
 def warn(*args, **kwargs):
     pass
 warnings.warn = warn
-
-from sklearn.mixture import GaussianMixture
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
-from sklearn.decomposition import PCA
-
-
-colors = np.array(['black','blue','red','green','cyan','magenta','brown','pink',
-'orange','firebrick','lawngreen','dodgerblue','crimson','orchid','slateblue',
-'darkgreen','darkorange','indianred','darkviolet','deepskyblue','greenyellow',
-'peru','cadetblue','forestgreen','slategrey','lightsteelblue','rebeccapurple',
-'darkmagenta','yellow','hotpink'])
-
 
 class Cluster(object):
     """Class for doing clustering."""
@@ -89,11 +63,13 @@ class Cluster(object):
                 templates_final += self.templates
 
         else:
-            indices_train_final = np.copy(self.indices_train)
+            indices_train_final = []
             templates_final = []
             for indices_train_k in self.indices_train:
-                templates_final.append(
-                    self.get_templates_on_all_channels(indices_train_k))
+                template = self.get_templates_on_all_channels(indices_train_k)
+                if self.check_max_chan(template):
+                    templates_final.append(template)
+                    indices_train_final.append(indices_train_k)
 
         # save clusters
         self.save_result(indices_train_final, templates_final)
@@ -185,7 +161,7 @@ class Cluster(object):
     def min(self, n_spikes):
         ''' Function that checks if spikes left are lower than min_spikes
         '''
-        if n_spikes < self.CONFIG.cluster.min_spikes: 
+        if n_spikes < self.min_spikes: 
             return True
         
         return False
@@ -221,12 +197,10 @@ class Cluster(object):
         # These are not user/run specific, should be stayed fixed
         self.verbose = False
         self.selected_PCA_rank = 5
-        self.shift_allowance = 10
         # threshold at which to set soft assignments to 0
         self.assignment_delete_threshold = 0.001
         # spike size
-        self.spike_size = int(self.CONFIG.spike_size 
-                              + self.shift_allowance*2)
+        self.spike_size = self.CONFIG.spike_size
         self.neighbors = self.CONFIG.neigh_channels
         # max number of spikes for each mfm call
         self.max_mfm_spikes = 5000
@@ -395,9 +369,8 @@ class Cluster(object):
         else:
             units_ids = self.upsampled_ids[self.indices_in]
             self.wf_global, skipped_idx = self.reader.read_clean_waveforms(
-                spike_times, self.spike_size,
-                unit_ids, self.upsampled_templates,
-                self.loaded_channels)
+                spike_times, unit_ids, self.upsampled_templates,
+                self.spike_size, self.loaded_channels)
         
         # clip waveforms; seems necessary for neuropixel probe due to artifacts
         self.wf_global = self.wf_global.clip(min=-1000, max=1000)
@@ -415,7 +388,7 @@ class Cluster(object):
         if local:
             mc = np.where(self.loaded_channels==self.channel)[0][0]
             best_shifts = align_get_shifts_with_ref(
-                self.wf_global[:, self.shift_allowance:-self.shift_allowance, mc],
+                self.wf_global[:, :, mc],
                 self.ref_template)
             self.shifts[self.indices_in] = best_shifts
         else:
@@ -451,11 +424,11 @@ class Cluster(object):
         for ii in range(n_chans):
             if self.loaded_channels[ii] == self.channel:
                 self.denoised_wf[:, :, ii] = np.matmul(
-                    self.wf_global[:, self.shift_allowance:-self.shift_allowance, ii],
+                    self.wf_global[:, :, ii],
                     self.pca_main_components_.T)/self.pca_main_noise_std[np.newaxis]
             else:
                 self.denoised_wf[:, :, ii] = np.matmul(
-                    self.wf_global[:, self.shift_allowance:-self.shift_allowance, ii],
+                    self.wf_global[:, :, ii],
                     self.pca_sec_components_.T)/self.pca_sec_noise_std[np.newaxis]
 
         self.denoised_wf = np.reshape(self.denoised_wf, [n_data, -1])
@@ -918,9 +891,18 @@ class Cluster(object):
         self.load_waveforms(local)
         self.align_step(local)
 
-        template = stats.trim_mean(self.wf_global, 0.1, axis=0)
+        template = np.median(self.wf_global, axis=0)
         
         return template
+    
+    def check_max_chan(self, template):
+        
+        mc = template.ptp(0).argmax()
+        
+        if np.any(self.neighbor_chans == mc):
+            return True
+        else:
+            return False
 
     def save_result(self, indices_train, templates):
 
@@ -961,7 +943,11 @@ class Cluster(object):
             keys.append(key)
         for key in keys:
             delattr(self, key)
-                                
+
+def knn_dist(pca_wf):
+    tree = cKDTree(pca_wf)
+    dist, ind = tree.query(pca_wf, k=30)
+    return dist
 
 def connecting_points(points, index, neighbors, t_diff, keep=None):
 
@@ -979,159 +965,3 @@ def connecting_points(points, index, neighbors, t_diff, keep=None):
             keep = connecting_points(points, j, neighbors, t_diff, keep)
 
         return keep
-
-def align_get_shifts_with_ref(wf, ref, upsample_factor = 5, nshifts = 7):
-
-    ''' Align all waveforms on a single channel
-    
-        wf = selected waveform matrix (# spikes, # samples)
-        max_channel: is the last channel provided in wf 
-        
-        Returns: superresolution shifts required to align all waveforms
-                 - used downstream for linear interpolation alignment
-    '''
-    # convert nshifts from timesamples to  #of times in upsample_factor
-    nshifts = (nshifts*upsample_factor)
-    if nshifts%2==0:
-        nshifts+=1    
-    
-    # or loop over every channel and parallelize each channel:
-    #wf_up = []
-    wf_up = upsample_resample(wf, upsample_factor)
-    wlen = wf_up.shape[1]
-    wf_start = int(.2 * (wlen-1))
-    wf_end = -int(.3 * (wlen-1))
-    
-    wf_trunc = wf_up[:,wf_start:wf_end]
-    wlen_trunc = wf_trunc.shape[1]
-    
-    # align to last chanenl which is largest amplitude channel appended
-    ref_upsampled = upsample_resample(ref[np.newaxis], upsample_factor)[0]
-    ref_shifted = np.zeros([wf_trunc.shape[1], nshifts])
-    
-    for i,s in enumerate(range(-int((nshifts-1)/2), int((nshifts-1)/2+1))):
-        ref_shifted[:,i] = ref_upsampled[s+ wf_start: s+ wf_end]
-
-    bs_indices = np.matmul(wf_trunc[:,np.newaxis], ref_shifted).squeeze(1).argmax(1)
-    best_shifts = (np.arange(-int((nshifts-1)/2), int((nshifts-1)/2+1)))[bs_indices]
-
-    return best_shifts/np.float32(upsample_factor)
-
-    
-
-def upsample_resample(wf, upsample_factor):
-    wf = wf.T
-    waveform_len, n_spikes = wf.shape
-    traces = np.zeros((n_spikes, (waveform_len-1)*upsample_factor+1),'float32')
-    for j in range(wf.shape[1]):
-        traces[j] = signal.resample(wf[:,j],(waveform_len-1)*upsample_factor+1)
-    return traces
-
-
-def knn_dist(pca_wf):
-    tree = cKDTree(pca_wf)
-    dist, ind = tree.query(pca_wf, k=30)
-    return dist
-
-
-def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, channels=None):
-
-    # ***** LOAD RAW RECORDING *****
-    if channels is None:
-        wfs = np.zeros((spikes.shape[0], n_times, n_channels), 'float32')
-        channels = np.arange(n_channels)
-    else:
-        wfs = np.zeros((spikes.shape[0], n_times, channels.shape[0]), 'float32')
-
-    skipped_idx = []
-    with open(standardized_filename, "rb") as fin:
-        ctr_wfs=0
-        ctr_skipped=0
-        for spike in spikes:
-            # index into binary file: time steps * 4  4byte floats * n_channels
-            fin.seek(spike * 4 * n_channels, os.SEEK_SET)
-            try:
-                wfs[ctr_wfs] = np.fromfile(
-                    fin,
-                    dtype='float32',
-                    count=(n_times * n_channels)).reshape(
-                                            n_times, n_channels)[:,channels]
-                ctr_wfs+=1
-            except:
-                # skip loading of spike and decrease wfs array size by 1
-                # print ("  spike to close to end, skipping and deleting array")
-                wfs=np.delete(wfs, wfs.shape[0]-1,axis=0)
-                skipped_idx.append(ctr_skipped)
-
-            ctr_skipped+=1
-    fin.close()
-
-    return wfs, skipped_idx
-
-def read_spikes(filename, spikes, n_channels, spike_size, units=None, templates=None,
-                channels=None, residual_flag=False):
-    ''' Function to read spikes from raw binaries
-        
-        filename: name of raw binary to be loaded
-        spikes:  [times,] array holding all spike times
-        units: [times,] unit id of each spike
-        templates:  [n_templates, n_times, n_chans] array holding all templates
-    '''
-        
-    # always load all channels and then index into subset otherwise
-    # order won't be correct
-    #n_channels = CONFIG.recordings.n_channels
-
-    # load default spike_size unless otherwise inidcated
-    # PETER: turned off. Let me know if you need this..
-    #if spike_size==None:
-    #    spike_size = int(CONFIG.recordings.spike_size_ms*CONFIG.recordings.sampling_rate//1000*2+1)
-
-    if channels is None:
-        channels = np.arange(n_channels)
-
-    spike_waveforms, skipped_idx = binary_reader_waveforms(filename,
-                                             n_channels,
-                                             spike_size,
-                                             spikes, #- spike_size//2,  # can use this for centering
-                                             channels)
-
-    if len(skipped_idx) > 0:
-        units = np.delete(units, skipped_idx)
-
-    # if loading residual need to add template back into 
-    # Cat: TODO: this is bit messy; loading extrawide noise, but only adding
-    #           narrower templates
-    if residual_flag:
-        #if spike_size is None:
-        #    spike_waveforms+=templates[:,:,channels][units]
-        # need to add templates in middle of noise wfs which are wider
-        #else:
-        #    spike_size_default = int(CONFIG.recordings.spike_size_ms*
-        #                              CONFIG.recordings.sampling_rate//1000*2+1)
-        #    offset = spike_size - spike_size_default
-        #    spike_waveforms[:,offset//2:offset//2+spike_size_default]+=templates[:,:,channels][units]
-        
-        #print ("templates added: ", templates.shape)
-        #print ("units: ", units)
-        offset = spike_size - templates.shape[1]
-        spike_waveforms[:,offset//2:offset//2+templates.shape[1]]+=templates[:,:,channels][units]
-
-    return spike_waveforms, skipped_idx
-
-
-def shift_chans(wf, best_shifts):
-    # use template feat_channel shifts to interpolate shift of all spikes on all other chans
-    # Cat: TODO read this from CNOFIG
-    wfs_final= np.zeros(wf.shape, 'float32')
-    for k, shift_ in enumerate(best_shifts):
-        if int(shift_)==shift_:
-            ceil = int(shift_)
-            temp = np.roll(wf[k],ceil,axis=0)
-        else:
-            ceil = int(math.ceil(shift_))
-            floor = int(math.floor(shift_))
-            temp = np.roll(wf[k],ceil,axis=0)*(shift_-floor)+np.roll(wf[k],floor, axis=0)*(ceil-shift_)
-        wfs_final[k] = temp
-    
-    return wfs_final

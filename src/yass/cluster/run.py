@@ -5,14 +5,12 @@ from tqdm import tqdm
 import parmap
 
 from yass import read_config
-from yass.util import file_loader, check_for_files, LoadFile
 from yass.reader import READER
 from yass.cluster.cluster import Cluster
 from yass.cluster.util import (make_CONFIG2, 
                                partition_input,
                                gather_clustering_result,
-                               recompute_templates,
-                               global_merge_max_dist)
+                               recompute_templates)
 
 def run(fname_spike_index,
         fname_recording,
@@ -74,8 +72,9 @@ def run(fname_spike_index,
 
     # if the output exists and want to skip, just finish
     fname_templates = os.path.join(output_directory, 'templates.npy')
+    fname_spike_train = os.path.join(output_directory, 'spike_train.npy')
     if os.path.exists(fname_templates):
-        return fname_templates
+        return fname_templates, fname_spike_train
 
     # run cluster on chunk of data
     if chunk_sec is not None:
@@ -160,12 +159,3 @@ def run(fname_spike_index,
             CONFIG.resources.n_processors)
         
     return fname_templates, fname_spike_train
-
-    # Cat: TODO: may wish to clean up these flags; goal is to use same
-    #            merge function for both clustering and deconv
-    global_merge_max_dist(templates,
-                          spike_train,
-                          full_run,
-                          CONFIG2,
-                          save_dir,
-                          out_dir)
