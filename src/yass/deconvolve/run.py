@@ -55,6 +55,14 @@ def run(fname_templates,
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
+    fname_up = os.path.join(output_directory,
+                            'deconv_up_result.npz')
+    fname_spike_train = os.path.join(output_directory,
+                                     'spike_train.npy')
+
+    if os.path.exists(fname_up):
+        return fname_spike_train, fname_up
+    
     # parameters
     # TODO: read from CONFIG
     threshold = 20.
@@ -119,8 +127,6 @@ def run(fname_templates,
     # map back to original id
     spike_train[:, 1] = np.int32(spike_train[:, 1]/mp_object.upsample_max_val)
     # save
-    fname_spike_train = os.path.join(output_directory,
-                                     'spike_train.npy')
     np.save(fname_spike_train, spike_train)
 
 
@@ -128,8 +134,7 @@ def run(fname_templates,
     spike_train_up = np.copy(res)
     spike_train_up[:, 1] = deconv_id_sparse_temp_map[
                 spike_train_up[:, 1]]
-    fname_up = os.path.join(output_directory,
-                            'deconv_up_result.npz')
+    # save
     np.savez(fname_up,
              spike_train_up=spike_train_up,
              templates_up=templates_up,

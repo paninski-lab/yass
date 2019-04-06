@@ -480,10 +480,7 @@ class MatchPursuit_objectiveUpsample(object):
         tot_temps_so_far += self.unit_up_factor[i]
 
         all_temps.append(up_temps[:, :, keep_upsample_idx])
-        
-        
-        
-        
+
     def get_upsampled_templates(self):
         """Returns the fully upsampled version of the original templates."""
         down_sample_idx = np.arange(0, self.n_time * self.up_factor, self.up_factor)
@@ -529,7 +526,6 @@ class MatchPursuit_objectiveUpsample(object):
                                     down_sample_idx):
         return scipy.signal.resample(
             template.T, n_time * up_factor)[down_sample_idx, :]
-        
 
     def correct_shift_deconv_spike_train(self, dec_spike_train):
         """Get time shift corrected version of the deconvovled spike train.
@@ -539,7 +535,6 @@ class MatchPursuit_objectiveUpsample(object):
         correct_spt = copy.copy(dec_spike_train)
         correct_spt[correct_spt[:, 1] % self.up_factor > 0, 0] += 1
         return correct_spt
-                     
 
     def compute_objective(self):
         """Computes the objective given current state of recording."""
@@ -562,8 +557,7 @@ class MatchPursuit_objectiveUpsample(object):
         # for future iterations in case subtractions are done
         # implicitly.
         self.obj_computed = True
-        
-        
+
     def high_res_peak(self, times, unit_ids):
         """Finds best matching high resolution template.
         Given an original unit id and the infered spike times
@@ -704,6 +698,9 @@ class MatchPursuit_objectiveUpsample(object):
         
     def run(self, batch_id, fname_out):
 
+        if os.path.exists(fname_out):
+            return
+
         start_time = time.time()
         
         # ********* run deconv ************
@@ -775,214 +772,3 @@ class MatchPursuit_objectiveUpsample(object):
         np.savez(fname_out,
                  spike_train = self.dec_spike_train,
                  dist_metric = self.dist_metric)
-        
-    
-# ********************************************************************
-# *************** RESIDUAL COMPUTATION FUNCTION **********************
-# ********************************************************************
-
-class Residual(object):
-    
-    def __init__(self, 
-                 temps,
-                 dec_spike_train, 
-                 buffer_size, 
-                 n_processors, 
-                 deconv_chunk_dir, 
-                 n_sec_chunk,
-                 idx_list_local,
-                 standardized_filename):
-        
-        """ Initialize by computing residuals
-            provide: raw data block, templates, and deconv spike train; 
-        """
-        self.n_time, self.n_chan, self.n_unit = temps.shape
-        self.buffer_size = buffer_size
-        self.standardized_filename = standardized_filename
-
-        self.dec_spike_train = dec_spike_train
-        self.n_processors = n_processors
-        self.deconv_chunk_dir = deconv_chunk_dir
-        self.n_sec_chunk = n_sec_chunk
-        self.idx_list_local = idx_list_local
-
-    # Legacy code, do not remove yet
-    # def get_unit_spikes(self, unit, unit_sp):
-    #     """Gets clean spikes for a given unit."""
-    #     #unit_sp = dec_spike_train[dec_spike_train[:, 1] == unit, :]
-    #
-    #     # Add the spikes of the current unit back to the residual
-    #     temp = self.data[np.arange(0, self.n_time) + unit_sp[:, :1], :] + self.temps[:, :, unit]
-    #     return temp
-        
-    def compute_residual_new(self, CONFIG, min_ptp):
-        ''' Function to subtract residuals using parallel CPU
-            How to: grab chunks of data with a buffer on each side (e.g. 200)
-                    and delete all spike tempaltes at location of spike times                   
-            
-            The problem: when subtracting waveforms from buffer areas
-                         it becomes tricky to add the residuals together
-                         from 2 neighbouring chunks because they will 
-                         add the residual from the other chunk's data back in
-                         essentially invaldiating the subtraction in the buffer
-            
-            The solution: keep track of energy subtracted in the buffer zone
-            
-            The pythonic solution: 
-                - make an np.zero() data_blank array and also
-                derasterize it at the same time as data array; 
-                - subtract the buffer bits of the data_blank array from residual array
-                (this essentially subtracts the data 2 x so that it can be added back
-                in by other chunk)
-                - concatenate the parallel chunks together by adding the residuals in the
-                buffer zones. 
-        '''
-        
-
-        # compute residual only with tempaltes > min_ptp
-        self.min_ptp = min_ptp
-
-        # take 10sec chunks with 200 buffer on each side
-        len_chunks = CONFIG.recordings.sampling_rate *self.n_sec_chunk
-
-        # split the data into lists of indexes and spike_times for parallelization
-        # get indexes for entire chunk from local chunk list
-        end_index = self.idx_list_local[-1][1]
-        spike_times=[]
-        indexes=[]
-        print ("  computing chunk indexes for parallel processing ")
-        for ctr,k in enumerate(range(0, end_index, len_chunks)):
-            start = k
-            end = k+len_chunks
-
-            # split data for each chunk
-            indexes.append([start,end, ctr])
-
-            # assign spikes in each chunk; offset 
-            idx_in_chunk = np.where(np.logical_and(
-                                    self.dec_spike_train[:,0]>=start-self.buffer_size,
-                                    self.dec_spike_train[:,0]<end+self.buffer_size))[0]
-
-            spikes_in_chunk = self.dec_spike_train[idx_in_chunk]
-            # reset spike times to zero for each chunk but add in bufer_size
-            #  that will be read in with data 
-            spikes_in_chunk[:,0] = spikes_in_chunk[:,0] - start #+ self.buffer_size
-            spike_times.append(spikes_in_chunk)
-
-        self.indexes = np.array(indexes).copy()
-
-        # Cat: TODO: is this required? Does it take time?
-        spike_times = np.array(spike_times)
-
-        # Cat: TODO: read multiprocessing flag from CONFIG
-        print ("  Computing residual in parallel (TODO: remove completed indexes)")
-        if CONFIG.resources.multi_processing:
-            parmap.map(self.subtract_parallel, 
-                         list(zip(indexes,spike_times)), 
-                         self.n_unit, self.n_time, 
-                         self.deconv_chunk_dir,
-                         processes=CONFIG.resources.n_processors,
-                         pm_pbar=True)
-        else:
-            for k in range(len(indexes)):
-                self.subtract_parallel(
-                           [indexes[k],spike_times[k]],
-                           self.n_unit, self.n_time,
-                           self.deconv_chunk_dir)
-        
-        # initilize residual array with buffers; 
-        # Cat: TODO: This is the incorrect way to save this data set; it will crash on memory limitations
-        #print ("  saving residual (todo: write serial binary append)")
-        
-        # current method
-        if False:
-            self.data = np.zeros((end_index+self.buffer_size*2,self.n_chan),dtype=np.float32)
-            for k in range(len(indexes)):
-                fname = self.deconv_chunk_dir+ '/residual_seg_'+str(indexes[k][2])+'.npy'
-                res = np.load(fname)
-                os.remove(fname)
-                self.data[indexes[k][0]+self.buffer_size:indexes[k][1]+self.buffer_size]+= res[self.buffer_size:-self.buffer_size]
-
-    def save_residual(self):
-    
-        # new method: append to end of file rather than accumulate in memory
-        fname_out = os.path.join(self.deconv_chunk_dir, 'residual.bin')
-        #f = open(fname_out, 'ab')
-        f = open(fname_out,'wb')
-        for k in range(len(self.indexes)):
-            fname = self.deconv_chunk_dir+ '/residual_seg_'+str(self.indexes[k][2])+'.npy'
-            res = np.load(fname)
-
-            # clip buffers from each datafile and reshape to 1D
-            res = res[self.buffer_size:-self.buffer_size].reshape(-1)
-            f.write(res)
-        
-        f.close()
-        
-        # delete residual chunks after successful merging/save
-        for k in range(len(self.indexes)):
-            fname = self.deconv_chunk_dir+ '/residual_seg_'+str(self.indexes[k][2])+'.npy'
-            os.remove(fname)
-
-
-    def subtract_parallel(self, data_in, n_unit, n_time, 
-                          deconv_chunk_dir):
-        '''
-        '''
-        
-        indexes = data_in[0]
-        local_spike_train=data_in[1]
-        proc_index = indexes[2]
-
-        fname = deconv_chunk_dir+ '/residual_seg_'+str(proc_index)+'.npy'
-        if os.path.exists(fname)==True:
-            return
-
-        # note only derasterize up to last bit, don't remove spikes from 
-        # buffer_size end because those will be looked at by next chunk
-        # load indexes and then index into original data
-
-        idx_chunk = [indexes[0], indexes[1], self.buffer_size]
-        data = binary_reader(idx_chunk, 
-                             self.buffer_size, 
-                             self.standardized_filename, 
-                             self.n_chan)
-        data_blank = np.zeros(data.shape)
-
-        # Cat: TODO: try using shared memory for these
-        deconv_id_sparse_temp_map = np.load(deconv_chunk_dir+'/deconv_id_sparse_temp_map.npy')
-        sparse_templates = np.load(deconv_chunk_dir+'/sparse_templates.npy')
-
-        ptps = sparse_templates.ptp(0).max(0)
-        exclude_idx = np.where(ptps<self.min_ptp)[0]
-
-        # loop over units and subtract energy
-        unique_units = np.unique(local_spike_train[:,1])
-        for i in unique_units:
-            unit_sp = local_spike_train[local_spike_train[:, 1] == i, :]
-
-            # subtract data from both the datachunk and blank version
-            template_id = int(deconv_id_sparse_temp_map[i])
-
-            # exclude some templates from residual computation
-            if template_id in exclude_idx:
-                continue
-            
-            data[np.arange(0, n_time) + unit_sp[:, :1], :] -= sparse_templates[:, :, template_id]
-
-            #data_blank[np.arange(0, n_time) + unit_sp[:, :1], :] -= sparse_templates[:, :, template_id]
-
-        # Cat: TODO: This still leaves edge artifacts in; should fix at some point
-        #       So the problem is that if a large spike is on the buffer border, only
-        #       the onside part will be deleted, the part in the buffer will be left alone
-        #       the correct way to fix this is to add overlapping buffers back to raw...
-
-        # remove the buffer contributions x 2 so they can be properly added in after
-        # note: this will make a small error in the first buffer and last buffer for
-        # entire dataset; can fix this with some conditional
-        #data[:self.buffer_size]-=data_blank[:self.buffer_size]
-        #data[-self.buffer_size:]-=data_blank[-self.buffer_size:]
-        
-        # hard save or parmap can't hold entire data set
-        np.save(fname, data)
-        
