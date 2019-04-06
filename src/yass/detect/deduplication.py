@@ -14,7 +14,7 @@ def run_deduplication(batch_files_dir, output_directory):
 
     batch_ids = list(np.arange(len(os.listdir(batch_files_dir))))
     if CONFIG.resources.multi_processing:
-        parmap.map(deduplicate,
+        parmap.map(run_deduplication_batch,
                    batch_ids,
                    batch_files_dir,
                    output_directory,
@@ -23,26 +23,21 @@ def run_deduplication(batch_files_dir, output_directory):
                    pm_pbar=True)
     else:
         for batch_id in batch_ids:
-            deduplicate(batch_id,
-                        batch_files_dir,
-                        output_directory,
-                        neighbors)
+            run_deduplication_batch(
+                batch_id,
+                batch_files_dir,
+                output_directory,
+                neighbors)
 
-
-def deduplicate(batch_id, batch_files_dir,
+def run_deduplication_batch(batch_id, batch_files_dir,
                 output_directory, neighbors):
-    
-    # default window for deduplication in timesteps
-    # Cat: TODO: read from CONFIG file
-    w=5
-
     # save name
     fname_save = os.path.join(
         output_directory,
         "dedup_"+str(batch_id).zfill(5)+'.npy')
     if os.path.exists(fname_save):
         return
-        
+
     # load input data
     fname = os.path.join(
         batch_files_dir,
@@ -50,6 +45,22 @@ def deduplicate(batch_id, batch_files_dir,
     data = np.load(fname)
     spike_index = data['spike_index']
     energy = data['energy']
+
+    idx_survived = []
+    for ctr in range(len(spike_index)):
+        idx_survived.append(
+            deduplicate(spike_index[ctr],
+                        energy[ctr],
+                        neighbors))
+
+    # save output
+    np.save(fname_save, idx_survived)
+    
+def deduplicate(spike_index, energy, neighbors):
+    
+    # default window for deduplication in timesteps
+    # Cat: TODO: read from CONFIG file
+    w=5
     
     # sort by time
     idx_sort = np.argsort(spike_index[:,0])
@@ -104,5 +115,4 @@ def deduplicate(batch_id, batch_files_dir,
         idx = list(cc)
         idx_survive[idx[np.argmax(energy[idx])]] = 1
 
-    # save output
-    np.save(fname_save, idx_sort[idx_survive])
+    return idx_sort[idx_survive]

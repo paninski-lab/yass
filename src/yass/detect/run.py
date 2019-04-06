@@ -127,11 +127,10 @@ def run(standardized_path, standardized_params,
     run_deduplication(output_temp_files,
                       dedup_output)
 
-
     ##### gather results #####
-    gather_result(output_temp_files,
-                  dedup_output,
-                  fname_spike_index)
+    gather_result(fname_spike_index,
+                  output_temp_files,
+                  dedup_output)
 
     return fname_spike_index
     
@@ -155,8 +154,6 @@ def run_neural_network(standardized_path, standardized_params,
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
-
-    GPU_ENABLED = running_on_gpu()
 
     # make tensorflow tensors and neural net classes
     detection_th = CONFIG.detect.neural_network_detector.threshold_spike
@@ -184,13 +181,14 @@ def run_neural_network(standardized_path, standardized_params,
     else:
         n_batches = int(np.ceil(
             CONFIG.detect.run_sec_chunk/float(n_sec_chunk)))
-    total_processing = int(
-        n_batches*np.ceil(n_sec_chunk/CONFIG.resources.n_sec_chunk_gpu))
+
+    n_mini_per_big_batch = int(np.ceil(n_sec_chunk/CONFIG.resources.n_sec_chunk_gpu))
+    total_processing = int(n_batches*n_mini_per_big_batch)
 
     # set tensorflow verbosity level
     tf.logging.set_verbosity(tf.logging.ERROR)
 
-    # open etsnrflow session
+    # open tensorflow session
     with tf.Session() as sess:
 
         NND.restore(sess)
@@ -204,17 +202,21 @@ def run_neural_network(standardized_path, standardized_params,
                 output_directory,
                 "detect_"+str(batch_id).zfill(5)+'.npz')
             if os.path.exists(fname):
+                processing_ctr += n_mini_per_big_batch
                 continue
 
             # get a bach of size n_sec_chunk
             # but partioned into smaller minibatches of 
             # size n_sec_chunk_gpu
-            batched_recordings, offset_list = reader.read_data_batch_batch(
+            batched_recordings, minibatch_loc_rel = reader.read_data_batch_batch(
                 batch_id,
                 CONFIG.resources.n_sec_chunk_gpu,
                 True)
+            
+            # offset for big batch
             batch_offset = reader.idx_list[batch_id, 0] - reader.buffer
-
+            # location of each minibatch (excluding buffer)
+            minibatch_loc = minibatch_loc_rel + batch_offset
             spike_index_list = []
             energy_list = []
             for j in range(batched_recordings.shape[0]):
@@ -223,7 +225,8 @@ def run_neural_network(standardized_path, standardized_params,
                     sess=sess,
                     output_names=('spike_index', 'waveform'))
 
-                spike_index[:, 0] += (offset_list[j] + batch_offset)
+                # update the location relative to the whole recording
+                spike_index[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
                 spike_index_list.append(spike_index)
 
                 # run AE nn; required for remove_axon function
@@ -237,10 +240,12 @@ def run_neural_network(standardized_path, standardized_params,
 
                 processing_ctr+=1
 
-            # save chunk of data in case crashes occur
+            # save result
             np.savez(fname,
-                     spike_index = np.vstack(spike_index_list),
-                     energy = np.hstack(energy_list))
+                     spike_index=spike_index_list,
+                     energy=energy_list,
+                     minibatch_loc=minibatch_loc)
+
 
 
 # TODO: PETER, refactor threshold detector
