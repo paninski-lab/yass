@@ -60,8 +60,8 @@ def partition_input(save_dir, max_time,
     spike_index = np.load(fname_spike_index)
     if fname_up is not None:
         up_data = np.load(fname_up)
-        spike_index_up = up_data['spike_train_upsampled']
-        templates_up = up_data['templates_upsampled']
+        spike_index_up = up_data['spike_train_up']
+        templates_up = up_data['templates_up']
 
     # consider only spikes times less than max_time
     idx_keep = np.where(spike_index[:,0] < max_time)[0]

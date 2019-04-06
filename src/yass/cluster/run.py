@@ -93,14 +93,15 @@ def run(fname_spike_index,
                                           fname_up)
 
     # data reader
-    if raw_data:
-        reader = READER(fname_recording,
+    reader_raw = READER(fname_recording,
                         recording_dtype,
                         CONFIG)
+    if fname_residual is not None:
+        reader_resid = READER(fname_residual,
+                              residual_dtype,
+                              CONFIG)
     else:
-        reader = READER(fname_residual,
-                        residual_dtype,
-                        CONFIG)
+        reader_resid = None
 
     # save location for intermediate results
     tmp_save_dir = os.path.join(output_directory, 'cluster_result')
@@ -123,7 +124,8 @@ def run(fname_spike_index,
         args_in.append([raw_data,
                         full_run,
                         CONFIG2,
-                        reader,
+                        reader_raw,
+                        reader_resid,
                         filename_postclustering,
                         fnames_input[ctr]])
 
@@ -143,19 +145,5 @@ def run(fname_spike_index,
     # first gather clustering result
     fname_templates, fname_spike_train = gather_clustering_result(
         tmp_save_dir, output_directory)
-    
-
-    # recompute templates if it is not from raw data
-    if not raw_data:
-        reader_raw = READER(fname_recording,
-                            recording_dtype,
-                            CONFIG)
-        fname_templates = recompute_templates(
-            fname_templates,
-            fname_spike_train,
-            reader_raw,
-            output_directory,
-            CONFIG.resources.multi_processing,
-            CONFIG.resources.n_processors)
         
     return fname_templates, fname_spike_train

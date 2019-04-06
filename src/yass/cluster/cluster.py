@@ -70,7 +70,16 @@ class Cluster(object):
                 if self.check_max_chan(template):
                     templates_final.append(template)
                     indices_train_final.append(indices_train_k)
+        
+        if (self.full_run) and (not self.raw_data):
+            templates_final_raw = []
+            for indices_train_k in indices_train_final:
+                template = self.get_templates_on_all_channels(indices_train_k)
+                if self.check_max_chan(template):
+                    templates_final_raw.append(template)
 
+            templates_final = templates_final_raw
+        
         # save clusters
         self.save_result(indices_train_final, templates_final)
 
@@ -177,13 +186,14 @@ class Cluster(object):
         self.raw_data = data_in[0]
         self.full_run = data_in[1]
         self.CONFIG = data_in[2]
-        self.reader = data_in[3]
-        self.filename_postclustering = data_in[4]
+        self.reader_raw = data_in[3]
+        self.reader_resid = data_in[4]
+        self.filename_postclustering = data_in[5]
         
         if os.path.exists(self.filename_postclustering):
             return True
         else:
-            input_data = np.load(data_in[5])
+            input_data = np.load(data_in[6])
             self.spike_times_original = input_data['spike_times']
             if not self.raw_data:
                 self.upsampled_templates = input_data['up_templates'].transpose(2,0,1)
@@ -267,7 +277,7 @@ class Cluster(object):
         # limit indexes away from edge of recording
         idx_inbounds = np.where(np.logical_and(
                         self.spike_times_original>=self.spike_size//2,
-                        self.spike_times_original<(self.reader.rec_len-self.spike_size)))[0]
+                        self.spike_times_original<(self.reader_raw.rec_len-self.spike_size)))[0]
         self.spike_times_original = self.spike_times_original[
             idx_inbounds].astype('int32')
         
@@ -329,17 +339,17 @@ class Cluster(object):
         else:
             idx_sampled = np.arange(len(self.spike_times_original))
 
-        smaple_spike_times = self.spike_times_original[idx_sampled]
+        sample_spike_times = self.spike_times_original[idx_sampled]
 
         if self.raw_data:
-            wf, _ = self.reader.read_waveforms(
-                smaple_spike_times, self.spike_size)
+            wf, _ = self.reader_raw.read_waveforms(
+                sample_spike_times, self.spike_size)
         # or from residual and add templates
         else:
             units_ids_sampled = self.upsampled_ids[idx_sampled]
-            wf, _ = self.reader.read_clean_waveforms(
-                smaple_spike_times, self.spike_size,
-                units_ids_sampled, self.upsampled_templates)
+            wf, _ = self.reader_resid.read_clean_waveforms(
+                sample_spike_times, units_ids_sampled,
+                self.upsampled_templates, self.spike_size)
 
         # find max channel
         self.channel = np.mean(wf, axis=0).ptp(0).argmax()
@@ -358,17 +368,17 @@ class Cluster(object):
         if local:
             self.loaded_channels = self.neighbor_chans
         else:
-            self.loaded_channels = np.arange(self.reader.n_channels)
+            self.loaded_channels = np.arange(self.reader_raw.n_channels)
 
         # load waveforms from raw data 
         spike_times = self.spike_times_original[self.indices_in]
         if self.raw_data:
-            self.wf_global, skipped_idx = self.reader.read_waveforms(
+            self.wf_global, skipped_idx = self.reader_raw.read_waveforms(
                 spike_times, self.spike_size, self.loaded_channels)
         # or from residual and add templates
         else:
-            units_ids = self.upsampled_ids[self.indices_in]
-            self.wf_global, skipped_idx = self.reader.read_clean_waveforms(
+            unit_ids = self.upsampled_ids[self.indices_in]
+            self.wf_global, skipped_idx = self.reader_resid.read_clean_waveforms(
                 spike_times, unit_ids, self.upsampled_templates,
                 self.spike_size, self.loaded_channels)
         
@@ -888,11 +898,19 @@ class Cluster(object):
         self.indices_in = indices_in
 
         local=False
+        
+        # temporarily change raw_data option to True
+        self_raw_data_orig = np.copy(self.raw_data)
+        self.raw_data = True
+        
         self.load_waveforms(local)
         self.align_step(local)
 
         template = np.median(self.wf_global, axis=0)
         
+        # change raw_data option back to the orignal
+        self.raw_data = self_raw_data_orig
+
         return template
     
     def check_max_chan(self, template):
