@@ -117,7 +117,8 @@ class READER(object):
         indexes += buffer
 
         n_mini_batches = len(indexes) - 1
-
+        
+        # add addtional buffer if needed
         if n_mini_batches*T_mini > T:
             T_extra = n_mini_batches*T_mini - T
 
@@ -125,12 +126,13 @@ class READER(object):
                 dtype=self.dtype)
 
             data = np.zeros((data, pad_zeros), axis=1)
-       
+
+        data_loc = np.zeros((n_mini_batches, 2), 'int32')
         data_batched = np.zeros((n_mini_batches, T_mini + 2*buffer, C))
         for k in range(n_mini_batches):
-            data_batched[k] = data[indexes[k]-buffer:indexes[k + 1]+buffer]
-                
-        return data_batched, indexes-buffer
+            data_batched[k] = data[indexes[k]-buffer:indexes[k+1]+buffer]
+            data_loc[k] = [indexes[k], indexes[k+1]]
+        return data_batched, data_loc
 
     def read_waveforms(self, spike_times, n_times=None, channels=None):
         '''
@@ -192,10 +194,13 @@ class READER(object):
             units = np.delete(units, skipped_idx)
 
         if channels is None:
-            channels = np.arange(n_channels)
+            channels = np.arange(self.n_channels)
 
         # add templates
         offset = (n_times - templates.shape[1])//2
-        wfs[:,offset:-offset]+=templates[:,:,channels][units]
-
+        if offset > 0:
+            wfs[:,offset:-offset]+= templates[:,:,channels][unit_ids]
+        else:
+            wfs += templates[:,:,channels][unit_ids]
+        
         return wfs, skipped_idx
