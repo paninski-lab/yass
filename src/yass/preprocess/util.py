@@ -103,7 +103,8 @@ def _standardize(rec, sd=None, centered=False):
 
 
 def filter_standardize_batch(batch_id, reader, low_frequency, high_factor, order,
-                       sampling_frequency, fname_sd, output_directory):
+                             sampling_frequency, fname_sd, out_dtype,
+                             output_directory):
     """Butterworth filter for a one dimensional time series
 
     Parameters
@@ -148,7 +149,7 @@ def filter_standardize_batch(batch_id, reader, low_frequency, high_factor, order
         output_directory,
         "standardized_{}.npy".format(
             str(batch_id).zfill(6)))
-    np.save(fname, ts)
+    np.save(fname, ts.astype(out_dtype))
 
 
 def get_std(ts, low_frequency, high_factor, order,

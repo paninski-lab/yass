@@ -235,10 +235,10 @@ def run_neural_network(standardized_path, standardized_params,
                 energy_ = np.ptp(np.matmul(score[:, :, 0], rot.T), axis=1)
                 energy_list.append(energy_)
 
-                logger.info('processed chunk: %s/%s,  # spikes: %s', 
-                  str(processing_ctr), str(total_processing), len(spike_index))
-
                 processing_ctr+=1
+
+            logger.info('processed chunk: %s/%s,  # spikes: %s', 
+                  str(processing_ctr), str(total_processing), len(spike_index))
 
             # save result
             np.savez(fname,

@@ -115,9 +115,11 @@ def run(output_directory):
 
     #get standard deviation using a small chunk of data
     chunk_5sec = 5*CONFIG.recordings.sampling_rate
+    if CONFIG.rec_len < chunk_5sec:
+        chunk_5sec = CONFIG.rec_len
     small_batch = reader.read_data(
-        data_start=CONFIG.rec_len//2 - chunk_5sec,
-        data_end=CONFIG.rec_len//2 + chunk_5sec)
+        data_start=CONFIG.rec_len//2 - chunk_5sec//2,
+        data_end=CONFIG.rec_len//2 + chunk_5sec//2)
 
     fname_sd = os.path.join(
         output_directory, 'standard_dev_value.npy')
@@ -145,6 +147,7 @@ def run(output_directory):
             order,
             sampling_rate,
             fname_sd,
+            CONFIG.preprocess.dtype,
             filtered_location,
             processes=n_processors,
             pm_pbar=True)
@@ -153,7 +156,8 @@ def run(output_directory):
             filter_standardize_batch(
                 batch_id, reader, low_frequency,
                 high_factor, order, sampling_rate,
-                fname_sd, filtered_location)
+                fname_sd, CONFIG.preprocess.dtype,
+                filtered_location)
 
     # Merge the chunk filtered files and delete the individual chunks
     merge_filtered_files(filtered_location, output_directory)
