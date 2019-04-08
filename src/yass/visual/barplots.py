@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import h5py
 import numpy as np
 import os
-from yass.cluster.cluster import binary_reader_waveforms
 import shutil
 
 def match_units(selected_unit, fname_templates, fname_spike_train, 
@@ -17,6 +16,7 @@ def match_units(selected_unit, fname_templates, fname_spike_train,
     spike_train_ground_truth = np.load(fname_spike_train_ground_truth)
     templates = np.load(fname_templates)
     spike_train = np.load(fname_spike_train)
+    spike_train[:,0]
         
     fname_out = os.path.join(save_dir, 'match_unit_{}.npz'.format(selected_unit))
 

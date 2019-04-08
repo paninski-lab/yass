@@ -150,6 +150,19 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         fname_spike_train_init,
         fname_up_init)
     
+    ## save the final
+    fname_templates_final = os.path.join(
+        TMP_FOLDER, 'templates.npy')
+    fname_spike_train_final = os.path.join(
+        TMP_FOLDER, 'spike_train.npy')
+    # tranpose axes
+    templates = np.load(fname_templates).transpose(1,2,0)
+    # align spike time to the beginning
+    spike_train = np.load(fname_spike_train)
+    spike_train[:,0] -= CONFIG.spike_size//2
+    np.save(fname_templates_final, templates)
+    np.save(fname_spike_train_final, spike_train)
+    
     total_time = time.time() - start
 
     ''' **********************************************
@@ -165,8 +178,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     
     logger.info('Finished YASS execution. Total time: {}'.format(
         human_readable_time(total_time)))
-    logger.info('Final Templates Location: '+fname_templates)
-    logger.info('Final Spike Train Location: '+fname_spike_train)
+    logger.info('Final Templates Location: '+fname_templates_final)
+    logger.info('Final Spike Train Location: '+fname_spike_train_final)
 
 
 def initial_block(TMP_FOLDER, standardized_path, standardized_params):

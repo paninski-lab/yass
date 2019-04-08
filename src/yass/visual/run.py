@@ -8,16 +8,16 @@ import yaml
 from tqdm import tqdm
 import parmap
 
-from yass.deconvolve.correlograms_phy import compute_correlogram
-from yass.deconvolve.notch import notch_finder
+#from yass.deconvolve.correlograms_phy import compute_correlogram
+#from yass.deconvolve.notch import notch_finder
 from yass.visual.util import compute_neighbours2, compute_neighbours_rf2, combine_two_spike_train, combine_two_rf
 from yass.geometry import parse, find_channel_neighbors
-from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans, binary_reader_waveforms, read_spikes
+from yass.template import align_get_shifts_with_ref, shift_chans
 from yass.cluster.util import get_normalized_templates
 from yass.cluster.util import pca_denoise
-from yass.deconvolve.merge import (template_dist_linear_align, 
-                                   template_spike_dist_linear_align, 
-                                   test_unimodality, get_l2_features)
+#from yass.deconvolve.merge import (template_dist_linear_align, 
+#                                   template_spike_dist_linear_align, 
+#                                   test_unimodality, get_l2_features)
 from yass.util import absolute_path_to_asset
 from yass import read_config
 

@@ -1,7 +1,7 @@
 import numpy as np
 import scipy
 from scipy.stats import t
-from yass.cluster.cluster import align_get_shifts_with_ref, shift_chans
+from yass.template import align_get_shifts_with_ref, shift_chans
 
 
 def two_templates_dist_linear_align(templates1, templates2, max_shift=5, step=0.5):

@@ -13,7 +13,7 @@ import networkx as nx
 from pkg_resources import resource_filename
 
 from yass import read_config
-from yass.cluster.cluster import upsample_resample, shift_chans
+from yass.template import upsample_resample, shift_chans
 
 def run():
     """RF computation
