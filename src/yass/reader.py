@@ -37,7 +37,6 @@ class READER(object):
        
 
     def read_data(self, data_start, data_end, channels=None):
-
         with open(self.bin_file, "rb") as fin:
             # Seek position and read N bytes
             fin.seek(data_start*self.dtype.itemsize*self.n_channels, os.SEEK_SET)
@@ -56,7 +55,6 @@ class READER(object):
 
         # batch start and end
         data_start, data_end = self.idx_list[batch_id]
-
         # add buffer if asked
         if add_buffer:
             data_start -= self.buffer
@@ -78,7 +76,6 @@ class READER(object):
 
         # read data
         data = self.read_data(data_start, data_end, channels)
-
         # add leftover buffer with zeros if necessary
         if add_buffer:
             left_buffer = np.zeros(
@@ -117,7 +114,6 @@ class READER(object):
         indexes += buffer
 
         n_mini_batches = len(indexes) - 1
-        
         # add addtional buffer if needed
         if n_mini_batches*T_mini > T:
             T_extra = n_mini_batches*T_mini - T
@@ -125,8 +121,7 @@ class READER(object):
             pad_zeros = np.zeros((T_extra, C),
                 dtype=self.dtype)
 
-            data = np.zeros((data, pad_zeros), axis=1)
-
+            data = np.concatenate((data, pad_zeros), axis=0)
         data_loc = np.zeros((n_mini_batches, 2), 'int32')
         data_batched = np.zeros((n_mini_batches, T_mini + 2*buffer, C))
         for k in range(n_mini_batches):
@@ -191,7 +186,7 @@ class READER(object):
         wfs, skipped_idx = self.read_waveforms(spike_times, n_times, channels)
 
         if len(skipped_idx) > 0:
-            units = np.delete(units, skipped_idx)
+            unit_ids = np.delete(unit_ids, skipped_idx)
 
         if channels is None:
             channels = np.arange(self.n_channels)
