@@ -9,15 +9,15 @@ from yass.merge.util import (partition_input,
                              align_templates)
 from yass.merge.merge import TemplateMerge
 
-def run_merge(output_directory,
-              raw_data,
-              fname_spike_train,
-              fname_templates,
-              fname_up=None,
-              fname_recording=None,
-              recording_dtype=None,
-              fname_residual=None,
-              residual_dtype=None):
+def run(output_directory,
+        raw_data,
+        fname_spike_train,
+        fname_templates,
+        fname_up=None,
+        fname_recording=None,
+        recording_dtype=None,
+        fname_residual=None,
+        residual_dtype=None):
 
     logger = logging.getLogger(__name__)
 

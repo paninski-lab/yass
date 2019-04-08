@@ -27,9 +27,8 @@ import yaml
 import yass
 from yass import set_config
 from yass import read_config
-from yass import preprocess, detect, cluster, deconvolve, residual, rf, visual
-from yass.postprocess.run import run_post_processes
-from yass.merge.run import run_merge
+from yass import (preprocess, detect, cluster, postprocess,
+                  deconvolve, residual, merge, rf, visual)
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
                        human_readable_time)
@@ -215,7 +214,7 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
         full_run)
     
     methods = ['low_ptp', 'duplicate', 'collision']
-    fname_templates, fname_spike_train = run_post_processes(
+    fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
         fname_spike_train,
@@ -281,7 +280,7 @@ def recluster_block(TMP_FOLDER,
         fname_up=fname_up)
     
     methods = ['low_ptp', 'duplicate', 'collision', 'high_mad']
-    fname_templates, fname_spike_train = run_post_processes(
+    fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
         fname_spike_train,
@@ -312,7 +311,7 @@ def recluster_block(TMP_FOLDER,
         standardized_params['dtype'],
         dtype_out='float32')
     
-    fname_templates, fname_spike_train = run_merge(
+    fname_templates, fname_spike_train = merge.run(
         os.path.join(TMP_FOLDER,
                      'post_deconv_merge'),
         False,

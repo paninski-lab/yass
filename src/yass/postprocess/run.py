@@ -11,7 +11,7 @@ from yass.postprocess.collision import remove_collision
 from yass.postprocess.mad import remove_high_mad
 from yass.postprocess.util import get_weights
 
-def run_post_processes(methods = [],
+def run(methods = [],
         fname_templates=None,
         fname_spike_train=None,
         output_directory=None,
