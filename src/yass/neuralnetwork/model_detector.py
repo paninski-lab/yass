@@ -246,11 +246,11 @@ class NeuralNetDetector(Model):
         both_higher = tf.logical_and(higher_than_max_pool,
                                      higher_than_threshold)
 
-        #index_all = tf.cast(tf.where(both_higher), 'int32')
+        index_all = tf.cast(tf.where(both_higher), 'int32')
 
-        #spike_index_tf = cls._remove_edge_spikes(x_tf, index_all,
-        #                                         waveform_length)
-        spike_index_tf = tf.cast(tf.where(both_higher), 'int32')
+        spike_index_tf = cls._remove_edge_spikes(x_tf, index_all,
+                                                 waveform_length)
+        #spike_index_tf = tf.cast(tf.where(both_higher), 'int32')
 
         # waveform output from spike index output
         waveform_tf = cls._make_waveform_tf(x_tf, spike_index_tf,
