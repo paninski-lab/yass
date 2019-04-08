@@ -19,8 +19,11 @@ class RESIDUAL(object):
         self.templates = up_data['templates_up']
         self.spike_train = up_data['spike_train_up']
 
-        self.n_time, self.n_chan, self.n_unit = self.templates.shape
-
+        self.n_unit, self.n_time, self.n_chan = self.templates.shape
+        
+        # shift spike times for easy indexing
+        self.spike_train[:,0] -= self.n_time//2
+        
         self.reader = reader
         self.reader.buffer = self.n_time
         self.fname_out = fname_out
@@ -71,7 +74,7 @@ class RESIDUAL(object):
         else:
             for ctr in range(len(batch_ids)):
                 self.subtract_parallel(
-                    batch_ids[ctr], fname_seg[ctr])
+                    batch_ids[ctr], fnames_seg[ctr])
 
         self.fnames_seg = fnames_seg
 
@@ -92,7 +95,7 @@ class RESIDUAL(object):
         for j in range(local_spike_train.shape[0]):
             tt, ii = local_spike_train[j]
 
-            data[time_idx + tt, :] -= self.templates[:, :, ii]
+            data[time_idx + tt, :] -= self.templates[ii]
 
         # remove buffer
         data = data[self.reader.buffer:-self.reader.buffer]

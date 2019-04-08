@@ -11,7 +11,7 @@ import logging
 # ********************************************************
 # ********************************************************
 
-def parallel_conv_filter(data_in, 
+def parallel_conv_filter(data_in,
                          n_time,
                          up_up_map,
                          unit_overlap,

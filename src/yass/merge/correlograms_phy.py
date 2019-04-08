@@ -239,3 +239,19 @@ def compute_correlogram(units, spike_train, sample_rate=20000, bin_width = 0.001
     
     return correlograms(spike_train[:,0]/float(sample_rate),spike_train[:,1],sample_rate=sample_rate, bin_size=bin_width, window_size=window_size)
 
+
+def compute_correlogram_v2(spt1, spt2, sample_rate=20000, bin_width = 0.001, window_size = 0.1):
+    
+    spt_all = np.hstack((spt1, spt2))
+    unit_ids = np.hstack((np.repeat(0, len(spt1)),
+                          np.repeat(1, len(spt2))))
+    
+    order_indexes = np.argsort(spt_all)
+    spt_all = spt_all[order_indexes]
+    unit_ids = unit_ids[order_indexes]
+    
+    return correlograms(spt_all/float(sample_rate),
+                        unit_ids,
+                        sample_rate=sample_rate,
+                        bin_size=bin_width,
+                        window_size=window_size)

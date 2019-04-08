@@ -6,7 +6,7 @@ import parmap
 from yass import read_config
 from yass.reader import READER
 from yass.deconvolve.match_pursuit import MatchPursuit_objectiveUpsample
-from yass.deconvolve.soft_assignment import get_soft_assignments
+#from yass.deconvolve.soft_assignment import get_soft_assignments
 
 def run(fname_templates,
         output_directory,
@@ -65,10 +65,10 @@ def run(fname_templates,
     
     # parameters
     # TODO: read from CONFIG
-    threshold = 20.
+    threshold = CONFIG.deconvolution.threshold
+    deconv_gpu = CONFIG.deconvolution.deconv_gpu
     conv_approx_rank = 10
-    upsample_max_val = 32.
-    deconv_gpu = False
+    upsample_max_val = 32
     max_iter = 1000
 
     reader = READER(recordings_filename,
@@ -122,24 +122,30 @@ def run(fname_templates,
     (templates_up,
      deconv_id_sparse_temp_map) = mp_object.get_sparse_upsampled_templates()
 
+    # since deconv spike time is not centered, get shift for centering
+    spike_size = np.load(fname_templates).shape[1]
+    shift = spike_size // 2
+
     # get spike train and save
     spike_train = np.copy(res)
     # map back to original id
     spike_train[:, 1] = np.int32(spike_train[:, 1]/mp_object.upsample_max_val)
+    spike_train[:, 0] += shift
     # save
     np.save(fname_spike_train, spike_train)
-
 
     # get upsampled data
     spike_train_up = np.copy(res)
     spike_train_up[:, 1] = deconv_id_sparse_temp_map[
                 spike_train_up[:, 1]]
+    spike_train_up[:, 0] += shift
+
     # save
     np.savez(fname_up,
              spike_train_up=spike_train_up,
-             templates_up=templates_up,
+             templates_up=templates_up.transpose(2,0,1),
              spike_train=spike_train,
-             templates=mp_object.temps)
+             templates=mp_object.temps.transpose(2,0,1))
 
     # Compute soft assignments
     #soft_assignments, assignment_map = get_soft_assignments(
