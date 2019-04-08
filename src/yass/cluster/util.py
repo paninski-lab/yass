@@ -5,8 +5,6 @@ import tqdm
 import parmap
 
 from yass.empty import empty
-from yass.template import shift_chans, align_get_shifts_with_ref
-from yass.util import absolute_path_to_asset
 
 def make_CONFIG2(CONFIG):
     ''' Makes a copy of several attributes of original config parameters
@@ -90,7 +88,7 @@ def partition_input(save_dir, max_time,
 
         if fname_up is not None:
             unique_up_ids = np.unique(up_id_list[unit])
-            up_templates = templates_up[:, :, unique_up_ids]
+            up_templates = templates_up[unique_up_ids]
             new_id_map = {iid: ctr for ctr, iid in enumerate(unique_up_ids)}
             up_id2 = [new_id_map[iid] for iid in up_id_list[unit]]
 
@@ -153,120 +151,6 @@ def gather_clustering_result(result_dir, out_dir):
     np.save(fname_spike_train, spike_train)
 
     return fname_templates, fname_spike_train
-
-def recompute_templates(fname_templates, fname_spike_train,
-                        reader, out_dir,
-                        multi_processing=None,
-                        n_processors=1):
-
-    logger = logging.getLogger(__name__)
-    
-    logger.info("recomputing templates")
-
-    # make output folder
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-        
-    # make temp folder
-    tmp_folder = os.path.join(out_dir, 'recompute')
-    if not os.path.exists(tmp_folder):
-        os.makedirs(tmp_folder)
-
-    # load templates
-    templates = np.load(fname_templates)
-    # get parameters
-    n_units, n_timepoints, n_channels = templates.shape
-    # resave it with different name
-    fname_templates_original = os.path.join(
-        out_dir, 'templates_original.npy')
-    np.save(fname_templates_original, templates)
-    # turn off
-    templates = None
-
-    # partition spike train per unit for multiprocessing
-    units, fnames_input = partition_input(
-        os.path.join(tmp_folder, 'partition'),
-        reader.rec_len,
-        fname_spike_train)
-
-
-    # gather input arguments
-    fnames_out = []
-    for unit in units:
-        fnames_out.append(os.path.join(
-            tmp_folder,
-            "template_unit_{}.npy".format(unit)))
-
-    # run computing function
-    if multi_processing:
-        parmap.starmap(compute_template,
-                   list(zip(fnames_input, fnames_out)),
-                   reader,
-                   n_timepoints,
-                   processes=n_processors,
-                   pm_pbar=True)
-    else:
-        for ctr in units:
-            compute_template(
-                fnames_input[ctr],
-                fnames_out[ctr],
-                reader,
-                n_timepoints)
-
-    # gather all info
-    templates_new = np.zeros((n_units, n_timepoints, n_channels))
-    for ctr, unit in enumerate(units):
-        if os.path.exists(fnames_out[ctr]):
-            templates_new[unit] = np.load(fnames_out[ctr])
-
-    fname_templates = os.path.join(out_dir, 'templates.npy')
-    np.save(fname_templates, templates_new)
-
-    return fname_templates
-
-
-def compute_template(fnames_input, fname_out, reader, spike_size):
-    
-    # load spike times
-    spike_times = np.load(fnames_input)['spike_times']
-
-    # subsample upto 1000
-    max_spikes = 1000
-    if len(spike_times) > max_spikes:
-        spike_times = np.random.choice(a=spike_times,
-                                       size=max_spikes,
-                                       replace=False)
-
-    # get waveforms
-    wf, _ = reader.read_waveforms(spike_times,
-                                  spike_size)
-
-    # max channel
-    mc = np.mean(wf, axis=0).ptp(0).argmax()
-
-    # load reference template
-    ref_template = np.load(absolute_path_to_asset(
-            os.path.join('template_space', 'ref_template.npy')))
-
-    # get shift
-    cut_edge = (spike_size - len(ref_template))//2
-    if cut_edge > 0:
-        best_shifts = align_get_shifts_with_ref(
-            wf[:, cut_edge:-cut_edge, mc],
-            ref_template)
-    else:
-        best_shifts = align_get_shifts_with_ref(
-            wf[:, :, mc],
-            ref_template)
-
-    # shift
-    wf = shift_chans(wf, best_shifts)
-
-    # save result
-    np.save(fname_out,np.median(wf, axis=0))
-    
-
-
 
 def get_normalized_templates(templates, neigh_channels, ref_template):
 

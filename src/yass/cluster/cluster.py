@@ -72,13 +72,16 @@ class Cluster(object):
                     indices_train_final.append(indices_train_k)
         
         if (self.full_run) and (not self.raw_data):
-            templates_final_raw = []
+            templates_final_2 = []
+            indices_train_final_2 = []
             for indices_train_k in indices_train_final:
                 template = self.get_templates_on_all_channels(indices_train_k)
                 if self.check_max_chan(template):
-                    templates_final_raw.append(template)
+                    templates_final_2.append(template)
+                    indices_train_final_2.append(indices_train_k)
 
-            templates_final = templates_final_raw
+            templates_final = templates_final_2
+            indices_train_final = indices_train_final_2
         
         # save clusters
         self.save_result(indices_train_final, templates_final)
@@ -196,7 +199,7 @@ class Cluster(object):
             input_data = np.load(data_in[6])
             self.spike_times_original = input_data['spike_times']
             if not self.raw_data:
-                self.upsampled_templates = input_data['up_templates'].transpose(2,0,1)
+                self.upsampled_templates = input_data['up_templates']
                 self.upsampled_ids = input_data['up_ids']
 
         ''' ******************************************

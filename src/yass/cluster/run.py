@@ -9,8 +9,7 @@ from yass.reader import READER
 from yass.cluster.cluster import Cluster
 from yass.cluster.util import (make_CONFIG2, 
                                partition_input,
-                               gather_clustering_result,
-                               recompute_templates)
+                               gather_clustering_result)
 
 def run(fname_spike_index,
         fname_recording,
