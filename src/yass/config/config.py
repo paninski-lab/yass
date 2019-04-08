@@ -147,11 +147,6 @@ class Config:
         # FIXME: not raising errors due to schema validation for now
         mapping = validate(mapping, silent=True)
 
-        _processes = mapping['resources']['processes']
-        mapping['resources']['processes'] = (multiprocess.cpu_count()
-                                             if _processes == 'max'
-                                             else _processes)
-
         self._frozenjson = FrozenJSON(mapping)
 
         if output_directory is not None:

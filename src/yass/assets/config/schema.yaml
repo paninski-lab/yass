@@ -34,16 +34,6 @@ resources:
   type: dict
   required: True
   schema:
-    # maximum memory allowed in batch processing, can be a number (bytes)
-    # or a string such as 1000MB, 2GB
-    max_memory:
-      type: [integer, string]
-      required: True
-    max_memory_gpu:
-      type: [integer, string]
-      required: False
-      default: 1GB
-    # CAT NEW SCHEMA
     multi_processing: 
       type: [integer, string]
       required: True
@@ -55,14 +45,11 @@ resources:
     n_sec_chunk: 
       type: [integer, string]
       required: True
-      default: 1
-    # END OF CAT NEW SCHEMA
-    # processes section added on master
-    processes:
+      default: 2
+    n_sec_chunk_gpu:
       type: [integer, string]
-      required: False
-      default: max
-
+      required: True
+      default: 1
 
 recordings:
   type: dict
@@ -88,21 +75,10 @@ recordings:
     spike_size_ms:
       type: float
       required: True
-    # Recordings order, one of ('channels', 'samples'). In a dataset with k
-    # observations per channel and j channels: 'channels' means first k contiguous
-    # observations come from channel 0, then channel 1, and so on. 'sample'
-    # means first j contiguous data are the first observations from
-    # all channels, then the second observations from all channels and so on
-    order:
-      type: string
-      required: True
-      allowed: [channels, samples]
 
 preprocess:
   type: dict
   default:
-    if_file_exists: skip
-    save_results: True
     apply_filter: True
     dtype: float64
     filter:
@@ -110,15 +86,6 @@ preprocess:
       low_pass_freq: 300
       high_factor: 0.1
   schema:
-    if_file_exists:
-      type: string
-      allowed: [abort, overwrite, skip]
-      required: False
-      default: skip
-    save_results:
-      type: boolean
-      default: True
-      required: True
     # apply butterworth filter in the preprocessing step?
     apply_filter:
       type: boolean
@@ -146,36 +113,21 @@ preprocess:
         high_factor:
           type: float
           default: 0.1
-
-
 detect:
   type: dict
   default:
-    if_file_exists: skip
-    save_results: True
     method: nn
     temporal_features: 3
     neural_network_detector:
       filename: detect_nn1.ckpt
       threshold_spike: 0.5
-    neural_network_triage:
-      filename: triage-31wf7ch-15-Aug-2018@00-17-16.h5
-      threshold_collision: 0.5
     neural_network_autoencoder:
       filename: ae_nn1.ckpt
     threshold_detector:
       std_factor: 4
+    run_sec_chunk: full
 
   schema:
-    if_file_exists:
-      type: string
-      allowed: [abort, overwrite, skip]
-      required: False
-      default: skip
-    save_results:
-      type: boolean
-      default: True
-      required: True
     # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
     method:
       type: string
@@ -199,13 +151,6 @@ detect:
         filename: detect_nn1.ckpt
         # Threshold for spike event detection
         threshold_spike: 0.5
-    neural_network_triage:
-      type: dict
-      default:
-        # same rules apply as in neural_network_detector.filename but the
-        # yaml file should only contain size (not number)
-        filename: triage-31wf7ch-15-Aug-2018@00-17-16.h5
-        threshold_collision: 0.5
     neural_network_autoencoder:
       type: dict
       default:
@@ -220,58 +165,16 @@ detect:
 cluster:
   type: dict
   default:
-    save_results: True
-    if_file_exists: skip
-    masking_threshold: [0.9, 0.5]
-    n_split: 5
-    method: voltage_features
     max_n_spikes: 10000
     min_spikes: 100
-    merge_threshold: 0.90
     prior:
       beta: 1
       a: 1
       lambda0: 0.01
       nu: 5
-      V: 2
-    coreset:
-      clusters: 10
-      threshold: 0.95
-    triage:
-      nearest_neighbors: 20
-      percent: 0.1
+      V: 4
 
   schema:
-    if_file_exists:
-      type: string
-      allowed: [abort, overwrite, skip]
-      required: False
-      default: skip
-    save_results:
-      type: boolean
-      default: True
-      required: True
-    # Masking threshold
-    masking_threshold:
-      type: list
-      default: [0.9, 0.5]
-    # Num. of new clusters in split
-    n_split:
-      type: integer
-      default: 5
-    # Choose 'location' for location (x and y : 2 features) + main channel 
-    # features (n_feature dimensional) as the feature space. Calculates the location 
-    # of the events using a weighted average of the power in the main_channel 
-    # and neighboring channels.
-    # Choose 'neigh_chan' for n_feature x neighboring_channels dimensional feature 
-    # space. The feature space is defined by feature summarization of the waveforms 
-    # into n_feature dimensional feature space for only the main_channel and the 
-    method:
-      type: string
-      default: location
-    # maximum number of spikes per clustering group
-    # if the total number of spikes per clustering group exceeds it,
-    # it randomly subsample
     max_n_spikes:
         type: integer
         default: 10000
@@ -280,14 +183,8 @@ cluster:
     # the cluster is killed
     min_spikes:
         type: integer
-        default: 0        
+        default: 0
     # the cluster is killed
-    
-    # merge_threshold for merging templates based on cos similarity matrix
-    merge_threshold:
-        type: float
-        default: 0.90   
-        
     prior:
       type: dict
       default:
@@ -313,115 +210,8 @@ cluster:
           type: integer
           default: 2
 
-    triage:
-      type: dict
-      default:
-        nearest_neighbors: 20
-        percent: 0.1
-      schema:
-        # number of nearest neighbors to consider
-        nearest_neighbors:
-          type: integer
-          default: 20
-        # percentage of data to be triaged
-        percent:
-          type: float
-          default: 0.1
-
-    coreset:
-      type: dict
-      default:
-        clusters: 10
-        threshold: 0.95
-      schema:
-        # Num. of clusters
-        clusters:
-          type: integer
-          default: 10
-        # distance threshold
-        threshold:
-          type: float
-          default: 0.95
-
-# FIXME: yass.templates.run was removed, a lot of options here are probably
-# no longer used
-templates:
-  type: dict
-  default:
-    save_results: True
-    if_file_exists: skip
-    max_shift: 3
-    merge_threshold: [0.85, 0.8]
-  schema:
-    if_file_exists:
-      type: string
-      allowed: [abort, overwrite, skip]
-      required: False
-      default: skip
-    save_results:
-      type: boolean
-      default: True
-      required: True
-    max_shift:
-      type: integer
-      required: False
-      default: 3
-    merge_threshold:
-      type: list
-      required: False
-      default: [0.85, 0.8]
-
 deconvolution:
   type: dict
   default:
-    if_file_exists: skip
-    save_results: True
-    n_rf: 1.5
-    threshold_a: 0.3
-    threshold_dd: 0
-    n_explore: 2 
-    upsample_factor: 5
-  schema:
-    if_file_exists:
-      type: string
-      allowed: [abort, overwrite, skip]
-      required: False
-      default: skip
-    save_results:
-      type: boolean
-      default: True
-      required: True
-    verbose:
-      type: boolean
-      default: False
-      required: False
-    # refractory period violation in time bins
-    n_rf:
-      type: float
-      default: 1.5
-    # threshold on template scale
-    threshold_a:
-      type: float
-      default: 0.3
-    # threshold on decrease in L2 difference
-    threshold_dd:
-      type: float
-      default: 0
-    # size of windows to look consider around spike time for deconv. 
-    n_explore:
-      type: integer
-      default: 2
-    
-    # number of minimum spikes required for tempalte to be included:
-    max_spikes:
-      type: integer
-      default: 20
-  
-    # upsampling factor of templates
-    upsample_factor:
-      type: integer
-      default: 5
-    # number of features for svd compression
-    n_features:
-      type: integer
-      default: 3
+    threshold: 20
+    deconv_gpu: False

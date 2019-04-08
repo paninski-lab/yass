@@ -50,8 +50,6 @@ def validate(mapping, silent=True):
     # expand paths to filenames
     expand_asset_model(document, 'detect', 'neural_network_detector',
                        'filename')
-    expand_asset_model(document, 'detect', 'neural_network_triage',
-                       'filename')
     expand_asset_model(document, 'detect', 'neural_network_autoencoder',
                        'filename')
 

@@ -1,8 +1,6 @@
-import numpy as np
-from os import path
-
+import os
 import yass
-from yass import preprocess, cluster, deconvolve, detect, read_config
+from yass import preprocess, cluster, deconvolve, detect
 
 
 def test_deconvolution(patch_triage_network, path_to_config,
@@ -10,22 +8,24 @@ def test_deconvolution(patch_triage_network, path_to_config,
     yass.set_config(path_to_config, make_tmp_folder)
 
     (standardized_path,
-     standardized_params,
-     whiten_filter) = preprocess.run()
+     standardized_params) = preprocess.run(
+        os.path.join(make_tmp_folder, 'preprocess'))
 
-    spike_index_all = detect.run(standardized_path,
-                                 standardized_params,
-                                 whiten_filter)
+    spike_index_path = detect.run(
+        standardized_path, standardized_params,
+        os.path.join(make_tmp_folder, 'detect'))
 
-    cluster.run(None, spike_index_all)
+    fname_templates, fname_spike_train = cluster.run(
+        spike_index_path,
+        standardized_path,
+        standardized_params['dtype'],
+        os.path.join(make_tmp_folder, 'cluster'),
+        True,
+        True)
 
-    CONFIG = read_config()
-    TMP_FOLDER = CONFIG.path_to_output_directory
-
-    path_to_spike_train_cluster = path.join(TMP_FOLDER,
-                                            'spike_train_cluster.npy')
-    spike_train_cluster = np.load(path_to_spike_train_cluster)
-    templates_cluster = np.load(path.join(TMP_FOLDER, 'templates_cluster.npy'))
-
-    spike_train, postdeconv_templates = deconvolve.run(spike_train_cluster,
-                                                       templates_cluster)
+    fname_spike_train, fname_up = deconvolve.run(
+        fname_templates,
+        os.path.join(make_tmp_folder,
+                     'deconv'),
+        standardized_path,
+        standardized_params['dtype'])

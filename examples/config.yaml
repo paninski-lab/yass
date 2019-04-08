@@ -11,15 +11,14 @@ data:
   geometry: geometry.npy
 
 resources:
-  # maximum memory per batch allowed (only relevant for preprocess
-  # and detection step, which perform batch processing)
-  max_memory: 200MB
-  # maximum memory per batch allowed (only relevant for detection step
-  # which uses tensorflow GPU is available)
-  max_memory_gpu: 1GB
-  # number of processes to use for operations that support parallel execution,
-  # 'max' will use all cores, if you as an int, it will use that many cores
-  processes: max
+  #CPU multi-processing flag: 1 = use multiple cores
+  multi_processing: 1
+  #Number of cores to use
+  n_processors: 6
+  #Length of processing chunk in seconds for multi-processing stages
+  n_sec_chunk: 2
+  # n_sec_chunk for gpu
+  n_sec_chunk_gpu: 1
 
 recordings:
   # precision of the recording – must be a valid numpy dtype
@@ -32,10 +31,18 @@ recordings:
   # yass.geometry.find_channel_neighbors for details
   spatial_radius: 70
   # temporal length of waveforms in ms
-  spike_size_ms: 1.5
-  # recordings order, one of ('channels', 'samples'). In a dataset with k
-  # observations per channel and j channels: 'channels' means first k
-  # contiguous observations come from channel 0, then channel 1, and so on.
-  # 'sample' means first j contiguous data are the first observations from
-  # all channels, then the second observations from all channels and so on
-  order: samples
+  spike_size_ms: 3
+  
+preprocess:
+  # apply butterworth filter in the preprocessing step
+  apply_filter: True
+  # output dtype for transformed data
+  dtype: float32
+  # filter configuration
+  filter:
+    # Order of Butterworth filter
+    order: 3
+    # Low pass frequency (Hz)
+    low_pass_freq: 300
+    # High pass factor (proportion of sampling rate)
+    high_factor: 0.45

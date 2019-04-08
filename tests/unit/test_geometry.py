@@ -2,9 +2,7 @@ import pytest
 import numpy as np
 from yass import geometry
 from yass.geometry import (parse, find_channel_neighbors,
-                           n_steps_neigh_channels,
-                           make_channel_index)
-from yass.preprocess import whiten
+                           n_steps_neigh_channels)
 from yass.threshold import detect
 
 
@@ -58,16 +56,3 @@ def test_can_use_threshold_detector(data, data_info, path_to_geometry):
                      data_info['recordings']['sampling_rate'] / (2 * 1000)))
 
     detect._threshold(data, neighbors, spike_size, 5)
-
-
-def test_can_compute_whiten_matrix(data, data_info, path_to_geometry):
-    geometry = parse(path_to_geometry, data_info['recordings']['n_channels'])
-    neighbors = find_channel_neighbors(geometry, radius=70)
-    channel_index = make_channel_index(neighbors, geometry)
-
-    # FIXME: using the same formula from yass/config/config.py, might be
-    # better to avoid having this hardcoded
-    spike_size = int(np.round(data_info['recordings']['spike_size_ms'] *
-                     data_info['recordings']['sampling_rate'] / (2 * 1000)))
-
-    whiten._matrix(data, channel_index, spike_size)

@@ -15,15 +15,14 @@ data:
   geometry: geometry.npy
 
 resources:
-  # maximum memory per batch allowed (only relevant for preprocess
-  # and detection step, which perform batch processing)
-  max_memory: 200MB
-  # maximum memory per batch allowed (only relevant for detection step
-  # which uses tensorflow GPU is available)
-  max_memory_gpu: 1GB
-  # number of processes to use for operations that support parallel execution,
-  # 'max' will use all cores, if you as an int, it will use that many cores
-  processes: max
+  # CPU multi-processing flag: 1 = use multiple cores
+  multi_processing: 1
+  # Number of cores to use
+  n_processors: 6
+  # Length of processing chunk in seconds for multi-processing stages
+  n_sec_chunk: 5
+  # n_sec_chunk for gpu
+  n_sec_chunk_gpu: 1
 
 recordings:
   # precision of the recording – must be a valid numpy dtype
@@ -36,20 +35,9 @@ recordings:
   # yass.geometry.find_channel_neighbors for details
   spatial_radius: 70
   # temporal length of waveforms in ms
-  spike_size_ms: 1.5
-  # recordings order, one of ('channels', 'samples'). In a dataset with k
-  # observations per channel and j channels: 'channels' means first k
-  # contiguous observations come from channel 0, then channel 1, and so on.
-  # 'sample' means first j contiguous data are the first observations from
-  # all channels, then the second observations from all channels and so on
-  order: samples
+  spike_size_ms: 3
 
 preprocess:
-  # One of 'overwrite', 'abort', 'skip'. Control de behavior for every
-  # generated file. If 'overwrite' it replaces the files if any exist,
-  # if 'abort' it raises a ValueError exception if any file exists,
-  # if 'skip' it skips the operation (and loads the files) if they exist
-  if_file_exists: skip
   # apply butterworth filter in the preprocessing step
   apply_filter: True
   # output dtype for transformed data
@@ -64,15 +52,12 @@ preprocess:
     high_factor: 0.1
 
 detect:
-  # similar to preprocess.if_file_exists
-  if_file_exists: skip
-  # whether to save results from this step to disk
-  save_results: False
+  # chunk of data to run detection
+  # either 'full' or integer. 
+  # If integer, run on first n_sec_chunk seconds of data
+  run_sec_chunk: full
   # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
-  method: threshold
-  # number of features in the temporal dimension to use when applying
-  # dimensionality reduction
-  temporal_features: 3
+  method: nn
   # Configuration parameters when when detect.method = 'nn'
   neural_network_detector:
     # model name, can be any of the models included in yass (detectnet1.ckpt),
@@ -83,14 +68,9 @@ detect:
     # should be named exactly as your model but with yaml extension
     # see yass/src/assets/models/ for an example
     filename: detect_nn1.ckpt
+    #filename: /ssd/data/peter/yass_nn/edu_nn_oct3/2018-10-03T02-40-52.ckpt
     # Threshold for spike event detection
-    threshold_spike: 0.5
-  neural_network_triage:
-    # same rules apply as in neural_network_detector.filename but the
-    # yaml file should only contain size (not number)
-    filename: triage-31wf7ch-15-Aug-2018@00-17-16.h5
-    # Threshold for clear/collision detection
-    threshold_collision: 0.5
+    threshold_spike: 0.1
   neural_network_autoencoder:
     # same rules apply as in neural_network_detector.filename but no
     # yaml file is needed
@@ -99,72 +79,19 @@ detect:
   threshold_detector:
     std_factor: 4
 
-
-# All values are optional
 cluster:
-  # similar to preprocess.if_file_exists
-  if_file_exists: skip
-  # similar to detect.save_results
-  save_results: False
-  # Masking threshold
-  masking_threshold: [0.9, 0.5]
-  # Num. of new clusters in split
-  n_split: 5
-  # Choose 'location' for location (x and y : 2 features) + main channel 
-  # features (n_feature dimensional) as the feature space. Calculates the location 
-  # of the events using a weighted average of the power in the main_channel 
-  # and neighboring channels.
-  # Choose 'neigh_chan' for n_feature x neighboring_channels dimensional feature 
-  # space. The feature space is defined by feature summarization of the waveforms 
-  # into n_feature dimensional feature space for only the main_channel and the 
-  # neighboring channels (This key (clustering.clustering_method) is not optional)
-  method: location
   # maximum number of spikes per clustering group
   # if the total number of spikes per clustering group exceeds it,
   # it randomly subsample
-  max_n_spikes: 10000
-  # minimum number of spikes per cluster
-  # if the total number of spikes per cluster is less than this,
-  # the cluster is killed
-  min_spikes: 0
+  max_n_spikes: 50000
   # cluster prior information
   prior:
     beta: 1
     a: 1
     lambda0: 0.01
     nu: 5
-    V: 2
-  # FIXME: docs, seems like this section only applies when cluster.method
-  # != location
-  triage:
-    # number of nearest neighbors to consider
-    nearest_neighbors: 20
-    # percentage of data to be triaged
-    percent: 0.1
-
-  coreset:
-    # number of clusters
-    clusters: 10
-    # distance threshold
-    threshold: 0.95
-
-templates:
-  # similar to preprocess.if_file_exists
-  if_file_exists: skip
-  # similar to detect.save_results
-  save_results: False
-  # how much shift to allow for template alignment
-  max_shift: 3
-  merge_threshold: [0.8, 0.7]
+    V: 4
 
 deconvolution:
-  # refractory period violation in time bins
-  n_rf: 1.5
-  # threshold on template scale
-  threshold_a: 0.3
-  # threshold on decrease in L2 difference
-  threshold_dd: 0
-  # size of windows to look consider around spike time for deconv. 
-  n_explore: 2 
-  # upsampling factor of templates
-  upsample_factor: 5
+    threshold: 20
+    deconv_gpu: False
