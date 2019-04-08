@@ -2,7 +2,7 @@ import numpy as np
 import os
 import parmap
 
-from yass.post_cluster.util import run_deconv
+from yass.post_process.util import run_deconv
 
 def remove_collision(fname_templates, save_dir, units_in=None,
                       multi_processing=False, n_processors=1):

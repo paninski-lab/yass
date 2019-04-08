@@ -11,17 +11,21 @@ def get_weights(fname_templates, fname_spike_train, out_dir):
     templates = np.load(fname_templates)
     spike_train = np.load(fname_spike_train)
 
+    # number of units
+    n_units = templates.shape[0]
+
     # compute weights
-    weights = np.zeros(templates.shape[0], 'int32')
-    unique_ids, unique_weights = np.unique(spike_train[:,1],
+    weights = np.zeros(n_units, 'int32')
+    unique_ids, unique_weights = np.unique(spike_train[:, 1],
                                            return_counts=True)
+
     weights[unique_ids] = unique_weights
     
     # save
     fname_weights = os.path.join(out_dir, 'weights.npy')
     np.save(fname_weights, weights)
 
-    return fname_weights
+    return fname_weights, n_units
 
 def run_deconv(data, templates, up_factor):
 

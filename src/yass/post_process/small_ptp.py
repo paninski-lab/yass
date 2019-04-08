@@ -1,10 +1,7 @@
 import numpy as np
 import os
 
-def remove_small_units(fname_templates, threshold=3, units_in=None):
-    
-    # load templates and spike train
-    templates = np.load(fname_templates)
+def remove_small_units(templates, threshold=3, units_in=None):
 
     if units_in is None:
         n_units = templates.shape[0]

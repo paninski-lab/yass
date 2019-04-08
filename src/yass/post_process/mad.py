@@ -3,7 +3,7 @@ import os
 import parmap
 import scipy
 
-from yass.post_cluster.util import run_deconv, partition_spike_time
+from yass.post_process.util import run_deconv, partition_spike_time
 
 def remove_high_mad(fname_templates,
                     fname_spike_train,
