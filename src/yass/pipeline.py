@@ -28,7 +28,7 @@ import yass
 from yass import set_config
 from yass import read_config
 from yass import preprocess, detect, cluster, deconvolve, residual, rf, visual
-from yass.post_process.run import run_post_processes
+from yass.postprocess.run import run_post_processes
 from yass.merge.run import run_merge
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,

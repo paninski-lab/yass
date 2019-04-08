@@ -4,12 +4,12 @@ import os
 
 from yass import read_config
 from yass.reader import READER
-from yass.post_process.small_ptp import remove_small_units
-from yass.post_process.low_fr import remove_low_fr_units
-from yass.post_process.duplicate import remove_duplicates
-from yass.post_process.collision import remove_collision
-from yass.post_process.mad import remove_high_mad
-from yass.post_process.util import get_weights
+from yass.postprocess.small_ptp import remove_small_units
+from yass.postprocess.low_fr import remove_low_fr_units
+from yass.postprocess.duplicate import remove_duplicates
+from yass.postprocess.collision import remove_collision
+from yass.postprocess.mad import remove_high_mad
+from yass.postprocess.util import get_weights
 
 def run_post_processes(methods = [],
         fname_templates=None,
