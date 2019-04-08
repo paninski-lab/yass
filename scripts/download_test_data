@@ -8,7 +8,7 @@ fi
 
 # Download test data and put it in the appropriate directories
 echo 'Downloading data...'
-curl $YASS_TESTING_DATA_URL -o yass-testing-data.zip
+curl $YASS_TESTING_DATA_URL -L -o yass-testing-data.zip
 
 unzip -q yass-testing-data.zip
 rm -f yass-testing-data.zip
