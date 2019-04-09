@@ -31,7 +31,7 @@ def remove_collision(fname_templates, save_dir, units_in=None,
                        processes=n_processors,
                        pm_pbar=True)      
     else:
-        for ctr in range(len(units)):
+        for ctr in range(len(units_in)):
             deconv_on_template(units_in[ctr],
                                fnames_out[ctr],
                                units_in, 
