@@ -119,13 +119,12 @@ def run(fname_templates,
     if CONFIG.resources.multi_processing:
         batches_in = np.array_split(batch_ids, CONFIG.resources.n_processors)
         fnames_in = np.array_split(fnames_out, CONFIG.resources.n_processors)
-        parmap.starmap(mp_object.run_cores,
+        parmap.starmap(mp_object.run,
                        list(zip(batches_in, fnames_in)),
                        processes=CONFIG.resources.n_processors,
                        pm_pbar=True)
     else:
-        for ctr in range(len(batch_ids)):
-            mp_object.run(batch_ids[ctr], fnames_out[ctr])
+        mp_object.run(batch_ids, fnames_out)
 
     # collect result
     res = []
