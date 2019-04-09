@@ -69,7 +69,8 @@ def run(fname_up,
     residual_object = RESIDUAL(fname_up,
                                reader,
                                fname_out,
-                               dtype_out)
+                               dtype_out,
+                               CONFIG)
 
     # compute residual
     seg_dir = os.path.join(output_directory, 'segs')

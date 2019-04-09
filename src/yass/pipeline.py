@@ -228,6 +228,7 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
         **********************************************
     '''
 
+    print ("running deoncv....")
     # run deconvolution
     fname_spike_train, fname_up = deconvolve.run(
         fname_templates,
@@ -236,6 +237,7 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
         standardized_path,
         standardized_params['dtype'])
 
+    print ("computing residuals ...")
     # compute residual
     fname_residual, residual_dtype = residual.run(
         fname_up,
