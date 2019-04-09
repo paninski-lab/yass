@@ -94,18 +94,33 @@ def run(fname_templates,
     if not os.path.exists(seg_dir):
         os.makedirs(seg_dir)
 
+    # skip files/batches already completed; this allows more even distribution
+    # across cores in case of restart
+    # Cat: TODO: if cpu is still being used by endusers, may wish to implement
+    #       dynamic file assignment here to deal with slow cores etc.
     fnames_out = []
     batch_ids = []
     for batch_id in range(reader.n_batches):
-        fnames_out.append(os.path.join(seg_dir,
+        fname_temp = os.path.join(seg_dir,
                           "seg_{}_deconv.npz".format(
-                              str(batch_id).zfill(6))))
+                              str(batch_id).zfill(6)))
+        if os.path.exists(fname_temp):
+            continue
+        fnames_out.append(fname_temp)
         batch_ids.append(batch_id)
         
     # run deconv for each batch
+    # if CONFIG.resources.multi_processing:
+        # parmap.starmap(mp_object.run_units,
+                       # list(zip(batch_ids, fnames_out)),
+                       # processes=CONFIG.resources.n_processors,
+                       # pm_pbar=True)
+
     if CONFIG.resources.multi_processing:
-        parmap.starmap(mp_object.run,
-                       list(zip(batch_ids, fnames_out)),
+        batches_in = np.array_split(batch_ids, CONFIG.resources.n_processors)
+        fnames_in = np.array_split(fnames_out, CONFIG.resources.n_processors)
+        parmap.starmap(mp_object.run_cores,
+                       list(zip(batches_in, fnames_in)),
                        processes=CONFIG.resources.n_processors,
                        pm_pbar=True)
     else:
