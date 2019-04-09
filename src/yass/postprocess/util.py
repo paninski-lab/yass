@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import scipy
+import datetime as dt
 
 def get_weights(fname_templates, fname_spike_train, out_dir):
     '''
@@ -29,6 +30,8 @@ def get_weights(fname_templates, fname_spike_train, out_dir):
 
 def run_deconv(data, templates, up_factor):
 
+    #start = dt.datetime.now().timestamp()
+
     # get shape
     n_units, n_times, n_chans = templates.shape
 
@@ -36,12 +39,15 @@ def run_deconv(data, templates, up_factor):
     norm_temps = np.square(templates).sum(axis=(1,2))
 
     # calculate objective function in deconv
+    #start2 = dt.datetime.now().timestamp()
+
     temps = np.flip(templates, axis=1)
     obj = np.zeros((n_units, n_times))
     for j in range(n_units):
         for c in range(n_chans):
             obj[j] += np.convolve(temps[j,:,c], data[:,c], 'same')
     obj = 2*obj - norm_temps[:, np.newaxis]
+    #print ("  obj fun time: ",  dt.datetime.now().timestamp() - start2)
 
     if np.max(obj) > 0:
         best_fit_unit = np.max(obj, axis=1).argmax()
@@ -69,6 +75,7 @@ def run_deconv(data, templates, up_factor):
         residual = data
         best_fit_unit = None
 
+    #print ("  total time: ",  dt.datetime.now().timestamp() - start)
     return residual, best_fit_unit
 
 def partition_spike_time(save_dir,

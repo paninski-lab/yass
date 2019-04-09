@@ -696,79 +696,163 @@ class MatchPursuit_objectiveUpsample(object):
         return self.iter_spike_train
 
         
-    def run(self, batch_id, fname_out):
+    # def run_units(self, batch_id, fname_out):
 
-        if os.path.exists(fname_out):
-            return
+        # if os.path.exists(fname_out):
+            # return
 
-        start_time = time.time()
+        # start_time = time.time()
         
-        # ********* run deconv ************
+        # # ********* run deconv ************
 
-        # read raw data for segment using idx_list vals
-        #self.load_data_from_memory()
-        self.data = self.reader.read_data_batch(batch_id, add_buffer=True)
+        # # read raw data for segment using idx_list vals
+        # #self.load_data_from_memory()
+        # self.data = self.reader.read_data_batch(batch_id, add_buffer=True)
 
-        #self.data = data.astype(np.float32)
-        self.data_len = self.data.shape[0]
+        # #self.data = data.astype(np.float32)
+        # self.data_len = self.data.shape[0]
         
-        # load pairwise conv filter OR TRY TO USE GLOBAL SHARED VARIABLE
-        self.pairwise_conv = np.load(os.path.join(
-            self.deconv_dir, "pairwise_conv.npy"))
+        # # load pairwise conv filter OR TRY TO USE GLOBAL SHARED VARIABLE
+        # self.pairwise_conv = np.load(os.path.join(
+            # self.deconv_dir, "pairwise_conv.npy"))
 
-        # update data
-        self.update_data()
+        # # update data
+        # self.update_data()
         
-        # compute objective function
-        start_time = time.time()
-        self.compute_objective()
-        if self.verbose:
-            logger.info('deconv seg {0}, objective matrix took: {1:.2f}'.
-                    format(batch_id, time.time()-start_time))
+        # # compute objective function
+        # start_time = time.time()
+        # self.compute_objective()
+        # if self.verbose:
+            # logger.info('deconv seg {0}, objective matrix took: {1:.2f}'.
+                    # format(batch_id, time.time()-start_time))
                 
-        ctr = 0
-        tot_max = np.inf
-        while tot_max > self.threshold and ctr < self.max_iter:
-            spt, dist_met = self.find_peaks()
+        # ctr = 0
+        # tot_max = np.inf
+        # while tot_max > self.threshold and ctr < self.max_iter:
+            # spt, dist_met = self.find_peaks()
             
-            if len(spt) == 0:
-                break
+            # if len(spt) == 0:
+                # break
             
-            self.dec_spike_train = np.append(self.dec_spike_train, spt, axis=0)
+            # self.dec_spike_train = np.append(self.dec_spike_train, spt, axis=0)
             
-            self.subtract_spike_train(spt)
+            # self.subtract_spike_train(spt)
             
-            if self.keep_iterations:
-                self.iter_spike_train.append(spt)
-            self.dist_metric = np.append(self.dist_metric, dist_met)
+            # if self.keep_iterations:
+                # self.iter_spike_train.append(spt)
+            # self.dist_metric = np.append(self.dist_metric, dist_met)
                         
-            if self.verbose: 
-                logger.info("Iteration {0} Found {1} spikes with {2:.2f} energy reduction.".format(
-                ctr, spt.shape[0], np.sum(dist_met)))
+            # if self.verbose: 
+                # logger.info("Iteration {0} Found {1} spikes with {2:.2f} energy reduction.".format(
+                # ctr, spt.shape[0], np.sum(dist_met)))
 
-            ctr += 1
+            # ctr += 1
 
-        if self.verbose:
-            logger.info('deconv seg {0}, # iter: {1}, tot_spikes: {2}, tot_time: {3:.2f}'.
-                format(
-                batch_id, ctr, self.dec_spike_train.shape[0],
-                time.time()-start_time))
+        # if self.verbose:
+            # logger.info('deconv seg {0}, # iter: {1}, tot_spikes: {2}, tot_time: {3:.2f}'.
+                # format(
+                # batch_id, ctr, self.dec_spike_train.shape[0],
+                # time.time()-start_time))
 
-        # ******** ADJUST SPIKE TIMES TO REMOVE BUFFER AND OFSETS *******
-        # order spike times
-        idx = np.argsort(self.dec_spike_train[:,0])
-        self.dec_spike_train = self.dec_spike_train[idx]
+        # # ******** ADJUST SPIKE TIMES TO REMOVE BUFFER AND OFSETS *******
+        # # order spike times
+        # idx = np.argsort(self.dec_spike_train[:,0])
+        # self.dec_spike_train = self.dec_spike_train[idx]
 
-        # find spikes inside data block, i.e. outside buffers
-        idx = np.where(np.logical_and(
-            self.dec_spike_train[:,0] >= self.reader.buffer,
-            self.dec_spike_train[:,0]< self.data.shape[0] - self.reader.buffer))[0]
-        self.dec_spike_train = self.dec_spike_train[idx]
+        # # find spikes inside data block, i.e. outside buffers
+        # idx = np.where(np.logical_and(
+            # self.dec_spike_train[:,0] >= self.reader.buffer,
+            # self.dec_spike_train[:,0]< self.data.shape[0] - self.reader.buffer))[0]
+        # self.dec_spike_train = self.dec_spike_train[idx]
 
-        # offset spikes to start of index
-        batch_offset = self.reader.idx_list[batch_id, 0] - self.reader.buffer
-        self.dec_spike_train[:,0] += batch_offset
+        # # offset spikes to start of index
+        # batch_offset = self.reader.idx_list[batch_id, 0] - self.reader.buffer
+        # self.dec_spike_train[:,0] += batch_offset
         
-        np.savez(fname_out,
-                 spike_train = self.dec_spike_train,
-                 dist_metric = self.dist_metric)
+        # np.savez(fname_out,
+                 # spike_train = self.dec_spike_train,
+                 # dist_metric = self.dist_metric)
+
+
+    def run_cores(self, batch_ids, fnames_out):
+
+        # set default pairwise-conv flag
+        self.pairwise_conv = None
+        
+        for batch_id, fname_out in zip(batch_ids, fnames_out):
+            if os.path.exists(fname_out):
+                continue
+            
+            # load pairwise conv filter only once per core:
+            if self.pairwise_conv is None:
+                self.pairwise_conv = np.load(os.path.join(
+                    self.deconv_dir, "pairwise_conv.npy"))
+                
+            start_time = time.time()
+            
+            # ********* run deconv ************
+
+            # read raw data for segment using idx_list vals
+            #self.load_data_from_memory()
+            self.data = self.reader.read_data_batch(batch_id, add_buffer=True)
+
+            #self.data = data.astype(np.float32)
+            self.data_len = self.data.shape[0]
+
+            # update data
+            self.update_data()
+            
+            # compute objective function
+            start_time = time.time()
+            self.compute_objective()
+            if self.verbose:
+                logger.info('deconv seg {0}, objective matrix took: {1:.2f}'.
+                        format(batch_id, time.time()-start_time))
+                    
+            ctr = 0
+            tot_max = np.inf
+            while tot_max > self.threshold and ctr < self.max_iter:
+                spt, dist_met = self.find_peaks()
+                
+                if len(spt) == 0:
+                    break
+                
+                self.dec_spike_train = np.append(self.dec_spike_train, spt, axis=0)
+                
+                self.subtract_spike_train(spt)
+                
+                if self.keep_iterations:
+                    self.iter_spike_train.append(spt)
+                self.dist_metric = np.append(self.dist_metric, dist_met)
+                            
+                if self.verbose: 
+                    logger.info("Iteration {0} Found {1} spikes with {2:.2f} energy reduction.".format(
+                    ctr, spt.shape[0], np.sum(dist_met)))
+
+                ctr += 1
+
+            if self.verbose:
+                logger.info('deconv seg {0}, # iter: {1}, tot_spikes: {2}, tot_time: {3:.2f}'.
+                    format(
+                    batch_id, ctr, self.dec_spike_train.shape[0],
+                    time.time()-start_time))
+
+            # ******** ADJUST SPIKE TIMES TO REMOVE BUFFER AND OFSETS *******
+            # order spike times
+            idx = np.argsort(self.dec_spike_train[:,0])
+            self.dec_spike_train = self.dec_spike_train[idx]
+
+            # find spikes inside data block, i.e. outside buffers
+            idx = np.where(np.logical_and(
+                self.dec_spike_train[:,0] >= self.reader.buffer,
+                self.dec_spike_train[:,0]< self.data.shape[0] - self.reader.buffer))[0]
+            self.dec_spike_train = self.dec_spike_train[idx]
+
+            # offset spikes to start of index
+            batch_offset = self.reader.idx_list[batch_id, 0] - self.reader.buffer
+            self.dec_spike_train[:,0] += batch_offset
+            
+            np.savez(fname_out,
+                     spike_train = self.dec_spike_train,
+                     dist_metric = self.dist_metric)
+                     

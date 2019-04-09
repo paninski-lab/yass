@@ -134,8 +134,8 @@ def post_process(output_directory,
             fname_weights,
             save_dir,
             units_in,
-            CONFIG.resources.n_processors,
-            CONFIG.resources.multi_processing)
+            CONFIG.resources.multi_processing,
+            CONFIG.resources.n_processors)
 
         logger.info("{} units after removing duplicate units".format(
             len(units_out)))
@@ -150,8 +150,8 @@ def post_process(output_directory,
             fname_templates,
             save_dir,
             units_in,
-            CONFIG.resources.n_processors,
-            CONFIG.resources.multi_processing)
+            CONFIG.resources.multi_processing,
+            CONFIG.resources.n_processors)
 
         logger.info("{} units after removing collision units".format(
             len(units_out)))     
@@ -175,8 +175,8 @@ def post_process(output_directory,
             reader,
             save_dir,
             units_in,
-            CONFIG.resources.n_processors,
-            CONFIG.resources.multi_processing)
+            CONFIG.resources.multi_processing,
+            CONFIG.resources.n_processors)
 
         logger.info("{} units after removing high mad units".format(
             len(units_out)))
