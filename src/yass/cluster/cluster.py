@@ -226,13 +226,10 @@ class Cluster(object):
         self.n_sec_data = np.max(
             self.spike_times_original)/float(
             self.CONFIG.recordings.sampling_rate)
-        self.max_n_spikes = int(
-            self.CONFIG.cluster.max_n_sec_chunk/
-            self.n_sec_data*len(self.spike_times_original))
         self.min_spikes_triage = int(self.n_sec_data*min_fr_triage)
         # if it will be subsampled, min spikes should decrease also
         self.min_spikes_triage = int(self.min_spikes_triage*np.min((
-            1, self.max_n_spikes/
+            1, self.CONFIG.cluster.max_n_spikes/
             float(len(self.spike_times_original)))))
         # TODO: eventually, need to be merged with min_fr
         # should be a function of firing rate
@@ -279,10 +276,11 @@ class Cluster(object):
 
     def clean_input_data(self):
         # limit clustering to at most 50,000 spikes
-        if len(self.spike_times_original)>self.max_n_spikes:
+        max_spikes = self.CONFIG.cluster.max_n_spikes
+        if len(self.spike_times_original)>max_spikes:
             idx_sampled = np.random.choice(
                 a=np.arange(len(self.spike_times_original)),
-                size=self.max_n_spikes,
+                size=max_spikes,
                 replace=False)
             self.spike_times_original = self.spike_times_original[idx_sampled]
         else:

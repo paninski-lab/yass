@@ -84,7 +84,7 @@ cluster:
   # maximum number of spikes per clustering group
   # if the total number of spikes per clustering group exceeds it,
   # it randomly subsample
-  max_n_sec_chunk: 600
+  max_n_spikes: 50000
   # cluster prior information
   prior:
     beta: 1

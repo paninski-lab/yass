@@ -165,8 +165,8 @@ detect:
 cluster:
   type: dict
   default:
-    max_n_sec_chunk: 600
-    min_spikes: 100
+    max_n_spikes: 50000
+    min_spikes: 1
     prior:
       beta: 1
       a: 1
@@ -177,13 +177,13 @@ cluster:
   schema:
     max_n_spikes:
         type: integer
-        default: 10000
+        default: 50000
     # minimum number of spikes per cluster
     # if the total number of spikes per cluster is less than this,
     # the cluster is killed
     min_spikes:
         type: integer
-        default: 0
+        default: 1
     # the cluster is killed
     prior:
       type: dict
