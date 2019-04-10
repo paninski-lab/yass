@@ -129,6 +129,7 @@ def run(fname_templates,
             for ctr in range(len(batch_ids)):
                 mp_object.run(batch_ids[ctr], fnames_out[ctr])
 
+
     # collect result
     res = []
     logger.info("gathering deconvolution results")

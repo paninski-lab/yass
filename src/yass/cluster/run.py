@@ -119,7 +119,6 @@ def run(fname_spike_index,
         # skip 
         if os.path.exists(filename_postclustering):
             continue
-        
         args_in.append([raw_data,
                         full_run,
                         CONFIG2,

@@ -43,10 +43,10 @@ def remove_high_mad(fname_templates,
                    processes=n_processors,
                    pm_pbar=True)                
     else:
-        for ctr in len(units_in):
+        for ctr in range(len(units_in)):
             find_high_mad_unit(
                 units_in[ctr],
-                fname_spike_times[ctr],
+                fnames_spike_times[ctr],
                 fnames_out[ctr],
                 fname_templates,
                 units_in,
