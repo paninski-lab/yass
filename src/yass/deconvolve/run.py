@@ -127,7 +127,7 @@ def run(fname_templates,
                            pm_pbar=True)
         else:
             for ctr in range(len(batch_ids)):
-                mp_object.run(batch_ids[ctr], fnames_out[ctr])
+                mp_object.run([batch_ids[ctr]], [fnames_out[ctr]])
 
 
     # collect result
