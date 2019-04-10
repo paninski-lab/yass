@@ -695,7 +695,7 @@ class MatchPursuit_objectiveUpsample(object):
     def get_iteration_spike_train(self):
         return self.iter_spike_train
 
-    def run(self, batch_ids, fnames_out):
+    def run_cores(self, batch_ids, fnames_out):
 
         # set default pairwise-conv flag
         self.pairwise_conv = None

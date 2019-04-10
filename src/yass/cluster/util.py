@@ -146,12 +146,13 @@ def gather_clustering_result(result_dir, out_dir):
     spike_indexes = np.array(spike_indexes)    
     templates = np.vstack(templates)
 
-    logger.info("{} units loaded: ".format(len(spike_indexes)))
+    logger.info("units loaded: {}".format(len(spike_indexes)))
 
     fname_templates = os.path.join(out_dir, 'templates.npy')
     np.save(fname_templates, templates)
 
     # rearange spike indees from id 0..N
+    logger.info("reindexing spikes")
     spike_train = np.zeros((0,2), 'int32')
     for k in range(spike_indexes.shape[0]):    
         temp = np.zeros((spike_indexes[k].shape[0],2), 'int32')
