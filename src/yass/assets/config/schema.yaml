@@ -165,7 +165,7 @@ detect:
 cluster:
   type: dict
   default:
-    max_n_spikes: 10000
+    max_n_sec_chunk: 600
     min_spikes: 100
     prior:
       beta: 1
