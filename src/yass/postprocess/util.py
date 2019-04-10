@@ -32,6 +32,18 @@ def run_deconv(data, templates, up_factor):
 
     #start = dt.datetime.now().timestamp()
 
+    # find overlapping units with data and run in on those units only
+    vis_th = 2
+    vis_chans = data.ptp(0) > vis_th
+    overlap_units = np.where(
+        np.any((templates.ptp(1))[:, vis_chans] > vis_th, axis=1))[0]
+
+    # if no overlap units, just skip
+    if len(overlap_units) == 0:
+        return data, None
+    else:
+        templates = templates[overlap_units]
+
     # get shape
     n_units, n_times, n_chans = templates.shape
 
@@ -71,6 +83,9 @@ def run_deconv(data, templates, up_factor):
 
         idx_best_fit = np.max(np.abs(data[:,None] - up_shifted_temps), (0,2)).argmin()
         residual = data - up_shifted_temps[:,idx_best_fit]
+
+        # best fit unit relative to all units
+        best_fit_unit = overlap_units[best_fit_unit]
     else:
         residual = data
         best_fit_unit = None
