@@ -41,7 +41,7 @@ def make_CONFIG2(CONFIG):
     CONFIG2.cluster.prior.V = CONFIG.cluster.prior.V
 
     CONFIG2.neigh_channels = CONFIG.neigh_channels
-    CONFIG2.cluster.max_n_spikes = CONFIG.cluster.max_n_spikes
+    CONFIG2.cluster.max_n_sec_chunk = CONFIG.cluster.max_n_sec_chunk
     
     CONFIG2.spike_size = CONFIG.spike_size
 
