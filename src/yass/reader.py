@@ -21,6 +21,7 @@ class READER(object):
             self.buffer = buffer
 
         # batch sizes
+        print ("Makgin batches in READER")
         if n_sec_chunk is not None:
             self.n_sec_chunk = n_sec_chunk
             indexes = np.arange(0, self.rec_len, self.sampling_rate*self.n_sec_chunk)

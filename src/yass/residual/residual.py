@@ -16,7 +16,7 @@ class RESIDUAL(object):
         """ Initialize by computing residuals
             provide: raw data block, templates, and deconv spike train; 
         """
-        #self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger(__name__)
 
         # save params
         self.fname_up = fname_up
@@ -46,8 +46,7 @@ class RESIDUAL(object):
         fname_partitioned = os.path.join(os.path.split(self.fname_out)[0],'spikes_partitioned.npy')
         
         if os.path.exists(fname_partitioned)==False:
-            # logger = logging.getLogger(__name__)
-            # logger.info("partitioning spike-train")
+            self.logger.info("partitioning spike-train")
             spike_train_in_chunks = []
             
             print ("Spike train: ", self.spike_train)
@@ -89,16 +88,9 @@ class RESIDUAL(object):
             fnames_seg.append(
                 os.path.join(save_dir,
                              'residual_seg{}.npy'.format(batch_id)))
-                           
-        # if multi_processing:
-            # parmap.starmap(self.subtract_parallel, 
-                         # list(zip(batch_ids, fnames_seg)),
-                         # processes=n_processors,
-                         # pm_pbar=True)
         
         if len(batch_ids)>0:
-            # logger = logging.getLogger(__name__)
-            # logger.info("computing residuals")
+            self.logger.info("computing residuals")
 
             if multi_processing:
                 batches_in = np.array_split(batch_ids, self.n_processors)
@@ -128,7 +120,7 @@ class RESIDUAL(object):
             
             # load pairwise conv filter only once per core:
             if self.templates is None:
-                #self.logger.info("loading upsampled templates")
+                self.logger.info("loading upsampled templates")
 
                 up_data = np.load(self.fname_up)
                 self.templates = up_data['templates_up']

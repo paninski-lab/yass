@@ -270,6 +270,7 @@ def recluster_block(TMP_FOLDER,
     # cluster
     raw_data = False
     full_run = True
+    print ("reclustering...")
     fname_templates, fname_spike_train = cluster.run(
         fname_spike_train,
         standardized_path,
@@ -281,6 +282,7 @@ def recluster_block(TMP_FOLDER,
         residual_dtype=residual_dtype,
         fname_up=fname_up)
     
+    print ("re postprocess...")
     methods = ['low_ptp', 'duplicate', 'collision', 'high_mad']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
@@ -297,6 +299,7 @@ def recluster_block(TMP_FOLDER,
     '''
 
     # run deconvolution
+    print ("re deconv...")
     fname_spike_train, fname_up = deconvolve.run(
         fname_templates,
         os.path.join(TMP_FOLDER,
@@ -305,6 +308,7 @@ def recluster_block(TMP_FOLDER,
         standardized_params['dtype'])
 
     # compute residual
+    print ("re residual...")
     fname_residual, residual_dtype = residual.run(
         fname_up,
         os.path.join(TMP_FOLDER,
@@ -312,7 +316,8 @@ def recluster_block(TMP_FOLDER,
         standardized_path,
         standardized_params['dtype'],
         dtype_out='float32')
-    
+
+    print ("re merge...")
     fname_templates, fname_spike_train = merge.run(
         os.path.join(TMP_FOLDER,
                      'post_deconv_merge'),
