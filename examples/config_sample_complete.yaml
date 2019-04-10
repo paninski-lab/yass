@@ -79,19 +79,20 @@ detect:
   threshold_detector:
     std_factor: 4
 
+# All values are optional
 cluster:
   # maximum number of spikes per clustering group
   # if the total number of spikes per clustering group exceeds it,
   # it randomly subsample
-  max_n_spikes: 50000
+  max_n_sec_chunk: 600
   # cluster prior information
   prior:
     beta: 1
     a: 1
     lambda0: 0.01
     nu: 5
-    V: 4
+    V: 0.2
 
 deconvolution:
-    threshold: 20
+    threshold: 40
     deconv_gpu: False
