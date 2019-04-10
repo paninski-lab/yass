@@ -152,10 +152,10 @@ class READER(object):
         skipped_idx = []
         total_size = n_times*self.n_channels
         # spike_times are the centers of waveforms
-        spike_times -= n_times//2
-        offsets = spike_times.astype('int64')*self.dtype.itemsize*self.n_channels
+        spike_times_shifted = spike_times - n_times//2
+        offsets = spike_times_shifted.astype('int64')*self.dtype.itemsize*self.n_channels
         with open(self.bin_file, "rb") as fin:
-            for ctr, spike in enumerate(spike_times):
+            for ctr, spike in enumerate(spike_times_shifted):
                 fin.seek(offsets[ctr], os.SEEK_SET)
                 try:
                     wf = np.fromfile(fin,

@@ -18,7 +18,7 @@ warnings.warn = warn
 class Cluster(object):
     """Class for doing clustering."""
 
-    def __init__(self, data_in):
+    def __init__(self, data_in, analysis=False):
             
         """Sets up the cluster class for each core
         Parameters: ...
@@ -26,6 +26,7 @@ class Cluster(object):
         """
         # load data and check if prev completed
         if self.load_data(data_in):  return
+        if analysis: return
 
         # local channel clustering
         if self.verbose:
@@ -105,22 +106,18 @@ class Cluster(object):
         # featurize #1
         pca_wf = self.featurize_step(gen, current_indices, current_indices, local)
 
-        # subsample before clustering
-        pca_wf_subsample = self.subsample_step(gen, pca_wf)
-
-        # cluster step
-        vbParam1 = self.run_mfm(gen, pca_wf_subsample)
-
-        # adaptive knn triage
-        idx_keep = self.knn_triage_dynamic(gen, vbParam1, pca_wf)
-
-        # if anything is triaged, re-featurize and re-cluster
-        if idx_keep.shape[0] < pca_wf.shape[0]:
+        if self.raw_data:
+            # if it is raw, run % knn triage
+            # otherwise, no triage because it is clean already
+            idx_keep = self.knn_triage_step(gen, pca_wf)
             current_indices = current_indices[idx_keep]
-            pca_wf = self.featurize_step(gen, current_indices, current_indices, local)
-            vbParam1 = self.run_mfm(gen, self.subsample_step(gen, pca_wf))
-            #pca_wf = self.featurize_step(gen, current_indices[idx_keep], current_indices, local)
-            #vbParam1 = self.run_mfm(gen, self.subsample_step(gen, pca_wf[idx_keep]))
+            pca_wf = pca_wf[idx_keep]
+
+        # subsample if too many
+        pca_wf_subsample, weights = self.subsample_step(gen, pca_wf)
+
+        # run mfm
+        vbParam1 = self.run_mfm(gen, pca_wf_subsample, weights)
 
         # recover spikes using soft-assignments
         idx_recovered, vbParam2 = self.recover_step(gen, vbParam1, pca_wf)
@@ -169,7 +166,6 @@ class Cluster(object):
             #self.pca_wf_allchans = self.pca_wf_allchans#[current_indices]
             self.indices_gen0 = current_indices
         
-        
     def min(self, n_spikes):
         ''' Function that checks if spikes left are lower than min_spikes
         '''
@@ -202,11 +198,14 @@ class Cluster(object):
                 self.upsampled_templates = input_data['up_templates']
                 self.upsampled_ids = input_data['up_ids']
 
+        if len(self.spike_times_original) == 0:
+            return True
+
         ''' ******************************************
             *********** FIXED PARAMETERS *************
             ****************************************** 
         '''
-        
+
         # These are not user/run specific, should be stayed fixed
         self.verbose = False
         self.selected_PCA_rank = 5
@@ -218,10 +217,20 @@ class Cluster(object):
         # max number of spikes for each mfm call
         self.max_mfm_spikes = 5000
         # TODO: should be merged with min_spikes below
-        if self.raw_data:
-            self.min_fr = int(1200*3)
-        else:
-            self.min_fr = int(1200*0.1)
+        #if self.raw_data:
+        #    min_fr = 3
+        #else:
+        #    min_fr = 0.1
+        min_fr_triage = 3
+        # min spikes : max time (length of recording) x min fr
+        self.n_sec_data = np.max(
+            self.spike_times_original)/float(
+            self.CONFIG.recordings.sampling_rate)
+        self.min_spikes_triage = int(self.n_sec_data*min_fr_triage)
+        # if it will be subsampled, min spikes should decrease also
+        self.min_spikes_triage = int(self.min_spikes_triage*np.min((
+            1, self.CONFIG.cluster.max_n_spikes/
+            float(len(self.spike_times_original)))))
         # TODO: eventually, need to be merged with min_fr
         # should be a function of firing rate
         # should be in CONFIG file
@@ -266,12 +275,12 @@ class Cluster(object):
         return False
 
     def clean_input_data(self):
-
         # limit clustering to at most 50,000 spikes
-        if len(self.spike_times_original)>self.CONFIG.cluster.max_n_spikes:
+        max_spikes = self.CONFIG.cluster.max_n_spikes
+        if len(self.spike_times_original)>max_spikes:
             idx_sampled = np.random.choice(
                 a=np.arange(len(self.spike_times_original)),
-                size=self.CONFIG.cluster.max_n_spikes,
+                size=max_spikes,
                 replace=False)
             self.spike_times_original = self.spike_times_original[idx_sampled]
         else:
@@ -585,29 +594,48 @@ class Cluster(object):
  
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', random subsample')
-       
+
         if pca_wf.shape[0]> self.max_mfm_spikes:
-            idx_subsampled = np.random.choice(np.arange(pca_wf.shape[0]),
-                             size=self.max_mfm_spikes,
-                             replace=False)
-        
+            if self.full_run:
+                idx_subsampled, weights = coreset(
+                    pca_wf, self.max_mfm_spikes)
+            else:
+                idx_subsampled = np.random.choice(np.arange(pca_wf.shape[0]),
+                                 size=self.max_mfm_spikes,
+                                 replace=False)
+                weights = np.ones(self.max_mfm_spikes)
+
             pca_wf = pca_wf[idx_subsampled]
 
-        return pca_wf
+        else:
+            weights = np.ones(pca_wf.shape[0])
 
-    def run_mfm(self, gen, pca_wf):
-        
+        return pca_wf, weights
+
+    def run_mfm(self, gen, pca_wf, weights):
+
         mask = np.ones((pca_wf.shape[0], 1))
-        group = np.arange(pca_wf.shape[0])
         vbParam = mfm.spikesort(pca_wf[:,:,np.newaxis],
                                 mask,
-                                group,
+                                weights,
                                 self.CONFIG)
         if self.verbose:
             print("chan "+ str(self.channel)+', gen '\
                 +str(gen)+", "+str(vbParam.rhat.shape[1])+" clusters from ",pca_wf.shape)
 
         return vbParam
+
+    def knn_triage_step(self, gen, pca_wf):
+
+        if self.verbose:
+            print("chan "+str(self.channel)+', gen '+str(gen)+', knn triage')
+
+        self.triage_value = 0.05
+        knn_triage_threshold = 100*(1-self.triage_value)
+        idx_keep = knn_triage(knn_triage_threshold, pca_wf)
+        idx_keep = np.where(idx_keep==1)[0]
+
+        return idx_keep
 
     def knn_triage_dynamic(self, gen, vbParam, pca_wf):
 
@@ -621,7 +649,7 @@ class Cluster(object):
         cov = vbParam.invVhat[:,:,ids,0].T / vbParam.nuhat[ids,np.newaxis, np.newaxis]
 
         # Cat: TODO: move to CONFIG/init function
-        min_spikes = min(self.min_fr, pca_wf.shape[0]//ids.size) ##needs more systematic testing, working on it
+        min_spikes = min(self.min_spikes_triage, pca_wf.shape[0]//ids.size) ##needs more systematic testing, working on it
 
         pca_wf_temp = np.zeros([min_spikes*cov.shape[0], cov.shape[1]])
         #assignment_temp = np.zeros(min_spikes*cov.shape[0], dtype = int)
@@ -663,13 +691,13 @@ class Cluster(object):
 
         return idx_recovered, vbParam
     
-    def recover_spikes(self, vbParam, pca, maha_dist = 1):
+    def recover_spikes(self, vbParam, pca, maha_dist = 2):
     
         N, D = pca.shape
         # Cat: TODO: check if this maha thresholding recovering distance is good
-        threshold = D*maha_dist
+        threshold = np.sqrt(D)*maha_dist
         # update rhat on full data
-        maskedData = mfm.maskData(pca[:,:,np.newaxis], np.ones([N, 1]), np.arange(N))
+        maskedData = mfm.maskData(pca[:,:,np.newaxis], np.ones([N, 1]), np.ones(N))
         vbParam.update_local(maskedData)
 
         # calculate mahalanobis distance
@@ -965,6 +993,15 @@ class Cluster(object):
         for key in keys:
             delattr(self, key)
 
+def knn_triage(th, pca_wf):
+
+    tree = cKDTree(pca_wf)
+    dist, ind = tree.query(pca_wf, k=11)
+    dist = np.sum(dist, 1)
+
+    idx_keep1 = dist < np.percentile(dist, th)
+    return idx_keep1
+
 def knn_dist(pca_wf):
     tree = cKDTree(pca_wf)
     dist, ind = tree.query(pca_wf, k=30)
@@ -986,3 +1023,51 @@ def connecting_points(points, index, neighbors, t_diff, keep=None):
             keep = connecting_points(points, j, neighbors, t_diff, keep)
 
         return keep
+
+def coreset(data, m, K=5, delta=0.05):
+    p = int(np.ceil(np.log2(1/delta)))
+    B = kmeans_init(data, K, p)
+    a = 16*(np.log2(K) + 2)
+
+    N = data.shape[0]
+    dists = np.sum(np.square(data[:, None] - B[None]), axis=2)
+    label = dists.argmin(1)
+    dists = dists.min(1)
+
+    dists_sum = np.sum(dists)
+    dists_sum_k = np.zeros(K)
+    for j in range(N):
+        dists_sum_k[label[j]] += dists[j]
+    _, n_data_k  = np.unique(label, return_counts=True)
+
+    s = a*dists + 2*(a*dists_sum_k/n_data_k + dists_sum/n_data_k)[label]
+    p = s/sum(s)
+
+    idx_coreset = np.random.choice(N, size=m, replace=False, p=p)
+    weights = 1/(m*p[idx_coreset])
+    weights[weights<1] = 1
+
+    return idx_coreset, weights
+
+def kmeans_init(data, K, n_iter):
+    N, D = data.shape
+    centers = np.zeros((n_iter, K, D))
+    dists = np.zeros(n_iter)
+    for ctr in range(n_iter):
+        ii = np.random.choice(N, size=1, replace=True, p=np.ones(N)/float(N))
+        C = data[ii]
+        L = np.zeros(N, 'int16')
+        for i in range(1, K):
+            D = data - C[L]
+            D = np.sum(D*D, axis=1) #L2 dist
+            ii = np.random.choice(N, size=1, replace=True, p=D/np.sum(D))
+            C = np.concatenate((C, data[ii]), axis=0)
+            L = np.argmax(
+                2 * np.dot(C, data.T) - np.sum(C*C, axis=1)[:, np.newaxis],
+                axis=0)
+
+        centers[ctr] = C
+        D = data - C[L]
+        dists[ctr] = np.sum(np.square(D))
+
+    return centers[np.argmin(dists)]

@@ -140,7 +140,6 @@ class TemplateMerge(object):
         else:
             merge_pairs = np.load(fname)
 
-        print(merge_pairs)
         return merge_pairs
 
     def merge_templates_parallel(self, pair):

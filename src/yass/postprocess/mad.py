@@ -205,8 +205,7 @@ def find_high_mad_unit(unit,
             templates[unit_idx][:, non_mad_channels],
             templates[idx_no_target][:, :, non_mad_channels],
             up_factor)
-        
-        if np.max(np.abs(residual)) > residual_max_norm:
+        if np.max(np.abs(residual)) > residual_max_norm or (unit_matched is None):
             unit_matched = None
         else:
             unit_matched = units_in[idx_no_target[unit_matched]]
