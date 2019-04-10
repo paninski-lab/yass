@@ -91,7 +91,7 @@ cluster:
     a: 1
     lambda0: 0.01
     nu: 5
-    V: 0.2
+    V: 2
 
 deconvolution:
     threshold: 40

@@ -172,7 +172,7 @@ cluster:
       a: 1
       lambda0: 0.01
       nu: 5
-      V: 4
+      V: 2
 
   schema:
     max_n_spikes:
