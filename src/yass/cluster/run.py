@@ -6,7 +6,7 @@ import parmap
 
 from yass import read_config
 from yass.reader import READER
-from yass.cluster.cluster import Cluster
+from yass.cluster.cluster2 import Cluster
 from yass.cluster.util import (make_CONFIG2, 
                                partition_input,
                                gather_clustering_result)
