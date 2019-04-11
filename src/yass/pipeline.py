@@ -193,6 +193,7 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
         **********************************************
     '''
     # detect
+    logger.info('INITIAL DETECTION')
     spike_index_path = detect.run(
         standardized_path,
         standardized_params,
@@ -202,6 +203,8 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
         ***************** CLUSTER ********************
         **********************************************
     '''
+    logger.info('INITIAL CLUSTERING')
+
     # cluster
     raw_data = True
     full_run = False
@@ -212,7 +215,7 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
         os.path.join(TMP_FOLDER, 'cluster'),
         raw_data, 
         full_run)
-    
+
     methods = ['low_ptp', 'duplicate', 'collision']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
@@ -228,7 +231,7 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
         **********************************************
     '''
 
-    print ("running deoncv....")
+    logger.info('INITIAL DECONV')
     # run deconvolution
     fname_spike_train, fname_up = deconvolve.run(
         fname_templates,
@@ -237,7 +240,7 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
         standardized_path,
         standardized_params['dtype'])
 
-    print ("computing residuals ...")
+    logger.info('INITIAL RESIDUAL COMPUTATION')
     # compute residual
     fname_residual, residual_dtype = residual.run(
         fname_up,
@@ -268,6 +271,8 @@ def recluster_block(TMP_FOLDER,
         **********************************************
     '''
     # cluster
+    
+    logger.info('RECLUSTERING')
     raw_data = False
     full_run = True
     fname_templates, fname_spike_train = cluster.run(
@@ -297,6 +302,7 @@ def recluster_block(TMP_FOLDER,
     '''
 
     # run deconvolution
+    logger.info('SECOND DECONV')
     fname_spike_train, fname_up = deconvolve.run(
         fname_templates,
         os.path.join(TMP_FOLDER,
@@ -305,6 +311,7 @@ def recluster_block(TMP_FOLDER,
         standardized_params['dtype'])
 
     # compute residual
+    logger.info('SECOND RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
         fname_up,
         os.path.join(TMP_FOLDER,
@@ -313,6 +320,7 @@ def recluster_block(TMP_FOLDER,
         standardized_params['dtype'],
         dtype_out='float32')
     
+    logger.info('FINALL MERGE')
     fname_templates, fname_spike_train = merge.run(
         os.path.join(TMP_FOLDER,
                      'post_deconv_merge'),

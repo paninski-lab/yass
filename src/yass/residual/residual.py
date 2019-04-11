@@ -2,7 +2,6 @@ import os
 import logging
 import numpy as np
 import parmap
-#import logging
 
 class RESIDUAL(object):
     
@@ -10,52 +9,34 @@ class RESIDUAL(object):
                  fname_up,
                  reader,
                  fname_out,
-                 dtype_out,
-                 CONFIG):
+                 dtype_out):
         
         """ Initialize by computing residuals
             provide: raw data block, templates, and deconv spike train; 
         """
-        #self.logger = logging.getLogger(__name__)
-
-        # save params
-        self.fname_up = fname_up
-        self.fname_out = fname_out
-        self.dtype_out = dtype_out
-        #self.CONFIG = CONFIG
-        self.n_processors = CONFIG.resources.n_processors
-        self.reader = reader
-
-        # get width of template from meta data in .npy
-        # Cat: TODO: this is a bit hacky, but should be ok for now
-        fname_sparse_templates = os.path.join(os.path.split(fname_up)[0],'sparse_templates.npy')
-        self.n_time ,_, _ = np.load(fname_sparse_templates, mmap_mode='r').shape
         
-        #self.n_unit, self.n_time, self.n_chan = self.templates.shape
-        self.reader.buffer = self.n_time
-        
+        # load necessary data
+        up_data = np.load(fname_up)
+        self.n_unit, self.n_time, self.n_chan = up_data['templates_up'].shape
+        self.spike_train = up_data['spike_train_up']
+
         # shift spike times for easy indexing
-        self.spike_train = np.load(os.path.join(os.path.split(fname_up)[0], 'spike_train_up.npy'))
         self.spike_train[:,0] -= self.n_time//2
 
-        # partition dataset into chunks
-        self.partition_spike_time()
-    
-    def partition_spike_time(self):
+        self.fname_up = fname_up
+        self.reader = reader
+        self.reader.buffer = self.n_time
+        self.fname_out = fname_out
+        self.dtype_out = dtype_out
 
-        fname_partitioned = os.path.join(os.path.split(self.fname_out)[0],'spikes_partitioned.npy')
-        
-        if os.path.exists(fname_partitioned)==False:
-            # logger = logging.getLogger(__name__)
-            # logger.info("partitioning spike-train")
-            spike_train_in_chunks = []
-            
-            print ("Spike train: ", self.spike_train)
+    def partition_spike_time(self, fname_partitioned):
+
+        if not os.path.exists(fname_partitioned):
+            spike_times = []
             for ctr in range(len(self.reader.idx_list)):
                 start, end = self.reader.idx_list[ctr]
                 start -= self.reader.buffer
-                #print ("batch time info: ", ctr, start, end)
-                
+
                 # assign spikes in each chunk; offset 
                 idx_in_chunk = np.where(
                     np.logical_and(self.spike_train[:,0]>=start,
@@ -65,15 +46,14 @@ class RESIDUAL(object):
                 # reset spike times to zero for each chunk but add in bufer_size
                 #  that will be read in with data 
                 spikes_in_chunk[:,0] -=  start
-                #print ("spikes_in_chunk:: ", spikes_in_chunk)
+                spike_times.append(spikes_in_chunk)
 
-                spike_train_in_chunks.append(spikes_in_chunk)
-
-            np.save(fname_partitioned, spike_train_in_chunks)
+            # save it
+            np.save(fname_partitioned, spike_times)
         else:
-            spike_train_in_chunks = np.load(fname_partitioned)
-        
-        self.spike_train = spike_train_in_chunks
+            spike_times = np.load(fname_partitioned)
+
+        self.spike_train = spike_times
 
     def compute_residual(self, save_dir,
                          multi_processing=False, n_processors=1):
@@ -81,7 +61,7 @@ class RESIDUAL(object):
         '''
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-        
+
         batch_ids = []
         fnames_seg = []
         for batch_id in range(self.reader.n_batches):
@@ -89,31 +69,22 @@ class RESIDUAL(object):
             fnames_seg.append(
                 os.path.join(save_dir,
                              'residual_seg{}.npy'.format(batch_id)))
-                           
-        # if multi_processing:
-            # parmap.starmap(self.subtract_parallel, 
-                         # list(zip(batch_ids, fnames_seg)),
-                         # processes=n_processors,
-                         # pm_pbar=True)
-        
-        if len(batch_ids)>0:
-            # logger = logging.getLogger(__name__)
-            # logger.info("computing residuals")
 
-            if multi_processing:
-                batches_in = np.array_split(batch_ids, self.n_processors)
-                fnames_in = np.array_split(fnames_seg, self.n_processors)
-                parmap.starmap(self.subtract_parallel, 
-                             list(zip(batches_in, fnames_in)),
-                             processes=n_processors,
-                             pm_pbar=True)
-                             
-            else:
-                for ctr in range(len(batch_ids)):
-                    self.subtract_parallel(
-                        [batch_ids[ctr]], [fnames_seg[ctr]])
+        if multi_processing:
+            batches_in = np.array_split(batch_ids, n_processors)
+            fnames_in = np.array_split(fnames_seg, n_processors)
+            parmap.starmap(self.subtract_parallel, 
+                         list(zip(batches_in, fnames_in)),
+                         processes=n_processors,
+                         pm_pbar=True)
+
+        else:
+            for ctr in range(len(batch_ids)):
+                self.subtract_parallel(
+                    [batch_ids[ctr]], [fnames_seg[ctr]])
 
         self.fnames_seg = fnames_seg
+
 
     def subtract_parallel(self, batch_ids, fnames_out):
     #def subtract_parallel(self, data_in):

@@ -69,8 +69,12 @@ def run(fname_up,
     residual_object = RESIDUAL(fname_up,
                                reader,
                                fname_out,
-                               dtype_out,
-                               CONFIG)
+                               dtype_out)
+
+    # partition spike times
+    fname_partitioned = os.path.join(
+        output_directory, 'spike_times_partitioned.npy')
+    residual_object.partition_spike_time(fname_partitioned)
 
     # compute residual
     seg_dir = os.path.join(output_directory, 'segs')

@@ -108,27 +108,19 @@ def run(fname_templates,
             continue
         fnames_out.append(fname_temp)
         batch_ids.append(batch_id)
-        
-    # run deconv for each batch
-    # if CONFIG.resources.multi_processing:
-        # parmap.starmap(mp_object.run_units,
-                       # list(zip(batch_ids, fnames_out)),
-                       # processes=CONFIG.resources.n_processors,
-                       # pm_pbar=True)
 
     if len(batch_ids)>0: 
         logger.info("computing deconvolution over data")
         if CONFIG.resources.multi_processing:
             batches_in = np.array_split(batch_ids, CONFIG.resources.n_processors)
             fnames_in = np.array_split(fnames_out, CONFIG.resources.n_processors)
-            parmap.starmap(mp_object.run_cores,
+            parmap.starmap(mp_object.run,
                            list(zip(batches_in, fnames_in)),
                            processes=CONFIG.resources.n_processors,
                            pm_pbar=True)
         else:
             for ctr in range(len(batch_ids)):
                 mp_object.run([batch_ids[ctr]], [fnames_out[ctr]])
-
 
     # collect result
     res = []
@@ -169,10 +161,6 @@ def run(fname_templates,
              templates_up=templates_up.transpose(2,0,1),
              spike_train=spike_train,
              templates=mp_object.temps.transpose(2,0,1))
-
-    np.save(os.path.join(os.path.split(fname_up)[0],'spike_train_up.npy'),
-            spike_train_up)
-
 
     # Compute soft assignments
     #soft_assignments, assignment_map = get_soft_assignments(
