@@ -33,7 +33,7 @@ def remove_high_mad(fname_templates,
     for unit in units_in:
         fname = os.path.join(save_dir, 'unit_{}.npz'.format(unit))
         fnames_out.append(fname)
-        
+
     if multi_processing:
         parmap.starmap(find_high_mad_unit, 
                    list(zip(units_in, fnames_spike_times, fnames_out)),
@@ -117,6 +117,13 @@ def find_high_mad_unit(unit,
 
     # load spike times
     spt = np.load(fname_spike_time)
+    if len(spt) == 0:
+        kill=True
+        unit_matched=None
+        np.savez(fname_out,
+                 kill=kill,
+                 unit_matched=unit_matched) 
+        return
 
     # 500 is enough for mad calculation
     max_spikes = 500

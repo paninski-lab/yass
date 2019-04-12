@@ -6,7 +6,8 @@ import parmap
 class RESIDUAL(object):
     
     def __init__(self, 
-                 fname_up,
+                 fname_templates,
+                 fname_spike_train,
                  reader,
                  fname_out,
                  dtype_out):
@@ -14,49 +15,22 @@ class RESIDUAL(object):
         """ Initialize by computing residuals
             provide: raw data block, templates, and deconv spike train; 
         """
-        
-        # load necessary data
-        up_data = np.load(fname_up)
-        self.n_unit, self.n_time, self.n_chan = up_data['templates_up'].shape
-        self.spike_train = up_data['spike_train_up']
+        #self.logger = logging.getLogger(__name__)
 
-        # shift spike times for easy indexing
-        self.spike_train[:,0] -= self.n_time//2
+        # keep templates and spike train filname
+        # will be loaded during each prallel process
+        self.fname_templates = fname_templates
+        self.fname_spike_train = fname_spike_train
 
-        self.fname_up = fname_up
         self.reader = reader
-        self.reader.buffer = self.n_time
+
+        # save output name and dtype
         self.fname_out = fname_out
         self.dtype_out = dtype_out
 
-    def partition_spike_time(self, fname_partitioned):
-
-        if not os.path.exists(fname_partitioned):
-            spike_times = []
-            for ctr in range(len(self.reader.idx_list)):
-                start, end = self.reader.idx_list[ctr]
-                start -= self.reader.buffer
-
-                # assign spikes in each chunk; offset 
-                idx_in_chunk = np.where(
-                    np.logical_and(self.spike_train[:,0]>=start,
-                                   self.spike_train[:,0]<end))[0]
-                spikes_in_chunk = self.spike_train[idx_in_chunk]
-
-                # reset spike times to zero for each chunk but add in bufer_size
-                #  that will be read in with data 
-                spikes_in_chunk[:,0] -=  start
-                spike_times.append(spikes_in_chunk)
-
-            # save it
-            np.save(fname_partitioned, spike_times)
-        else:
-            spike_times = np.load(fname_partitioned)
-
-        self.spike_train = spike_times
-
     def compute_residual(self, save_dir,
-                         multi_processing=False, n_processors=1):
+                         multi_processing=False,
+                         n_processors=1):
         '''
         '''
         if not os.path.exists(save_dir):
@@ -70,6 +44,7 @@ class RESIDUAL(object):
                 os.path.join(save_dir,
                              'residual_seg{}.npy'.format(batch_id)))
 
+        #self.logger.info("computing residuals")
         if multi_processing:
             batches_in = np.array_split(batch_ids, n_processors)
             fnames_in = np.array_split(fnames_seg, n_processors)
@@ -87,25 +62,42 @@ class RESIDUAL(object):
 
 
     def subtract_parallel(self, batch_ids, fnames_out):
-    #def subtract_parallel(self, data_in):
         '''
         '''
                 
-        self.templates = None
-        
+        templates = None
+        spike_train = None
+
         for batch_id, fname_out in zip(batch_ids, fnames_out):
             if os.path.exists(fname_out):
                 continue
             
-            # load pairwise conv filter only once per core:
-            if self.templates is None:
+            # load upsampled templates only once per core:
+            if templates is None or spike_train is None:
                 #self.logger.info("loading upsampled templates")
+                templates = np.load(self.fname_templates)
+                spike_train = np.load(self.fname_spike_train)
 
-                up_data = np.load(self.fname_up)
-                self.templates = up_data['templates_up']
                 # do not read spike train again here
                 #self.spike_train = up_data['spike_train_up']
-            
+                n_time = templates.shape[1]
+                time_idx = np.arange(0, n_time)
+                self.reader.buffer = n_time
+                
+                # shift spike time so that it is aligned at
+                # time 0
+                spike_train[:, 0] -= n_time//2
+
+            # get relevantspike times
+            start, end = self.reader.idx_list[batch_id]
+            start -= self.reader.buffer 
+            idx_in_chunk = np.where(
+                np.logical_and(spike_train[:,0]>=start,
+                               spike_train[:,0]<end))[0]
+            spikes_in_chunk = spike_train[idx_in_chunk]
+            # offset
+            spikes_in_chunk[:,0] -=  start
+
             #print ("SPIKE train: ", self.spike_train.shape)
             #print ("templates: ", self.templates.shape)
             # note only derasterize up to last bit, don't remove spikes from 
@@ -115,16 +107,12 @@ class RESIDUAL(object):
             data = self.reader.read_data_batch(batch_id, add_buffer=True)
             #print ("data: ", data.shape)
 
-            # loop over units and subtract energy
-            local_spike_train = self.spike_train[batch_id]
             #print ("local spike train: ", local_spike_train.shape)
-            time_idx = np.arange(0, self.n_time)
             #print ("self.n_time: ", self.n_time)
             #print ("local spiketrain: ", local_spike_train)
-            for j in range(local_spike_train.shape[0]):
-                tt, ii = local_spike_train[j]
-
-                data[time_idx + tt, :] -= self.templates[ii]
+            for j in range(spikes_in_chunk.shape[0]):
+                tt, ii = spikes_in_chunk[j]
+                data[time_idx + tt, :] -= templates[ii]
 
             # remove buffer
             data = data[self.reader.buffer:-self.reader.buffer]

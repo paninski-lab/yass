@@ -7,60 +7,72 @@ from yass.template import shift_chans, align_get_shifts_with_ref
 def partition_input(save_dir,
                     fname_templates,
                     fname_spike_train,
-                    fname_up=None):
+                    fname_templates_up=None,
+                    fname_spike_train_up=None):
 
     # make directory
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
 
-    # load data
+    # load data - only if incomplete files    
     templates = np.load(fname_templates)
     spike_train = np.load(fname_spike_train)
-    if fname_up is not None:
-        up_data = np.load(fname_up)
-        spike_train_up = up_data['spike_train_up']
-        templates_up = up_data['templates_up']
 
-    # re-organize spike times and templates id
     n_units = templates.shape[0]
-
-    spike_train_list = [[] for ii in range(n_units)]
-    for j in range(spike_train.shape[0]):
-        tt, ii = spike_train[j]
-        spike_train_list[ii].append(tt)
-
-    if fname_up is not None:
-        up_id_list = [[] for ii in range(n_units)]
-        for j in range(spike_train.shape[0]):
-            ii = spike_train[j, 1]
-            up_id = spike_train_up[j, 1]
-            up_id_list[ii].append(up_id)
-
+            
     # partition upsampled templates also
     # and save them
     fnames = []
+    read_flag = True
     for unit in range(n_units):
-
         fname = os.path.join(save_dir, 'partition_{}.npz'.format(unit))
-
-        if fname_up is not None:
-            unique_up_ids = np.unique(up_id_list[unit])
-            up_templates = templates_up[unique_up_ids]
-            new_id_map = {iid: ctr for ctr, iid in enumerate(unique_up_ids)}
-            up_id2 = [new_id_map[iid] for iid in up_id_list[unit]]
-
-            np.savez(fname,
-                     template = templates[unit],
-                     spike_times = spike_train_list[unit],
-                     up_ids = up_id2,
-                     up_templates = up_templates)
-        else:
-            np.savez(fname,
-                     template = templates[unit],
-                     spike_times = spike_train_list[unit])
-       
         fnames.append(fname)
-        
+
+        # if previously computed
+        if not os.path.exists(fname):
+            # if at least 1 file is missing, then:
+            #   Load upsampled dataset and compute partition
+            if read_flag == True:
+                # set flag to false so won't read this data again
+                read_flag=False
+
+                spike_train_list = [[] for ii in range(n_units)]
+                for j in range(spike_train.shape[0]):
+                    tt, ii = spike_train[j]
+                    spike_train_list[ii].append(tt)
+
+                if fname_templates_up is not None:
+                    spike_train_up = np.load(fname_spike_train_up)
+                    templates_up = np.load(fname_templates_up)
+
+                    up_id_list = [[] for ii in range(n_units)]
+                    for j in range(spike_train.shape[0]):
+                        ii = spike_train[j, 1]
+                        up_id = spike_train_up[j, 1]
+                        up_id_list[ii].append(up_id)
+
+            # proceed to compute partitioning
+            if fname_templates_up is not None:
+                unique_up_ids = np.unique(up_id_list[unit])
+                if unique_up_ids.shape[0]==0:
+                    np.savez(fname,
+                         spike_times = [],
+                         up_ids = [],
+                         up_templates = [])
+                else:
+                    up_templates = templates_up[unique_up_ids]
+                    new_id_map = {iid: ctr for ctr, iid in enumerate(unique_up_ids)}
+                    up_id2 = [new_id_map[iid] for iid in up_id_list[unit]]
+
+                    np.savez(fname,
+                             template = templates[unit],
+                             spike_times = spike_train_list[unit],
+                             up_ids = up_id2,
+                             up_templates = up_templates)
+            else:
+                np.savez(fname,
+                         template = templates[unit],
+                         spike_times = spike_train_list[unit])
     return fnames
 
 def merge_units(fname_templates, fname_spike_train, merge_pairs):

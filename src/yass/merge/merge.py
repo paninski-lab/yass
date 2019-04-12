@@ -50,6 +50,7 @@ class TemplateMerge(object):
 
         else:
             # distance among templates
+            print ("computing distances")
             affinity_matrix = template_dist_linear_align(templates)
 
             # Distance metric with diagonal set to large numbers
@@ -59,6 +60,7 @@ class TemplateMerge(object):
             dist_mat += affinity_matrix
 
             # Template norms
+            print ("computing norms")
             norms = np.linalg.norm(
                 templates.reshape(self.n_unit, -1), axis=1)
 
@@ -69,6 +71,8 @@ class TemplateMerge(object):
             # ptp of each unit
             ptps = templates.ptp(1).max(1)
 
+            print ("finding merge candidates")
+ 
             self.find_merge_candidates(dist_norm_ratio,
                                        ptps)
             np.save(fname_candidates, self.merge_candidates)

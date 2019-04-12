@@ -6,7 +6,8 @@ from yass import read_config
 from yass.reader import READER
 from yass.residual.residual import RESIDUAL
 
-def run(fname_up,
+def run(fname_templates,
+        fname_spike_train,
         output_directory,
         recordings_filename,
         recording_dtype,
@@ -66,15 +67,11 @@ def run(fname_up,
                     CONFIG.resources.n_sec_chunk)
 
     # get residual object
-    residual_object = RESIDUAL(fname_up,
+    residual_object = RESIDUAL(fname_templates,
+                               fname_spike_train,
                                reader,
                                fname_out,
                                dtype_out)
-
-    # partition spike times
-    fname_partitioned = os.path.join(
-        output_directory, 'spike_times_partitioned.npy')
-    residual_object.partition_spike_time(fname_partitioned)
 
     # compute residual
     seg_dir = os.path.join(output_directory, 'segs')

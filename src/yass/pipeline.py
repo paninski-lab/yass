@@ -128,7 +128,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     #### Block 1: Initial run ####
     (fname_templates_init,
      fname_spike_train_init,
-     fname_up_init,
+     fname_templates_up_init,
+     fname_spike_train_up_init,
      fname_residual_init,
      residual_dtype_init) = initial_block(
         os.path.join(TMP_FOLDER, 'initial_block'),
@@ -138,16 +139,18 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     ### Block 2: Recluster
     (fname_templates,
      fname_spike_train,
-     fname_up,
+     fname_templates_up,
+     fname_spike_train_up,
      fname_residual,
-     residual_dtype) = recluster_block(
+     residual_dtype)= recluster_block(
         os.path.join(TMP_FOLDER, 'recluster_block'),
         standardized_path,
         standardized_params,
         fname_residual_init,
         residual_dtype_init,
         fname_spike_train_init,
-        fname_up_init)
+        fname_templates_up_init,
+        fname_spike_train_up_init)
     
     ## save the final
     fname_templates_final = os.path.join(
@@ -233,7 +236,10 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
 
     logger.info('INITIAL DECONV')
     # run deconvolution
-    fname_spike_train, fname_up = deconvolve.run(
+    (fname_templates,
+     fname_spike_train,
+     fname_templates_up,
+     fname_spike_train_up) = deconvolve.run(
         fname_templates,
         os.path.join(TMP_FOLDER,
                      'deconv'),
@@ -243,14 +249,16 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
     logger.info('INITIAL RESIDUAL COMPUTATION')
     # compute residual
     fname_residual, residual_dtype = residual.run(
-        fname_up,
+        fname_templates_up,
+        fname_spike_train_up,
         os.path.join(TMP_FOLDER,
                      'residual'),
         standardized_path,
         standardized_params['dtype'],
         dtype_out='float32')
 
-    return fname_templates, fname_spike_train, fname_up, fname_residual, residual_dtype
+    return (fname_templates, fname_spike_train, fname_templates_up,
+            fname_spike_train_up, fname_residual, residual_dtype)
 
 
 def recluster_block(TMP_FOLDER,
@@ -259,7 +267,8 @@ def recluster_block(TMP_FOLDER,
                     fname_residual,
                     residual_dtype,
                     fname_spike_train,
-                    fname_up):
+                    fname_templates_up,
+                    fname_spike_train_up):
     
     logger = logging.getLogger(__name__)
         
@@ -284,7 +293,8 @@ def recluster_block(TMP_FOLDER,
         full_run,
         fname_residual=fname_residual,
         residual_dtype=residual_dtype,
-        fname_up=fname_up)
+        fname_templates_up=fname_templates_up,
+        fname_spike_train_up=fname_spike_train_up)
     
     methods = ['low_ptp', 'duplicate', 'collision', 'high_mad']
     fname_templates, fname_spike_train = postprocess.run(
@@ -303,7 +313,10 @@ def recluster_block(TMP_FOLDER,
 
     # run deconvolution
     logger.info('SECOND DECONV')
-    fname_spike_train, fname_up = deconvolve.run(
+    (fname_templates,
+     fname_spike_train,
+     fname_templates_up,
+     fname_spike_train_up) = deconvolve.run(
         fname_templates,
         os.path.join(TMP_FOLDER,
                      'deconv'),
@@ -313,24 +326,27 @@ def recluster_block(TMP_FOLDER,
     # compute residual
     logger.info('SECOND RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
-        fname_up,
+        fname_templates_up,
+        fname_spike_train_up,
         os.path.join(TMP_FOLDER,
                      'residual'),
         standardized_path,
         standardized_params['dtype'],
         dtype_out='float32')
     
-    logger.info('FINALL MERGE')
+    logger.info('FINAL MERGE')
     fname_templates, fname_spike_train = merge.run(
         os.path.join(TMP_FOLDER,
                      'post_deconv_merge'),
         False,
         fname_spike_train,
         fname_templates,
-        fname_up,
+        fname_spike_train_up,
+        fname_templates_up,
         standardized_path,
         standardized_params['dtype'],
         fname_residual,
         residual_dtype)
 
-    return fname_templates, fname_spike_train, fname_up, fname_residual, residual_dtype
+    return (fname_templates, fname_spike_train, fname_templates_up,
+            fname_spike_train_up, fname_residual, residual_dtype)

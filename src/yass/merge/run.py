@@ -13,7 +13,8 @@ def run(output_directory,
         raw_data,
         fname_spike_train,
         fname_templates,
-        fname_up=None,
+        fname_spike_train_up=None,
+        fname_templates_up=None,
         fname_recording=None,
         recording_dtype=None,
         fname_residual=None,
@@ -37,12 +38,15 @@ def run(output_directory,
 
     # partition spike_idnex_chunk using the second column
     partition_dir = os.path.join(output_directory, 'input_partition')
+    print ("partinioiong input: ") 
     fnames_input = partition_input(partition_dir,
                                    fname_templates,
                                    fname_spike_train,
-                                   fname_up)
+                                   fname_templates_up,
+                                   fname_spike_train_up)
 
     # get reader
+    print ("init READER: ") 
     if raw_data:
         reader = READER(fname_recording,
                         recording_dtype,
@@ -53,6 +57,7 @@ def run(output_directory,
                         CONFIG)
 
     # initialize merge: find candidates
+    print ("finding merge candidates")
     tm = TemplateMerge(
         output_directory,
         raw_data,
@@ -63,8 +68,11 @@ def run(output_directory,
         CONFIG.resources.n_processors)
 
     # find merge pairs
+    print ("merging pairs")
     merge_pairs = tm.get_merge_pairs()
+
     # update templates adn spike train accordingly
+    print ("udpating templates and spike train")
     spike_train_new, templates_new, merge_array = merge_units(
         fname_templates, fname_spike_train, merge_pairs)
     

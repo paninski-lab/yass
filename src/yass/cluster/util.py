@@ -48,7 +48,9 @@ def make_CONFIG2(CONFIG):
     return CONFIG2
 
 def partition_input(save_dir, max_time,
-                    fname_spike_index, fname_up=None):
+                    fname_spike_index,
+                    fname_templates_up=None,
+                    fname_spike_train_up=None):
 
     # make directory
     if not os.path.isdir(save_dir):
@@ -56,10 +58,6 @@ def partition_input(save_dir, max_time,
 
     # load data
     spike_index = np.load(fname_spike_index)
-    if fname_up is not None:
-        up_data = np.load(fname_up)
-        spike_index_up = up_data['spike_train_up']
-        templates_up = up_data['templates_up']
 
     # consider only spikes times less than max_time
     idx_keep = np.where(spike_index[:,0] < max_time)[0]
@@ -71,43 +69,40 @@ def partition_input(save_dir, max_time,
         tt, ii = spike_index[j]
         spike_index_list[ii].append(tt)
 
-    if fname_up is not None:
+    # if there are upsampled data as input,
+    # load and partition them also
+    if fname_templates_up is not None:
+        spike_index_up = np.load(fname_spike_train_up)
+        templates_up = np.load(fname_templates_up)
         up_id_list = [[] for ii in range(n_units)]
         for j in idx_keep:
             ii = spike_index[j, 1]
             up_id = spike_index_up[j, 1]
             up_id_list[ii].append(up_id)
 
-
-    # partition upsampled templates also
-    # and save them
     fnames = []
     for unit in range(n_units):
 
         fname = os.path.join(save_dir, 'partition_{}.npz'.format(unit))
 
-        if fname_up is not None:
+        if fname_templates_up is not None:
             unique_up_ids = np.unique(up_id_list[unit])
-            # print ("unique_up_ids: ", unique_up_ids)
-            # print ("spike_index_list[unit]: ", spike_index_list[unit])
-            # print ("up_id_list[unit]: ", up_id_list[unit][:10])
             if unique_up_ids.shape[0]==0:
                 np.savez(fname,
                      spike_times = [],
                      up_ids = [],
                      up_templates = [])
                 fnames.append(fname)
-                
-                continue
-                
-            up_templates = templates_up[unique_up_ids]
-            new_id_map = {iid: ctr for ctr, iid in enumerate(unique_up_ids)}
-            up_id2 = [new_id_map[iid] for iid in up_id_list[unit]]
 
-            np.savez(fname,
-                     spike_times = spike_index_list[unit],
-                     up_ids = up_id2,
-                     up_templates = up_templates)
+            else:
+                up_templates = templates_up[unique_up_ids]
+                new_id_map = {iid: ctr for ctr, iid in enumerate(unique_up_ids)}
+                up_id2 = [new_id_map[iid] for iid in up_id_list[unit]]
+
+                np.savez(fname,
+                         spike_times = spike_index_list[unit],
+                         up_ids = up_id2,
+                         up_templates = up_templates)
         else:
             np.savez(fname,
                      spike_times = spike_index_list[unit])
@@ -146,12 +141,13 @@ def gather_clustering_result(result_dir, out_dir):
     spike_indexes = np.array(spike_indexes)    
     templates = np.vstack(templates)
 
-    logger.info("{} units loaded: ".format(len(spike_indexes)))
+    logger.info("units loaded: {}".format(len(spike_indexes)))
 
     fname_templates = os.path.join(out_dir, 'templates.npy')
     np.save(fname_templates, templates)
 
     # rearange spike indees from id 0..N
+    logger.info("reindexing spikes")
     spike_train = np.zeros((0,2), 'int32')
     for k in range(spike_indexes.shape[0]):    
         temp = np.zeros((spike_indexes[k].shape[0],2), 'int32')

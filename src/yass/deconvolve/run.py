@@ -8,7 +8,7 @@ from yass.reader import READER
 from yass.deconvolve.match_pursuit import MatchPursuit_objectiveUpsample
 #from yass.deconvolve.soft_assignment import get_soft_assignments
 
-def run(fname_templates,
+def run(fname_templates_in,
         output_directory,
         recordings_filename,
         recording_dtype):
@@ -55,13 +55,21 @@ def run(fname_templates,
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
-    fname_up = os.path.join(output_directory,
-                            'deconv_up_result.npz')
-    fname_spike_train = os.path.join(output_directory,
-                                     'spike_train.npy')
+    fname_templates = os.path.join(
+        output_directory, 'templates.npy')
+    fname_spike_train = os.path.join(
+        output_directory, 'spike_train.npy')
+    fname_templates_up = os.path.join(
+        output_directory, 'templates_up.npy')
+    fname_spike_train_up = os.path.join(
+        output_directory, 'spike_train_up.npy')
 
-    if os.path.exists(fname_up):
-        return fname_spike_train, fname_up
+    if (os.path.exists(fname_templates) and
+        os.path.exists(fname_spike_train) and
+        os.path.exists(fname_templates_up) and
+        os.path.exists(fname_spike_train_up)):
+        return (fname_templates, fname_spike_train,
+                fname_templates_up, fname_spike_train_up)
     
     # parameters
     # TODO: read from CONFIG
@@ -77,7 +85,7 @@ def run(fname_templates,
                     CONFIG.resources.n_sec_chunk)
 
     mp_object = MatchPursuit_objectiveUpsample(
-        fname_templates=fname_templates,
+        fname_templates=fname_templates_in,
         save_dir=output_directory,
         reader=reader,
         max_iter=max_iter,
@@ -129,7 +137,6 @@ def run(fname_templates,
         fname_out = os.path.join(seg_dir,
                   "seg_{}_deconv.npz".format(
                       str(batch_id).zfill(6)))
-                      
         res.append(np.load(fname_out)['spike_train'])
     res = np.vstack(res)
     
@@ -137,9 +144,14 @@ def run(fname_templates,
     (templates_up,
      deconv_id_sparse_temp_map) = mp_object.get_sparse_upsampled_templates()
 
+    # save templates and upsampled templates
+    np.save(fname_templates,
+            mp_object.temps.transpose(2,0,1))
+    np.save(fname_templates_up,
+            templates_up.transpose(2,0,1))
+
     # since deconv spike time is not centered, get shift for centering
-    spike_size = np.load(fname_templates).shape[1]
-    shift = spike_size // 2
+    shift = CONFIG.spike_size // 2
 
     # get spike train and save
     spike_train = np.copy(res)
@@ -148,19 +160,17 @@ def run(fname_templates,
     spike_train[:, 0] += shift
     # save
     np.save(fname_spike_train, spike_train)
+    # mute
+    spike_train = None
 
-    # get upsampled data
+    # get upsampled spike train
     spike_train_up = np.copy(res)
     spike_train_up[:, 1] = deconv_id_sparse_temp_map[
                 spike_train_up[:, 1]]
     spike_train_up[:, 0] += shift
-
-    # save
-    np.savez(fname_up,
-             spike_train_up=spike_train_up,
-             templates_up=templates_up.transpose(2,0,1),
-             spike_train=spike_train,
-             templates=mp_object.temps.transpose(2,0,1))
+    np.save(fname_spike_train_up, spike_train_up)
+    # mute
+    spike_train_up = None
 
     # Compute soft assignments
     #soft_assignments, assignment_map = get_soft_assignments(
@@ -174,4 +184,5 @@ def run(fname_templates,
     #np.save(deconv_obj.root_dir + '/soft_assignment.npy', soft_assignments)
     #np.save(deconv_obj.root_dir + '/soft_assignment_map.npy', assignment_map)
 
-    return fname_spike_train, fname_up
+    return (fname_templates, fname_spike_train,
+            fname_templates_up, fname_spike_train_up)

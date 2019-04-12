@@ -4,6 +4,7 @@ import numpy as np
 import networkx as nx
 from sklearn.decomposition import PCA
 from scipy.spatial import cKDTree
+from scipy.stats import chi2
 
 from yass.template import shift_chans, align_get_shifts_with_ref
 from yass import mfm
@@ -215,22 +216,22 @@ class Cluster(object):
         self.spike_size = self.CONFIG.spike_size
         self.neighbors = self.CONFIG.neigh_channels
         # max number of spikes for each mfm call
-        self.max_mfm_spikes = 5000
+        self.max_mfm_spikes = 10000
         # TODO: should be merged with min_spikes below
         #if self.raw_data:
         #    min_fr = 3
         #else:
         #    min_fr = 0.1
-        min_fr_triage = 3
+        #min_fr_triage = 3
         # min spikes : max time (length of recording) x min fr
-        self.n_sec_data = np.max(
-            self.spike_times_original)/float(
-            self.CONFIG.recordings.sampling_rate)
-        self.min_spikes_triage = int(self.n_sec_data*min_fr_triage)
+        #self.n_sec_data = np.max(
+        #    self.spike_times_original)/float(
+        #    self.CONFIG.recordings.sampling_rate)
+        #self.min_spikes_triage = int(self.n_sec_data*min_fr_triage)
         # if it will be subsampled, min spikes should decrease also
-        self.min_spikes_triage = int(self.min_spikes_triage*np.min((
-            1, self.CONFIG.cluster.max_n_spikes/
-            float(len(self.spike_times_original)))))
+        #self.min_spikes_triage = int(self.min_spikes_triage*np.min((
+        #    1, self.CONFIG.cluster.max_n_spikes/
+        #    float(len(self.spike_times_original)))))
         # TODO: eventually, need to be merged with min_fr
         # should be a function of firing rate
         # should be in CONFIG file
@@ -691,11 +692,12 @@ class Cluster(object):
 
         return idx_recovered, vbParam
     
-    def recover_spikes(self, vbParam, pca, maha_dist = 2):
+    def recover_spikes(self, vbParam, pca, maha_dist=1):
     
         N, D = pca.shape
         # Cat: TODO: check if this maha thresholding recovering distance is good
-        threshold = np.sqrt(D)*maha_dist
+        threshold = np.sqrt(chi2.ppf(0.99, D))
+
         # update rhat on full data
         maskedData = mfm.maskData(pca[:,:,np.newaxis], np.ones([N, 1]), np.ones(N))
         vbParam.update_local(maskedData)
