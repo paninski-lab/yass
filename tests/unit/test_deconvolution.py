@@ -23,7 +23,10 @@ def test_deconvolution(patch_triage_network, path_to_config,
         True,
         True)
 
-    fname_spike_train, fname_up = deconvolve.run(
+    (fname_templates,
+     fname_spike_train,
+     fname_templates_up,
+     fname_spike_train_up) = deconvolve.run(
         fname_templates,
         os.path.join(make_tmp_folder,
                      'deconv'),
