@@ -307,7 +307,7 @@ class Cluster(object):
             self.align_step()
             # denoise waveforms on active channels
             self.denoise_step()
-       
+
     def find_main_channel(self):
         if len(self.spike_times_original) > 500:
             idx_sampled = np.random.choice(
@@ -500,7 +500,7 @@ class Cluster(object):
         return pca_wf
             
     def subsample_step(self, gen, pca_wf):
- 
+
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', random subsample')
 

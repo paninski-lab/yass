@@ -151,7 +151,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         fname_spike_train_init,
         fname_templates_up_init,
         fname_spike_train_up_init)
-    
+
     ## save the final
     fname_templates_final = os.path.join(
         TMP_FOLDER, 'templates.npy')
@@ -280,7 +280,6 @@ def recluster_block(TMP_FOLDER,
         **********************************************
     '''
     # cluster
-    
     logger.info('RECLUSTERING')
     raw_data = False
     full_run = True

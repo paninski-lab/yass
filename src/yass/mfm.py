@@ -11,128 +11,8 @@ from sklearn.cluster import KMeans
 
 logger = logging.getLogger(__name__)
 
+
 class maskData:
-    """
-        Class for creating masked virtual data
-
-        Attributes:
-        -----------
-
-        sumY: np.array
-            Ngroup x nfeature x nchannel anumpy array which contain the sum of
-            the expectation of the
-             masked virtual data for each group. Here Ngroup is number of
-             unique groups given by the
-             coresetting. nfeature is the number of features and nchannel is
-             the number of channels.
-        sumYSq: np.array
-            Ngroup x nfeature x nchannel numpy array which contain the sum of
-            the expectation of yy.T
-            where y = M * score for each group.
-        sumEta: np.array
-            Ngroup x nfeature x nchannel numpy array sum of the variance for
-            all points in a group.
-        weight: np.array
-            Ngroup x 1 numpy arraay which contains in the number of points in
-            each group
-        meanY: np.array
-            Ngroup x nfeature x nchannel numpy array which is sumY/weight or
-            the empirical mean of sumY
-        meanYSq: np.array
-            Ngroup x nfeature x nfeature x nchannel numpy array which is
-            sumYSq/weight or the empirical
-            mean of sumYSq
-        meanEta: np.array
-            Ngroup x nfeature x nfeature x nchannel numpy array whihc is
-            sumEta/weight or the empirical
-            mean of sumEta
-        groupmask: np.array
-            Ngroup x nchannel emprical average of the mask for the datapoints
-            for a given group
-    """
-
-    def __init__(self, *args):
-        """
-            Initialization of class attributes. Class method
-            calc_maskedData_mfm() is called to actually
-            calculate the attributes.
-
-            Parameters
-            ----------
-            score: np.array
-                N x nfeature x nchannel numpy array, where N is the number of
-                spikes, nfeature is the
-                number of features and nchannel is the number of channels.
-                Contains multichannel spike
-                data in a low dimensional space.
-            mask:  np.array
-                N x nchannel numpy array, where N is the number of spikes,
-                nchannel is the number of
-                channels. Mask for the data.
-            group: np.array
-                N x 1 numpy array, where N is the number of spikes.
-                Coresetting group assignments for
-                each spike
-
-        """
-        if len(args) > 0:
-            self.calc_maskedData_mfm(args[0], args[1], args[2])
-
-    def calc_maskedData_mfm(self, score, mask, weight):
-        """
-            Calculation of class attributes happen here.
-
-
-            Parameters
-            ----------
-            score: np.array
-                N x nfeature x nchannel numpy array, where N is the number of
-                spikes, nfeature is the
-                number of features and nchannel is the number of channels.
-                Contains multichannel spike
-                data in a low dimensional space.
-            mask:  np.array
-                N x nchannel numpy array, where N is the number of spikes,
-                nchannel is the number of
-                channels. Mask for the data.
-            group: np.array
-                N x 1 numpy array, where N is the number of spikes.
-                Coresetting group assignments for
-                each spike
-        """
-        N, nfeature, nchannel = score.shape
-
-        # get y
-        y = mask[:, np.newaxis, :] * score
-
-        # get ySq
-        y_temp = y[:, :, np.newaxis, :]
-        ySq = np.matmul(
-            np.transpose(y_temp, [0, 3, 1, 2]),
-            np.transpose(y_temp, [0, 3, 2, 1])).transpose((0, 2, 3, 1))
-
-        # get z
-        score_temp = score[:, :, np.newaxis, :]
-        scoreSq = np.matmul(
-            np.transpose(score_temp, [0, 3, 1, 2]),
-            np.transpose(score_temp, [0, 3, 2, 1])).transpose((0, 2, 3, 1))
-        z = mask[:, np.newaxis, np.newaxis, :] * scoreSq + \
-            (1 - mask)[:, np.newaxis, np.newaxis, :] * \
-            (np.eye(nfeature)[np.newaxis, :, :, np.newaxis])
-        eta = z - ySq
-
-        self.sumY = y
-        self.sumYSq = ySq
-        self.sumEta = eta
-        self.weight = weight
-        self.groupMask = mask/self.weight[:, np.newaxis]
-        self.meanY = self.sumY/self.weight[:, np.newaxis, np.newaxis]
-        self.meanYSq = self.sumYSq / \
-            self.weight[:, np.newaxis, np.newaxis, np.newaxis]
-        self.meanEta = self.sumEta / \
-            self.weight[:, np.newaxis, np.newaxis, np.newaxis]
-
-class maskData_orig:
     """
         Class for creating masked virtual data
 
@@ -1023,6 +903,7 @@ def spikesort(score, mask, group, param):
     maskedData = maskData(score, mask, group)
 
     vbParam = split_merge(maskedData, param)
+
     # assignmentTemp = np.argmax(vbParam.rhat, axis=1)
 
     # assignment = np.zeros(score.shape[0], 'int16')
@@ -1142,18 +1023,6 @@ def calc_mahalonobis(vbParam, score):
                 scoremhat[:, :, :, :, np.newaxis]),
             axis=(3, 4),
             keepdims=False))
-    
-    if np.any(np.isnan(maha)):
-        print('maha')
-        if np.any(vbParam.muhat<0):
-            print('muhat')
-        if np.any(vbParam.nuhat<0):
-            print('nuhat')
-        if np.any(vbParam.Vhat<0):
-            print('Vhat')
-            print(np.any(vbParam.Vhat<0, axis=(0,1,3)))
-            print(vbParam.nuhat)
-            
 
     return maha[:, :, 0]
 

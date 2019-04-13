@@ -64,7 +64,7 @@ class Cluster(object):
                 indices_train_final += self.indices_train
                 templates_final += self.templates
 
-        else:
+        if (not self.full_run) or (not self.raw_data):
             indices_train_final = []
             templates_final = []
             for indices_train_k in self.indices_train:
@@ -72,18 +72,6 @@ class Cluster(object):
                 if self.check_max_chan(template):
                     templates_final.append(template)
                     indices_train_final.append(indices_train_k)
-        
-        if (self.full_run) and (not self.raw_data):
-            templates_final_2 = []
-            indices_train_final_2 = []
-            for indices_train_k in indices_train_final:
-                template = self.get_templates_on_all_channels(indices_train_k)
-                if self.check_max_chan(template):
-                    templates_final_2.append(template)
-                    indices_train_final_2.append(indices_train_k)
-
-            templates_final = templates_final_2
-            indices_train_final = indices_train_final_2
         
         # save clusters
         self.save_result(indices_train_final, templates_final)
@@ -115,10 +103,10 @@ class Cluster(object):
             pca_wf = pca_wf[idx_keep]
 
         # subsample if too many
-        pca_wf_subsample, weights = self.subsample_step(gen, pca_wf)
+        pca_wf_subsample = self.subsample_step(gen, pca_wf)
 
         # run mfm
-        vbParam1 = self.run_mfm(gen, pca_wf_subsample, weights)
+        vbParam1 = self.run_mfm(gen, pca_wf_subsample)
 
         # recover spikes using soft-assignments
         idx_recovered, vbParam2 = self.recover_step(gen, vbParam1, pca_wf)
@@ -235,6 +223,15 @@ class Cluster(object):
         # TODO: eventually, need to be merged with min_fr
         # should be a function of firing rate
         # should be in CONFIG file
+        min_fr = 0.1
+        n_sec_data = np.max(
+            self.spike_times_original)/float(
+            self.CONFIG.recordings.sampling_rate)
+        self.min_spikes = int(n_sec_data*min_fr)
+        # if it will be subsampled, min spikes should decrease also
+        self.min_spikes = int(self.min_spikes*np.min((
+            1, self.CONFIG.cluster.max_n_spikes/
+            float(len(self.spike_times_original)))))
         self.min_spikes = 100
         # load template space
         self.initialize_template_space()
@@ -462,6 +459,13 @@ class Cluster(object):
         #    good_features = np.argsort(energy)[-self.selected_PCA_rank:]
         #self.denoised_wf = self.denoised_wf[:, good_features]
 
+    def denoise_step_distant(self):
+
+        # active locations with negative energy
+        energy = np.median(np.square(self.wf_global), axis=0)
+        good_t, good_c = np.where(energy > 0.5)
+        self.denoised_wf = self.wf_global[:, good_t, good_c]
+
     def denoise_step_distant2(self):
 
         # active locations with negative energy
@@ -496,7 +500,7 @@ class Cluster(object):
 
         self.denoised_wf = self.wf_global[:, good_t, good_c]
 
-    def denoise_step_distant(self):
+    def denoise_step_distant3(self):
 
         energy = np.median(self.wf_global, axis=0)
         max_energy = np.min(energy, axis=0)
@@ -598,27 +602,24 @@ class Cluster(object):
 
         if pca_wf.shape[0]> self.max_mfm_spikes:
             if self.full_run:
-                idx_subsampled, weights = coreset(
+                idx_subsampled = coreset(
                     pca_wf, self.max_mfm_spikes)
             else:
                 idx_subsampled = np.random.choice(np.arange(pca_wf.shape[0]),
                                  size=self.max_mfm_spikes,
                                  replace=False)
-                weights = np.ones(self.max_mfm_spikes)
-
+                
             pca_wf = pca_wf[idx_subsampled]
 
-        else:
-            weights = np.ones(pca_wf.shape[0])
+        return pca_wf
 
-        return pca_wf, weights
-
-    def run_mfm(self, gen, pca_wf, weights):
+    def run_mfm(self, gen, pca_wf):
 
         mask = np.ones((pca_wf.shape[0], 1))
+        group = np.arange(pca_wf.shape[0])
         vbParam = mfm.spikesort(pca_wf[:,:,np.newaxis],
                                 mask,
-                                weights,
+                                group,
                                 self.CONFIG)
         if self.verbose:
             print("chan "+ str(self.channel)+', gen '\
@@ -699,7 +700,7 @@ class Cluster(object):
         threshold = np.sqrt(chi2.ppf(0.99, D))
 
         # update rhat on full data
-        maskedData = mfm.maskData(pca[:,:,np.newaxis], np.ones([N, 1]), np.ones(N))
+        maskedData = mfm.maskData(pca[:,:,np.newaxis], np.ones([N, 1]), np.arange(N))
         vbParam.update_local(maskedData)
 
         # calculate mahalanobis distance
@@ -935,7 +936,7 @@ class Cluster(object):
         # temporarily change raw_data option to True
         self_raw_data_orig = np.copy(self.raw_data)
         self.raw_data = True
-        
+
         self.load_waveforms(local)
         self.align_step(local)
 
@@ -1046,10 +1047,11 @@ def coreset(data, m, K=5, delta=0.05):
     p = s/sum(s)
 
     idx_coreset = np.random.choice(N, size=m, replace=False, p=p)
-    weights = 1/(m*p[idx_coreset])
-    weights[weights<1] = 1
+    #weights = 1/(m*p[idx_coreset])
+    #weights[weights<1] = 1
+    #weights = np.ones(m)
 
-    return idx_coreset, weights
+    return idx_coreset#, weights
 
 def kmeans_init(data, K, n_iter):
     N, D = data.shape
