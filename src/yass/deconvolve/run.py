@@ -139,7 +139,7 @@ def run(fname_templates_in,
                       str(batch_id).zfill(6)))
         res.append(np.load(fname_out)['spike_train'])
     res = np.vstack(res)
-    
+
     logger.info('Number of Spikes deconvolved: {}'.format(res.shape[0]))
 
     # get upsampled templates and mapping for computing residual
@@ -148,7 +148,7 @@ def run(fname_templates_in,
 
     # save templates and upsampled templates
     np.save(fname_templates,
-            mp_object.temps_orig.transpose(2,0,1))
+            mp_object.temps.transpose(2,0,1))
     np.save(fname_templates_up,
             templates_up.transpose(2,0,1))
 

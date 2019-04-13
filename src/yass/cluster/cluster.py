@@ -64,7 +64,7 @@ class Cluster(object):
                 indices_train_final += self.indices_train
                 templates_final += self.templates
 
-        if (not self.full_run) or (not self.raw_data):
+        else:
             indices_train_final = []
             templates_final = []
             for indices_train_k in self.indices_train:
@@ -73,6 +73,18 @@ class Cluster(object):
                     templates_final.append(template)
                     indices_train_final.append(indices_train_k)
         
+        if (self.full_run) and (not self.raw_data):
+            templates_final_2 = []
+            indices_train_final_2 = []
+            for indices_train_k in indices_train_final:
+                template = self.get_templates_on_all_channels(indices_train_k)
+                if self.check_max_chan(template):
+                    templates_final_2.append(template)
+                    indices_train_final_2.append(indices_train_k)
+
+            templates_final = templates_final_2
+            indices_train_final = indices_train_final_2
+
         # save clusters
         self.save_result(indices_train_final, templates_final)
 
@@ -232,7 +244,6 @@ class Cluster(object):
         self.min_spikes = int(self.min_spikes*np.min((
             1, self.CONFIG.cluster.max_n_spikes/
             float(len(self.spike_times_original)))))
-        self.min_spikes = 100
         # load template space
         self.initialize_template_space()
         

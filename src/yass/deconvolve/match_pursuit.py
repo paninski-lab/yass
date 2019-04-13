@@ -65,7 +65,7 @@ class MatchPursuit_objectiveUpsample(object):
     def __init__(self, fname_templates, save_dir, reader, 
                  max_iter=1000, upsample=1, threshold=10., 
                  conv_approx_rank=10, n_processors=1,
-                 multi_processing=False, vis_su=2.,
+                 multi_processing=False, vis_su=0.5,
                  keep_iterations=False):
         """Sets up the deconvolution object.
 
@@ -96,7 +96,6 @@ class MatchPursuit_objectiveUpsample(object):
 
         temps = np.load(fname_templates).transpose(1, 2, 0)
         self.temps = temps.astype(np.float32)
-        self.temps_orig = temps.astype(np.float32)
 
         self.n_time, self.n_chan, self.n_unit = temps.shape
         self.deconv_dir = save_dir
@@ -166,8 +165,6 @@ class MatchPursuit_objectiveUpsample(object):
         # Account for upsampling window so that np.inf does not fall into the
         # window around peak for valid spikes.
         self.adjusted_refrac_radius = 10
-
-        self.temps = None
 
     def upsample_templates_mp(self, upsample):
         if upsample != 1:
@@ -436,7 +433,7 @@ class MatchPursuit_objectiveUpsample(object):
                             
             for i in range(self.orig_n_unit):
                 up_temps = scipy.signal.resample(
-                        self.temps_orig[:, :, i],
+                        self.temps[:, :, i],
                         self.n_time * self.up_factor)[down_sample_idx, :]
                 up_temps = up_temps.transpose([1, 2, 0])
                 #up_temps = up_temps[:, :, reorder_idx]
@@ -470,7 +467,7 @@ class MatchPursuit_objectiveUpsample(object):
         i = unit
 
         up_temps = scipy.signal.resample(
-                self.temps_orig[:, :, i],
+                self.temps[:, :, i],
                 self.n_time * self.up_factor)[down_sample_idx, :]
         up_temps = up_temps.transpose([1, 2, 0])
         up_temps = up_temps[:, :, reorder_idx]
@@ -491,7 +488,7 @@ class MatchPursuit_objectiveUpsample(object):
                 
         if self.multi_processing:
             res = parmap.map(self.upsample_templates_parallel, 
-                            self.temps_orig.T,
+                            self.temps.T,
                             self.n_time, 
                             self.up_factor,
                             down_sample_idx,
@@ -501,7 +498,7 @@ class MatchPursuit_objectiveUpsample(object):
             res = []
             for k in range(self.temps.T.shape[0]):
                 res.append(self.upsample_templates_parallel(
-                            self.temps_orig.T[k],
+                            self.temps.T[k],
                             self.n_time, 
                             self.up_factor,
                             down_sample_idx))                
