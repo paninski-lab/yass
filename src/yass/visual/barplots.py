@@ -82,16 +82,16 @@ def match_units(selected_unit, fname_templates, fname_spike_train,
         n_spikes_found = n_spikes_found[idx_keep]
 
         n_matched = np.sum(spike_match_array, axis=1)
-        idx = np.argsort(n_matched)[::-1]
+        idx = np.argsort(n_matched/n_spikes_found.astype('float32'))[::-1]
 
         matched_spikes = []
         unmatched_spikes = []
         match_ids_updated = [] 
         already_matched = np.zeros(len(spt_gt), 'bool')
         for ii in idx:
-            n_unmatched = n_spikes_found[ii] - np.sum(spike_match_array[ii])
             spike_match = spike_match_array[ii]
             spike_match[already_matched] = False
+            n_unmatched = n_spikes_found[ii] - np.sum(spike_match)
             
             if np.sum(spike_match) > purity_threshold*n_spikes_found[ii]:# or np.mean(spike_match) > purity_threshold:
                 matched_spikes.append(np.sum(spike_match))
@@ -194,9 +194,10 @@ def make_purity_complete_plots(ax, idx_sorted, all_matched_spikes, all_unmatched
     # completeness
     for x_, ctr in enumerate(idx_sorted):
 
-        matched_spikes = all_matched_spikes[ctr]
+        matched_spikes = all_matched_spikes[ctr].astype('float32')
         unmatched_spikes = all_unmatched_spikes[ctr]
-        idx = np.argsort(matched_spikes)[::-1]
+        idx = np.argsort(matched_spikes/(
+            matched_spikes+unmatched_spikes))[::-1]
         matched_spikes = matched_spikes[idx]
         unmatched_spikes = unmatched_spikes[idx]        
 
