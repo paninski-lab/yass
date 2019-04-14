@@ -65,7 +65,7 @@ class MatchPursuit_objectiveUpsample(object):
     def __init__(self, fname_templates, save_dir, reader, 
                  max_iter=1000, upsample=1, threshold=10., 
                  conv_approx_rank=10, n_processors=1,
-                 multi_processing=False, vis_su=0.5,
+                 multi_processing=False, vis_su=1,
                  keep_iterations=False):
         """Sets up the deconvolution object.
 

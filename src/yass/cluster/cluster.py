@@ -111,11 +111,11 @@ class Cluster(object):
             # if it is raw, run % knn triage
             # otherwise, no triage because it is clean already
             idx_keep = self.knn_triage_step(gen, pca_wf)
-            current_indices = current_indices[idx_keep]
-            pca_wf = pca_wf[idx_keep]
+            #current_indices = current_indices[idx_keep]
+            pca_wf_triage = pca_wf[idx_keep]
 
         # subsample if too many
-        pca_wf_subsample = self.subsample_step(gen, pca_wf)
+        pca_wf_subsample = self.subsample_step(gen, pca_wf_triage)
 
         # run mfm
         vbParam1 = self.run_mfm(gen, pca_wf_subsample)
@@ -612,7 +612,8 @@ class Cluster(object):
             print("chan "+str(self.channel)+', gen '+str(gen)+', random subsample')
 
         if pca_wf.shape[0]> self.max_mfm_spikes:
-            if self.full_run:
+            #if self.full_run:
+            if True:
                 idx_subsampled = coreset(
                     pca_wf, self.max_mfm_spikes)
             else:
@@ -643,7 +644,7 @@ class Cluster(object):
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', knn triage')
 
-        self.triage_value = 0.05
+        self.triage_value = 0.01
         knn_triage_threshold = 100*(1-self.triage_value)
         idx_keep = knn_triage(knn_triage_threshold, pca_wf)
         idx_keep = np.where(idx_keep==1)[0]
