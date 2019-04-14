@@ -8,6 +8,8 @@ from scipy.interpolate import interp1d
 from scipy.spatial.distance import pdist, squareform
 from scipy import signal
 
+from yass import read_config
+from yass.reader import READER
 from yass.util import absolute_path_to_asset
 
 class Geometry(object):
@@ -187,10 +189,82 @@ class WaveForms(object):
                 all_shifts - ref).sum(axis=-1).argmin(axis=-1)
         return self.get_shifted_waveforms(best_shift_idx, clip_value=jitter)
 
+def update_templates(
+    fname_templates,
+    fname_spike_train,
+    recordings_filename,
+    recording_dtype,
+    output_directory,
+    rate=0.005,
+    unit_ids=None):
+
+    logger = logging.getLogger(__name__)
+
+    CONFIG = read_config()
+
+    # output folder
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+
+    reader = READER(recordings_filename,
+                    recording_dtype,
+                    CONFIG)
+
+    fname_templates_new = run_template_computation(
+        fname_spike_train,
+        reader,
+        output_directory,
+        unit_ids=unit_ids,
+        multi_processing=CONFIG.resources.multi_processing,
+        n_processors=CONFIG.resources.n_processors)
+
+    # load templates
+    templates_orig = np.load(fname_templates)
+    templates_new = np.load(fname_templates_new)
+
+    n_units, n_times, n_channels = templates_orig.shape
+    n_units_new = templates_new.shape[0]
+
+    # if last few units have no spikes deconvovled, the length of new templates
+    # can be shorter. then, zero pad it
+    if n_units_new < n_units:
+        zero_pad = np.zeros((n_units-n_units_new, n_times, n_channels), 'float32')
+        templates_new = np.oncatenate(
+            (templates_new, zero_pad), axis=0)
+
+    # number of deconvolved spikes
+    n_spikes = np.zeros(n_units)
+    units_unique, n_spikes_unique = np.unique(
+        np.load(fname_spike_train)[:, 1], return_counts=True)
+    n_spikes[units_unique] = n_spikes_unique
+
+    # update rule if it will be updated
+    weight_to_update = np.zeros(n_units)
+    weight_to_update[units] = np.power((1 - rate), n_spikes)
+
+    # only update for units in unit_ids 
+    weight = np.ones(n_units)
+    weight[unit_ids] = weight_to_update[unit_ids]
+    weight = weight[:, None, None]
+
+    # update and save
+    templates_updated = weight*templates_orig + (1-weight)*templates_new
+    fname_templates_updated = os.path.join(out_dir, 'templates_updated.npy')
+    np.save(fname_templates_updated, templates_updated)
+
+    # check the difference
+    max_diff = np.zeros(n_units)
+    max_diff[unit_ids] = np.max(np.abs(
+        templates_new[unit_ids] - templates_orig[unit_ids]))
+
+    return fname_templates_updated, max_diff
+
 def run_template_computation(
     fname_spike_train,
-    spike_size, reader, out_dir,
-    multi_processing=None,
+    reader,
+    out_dir,
+    unit_ids=None,
+    multi_processing=False,
     n_processors=1):
 
     logger = logging.getLogger(__name__)
@@ -207,12 +281,15 @@ def run_template_computation(
         os.makedirs(tmp_folder)
 
     # partition spike train per unit for multiprocessing
-    fnames_spike_times, n_units = partition_spike_time(
+    fname_spike_times, n_units = partition_spike_time(
         tmp_folder, fname_spike_train)
+
+    if unit_ids is None:
+        unit_ids = np.arange(n_units)
 
     # gather input arguments
     fnames_out = []
-    for unit in range(n_units):
+    for unit in unit_ids:
         fnames_out.append(os.path.join(
             tmp_folder,
             "template_unit_{}.npy".format(unit)))
@@ -220,22 +297,21 @@ def run_template_computation(
     # run computing function
     if multi_processing:
         parmap.starmap(run_template_computation_parallel,
-                   list(zip(fnames_spike_times, fnames_out)),
+                   list(zip(unit_ids, fnames_out)),
+                   fname_spike_times,
                    reader,
-                   spike_size,
                    processes=n_processors,
                    pm_pbar=True)
     else:
-        for ctr in range(n_units):
+        for ctr in unit_ids:
             run_template_computation_parallel(
                 fnames_spike_times[ctr],
                 fnames_out[ctr],
-                reader,
-                spike_size)
+                reader)
 
     # gather all info
-    templates_new = np.zeros((n_units, spike_size, n_channels))
-    for ctr, unit in enumerate(range(n_units)):
+    templates_new = np.zeros((n_units, reader.spike_size, n_channels), 'float32')
+    for ctr, unit in enumerate(unit_ids):
         if os.path.exists(fnames_out[ctr]):
             templates_new[unit] = np.load(fnames_out[ctr])
 
@@ -245,19 +321,22 @@ def run_template_computation(
     return fname_templates
 
 def run_template_computation_parallel(
-    fname_spike_times, fname_out, reader, spike_size):
+    unit_id, fname_out, fname_spike_times, reader):
 
     # load spike times
-    spike_times = np.load(fname_spike_times)
+    spike_times = np.load(fname_spike_times)[unit_id]
 
-    template = compute_a_template(spike_times,
-                                  reader,
-                                  spike_size)
+    if len(spike_times) > 0:
+        template = compute_a_template(spike_times,
+                                      reader)
+    else:
+        template = np.zeros(
+            (reader.spikze_size, reader.n_channels), 'float32')
 
     # save result
     np.save(fname_out, template)
 
-def compute_a_template(spike_times, reader, spike_size):
+def compute_a_template(spike_times, reader):
 
     # subsample upto 1000
     max_spikes = 1000
@@ -267,8 +346,7 @@ def compute_a_template(spike_times, reader, spike_size):
                                        replace=False)
 
     # get waveforms
-    wf, _ = reader.read_waveforms(spike_times,
-                                  spike_size)
+    wf, _ = reader.read_waveforms(spike_times)
 
     # max channel
     mc = np.mean(wf, axis=0).ptp(0).argmax()
@@ -283,7 +361,7 @@ def compute_a_template(spike_times, reader, spike_size):
                          upsample_factor=5,
                          nshifts=3)
 
-    return np.median(wf, axis=0)
+    return np.median(wf, axis=0).astype('float32')
 
 def partition_spike_time(save_dir,
                          fname_spike_index):
@@ -303,15 +381,9 @@ def partition_spike_time(save_dir,
         spike_index_list[ii].append(tt)
 
     # save them
-    fnames = []
-    for unit in range(n_units):
+    fname = os.path.join(save_dir, 'spike_times.npy')
 
-        fname = os.path.join(save_dir, 'partition_{}.npy'.format(unit))
-        np.save(fname,
-                spike_index_list[unit])
-        fnames.append(fname)
-        
-    return fnames, n_units
+    return fname, n_units
 
 def align_waveforms(wf, ref=None, upsample_factor=5, nshifts=7):
 

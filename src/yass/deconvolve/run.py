@@ -11,7 +11,9 @@ from yass.deconvolve.match_pursuit import MatchPursuit_objectiveUpsample
 def run(fname_templates_in,
         output_directory,
         recordings_filename,
-        recording_dtype):
+        recording_dtype,
+        run_chunk='full',
+        save_up_data=True):
     """Deconvolute spikes
 
     Parameters
@@ -95,12 +97,27 @@ def run(fname_templates_in,
         n_processors=CONFIG.resources.n_processors,
         multi_processing=CONFIG.resources.multi_processing)
 
-    logger.info('Number of Units IN: {}'.format(mp_object.temps_orig.shape[2]))
+    logger.info('Number of Units IN: {}'.format(mp_object.temps.shape[2]))
 
     # directory to save results for each segment
     seg_dir = os.path.join(output_directory, 'seg')
     if not os.path.exists(seg_dir):
         os.makedirs(seg_dir)
+
+
+    # chunks to run deconv on
+    if run_chunk == 'full':
+        batches = np.arange(reader.n_batches)
+    else:
+        start_sec, end_sec = run_chunk
+
+        idx_less = np.where(reader.idx_list[:, 0] <= start_sec)[0]
+        start_batch = np.argmin(reader.idx_list[idx_less, 0])
+
+        idx_bigger = np.where(reader.idx_list[:, 0] >= end_sec)[0]
+        end_batch = np.argmin(reader.idx_list[idx_bigger, 0])
+
+        batches = np.arange(start_batch, end_batch+1)
 
     # skip files/batches already completed; this allows more even distribution
     # across cores in case of restart
@@ -108,7 +125,7 @@ def run(fname_templates_in,
     #       dynamic file assignment here to deal with slow cores etc.
     fnames_out = []
     batch_ids = []
-    for batch_id in range(reader.n_batches):
+    for batch_id in batches:
         fname_temp = os.path.join(seg_dir,
                           "seg_{}_deconv.npz".format(
                               str(batch_id).zfill(6)))
@@ -142,15 +159,9 @@ def run(fname_templates_in,
 
     logger.info('Number of Spikes deconvolved: {}'.format(res.shape[0]))
 
-    # get upsampled templates and mapping for computing residual
-    (templates_up,
-     deconv_id_sparse_temp_map) = mp_object.get_sparse_upsampled_templates()
-
     # save templates and upsampled templates
     np.save(fname_templates,
             mp_object.temps.transpose(2,0,1))
-    np.save(fname_templates_up,
-            templates_up.transpose(2,0,1))
 
     # since deconv spike time is not centered, get shift for centering
     shift = CONFIG.spike_size // 2
@@ -162,17 +173,21 @@ def run(fname_templates_in,
     spike_train[:, 0] += shift
     # save
     np.save(fname_spike_train, spike_train)
-    # mute
-    spike_train = None
 
-    # get upsampled spike train
-    spike_train_up = np.copy(res)
-    spike_train_up[:, 1] = deconv_id_sparse_temp_map[
-                spike_train_up[:, 1]]
-    spike_train_up[:, 0] += shift
-    np.save(fname_spike_train_up, spike_train_up)
-    # mute
-    spike_train_up = None
+    if save_up_data:
+        # get upsampled templates and mapping for computing residual
+        (templates_up,
+         deconv_id_sparse_temp_map) = mp_object.get_sparse_upsampled_templates()
+
+        np.save(fname_templates_up,
+                templates_up.transpose(2,0,1))
+
+        # get upsampled spike train
+        spike_train_up = np.copy(res)
+        spike_train_up[:, 1] = deconv_id_sparse_temp_map[
+                    spike_train_up[:, 1]]
+        spike_train_up[:, 0] += shift
+        np.save(fname_spike_train_up, spike_train_up)
 
     # Compute soft assignments
     #soft_assignments, assignment_map = get_soft_assignments(
