@@ -107,16 +107,15 @@ class Cluster(object):
         # featurize #1
         pca_wf = self.featurize_step(gen, current_indices, current_indices, local)
 
+        # knn triage
         if self.raw_data:
-            # if it is raw, run % knn triage
-            # otherwise, no triage because it is clean already
             idx_keep = self.knn_triage_step(gen, pca_wf)
-            #current_indices = current_indices[idx_keep]
             pca_wf_triage = pca_wf[idx_keep]
+        else:
+            pca_wf_triage = np.copy(pca_wf)
 
         # subsample if too many
         pca_wf_subsample = self.subsample_step(gen, pca_wf_triage)
-
         # run mfm
         vbParam1 = self.run_mfm(gen, pca_wf_subsample)
 
@@ -131,7 +130,7 @@ class Cluster(object):
 
         # save generic metadata containing current branch info
         self.save_metadata(vbParam2, pca_wf, current_indices, local,
-                               gen, branch, hist)
+                           gen, branch, hist)
 
         # single cluster
         if vbParam2.rhat.shape[1] == 1:
@@ -199,6 +198,7 @@ class Cluster(object):
                 self.upsampled_templates = input_data['up_templates']
                 self.upsampled_ids = input_data['up_ids']
 
+        # if there is no spike to cluster, finish
         if len(self.spike_times_original) == 0:
             return True
 
@@ -244,11 +244,18 @@ class Cluster(object):
         self.min_spikes = int(self.min_spikes*np.min((
             1, self.CONFIG.cluster.max_n_spikes/
             float(len(self.spike_times_original)))))
+        # min_spikes needs to be at least 1
+        self.min_spikes = max(self.min_spikes, 1)
+
         # load template space
         self.initialize_template_space()
-        
+
         # random subsample, remove edge spikes
         self.clean_input_data()
+
+        # if there is no spike to cluster, finish
+        if len(self.spike_times_original) == 0:
+            return True
 
         ''' ******************************************
             *********** SAVING PARAMETERS ************
@@ -475,6 +482,22 @@ class Cluster(object):
         # active locations with negative energy
         energy = np.median(np.square(self.wf_global), axis=0)
         good_t, good_c = np.where(energy > 0.5)
+
+        # limit to max_timepoints per channel
+        max_timepoints = 3
+        unique_channels = np.unique(good_c)
+        idx_keep = np.zeros(len(good_t), 'bool')
+        for channel in unique_channels:
+            idx_temp = np.where(good_c == channel)[0]
+            if len(idx_temp) > max_timepoints:
+                idx_temp = idx_temp[
+                    np.argsort(
+                        energy[good_t[idx_temp], good_c[idx_temp]]
+                    )[-max_timepoints:]]
+            idx_keep[idx_temp] = True
+        good_t = good_t[idx_keep]
+        good_c = good_c[idx_keep]
+
         self.denoised_wf = self.wf_global[:, good_t, good_c]
 
     def denoise_step_distant2(self):
@@ -633,6 +656,7 @@ class Cluster(object):
                                 mask,
                                 group,
                                 self.CONFIG)
+
         if self.verbose:
             print("chan "+ str(self.channel)+', gen '\
                 +str(gen)+", "+str(vbParam.rhat.shape[1])+" clusters from ",pca_wf.shape)
@@ -646,8 +670,12 @@ class Cluster(object):
 
         self.triage_value = 0.01
         knn_triage_threshold = 100*(1-self.triage_value)
-        idx_keep = knn_triage(knn_triage_threshold, pca_wf)
-        idx_keep = np.where(idx_keep==1)[0]
+
+        if pca_wf.shape[0] > 1/self.triage_value:
+            idx_keep = knn_triage(knn_triage_threshold, pca_wf)
+            idx_keep = np.where(idx_keep==1)[0]
+        else:
+            idx_keep = np.arange(pca_wf.shape[0])
 
         return idx_keep
 
@@ -1011,10 +1039,10 @@ class Cluster(object):
 def knn_triage(th, pca_wf):
 
     tree = cKDTree(pca_wf)
-    dist, ind = tree.query(pca_wf, k=11)
+    dist, ind = tree.query(pca_wf, k=6)
     dist = np.sum(dist, 1)
 
-    idx_keep1 = dist < np.percentile(dist, th)
+    idx_keep1 = dist <= np.percentile(dist, th)
     return idx_keep1
 
 def knn_dist(pca_wf):
@@ -1039,7 +1067,7 @@ def connecting_points(points, index, neighbors, t_diff, keep=None):
 
         return keep
 
-def coreset(data, m, K=5, delta=0.05):
+def coreset(data, m, K=3, delta=0.01):
     p = int(np.ceil(np.log2(1/delta)))
     B = kmeans_init(data, K, p)
     a = 16*(np.log2(K) + 2)

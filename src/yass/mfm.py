@@ -8,9 +8,9 @@ from numpy.random import dirichlet
 import scipy.spatial as ss
 from numpy.random import dirichlet
 from sklearn.cluster import KMeans
+from sklearn.mixture import GaussianMixture
 
 logger = logging.getLogger(__name__)
-
 
 class maskData:
     """
@@ -660,6 +660,91 @@ def init_param(maskedData, K, param):
     # suffStat = suffStatistics(maskedData, vbParam)
     return vbParam, suffStat
 
+def init_param_v2(maskedData, K, param, n_iter=5):
+    """
+        Initializes vbPar object using weighted kmeans++ for initial cluster
+        assignment. Calculates sufficient
+        statistics. Updates global parameters for the created vbPar object.
+
+        Parameters:
+        -----------
+        maskedData: maskData object
+
+        K: int
+            Number of clusters for weighted kmeans++
+
+        param: Config object (see config.py)
+
+    """
+    N, nfeature, nchannel = maskedData.sumY.shape
+
+    data = np.copy(maskedData.meanY.reshape(
+        [N, -1]))
+    #data /= np.std(data, 0)[np.newaxis]
+    
+    if N < K:
+        rhat = np.eye(N)
+
+    elif K == 1:
+        rhat = np.ones((N, 1))
+
+    else:
+        gmm = GaussianMixture(n_components=K,
+                              covariance_type='diag',
+                              max_iter=2,
+                              n_init=3)
+        gmm.fit(data)
+        rhat = gmm.predict_proba(data)
+
+    # old method using manually written kmeans++
+    #allocation = kmeans_plus_plus_init(data, K, n_iter)
+    
+    #if N < K:
+    #    rhat = np.zeros([N, N])
+    #else:
+    #    rhat = np.zeros([N, K])
+    #rhat[np.arange(N), allocation] = 1
+
+    vbParam = vbPar(rhat)
+    suffStat = suffStatistics(maskedData, vbParam)
+    vbParam.update_global(suffStat, param)
+    # vbParam.update_local(maskedData)
+    # suffStat = suffStatistics(maskedData, vbParam)
+    return vbParam, suffStat
+
+def kmeans_plus_plus_init(data, K, n_iter):
+
+    # if K = 1, no need to iterate
+    if K == 1:
+        return np.zeros(data.shape[0], 'int16')
+
+    N, D = data.shape
+    centers = np.zeros((n_iter, K, D))
+    dists = np.zeros(n_iter)
+    for ctr in range(n_iter):
+        ii = np.random.choice(N, size=1, replace=True, p=np.ones(N)/float(N))
+        C = data[ii]
+        L = np.zeros(N, 'int16')
+        for i in range(1, K):
+            D = data - C[L]
+            D = np.sum(D*D, axis=1) #L2 dist
+            ii = np.random.choice(N, size=1, replace=True, p=D/np.sum(D))
+            C = np.concatenate((C, data[ii]), axis=0)
+            L = np.argmax(
+                2 * np.dot(C, data.T) - np.sum(C*C, axis=1)[:, np.newaxis],
+                axis=0)
+
+        centers[ctr] = C
+        D = data - C[L]
+        dists[ctr] = np.sum(np.square(D))
+
+    C = centers[np.argmin(dists)]
+    L = np.argmax(
+        2 * np.dot(C, data.T) - np.sum(C*C, axis=1)[:, np.newaxis],
+        axis=0)
+
+    return L
+
 
 def weightedKmeansplusplus(X, w, k):
     """
@@ -724,7 +809,7 @@ def birth_move(maskedData, vbParam, suffStat, param, L):
     # extraK = param.cluster.n_split
     extraK = 5
     cluster_picked = np.ones(vbParam.rhat.shape[1], dtype = bool)
-    
+
     if np.any(np.sum(vbParam.rhat > collectionThreshold, 0) >= extraK):
         weight = (suffStat.Nhat) * L ** 2
         weight = weight / np.sum(weight)
@@ -761,8 +846,8 @@ def birth_move(maskedData, vbParam, suffStat, param, L):
         maskedDataPrime.weight = maskedData.weight[idx]
         maskedDataPrime.meanY = maskedData.meanY[idx, :, :]
         maskedDataPrime.meanEta = maskedData.meanEta[idx, :, :, :]
-        vbParamPrime, suffStatPrime = init_param(maskedDataPrime,
-                                                 extraK, param)
+        vbParamPrime, suffStatPrime = init_param_v2(
+            maskedDataPrime, extraK, param)
 
         for iter_creation in range(5):
             vbParamPrime.update_local(maskedDataPrime)
@@ -792,7 +877,6 @@ def birth_move(maskedData, vbParam, suffStat, param, L):
         L = np.concatenate((L[A], np.ones(nbrith)), axis=0)
 
     return vbParam, suffStat, L
-
 
 def merge_move(maskedData, vbParam, suffStat, param, L, check_full):
     n_merged = 0
@@ -883,7 +967,6 @@ def check_merge(maskedData, vbParam, suffStat, ka, kb, param, L, ELBO):
     # vbParamTemp.update_local(maskedData)
     # suffStatTemp = suffStatistics(maskedData, vbParamTemp)
 
-
     ELBO_amerge = ELBO_Class(maskedData, suffStatTemp, vbParamTemp, param)
     # print(ka,kb,ELBO_amerge.total, ELBO_bmerge)
     if ELBO_amerge.total < ELBO_bmerge:
@@ -900,9 +983,10 @@ def check_merge(maskedData, vbParam, suffStat, ka, kb, param, L, ELBO):
 
 
 def spikesort(score, mask, group, param):
+    
     maskedData = maskData(score, mask, group)
 
-    vbParam = split_merge(maskedData, param)
+    vbParam, elbo = split_merge(maskedData, param)
 
     # assignmentTemp = np.argmax(vbParam.rhat, axis=1)
 
@@ -914,41 +998,105 @@ def spikesort(score, mask, group, param):
     # assignment[idx_triage] = -1
 
     # return assignment, vbParam
-    return vbParam
-
+    return vbParam#, elbo
 
 def split_merge(maskedData, param):
-    vbParam, suffStat = init_param(maskedData, 1, param)
+
+    vbParam, suffStat = init_param_v2(maskedData, 1, param)
     iter = 0
-    L = np.ones([1])
-    n_iter = 10
-    extra_iter = 5
+    L = np.ones(1)
+    n_iter = 5
+    extra_iter = 3
     k_max = 1
+    k_abs_max = 15
     
     # Cat: TODO: we limited # iterations; CHECK THIS
     #while iter < n_iter:
     while iter < min(n_iter,1000):
         iter += 1
-        vbParam, suffStat, L = birth_move(maskedData, vbParam, suffStat, param,
-                                          L)
+        vbParam, suffStat, L = birth_move(
+            maskedData, vbParam, suffStat, param, L)
         # print('birth',vbParam.rhat.shape[1])
-        vbParam, suffStat, L = merge_move(maskedData, vbParam, suffStat, param,
-                                          L, 0)
+        vbParam, suffStat, L = merge_move(
+            maskedData, vbParam, suffStat, param, L, 0)
         # print('merge',vbParam.rhat.shape[1])
 
         k_now = vbParam.rhat.shape[1]
         # print(k_now)
-        if (k_now > k_max) and (iter + extra_iter > n_iter):
+        if (k_now > k_max) and (iter + extra_iter > n_iter) and (k_now < k_abs_max):
             n_iter = iter + extra_iter
             k_max = k_now
 
         if iter > 100:
             print ("MFM split_merge reached 100 iterations...<<<<<<<<<< ")
 
-    vbParam, suffStat, L = merge_move(maskedData, vbParam, suffStat, param, L,
-                                     1)
+    vbParam, suffStat, L = merge_move(
+        maskedData, vbParam, suffStat, param, L, 1)
+    ELBO = ELBO_Class(maskedData, suffStat, vbParam, param)
 
-    return vbParam
+    return vbParam, ELBO.total
+
+def spikesort_v2(score, mask, group, param):
+
+    # initialize dataset
+    maskedData = maskData(score, mask, group)
+
+    max_k, k_now = 10, 1
+
+    # start from k = 1
+    vbParam_now, elbo_now, _ = fit_with_given_k(
+        maskedData, k_now, param)
+
+    while k_now < max_k:
+
+        vbParam_old = vbParam_now
+        elbo_old = elbo_now
+
+        # run with k+1
+        k_now += 1
+        vbParam_now, elbo_now, _ = fit_with_given_k(
+            maskedData, k_now, param)
+        
+        if elbo_now < elbo_old:
+            return vbParam_old, elbo_old
+
+    return vbParam_now, elbo_now
+
+
+def fit_with_given_k(maskedData, k, param):
+
+    vbParam, suffStat = init_param_v2(maskedData, k, param)
+
+    # EM step
+    if k > 1:
+        for iter_creation in range(10):
+            vbParam.update_local(maskedData)
+            suffStat = suffStatistics(maskedData, vbParam)
+            vbParam.update_global(suffStat, param)
+        vbParam.update_local(maskedData)
+    # calculate elbo
+    ELBO = ELBO_Class(maskedData, suffStat, vbParam, param)
+
+    return vbParam, ELBO.total, suffStat
+
+def spikesort_v3(score, mask, group, param):
+
+    # initialize dataset
+    maskedData = maskData(score, mask, group)
+
+    k_init = 10
+
+    # start from k = 1
+    vbParam, elbo, suffStat = fit_with_given_k(
+        maskedData, k_init, param)
+    L = np.ones(k_init)
+
+    vbParam, suffStat, L = merge_move(
+        maskedData, vbParam, suffStat, param, L, 1)
+    #ELBO = ELBO_Class(maskedData, suffStat, vbParam, param)
+    
+    return vbParam#, ELBO.total
+
 
 
 #def cluster_triage(vbParam, score, threshold):
