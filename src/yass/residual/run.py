@@ -11,7 +11,8 @@ def run(fname_templates,
         output_directory,
         recordings_filename,
         recording_dtype,
-        dtype_out='float32'):
+        dtype_out='float32',
+        run_chunk_sec='full'):
     """Compute residual
 
     Parameters
@@ -61,10 +62,16 @@ def run(fname_templates,
         return fname_out, dtype_out
 
     # get data reader
+    if run_chunk_sec == 'full':
+        chunk_sec = None
+    else:
+        chunk_sec = run_chunk_sec
+
     reader = READER(recordings_filename,
                     recording_dtype,
                     CONFIG,
-                    CONFIG.resources.n_sec_chunk)
+                    CONFIG.resources.n_sec_chunk,
+                    chunk_sec=chunk_sec)
 
     # get residual object
     residual_object = RESIDUAL(fname_templates,

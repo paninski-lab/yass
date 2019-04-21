@@ -23,7 +23,7 @@ from yass.detect.deduplication import run_deduplication
 from yass.detect.output import gather_result
 
 def run(standardized_path, standardized_params,
-        output_directory):
+        output_directory, run_chunk_sec='full'):
            
     """Execute detect step
 
@@ -112,7 +112,8 @@ def run(standardized_path, standardized_params,
     elif CONFIG.detect.method == 'nn':
         run_neural_network(standardized_path,
                            standardized_params,
-                           output_temp_files)
+                           output_temp_files,
+                           run_chunk_sec=run_chunk_sec)
 
     ###### deduplication #####
     logger.info('removing axons in parallel')
@@ -136,7 +137,7 @@ def run(standardized_path, standardized_params,
     
     
 def run_neural_network(standardized_path, standardized_params,
-                       output_directory):
+                       output_directory, run_chunk_sec='full'):
                            
     """Run neural network detection and autoencoder dimensionality reduction
 
@@ -168,22 +169,22 @@ def run_neural_network(standardized_path, standardized_params,
     # get data reader
     n_sec_chunk = CONFIG.resources.n_sec_chunk*CONFIG.resources.n_processors
     buffer = NND.waveform_length
+    if run_chunk_sec == 'full':
+        chunk_sec = None
+    else:
+        chunk_sec = run_chunk_sec
+
     reader = READER(standardized_path,
                     standardized_params['dtype'],
                     CONFIG,
                     n_sec_chunk,
-                    buffer)
+                    buffer,
+                    chunk_sec)
 
     # number of processed chunks
     processing_ctr = 0
-    if CONFIG.detect.run_sec_chunk == 'full':
-        n_batches = reader.n_batches
-    else:
-        n_batches = int(np.ceil(
-            CONFIG.detect.run_sec_chunk/float(n_sec_chunk)))
-
     n_mini_per_big_batch = int(np.ceil(n_sec_chunk/CONFIG.resources.n_sec_chunk_gpu))
-    total_processing = int(n_batches*n_mini_per_big_batch)
+    total_processing = int(reader.n_batches*n_mini_per_big_batch)
 
     # set tensorflow verbosity level
     tf.logging.set_verbosity(tf.logging.ERROR)
@@ -195,7 +196,7 @@ def run_neural_network(standardized_path, standardized_params,
         rot = NNAE.load_rotation(sess)
 
         # loop over each chunk
-        for batch_id in range(n_batches):
+        for batch_id in range(reader.n_batches):
 
             # skip if the file exists
             fname = os.path.join(
