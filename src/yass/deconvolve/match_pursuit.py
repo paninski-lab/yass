@@ -65,7 +65,7 @@ class MatchPursuit_objectiveUpsample(object):
     def __init__(self, fname_templates, save_dir, reader, 
                  max_iter=1000, upsample=1, threshold=10., 
                  conv_approx_rank=10, n_processors=1,
-                 multi_processing=False, vis_su=1,
+                 multi_processing=False, vis_su=1.,
                  keep_iterations=False):
         """Sets up the deconvolution object.
 
@@ -170,7 +170,7 @@ class MatchPursuit_objectiveUpsample(object):
         if upsample != 1:
             
             if True:
-                max_upsample = 32
+                max_upsample = upsample
                 # original function
                 self.unit_up_factor = np.power(
                         4, np.floor(np.log2(np.max(self.temps.ptp(axis=0), axis=0))))

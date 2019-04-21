@@ -12,7 +12,8 @@ def run(fname_templates_in,
         output_directory,
         recordings_filename,
         recording_dtype,
-        run_chunk='full',
+        threshold=None,
+        run_chunk_sec='full',
         save_up_data=True):
     """Deconvolute spikes
 
@@ -75,16 +76,27 @@ def run(fname_templates_in,
     
     # parameters
     # TODO: read from CONFIG
-    threshold = CONFIG.deconvolution.threshold
+    if threshold is None:
+        threshold = CONFIG.deconvolution.threshold
+    elif threshold == 'max':
+        min_norm_2 = np.square(
+            np.load(fname_templates_in)).sum((1,2)).min()
+        threshold = min_norm_2*0.8
     deconv_gpu = CONFIG.deconvolution.deconv_gpu
-    conv_approx_rank = 10
-    upsample_max_val = 32
+    conv_approx_rank = 5
+    upsample_max_val = 8
     max_iter = 1000
+
+    if run_chunk_sec == 'full':
+        chunk_sec = None
+    else:
+        chunk_sec = run_chunk_sec
 
     reader = READER(recordings_filename,
                     recording_dtype,
                     CONFIG,
-                    CONFIG.resources.n_sec_chunk)
+                    CONFIG.resources.n_sec_chunk,
+                    chunk_sec=chunk_sec)
 
     mp_object = MatchPursuit_objectiveUpsample(
         fname_templates=fname_templates_in,
@@ -104,28 +116,13 @@ def run(fname_templates_in,
     if not os.path.exists(seg_dir):
         os.makedirs(seg_dir)
 
-
-    # chunks to run deconv on
-    if run_chunk == 'full':
-        batches = np.arange(reader.n_batches)
-    else:
-        start_sec, end_sec = run_chunk
-
-        idx_less = np.where(reader.idx_list[:, 0] <= start_sec)[0]
-        start_batch = np.argmin(reader.idx_list[idx_less, 0])
-
-        idx_bigger = np.where(reader.idx_list[:, 0] >= end_sec)[0]
-        end_batch = np.argmin(reader.idx_list[idx_bigger, 0])
-
-        batches = np.arange(start_batch, end_batch+1)
-
     # skip files/batches already completed; this allows more even distribution
     # across cores in case of restart
     # Cat: TODO: if cpu is still being used by endusers, may wish to implement
     #       dynamic file assignment here to deal with slow cores etc.
     fnames_out = []
     batch_ids = []
-    for batch_id in batches:
+    for batch_id in range(reader.n_batches):
         fname_temp = os.path.join(seg_dir,
                           "seg_{}_deconv.npz".format(
                               str(batch_id).zfill(6)))
@@ -133,10 +130,13 @@ def run(fname_templates_in,
             continue
         fnames_out.append(fname_temp)
         batch_ids.append(batch_id)
+    logger.info("running deconvolution on {} batches of {} seconds".format(
+        len(batch_ids), CONFIG.resources.n_sec_chunk))
 
     if len(batch_ids)>0: 
-        logger.info("computing deconvolution over data")
         if CONFIG.resources.multi_processing:
+            logger.info("running deconvolution with {} processors".format(
+                CONFIG.resources.n_processors))
             batches_in = np.array_split(batch_ids, CONFIG.resources.n_processors)
             fnames_in = np.array_split(fnames_out, CONFIG.resources.n_processors)
             parmap.starmap(mp_object.run,
@@ -144,6 +144,7 @@ def run(fname_templates_in,
                            processes=CONFIG.resources.n_processors,
                            pm_pbar=True)
         else:
+            logger.info("running deconvolution")
             for ctr in range(len(batch_ids)):
                 mp_object.run([batch_ids[ctr]], [fnames_out[ctr]])
 
@@ -160,8 +161,9 @@ def run(fname_templates_in,
     logger.info('Number of Spikes deconvolved: {}'.format(res.shape[0]))
 
     # save templates and upsampled templates
-    np.save(fname_templates,
-            mp_object.temps.transpose(2,0,1))
+    np.save(fname_templates, np.load(fname_templates_in))
+    #np.save(fname_templates,
+    #        mp_object.temps.transpose(2,0,1))
 
     # since deconv spike time is not centered, get shift for centering
     shift = CONFIG.spike_size // 2
