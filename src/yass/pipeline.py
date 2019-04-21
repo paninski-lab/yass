@@ -337,7 +337,7 @@ def final_deconv(TMP_FOLDER,
         standardized_path,
         standardized_params['dtype'],
         dtype_out='float32')
-    
+
     #logger.info('FINAL MERGE')
     fname_templates, fname_spike_train = merge.run(
         os.path.join(TMP_FOLDER,

@@ -24,8 +24,10 @@ def ttest_notch(greater, smaller, data):
         return 1
 
     ngreater, nsmaller = data[greater], data[smaller]
-    
-    
+
+    if ngreater <= 2 or nsmaller <= 2:
+        return 1
+
     pg = ngreater/N
     siggsq = pg*(1-pg)/N
     pg = pg.sum()/pg.size
