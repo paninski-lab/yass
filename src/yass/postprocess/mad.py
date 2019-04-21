@@ -5,6 +5,7 @@ import scipy
 
 from yass.postprocess.util import run_deconv, partition_spike_time
 
+
 def remove_high_mad(fname_templates,
                     fname_spike_train,
                     fname_weights,
@@ -37,8 +38,6 @@ def remove_high_mad(fname_templates,
     if multi_processing:
         parmap.starmap(find_high_mad_unit, 
                    list(zip(units_in, fnames_spike_times, fnames_out)),
-                   fname_templates,
-                   units_in,
                    reader,
                    processes=n_processors,
                    pm_pbar=True)                
@@ -48,50 +47,13 @@ def remove_high_mad(fname_templates,
                 units_in[ctr],
                 fnames_spike_times[ctr],
                 fnames_out[ctr],
-                fname_templates,
-                units_in,
                 reader)
 
-    # load weights
-    weights = np.load(fname_weights)
-
-    # logic:
-    # 1. if tmp['kill'] is True, it is a collision
-    # 2. if tmp['kill'] is Fale and no matched unit, then clean unit
-    # 3. if tmp['kill'] is Fale and matched to a clean unit, then collision
-    # 4. if tmp['kill'] is False and matched to non-clean, kill smaller of two
     collision_units = []
-    clean_units = []
-    matched_pairs = []
     for ctr, fname in enumerate(fnames_out):
         tmp = np.load(fname)
-        # logic #1
         if tmp['kill']:
             collision_units.append(units_in[ctr])
-        # logic #2
-        elif tmp['unit_matched'] == None:
-            clean_units.append(units_in[ctr])
-        else:
-            matched_pairs.append([units_in[ctr], tmp['unit_matched']])
-    collision_units = np.array(collision_units)
-    clean_units = np.array(clean_units)
-    matched_pairs = np.array(matched_pairs)
-
-    # logic #3
-    if len(matched_pairs) > 0:
-        matched_to_clean = np.in1d(matched_pairs[:,1], clean_units)
-        collision_units = np.hstack((collision_units,
-                                     matched_pairs[matched_to_clean, 0]))
-
-        # logic #4
-        collision_pairs = matched_pairs[~matched_to_clean]
-        if len(collision_pairs) > 0:
-            for j in range(collision_pairs.shape[0]):
-                k, k_ = collision_pairs[j]
-                if weights[k] > weights[k_]:
-                    collision_units = np.append(collision_units, k_)
-                else:
-                    collision_units = np.append(collision_units, k_)
 
     idx_keep = units_in[~np.in1d(units_in, collision_units)]
 
@@ -100,33 +62,16 @@ def remove_high_mad(fname_templates,
 def find_high_mad_unit(unit,
                        fname_spike_time,
                        fname_out,
-                       fname_templates,
-                       units_in,
                        reader,
-                       mad_gap=0.8,
-                       mad_gap_breach=3,
-                       up_factor=8,
-                       residual_max_norm=1.2,
-                       jitter=1):
-
-    if os.path.exists(fname_out):
-        return
-
-    # load templates
-    templates = np.load(fname_templates)
+                       min_var=2,
+                       breach=10,
+                       up_factor=2,
+                       min_ptp=2):
 
     # load spike times
     spt = np.load(fname_spike_time)
-    if len(spt) == 0:
-        kill=True
-        unit_matched=None
-        np.savez(fname_out,
-                 kill=kill,
-                 unit_matched=unit_matched) 
-        return
-
-    # 500 is enough for mad calculation
-    max_spikes = 500
+    # 1000 is enough for mad calculation
+    max_spikes = 1000
     if len(spt) > max_spikes:
         spt = np.random.choice(a=spt,
                                size=max_spikes,
@@ -141,7 +86,9 @@ def find_high_mad_unit(unit,
 
     # limit to visible channels
     ptps = mean_wf.ptp(0)
-    visch = np.where(ptps > 2)[0]
+    visch = np.where(ptps > min_ptp)[0]
+    if len(visch) == 0:
+        visch = [ptps.argmax()]
     wf = wf[:, :, visch]
 
     # max channel within visible channels
@@ -164,60 +111,50 @@ def find_high_mad_unit(unit,
     best_shifts = shifts[fits.argmax(1)]
 
     # shift
-    wf_aligned = np.zeros(wf_up.shape, 'float32')
+    wf_aligned_up = np.zeros(wf_up.shape, 'float32')
     for j in range(wf.shape[0]):
-        wf_aligned[j] = np.roll(wf_up[j], -best_shifts[j], axis=0)
+        wf_aligned_up[j] = np.roll(wf_up[j], -best_shifts[j], axis=0)
 
-    wf_aligned = wf_aligned[:,t_start:t_end]
+    # get theoretical variance from shift
+    mean_aligned_up = np.mean(wf_aligned_up,0)
+    left_bound = np.roll(mean_aligned_up, 1, 0)
+    right_bound = np.roll(mean_aligned_up, -1, 0)
+    t_var_shift = var_mixture_uniform(left_bound, mean_aligned_up, mean_aligned_up, right_bound)
+
+    wf_aligned = wf_aligned_up[:,up_factor//2:-up_factor//2]
     wf_aligned = wf_aligned[:,np.arange(0, wf_aligned.shape[1], up_factor)]
+    t_var_shift = t_var_shift[up_factor//2:-up_factor//2]
+    t_var_shift = t_var_shift[np.arange(0, len(t_var_shift), up_factor)]
 
     # mad value for aligned waveforms
-    t_mad = np.median(
-            np.abs(np.median(wf_aligned, axis=0)[None] - wf_aligned), axis=0)
+    e_var = np.square(np.median(np.abs(np.median(wf_aligned, axis=0)[None] - wf_aligned), axis=0)/0.67449)
 
-    mad_loc = (t_mad > mad_gap).sum(0)
 
-    # if every visible channels are mad channels, kill it
-    if np.all(mad_loc > mad_gap_breach):
-        kill = True
-        unit_matched = None
-
-    # if no mad chanels, keep it
-    elif np.all(mad_loc <= mad_gap_breach):
-        kill = False
-        unit_matched = None
-
-    # if not, but if there is a unit that matches on
-    # non mad channels, hold off
-    # if there is no matching unit, keep it
-    else:
-        kill = False
-        
-        # load templates
-        templates = np.load(fname_templates)[units_in]
-        
-        # unit idx within units_in
-        unit_idx = np.where(units_in == unit)[0][0]
-
-        # get mad and non mad channels
-        mad_channels = visch[mad_loc > mad_gap_breach]
-        non_mad_channels = np.setdiff1d(np.arange(n_channels), mad_channels)
-
-        # get idx for all units but unit being tested
-        idx_no_target = np.arange(len(units_in))
-        idx_no_target = np.delete(idx_no_target, unit_idx)
-        
-        # run deconv without channels with high collisions
-        residual, unit_matched = run_deconv(
-            templates[unit_idx][:, non_mad_channels],
-            templates[idx_no_target][:, :, non_mad_channels],
-            up_factor)
-        if np.max(np.abs(residual)) > residual_max_norm or (unit_matched is None):
-            unit_matched = None
-        else:
-            unit_matched = units_in[idx_no_target[unit_matched]]
+    mad_loc = e_var > (t_var_shift+min_var)
+    kill = mad_loc.sum() > breach
 
     # save result
     np.savez(fname_out,
              kill=kill,
-             unit_matched=unit_matched)
+             e_var=e_var,
+             t_var_shift=t_var_shift,
+             visch=visch)
+
+
+def var_mixture_uniform(a1, a2, b1, b2):
+    p = 0.5
+    m1_a, m2_a = moment_1_2_unif(a1,a2)
+    m1_b, m2_b = moment_1_2_unif(b1,b2)
+    var_b = m2_b - m1_b**2
+    # term1 
+    t1 = p*(m2_a+m2_b) - (p**2)*(m1_a**2 + m1_b**2) + var_b
+    # term2
+    t2 = - 2*m1_a*m1_b*(p**2)
+    # term3
+    t3 = - 2*p*var_b
+
+    return t1+t2+t3
+
+
+def moment_1_2_unif(a, b):
+    return (0.5*(a+b), (a**2 + b**2 + a*b)/3)

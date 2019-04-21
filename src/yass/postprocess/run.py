@@ -6,6 +6,7 @@ from yass import read_config
 from yass.reader import READER
 from yass.postprocess.small_ptp import remove_small_units
 from yass.postprocess.low_fr import remove_low_fr_units
+from yass.postprocess.high_fr import remove_high_fr_units
 from yass.postprocess.duplicate import remove_duplicates
 from yass.postprocess.collision import remove_collision
 from yass.postprocess.mad import remove_high_mad
@@ -21,7 +22,8 @@ def run(methods = [],
     ''' Run a sequence of post processes
     
     methods: list of strings.
-        Options are 'low_ptp', 'duplicate', 'collision', 'high_mad', 'low_fr'
+        Options are 'low_ptp', 'duplicate', 'collision',
+        'high_mad', 'low_fr', 'high_fr'
         
     '''   
 
@@ -100,7 +102,8 @@ def post_process(output_directory,
     ''' 
     Run a single post process
     method: strings.
-        Options are 'low_ptp', 'duplicate', 'collision', 'high_mad', 'low_fr'
+        Options are 'low_ptp', 'duplicate', 'collision',
+        'high_mad', 'low_fr', 'high_fr'
     '''
 
     logger = logging.getLogger(__name__)
@@ -139,7 +142,7 @@ def post_process(output_directory,
 
         logger.info("{} units after removing duplicate units".format(
             len(units_out)))
-        
+
     elif method == 'collision':
         # save folder
         save_dir = os.path.join(output_directory,
@@ -184,10 +187,11 @@ def post_process(output_directory,
     elif method == 'low_fr':
 
         # TODO: move parameter to config?
-        threshold = 0.1
+        threshold = 0.5
  
         # length of recording in seconds
-        rec_len_sec = float(CONFIG.rec_len)/CONFIG.recordings.sampling_rate
+        rec_len = np.load(fname_spike_train)[:, 0].ptp()
+        rec_len_sec = float(rec_len)/CONFIG.recordings.sampling_rate
 
         # load templates
         weights = np.load(fname_weights)
@@ -198,7 +202,26 @@ def post_process(output_directory,
 
         logger.info("{} units after removing low fr units".format(
             len(units_out)))
-    
+
+    elif method == 'high_fr':
+
+        # TODO: move parameter to config?
+        threshold = 70
+
+        # length of recording in seconds
+        rec_len = np.load(fname_spike_train)[:, 0].ptp()
+        rec_len_sec = float(rec_len)/CONFIG.recordings.sampling_rate
+
+        # load templates
+        weights = np.load(fname_weights)
+
+        # remove low ptp
+        units_out = remove_high_fr_units(
+            weights, rec_len_sec, threshold, units_in)
+
+        logger.info("{} units after removing high fr units".format(
+            len(units_out)))
+
     else:
         units_out = np.copy(units_in)
         logger.info("Method not recognized. Nothing removed")

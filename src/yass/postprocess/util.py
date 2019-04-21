@@ -28,7 +28,7 @@ def get_weights(fname_templates, fname_spike_train, out_dir):
 
     return fname_weights, n_units
 
-def run_deconv(data, templates, up_factor):
+def run_deconv(data, templates, up_factor, method='l1'):
 
     #start = dt.datetime.now().timestamp()
 
@@ -81,7 +81,10 @@ def run_deconv(data, templates, up_factor):
         elif shift == 0:
             up_shifted_temps[[0,-1]] = 0
 
-        idx_best_fit = np.max(np.abs(data[:,None] - up_shifted_temps), (0,2)).argmin()
+        if method == 'l1':
+            idx_best_fit = np.max(np.abs(data[:,None] - up_shifted_temps), (0,2)).argmin()
+        elif method == 'l2':
+            idx_best_fit = np.sum(np.square(data[:,None] - up_shifted_temps), (0,2)).argmin()
         residual = data - up_shifted_temps[:,idx_best_fit]
 
         # best fit unit relative to all units

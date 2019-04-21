@@ -40,7 +40,7 @@ def remove_collision(fname_templates, save_dir, units_in=None,
     # gather result
     units_kill = np.zeros(len(units_in), 'bool')
     for ctr in range(len(units_in)):
-        
+
         if np.load(fnames_out[ctr])['collision']:
             units_kill[ctr] = True
 
@@ -61,7 +61,7 @@ def deconv_on_template(unit, fname_out, units_in, fname_templates,
 
     # unit to be tested
     data = templates[unit]
-    
+
     # templates to run on
     units_ = units_in[units_in != unit]
     templates = templates[units_]
@@ -75,7 +75,7 @@ def deconv_on_template(unit, fname_out, units_in, fname_templates,
     while it < max_it and not collision:
 
         # run one iteration of deconv
-        residual, best_fit_unit = run_deconv(data, templates, up_factor)
+        residual, best_fit_unit = run_deconv(data, templates, up_factor, 'l2')
 
         # if nothing fits more, quit
         if best_fit_unit is None:
