@@ -1,5 +1,6 @@
 import numpy as np
 import scipy
+import os
 from scipy.stats import t
 from yass.template import align_get_shifts_with_ref, shift_chans
 
@@ -98,3 +99,81 @@ def combine_two_rf(STAs1, STAs2, Gaussian_params1, Gaussian_params2):
     
     return STAs, Gaussian_params
  
+def get_l2_features(filename_residual, spike_train, spike_train_upsampled,
+                    templates, templates_upsampled, unit1, unit2, n_samples=2000):
+    
+    _, spike_size, n_channels = templates.shape
+    
+    # get n_sample of cleaned spikes per template.
+    spt1_idx = np.where(spike_train[:, 1] == unit1)[0]
+    spt2_idx = np.where(spike_train[:, 1] == unit2)[0]
+    
+    # subsample
+    if len(spt1_idx) + len(spt2_idx) > n_samples:
+        ratio = len(spt1_idx)/(len(spt1_idx)+len(spt2_idx))
+        
+        n_samples1 = int(n_samples*ratio)
+        n_samples2 = n_samples - n_samples1
+
+        spt1_idx = np.random.choice(
+            spt1_idx, n_samples1, False)
+        spt2_idx = np.random.choice(
+            spt2_idx, n_samples2, False)
+    
+    spt1 = spike_train[spt1_idx, 0]
+    spt2 = spike_train[spt2_idx, 0]
+
+    units1 = spike_train_upsampled[spt1_idx, 1]
+    units2 = spike_train_upsampled[spt2_idx, 1]
+
+    spikes_1, _ = read_spikes(
+        filename_residual, spt1, n_channels, spike_size,
+        units1, templates_upsampled, residual_flag=True)
+    spikes_2, _ = read_spikes(
+        filename_residual, spt2, n_channels, spike_size,
+        units2, templates_upsampled, residual_flag=True)
+
+    spike_ids = np.append(
+        np.zeros(len(spikes_1), 'int32'),
+        np.ones(len(spikes_2), 'int32'),
+        axis=0)
+    
+    l2_features = template_spike_dist_linear_align(
+        templates[[unit1, unit2], :, :],
+        np.append(spikes_1, spikes_2, axis=0))
+    
+    return l2_features.T, spike_ids
+
+def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, channels=None):
+
+    # ***** LOAD RAW RECORDING *****
+    if channels is None:
+        wfs = np.zeros((spikes.shape[0], n_times, n_channels), 'float32')
+        channels = np.arange(n_channels)
+    else:
+        wfs = np.zeros((spikes.shape[0], n_times, channels.shape[0]), 'float32')
+
+    skipped_idx = []
+    with open(standardized_filename, "rb") as fin:
+        ctr_wfs=0
+        ctr_skipped=0
+        for spike in spikes:
+            # index into binary file: time steps * 4  4byte floats * n_channels
+            fin.seek(spike * 4 * n_channels, os.SEEK_SET)
+            try:
+                wfs[ctr_wfs] = np.fromfile(
+                    fin,
+                    dtype='float32',
+                    count=(n_times * n_channels)).reshape(
+                                            n_times, n_channels)[:,channels]
+                ctr_wfs+=1
+            except:
+                # skip loading of spike and decrease wfs array size by 1
+                # print ("  spike to close to end, skipping and deleting array")
+                wfs=np.delete(wfs, wfs.shape[0]-1,axis=0)
+                skipped_idx.append(ctr_skipped)
+
+            ctr_skipped+=1
+    fin.close()
+
+    return wfs, skipped_idx

@@ -3,7 +3,7 @@ import numpy as np
 
 class READER(object):
 
-    def __init__(self, bin_file, dtype, CONFIG, n_sec_chunk=None, buffer=None):
+    def __init__(self, bin_file, dtype, CONFIG, n_sec_chunk=None, buffer=None, chunk_sec=None):
 
         # frequently used parameters
         self.n_channels = CONFIG.recordings.n_channels
@@ -22,10 +22,21 @@ class READER(object):
 
         # batch sizes
         print ("Makgin batches in READER")
+        if chunk_sec is None:
+            start, end = 0, self.rec_len
+        else:
+            start = chunk_sec[0]*self.sampling_rate
+            end = chunk_sec[1]*self.sampling_rate
+
+            if start < 0:
+                start = 0
+            if end > self.rec_len:
+                end = self.rec_len
+
         if n_sec_chunk is not None:
             self.n_sec_chunk = n_sec_chunk
-            indexes = np.arange(0, self.rec_len, self.sampling_rate*self.n_sec_chunk)
-            indexes = np.hstack((indexes, self.rec_len))
+            indexes = np.arange(start, end, self.sampling_rate*self.n_sec_chunk)
+            indexes = np.hstack((indexes, end))
 
             idx_list = []
             for k in range(len(indexes) - 1):

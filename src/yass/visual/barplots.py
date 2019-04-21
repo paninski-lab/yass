@@ -10,15 +10,18 @@ import shutil
 
 def match_units(selected_unit, fname_templates, fname_spike_train, 
                 fname_templates_ground_truth, fname_spike_train_ground_truth, 
-                purity_threshold, cos_sim_thresh, save_dir):
-    
+                purity_threshold, cos_sim_thresh, save_dir, rerun=True):
+
+    fname_out = os.path.join(save_dir, 'match_unit_{}.npz'.format(selected_unit))
+
+    if (not rerun) and (os.path.exists(fname_out)):
+        return 
+
     templates_ground_truth = np.load(fname_templates_ground_truth)#[10:-10]
     spike_train_ground_truth = np.load(fname_spike_train_ground_truth)
     templates = np.load(fname_templates)
     spike_train = np.load(fname_spike_train)
-    spike_train[:,0]
-        
-    fname_out = os.path.join(save_dir, 'match_unit_{}.npz'.format(selected_unit))
+
 
     #print('matching gt unit {}'.format(selected_unit))
     ''' **** MATCH USING TEMPLATES ****
@@ -82,7 +85,7 @@ def match_units(selected_unit, fname_templates, fname_spike_train,
         n_spikes_found = n_spikes_found[idx_keep]
 
         n_matched = np.sum(spike_match_array, axis=1)
-        idx = np.argsort(n_matched/n_spikes_found.astype('float32'))[::-1]
+        idx = np.argsort(n_matched)[::-1]
 
         matched_spikes = []
         unmatched_spikes = []
@@ -196,8 +199,7 @@ def make_purity_complete_plots(ax, idx_sorted, all_matched_spikes, all_unmatched
 
         matched_spikes = all_matched_spikes[ctr].astype('float32')
         unmatched_spikes = all_unmatched_spikes[ctr]
-        idx = np.argsort(matched_spikes/(
-            matched_spikes+unmatched_spikes))[::-1]
+        idx = np.argsort(matched_spikes)[::-1]
         matched_spikes = matched_spikes[idx]
         unmatched_spikes = unmatched_spikes[idx]        
 
@@ -284,7 +286,7 @@ def make_ptp_fr_plot(ax, idx_sorted, ptps, n_spikes_gt):
 
 def make_multiple_bar_plot(fname_templates_list, fname_spike_train_list, runs_to_compare,
                   fname_templates_ground_truth, fname_spike_train_ground_truth, 
-                  save_dir, titles_list, save_tmp=False):
+                  save_dir, titles_list, save_tmp=False, rerun=True):
 
     templates_ground_truth=np.load(fname_templates_ground_truth)
     spike_train_ground_truth = np.load(fname_spike_train_ground_truth)
@@ -301,7 +303,7 @@ def make_multiple_bar_plot(fname_templates_list, fname_spike_train_list, runs_to
         os.makedirs(save_dir)
 
     units = np.arange(n_units_gt)
-    purity_threshold = 0.01
+    purity_threshold = 0.03
     cos_sim_thresh = 0.5
     
     for j in runs_to_compare:
@@ -311,13 +313,13 @@ def make_multiple_bar_plot(fname_templates_list, fname_spike_train_list, runs_to
         if True:
             parmap.map(match_units, units, fname_templates_list[j], fname_spike_train_list[j],
                        fname_templates_ground_truth, fname_spike_train_ground_truth,
-                       purity_threshold, cos_sim_thresh, save_dir_tmp,
+                       purity_threshold, cos_sim_thresh, save_dir_tmp, rerun,
                        pm_pbar=True, pm_processes=3)
         else:
             for selected_unit in units:
                 match_units(selected_unit, fname_templates_list[j], fname_spike_train_list[j],
                             fname_templates_ground_truth, fname_spike_train_ground_truth,
-                            purity_threshold, cos_sim_thresh, save_dir_tmp)
+                            purity_threshold, cos_sim_thresh, save_dir_tmp, rerun)
     #print ("MATCHING DONE ")
 
     ##############

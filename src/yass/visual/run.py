@@ -8,16 +8,14 @@ import yaml
 from tqdm import tqdm
 import parmap
 
-#from yass.deconvolve.correlograms_phy import compute_correlogram
-#from yass.deconvolve.notch import notch_finder
-from yass.visual.util import compute_neighbours2, compute_neighbours_rf2, combine_two_spike_train, combine_two_rf
+from yass.merge.correlograms_phy import compute_correlogram
+from yass.merge.notch import notch_finder
+from yass.visual.util import *
 from yass.geometry import parse, find_channel_neighbors
 from yass.template import align_get_shifts_with_ref, shift_chans
-from yass.cluster.util import get_normalized_templates
-from yass.cluster.util import pca_denoise
-#from yass.deconvolve.merge import (template_dist_linear_align, 
-#                                   template_spike_dist_linear_align, 
-#                                   test_unimodality, get_l2_features)
+from yass.merge.merge import (template_dist_linear_align, 
+                              template_spike_dist_linear_align, 
+                              test_unimodality)
 from yass.util import absolute_path_to_asset
 from yass import read_config
 
@@ -1038,3 +1036,59 @@ class CompareSpikeTrains(Visualizer):
         
         self.nearest_units = nearest_units
         self.nearest_units_rf = nearest_units_rf
+
+def get_normalized_templates(templates, neigh_channels, ref_template):
+
+    """
+    plot normalized templates on their main channels and secondary channels
+    templates: number of channels x temporal window x number of units
+    geometry: number of channels x 2
+    """
+
+    K, R, C = templates.shape
+    mc = np.argmax(templates.ptp(1), 1)
+
+    # get main channel templates
+    templates_mc = np.zeros((K, R))
+    for k in range(K):
+        templates_mc[k] = templates[k, :, mc[k]]
+
+    # shift templates_mc
+    best_shifts_mc = align_get_shifts_with_ref(
+                    templates_mc,
+                    ref_template)
+    templates_mc = shift_chans(templates_mc, best_shifts_mc)
+    ptp_mc = templates_mc.ptp(1)
+
+    # normalize templates
+    norm_mc = np.linalg.norm(templates_mc, axis=1, keepdims=True)
+    templates_mc /= norm_mc
+
+    # get secdonary channel templates
+    templates_sec = np.zeros((0, R))
+    best_shifts_sec = np.zeros(0)
+    unit_ids_sec = np.zeros((0), 'int32')
+    for k in range(K):
+        neighs = np.copy(neigh_channels[mc[k]])
+        neighs[mc[k]] = False
+        neighs = np.where(neighs)[0]
+        templates_sec = np.concatenate((templates_sec, templates[k, :, neighs]), axis=0)
+        best_shifts_sec = np.hstack((best_shifts_sec, np.repeat(best_shifts_mc[k], len(neighs))))
+        unit_ids_sec = np.hstack((unit_ids_sec, np.ones(len(neighs), 'int32')*k))
+
+    # shift templates_sec
+    best_shifts_sec = align_get_shifts_with_ref(
+                    templates_sec,
+                    ref_template)
+    templates_sec = shift_chans(templates_sec, best_shifts_sec)
+    ptp_sec = templates_sec.ptp(1)
+
+    # normalize templates
+    norm_sec = np.linalg.norm(templates_sec, axis=1, keepdims=True)
+    templates_sec /= norm_sec
+
+    return templates_mc, templates_sec, ptp_mc, ptp_sec, unit_ids_sec
+
+def pca_denoise(data, pca_mean, pca_components):
+    data_pca = np.matmul(data-pca_mean, pca_components.T)
+    return np.matmul(data_pca, pca_components)+pca_mean
