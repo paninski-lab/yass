@@ -20,7 +20,9 @@ def ztest_notch(greater, smaller, data):
 
 def ttest_notch(greater, smaller, data):
     N = data.sum()
-    
+    if N == 0:
+        return 1
+
     ngreater, nsmaller = data[greater], data[smaller]
     
     

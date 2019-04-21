@@ -61,8 +61,7 @@ class TemplateMerge(object):
 
             # Template norms
             print ("computing norms")
-            norms = np.linalg.norm(
-                templates.reshape(self.n_unit, -1), axis=1)
+            norms = np.sum(np.square(templates), axis=(1,2))
 
             # relative difference
             dist_norm_ratio = dist_mat / np.maximum(norms[np.newaxis],
@@ -104,17 +103,18 @@ class TemplateMerge(object):
             spt1 = np.load(self.fnames_input[unit1])['spike_times']
             spt2 = np.load(self.fnames_input[unit2])['spike_times']
             
-            # compute xcorr
-            xcor = compute_correlogram_v2(spt1, spt2)
-            if xcor.shape[0] == 1:
-                xcor = xcor[0,0]
-            elif xcor.shape[0] > 1:
-                xcor = xcor[1,0]        
+            if len(spt1) > 1 and len(spt2) > 1:
+                # compute xcorr
+                xcor = compute_correlogram_v2(spt1, spt2)
+                if xcor.shape[0] == 1:
+                    xcor = xcor[0,0]
+                elif xcor.shape[0] > 1:
+                    xcor = xcor[1,0]
 
-            # check for notch and if there, add it
-            notch, pval1, pval2 = notch_finder(xcor)
-            if pval1 < 0.05:
-                self.merge_candidates.append(pair)
+                # check for notch and if there, add it
+                notch, pval1, pval2 = notch_finder(xcor)
+                if pval1 < 0.05:
+                    self.merge_candidates.append(pair)
 
     def get_merge_pairs(self):
         ''' Run all pairs of merge candidates through the l2 feature computation        
@@ -151,7 +151,7 @@ class TemplateMerge(object):
         """
 
         # Cat: TODO: read from CONFIG
-        threshold=0.95
+        threshold=0.8
 
         unit1, unit2 = pair
 
@@ -165,15 +165,27 @@ class TemplateMerge(object):
         else:
             # get l2 features
             l2_features, spike_ids = self.get_l2_features(unit1, unit2)
-            # get p value for dip test
-            dp_val, _ = test_unimodality(l2_features, spike_ids)
-            merge = dp_val > threshold
 
-            np.savez(fname_out,
-                     merge=merge,
-                     spike_ids=spike_ids,
-                     l2_features=l2_features,
-                     dp_val=dp_val)
+            if len(spike_ids) > 0 and np.sum(spike_ids==0) == len(spike_ids):
+                # get p value for dip test
+                dp_val, lda_feat = test_unimodality(l2_features, spike_ids)
+                merge = dp_val > threshold
+
+                np.savez(fname_out,
+                         merge=merge,
+                         spike_ids=spike_ids,
+                         l2_features=l2_features,
+                         dp_val=dp_val,
+                         lda_feat=lda_feat)
+            else:
+
+                np.savez(fname_out,
+                         merge=False,
+                         spike_ids=spike_ids,
+                         l2_features=l2_features,
+                         dp_val=None,
+                         lda_feat=None)
+
 
             return merge
 
@@ -214,7 +226,7 @@ class TemplateMerge(object):
                 spt1, self.spike_size)
 
             wfs2, _ = self.reader.read_waveforms(
-                spt1, self.spike_size)
+                spt2, self.spike_size)
         else:
             up_ids1 = unit1_data['up_ids'][spt1_idx]
             up_templates1 = unit1_data['up_templates']
@@ -393,7 +405,6 @@ def template_dist_linear_align(templates, distance=None, units=None, max_shift=5
         dist = np.min(np.sum(np.square(
             templates[k][np.newaxis, np.newaxis] - shifted_templates[:, candidates]),
                              axis=(2,3)), 0)
-        dist = np.sqrt(dist)
         distance[k, candidates] = dist
         distance[candidates, k] = dist
         
