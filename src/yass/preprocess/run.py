@@ -81,7 +81,7 @@ def run(output_directory):
         raw_params = dict(
             dtype=dtype_raw,
             n_channels=n_channels)
-        return filename_raw, dtype_raw
+        return filename_raw, raw_params
 
     # make output directory
     if not os.path.exists(output_directory):

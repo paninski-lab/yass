@@ -166,7 +166,7 @@ class TemplateMerge(object):
             # get l2 features
             l2_features, spike_ids = self.get_l2_features(unit1, unit2)
 
-            if len(spike_ids) > 0 and np.sum(spike_ids==0) == len(spike_ids):
+            if len(spike_ids) > 0 and np.sum(spike_ids==0) < len(spike_ids):
                 # get p value for dip test
                 dp_val, lda_feat = test_unimodality(l2_features, spike_ids)
                 merge = dp_val > threshold
@@ -178,14 +178,13 @@ class TemplateMerge(object):
                          dp_val=dp_val,
                          lda_feat=lda_feat)
             else:
-
+                merge = False
                 np.savez(fname_out,
-                         merge=False,
+                         merge=merge,
                          spike_ids=spike_ids,
                          l2_features=l2_features,
                          dp_val=None,
                          lda_feat=None)
-
 
             return merge
 
