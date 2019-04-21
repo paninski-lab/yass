@@ -29,6 +29,7 @@ from yass import set_config
 from yass import read_config
 from yass import (preprocess, detect, cluster, postprocess,
                   deconvolve, residual, merge, rf, visual)
+from yass.template import update_templates
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
                        human_readable_time)
@@ -105,8 +106,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # print yass version
     logger.info('YASS version: %s', yass.__version__)
 
-
-
     ''' **********************************************
         ******** SET ENVIRONMENT VARIABLES ***********
         **********************************************
@@ -125,34 +124,37 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
      standardized_params) = preprocess.run(
         os.path.join(TMP_FOLDER, 'preprocess'))
 
-    #### Block 1: Initial run ####
-    (fname_templates_init,
-     fname_spike_train_init,
-     fname_templates_up_init,
-     fname_spike_train_up_init,
-     fname_residual_init,
-     residual_dtype_init) = initial_block(
-        os.path.join(TMP_FOLDER, 'initial_block'),
+    #### Block 1: Initial Detection + Clustering ####
+    (fname_templates,
+     fname_spike_train) = initial_block(
+        os.path.join(TMP_FOLDER, 'block_1'),
         standardized_path,
-        standardized_params)
+        standardized_params,
+        run_chunk_sec = [0, 1200])
+
+    n_iterations = 1
+    for it in range(n_iterations):
+        (fname_templates,
+         fname_spike_train) = iterative_block(
+            os.path.join(TMP_FOLDER, 'block_{}'.format(it+2)),
+            standardized_path,
+            standardized_params,
+            fname_templates,
+            run_chunk_sec = [0, 1200])
     
-    ### Block 2: Recluster
+    ### Block 3: Final Deconv + Merge
     (fname_templates,
      fname_spike_train,
      fname_templates_up,
      fname_spike_train_up,
      fname_residual,
-     residual_dtype)= recluster_block(
-        os.path.join(TMP_FOLDER, 'recluster_block'),
+     residual_dtype)= final_deconv(
+        os.path.join(TMP_FOLDER, 'final_deconv'),
         standardized_path,
         standardized_params,
-        fname_residual_init,
-        residual_dtype_init,
-        fname_spike_train_init,
-        fname_templates_up_init,
-        fname_spike_train_up_init)
+        fname_templates)
 
-    ## save the final
+    ## save the final templates and spike train
     fname_templates_final = os.path.join(
         TMP_FOLDER, 'templates.npy')
     fname_spike_train_final = os.path.join(
@@ -164,7 +166,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     spike_train[:,0] -= CONFIG.spike_size//2
     np.save(fname_templates_final, templates)
     np.save(fname_spike_train_final, spike_train)
-    
+
     total_time = time.time() - start
 
     ''' **********************************************
@@ -184,7 +186,10 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     logger.info('Final Spike Train Location: '+fname_spike_train_final)
 
 
-def initial_block(TMP_FOLDER, standardized_path, standardized_params):
+def initial_block(TMP_FOLDER,
+                  standardized_path,
+                  standardized_params,
+                  run_chunk_sec):
     
     logger = logging.getLogger(__name__)
 
@@ -195,22 +200,20 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
         ************** DETECT EVENTS *****************
         **********************************************
     '''
+
     # detect
     logger.info('INITIAL DETECTION')
     spike_index_path = detect.run(
         standardized_path,
         standardized_params,
-        os.path.join(TMP_FOLDER, 'detect'))
+        os.path.join(TMP_FOLDER, 'detect'),
+        run_chunk_sec=run_chunk_sec)
 
-    ''' **********************************************
-        ***************** CLUSTER ********************
-        **********************************************
-    '''
     logger.info('INITIAL CLUSTERING')
 
     # cluster
     raw_data = True
-    full_run = False
+    full_run = True
     fname_templates, fname_spike_train = cluster.run(
         spike_index_path,
         standardized_path,
@@ -219,7 +222,7 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
         raw_data, 
         full_run)
 
-    methods = ['low_ptp', 'duplicate', 'collision']
+    methods = ['duplicate', 'collision', 'high_mad']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
@@ -229,13 +232,22 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
         standardized_path,
         standardized_params['dtype'])
 
-    ''' **********************************************
-        ************** DECONVOLUTION *****************
-        **********************************************
-    '''
+    return fname_templates, fname_spike_train
 
-    logger.info('INITIAL DECONV')
+
+def iterative_block(TMP_FOLDER,
+                    standardized_path,
+                    standardized_params,
+                    fname_templates,
+                    run_chunk_sec):
+
+    logger = logging.getLogger(__name__)
+
+    if not os.path.exists(TMP_FOLDER):
+        os.makedirs(TMP_FOLDER)
+
     # run deconvolution
+    logger.info('DECONV')
     (fname_templates,
      fname_spike_train,
      fname_templates_up,
@@ -244,10 +256,11 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
         os.path.join(TMP_FOLDER,
                      'deconv'),
         standardized_path,
-        standardized_params['dtype'])
+        standardized_params['dtype'],
+        run_chunk_sec=run_chunk_sec)
 
-    logger.info('INITIAL RESIDUAL COMPUTATION')
     # compute residual
+    logger.info('RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
         fname_templates_up,
         fname_spike_train_up,
@@ -255,30 +268,9 @@ def initial_block(TMP_FOLDER, standardized_path, standardized_params):
                      'residual'),
         standardized_path,
         standardized_params['dtype'],
-        dtype_out='float32')
+        dtype_out='float32',
+        run_chunk_sec=run_chunk_sec)
 
-    return (fname_templates, fname_spike_train, fname_templates_up,
-            fname_spike_train_up, fname_residual, residual_dtype)
-
-
-def recluster_block(TMP_FOLDER,
-                    standardized_path,
-                    standardized_params,
-                    fname_residual,
-                    residual_dtype,
-                    fname_spike_train,
-                    fname_templates_up,
-                    fname_spike_train_up):
-    
-    logger = logging.getLogger(__name__)
-        
-    if not os.path.exists(TMP_FOLDER):
-        os.makedirs(TMP_FOLDER)
-
-    ''' **********************************************
-        ***************** CLUSTER ********************
-        **********************************************
-    '''
     # cluster
     logger.info('RECLUSTERING')
     raw_data = False
@@ -295,7 +287,7 @@ def recluster_block(TMP_FOLDER,
         fname_templates_up=fname_templates_up,
         fname_spike_train_up=fname_spike_train_up)
     
-    methods = ['low_ptp', 'duplicate', 'collision', 'high_mad']
+    methods = ['duplicate', 'collision', 'high_mad']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
@@ -305,13 +297,26 @@ def recluster_block(TMP_FOLDER,
         standardized_path,
         standardized_params['dtype'])
 
+    return fname_templates, fname_spike_train
+
+
+def final_deconv(TMP_FOLDER,
+                 standardized_path,
+                 standardized_params,
+                 fname_templates):
+
+    logger = logging.getLogger(__name__)
+
+    if not os.path.exists(TMP_FOLDER):
+        os.makedirs(TMP_FOLDER)
+
     ''' **********************************************
         ************** DECONVOLUTION *****************
         **********************************************
     '''
 
     # run deconvolution
-    logger.info('SECOND DECONV')
+    logger.info('FINAL DECONV')
     (fname_templates,
      fname_spike_train,
      fname_templates_up,
@@ -323,7 +328,7 @@ def recluster_block(TMP_FOLDER,
         standardized_params['dtype'])
 
     # compute residual
-    logger.info('SECOND RESIDUAL COMPUTATION')
+    logger.info('RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
         fname_templates_up,
         fname_spike_train_up,
@@ -333,7 +338,7 @@ def recluster_block(TMP_FOLDER,
         standardized_params['dtype'],
         dtype_out='float32')
     
-    logger.info('FINAL MERGE')
+    #logger.info('FINAL MERGE')
     fname_templates, fname_spike_train = merge.run(
         os.path.join(TMP_FOLDER,
                      'post_deconv_merge'),
