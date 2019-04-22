@@ -25,7 +25,7 @@ def ttest_notch(greater, smaller, data):
 
     ngreater, nsmaller = data[greater], data[smaller]
 
-    if ngreater <= 2 or nsmaller <= 2:
+    if np.any(ngreater) <= 2 or np.any(nsmaller) <= 2:
         return 1
 
     pg = ngreater/N
