@@ -125,7 +125,6 @@ detect:
       filename: ae_nn1.ckpt
     threshold_detector:
       std_factor: 4
-    run_sec_chunk: full
 
   schema:
     # 'nn' for neural net detction, 'threshold' for amplitude threshold detection

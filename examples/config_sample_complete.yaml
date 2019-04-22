@@ -52,10 +52,6 @@ preprocess:
     high_factor: 0.1
 
 detect:
-  # chunk of data to run detection
-  # either 'full' or integer. 
-  # If integer, run on first n_sec_chunk seconds of data
-  run_sec_chunk: full
   # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
   method: nn
   # Configuration parameters when when detect.method = 'nn'
