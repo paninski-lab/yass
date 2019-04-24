@@ -112,7 +112,7 @@ class READER(object):
         data = self.read_data_batch(batch_id, add_buffer, channels)
         
         T, C = data.shape
-        T_mini = self.sampling_rate*n_sec_chunk_small
+        T_mini = int(self.sampling_rate*n_sec_chunk_small)
         buffer = self.buffer
 
         if add_buffer:
