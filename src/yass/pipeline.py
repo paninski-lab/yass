@@ -287,7 +287,7 @@ def iterative_block(TMP_FOLDER,
         fname_templates_up=fname_templates_up,
         fname_spike_train_up=fname_spike_train_up)
     
-    methods = ['duplicate', 'collision', 'high_mad']
+    methods = ['duplicate', 'high_mad', 'collision']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
