@@ -110,10 +110,11 @@ def run(standardized_path, standardized_params,
                       output_temp_files)
 
     elif CONFIG.detect.method == 'nn':
+        
         run_neural_network(standardized_path,
-                           standardized_params,
-                           output_temp_files,
-                           run_chunk_sec=run_chunk_sec)
+                       standardized_params,
+                       output_temp_files,
+                       run_chunk_sec=run_chunk_sec)
 
     ###### deduplication #####
     logger.info('removing axons in parallel')
@@ -168,6 +169,7 @@ def run_neural_network(standardized_path, standardized_params,
 
     # get data reader
     n_sec_chunk = CONFIG.resources.n_sec_chunk*CONFIG.resources.n_processors
+
     buffer = NND.waveform_length
     if run_chunk_sec == 'full':
         chunk_sec = None
@@ -183,14 +185,22 @@ def run_neural_network(standardized_path, standardized_params,
 
     # number of processed chunks
     processing_ctr = 0
-    n_mini_per_big_batch = int(np.ceil(n_sec_chunk/CONFIG.resources.n_sec_chunk_gpu))
+    print ("  Forcing tensorflow detection to run using 1 sec chunks only (TOFIX)")
+    #n_mini_per_big_batch = int(np.ceil(n_sec_chunk/CONFIG.resources.n_sec_chunk_gpu))
+    n_mini_per_big_batch = int(np.ceil(n_sec_chunk/1))
     total_processing = int(reader.n_batches*n_mini_per_big_batch)
 
     # set tensorflow verbosity level
     tf.logging.set_verbosity(tf.logging.ERROR)
 
+    # extra params to disable memory hogging by tensorflow
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    #config = tf.ConfigProto(device_count = {'GPU': 0}) 
+    #sess = tf.Session(config=config)
+    
     # open tensorflow session
-    with tf.Session() as sess:
+    with tf.Session(config=config) as sess:
 
         NND.restore(sess)
         rot = NNAE.load_rotation(sess)
@@ -211,7 +221,8 @@ def run_neural_network(standardized_path, standardized_params,
             # size n_sec_chunk_gpu
             batched_recordings, minibatch_loc_rel = reader.read_data_batch_batch(
                 batch_id,
-                CONFIG.resources.n_sec_chunk_gpu,
+                #CONFIG.resources.n_sec_chunk_gpu,
+                1,
                 True)
             
             # offset for big batch
@@ -246,7 +257,6 @@ def run_neural_network(standardized_path, standardized_params,
                      spike_index=spike_index_list,
                      energy=energy_list,
                      minibatch_loc=minibatch_loc)
-
 
 
 # TODO: PETER, refactor threshold detector

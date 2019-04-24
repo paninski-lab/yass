@@ -124,7 +124,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
      standardized_params) = preprocess.run(
         os.path.join(TMP_FOLDER, 'preprocess'))
 
-    #### Block 1: Initial Detection + Clustering ####
+    #### Block 1: Detection, Clustering, Postprocess
     (fname_templates,
      fname_spike_train) = initial_block(
         os.path.join(TMP_FOLDER, 'block_1'),
@@ -132,6 +132,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         standardized_params,
         run_chunk_sec = [0, 1200])
 
+    #### Block 2: Deconv, Residuals, Clustering, Postprocess
     n_iterations = 1
     for it in range(n_iterations):
         (fname_templates,
@@ -142,7 +143,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
             fname_templates,
             run_chunk_sec = [0, 1200])
     
-    ### Block 3: Final Deconv + Merge
+    ### Block 3: Deconvolve, Residual, Merge
     (fname_templates,
      fname_spike_train,
      fname_templates_up,
@@ -222,7 +223,7 @@ def initial_block(TMP_FOLDER,
         raw_data, 
         full_run)
 
-    methods = ['duplicate', 'collision', 'high_mad']
+    methods = ['low_ptp', 'duplicate', 'collision', 'high_mad']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
@@ -251,17 +252,24 @@ def iterative_block(TMP_FOLDER,
     (fname_templates,
      fname_spike_train,
      fname_templates_up,
-     fname_spike_train_up) = deconvolve.run(
+     fname_spike_train_up, 
+     fname_shifts) = deconvolve.run(
         fname_templates,
         os.path.join(TMP_FOLDER,
                      'deconv'),
         standardized_path,
         standardized_params['dtype'],
         run_chunk_sec=run_chunk_sec)
+        
+       # return (fname_templates, fname_spike_train,
+        # fname_templates_up, fname_spike_train_up,
+        # fname_shifts)
+
 
     # compute residual
     logger.info('RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
+        fname_shifts,
         fname_templates_up,
         fname_spike_train_up,
         os.path.join(TMP_FOLDER,
@@ -287,7 +295,7 @@ def iterative_block(TMP_FOLDER,
         fname_templates_up=fname_templates_up,
         fname_spike_train_up=fname_spike_train_up)
     
-    methods = ['duplicate', 'collision', 'high_mad']
+    methods = ['low_ptp', 'duplicate', 'collision', 'high_mad']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
@@ -320,7 +328,8 @@ def final_deconv(TMP_FOLDER,
     (fname_templates,
      fname_spike_train,
      fname_templates_up,
-     fname_spike_train_up) = deconvolve.run(
+     fname_spike_train_up,
+     fname_shifts) = deconvolve.run(
         fname_templates,
         os.path.join(TMP_FOLDER,
                      'deconv'),
@@ -330,6 +339,7 @@ def final_deconv(TMP_FOLDER,
     # compute residual
     logger.info('RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
+        fname_shifts,
         fname_templates_up,
         fname_spike_train_up,
         os.path.join(TMP_FOLDER,

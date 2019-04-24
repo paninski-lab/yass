@@ -695,12 +695,16 @@ class MatchPursuit_objectiveUpsample(object):
     def get_iteration_spike_train(self):
         return self.iter_spike_train
 
+
     def run(self, batch_ids, fnames_out):
 
         # set default pairwise-conv flag
         self.pairwise_conv = None
         
+        # loop over each assigned segment
         for batch_id, fname_out in zip(batch_ids, fnames_out):
+            
+            # Cat: TODO is this redundant? i.e. is this check done outside already?
             if os.path.exists(fname_out):
                 continue
             

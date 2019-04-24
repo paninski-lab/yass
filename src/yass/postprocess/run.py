@@ -112,7 +112,7 @@ def post_process(output_directory,
 
     if method == 'low_ptp':
 
-        # TODO: move parameter to config?
+        # Cat: TODO: move parameter to CONFIG
         threshold = 3
 
         # load templates

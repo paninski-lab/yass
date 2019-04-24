@@ -1,18 +1,23 @@
 import os
 import logging
 import numpy as np
+import torch
 
 from yass import read_config
 from yass.reader import READER
 from yass.residual.residual import RESIDUAL
+from yass.residual.residual_gpu import RESIDUAL_GPU
 
-def run(fname_templates,
+
+def run(fname_shifts,
+        fname_templates,
         fname_spike_train,
         output_directory,
         recordings_filename,
         recording_dtype,
         dtype_out='float32',
         run_chunk_sec='full'):
+            
     """Compute residual
 
     Parameters
@@ -61,6 +66,58 @@ def run(fname_templates,
     if os.path.exists(fname_out):
         return fname_out, dtype_out
 
+    if CONFIG.deconvolution.deconv_gpu: 
+        residual_ONgpu(recordings_filename,
+                        recording_dtype,
+                        CONFIG,
+                        fname_shifts,
+                        fname_templates,
+                        output_directory,
+                        dtype_out,
+                        fname_out,
+                        fname_spike_train)
+    
+    else:
+        residual_ONcpu(recordings_filename,
+                        recording_dtype,
+                        CONFIG,
+                        fname_up,
+                        output_directory,
+                        dtype_out,
+                        fname_out)
+
+    return fname_out, dtype_out
+
+    
+def residual_ONgpu(recordings_filename,
+                    recording_dtype,
+                    CONFIG,
+                    fname_shifts,
+                    fname_templates,
+                    output_directory,
+                    dtype_out,
+                    fname_out,
+                    fname_spike_train):
+    
+    RESIDUAL_GPU(recordings_filename,
+                recording_dtype,
+                CONFIG,
+                fname_shifts,
+                fname_templates,
+                output_directory,
+                dtype_out,
+                fname_out,
+                fname_spike_train)
+
+    
+def residual_ONcpu(recordings_filename,
+                    recording_dtype,
+                    CONFIG,
+                    output_directory,
+                    dtype_out,
+                    fname_out):
+                        
+        
     # get data reader
     if run_chunk_sec == 'full':
         chunk_sec = None
@@ -80,6 +137,7 @@ def run(fname_templates,
                                fname_out,
                                dtype_out)
 
+
     # compute residual
     seg_dir = os.path.join(output_directory, 'segs')
     residual_object.compute_residual(seg_dir,
@@ -89,4 +147,6 @@ def run(fname_templates,
     # concatenate all segments
     residual_object.save_residual()
 
-    return fname_out, dtype_out
+    
+    
+    
