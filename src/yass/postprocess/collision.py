@@ -66,6 +66,28 @@ def deconv_on_template(unit, fname_out, units_in, fname_templates,
     units_ = units_in[units_in != unit]
     templates = templates[units_]
 
+    # data noise chan
+    noise_chan = np.max(
+        np.abs(data), axis=0) < residual_max_norm
+    # exclude units that won't help deconvolve this unit
+    # if it has large energy on noise chan, then it should not help
+    idx_include = np.abs(templates[:, :, noise_chan]
+                        ).max(axis=(1, 2)) < residual_max_norm
+    templates = templates[idx_include]
+
+    if templates.shape[0] == 0:
+        # save result
+        np.savez(fname_out,
+                 collision=False,
+                 residual=None,
+                 deconv_units=None)
+        return
+
+    # visible channels only
+    vis_chan = np.where(~noise_chan)[0]
+    data = data[:, vis_chan]
+    templates = templates[:, :, vis_chan]
+
     # run at most 3 iterations 
     it, max_it = 0, 3
 
@@ -97,4 +119,4 @@ def deconv_on_template(unit, fname_out, units_in, fname_templates,
     np.savez(fname_out,
              collision=collision,
              residual=residual,
-             deconv_units = deconv_units)
+             deconv_units=deconv_units)

@@ -50,6 +50,18 @@ def run(methods = [],
     logger.info("{} units are in".format(n_units))
     for ctr, method in enumerate(methods):
 
+        # save name
+        fname_result = os.path.join(
+            output_directory,
+            'units_survived_{}_{}.npy'.format(ctr, method))
+
+        if os.path.exists(fname_result):
+            units_survived = np.load(fname_result)
+            logger.info("{} is already done. {} units survived".format(
+                method, len(units_survived)))
+
+            continue
+
         units_survived = post_process(
             output_directory,
             fname_templates,
@@ -62,9 +74,6 @@ def run(methods = [],
             ctr)
 
         # save result for record
-        fname_result = os.path.join(
-            output_directory,
-            'units_survived_{}_{}.npy'.format(ctr, method))
         np.save(fname_result, units_survived)
 
     # load templates and spike train
