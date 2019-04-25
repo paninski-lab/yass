@@ -82,6 +82,8 @@ class Visualizer(object):
             self.STAs = np.load(os.path.join(rf_dir, 'STA_spatial.npy'))
             self.gaussian_fits = np.load(os.path.join(rf_dir, 'gaussian_fits.npy'))
             self.idx_single_rf = np.load(os.path.join(rf_dir, 'idx_single_rf.npy'))
+            self.idx_no_rf = np.load(os.path.join(rf_dir, 'idx_no_rf.npy'))
+            self.idx_multi_rf = np.load(os.path.join(rf_dir, 'idx_multi_rf.npy'))
             self.rf_labels = np.load(os.path.join(rf_dir, 'labels.npy'))
         
         # get geometry
@@ -109,7 +111,7 @@ class Visualizer(object):
         self.template_space_dir = template_space_dir
         if template_space_dir is not None:
             self.get_template_pca()
-        
+
         # get colors
         self.colors = colors = [
             'black','blue','red','green','cyan','magenta','brown','pink',
@@ -122,7 +124,7 @@ class Visualizer(object):
         self.save_dir = save_dir
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
-            
+
         # compute firing rates
         self.compute_firing_rates()
 
@@ -190,14 +192,15 @@ class Visualizer(object):
         self.make_raster_plot()
         self.make_firing_rate_plot()
         self.make_normalized_templates_plot()
-        
+
         if self.rf_dir is not None:
             self.make_rf_plots()
             self.cell_classification_plots()
 
         if self.deconv_dir is not None:
             self.add_residual_qq_plot()
-            self.add_raw_deno_resid_plot()            
+            self.add_raw_deno_resid_plot()  
+            self.add_raw_resid_snippets()
 
     def individiual_cell_plot(self, units=None):
         
@@ -376,11 +379,18 @@ class Visualizer(object):
         mc = self.templates[:, :, unit].ptp(0).argmax()
         neigh_chans = np.where(self.neigh_channels[mc])[0]
 
-        wf, _ = binary_reader_waveforms(self.fname_recording,
-                                     self.n_channels,
-                                     self.templates.shape[0],
-                                     spt, neigh_chans)
-        
+        wf, _ = binary_reader_waveforms(
+            self.fname_recording,
+            self.n_channels,
+            self.templates.shape[0],
+            spt, neigh_chans)
+
+        mc_neigh = np.where(neigh_chans == mc)[0][0]
+        shifts = align_get_shifts_with_ref(
+                    wf[:, :, mc_neigh],
+                    self.templates[:, mc_neigh][:, unit])
+        wf = shift_chans(wf, shifts)
+
         return wf, idx
 
     def add_example_waveforms(self, gs, x_loc, unit):
@@ -451,6 +461,12 @@ class Visualizer(object):
             self.templates_upsampled.transpose(2,0,1),
             channels=neigh_chans,
             residual_flag=True)            
+
+        mc_neigh = np.where(neigh_chans == mc)[0][0]
+        shifts = align_get_shifts_with_ref(
+                    wf[:, :, mc_neigh],
+                    self.templates[:, mc_neigh][:, unit])
+        wf = shift_chans(wf, shifts)
 
         for j, chan in enumerate(neigh_chans):
             ax = plt.subplot(gs[x_loc, j])
@@ -778,8 +794,8 @@ class Visualizer(object):
     def add_raw_deno_resid_plot(self):
         
         fname = os.path.join(self.save_dir, 'raw_denoised_residual.png')
-        #if os.path.exists(fname):
-        #    return
+        if os.path.exists(fname):
+            return
 
         raw = np.memmap(self.fname_recording, 
                         dtype='float32', mode='r')
@@ -832,7 +848,54 @@ class Visualizer(object):
         plt.legend(handles = labels_legend, bbox_to_anchor=[1,1], fontsize=20)
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close() 
+
+    def add_raw_resid_snippets(self):
         
+        save_dir = os.path.join(self.save_dir, 'raw_deno_resid_snippets/')
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        n_snippets_per_channel = 10
+        
+        raw = np.memmap(self.fname_recording, 
+                        dtype='float32', mode='r')
+        raw = np.reshape(raw, [-1, self.n_channels])
+        res = np.memmap(self.residual_recording, 
+                        dtype='float32', mode='r')
+        res = np.reshape(res, [-1, self.n_channels])
+        
+        for channel in range(self.n_channels):
+
+            abs_rec = np.abs(res[1000:-1000, channel])
+            max_ids = scipy.signal.argrelmax(abs_rec, order=300)[0]
+            max_ids = max_ids[
+                np.argsort(abs_rec[max_ids])[-n_snippets_per_channel:][::-1]]
+            max_ids += 1000
+            
+            neigh_chans = np.where(self.neigh_channels[channel])[0]
+            
+            for j in range(n_snippets_per_channel):
+
+                fname = os.pat.join(save_dir, 'snippet_{}_channel_{}.png'.format(j, channel))
+                if os.path.exists(fname):
+                    continue
+
+                t_start = max_ids[j] - 150
+                t_end = max_ids[j] + 151
+                raw_snip = raw[t_start:t_end][:, neigh_chans]
+                res_snip = res[t_start:t_end][:, neigh_chans]
+
+                spread = np.arange(len(neigh_chans))*10
+                plt.figure(figsize=(5,5))
+                ax = plt.subplot(111)
+                ax.set_facecolor((0.1,0.1,0.1))
+                ax.plot(t_tics,raw_snip+spread[None], 'r')
+                ax.plot(t_tics,res_snip+spread[None], 'white')
+                ax.set_xlabel('Time (ms)', fontsize=30)
+                ax.set_xlim([min(t_tics), max(t_tics)])
+                plt.savefig(fname, bbox_inches='tight', dpi=100)
+                plt.close()
+
     def cell_classification_plots(self):
 
         fname = os.path.join(self.save_dir, 'contours.png')
@@ -871,19 +934,20 @@ class Visualizer(object):
             return
 
         n_units = self.STAs.shape[0]
-        
+
         type_names = ['off-midget','off-parasol',
-                       'off-sm',
-                       'on-midget','on-parasol',
-                       'unknown','multiple/no rf']
+                      'off-sm', 'on-midget',
+                      'on-parasol', 'unknown',
+                      'multiple rf', 'no rf']
 
         idx_per_type = []
         for j in range(5):
             idx_per_type.append(np.where(self.rf_labels == j)[0])
         idx_per_type.append(self.idx_single_rf[self.rf_labels[self.idx_single_rf] == -1]) 
         all_units = np.arange(n_units)
-        idx_per_type.append(all_units[~np.in1d(all_units, self.idx_single_rf)])
-        
+        idx_per_type.append(self.idx_multi_rf)
+        idx_per_type.append(self.idx_no_rf)
+
         n_rows_per_type = []
         for idx in idx_per_type:
             n_rows_per_type.append(int(np.ceil(len(idx)/10.)))
