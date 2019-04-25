@@ -10,7 +10,9 @@ from scipy.interpolate import splrep, splev, splder, sproot
 
 class RESIDUAL_GPU(object):
     
-    def __init__(self,recordings_filename,
+    def __init__(self,
+                reader,
+                recordings_filename,
                 recording_dtype,
                 CONFIG,
                 fname_shifts,
@@ -26,6 +28,7 @@ class RESIDUAL_GPU(object):
         
         self.logger = logging.getLogger(__name__)
 
+        self.reader = reader
         self.recordings_filename = recordings_filename
         self.recording_dtype = recording_dtype
         self.CONFIG = CONFIG
@@ -60,13 +63,20 @@ class RESIDUAL_GPU(object):
         # 
         n_chan = self.CONFIG.recordings.n_channels
 
-        # read raw voltage data
-        print ("  reading binary data into memory (n_chan, n_times)")
-        self.data_temp = np.fromfile(os.path.join(self.CONFIG.data.root_folder,'tmp',
-                                    'preprocess','standardized.bin'),
-                                    'float32').reshape(-1,n_chan).T
-        print ("  data shape: ", self.data_temp.shape)
+        # # read raw voltage data
+        # print ("  reading binary data into memory (n_chan, n_times)")
+        # self.data_temp = np.fromfile(os.path.join(self.CONFIG.data.root_folder,'tmp',
+                                    # 'preprocess','standardized.bin'),
+                                    # 'float32').reshape(-1,n_chan).T
+        # print ("  data shape: ", self.data_temp.shape)
 
+        batch_ids = []
+        fnames_seg = []
+        for batch_id in range(self.reader.n_batches):
+            batch_ids.append(batch_id)
+                             
+        self.reader.buffer = 0
+            
         # load spike train
         self.spike_train = np.load(self.fname_spike_train)
         print ("  spike train loaded: ", self.spike_train)
@@ -81,7 +91,8 @@ class RESIDUAL_GPU(object):
         # compute chunks of data to be processed
         n_sec = self.CONFIG.resources.n_sec_chunk_gpu
         chunk_len = n_sec*self.CONFIG.recordings.sampling_rate
-        rec_len = self.data_temp.shape[1]
+        #rec_len = self.data_temp.shape[1]
+        rec_len = self.CONFIG.rec_len
 
         # make list of chunks to loop over
         self.chunks = []
@@ -152,6 +163,7 @@ class RESIDUAL_GPU(object):
         print (" # of coefficients: ", len(self.coefficients))
         #print (" example coefficient shape: ", self.coefficients[0].data.shape)
 
+                             
         print ("  PRELOADING COMPLETED: ", np.round(time.time()-t0,2),"sec")
 
 
@@ -165,19 +177,25 @@ class RESIDUAL_GPU(object):
         
         f = open(self.fname_residual,'wb')
         
-        pad_chunk = np.zeros((self.data_temp.shape[0],self.buffer),'float32')
+        pad_chunk = np.zeros((self.CONFIG.recordings.n_channels,self.buffer),'float32')
         #for ctr, chunk in enumerate(chunks):
         for ctr, chunk in enumerate(self.chunks):
             tlocal = time.time()
             chunk_start = chunk[0]
             chunk_end = chunk[1]
-
+        
+            # get relevantspike times
+            batch_id = ctr
+            self.data_temp = self.reader.read_data_batch(batch_id, add_buffer=True)
+            
             # clip data
-            data_chunk = self.data_temp[:, chunk_start:chunk_end]
+            #data_chunk = self.data_temp[:, chunk_start:chunk_end]
+            data_chunk = self.data_temp.T
             
             # pad data with buffer
             data_chunk = np.hstack((pad_chunk, np.hstack((data_chunk, pad_chunk))))
             objective = torch.from_numpy(data_chunk).cuda()
+            print (" Ojbective: ", objective.shape)
             if verbose: 
                 print ("Input size: ",objective.shape, int(sys.getsizeof(objective)), "MB")
 

@@ -75,7 +75,8 @@ def run(fname_shifts,
                         output_directory,
                         dtype_out,
                         fname_out,
-                        fname_spike_train)
+                        fname_spike_train,
+                        run_chunk_sec)
     
     else:
         residual_ONcpu(recordings_filename,
@@ -84,7 +85,8 @@ def run(fname_shifts,
                         fname_up,
                         output_directory,
                         dtype_out,
-                        fname_out)
+                        fname_out,
+                        run_chunk_sec)
 
     return fname_out, dtype_out
 
@@ -97,9 +99,23 @@ def residual_ONgpu(recordings_filename,
                     output_directory,
                     dtype_out,
                     fname_out,
-                    fname_spike_train):
-    
-    RESIDUAL_GPU(recordings_filename,
+                    fname_spike_train,
+                    run_chunk_sec):
+        
+    # get data reader
+    if run_chunk_sec == 'full':
+        chunk_sec = None
+    else:
+        chunk_sec = run_chunk_sec
+
+    reader = READER(recordings_filename,
+                    recording_dtype,
+                    CONFIG,
+                    CONFIG.resources.n_sec_chunk_gpu,
+                    chunk_sec=chunk_sec)
+                    
+    RESIDUAL_GPU(reader,
+                recordings_filename,
                 recording_dtype,
                 CONFIG,
                 fname_shifts,
@@ -115,7 +131,8 @@ def residual_ONcpu(recordings_filename,
                     CONFIG,
                     output_directory,
                     dtype_out,
-                    fname_out):
+                    fname_out,
+                    run_chunk_sec):
                         
         
     # get data reader

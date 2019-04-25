@@ -118,8 +118,9 @@ def partition_spike_time(save_dir,
     fnames = []
     for unit in units_in:
         fname = os.path.join(save_dir, 'partition_{}.npy'.format(unit))
-        np.save(fname,
-                spike_index_list[unit])
+        if os.path.exists(fname)==False:
+            np.save(fname,
+                    spike_index_list[unit])
         fnames.append(fname)
         
     return fnames

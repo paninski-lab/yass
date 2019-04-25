@@ -52,6 +52,7 @@ def partition_input(save_dir, max_time,
                     fname_templates_up=None,
                     fname_spike_train_up=None):
 
+    print ("  partitioning input (TODO: Parallize for larger datasets)")
     # make directory
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)

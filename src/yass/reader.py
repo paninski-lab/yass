@@ -21,7 +21,7 @@ class READER(object):
             self.buffer = buffer
 
         # batch sizes
-        print ("Makgin batches in READER")
+        print ("Making batches in READER")
         if chunk_sec is None:
             start, end = 0, self.rec_len
         else:
@@ -152,6 +152,11 @@ class READER(object):
         # n_times needs to be odd
         if n_times % 2 == 0:
             n_times += 1
+
+        # exclude boundary chans
+        idx_keep = np.where(np.logical_and(spike_times>n_times//2, 
+                            spike_times<(self.rec_len-n_times//2)))[0]
+        spike_times=spike_times[idx_keep]
 
         # read all channels
         if channels is None:
