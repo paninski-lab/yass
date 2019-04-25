@@ -153,10 +153,10 @@ class READER(object):
         if n_times % 2 == 0:
             n_times += 1
 
-        # exclude boundary chans
-        idx_keep = np.where(np.logical_and(spike_times>n_times//2, 
-                            spike_times<(self.rec_len-n_times//2)))[0]
-        spike_times=spike_times[idx_keep]
+        # exclude boundary spikes
+        # idx_keep = np.where(np.logical_and(spike_times>n_times//2, 
+                            # spike_times<(self.rec_len-n_times//2)))[0]
+        # spike_times=spike_times[idx_keep]
 
         # read all channels
         if channels is None:
@@ -173,8 +173,8 @@ class READER(object):
         offsets = spike_times_shifted.astype('int64')*self.dtype.itemsize*self.n_channels
         with open(self.bin_file, "rb") as fin:
             for ctr, spike in enumerate(spike_times_shifted):
-                fin.seek(offsets[ctr], os.SEEK_SET)
                 try:
+                    fin.seek(offsets[ctr], os.SEEK_SET)
                     wf = np.fromfile(fin,
                                      dtype=self.dtype,
                                      count=total_size)

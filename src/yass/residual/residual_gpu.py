@@ -81,6 +81,10 @@ class RESIDUAL_GPU(object):
         self.spike_train = np.load(self.fname_spike_train)
         print ("  spike train loaded: ", self.spike_train)
         
+        idx = self.spike_train[:,0].argsort()
+        print ("  spike train loaded sorted: ", self.spike_train[idx][:10],
+                '...', self.spike_train[idx][-10:])
+        
         # subtract hafl spike width again as gpu_deconv expects beginning not middle of waveform
         # self.spike_train[:,0] = self.spike_train[:,0]-((
                         # self.CONFIG.recordings.sampling_rate/1000*
@@ -171,7 +175,8 @@ class RESIDUAL_GPU(object):
         
         # loop over chunks and do work
         t0 = time.time()
-        verbose = False
+        verbose = True
+        debug = False
         
         residual_array = []
         
@@ -192,8 +197,12 @@ class RESIDUAL_GPU(object):
             #data_chunk = self.data_temp[:, chunk_start:chunk_end]
             data_chunk = self.data_temp.T
             
+           
             # pad data with buffer
             data_chunk = np.hstack((pad_chunk, np.hstack((data_chunk, pad_chunk))))
+            if verbose:
+                np.save('/home/cat/data_chunk.npy', data_chunk)
+            
             objective = torch.from_numpy(data_chunk).cuda()
             print (" Ojbective: ", objective.shape)
             if verbose: 
@@ -208,23 +217,50 @@ class RESIDUAL_GPU(object):
             
             # offset time indices by added buffer above
             times_local = self.spike_train[idx,0]+self.buffer-chunk_start
+            idx_keep = np.where(times_local!=200)[0]
+            times_local = times_local[idx_keep]
+
+            # add more spike times
+            if debug:
+                times_local = np.concatenate((times_local, [5000,5500,5000,5500,5000,5500,5000,5500]))
+
             time_indices = torch.from_numpy(times_local).long().cuda()
+
             if verbose: 
                 print ("spike times: ", time_indices.shape, time_indices)
+                np.save('/home/cat/time_indices.npy', time_indices.cpu().data.numpy())
 
             # select template ids
-            template_ids = torch.from_numpy(self.spike_train[idx,1]).long().cuda()
+            templates_local = self.spike_train[idx,1]
+            if debug:
+                templates_local = np.concatenate((templates_local, [3,483, 483,513,613,716,716,717]))
+            
+            template_ids = templates_local[idx_keep]
+
+            template_ids = torch.from_numpy(template_ids).long().cuda()
             if verbose: 
                 print (" template ids: ", template_ids.shape, template_ids)
+                np.save('/home/cat/template_ids.npy', template_ids.cpu().data.numpy())
+                
 
             # select superres alignment shifts
-            time_offsets_local = torch.from_numpy(self.time_offsets[idx]).cuda()
+            time_offsets_local = self.time_offsets[idx]
+            time_offsets_local = time_offsets_local[idx_keep]
+
+            if debug:
+                time_offsets_local = np.concatenate((time_offsets_local, [0.,0.,0.,0.,0.,0.,0.,0.]))
+            
+            #time_offsets_local = torch.from_numpy(time_offsets_local).cuda()
+            time_offsets_local = torch.from_numpy(time_offsets_local).float().cuda()
             if verbose: 
+                np.save('/home/cat/time_offsets.npy', time_offsets_local.cpu().data.numpy())
                 print ("time offsets: ", time_offsets_local.shape, time_offsets_local)
             
             #objective_copy = objective.clone()
             # Cat; TODO deleting time indices offset; unclear why required
             # Cat: TODO: offset should be loaded from CONFIG data.
+            if verbose:
+                t5 = time.time()
             torch.cuda.synchronize()
             deconv.subtract_splines(objective,
                                     time_indices,
@@ -232,6 +268,7 @@ class RESIDUAL_GPU(object):
                                     template_ids,
                                     self.coefficients)
             torch.cuda.synchronize()
+            
             if verbose:
                 print ("subtraction time: ", time.time()-t5)
             
@@ -239,15 +276,10 @@ class RESIDUAL_GPU(object):
             if ctr%10==0:
                 print (" chunk:", ctr+1, "/", len(self.chunks), 
                         chunk, time.time() - tlocal)
-            #residual_array.append(objective)
-            #np.save(self.out_dir
-            #res = np.load(fname).astype(self.dtype_out)
-            #temp_out = np.ascontiguousarray(objective[:,self.buffer:-self.buffer].cpu().data.numpy(),'float32')
             temp_out = objective[:,self.buffer:-self.buffer].cpu().data.numpy().copy(order='F')
-            #print ("  original: ", temp_out.flags)
-            #print ('')
-            #print ("  transpose: ", temp_out.T.flags)
             f.write(temp_out.T)
+            
+            quit()
         f.close()
 
         
