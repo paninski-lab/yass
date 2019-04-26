@@ -728,6 +728,17 @@ class deconvGPU(object):
                     self.coefficients)
 
         torch.cuda.synchronize()
+
+        # also fill in self-convolution traces with low energy so the
+        #   spikes cannot be detected again (i.e. enforcing refactoriness)
+        deconv.refrac_fill(energy=self.obj_gpu,
+                                  spike_times=spike_times,
+                                  spike_ids=spike_temps,
+                                  fill_length=self.n_time,  # variable fill length here
+                                  fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
+                                  fill_value=-1E10)
+
+        torch.cuda.synchronize()
         
         return (dt.datetime.now().timestamp()-start)
                      
