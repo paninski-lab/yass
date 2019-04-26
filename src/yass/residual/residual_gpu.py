@@ -48,7 +48,6 @@ class RESIDUAL_GPU(object):
 
     def load_data(self):
 
-        print ("  current deconv requires loading all data in memory (TODO switch to chunk reading)")
         t0 = time.time()
         
         # 
@@ -70,43 +69,36 @@ class RESIDUAL_GPU(object):
                                     # 'float32').reshape(-1,n_chan).T
         # print ("  data shape: ", self.data_temp.shape)
 
-        batch_ids = []
-        fnames_seg = []
-        for batch_id in range(self.reader.n_batches):
-            batch_ids.append(batch_id)
+        # batch_ids = []
+        # fnames_seg = []
+        # for batch_id in range(self.reader.n_batches):
+            # batch_ids.append(batch_id)
                              
-        self.reader.buffer = 0
+        self.reader.buffer = 200
             
         # load spike train
         self.spike_train = np.load(self.fname_spike_train)
-        print ("  spike train loaded: ", self.spike_train)
+        #print ("  spike train loaded: ", self.spike_train)
         
-        idx = self.spike_train[:,0].argsort()
-        print ("  spike train loaded sorted: ", self.spike_train[idx][:10],
-                '...', self.spike_train[idx][-10:])
         
         # subtract hafl spike width again as gpu_deconv expects beginning not middle of waveform
-        # self.spike_train[:,0] = self.spike_train[:,0]-((
-                        # self.CONFIG.recordings.sampling_rate/1000*
-                        # self.CONFIG.recordings.spike_size_ms)*3)//2
         self.spike_train[:,0] = self.spike_train[:,0]-(self.CONFIG.recordings.sampling_rate/1000*
                         self.CONFIG.recordings.spike_size_ms)//2
 
         # compute chunks of data to be processed
         n_sec = self.CONFIG.resources.n_sec_chunk_gpu
         chunk_len = n_sec*self.CONFIG.recordings.sampling_rate
-        #rec_len = self.data_temp.shape[1]
         rec_len = self.CONFIG.rec_len
 
         # make list of chunks to loop over
-        self.chunks = []
-        ctr = 0 
-        while True:
-            if ctr*chunk_len >= rec_len:
-                break
-            self.chunks.append([ctr*chunk_len, ctr*chunk_len+chunk_len])
-            ctr+=1
-        print ("# of chunks: ", len(self.chunks))
+        # self.chunks = []
+        # ctr = 0 
+        # while True:
+            # if ctr*chunk_len >= rec_len:
+                # break
+            # self.chunks.append([ctr*chunk_len, ctr*chunk_len+chunk_len])
+            # ctr+=1
+        print ("# of chunks: ", self.reader.n_batches)
             
         # load templates
         temps = np.load(self.fname_templates).transpose(2,1,0).astype('float32')
@@ -175,36 +167,31 @@ class RESIDUAL_GPU(object):
         
         # loop over chunks and do work
         t0 = time.time()
-        verbose = True
+        verbose = False
         debug = False
         
         residual_array = []
+        self.reader.buffer=200
         
         f = open(self.fname_residual,'wb')
         
         pad_chunk = np.zeros((self.CONFIG.recordings.n_channels,self.buffer),'float32')
         #for ctr, chunk in enumerate(chunks):
-        for ctr, chunk in enumerate(self.chunks):
+        #for ctr, chunk in enumerate(self.chunks):
+        for ctr, chunk in enumerate(self.reader.idx_list):
             tlocal = time.time()
             chunk_start = chunk[0]
             chunk_end = chunk[1]
         
-            # get relevantspike times
-            batch_id = ctr
-            self.data_temp = self.reader.read_data_batch(batch_id, add_buffer=True)
-            
-            # clip data
-            #data_chunk = self.data_temp[:, chunk_start:chunk_end]
-            data_chunk = self.data_temp.T
-            
-           
             # pad data with buffer
-            data_chunk = np.hstack((pad_chunk, np.hstack((data_chunk, pad_chunk))))
-            if verbose:
-                np.save('/home/cat/data_chunk.npy', data_chunk)
-            
+            batch_id = ctr
+            #self.data_temp = self.reader.read_data_batch(batch_id, add_buffer=True)
+            data_chunk = self.reader.read_data_batch(batch_id, add_buffer=True).T
+            #data_chunk = self.data_temp.T
+            #data_chunk = np.hstack((pad_chunk, np.hstack((data_chunk, pad_chunk))))
+
+            # transfer raw data to cuda
             objective = torch.from_numpy(data_chunk).cuda()
-            print (" Ojbective: ", objective.shape)
             if verbose: 
                 print ("Input size: ",objective.shape, int(sys.getsizeof(objective)), "MB")
 
@@ -217,43 +204,23 @@ class RESIDUAL_GPU(object):
             
             # offset time indices by added buffer above
             times_local = self.spike_train[idx,0]+self.buffer-chunk_start
-            idx_keep = np.where(times_local!=200)[0]
-            times_local = times_local[idx_keep]
-
-            # add more spike times
-            if debug:
-                times_local = np.concatenate((times_local, [5000,5500,5000,5500,5000,5500,5000,5500]))
-
             time_indices = torch.from_numpy(times_local).long().cuda()
 
             if verbose: 
                 print ("spike times: ", time_indices.shape, time_indices)
-                np.save('/home/cat/time_indices.npy', time_indices.cpu().data.numpy())
 
             # select template ids
             templates_local = self.spike_train[idx,1]
-            if debug:
-                templates_local = np.concatenate((templates_local, [3,483, 483,513,613,716,716,717]))
-            
-            template_ids = templates_local[idx_keep]
+            template_ids = torch.from_numpy(templates_local).long().cuda()
 
-            template_ids = torch.from_numpy(template_ids).long().cuda()
             if verbose: 
                 print (" template ids: ", template_ids.shape, template_ids)
-                np.save('/home/cat/template_ids.npy', template_ids.cpu().data.numpy())
-                
 
             # select superres alignment shifts
             time_offsets_local = self.time_offsets[idx]
-            time_offsets_local = time_offsets_local[idx_keep]
-
-            if debug:
-                time_offsets_local = np.concatenate((time_offsets_local, [0.,0.,0.,0.,0.,0.,0.,0.]))
-            
-            #time_offsets_local = torch.from_numpy(time_offsets_local).cuda()
             time_offsets_local = torch.from_numpy(time_offsets_local).float().cuda()
+
             if verbose: 
-                np.save('/home/cat/time_offsets.npy', time_offsets_local.cpu().data.numpy())
                 print ("time offsets: ", time_offsets_local.shape, time_offsets_local)
             
             #objective_copy = objective.clone()
@@ -261,25 +228,38 @@ class RESIDUAL_GPU(object):
             # Cat: TODO: offset should be loaded from CONFIG data.
             if verbose:
                 t5 = time.time()
-            torch.cuda.synchronize()
-            deconv.subtract_splines(objective,
-                                    time_indices,
-                                    time_offsets_local,
-                                    template_ids,
-                                    self.coefficients)
-            torch.cuda.synchronize()
+                
+            # of of spikes to be subtracted per iteration
+            chunk_size = 10000
+            for chunk in range(0, time_indices.shape[0], chunk_size):
+                torch.cuda.synchronize()
+                deconv.subtract_splines(objective,
+                                        time_indices[chunk:chunk+chunk_size],
+                                        time_offsets_local[chunk:chunk+chunk_size],
+                                        template_ids[chunk:chunk+chunk_size],
+                                        self.coefficients)
+                torch.cuda.synchronize()
+            
+            if (chunk+chunk_size) > time_indices.shape[0]:
+                torch.cuda.synchronize()
+                deconv.subtract_splines(objective,
+                                        time_indices[chunk:],
+                                        time_offsets_local[chunk:],
+                                        template_ids[chunk:],
+                                        self.coefficients)
+                torch.cuda.synchronize()
             
             if verbose:
                 print ("subtraction time: ", time.time()-t5)
             
             tfin = time.time()
             if ctr%10==0:
-                print (" chunk:", ctr+1, "/", len(self.chunks), 
+                print (" chunk:", ctr+1, "/", self.reader.n_batches, 
                         chunk, time.time() - tlocal)
             temp_out = objective[:,self.buffer:-self.buffer].cpu().data.numpy().copy(order='F')
             f.write(temp_out.T)
             
-            quit()
+            #quit()
         f.close()
 
         

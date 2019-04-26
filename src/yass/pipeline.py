@@ -130,7 +130,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         os.path.join(TMP_FOLDER, 'block_1'),
         standardized_path,
         standardized_params,
-        run_chunk_sec = [0, 1200])
+        run_chunk_sec = [0, CONFIG.rec_len])
 
     #### Block 2: Deconv, Residuals, Clustering, Postprocess
     n_iterations = 1
@@ -141,7 +141,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
             standardized_path,
             standardized_params,
             fname_templates,
-            run_chunk_sec = [0, 1200])
+            run_chunk_sec = [0, CONFIG.rec_len])
     
     ### Block 3: Deconvolve, Residual, Merge
     (fname_templates,
