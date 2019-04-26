@@ -24,7 +24,7 @@ def run():
     stim_movie_file = os.path.join(CONFIG.data.root_folder, CONFIG.data.stimulus)
     triggers_fname = os.path.join(CONFIG.data.root_folder, CONFIG.data.triggers)
     spike_train_fname = os.path.join(CONFIG.path_to_output_directory,
-                                     'spike_train_post_deconv_post_merge.npy')
+                                     'spike_train.npy')
     saving_dir = os.path.join(CONFIG.path_to_output_directory, 'rf')
     
     rf = RF(stim_movie_file, triggers_fname, spike_train_fname, saving_dir)
