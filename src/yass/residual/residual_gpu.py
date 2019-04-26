@@ -223,13 +223,13 @@ class RESIDUAL_GPU(object):
             if verbose: 
                 print ("time offsets: ", time_offsets_local.shape, time_offsets_local)
             
-            #objective_copy = objective.clone()
-            # Cat; TODO deleting time indices offset; unclear why required
-            # Cat: TODO: offset should be loaded from CONFIG data.
             if verbose:
                 t5 = time.time()
                 
             # of of spikes to be subtracted per iteration
+            # Cat: TODO: read this from CONFIG;
+            # Cat: TODO this may crash if a single spike is left; 
+            #       needs to be wrapped in a list
             chunk_size = 10000
             for chunk in range(0, time_indices.shape[0], chunk_size):
                 torch.cuda.synchronize()
@@ -238,17 +238,8 @@ class RESIDUAL_GPU(object):
                                         time_offsets_local[chunk:chunk+chunk_size],
                                         template_ids[chunk:chunk+chunk_size],
                                         self.coefficients)
-                torch.cuda.synchronize()
-            
-            if (chunk+chunk_size) > time_indices.shape[0]:
-                torch.cuda.synchronize()
-                deconv.subtract_splines(objective,
-                                        time_indices[chunk:],
-                                        time_offsets_local[chunk:],
-                                        template_ids[chunk:],
-                                        self.coefficients)
-                torch.cuda.synchronize()
-            
+            torch.cuda.synchronize()
+
             if verbose:
                 print ("subtraction time: ", time.time()-t5)
             
@@ -259,7 +250,6 @@ class RESIDUAL_GPU(object):
             temp_out = objective[:,self.buffer:-self.buffer].cpu().data.numpy().copy(order='F')
             f.write(temp_out.T)
             
-            #quit()
         f.close()
 
         

@@ -223,7 +223,9 @@ def initial_block(TMP_FOLDER,
         raw_data, 
         full_run)
 
-    methods = ['low_ptp', 'duplicate', 'collision', 'high_mad']
+    #methods = ['low_ptp', 'duplicate', 'collision', 'high_mad']
+    methods = ['duplicate', 'collision', 'high_mad']
+    #methods = ['duplicate', 'collision']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
@@ -260,10 +262,6 @@ def iterative_block(TMP_FOLDER,
         standardized_path,
         standardized_params['dtype'],
         run_chunk_sec=run_chunk_sec)
-        
-       # return (fname_templates, fname_spike_train,
-        # fname_templates_up, fname_spike_train_up,
-        # fname_shifts)
 
 
     # compute residual
@@ -295,7 +293,9 @@ def iterative_block(TMP_FOLDER,
         fname_templates_up=fname_templates_up,
         fname_spike_train_up=fname_spike_train_up)
     
-    methods = ['low_ptp', 'duplicate', 'collision', 'high_mad']
+    #methods = ['low_ptp', 'duplicate', 'collision', 'high_mad']
+    methods = ['duplicate', 'collision', 'high_mad']
+    #methods = ['duplicate', 'collision']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
