@@ -24,7 +24,7 @@ def run():
     stim_movie_file = os.path.join(CONFIG.data.root_folder, CONFIG.data.stimulus)
     triggers_fname = os.path.join(CONFIG.data.root_folder, CONFIG.data.triggers)
     spike_train_fname = os.path.join(CONFIG.path_to_output_directory,
-                                     'spike_train_post_deconv_post_merge.npy')
+                                     'spike_train.npy')
     saving_dir = os.path.join(CONFIG.path_to_output_directory, 'rf')
     
     rf = RF(stim_movie_file, triggers_fname, spike_train_fname, saving_dir)
@@ -259,8 +259,14 @@ class RF(object):
         # yass
         idx = np.where(np.array(rfs_array)==n_rf)[0]
         np.save(self.save_dir+'idx_single_rf.npy', idx)
-        
-        
+
+        idx = np.where(np.array(rfs_array)==0)[0]
+        np.save(self.save_dir+'idx_no_rf.npy', idx)
+
+        idx = np.where(np.array(rfs_array)>n_rf)[0]
+        np.save(self.save_dir+'idx_multi_rf.npy', idx)
+
+
     def classification(self):
 
         # wether the dataset is from 2017 or 2007
@@ -304,7 +310,7 @@ class RF(object):
             gmm_covs = np.load(os.path.join(path_to_assets, 'gmm_covs.npy'))
             gmm_means = np.load(os.path.join(path_to_assets, 'gmm_means.npy'))
 
-        
+
         # get features
         STA_temporal = align_tc(STA_temporal, ref)
         STA_temporal = STA_temporal.reshape(STA_temporal.shape[0], -1)
@@ -336,7 +342,7 @@ class RF(object):
         c = (np.sin(theta)**2)/(2*sigma_x**2) + (np.cos(theta)**2)/(2*sigma_y**2)
         g = offset + amplitude*np.exp( - (a*((x-xo)**2) + 2*b*(x-xo)*(y-yo)+c*((y-yo)**2)))
         return g.ravel()
-        
+
     def fit_gaussian(self):        
 
         if not os.path.exists(self.save_dir+'Gaussian_params.npy'):

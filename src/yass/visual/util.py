@@ -98,7 +98,89 @@ def combine_two_rf(STAs1, STAs2, Gaussian_params1, Gaussian_params2):
     Gaussian_params = np.concatenate((Gaussian_params1, Gaussian_params2), axis=0)
     
     return STAs, Gaussian_params
- 
+
+def template_spike_dist_linear_align(templates, spikes, vis_ptp=2.):
+    """compares the templates and spikes.
+    parameters:
+    -----------
+    templates: numpy.array shape (K, T, C)
+    spikes: numpy.array shape (M, T, C)
+    jitter: int
+        Align jitter amount between the templates and the spikes.
+    upsample int
+        Upsample rate of the templates and spikes.
+    """
+
+    #print ("templates: ", templates.shape)
+    #print ("spikes: ", spikes.shape)
+    # new way using alignment only on max channel
+    # maek reference template based on templates
+    max_idx = templates.ptp(1).max(1).argmax(0)
+    ref_template = templates[max_idx]
+    max_chan = ref_template.ptp(0).argmax(0)
+    ref_template = ref_template[:, max_chan]
+
+    # stack template max chan waveforms only
+    #max_chans = templates.ptp(2).argmax(1)
+    #temps = []
+    #for k in range(max_chans.shape[0]):
+    #    temps.append(templates[k,max_chans[k]])
+    #temps = np.vstack(temps)
+    #print ("tempsl stacked: ", temps.shape)
+    
+    #upsample_factor=5
+    best_shifts = align_get_shifts_with_ref(
+        templates[:, :, max_chan],
+        ref_template, nshifts = 21)
+    #print (" best shifts: ", best_shifts.shape)
+    templates = shift_chans(templates, best_shifts)
+    #print ("  new aligned templates: ", templates_aligned.shape)
+
+    # find spike shifts
+    #max_chans = spikes.ptp(2).argmax(1)
+    #print ("max chans: ", max_chans.shape)
+    #spikes_aligned = []
+    #for k in range(max_chans.shape[0]):
+    #    spikes_aligned.append(spikes[k,max_chans[k]])
+    #spikes_aligned = np.vstack(spikes_aligned)
+    #print ("spikes aligned max chan: ", spikes_aligned.shape)
+    best_shifts = align_get_shifts_with_ref(
+        spikes[:,:,max_chan], ref_template, nshifts = 21)
+    spikes = shift_chans(spikes, best_shifts)
+    #print ("  new aligned spikes: ", spikes_aligned.shape)
+    
+    n_unit = templates.shape[0]
+    n_spikes = spikes.shape[0]
+
+    vis_chan = np.where(templates.ptp(1).max(0) >= vis_ptp)[0]
+    templates = templates[:, :, vis_chan].reshape(n_unit, -1)
+    spikes = spikes[:, :, vis_chan].reshape(n_spikes, -1)
+
+    if templates.shape[0] == 1:
+        idx = np.arange(templates.shape[1])
+    elif templates.shape[0] == 2:
+        diffs = np.abs(np.diff(templates, axis=0)[0])
+        
+        idx = np.where(diffs > 1.5)[0]
+        min_diff_points = 5
+        if len(idx) < 5:
+            idx = np.argsort(diffs)[-min_diff_points:]
+    else:
+        diffs = np.mean(np.abs(
+            templates-templates[max_idx][None]), axis=0)
+        
+        idx = np.where(diffs > 1.5)[0]
+        min_diff_points = 5
+        if len(idx) < 5:
+            idx = np.argsort(diffs)[-min_diff_points:]
+                       
+    templates = templates[:, idx]
+    spikes = spikes[:, idx]
+
+    dist = scipy.spatial.distance.cdist(templates, spikes)
+
+    return dist
+
 def get_l2_features(filename_residual, spike_train, spike_train_upsampled,
                     templates, templates_upsampled, unit1, unit2, n_samples=2000):
     
@@ -177,3 +259,54 @@ def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, 
     fin.close()
 
     return wfs, skipped_idx
+
+def read_spikes(filename, spikes, n_channels, spike_size, units=None, templates=None,
+                channels=None, residual_flag=False):
+    ''' Function to read spikes from raw binaries
+        
+        filename: name of raw binary to be loaded
+        spikes:  [times,] array holding all spike times
+        units: [times,] unit id of each spike
+        templates:  [n_templates, n_times, n_chans] array holding all templates
+    '''
+        
+    # always load all channels and then index into subset otherwise
+    # order won't be correct
+    #n_channels = CONFIG.recordings.n_channels
+
+    # load default spike_size unless otherwise inidcated
+    # PETER: turned off. Let me know if you need this..
+    #if spike_size==None:
+    #    spike_size = int(CONFIG.recordings.spike_size_ms*CONFIG.recordings.sampling_rate//1000*2+1)
+
+    if channels is None:
+        channels = np.arange(n_channels)
+
+    spike_waveforms, skipped_idx = binary_reader_waveforms(filename,
+                                             n_channels,
+                                             spike_size,
+                                             spikes, #- spike_size//2,  # can use this for centering
+                                             channels)
+
+    if len(skipped_idx) > 0:
+        units = np.delete(units, skipped_idx)
+
+    # if loading residual need to add template back into 
+    # Cat: TODO: this is bit messy; loading extrawide noise, but only adding
+    #           narrower templates
+    if residual_flag:
+        #if spike_size is None:
+        #    spike_waveforms+=templates[:,:,channels][units]
+        # need to add templates in middle of noise wfs which are wider
+        #else:
+        #    spike_size_default = int(CONFIG.recordings.spike_size_ms*
+        #                              CONFIG.recordings.sampling_rate//1000*2+1)
+        #    offset = spike_size - spike_size_default
+        #    spike_waveforms[:,offset//2:offset//2+spike_size_default]+=templates[:,:,channels][units]
+        
+        #print ("templates added: ", templates.shape)
+        #print ("units: ", units)
+        offset = spike_size - templates.shape[1]
+        spike_waveforms[:,offset//2:offset//2+templates.shape[1]]+=templates[:,:,channels][units]
+
+    return spike_waveforms, skipped_idx

@@ -18,9 +18,9 @@ def match_units(selected_unit, fname_templates, fname_spike_train,
         return 
 
     templates_ground_truth = np.load(fname_templates_ground_truth)#[10:-10]
-    spike_train_ground_truth = np.load(fname_spike_train_ground_truth)
+    spike_train_ground_truth = np.load(fname_spike_train_ground_truth).astype('int')
     templates = np.load(fname_templates)
-    spike_train = np.load(fname_spike_train)
+    spike_train = np.load(fname_spike_train).astype('int')
 
 
     #print('matching gt unit {}'.format(selected_unit))
