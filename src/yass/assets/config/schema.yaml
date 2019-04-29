@@ -84,7 +84,7 @@ preprocess:
     filter:
       order: 3
       low_pass_freq: 300
-      high_factor: 0.1
+      high_factor: 0.45
   schema:
     # apply butterworth filter in the preprocessing step?
     apply_filter:
@@ -99,7 +99,7 @@ preprocess:
       default:
         order: 3
         low_pass_freq: 300
-        high_factor: 0.1
+        high_factor: 0.45
       schema:
         # Order of Butterworth filter
         order:
@@ -112,7 +112,8 @@ preprocess:
         # High pass factor (proportion of sampling rate)
         high_factor:
           type: float
-          default: 0.1
+          default: 0.45
+
 detect:
   type: dict
   default:
@@ -125,8 +126,11 @@ detect:
       filename: ae_nn1.ckpt
     threshold_detector:
       std_factor: 4
-
+    n_sec_chunk: 1
   schema:
+    n_sec_chunk:
+      type: integer
+      default: 1
     # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
     method:
       type: string

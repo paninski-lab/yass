@@ -71,14 +71,14 @@ def run(fname_templates_in,
     fname_spike_train_up = os.path.join(
         output_directory, 'spike_train_up.npy')
     fname_shifts = os.path.join(
-        output_directory,'shifts.npy')
+        output_directory, 'shifts.npy')
                                
     print ("Processing templates: ", fname_templates_in)
                                      
     # deconv using GPU
     if CONFIG.deconvolution.deconv_gpu:
         if os.path.exists(fname_spike_train):
-           return (fname_templates, fname_spike_train,
+            return (fname_templates, fname_spike_train,
                     fname_templates_up, fname_spike_train_up,
                     fname_shifts)
         
@@ -106,29 +106,18 @@ def run(fname_templates_in,
             # return (fname_templates, fname_spike_train,
                     # fname_templates_up, fname_spike_train_up)
         
-        if run_chunk_sec == 'full':
-            chunk_sec = None
-        else:
-            chunk_sec = run_chunk_sec
-
-        upsample_max_val = 32
-        conv_approx_rank = 10
-        max_iter = 1000
-        threshold = CONFIG.deconvolution.threshold
-
-        reader = READER(recordings_filename,
-                        recording_dtype,
-                        CONFIG,
-                        CONFIG.resources.n_sec_chunk,
-                        chunk_sec=chunk_sec)
-                    
-        deconv_ONcpu(fname_templates, output_directory,
-                    reader, max_iter, upsample_max_val,
-                    threshold, conv_approx_rank, CONFIG)
-        
-        # pass dummy value back to pipeline for cpu-based deconv
-        fname_shifts = None
-            
+        deconv_ONcpu(fname_templates_in,
+                     output_directory,
+                     recordings_filename,
+                     recording_dtype,
+                     threshold,
+                     run_chunk_sec,
+                     save_up_data,
+                     fname_spike_train,
+                     fname_spike_train_up,
+                     fname_templates,
+                     fname_templates_up,
+                     CONFIG)
 
     return (fname_templates, fname_spike_train,
             fname_templates_up, fname_spike_train_up,
@@ -244,10 +233,21 @@ def deconv_ONgpu(fname_templates_in,
     np.save(fname_templates_up, templates_in_original)
 
 
-def deconv_ONcpu(fname_templates, output_directory,
-                    reader, max_iter, upsample_max_val,
-                    threshold, conv_approx_rank, CONFIG):
-        
+def deconv_ONcpu(fname_templates_in,
+                 output_directory,
+                 recordings_filename,
+                 recording_dtype,
+                 threshold,
+                 run_chunk_sec,
+                 save_up_data,
+                 fname_spike_train,
+                 fname_spike_train_up,
+                 fname_templates,
+                 fname_templates_up,
+                 CONFIG):
+
+    logger = logging.getLogger(__name__)
+
     # parameters
     # TODO: read from CONFIG
     if threshold is None:
@@ -256,7 +256,7 @@ def deconv_ONcpu(fname_templates, output_directory,
         min_norm_2 = np.square(
             np.load(fname_templates_in)).sum((1,2)).min()
         threshold = min_norm_2*0.8
-    deconv_gpu = CONFIG.deconvolution.deconv_gpu
+
     conv_approx_rank = 5
     upsample_max_val = 8
     max_iter = 1000
@@ -266,6 +266,11 @@ def deconv_ONcpu(fname_templates, output_directory,
     else:
         chunk_sec = run_chunk_sec
 
+    reader = READER(recordings_filename,
+                    recording_dtype,
+                    CONFIG,
+                    CONFIG.resources.n_sec_chunk,
+                    chunk_sec=chunk_sec)
 
     mp_object = MatchPursuit_objectiveUpsample(
         fname_templates=fname_templates_in,
