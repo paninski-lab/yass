@@ -80,6 +80,7 @@ class Visualizer(object):
         self.rf_dir = rf_dir
         if rf_dir is not None:
             self.STAs = np.load(os.path.join(rf_dir, 'STA_spatial.npy'))
+            self.STAs = np.flip(self.STAs, axis=(1,2))
             self.STAs_temporal = np.load(os.path.join(rf_dir, 'STA_temporal.npy'))
             self.gaussian_fits = np.load(os.path.join(rf_dir, 'gaussian_fits.npy'))
             self.idx_single_rf = np.load(os.path.join(rf_dir, 'idx_single_rf.npy'))
@@ -223,7 +224,7 @@ class Visualizer(object):
         #for unit in tqdm(units):
         parmap.map(self.make_individual_cell_plot, 
                    list(units),
-                   processes=6,
+                   processes=3,
                    pm_pbar=True)
 
     def make_individual_cell_plot(self, unit):
@@ -237,7 +238,7 @@ class Visualizer(object):
             return
 
         fig=plt.figure(figsize=self.figsize)
-        gs = gridspec.GridSpec(self.n_neighbours+6, 10, fig)  
+        gs = gridspec.GridSpec(self.n_neighbours+7, 10, fig)  
 
         if np.sum(self.spike_train[:,1] == unit) > 0:
             ## Main Unit ##
@@ -401,7 +402,7 @@ class Visualizer(object):
         mc_neigh = np.where(neigh_chans == mc)[0][0]
         shifts = align_get_shifts_with_ref(
                     wf[:, :, mc_neigh],
-                    self.templates[:, mc_neigh][:, unit])
+                    self.templates[:, mc][:, unit])
         wf = shift_chans(wf, shifts)
 
         return wf, idx
@@ -535,6 +536,8 @@ class Visualizer(object):
         vmax = np.max(np.abs(img))
         vmin = -vmax
         ax.imshow(img, vmin=vmin, vmax=vmax)
+        ax.set_xlim([64,0])
+        ax.set_ylim([0,32])
         
         # also plot all in one plot
         #ax = plt.subplot(gs[self.n_neighbours+1, ax_col])
@@ -551,12 +554,13 @@ class Visualizer(object):
         
         for ii, unit in enumerate(units):
             # also plot all in one plot
-            plotting_data = self.get_circle_plotting_data(unit,
-                                                  self.gaussian_fits)
-            ax.plot(plotting_data[1],plotting_data[0],
-                    color=colors[ii], linewidth=3)
+            if np.any(self.gaussian_fits[unit] != 0):
+                plotting_data = self.get_circle_plotting_data(unit,
+                                                      self.gaussian_fits)
+                ax.plot(plotting_data[1],plotting_data[0],
+                        color=colors[ii], linewidth=3)
 
-            labels.append(mpatches.Patch(color = colors[ii], label = "Unit {}".format(unit)))
+                labels.append(mpatches.Patch(color = colors[ii], label = "Unit {}".format(unit)))
         
         ax.legend(handles=labels)
                 
@@ -627,7 +631,7 @@ class Visualizer(object):
         return gs
     
     
-    def add_l2_feature_plot(self, gs, x_locs, y_locs, unit1, unit2, colors):
+    def add_l2_feature_plot(self, gs, x_loc, y_loc, unit1, unit2, colors):
         
         #n_samples = 5000
         l2_features, spike_ids = get_l2_features(
@@ -636,24 +640,24 @@ class Visualizer(object):
             self.templates.transpose(2,0,1),
             self.templates_upsampled.transpose(2,0,1),
             unit1, unit2)
-        try:
-            dp_val, feat = test_unimodality(l2_features, spike_ids)
+        #try:
+        dp_val, feat = test_unimodality(l2_features, spike_ids)
 
-            #l2_1d_features = np.diff(l2_features, axis=0)[0]
-            n_bins = int(len(feat)/20)
-            steps = (np.max(feat) - np.min(feat))/n_bins
-            bins = np.arange(np.min(feat), np.max(feat)+steps, steps)
+        #l2_1d_features = np.diff(l2_features, axis=0)[0]
+        n_bins = int(len(feat)/20)
+        steps = (np.max(feat) - np.min(feat))/n_bins
+        bins = np.arange(np.min(feat), np.max(feat)+steps, steps)
 
-            ax = plt.subplot(gs[x_loc, y_loc])
-            plt.hist(feat, bins, color='slategrey')
-            plt.hist(feat[spike_ids==0], bins, color=colors[0], alpha=0.7)
-            plt.hist(feat[spike_ids==1], bins, color=colors[1], alpha=0.7)
-            plt.title(
-                'Dip Test: {}'.format(np.round(dp_val,4)), 
-                fontsize=self.fontsize)
-        except:
-            print ("Diptest error for unit {} and {} with size {}".format(
-                unit1, unit2, l2_features.shape[0]))
+        ax = plt.subplot(gs[x_loc, y_loc])
+        plt.hist(feat, bins, color='slategrey')
+        plt.hist(feat[spike_ids==0], bins, color=colors[0], alpha=0.7)
+        plt.hist(feat[spike_ids==1], bins, color=colors[1], alpha=0.7)
+        plt.title(
+            'Dip Test: {}'.format(np.round(dp_val,4)), 
+            fontsize=self.fontsize)
+        #except:
+        #    print ("Diptest error for unit {} and {} with size {}".format(
+        #        unit1, unit2, l2_features.shape[0]))
 
         return gs
 
@@ -667,7 +671,8 @@ class Visualizer(object):
             ax = plt.subplot(gs[x_loc, y_loc])
             img = full_sta[ii,:,:,1].T
             ax.imshow(img, vmin=vmin, vmax=vmax)
-
+            ax.set_xlim([0,64])
+            ax.set_ylim([0,32])
         return gs
 
     def make_normalized_templates_plot(self):
