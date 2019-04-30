@@ -495,8 +495,12 @@ class Cluster(object):
                         energy[good_t[idx_temp], good_c[idx_temp]]
                     )[-max_timepoints:]]
             idx_keep[idx_temp] = True
+
         good_t = good_t[idx_keep]
         good_c = good_c[idx_keep]
+
+        if len(good_t) == 0:
+            good_t, good_c = np.where(energy == np.max(energy))
 
         self.denoised_wf = self.wf_global[:, good_t, good_c]
 
