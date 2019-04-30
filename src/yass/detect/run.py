@@ -112,9 +112,9 @@ def run(standardized_path, standardized_params,
     elif CONFIG.detect.method == 'nn':
         
         run_neural_network(standardized_path,
-                       standardized_params,
-                       output_temp_files,
-                       run_chunk_sec=run_chunk_sec)
+                           standardized_params,
+                           output_temp_files,
+                           run_chunk_sec=run_chunk_sec)
 
     ###### deduplication #####
     logger.info('removing axons in parallel')
@@ -185,9 +185,7 @@ def run_neural_network(standardized_path, standardized_params,
 
     # number of processed chunks
     processing_ctr = 0
-    print ("  Forcing tensorflow detection to run using 1 sec chunks only (TOFIX)")
-    #n_mini_per_big_batch = int(np.ceil(n_sec_chunk/CONFIG.resources.n_sec_chunk_gpu))
-    n_mini_per_big_batch = int(np.ceil(n_sec_chunk/1))
+    n_mini_per_big_batch = int(np.ceil(n_sec_chunk/CONFIG.detect.n_sec_chunk))
     total_processing = int(reader.n_batches*n_mini_per_big_batch)
 
     # set tensorflow verbosity level
@@ -221,9 +219,8 @@ def run_neural_network(standardized_path, standardized_params,
             # size n_sec_chunk_gpu
             batched_recordings, minibatch_loc_rel = reader.read_data_batch_batch(
                 batch_id,
-                #CONFIG.resources.n_sec_chunk_gpu,
-                1,
-                True)
+                CONFIG.detect.n_sec_chunk,
+                add_buffer=True)
             
             # offset for big batch
             batch_offset = reader.idx_list[batch_id, 0] - reader.buffer

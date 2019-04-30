@@ -80,9 +80,17 @@ class Visualizer(object):
         self.rf_dir = rf_dir
         if rf_dir is not None:
             self.STAs = np.load(os.path.join(rf_dir, 'STA_spatial.npy'))
+            self.STAs = np.flip(self.STAs, axis=(1,2))
+            self.STAs_temporal = np.load(os.path.join(rf_dir, 'STA_temporal.npy'))
             self.gaussian_fits = np.load(os.path.join(rf_dir, 'gaussian_fits.npy'))
             self.idx_single_rf = np.load(os.path.join(rf_dir, 'idx_single_rf.npy'))
+            self.idx_no_rf = np.load(os.path.join(rf_dir, 'idx_no_rf.npy'))
+            self.idx_multi_rf = np.load(os.path.join(rf_dir, 'idx_multi_rf.npy'))
             self.rf_labels = np.load(os.path.join(rf_dir, 'labels.npy'))
+            
+            max_t = np.argmax(np.abs(self.STAs_temporal[:,:,1]), axis=1)
+            self.sta_sign = np.sign(self.STAs_temporal[
+                np.arange(self.STAs_temporal.shape[0]),max_t,1])
         
         # get geometry
         self.geom = parse(fname_geometry, self.n_channels)
@@ -92,24 +100,25 @@ class Visualizer(object):
         # location of standardized recording
         self.fname_recording = fname_recording
         self.recording_dtype = recording_dtype
-        
+
         # residual recording
         self.deconv_dir = deconv_dir
         if deconv_dir is not None:
-            self.residual_recording = os.path.join(deconv_dir, 'residual.bin')
-            post_merge_loc = os.path.join(deconv_dir, 'results_post_deconv_post_merge_0.npz')
-            if not os.path.exists(post_merge_loc) or (not post_deconv_merge):
-                post_merge_loc = os.path.join(deconv_dir, 'results_post_deconv_pre_merge.npz')
-            
-            temp = np.load(post_merge_loc)
-            self.templates_upsampled = temp['templates_upsampled']
-            self.spike_train_upsampled = temp['spike_train_upsampled']
+            self.residual_recording = os.path.join(
+                deconv_dir, 'residual', 'residual.bin')
+            self.templates_upsampled = np.load(os.path.join(
+                deconv_dir, 'deconv', 'templates_up.npy')).transpose(1,2,0)
+            self.spike_train_upsampled = np.load(os.path.join(
+                deconv_dir, 'deconv', 'spike_train_up.npy'))
+            n_times = self.templates_upsampled.shape[0]
+            self.spike_train_upsampled[:, 0] -= n_times//2
+
 
         # template space directory
         self.template_space_dir = template_space_dir
         if template_space_dir is not None:
             self.get_template_pca()
-        
+
         # get colors
         self.colors = colors = [
             'black','blue','red','green','cyan','magenta','brown','pink',
@@ -122,10 +131,10 @@ class Visualizer(object):
         self.save_dir = save_dir
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
-            
+
         # compute firing rates
         self.compute_firing_rates()
-
+        
         # compute neighbors for each unit
         self.compute_neighbours()
         
@@ -174,7 +183,8 @@ class Visualizer(object):
         STAs_th = np.copy(self.STAs)
         STAs_th[np.abs(STAs_th) < th] = 0
         STAs_th = STAs_th.reshape(self.n_units, -1)
-        
+        STAs_th = STAs_th*self.sta_sign[:, None]
+
         norms = np.linalg.norm(STAs_th.T, axis=0)[:, np.newaxis]
         cos = np.matmul(STAs_th, STAs_th.T)/np.matmul(norms, norms.T)
         cos[np.isnan(cos)] = 0
@@ -186,18 +196,20 @@ class Visualizer(object):
         self.nearest_units_rf = nearest_units_rf
 
     def population_level_plot(self):
-                
+
+        self.fontsize = 20
         self.make_raster_plot()
         self.make_firing_rate_plot()
         self.make_normalized_templates_plot()
-        
+
         if self.rf_dir is not None:
             self.make_rf_plots()
             self.cell_classification_plots()
 
         if self.deconv_dir is not None:
             self.add_residual_qq_plot()
-            self.add_raw_deno_resid_plot()            
+            #self.add_raw_deno_resid_plot()  
+            self.add_raw_resid_snippets()
 
     def individiual_cell_plot(self, units=None):
         
@@ -212,7 +224,7 @@ class Visualizer(object):
         #for unit in tqdm(units):
         parmap.map(self.make_individual_cell_plot, 
                    list(units),
-                   processes=6,
+                   processes=3,
                    pm_pbar=True)
 
     def make_individual_cell_plot(self, unit):
@@ -226,7 +238,7 @@ class Visualizer(object):
             return
 
         fig=plt.figure(figsize=self.figsize)
-        gs = gridspec.GridSpec(self.n_neighbours+5, 10, fig)  
+        gs = gridspec.GridSpec(self.n_neighbours+7, 10, fig)  
 
         if np.sum(self.spike_train[:,1] == unit) > 0:
             ## Main Unit ##
@@ -301,6 +313,11 @@ class Visualizer(object):
                 gs, self.n_neighbours+start_row, 7,
                 np.hstack((unit, neighbor_units)),
                 self.colors[:self.n_neighbours+1])
+            
+            start_row += 1
+            x_locs = [self.n_neighbours+start_row]*10 + [self.n_neighbours+start_row+1]*10
+            y_locs = [c for c in range(10)]*2
+            gs = self.add_full_sta(gs, x_locs, y_locs, unit)
 
         fig.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close()
@@ -376,11 +393,18 @@ class Visualizer(object):
         mc = self.templates[:, :, unit].ptp(0).argmax()
         neigh_chans = np.where(self.neigh_channels[mc])[0]
 
-        wf, _ = binary_reader_waveforms(self.fname_recording,
-                                     self.n_channels,
-                                     self.templates.shape[0],
-                                     spt, neigh_chans)
-        
+        wf, _ = binary_reader_waveforms(
+            self.fname_recording,
+            self.n_channels,
+            self.templates.shape[0],
+            spt, neigh_chans)
+
+        mc_neigh = np.where(neigh_chans == mc)[0][0]
+        shifts = align_get_shifts_with_ref(
+                    wf[:, :, mc_neigh],
+                    self.templates[:, mc][:, unit])
+        wf = shift_chans(wf, shifts)
+
         return wf, idx
 
     def add_example_waveforms(self, gs, x_loc, unit):
@@ -452,6 +476,12 @@ class Visualizer(object):
             channels=neigh_chans,
             residual_flag=True)            
 
+        mc_neigh = np.where(neigh_chans == mc)[0][0]
+        shifts = align_get_shifts_with_ref(
+                    wf[:, :, mc_neigh],
+                    self.templates[:, mc_neigh][:, unit])
+        wf = shift_chans(wf, shifts)
+
         for j, chan in enumerate(neigh_chans):
             ax = plt.subplot(gs[x_loc, j])
             ax.plot(wf[:, :, j].T, color='k', alpha=0.1)
@@ -501,12 +531,13 @@ class Visualizer(object):
         
         ax.set_title("Unit: "+str(unit)+", "+str(np.round(self.f_rates[unit],1))+
              "Hz, "+str(np.round(self.ptps[unit],1))+"SU", fontsize=self.fontsize)
-        
-        img = self.STAs[unit,:,:,1].T
+
+        img = self.sta_sign[unit]*self.STAs[unit,:,:,1].T
         vmax = np.max(np.abs(img))
         vmin = -vmax
         ax.imshow(img, vmin=vmin, vmax=vmax)
-        ax.set_ylim(0,32)
+        ax.set_xlim([64,0])
+        ax.set_ylim([0,32])
         
         # also plot all in one plot
         #ax = plt.subplot(gs[self.n_neighbours+1, ax_col])
@@ -523,16 +554,15 @@ class Visualizer(object):
         
         for ii, unit in enumerate(units):
             # also plot all in one plot
-            plotting_data = self.get_circle_plotting_data(unit,
-                                                  self.gaussian_fits)
-            ax.plot(plotting_data[1],plotting_data[0],
-                    color=colors[ii], linewidth=3)
+            if np.any(self.gaussian_fits[unit] != 0):
+                plotting_data = self.get_circle_plotting_data(unit,
+                                                      self.gaussian_fits)
+                ax.plot(plotting_data[1],plotting_data[0],
+                        color=colors[ii], linewidth=3)
 
-            labels.append(mpatches.Patch(color = colors[ii], label = "Unit {}".format(unit)))
+                labels.append(mpatches.Patch(color = colors[ii], label = "Unit {}".format(unit)))
         
         ax.legend(handles=labels)
-        ax.set_ylim(0,32)
-        ax.set_xlim(0,64)
                 
         return gs
 
@@ -610,25 +640,39 @@ class Visualizer(object):
             self.templates.transpose(2,0,1),
             self.templates_upsampled.transpose(2,0,1),
             unit1, unit2)
-        try:
-            dp_val, feat = test_unimodality(l2_features, spike_ids)
+        #try:
+        dp_val, feat = test_unimodality(l2_features, spike_ids)
 
-            #l2_1d_features = np.diff(l2_features, axis=0)[0]
-            n_bins = int(len(feat)/20)
-            steps = (np.max(feat) - np.min(feat))/n_bins
-            bins = np.arange(np.min(feat), np.max(feat)+steps, steps)
+        #l2_1d_features = np.diff(l2_features, axis=0)[0]
+        n_bins = int(len(feat)/20)
+        steps = (np.max(feat) - np.min(feat))/n_bins
+        bins = np.arange(np.min(feat), np.max(feat)+steps, steps)
 
+        ax = plt.subplot(gs[x_loc, y_loc])
+        plt.hist(feat, bins, color='slategrey')
+        plt.hist(feat[spike_ids==0], bins, color=colors[0], alpha=0.7)
+        plt.hist(feat[spike_ids==1], bins, color=colors[1], alpha=0.7)
+        plt.title(
+            'Dip Test: {}'.format(np.round(dp_val,4)), 
+            fontsize=self.fontsize)
+        #except:
+        #    print ("Diptest error for unit {} and {} with size {}".format(
+        #        unit1, unit2, l2_features.shape[0]))
+
+        return gs
+
+    def add_full_sta(self, gs, x_locs, y_locs, unit):
+
+        full_sta = self.STAs_temporal[unit][:, None, None]*self.STAs[unit][None]
+        full_sta = full_sta[-len(x_locs):]
+        vmax = np.max(np.abs(full_sta))
+        vmin = -vmax
+        for ii, (x_loc, y_loc) in enumerate(zip(x_locs, y_locs)):
             ax = plt.subplot(gs[x_loc, y_loc])
-            plt.hist(feat, bins, color='slategrey')
-            plt.hist(feat[spike_ids==0], bins, color=colors[0], alpha=0.7)
-            plt.hist(feat[spike_ids==1], bins, color=colors[1], alpha=0.7)
-            plt.title(
-                'Dip Test: {}'.format(np.round(dp_val,4)), 
-                fontsize=self.fontsize)
-        except:
-            print ("Diptest error for unit {} and {} with size {}".format(
-                unit1, unit2, l2_features.shape[0]))
-
+            img = full_sta[ii,:,:,1].T
+            ax.imshow(img, vmin=vmin, vmax=vmax)
+            ax.set_xlim([0,64])
+            ax.set_ylim([0,32])
         return gs
 
     def make_normalized_templates_plot(self):
@@ -661,7 +705,7 @@ class Visualizer(object):
         
         plt.figure(figsize=(14, 4*(add_row+2)))
 
-        ths = [0,2,3]
+        ths = [0,3,5]
         for ii, th in enumerate(ths):
             plt.subplot(2+add_row, 3, ii+1)
 
@@ -778,8 +822,8 @@ class Visualizer(object):
     def add_raw_deno_resid_plot(self):
         
         fname = os.path.join(self.save_dir, 'raw_denoised_residual.png')
-        #if os.path.exists(fname):
-        #    return
+        if os.path.exists(fname):
+            return
 
         raw = np.memmap(self.fname_recording, 
                         dtype='float32', mode='r')
@@ -832,7 +876,55 @@ class Visualizer(object):
         plt.legend(handles = labels_legend, bbox_to_anchor=[1,1], fontsize=20)
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close() 
+
+    def add_raw_resid_snippets(self):
         
+        save_dir = os.path.join(self.save_dir, 'raw_residual_snippets/')
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        n_snippets_per_channel = 3
+        
+        raw = np.memmap(self.fname_recording, 
+                        dtype='float32', mode='r')
+        raw = np.reshape(raw, [-1, self.n_channels])
+        res = np.memmap(self.residual_recording, 
+                        dtype='float32', mode='r')
+        res = np.reshape(res, [-1, self.n_channels])
+
+        for channel in range(self.n_channels):
+
+            abs_rec = np.abs(res[1000:-1000, channel])
+            max_ids = scipy.signal.argrelmax(abs_rec, order=100)[0]
+            max_ids = max_ids[
+                np.argsort(abs_rec[max_ids])[-n_snippets_per_channel:][::-1]]
+            max_ids += 1000
+            
+            neigh_chans = np.where(self.neigh_channels[channel])[0]
+            
+            for j in range(n_snippets_per_channel):
+
+                fname = os.path.join(save_dir, 'snippet_{}_channel_{}.png'.format(j, channel))
+                if os.path.exists(fname):
+                    continue
+
+                t_start = max_ids[j] - 150
+                t_end = max_ids[j] + 151
+                raw_snip = raw[t_start:t_end][:, neigh_chans]
+                res_snip = res[t_start:t_end][:, neigh_chans]
+
+                t_tics = np.arange(t_start, t_end)/20
+                spread = np.arange(len(neigh_chans))*10
+                plt.figure(figsize=(5,5))
+                ax = plt.subplot(111)
+                ax.set_facecolor((0.1,0.1,0.1))
+                ax.plot(t_tics,raw_snip+spread[None], 'r')
+                ax.plot(t_tics,res_snip+spread[None], 'white')
+                ax.set_xlabel('Time (ms)', fontsize=30)
+                ax.set_xlim([min(t_tics), max(t_tics)])
+                plt.savefig(fname, bbox_inches='tight', dpi=100)
+                plt.close()
+
     def cell_classification_plots(self):
 
         fname = os.path.join(self.save_dir, 'contours.png')
@@ -871,25 +963,26 @@ class Visualizer(object):
             return
 
         n_units = self.STAs.shape[0]
-        
+
         type_names = ['off-midget','off-parasol',
-                       'off-sm',
-                       'on-midget','on-parasol',
-                       'unknown','multiple/no rf']
+                      'off-sm', 'on-midget',
+                      'on-parasol', 'unknown',
+                      'multiple rf', 'no rf']
 
         idx_per_type = []
         for j in range(5):
             idx_per_type.append(np.where(self.rf_labels == j)[0])
         idx_per_type.append(self.idx_single_rf[self.rf_labels[self.idx_single_rf] == -1]) 
         all_units = np.arange(n_units)
-        idx_per_type.append(all_units[~np.in1d(all_units, self.idx_single_rf)])
-        
+        idx_per_type.append(self.idx_multi_rf)
+        idx_per_type.append(self.idx_no_rf)
+
         n_rows_per_type = []
         for idx in idx_per_type:
             n_rows_per_type.append(int(np.ceil(len(idx)/10.)))
         
         fig=plt.figure(figsize=(50, 100))
-        gs = gridspec.GridSpec(sum(n_rows_per_type)+7, 10, fig)
+        gs = gridspec.GridSpec(sum(n_rows_per_type)+9, 10, fig)
 
         row = 0
         for ii, idx in enumerate(idx_per_type):
@@ -946,14 +1039,20 @@ class CompareSpikeTrains(Visualizer):
             spike_train2 = np.load(fname_spike_train2)
             
             STAs1 = np.load(os.path.join(rf_dir, 'STA_spatial.npy'))
+            STAs_temporal1 = np.load(os.path.join(rf_dir, 'STA_temporal.npy'))
             Gaussian_params1 = np.load(os.path.join(rf_dir, 'gaussian_fits.npy'))
             STAs2 = np.load(os.path.join(rf_dir2, 'STA_spatial.npy'))
+            STAs_temporal2 = np.load(os.path.join(rf_dir2, 'STA_temporal.npy'))
             Gaussian_params2 = np.load(os.path.join(rf_dir2, 'gaussian_fits.npy'))
             
             idx_single_rf1 = np.load(os.path.join(rf_dir, 'idx_single_rf.npy'))
+            idx_no_rf1 = np.load(os.path.join(rf_dir, 'idx_no_rf.npy'))
+            idx_multi_rf1 = np.load(os.path.join(rf_dir, 'idx_multi_rf.npy'))
             rf_labels1 = np.load(os.path.join(rf_dir, 'labels.npy'))
             
             idx_single_rf2 = np.load(os.path.join(rf_dir2, 'idx_single_rf.npy'))
+            idx_no_rf2 = np.load(os.path.join(rf_dir2, 'idx_no_rf.npy'))
+            idx_multi_rf2 = np.load(os.path.join(rf_dir2, 'idx_multi_rf.npy'))
             rf_labels2 = np.load(os.path.join(rf_dir2, 'labels.npy'))
             
             templates, spike_train = combine_two_spike_train(
@@ -961,6 +1060,7 @@ class CompareSpikeTrains(Visualizer):
             
             STAs, Gaussian_params = combine_two_rf(
                 STAs1, STAs2, Gaussian_params1, Gaussian_params2)
+            STAs_temporal = np.concatenate((STAs_temporal1, STAs_temporal2), axis=0)
 
             K1 = templates1.shape[2]
             K2 = templates2.shape[2]
@@ -968,6 +1068,8 @@ class CompareSpikeTrains(Visualizer):
             set1_idx[:K1] = 1
             
             idx_single_rf = np.hstack((idx_single_rf1, idx_single_rf2+K1))
+            idx_no_rf = np.hstack((idx_no_rf1, idx_no_rf2+K1))
+            idx_multi_rf = np.hstack((idx_multi_rf1, idx_multi_rf2+K1))
             rf_labels = np.hstack((rf_labels1, rf_labels2))
             
             
@@ -982,8 +1084,11 @@ class CompareSpikeTrains(Visualizer):
             np.save(fname_spike_train, spike_train)
             np.save(fname_set1_idx, set1_idx)
             np.save(os.path.join(rf_dir, 'STA_spatial.npy'), STAs)
-            np.save(os.path.join(rf_dir, 'gaussian_fits.npy'), Gaussian_params)    
+            np.save(os.path.join(rf_dir, 'STA_temporal.npy'), STAs_temporal)
+            np.save(os.path.join(rf_dir, 'gaussian_fits.npy'), Gaussian_params)
             np.save(os.path.join(rf_dir, 'idx_single_rf.npy'), idx_single_rf)
+            np.save(os.path.join(rf_dir, 'idx_no_rf.npy'), idx_no_rf)
+            np.save(os.path.join(rf_dir, 'idx_multi_rf.npy'), idx_multi_rf)
             np.save(os.path.join(rf_dir, 'labels.npy'), rf_labels)
         
         set1_idx = np.load(fname_set1_idx)

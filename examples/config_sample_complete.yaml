@@ -49,9 +49,10 @@ preprocess:
     # Low pass frequency (Hz)
     low_pass_freq: 300
     # High pass factor (proportion of sampling rate)
-    high_factor: 0.1
+    high_factor: 0.45
 
 detect:
+  n_sec_chunk: 1
   # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
   method: nn
   # Configuration parameters when when detect.method = 'nn'
@@ -80,7 +81,7 @@ cluster:
   # maximum number of spikes per clustering group
   # if the total number of spikes per clustering group exceeds it,
   # it randomly subsample
-  max_n_spikes: 50000
+  max_n_spikes: 10000
   # cluster prior information
   prior:
     beta: 1
