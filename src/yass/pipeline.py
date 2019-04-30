@@ -132,6 +132,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         standardized_params,
         run_chunk_sec = [0, CONFIG.rec_len])
 
+    print (" inpput to block2: ", fname_templates)
+    
     #### Block 2: Deconv, Residuals, Clustering, Postprocess
     n_iterations = 1
     for it in range(n_iterations):
