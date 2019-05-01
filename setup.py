@@ -30,7 +30,7 @@ INSTALL_REQUIRES = [
     'pathlib2;python_version<"3"', 'funcsigs;python_version<"3"',
     # dependencies...
     'numpy', 'scipy', 'scikit-learn', 'pyyaml', 'python-dateutil', 'click',
-    'tqdm', 'multiprocess', 'coloredlogs', 'keras', 'cerberus',
+    'tqdm', 'multiprocess', 'coloredlogs', 'cerberus', 'torch',
     # from experimental pipeline (nnet and clustering)
     # TODO: consider reducing the number of dependencies: parmap, matplotlib
     # and progressbar2 are not necessary
