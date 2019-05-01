@@ -23,20 +23,21 @@ class READER(object):
         # batch sizes
         print ("Making batches in READER")
         if chunk_sec is None:
-            start, end = 0, self.rec_len
+            self.start, self.end = 0, self.rec_len
         else:
-            start = chunk_sec[0]*self.sampling_rate
-            end = chunk_sec[1]*self.sampling_rate
+            self.start = chunk_sec[0]*self.sampling_rate
+            self.end = chunk_sec[1]*self.sampling_rate
 
-            if start < 0:
-                start = 0
-            if end > self.rec_len:
-                end = self.rec_len
+            if self.start < 0:
+                self.start = 0
+            if self.end > self.rec_len:
+                self.end = self.rec_len
 
         if n_sec_chunk is not None:
             self.n_sec_chunk = n_sec_chunk
-            indexes = np.arange(start, end, self.sampling_rate*self.n_sec_chunk)
-            indexes = np.hstack((indexes, end))
+            self.batch_size = self.sampling_rate*self.n_sec_chunk
+            indexes = np.arange(self.start, self.end, self.batch_size)
+            indexes = np.hstack((indexes, self.end))
 
             idx_list = []
             for k in range(len(indexes) - 1):

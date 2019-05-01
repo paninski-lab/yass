@@ -51,11 +51,7 @@ class deconvGPU(object):
 
         # length of conv filter
         self.n_times = torch.arange(-self.lockout_window,self.n_time,1).long().to(device)#,dtype=torch.int32, device='cuda')
-        
-        # buffer
-        # Cat: TODO: Read from CONFIG
-        self.buffer = 200
-        
+
         # set max deconv thersho
         self.deconv_thresh = self.CONFIG.deconvolution.threshold
 
@@ -106,10 +102,10 @@ class deconvGPU(object):
         self.templates_to_bsplines()
            
             
-    def run(self, chunk):
+    def run(self, chunk_id):
         
         # load raw data and templates
-        self.load_data(chunk)   
+        self.load_data(chunk_id)
         
         # make objective function
         self.make_objective()
@@ -138,7 +134,7 @@ class deconvGPU(object):
         
         print ("     # of templates converting to bsplines: ", len(self.temp_temp_cpp))
         self.coefficients = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp])
-        
+
 
     def fit_spline(self, curve, knots=None,  prepad=0, postpad=0, order=3):
         if knots is None:
@@ -252,14 +248,13 @@ class deconvGPU(object):
                     pairwise_conv[j, :] += np.convolve(
                             mat_mul_res[:, i],
                             s[i] * u[:, i].flatten(), 'full')
-            
+
             pairwise_conv_array.append(pairwise_conv)
 
         return pairwise_conv_array
 
-            
     def compute_temp_temp(self):
-                
+
         fname = os.path.join(self.out_dir,"temp_temp_sparse.npy")
 
         if os.path.exists(fname)==False: 
@@ -310,7 +305,7 @@ class deconvGPU(object):
         else:
 
             self.temp_temp = np.load(fname)
- 
+
         # # load also the diagonal of the temp temp function:
         # fname = os.path.join(self.out_dir,"temp_temp_diagonal.npy")
         # if os.path.exists(fname)==False:
@@ -329,7 +324,7 @@ class deconvGPU(object):
         a = np.max(self.temps, axis=1) - np.min(self.temps, 1)
         
         # Cat: TODO: must read visible channel/unit threshold from file;
-        self.vis_chan = a > 2.0
+        self.vis_chan = a > 1.0
         a_self = self.temps.ptp(1).argmax(0)
         for k in range(a_self.shape[0]):
             self.vis_chan[a_self[k],k]=True
@@ -349,7 +344,6 @@ class deconvGPU(object):
             zero_chans = np.where(self.vis_chan[:,k]==0)[0]
             self.temps[zero_chans,:,k]=0.
 
-        
     def load_temps(self):
         ''' Load templates and set parameters
         '''
@@ -398,7 +392,7 @@ class deconvGPU(object):
         
     def compress_templates(self):
         """Compresses the templates using SVD and upsample temporal compoents."""
-        
+
         ## compute everythign using SVD
         fname = os.path.join(self.out_dir,'templates_svd.npz')
         if os.path.exists(fname)==False:
@@ -477,28 +471,16 @@ class deconvGPU(object):
         #print ('')
 
   
-    def load_data(self, chunk):
+    def load_data(self, chunk_id):
         '''  Function to load raw data 
         '''
 
         start = dt.datetime.now().timestamp()
 
-        # set indexes
-        start_time = chunk[0]*self.sample_rate
-        end_time = chunk[1]*self.sample_rate
-        self.chunk_len = end_time-start_time
-        
-        # load raw data
-        fname = os.path.join(self.root_dir, 'tmp','preprocess','standardized.bin')
-        self.data = np.zeros((self.N_CHAN, self.buffer*2+self.chunk_len))
-        # Cat: TODO: datatype len hardcoded to 4 below
-        with open(fname, 'rb') as fin:
-            fin.seek(start_time * 4 * self.N_CHAN, os.SEEK_SET)
-            self.data[:,self.buffer:-self.buffer] = np.fromfile(
-                fin,
-                dtype='float32',
-                count=(self.chunk_len * self.N_CHAN)).reshape(self.chunk_len,self.N_CHAN).T#.astype(np.int32)
-        
+        self.data = self.reader.read_data_batch(
+            chunk_id, add_buffer=True).T
+        self.offset = self.reader.idx_list[chunk_id, 0] - self.reader.buffer
+
         self.data = torch.from_numpy(self.data).float().to(device)
         torch.cuda.synchronize()
         #print ("Input size: ",self.data.shape, int(sys.getsizeof(self.data.astype(np.float32))/1E6), "MB")

@@ -2,6 +2,7 @@ import os
 import logging
 import numpy as np
 import time
+from tqdm import tqdm
 import torch
 import sys
 import cudaSpline as deconv
@@ -178,7 +179,7 @@ class RESIDUAL_GPU(object):
         pad_chunk = np.zeros((self.CONFIG.recordings.n_channels,self.buffer),'float32')
         #for ctr, chunk in enumerate(chunks):
         #for ctr, chunk in enumerate(self.chunks):
-        for ctr, chunk in enumerate(self.reader.idx_list):
+        for ctr, chunk in tqdm(enumerate(self.reader.idx_list)):
             tlocal = time.time()
             chunk_start = chunk[0]
             chunk_end = chunk[1]
@@ -243,10 +244,10 @@ class RESIDUAL_GPU(object):
             if verbose:
                 print ("subtraction time: ", time.time()-t5)
             
-            tfin = time.time()
-            if ctr%10==0:
-                print (" chunk:", ctr+1, "/", self.reader.n_batches, 
-                        chunk, time.time() - tlocal)
+            #tfin = time.time()
+            #if ctr%10==0:
+            #    print (" chunk:", ctr+1, "/", self.reader.n_batches, 
+            #            chunk, time.time() - tlocal)
             temp_out = objective[:,self.buffer:-self.buffer].cpu().data.numpy().copy(order='F')
             f.write(temp_out.T)
             
