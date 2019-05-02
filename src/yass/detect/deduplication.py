@@ -13,7 +13,9 @@ def run_deduplication(batch_files_dir, output_directory):
     neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
 
     batch_ids = list(np.arange(len(os.listdir(batch_files_dir))))
+    print ("  Batch_ids: ", batch_ids)
     if CONFIG.resources.multi_processing:
+    #if False:
         parmap.map(run_deduplication_batch,
                    batch_ids,
                    batch_files_dir,
@@ -55,7 +57,8 @@ def run_deduplication_batch(batch_id, batch_files_dir,
 
     # save output
     np.save(fname_save, idx_survived)
-    
+
+
 def deduplicate(spike_index, energy, neighbors):
     
     # default window for deduplication in timesteps
@@ -93,7 +96,6 @@ def deduplicate(spike_index, energy, neighbors):
 
     edges = []
     for j in range(n_data):
-
         max_index = index_counter[TT[j]+w]
 
         # max channels of temporally nearby spikes

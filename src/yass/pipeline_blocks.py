@@ -118,71 +118,65 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         ************** PREPROCESS ********************
         **********************************************
     '''
+
+    # run preprocess and spike detect 
     # preprocess
     start = time.time()
     (standardized_path,
      standardized_params) = preprocess.run(
         os.path.join(TMP_FOLDER, 'preprocess'))
+            
 
-    #### Block 1: Detection, Clustering, Postprocess
-    (fname_templates,
-     fname_spike_train) = initial_block(
-        os.path.join(TMP_FOLDER, 'block_1'),
-        standardized_path,
-        standardized_params,
-        run_chunk_sec = [0, CONFIG.rec_len])
+    # run entire pipeline multipole times on multiple chunks:
+    run_blocks = []
+    for k in range(0, 600, 60):
+        run_blocks.append([k,k+60])
+            
+    for blk_ctr, run_block in enumerate(run_blocks):
 
-    print (" inpput to block2: ", fname_templates)
-    
-    #### Block 2: Deconv, Merge, Residuals, Clustering, Postprocess
-    n_iterations = 1
-    for it in range(n_iterations):
+        BLK_FOLDER = TMP_FOLDER + "/"+ str(run_block[0])+"_"+str(run_block[1])
+        if not os.path.exists(BLK_FOLDER):
+            os.makedirs(BLK_FOLDER)
+            
+        print ("  RUNNING ON: ", run_block)
+        #### Block 1: Detection, Clustering, Postprocess
         (fname_templates,
-         fname_spike_train) = iterative_block(
-            os.path.join(TMP_FOLDER, 'block_{}'.format(it+2)),
+         fname_spike_train) = initial_block(
+            os.path.join(BLK_FOLDER, 'block_1'),
+            standardized_path,
+            standardized_params,
+            run_chunk_sec = run_block)
+
+        print (" inpput to next block: ", fname_templates)
+        
+        ### Block 3: Deconvolve, Residual, Merge
+        (fname_templates,
+         fname_spike_train,
+         fname_templates_up,
+         fname_spike_train_up,
+         fname_residual,
+         residual_dtype)= single_block(
+            os.path.join(BLK_FOLDER, 'final_deconv'),
             standardized_path,
             standardized_params,
             fname_templates,
-            run_chunk_sec = [0, CONFIG.rec_len])
-    
-    ### Block 3: Deconvolve, Residual, Merge
-    (fname_templates,
-     fname_spike_train,
-     fname_templates_up,
-     fname_spike_train_up,
-     fname_residual,
-     residual_dtype)= final_deconv(
-        os.path.join(TMP_FOLDER, 'final_deconv'),
-        standardized_path,
-        standardized_params,
-        fname_templates)
+            run_block)
 
-    ## save the final templates and spike train
-    fname_templates_final = os.path.join(
-        TMP_FOLDER, 'templates.npy')
-    fname_spike_train_final = os.path.join(
-        TMP_FOLDER, 'spike_train.npy')
-    # tranpose axes
-    templates = np.load(fname_templates).transpose(1,2,0)
-    # align spike time to the beginning
-    spike_train = np.load(fname_spike_train)
-    spike_train[:,0] -= CONFIG.spike_size//2
-    np.save(fname_templates_final, templates)
-    np.save(fname_spike_train_final, spike_train)
+        ## save the final templates and spike train
+        fname_templates_final = os.path.join(
+            BLK_FOLDER, 'templates.npy')
+        fname_spike_train_final = os.path.join(
+            BLK_FOLDER, 'spike_train.npy')
+        # tranpose axes
+        templates = np.load(fname_templates).transpose(1,2,0)
+        # align spike time to the beginning
+        spike_train = np.load(fname_spike_train)
+        spike_train[:,0] -= CONFIG.spike_size//2
+        np.save(fname_templates_final, templates)
+        np.save(fname_spike_train_final, spike_train)
 
-    total_time = time.time() - start
+        total_time = time.time() - start
 
-    ''' **********************************************
-        ************** RF / VISUALIZE ****************
-        **********************************************
-    '''
-
-    if calculate_rf:
-        rf.run() 
-
-    if visualize:
-        visual.run()
-    
     logger.info('Finished YASS execution. Total time: {}'.format(
         human_readable_time(total_time)))
     logger.info('Final Templates Location: '+fname_templates_final)
@@ -211,7 +205,7 @@ def initial_block(TMP_FOLDER,
         standardized_params,
         os.path.join(TMP_FOLDER, 'detect'),
         run_chunk_sec=run_chunk_sec)
-
+    
     logger.info('INITIAL CLUSTERING')
 
     # cluster
@@ -238,7 +232,7 @@ def initial_block(TMP_FOLDER,
     return fname_templates, fname_spike_train
 
 
-def iterative_block(TMP_FOLDER,
+def single_block(TMP_FOLDER,
                     standardized_path,
                     standardized_params,
                     fname_templates,
@@ -250,7 +244,7 @@ def iterative_block(TMP_FOLDER,
         os.makedirs(TMP_FOLDER)
 
     # run deconvolution
-    logger.info('DECONV')
+    logger.info('DECONV'+str(run_chunk_sec))
     (fname_templates,
      fname_spike_train,
      fname_templates_up,
@@ -292,41 +286,16 @@ def iterative_block(TMP_FOLDER,
         
     fname_templates = fname_templates_up
     fname_spike_train = fname_spike_train_up
-        
-        
-    # cluster
-    logger.info('RECLUSTERING')
-    raw_data = False
-    full_run = True
-    fname_templates, fname_spike_train = cluster.run(
-        fname_spike_train,
-        standardized_path,
-        standardized_params['dtype'],
-        os.path.join(TMP_FOLDER, 'cluster'),
-        raw_data, 
-        full_run,
-        fname_residual=fname_residual,
-        residual_dtype=residual_dtype,
-        fname_templates_up=fname_templates_up,
-        fname_spike_train_up=fname_spike_train_up)
-    
-    methods = ['duplicate', 'high_mad', 'collision']
-    fname_templates, fname_spike_train = postprocess.run(
-        methods,
-        fname_templates,
-        fname_spike_train,
-        os.path.join(TMP_FOLDER,
-                     'cluster_post_process'),
-        standardized_path,
-        standardized_params['dtype'])
 
-    return fname_templates, fname_spike_train
-
-
+    return (fname_templates, fname_spike_train, fname_templates_up,
+            fname_spike_train_up, fname_residual, residual_dtype)
+            
+            
 def final_deconv(TMP_FOLDER,
                  standardized_path,
                  standardized_params,
-                 fname_templates):
+                 fname_templates,
+                 run_chunk_sec):
 
     logger = logging.getLogger(__name__)
 
@@ -349,7 +318,8 @@ def final_deconv(TMP_FOLDER,
         os.path.join(TMP_FOLDER,
                      'deconv'),
         standardized_path,
-        standardized_params['dtype'])
+        standardized_params['dtype'], 
+        run_chunk_sec)
 
     # compute residual
     logger.info('RESIDUAL COMPUTATION')

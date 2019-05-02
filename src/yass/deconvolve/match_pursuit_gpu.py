@@ -329,7 +329,7 @@ class deconvGPU(object):
         a = np.max(self.temps, axis=1) - np.min(self.temps, 1)
         
         # Cat: TODO: must read visible channel/unit threshold from file;
-        self.vis_chan = a > 2.0
+        self.vis_chan = a > self.vis_chan_thresh
         a_self = self.temps.ptp(1).argmax(0)
         for k in range(a_self.shape[0]):
             self.vis_chan[a_self[k],k]=True
@@ -723,7 +723,7 @@ class deconvGPU(object):
         deconv.subtract_splines(
                     self.obj_gpu,
                     spike_times,
-                    self.xshifts,
+                    self.xshifts*0.,
                     spike_temps,
                     self.coefficients)
 
@@ -731,15 +731,16 @@ class deconvGPU(object):
 
         # also fill in self-convolution traces with low energy so the
         #   spikes cannot be detected again (i.e. enforcing refactoriness)
-        deconv.refrac_fill(energy=self.obj_gpu,
-                                  spike_times=spike_times,
-                                  spike_ids=spike_temps,
-                                  fill_length=self.n_time,  # variable fill length here
-                                  fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
-                                  fill_value=-1E10)
+        if False:
+            deconv.refrac_fill(energy=self.obj_gpu,
+                                      spike_times=spike_times,
+                                      spike_ids=spike_temps,
+                                      fill_length=self.n_time,  # variable fill length here
+                                      fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
+                                      fill_value=-1E10)
 
-        torch.cuda.synchronize()
-        
+            torch.cuda.synchronize()
+            
         return (dt.datetime.now().timestamp()-start)
                      
         

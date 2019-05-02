@@ -145,7 +145,7 @@ def deconv_ONgpu(fname_templates_in,
     #root_dir = '/media/cat/1TB/liam/49channels/data1_allset'
     root_dir = CONFIG.data.root_folder
 
-    # Cat: TODO: read from CONFIG
+    # Cat: TO DO: read from CONFIG
     d_gpu.max_iter=1000
     d_gpu.deconv_thresh=20
 
@@ -153,8 +153,7 @@ def deconv_ONgpu(fname_templates_in,
     d_gpu.svd_flag = True
 
     # Cat: TODO read from CONFIG file 
-    d_gpu.RANK = 10
-    d_gpu.vis_chan_thresh = 1.0
+    d_gpu.RANK = 5
 
     # debug/printout parameters
     # Cat: TODO: read all from CONFIG
@@ -174,14 +173,11 @@ def deconv_ONgpu(fname_templates_in,
     # ************ RUN DECONV ***************
     print ("Subtraction step...")
     begin=dt.datetime.now().timestamp()
-    if True:
-        chunks = []
-        for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
-                        CONFIG.resources.n_sec_chunk_gpu):
-            chunks.append([k,k+n_sec])
-    # run data on small chunk only
-    else:
-        chunks = [run_chunk_sec]
+    chunks = []
+    for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
+                    CONFIG.resources.n_sec_chunk_gpu):
+        chunks.append([k,k+n_sec])
+     
     # Cat: TODO : last chunk of data may be skipped if this doesn't work right.
     print ("  (TODO: Make sure last bit is added if rec_len not multiple of n_sec_gpu_chnk)")
 

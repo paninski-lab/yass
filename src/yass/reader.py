@@ -21,7 +21,7 @@ class READER(object):
             self.buffer = buffer
 
         # batch sizes
-        print ("Making batches in READER")
+        print ("   making batches in Reader class")
         if chunk_sec is None:
             start, end = 0, self.rec_len
         else:
@@ -44,6 +44,7 @@ class READER(object):
             self.idx_list = np.int64(np.vstack(idx_list))
             self.n_batches = len(self.idx_list)
 
+            print ("   # of batches: ", self.n_batches)
         # spike size
         self.spike_size = CONFIG.spike_size
        
