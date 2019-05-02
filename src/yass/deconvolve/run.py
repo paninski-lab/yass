@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import parmap
 import datetime as dt
+from tqdm import tqdm
 import torch
 
 from yass import read_config
@@ -74,45 +75,69 @@ def run(fname_templates_in,
         output_directory, 'shifts.npy')
                                
     print ("Processing templates: ", fname_templates_in)
-                                     
+
+    # Cat: TODO: use Peter's conditional (below) instead of single file check
+    # if (os.path.exists(fname_templates) and
+        # os.path.exists(fname_spike_train) and
+        # os.path.exists(fname_templates_up) and
+        # os.path.exists(fname_spike_train_up)):
+        # return (fname_templates, fname_spike_train,
+                # fname_templates_up, fname_spike_train_up)
+
+    if os.path.exists(fname_spike_train):
+        return (fname_templates, fname_spike_train,
+                fname_templates_up, fname_spike_train_up,
+                fname_shifts)
+    # parameters
+    # TODO: read from CONFIG
+    if threshold is None:
+        threshold = CONFIG.deconvolution.threshold
+    elif threshold == 'max':
+        min_norm_2 = np.square(
+            np.load(fname_templates_in)).sum((1,2)).min()
+        threshold = min_norm_2*0.8
+
+    if run_chunk_sec == 'full':
+        chunk_sec = None
+    else:
+        chunk_sec = run_chunk_sec
+
+    if CONFIG.deconvolution.deconv_gpu:
+        n_sec_chunk = CONFIG.resources.n_sec_chunk_gpu
+    else:
+        n_sec_chunk = CONFIG.resources.n_sec_chunk
+
+    reader = READER(recordings_filename,
+                    recording_dtype,
+                    CONFIG,
+                    n_sec_chunk,
+                    chunk_sec=chunk_sec)
+
     # deconv using GPU
     if CONFIG.deconvolution.deconv_gpu:
-        if os.path.exists(fname_spike_train):
-            return (fname_templates, fname_spike_train,
-                    fname_templates_up, fname_spike_train_up,
-                    fname_shifts)
-        
         deconv_ONgpu(fname_templates_in,
+                     output_directory,
+                     reader,
+                     threshold,
                      fname_spike_train,
                      fname_spike_train_up,
                      fname_templates,
                      fname_templates_up,
                      fname_shifts,
+<<<<<<< HEAD
                      output_directory,
                      CONFIG,
                      run_chunk_sec)
+=======
+                     CONFIG)
+>>>>>>> 55ed41454a6b67f17d74ad4598808296379d8d86
                                                     
     # deconv using CPU
-    else:                                         
-        if os.path.exists(fname_spike_train):
-            return (fname_templates, fname_spike_train,
-                fname_templates_up, fname_spike_train_up,
-                fname_shifts)
-        
-        # Cat: TODO: use Peter's conditional (below) instead of single file check
-        # if (os.path.exists(fname_templates) and
-            # os.path.exists(fname_spike_train) and
-            # os.path.exists(fname_templates_up) and
-            # os.path.exists(fname_spike_train_up)):
-            # return (fname_templates, fname_spike_train,
-                    # fname_templates_up, fname_spike_train_up)
-        
+    else:
         deconv_ONcpu(fname_templates_in,
                      output_directory,
-                     recordings_filename,
-                     recording_dtype,
+                     reader,
                      threshold,
-                     run_chunk_sec,
                      save_up_data,
                      fname_spike_train,
                      fname_spike_train_up,
@@ -123,18 +148,24 @@ def run(fname_templates_in,
     return (fname_templates, fname_spike_train,
             fname_templates_up, fname_spike_train_up,
             fname_shifts)
-            
 
 
 def deconv_ONgpu(fname_templates_in,
+                 output_directory,
+                 reader,
+                 threshold,
                  fname_spike_train,
                  fname_spike_train_up,
                  fname_templates,
                  fname_templates_up,
                  fname_shifts,
+<<<<<<< HEAD
                  output_directory,
                  CONFIG,
                  run_chunk_sec):
+=======
+                 CONFIG):
+>>>>>>> 55ed41454a6b67f17d74ad4598808296379d8d86
 
     # *********** MAKE DECONV OBJECT ************
     d_gpu = deconvGPU(CONFIG, fname_templates_in, output_directory)
@@ -147,7 +178,7 @@ def deconv_ONgpu(fname_templates_in,
 
     # Cat: TODO: read from CONFIG
     d_gpu.max_iter=1000
-    d_gpu.deconv_thresh=20
+    d_gpu.deconv_thresh=threshold
 
     # Cat: TODO: make sure svd recomputed for higher rank etc.
     d_gpu.svd_flag = True
@@ -162,6 +193,9 @@ def deconv_ONgpu(fname_templates_in,
     d_gpu.verbose = False
     d_gpu.print_iteration_counter = 50
 
+    # add reader
+    d_gpu.reader = reader
+
     # *********** INIT DECONV ****************
     begin=dt.datetime.now().timestamp()
     d_gpu.initialize()
@@ -174,6 +208,7 @@ def deconv_ONgpu(fname_templates_in,
     # ************ RUN DECONV ***************
     print ("Subtraction step...")
     begin=dt.datetime.now().timestamp()
+<<<<<<< HEAD
     if True:
         chunks = []
         for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
@@ -182,46 +217,47 @@ def deconv_ONgpu(fname_templates_in,
     # run data on small chunk only
     else:
         chunks = [run_chunk_sec]
+=======
+>>>>>>> 55ed41454a6b67f17d74ad4598808296379d8d86
     # Cat: TODO : last chunk of data may be skipped if this doesn't work right.
     print ("  (TODO: Make sure last bit is added if rec_len not multiple of n_sec_gpu_chnk)")
 
     # loop over chunks and run sutraction step
-    for ctr, chunk in enumerate(chunks):
-        if ctr%10==0:
-            print ("CHUNK: ", ctr+1, " / ", len(chunks), chunk, 'sec')
-        d_gpu.offset = chunk[0]
-        d_gpu.run(chunk)
+    for chunk_id in tqdm(range(reader.n_batches)):
+        d_gpu.run(chunk_id)
 
     subtract_time = np.round((dt.datetime.now().timestamp()-begin),4)
 
     print ("-------------------------------------------")
-    print ("Total Deconv Speed ", np.round(n_sec*len(chunks)/(setup_time+subtract_time),2), " x Realtime")
+    total_length_sec = int((d_gpu.reader.end - d_gpu.reader.start)/d_gpu.reader.sampling_rate)
+    print ("Total Deconv Speed ", np.round(total_length_sec/(setup_time+subtract_time),2), " x Realtime")
 
 
     # ************** SAVE SPIKES & SHIFTS **********************
     print ("  gathering spike trains and shifts from deconv; no. of iterations: ", 
              len(d_gpu.spike_list))
+    batch_size = d_gpu.reader.batch_size
+    buffer_size = d_gpu.reader.buffer
+    temporal_size = (CONFIG.recordings.sampling_rate/1000*
+                        CONFIG.recordings.spike_size_ms)
     spike_train = [np.zeros((0,2),'int32')]
     shifts = []
-    for k in range(len(d_gpu.spike_list)):
-        if k%1000==0:
-            print (" gathering gpu epoch: ", k)
-        temp=np.zeros((d_gpu.spike_list[k][1].shape[0],2), 'int32')
-        temp[:,0]=d_gpu.spike_list[k][1].cpu().data.numpy()+(
-                    d_gpu.spike_list[k][0]*CONFIG.recordings.sampling_rate)
-        temp[:,1]=d_gpu.spike_list[k][2].cpu().data.numpy()
+    for k in tqdm(range(len(d_gpu.spike_list))):
+        spike_times = d_gpu.spike_list[k][1].cpu().data.numpy()
+        idx_keep = np.logical_and(spike_times >= buffer_size + temporal_size,
+                                  spike_times < batch_size - buffer_size)
+        idx_keep = np.where(idx_keep)[0]
+        temp=np.zeros((len(idx_keep),2), 'int32')
+        temp[:,0]=spike_times[idx_keep]+d_gpu.spike_list[k][0]
+        temp[:,1]=d_gpu.spike_list[k][2].cpu().data.numpy()[idx_keep]
 
         spike_train.extend(temp)
-        shifts.append(d_gpu.shift_list[k].cpu().data.numpy())
+        shifts.append(d_gpu.shift_list[k].cpu().data.numpy()[idx_keep])
             
     spike_train = np.vstack(spike_train)
 
-    # subtract buffer offset before saving:
-    spike_train[:,0] -= d_gpu.buffer
-    
     # add half the spike time back in to get to centre of spike
-    spike_train[:,0] = spike_train[:,0]-(CONFIG.recordings.sampling_rate/1000*
-                        CONFIG.recordings.spike_size_ms)//2
+    spike_train[:,0] = spike_train[:,0]-temporal_size//2
 
     # save spike train
     print ("  saving spike_train: ", spike_train.shape)
@@ -241,10 +277,8 @@ def deconv_ONgpu(fname_templates_in,
 
 def deconv_ONcpu(fname_templates_in,
                  output_directory,
-                 recordings_filename,
-                 recording_dtype,
+                 reader,
                  threshold,
-                 run_chunk_sec,
                  save_up_data,
                  fname_spike_train,
                  fname_spike_train_up,
@@ -254,29 +288,9 @@ def deconv_ONcpu(fname_templates_in,
 
     logger = logging.getLogger(__name__)
 
-    # parameters
-    # TODO: read from CONFIG
-    if threshold is None:
-        threshold = CONFIG.deconvolution.threshold
-    elif threshold == 'max':
-        min_norm_2 = np.square(
-            np.load(fname_templates_in)).sum((1,2)).min()
-        threshold = min_norm_2*0.8
-
     conv_approx_rank = 5
     upsample_max_val = 8
     max_iter = 1000
-
-    if run_chunk_sec == 'full':
-        chunk_sec = None
-    else:
-        chunk_sec = run_chunk_sec
-
-    reader = READER(recordings_filename,
-                    recording_dtype,
-                    CONFIG,
-                    CONFIG.resources.n_sec_chunk,
-                    chunk_sec=chunk_sec)
 
     mp_object = MatchPursuit_objectiveUpsample(
         fname_templates=fname_templates_in,

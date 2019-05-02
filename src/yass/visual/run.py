@@ -221,11 +221,16 @@ class Visualizer(object):
         if not os.path.exists(self.save_dir_ind):
             os.makedirs(self.save_dir_ind)
 
-        #for unit in tqdm(units):
-        parmap.map(self.make_individual_cell_plot, 
-                   list(units),
-                   processes=3,
-                   pm_pbar=True)
+        if False:
+            parmap.map(self.make_individual_cell_plot,
+                       list(units),
+                       processes=3,
+                       pm_pbar=True)
+        else:
+            for unit in tqdm(units):
+                self.make_individual_cell_plot(unit)
+
+
 
     def make_individual_cell_plot(self, unit):
 
@@ -399,10 +404,17 @@ class Visualizer(object):
             self.templates.shape[0],
             spt, neigh_chans)
 
+        if self.template_space_dir is not None:
+            ref_template = np.load(
+                os.path.join(self.template_space_dir,
+                             'ref_template.npy'))
+        else:
+            ref_template = self.templates[:, mc][:, unit]
+
         mc_neigh = np.where(neigh_chans == mc)[0][0]
         shifts = align_get_shifts_with_ref(
                     wf[:, :, mc_neigh],
-                    self.templates[:, mc][:, unit])
+                    ref_template)
         wf = shift_chans(wf, shifts)
 
         return wf, idx
@@ -412,15 +424,16 @@ class Visualizer(object):
         wf, idx = self.get_waveforms(unit)
         mc = self.templates[:, :, unit].ptp(0).argmax()
         neigh_chans = np.where(self.neigh_channels[mc])[0]
-        
-        for j, chan in enumerate(neigh_chans):
-            ax = plt.subplot(gs[x_loc, j])
+
+        order_neigh_chans = np.argsort(
+            np.linalg.norm(self.geom[neigh_chans] - self.geom[[mc]], axis=1))
+        for ii, j in enumerate(order_neigh_chans):
+            chan = neigh_chans[j]
+            ax = plt.subplot(gs[x_loc, ii])
             ax.plot(wf[:, :, j].T, color='k', alpha=0.1)
             ax.plot(self.templates[:, chan, unit].T, color='r', linewidth=2)
             title = "Channel: {}".format(chan)
-            if chan == mc:
-                title += ', MAX CHAN'
-            if j == 0:
+            if ii == 0:
                 title = 'Raw Waveforms, Unit: {}, '.format(unit) + title
             ax.set_title(title, fontsize=self.fontsize)
         
@@ -448,11 +461,14 @@ class Visualizer(object):
                                    self.pca_sec_components)
             denoised_wf[:,:,ii] = temp*norms[:,:,ii]
 
-        for j, chan in enumerate(neigh_chans):
-            ax = plt.subplot(gs[x_loc, j])
+        order_neigh_chans = np.argsort(
+            np.linalg.norm(self.geom[neigh_chans] - self.geom[[mc]], axis=1))
+        for ii, j in enumerate(order_neigh_chans):
+            chan = neigh_chans[j]
+            ax = plt.subplot(gs[x_loc, ii])
             ax.plot(denoised_wf[:, :, j].T, color='k', alpha=0.1)
             ax.plot(self.templates[:, chan, unit].T, color='r', linewidth=2)
-            if j == 0:
+            if ii == 0:
                 title = 'Denoised Waveforms'
                 ax.set_title(title, fontsize=self.fontsize)
         
@@ -476,17 +492,27 @@ class Visualizer(object):
             channels=neigh_chans,
             residual_flag=True)            
 
+        if self.template_space_dir is not None:
+            ref_template = np.load(
+                os.path.join(self.template_space_dir,
+                             'ref_template.npy'))
+        else:
+            ref_template = self.templates[:, mc][:, unit]
+
         mc_neigh = np.where(neigh_chans == mc)[0][0]
         shifts = align_get_shifts_with_ref(
                     wf[:, :, mc_neigh],
-                    self.templates[:, mc_neigh][:, unit])
+                    ref_template)
         wf = shift_chans(wf, shifts)
 
-        for j, chan in enumerate(neigh_chans):
-            ax = plt.subplot(gs[x_loc, j])
+        order_neigh_chans = np.argsort(
+            np.linalg.norm(self.geom[neigh_chans] - self.geom[[mc]], axis=1))
+        for ii, j in enumerate(order_neigh_chans):
+            chan = neigh_chans[j]
+            ax = plt.subplot(gs[x_loc, ii])
             ax.plot(wf[:, :, j].T, color='k', alpha=0.1)
             ax.plot(self.templates[:, chan, unit].T, color='r', linewidth=2)
-            if j == 0:
+            if ii == 0:
                 title = 'Residual + Template'
                 ax.set_title(title, fontsize=self.fontsize)
         
@@ -555,14 +581,16 @@ class Visualizer(object):
         for ii, unit in enumerate(units):
             # also plot all in one plot
             if np.any(self.gaussian_fits[unit] != 0):
-                plotting_data = self.get_circle_plotting_data(unit,
-                                                      self.gaussian_fits)
+                plotting_data = self.get_circle_plotting_data(
+                    unit, self.gaussian_fits)
                 ax.plot(plotting_data[1],plotting_data[0],
                         color=colors[ii], linewidth=3)
 
                 labels.append(mpatches.Patch(color = colors[ii], label = "Unit {}".format(unit)))
         
         ax.legend(handles=labels)
+        ax.set_xlim([64,0])
+        ax.set_ylim([0,32])
                 
         return gs
 
@@ -588,10 +616,10 @@ class Visualizer(object):
         y_circle = np.sin(circle_samples)
 
         # Get Gaussian parameters
-        angle = Gaussian_params[i_cell,4]
+        angle = np.pi - Gaussian_params[i_cell,4]
         sd = Gaussian_params[i_cell,2:4]
-        x_shift=Gaussian_params[i_cell,0]
-        y_shift = Gaussian_params[i_cell,1]
+        x_shift= 32 - Gaussian_params[i_cell,0]
+        y_shift = 64 - Gaussian_params[i_cell,1]
 
         R = np.asarray([[np.cos(angle), np.sin(angle)],[-np.sin(angle), np.cos(angle)]])
         L = np.asarray([[sd[0], 0],[0, sd[1]]])
@@ -671,7 +699,7 @@ class Visualizer(object):
             ax = plt.subplot(gs[x_loc, y_loc])
             img = full_sta[ii,:,:,1].T
             ax.imshow(img, vmin=vmin, vmax=vmax)
-            ax.set_xlim([0,64])
+            ax.set_xlim([64,0])
             ax.set_ylim([0,32])
         return gs
 

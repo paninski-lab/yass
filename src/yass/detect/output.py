@@ -1,11 +1,14 @@
+import logging
 import os
 import numpy as np
 
 def gather_result(fname_save, batch_files_dir, dedup_dir):
     
+    logger = logging.getLogger(__name__)
     
     n_batches = len(os.listdir(batch_files_dir))
     spike_index_postkill = []
+    n_spikes_detected = 0
     for batch_id in range(n_batches):
 
         # detection index 
@@ -30,9 +33,15 @@ def gather_result(fname_save, batch_files_dir, dedup_dir):
                 spike_index_temp[:, 0] >= t_start,
                 spike_index_temp[:, 0] < t_end)
             spike_index_temp = spike_index_temp[idx_keep]
-
             spike_index_postkill.append(spike_index_temp)
+            
+            n_spikes_detected += len(spike_index_temp)
 
-    np.save(fname_save, np.vstack(spike_index_postkill))
+    spike_index_postkill = np.vstack(spike_index_postkill)
+    
+    logger.info('{} spikes detected'.format(n_spikes_detected))
+    logger.info('{} spikes after deduplication'.format(len(spike_index_postkill)))
+
+    np.save(fname_save, spike_index_postkill)
         
     
