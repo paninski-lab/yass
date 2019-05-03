@@ -124,13 +124,8 @@ def run(fname_templates_in,
                      fname_templates,
                      fname_templates_up,
                      fname_shifts,
-<<<<<<< HEAD
-                     output_directory,
                      CONFIG,
                      run_chunk_sec)
-=======
-                     CONFIG)
->>>>>>> 55ed41454a6b67f17d74ad4598808296379d8d86
                                                     
     # deconv using CPU
     else:
@@ -159,13 +154,8 @@ def deconv_ONgpu(fname_templates_in,
                  fname_templates,
                  fname_templates_up,
                  fname_shifts,
-<<<<<<< HEAD
-                 output_directory,
                  CONFIG,
                  run_chunk_sec):
-=======
-                 CONFIG):
->>>>>>> 55ed41454a6b67f17d74ad4598808296379d8d86
 
     # *********** MAKE DECONV OBJECT ************
     d_gpu = deconvGPU(CONFIG, fname_templates_in, output_directory)
@@ -208,7 +198,6 @@ def deconv_ONgpu(fname_templates_in,
     # ************ RUN DECONV ***************
     print ("Subtraction step...")
     begin=dt.datetime.now().timestamp()
-<<<<<<< HEAD
     if True:
         chunks = []
         for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
@@ -217,14 +206,15 @@ def deconv_ONgpu(fname_templates_in,
     # run data on small chunk only
     else:
         chunks = [run_chunk_sec]
-=======
->>>>>>> 55ed41454a6b67f17d74ad4598808296379d8d86
+
     # Cat: TODO : last chunk of data may be skipped if this doesn't work right.
     print ("  (TODO: Make sure last bit is added if rec_len not multiple of n_sec_gpu_chnk)")
 
     # loop over chunks and run sutraction step
     for chunk_id in tqdm(range(reader.n_batches)):
+    #for chunk_id in range(reader.n_batches):
         d_gpu.run(chunk_id)
+        #print ("\n-------------------\n")
 
     subtract_time = np.round((dt.datetime.now().timestamp()-begin),4)
 
