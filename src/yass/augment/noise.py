@@ -32,7 +32,7 @@ def kill_signal(recordings, threshold, window_size):
     for c in range(C):
 
         # get obserations where observation is above threshold
-        idx_temp = np.where(recordings[:, c] > threshold)[0]
+        idx_temp = np.where(np.abs(recordings[:, c]) > threshold)[0]
 
         # shift every index found
         for j in range(-R, R+1):
