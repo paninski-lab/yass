@@ -115,18 +115,31 @@ def run(fname_templates_in,
 
     # deconv using GPU
     if CONFIG.deconvolution.deconv_gpu:
-        deconv_ONgpu(fname_templates_in,
-                     output_directory,
-                     reader,
-                     threshold,
-                     fname_spike_train,
-                     fname_spike_train_up,
-                     fname_templates,
-                     fname_templates_up,
-                     fname_shifts,
-                     CONFIG,
-                     run_chunk_sec)
-                                                    
+        
+        fname_shifts = os.path.join(output_directory, 'shifts.npy')
+        if os.path.exists(fname_shifts)==False:
+        
+            deconv_ONgpu(fname_templates_in,
+                         output_directory,
+                         reader,
+                         threshold,
+                         fname_spike_train,
+                         fname_spike_train_up,
+                         fname_templates,
+                         fname_templates_up,
+                         fname_shifts,
+                         CONFIG,
+                         run_chunk_sec)
+                                                   
+        # post deconv gathering of spikes
+        makespikes_GPU(fname_templates_in,
+                       output_directory, 
+                       CONFIG,
+                       fname_spike_train,
+                       fname_spike_train_up,
+                       fname_templates,
+                       fname_templates_up)
+
     # deconv using CPU
     else:
         deconv_ONcpu(fname_templates_in,
@@ -211,41 +224,100 @@ def deconv_ONgpu(fname_templates_in,
     print ("  (TODO: Make sure last bit is added if rec_len not multiple of n_sec_gpu_chnk)")
 
     # loop over chunks and run sutraction step
-    #for chunk_id in tqdm(range(reader.n_batches)[:10]):
-    for chunk_id in tqdm(range(reader.n_batches)):
-    #for chunk_id in range(reader.n_batches):
+    #for chunk_id in tqdm(range(reader.n_batches)):
+    for chunk_id in tqdm(range(20)):
         d_gpu.run(chunk_id)
-        #print ("\n-------------------\n")
-
+        
     subtract_time = np.round((dt.datetime.now().timestamp()-begin),4)
 
     print ("-------------------------------------------")
     total_length_sec = int((d_gpu.reader.end - d_gpu.reader.start)/d_gpu.reader.sampling_rate)
     print ("Total Deconv Speed ", np.round(total_length_sec/(setup_time+subtract_time),2), " x Realtime")
 
+    fname_offsets = os.path.join(d_gpu.out_dir, 'offsets.npy')
+    temp = []
+    for k in range(len(d_gpu.spike_list)):
+        temp.append(d_gpu.spike_list[k][0])
+    np.save(fname_offsets, temp)
 
-    # ************** SAVE SPIKES & SHIFTS **********************
+    fname_times = os.path.join(d_gpu.out_dir, 'raw_spike_times.npy')
+    temp = []
+    for k in range(len(d_gpu.spike_list)):
+        temp.append(d_gpu.spike_list[k][1].cpu().data.numpy())
+    np.save(fname_times, temp)
+
+    fname_ids = os.path.join(d_gpu.out_dir, 'raw_neuron_ids.npy')
+    temp = []
+    for k in range(len(d_gpu.spike_list)):
+        temp.append(d_gpu.spike_list[k][2].cpu().data.numpy())    
+    np.save(fname_ids, temp)
+    
+    fname_batch = os.path.join(d_gpu.out_dir, 'batch_size.npy')
+    np.save(fname_batch, [d_gpu.reader.batch_size])
+    
+    fname_buffer = os.path.join(d_gpu.out_dir, 'reader_buffer.npy')
+    np.save(fname_buffer, [d_gpu.reader.buffer])
+    
+    fname_shifts = os.path.join(d_gpu.out_dir, 'shifts.npy')
+    temp = []
+    for k in range(len(d_gpu.shift_list)):
+        temp.append(d_gpu.shift_list[k].cpu().data.numpy())
+    np.save(fname_shifts, temp)
+
+
+
+def makespikes_GPU(fname_templates_in, out_dir, CONFIG,
+                       fname_spike_train,
+                       fname_spike_train_up,
+                       fname_templates,
+                       fname_templates_up):
+
+    fname_offsets = os.path.join(out_dir, 'offsets.npy')
+    offsets = np.load(fname_offsets)
+    
+    fname_times = os.path.join(out_dir, 'raw_spike_times.npy')
+    times = np.load(fname_times)
+
+    fname_ids = os.path.join(out_dir, 'raw_neuron_ids.npy')
+    ids = np.load(fname_ids)
+    
+    fname_batch = os.path.join(out_dir, 'batch_size.npy')
+    batch_size = np.load(fname_batch)
+    
+    fname_buffer = os.path.join(out_dir, 'reader_buffer.npy')
+    buffer_size= np.load(fname_buffer)
+    
+    fname_shifts = os.path.join(out_dir, 'shifts.npy')
+    shifts_raw = np.load(fname_shifts)
+
+    # ************** SAVE SPIKES & SHIFTS ***************
     print ("  gathering spike trains and shifts from deconv; no. of iterations: ", 
-             len(d_gpu.spike_list))
-    batch_size = d_gpu.reader.batch_size
-    buffer_size = d_gpu.reader.buffer
+             offsets.shape[0])
+
     temporal_size = (CONFIG.recordings.sampling_rate/1000*
-                        CONFIG.recordings.spike_size_ms)
+                     CONFIG.recordings.spike_size_ms)
     spike_train = [np.zeros((0,2),'int32')]
     shifts = []
-    for k in tqdm(range(len(d_gpu.spike_list))):
-        spike_times = d_gpu.spike_list[k][1].cpu().data.numpy()
-        #idx_keep = np.logical_and(spike_times >= buffer_size + temporal_size,
-        #                          spike_times < batch_size - buffer_size)
-        idx_keep = np.logical_and(spike_times >= buffer_size,
-                                  spike_times < batch_size+buffer_size)
-        idx_keep = np.where(idx_keep)[0]
+    for k in tqdm(range(times.shape[0])):
+        spike_times = times[k]
+        print ("spike times: ", np.array(spike_times))
+        print ("offsets: ", offsets[k])
+        # select only spikes that are outside the buffers;
+        if True:
+            #idx_keep = np.logical_and(spike_times >= buffer_size + temporal_size,
+            #                          spike_times < batch_size - buffer_size)
+            idx_keep = np.where(spike_times >= buffer_size+temporal_size)
+            idx_keep = np.where(idx_keep)[0]
+        else:
+            idx_keep = np.arange(spike_times.shape[0])
         temp=np.zeros((len(idx_keep),2), 'int32')
-        temp[:,0]=spike_times[idx_keep]+d_gpu.spike_list[k][0]
-        temp[:,1]=d_gpu.spike_list[k][2].cpu().data.numpy()[idx_keep]
+
+        # shift spike time by starting time of block
+        temp[:,0]=spike_times[idx_keep]+offsets[k]
+        temp[:,1]=ids[k][idx_keep]
 
         spike_train.extend(temp)
-        shifts.append(d_gpu.shift_list[k].cpu().data.numpy()[idx_keep])
+        shifts.append(shifts_raw[k][idx_keep])
             
     spike_train = np.vstack(spike_train)
 
@@ -254,12 +326,12 @@ def deconv_ONgpu(fname_templates_in,
 
     # save spike train
     print ("  saving spike_train: ", spike_train.shape)
-    fname_spike_train = os.path.join(d_gpu.out_dir, 'spike_train.npy')
+    fname_spike_train = os.path.join(out_dir, 'spike_train.npy')
     np.save(fname_spike_train, spike_train)
     np.save(fname_spike_train_up, spike_train)
 
     # save shifts
-    fname_shifts = os.path.join(d_gpu.out_dir, 'shifts.npy')
+    fname_shifts = os.path.join(out_dir, 'shifts.npy')
     np.save(fname_shifts,np.hstack(shifts))
 
     # save templates and upsampled templates

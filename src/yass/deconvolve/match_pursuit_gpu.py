@@ -487,8 +487,10 @@ class deconvGPU(object):
         else:
             self.data = self.reader.read_data_batch(
                 chunk_id, add_buffer=True).T
+
+        #np.save('/home/cat/data_'+str(chunk_id)+'.npy',self.data)
+        
         self.offset = self.reader.idx_list[chunk_id, 0] - self.reader.buffer
-        #print ("SELF.DATA : ", self.data.shape)
 
         self.data = torch.from_numpy(self.data).float().to(device)
         torch.cuda.synchronize()
@@ -694,10 +696,11 @@ class deconvGPU(object):
         self.spike_times = self.spike_times[idx]
 
         # Frouth step: exclude spikes that occur in lock_outwindow at start;
-        idx1 = torch.where((self.spike_times>self.lockout_window) &
-                           (self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
-                          self.spike_times*0+1, 
-                          self.spike_times*0)
+        #idx1 = torch.where((self.spike_times>self.lockout_window) &
+        #                   (self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
+        idx1 = torch.where(self.spike_times>self.lockout_window,
+                           self.spike_times*0+1, 
+                           self.spike_times*0)
         idx2 = torch.nonzero(idx1)[:,0]
         self.spike_times = self.spike_times[idx2]
 
