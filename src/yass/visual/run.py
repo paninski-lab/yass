@@ -922,19 +922,20 @@ class Visualizer(object):
 
         for channel in range(self.n_channels):
 
-            abs_rec = np.abs(res[1000:-1000, channel])
-            max_ids = scipy.signal.argrelmax(abs_rec, order=100)[0]
-            max_ids = max_ids[
-                np.argsort(abs_rec[max_ids])[-n_snippets_per_channel:][::-1]]
-            max_ids += 1000
-            
-            neigh_chans = np.where(self.neigh_channels[channel])[0]
-            
+            max_ids = None
             for j in range(n_snippets_per_channel):
 
                 fname = os.path.join(save_dir, 'snippet_{}_channel_{}.png'.format(j, channel))
                 if os.path.exists(fname):
                     continue
+                elif max_ids is None:
+                    abs_rec = np.abs(res[1000:-1000, channel])
+                    max_ids = scipy.signal.argrelmax(abs_rec, order=100)[0]
+                    max_ids = max_ids[
+                        np.argsort(abs_rec[max_ids])[-n_snippets_per_channel:][::-1]]
+                    max_ids += 1000
+
+                    neigh_chans = np.where(self.neigh_channels[channel])[0]
 
                 t_start = max_ids[j] - 150
                 t_end = max_ids[j] + 151
