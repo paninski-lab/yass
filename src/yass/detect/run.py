@@ -110,7 +110,6 @@ def run(standardized_path, standardized_params,
                       output_temp_files)
 
     elif CONFIG.detect.method == 'nn':
-        
         run_neural_network(standardized_path,
                            standardized_params,
                            output_temp_files,
@@ -168,8 +167,12 @@ def run_neural_network(standardized_path, standardized_params,
     NNAE = AutoEncoder.load(ae_fname, input_tensor=NND.waveform_tf)
 
     # get data reader
-    n_sec_chunk = CONFIG.resources.n_sec_chunk*CONFIG.resources.n_processors
-
+    #n_sec_chunk = CONFIG.resources.n_sec_chunk*CONFIG.resources.n_processors
+    batch_length = CONFIG.resources.n_sec_chunk*10
+    n_sec_chunk = 0.5
+    print ("   batch length to (sec): ", batch_length, 
+           " (longer increase speed a bit)")
+    print ("   length of each seg (sec): ", n_sec_chunk)
     buffer = NND.waveform_length
     if run_chunk_sec == 'full':
         chunk_sec = None
@@ -179,13 +182,14 @@ def run_neural_network(standardized_path, standardized_params,
     reader = READER(standardized_path,
                     standardized_params['dtype'],
                     CONFIG,
-                    n_sec_chunk,
+                    batch_length,
                     buffer,
                     chunk_sec)
 
     # number of processed chunks
     processing_ctr = 0
-    n_mini_per_big_batch = int(np.ceil(n_sec_chunk/CONFIG.detect.n_sec_chunk))
+    n_mini_per_big_batch = int(np.ceil(batch_length/n_sec_chunk))
+    
     total_processing = int(reader.n_batches*n_mini_per_big_batch)
 
     # set tensorflow verbosity level
@@ -209,7 +213,12 @@ def run_neural_network(standardized_path, standardized_params,
             # skip if the file exists
             fname = os.path.join(
                 output_directory,
-                "detect_"+str(batch_id).zfill(5)+'.npz')
+                "detect_" + str(batch_id).zfill(5) + '.npz')
+                
+                # output_directory,
+                # "detect_batch_" + str(batch_id).zfill(5) + "_of_total_"
+                # + str(reader.n_batches) + '.npz')
+                
             if os.path.exists(fname):
                 processing_ctr += n_mini_per_big_batch
                 continue
@@ -219,7 +228,8 @@ def run_neural_network(standardized_path, standardized_params,
             # size n_sec_chunk_gpu
             batched_recordings, minibatch_loc_rel = reader.read_data_batch_batch(
                 batch_id,
-                CONFIG.detect.n_sec_chunk,
+                #CONFIG.detect.n_sec_chunk,
+                n_sec_chunk,
                 add_buffer=True)
             
             # offset for big batch
@@ -229,6 +239,8 @@ def run_neural_network(standardized_path, standardized_params,
             spike_index_list = []
             energy_list = []
             for j in range(batched_recordings.shape[0]):
+                # print ("  batchid: ", batch_id, ",  index: ", j, 
+                       # batched_recordings[j].shape)
                 spike_index, wfs = NND.predict_recording(
                     batched_recordings[j],
                     sess=sess,
@@ -246,6 +258,7 @@ def run_neural_network(standardized_path, standardized_params,
 
                 processing_ctr+=1
 
+            #if processing_ctr%100==0:
             logger.info('processed chunk: %s/%s,  # spikes: %s', 
                   str(processing_ctr), str(total_processing), len(spike_index))
 

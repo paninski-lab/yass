@@ -179,7 +179,10 @@ class RESIDUAL_GPU(object):
         pad_chunk = np.zeros((self.CONFIG.recordings.n_channels,self.buffer),'float32')
         #for ctr, chunk in enumerate(chunks):
         #for ctr, chunk in enumerate(self.chunks):
-        for ctr, chunk in tqdm(enumerate(self.reader.idx_list)):
+        #for k in tqdm(range(len(d_gpu.spike_list))):
+        ctr=0
+        #for chunk in tqdm(self.reader.idx_list[:10]):
+        for chunk in tqdm(self.reader.idx_list):
             tlocal = time.time()
             chunk_start = chunk[0]
             chunk_end = chunk[1]
@@ -234,7 +237,16 @@ class RESIDUAL_GPU(object):
             chunk_size = 10000
             for chunk in range(0, time_indices.shape[0], chunk_size):
                 torch.cuda.synchronize()
-                deconv.subtract_splines(objective,
+                if time_indices[chunk:chunk+chunk_size].shape[0]==0:
+                    deconv.subtract_splines(
+                                        objective,
+                                        time_indices[chunk:chunk+chunk_size][None],
+                                        time_offsets_local[chunk:chunk+chunk_size],
+                                        template_ids[chunk:chunk+chunk_size][None],
+                                        self.coefficients)
+                else:      
+                    deconv.subtract_splines(
+                                        objective,
                                         time_indices[chunk:chunk+chunk_size],
                                         time_offsets_local[chunk:chunk+chunk_size],
                                         template_ids[chunk:chunk+chunk_size],
@@ -251,12 +263,13 @@ class RESIDUAL_GPU(object):
             temp_out = objective[:,self.buffer:-self.buffer].cpu().data.numpy().copy(order='F')
             f.write(temp_out.T)
             
+            ctr+=1
         f.close()
 
         
         print ("Total residual time: ", time.time()-t0)
             
-        
+   #quit()
 
     # def save_residual(self):
     
