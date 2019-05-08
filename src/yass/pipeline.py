@@ -225,6 +225,7 @@ def initial_block(TMP_FOLDER,
         raw_data, 
         full_run)
 
+    #methods = ['duplicate', 'high_mad', 'collision']
     methods = ['duplicate', 'high_mad', 'collision']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
