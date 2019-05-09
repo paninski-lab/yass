@@ -574,7 +574,7 @@ class deconvGPU(object):
             search_time = self.find_peaks()
             
             ## test if trehsold reached; 
-            ## Cat: TODO: this info might already be availble
+            ## Cat: TODO: this info might already be availble from above function
             t_max,_ = torch.max(self.gpu_max[self.lockout_window:-self.lockout_window],0)
             if t_max<self.deconv_thresh:
                 if self.verbose:
@@ -680,10 +680,10 @@ class deconvGPU(object):
         idx = torch.nonzero(idx)[:,0]
         self.spike_times = self.spike_times[idx]
 
-        # Frouth step: exclude spikes that occur in lock_outwindow at start;
-        #idx1 = torch.where((self.spike_times>self.lockout_window) &
-        #                   (self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
-        idx1 = torch.where(self.spike_times>self.lockout_window,
+        # Fourth step: exclude spikes that occur in lock_outwindow at start;
+        idx1 = torch.where((self.spike_times>self.lockout_window) &
+                           (self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
+        #idx1 = torch.where(self.spike_times>self.lockout_window,
                            self.spike_times*0+1, 
                            self.spike_times*0)
         idx2 = torch.nonzero(idx1)[:,0]
@@ -708,16 +708,21 @@ class deconvGPU(object):
             spike_times = spike_times[None]
             spike_temps = spike_temps[None]
         
+        # print ("iteration: ", self.chunk_id)
         # print ("self.obj_gpu : ", self.obj_gpu.shape)
         # print ("spike_times : ", spike_times.shape, spike_times)
         # print ("self.xshifts : ", self.xshifts.shape, self.xshifts)
-        # print ("spike_temps : ", spike_temps.shape)
+        # print ("spike_temps : ", spike_temps.shape, spike_temps)
+        # print ("---------------\n")
         
         deconv.subtract_splines(
                     self.obj_gpu,
                     spike_times,
                     self.xshifts,
                     spike_temps,
+                    #spike_times[:-1],
+                    #self.xshifts[:-1],
+                    #spike_temps[:-1],
                     self.coefficients)
 
         torch.cuda.synchronize()
