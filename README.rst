@@ -14,11 +14,9 @@ YASS: Yet Another Spike Sorter
     :target: https://gitter.im/paninski-lab/yass?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge
 
 
-**Note**: YASS is in an early stage of development. Although it is stable, it has only been tested
-with the data in our lab, but we are working to make it more flexible. Feel free to send
-feedback through `Gitter`_. Expect a lot of API changes in the near future.
-
-.. _Gitter: https://gitter.im/paninski-lab/yass
+[UPDATE May 2019]: YASS ver. 1.0 is being prepared for release sometime in June 2019. The main branch has not been updated to the main
+development branch in > 1 year and we do not recommend its use at this time. We are actively looking fore beta-testers so feel free to send
+feedback or requests for participation.
 
 Reference
 ---------
@@ -26,7 +24,7 @@ Reference
 Lee, J. et al. (2017). YASS: Yet another spike sorter. Neural Information Processing Systems. Available in biorxiv: https://www.biorxiv.org/content/early/2017/06/19/151928
 
 
-Installation
+Installation (Note: This code has been deprecated as of Feb 2018).
 ------------
 
 Installing the last stable version:
