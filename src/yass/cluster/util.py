@@ -3,6 +3,7 @@ import logging
 import os
 import tqdm
 import parmap
+from numba import jit
 
 from yass.empty import empty
 
@@ -47,6 +48,16 @@ def make_CONFIG2(CONFIG):
 
     return CONFIG2
 
+@jit
+def split_spikes(spike_index_list, spike_index, idx_keep):
+    for j in idx_keep:
+        if j%100000==0: 
+            print (j)
+        tt, ii = spike_index[j]
+        spike_index_list[ii].append(tt)
+    return spike_index_list
+
+
 def partition_input(save_dir, max_time,
                     fname_spike_index,
                     fname_templates_up=None,
@@ -66,9 +77,17 @@ def partition_input(save_dir, max_time,
     # re-organize spike times and templates id
     n_units = np.max(spike_index[:, 1]) + 1
     spike_index_list = [[] for ii in range(n_units)]
-    for j in idx_keep:
-        tt, ii = spike_index[j]
-        spike_index_list[ii].append(tt)
+    #for j in idx_keep:
+    #    tt, ii = spike_index[j]
+    #    spike_index_list[ii].append(tt)
+
+    spike_index_list = split_spikes(spike_index_list, spike_index, idx_keep)
+
+    # replacement for above list generator for speed (butnot much faster)
+    #for ii in np.unique(spike_index[idx_keep,1]):
+    #    idx_temp = np.where(spike_index[idx_keep,1]==ii)
+    #    tt = spike_index[idx_keep,0][idx_temp]
+    #    spike_index_list[ii].append(tt)
 
     # if there are upsampled data as input,
     # load and partition them also
@@ -83,9 +102,9 @@ def partition_input(save_dir, max_time,
 
     fnames = []
     for unit in range(n_units):
-
+        
         fname = os.path.join(save_dir, 'partition_{}.npz'.format(unit))
-
+        print (fname)
         if fname_templates_up is not None:
             unique_up_ids = np.unique(up_id_list[unit])
             if unique_up_ids.shape[0]==0:

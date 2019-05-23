@@ -83,7 +83,7 @@ def run(fname_spike_index,
 
     else:
         max_time = CONFIG.recordings.sampling_rate*CONFIG.rec_len
-        logger.info("clustering on full chunk")
+        logger.info("clustering entire recording")
 
     # partition spike_idnex_chunk using the second column
     partition_dir = os.path.join(output_directory, 'spt_partition')

@@ -5,6 +5,7 @@ import networkx as nx
 from sklearn.decomposition import PCA
 from scipy.spatial import cKDTree
 from scipy.stats import chi2
+from scipy import interpolate
 
 from yass.template import shift_chans, align_get_shifts_with_ref
 from yass import mfm
@@ -251,7 +252,8 @@ class Cluster(object):
         self.initialize_template_space()
 
         # random subsample, remove edge spikes
-        self.clean_input_data()
+        # Cat: TODO: if edge spikes removed, can simplify binary reader to not track skipped spikes
+        self.clean_input_spikes()
 
         # if there is no spike to cluster, finish
         if len(self.spike_times_original) == 0:
@@ -290,7 +292,7 @@ class Cluster(object):
         # return flag that clustering not yet complete
         return False
 
-    def clean_input_data(self):
+    def clean_input_spikes(self):
         # limit clustering to at most 50,000 spikes
         max_spikes = self.CONFIG.cluster.max_n_spikes
         if len(self.spike_times_original)>max_spikes:
@@ -331,12 +333,49 @@ class Cluster(object):
         self.ref_template = np.load(absolute_path_to_asset(
             os.path.join('template_space', 'ref_template.npy')))
 
+        # upsample templates so that they match raw data sampling rate
+        self.upsample_template_space()
+
         # turn off edges for less collision
-        window = [15, 40]
+        window = np.int32(np.int32([15, 40])*self.spike_size/61.)
         self.pca_main_components_[:, :window[0]] = 0
         self.pca_main_components_[:, window[1]:] = 0
         self.pca_sec_components_[:, :window[0]] = 0
         self.pca_sec_components_[:, window[1]:] = 0
+
+    def upsample_template_space(self):
+        ''' Function that upsamples/downsamples the PCA filters
+            in order to match them to the sampling rate of the data.
+            Note: PCA space projection/denoising may eventually be repaced
+        '''
+        
+        # set params for upsampling
+        spike_size=self.spike_size
+        x = np.arange(self.pca_main_components_.shape[1])
+        xnew = np.linspace(0, x.shape[0]-1, num=spike_size, endpoint=True)
+
+        pca_main_components_new = []
+        pca_sec_components_new = []
+        for k in range(5):
+            # interpolate pca_main comps
+            y = self.pca_main_components_[k]
+            tck = interpolate.splrep(x, y, s=0)
+            ynew = interpolate.splev(xnew, tck, der=0)
+            pca_main_components_new.append(ynew)
+
+            # interpolate second comps std
+            y = self.pca_sec_components_[k]
+            tck = interpolate.splrep(x, y, s=0)
+            ynew = interpolate.splev(xnew, tck, der=0)
+            pca_sec_components_new.append(ynew)
+
+        self.pca_main_components_ = np.vstack(pca_main_components_new)
+        self.pca_sec_components_ = np.vstack(pca_sec_components_new)
+
+        # upsample reference template
+        y = self.ref_template
+        tck = interpolate.splrep(x, y, s=0)
+        self.ref_template = interpolate.splev(xnew, tck, der=0)
 
     def initialize(self, indices_in, local):
 
@@ -416,6 +455,7 @@ class Cluster(object):
         # delete any spikes that could not be loaded in previous step
         if len(skipped_idx)>0:
             self.indices_in = np.delete(self.indices_in, skipped_idx)
+
 
     def align_step(self, local):
 
