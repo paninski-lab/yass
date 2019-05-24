@@ -18,6 +18,14 @@ import cudaSpline as deconv
 class deconvGPU(object):
 
     def __init__(self, CONFIG, fname_templates, out_dir):
+        
+        #
+        self.out_dir = out_dir
+        
+        # initialize directory for saving
+        self.seg_dir = os.path.join(self.out_dir,'segs')
+        if not os.path.isdir(self.seg_dir):
+            os.mkdir(self.seg_dir)
 
         # initalize parameters for 
         self.set_params(CONFIG, fname_templates, out_dir)
@@ -50,7 +58,7 @@ class deconvGPU(object):
         self.lockout_window = self.n_time-1
 
         # length of conv filter
-        self.n_times = torch.arange(-self.lockout_window,self.n_time,1).long().to(device)#,dtype=torch.int32, device='cuda')
+        self.n_times = torch.arange(-self.lockout_window,self.n_time,1).long().to(device)
 
         # set max deconv thersho
         self.deconv_thresh = self.CONFIG.deconvolution.threshold
@@ -65,10 +73,6 @@ class deconvGPU(object):
         # make a 3 point array to be used in quadratic fit below
         self.peak_pts = torch.arange(-1,+2).to(device)
         
-        # list to track spikes found in each iteration for debugging
-        self.spike_list = []
-        self.shift_list = []
-               
         
     def initialize(self):
         
@@ -87,8 +91,7 @@ class deconvGPU(object):
         # compute template convolutions
         if self.svd_flag:
             self.compute_temp_temp_svd()
-            
-        # Cat: TODO we should dissable all non-SVD options
+        # Cat: TODO we should dissable all non-SVD options?!
         else:
             self.compute_temp_temp()
    
@@ -103,6 +106,9 @@ class deconvGPU(object):
            
             
     def run(self, chunk_id):
+        
+        # save iteration 
+        self.chunk_id = chunk_id
         
         # load raw data and templates
         self.load_data(chunk_id)
@@ -167,13 +173,7 @@ class deconvGPU(object):
             # Cat: TODO Fix this so dont' have to repeat it here
             self.up_up_map = None
             deconv_dir = ''
-            
-            #
-            # self.visible_chans()
-            
-            # #
-            # self.template_overlaps()
-            
+
             # 
             units = np.arange(self.temps.shape[2])
             
@@ -355,41 +355,6 @@ class deconvGPU(object):
         print (" Loaded templates shape (n_chan, n_time, n_temps): ", self.temps.shape)
         self.temps_gpu = torch.from_numpy(self.temps).float().to(device)
         
-        # # vis chans: indexes of channels on which a template is visible, i.e. > 2SU 
-        # fname = os.path.join(self.out_dir,"vis_chan.npy")
-        # if os.path.exists(fname)==False:
-            # ptps = self.temps.ptp(1) #np.max(temps, axis=1) - np.min(temps, 1)
-            # vis_chan = ptps > 2.0
-            # vis_chan = vis_chan.T
-            # np.save(fname, vis_chan)
-        # else:
-            # vis_chan=np.load(fname)
-
-        # print ("vis chan: ", vis_chan.shape)
-            
-        # # visible units: indexes of the units that overlap with a particular template
-        # fname = os.path.join(self.out_dir, 'vis_units.npy')
-        # fname_orig_index = os.path.join(self.out_dir, 'temp_temp_orig_index.npy')
-        # if os.path.exists(fname)==False:
-            # unit_overlap = np.sum(np.logical_and(vis_chan[:, None, :], vis_chan[None, :, :]), axis=2)
-            # self.vis_units = unit_overlap > 0
-            # np.save(fname, self.vis_units)
-
-            # # also track where each template's index is in the sparse vis_units array
-            # orig_index = []
-            # for k in range(self.vis_units.shape[0]):
-                # orig_index.append(np.sum(self.vis_units[k,:k]))
-            
-            # orig_index = np.array(orig_index)
-            # np.save(fname_orig_index, orig_index)
-        # else:
-            # self.vis_units=np.load(fname)
-            # orig_index = np.load(fname_orig_index)
-
-        #print ("vis units: ", self.vis_units.shape)
-
-        #self.orig_index = torch.from_numpy(orig_index).long().to(device)
-
         
     def compress_templates(self):
         """Compresses the templates using SVD and upsample temporal compoents."""
@@ -467,10 +432,6 @@ class deconvGPU(object):
             self.singular_gpu = torch.from_numpy(self.singular.reshape([-1, 1])).float().to(device)
             self.temporal_gpu = np.flip(self.temporal,1)
             self.filters_gpu = torch.from_numpy(self.temporal_gpu.transpose([0, 2, 1]).reshape([self.n_rows, -1])).float().to(device)[None,None]
-            
-        #print ("Temps load (run once only): ", np.round(dt.datetime.now().timestamp()-start,2),"sec")
-        #print ("---------------------------------------")
-        #print ('')
 
   
     def load_data(self, chunk_id):
@@ -543,8 +504,15 @@ class deconvGPU(object):
         torch.cuda.synchronize()
         
         # compute objective function = 2 x Convolution term - norms
-        self.obj_gpu*= 2. 
-        self.obj_gpu-= self.norm
+        self.obj_gpu*= 2.
+        
+        # standard objective function  
+        if True:
+            self.obj_gpu-= self.norm
+        # adaptive value 
+        else:
+            self.obj_gpu-= 1.25*self.norm
+            
         
         if self.verbose:
             print ("Total time obj func (run every chunk): ", np.round(dt.datetime.now().timestamp()-start,2),"sec")
@@ -569,12 +537,29 @@ class deconvGPU(object):
             
     def save_spikes(self):
         
-        # save offset of chunk time; spiketimes and neuron ids
-        self.spike_list.append([self.offset, self.spike_times[:,0], 
+        # # save offset of chunk time; spiketimes and neuron ids
+        # if self.save_state:
+            # np.save(os.path.join(self.out_dir,"spike_list_"+str(self.chunk_id)+".npy"), 
+                                    # [self.offset, 
+                                    # self.spike_times[:,0].cpu().data.numpy(), 
+                                    # self.neuron_ids[:,0].cpu().data.numpy()])
+            # np.save(os.path.join(self.out_dir,"x_shifts_"+str(self.chunk_id)+".npy"), 
+                                    # self.xshifts.cpu().data.numpy())
+                                    
+        # else:
+        if False:
+            self.spike_list.append([self.offset, self.spike_times[:,0], 
                                 self.neuron_ids[:,0]])
-        self.shift_list.append(self.xshifts)
+            self.shift_list.append(self.xshifts)
+    
+        # 
+        else:
+            self.offset_array.append(self.offset)
+            self.spike_array.append(self.spike_times[:,0])
+            self.neuron_array.append(self.neuron_ids[:,0])
+            self.shift_list.append(self.xshifts)
         
-        
+                
     def subtraction_step(self):
         
         start = dt.datetime.now().timestamp()
@@ -589,7 +574,7 @@ class deconvGPU(object):
             search_time = self.find_peaks()
             
             ## test if trehsold reached; 
-            ## Cat: TODO: this info might already be availble
+            ## Cat: TODO: this info might already be availble from above function
             t_max,_ = torch.max(self.gpu_max[self.lockout_window:-self.lockout_window],0)
             if t_max<self.deconv_thresh:
                 if self.verbose:
@@ -695,10 +680,10 @@ class deconvGPU(object):
         idx = torch.nonzero(idx)[:,0]
         self.spike_times = self.spike_times[idx]
 
-        # Frouth step: exclude spikes that occur in lock_outwindow at start;
-        #idx1 = torch.where((self.spike_times>self.lockout_window) &
-        #                   (self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
-        idx1 = torch.where(self.spike_times>self.lockout_window,
+        # Fourth step: exclude spikes that occur in lock_outwindow at start;
+        idx1 = torch.where((self.spike_times>self.lockout_window) &
+                           (self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
+        #idx1 = torch.where(self.spike_times>self.lockout_window,
                            self.spike_times*0+1, 
                            self.spike_times*0)
         idx2 = torch.nonzero(idx1)[:,0]
@@ -723,16 +708,21 @@ class deconvGPU(object):
             spike_times = spike_times[None]
             spike_temps = spike_temps[None]
         
+        # print ("iteration: ", self.chunk_id)
         # print ("self.obj_gpu : ", self.obj_gpu.shape)
         # print ("spike_times : ", spike_times.shape, spike_times)
         # print ("self.xshifts : ", self.xshifts.shape, self.xshifts)
-        # print ("spike_temps : ", spike_temps.shape)
+        # print ("spike_temps : ", spike_temps.shape, spike_temps)
+        # print ("---------------\n")
         
         deconv.subtract_splines(
                     self.obj_gpu,
                     spike_times,
                     self.xshifts,
                     spike_temps,
+                    #spike_times[:-1],
+                    #self.xshifts[:-1],
+                    #spike_temps[:-1],
                     self.coefficients)
 
         torch.cuda.synchronize()

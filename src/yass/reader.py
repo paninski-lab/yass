@@ -122,12 +122,21 @@ class READER(object):
         else:
             buffer = 0
 
-        # batch sizes
-        indexes = np.arange(0, T, T_mini)
-        indexes = np.hstack((indexes, T))
-        indexes += buffer
+        # # batch sizes
+        # indexes = np.arange(0, T, T_mini)
+        # indexes = np.hstack((indexes, T))
+        # indexes += buffer
 
+
+        indexes = np.arange(0, T, T_mini)
+        indexes = np.hstack((indexes, indexes[-1]+T_mini))
+        indexes += buffer
+       
+       
         n_mini_batches = len(indexes) - 1
+        print (" T: ", T)
+        print (" T_mini: ", T_mini)
+        print (" n_mini_batches : ", n_mini_batches)
         # add addtional buffer if needed
         if n_mini_batches*T_mini > T:
             T_extra = n_mini_batches*T_mini - T

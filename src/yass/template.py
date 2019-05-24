@@ -496,6 +496,18 @@ def align_get_shifts_with_ref(wf, ref, upsample_factor = 5, nshifts = 7):
         Returns: superresolution shifts required to align all waveforms
                  - used downstream for linear interpolation alignment
     '''
+    # Cat: TODO: Peter's fix to clip/lengthen loaded waveforms to match reference templates    
+    n_data, n_time = wf.shape
+    n_time_rf = len(ref)
+    if n_time > n_time_rf:
+      left_cut = (n_time - n_time_rf)//2
+      right_cut = n_time - n_time_rf - left_cut
+      wf = wf[:, left_cut:-right_cut]
+    elif n_time < n_time_rf:
+      left_buffer = np.zeros((n_data, (n_time_rf - n_time)//2))
+      right_buffer = np.zeros((n_data,n_time_rf - n_time - left_buffer))
+      wf = np.concatenate((left_buffer, wf, right_buffer), axis=1)
+      
     # convert nshifts from timesamples to  #of times in upsample_factor
     nshifts = (nshifts*upsample_factor)
     if nshifts%2==0:

@@ -69,8 +69,15 @@ def deconv_on_template(unit, fname_out, units_in, fname_templates,
     # data noise chan
     noise_chan = np.max(
         np.abs(data), axis=0) < residual_max_norm
+    
+    # if no noise chans, select max chan
+    if noise_chan.sum()==0:
+        noise_chan[data.ptp(0).argmax(0)]=True
+        
     # exclude units that won't help deconvolve this unit
     # if it has large energy on noise chan, then it should not help
+    #print (" n_units: ", n_units, 'templates: ', templates.shape, 'noise: ', 
+    #        noise_chan.sum())
     idx_include = np.abs(templates[:, :, noise_chan]
                         ).max(axis=(1, 2)) < residual_max_norm
     templates = templates[idx_include]
