@@ -175,7 +175,9 @@ def abs_max_dist(unit, candidates, fname_out, fname_templates,
         obj += np.convolve(temps[:, c],
                            data[:, c], 'same')
 
-    max_times = scipy.signal.argrelmax(obj, order=n_times)[0]
+    max_times = (obj[n_times:].reshape(len(candidates), 2*n_times))[:, :n_times].argmax(1)
+    max_times = max_times + n_times + np.arange(len(candidates))*(2*n_times)
+
     # upsample best fit template
     up_temp = scipy.signal.resample(
         x=template_unit,

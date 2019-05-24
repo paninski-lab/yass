@@ -1,5 +1,6 @@
 import numpy as np
 import scipy
+from scipy.io import loadmat
 import os
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -42,7 +43,7 @@ def run():
     fname_geometry = os.path.join(CONFIG.data.root_folder, CONFIG.data.geometry)
     sampling_rate = CONFIG.recordings.sampling_rate
     save_dir = os.path.join(CONFIG.path_to_output_directory, 'visualize')
-    
+
     # only for yass
     template_space_dir = absolute_path_to_asset('template_space')
     deconv_dir = os.path.join(CONFIG.path_to_output_directory,
@@ -70,7 +71,7 @@ class Visualizer(object):
         self.spike_train = np.load(fname_spike_train)
         # load templates
         self.templates = np.load(fname_templates)
-
+        
         # necessary numbers
         self.n_neighbours = 3
         _, self.n_channels, self.n_units = self.templates.shape
@@ -168,7 +169,7 @@ class Visualizer(object):
         self.ptps = self.templates.ptp(0).max(0)
 
     def compute_neighbours(self):
-        
+
         dist = template_dist_linear_align(self.templates.transpose(2,0,1))
         
         nearest_units = []
@@ -220,25 +221,34 @@ class Visualizer(object):
         self.save_dir_ind = os.path.join(self.save_dir,'individual')
         if not os.path.exists(self.save_dir_ind):
             os.makedirs(self.save_dir_ind)
+            
+        ptp_order = np.argsort(self.templates[:, :, units].ptp(0).max(0))
+        
+        fnames = []
+        for j in range(len(units)):
+            unit = units[ptp_order[j]]
+            fname = os.path.join(self.save_dir_ind, 'order_{}_unit_{}.png'.format(j, unit))
+            fnames.append(fname)
 
         if False:
             parmap.map(self.make_individual_cell_plot,
-                       list(units),
+                       list(units[ptp_order]),
+                       fnames,
                        processes=3,
                        pm_pbar=True)
         else:
-            for unit in tqdm(units):
-                self.make_individual_cell_plot(unit)
+            for j in tqdm(range(len(units))):
+                unit = units[ptp_order[j]]
+                fname = fnames[j]
+                self.make_individual_cell_plot(unit, fname)
 
 
-
-    def make_individual_cell_plot(self, unit):
+    def make_individual_cell_plot(self, unit, fname):
 
         # plotting parameters
         self.fontsize = 20
         self.figsize = [100, 40]
 
-        fname = os.path.join(self.save_dir_ind, 'unit_{}.png'.format(unit))
         if os.path.exists(fname):
             return
 
@@ -325,7 +335,8 @@ class Visualizer(object):
             gs = self.add_full_sta(gs, x_locs, y_locs, unit)
 
         fig.savefig(fname, bbox_inches='tight', dpi=100)
-        plt.close()
+        plt.close('all')
+        gs = None
 
     def pairwise_plot(self, pairs):
 
@@ -690,17 +701,17 @@ class Visualizer(object):
         return gs
 
     def add_full_sta(self, gs, x_locs, y_locs, unit):
-
-        full_sta = self.STAs_temporal[unit][:, None, None]*self.STAs[unit][None]
-        full_sta = full_sta[-len(x_locs):]
-        vmax = np.max(np.abs(full_sta))
-        vmin = -vmax
+        fname = os.path.join(self.rf_dir, 'tmp', 'sta', 'unit_{}.mat'.format(unit))
+        full_sta = loadmat(fname)['temp_stas'].transpose(1,0,2,3)[:,:,:,-len(x_locs):]
+        vmax = np.max(full_sta)
+        vmin = np.min(full_sta)
         for ii, (x_loc, y_loc) in enumerate(zip(x_locs, y_locs)):
             ax = plt.subplot(gs[x_loc, y_loc])
-            img = full_sta[ii,:,:,1].T
+            img = full_sta[:,:,:,ii]
             ax.imshow(img, vmin=vmin, vmax=vmax)
-            ax.set_xlim([64,0])
-            ax.set_ylim([0,32])
+            ax.set_xlim([0,64])
+            ax.set_ylim([32,0])
+            ax.set_title('time {}'.format(ii), fontsize=self.fontsize)
         return gs
 
     def make_normalized_templates_plot(self):

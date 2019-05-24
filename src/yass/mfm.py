@@ -846,7 +846,7 @@ def birth_move(maskedData, vbParam, suffStat, param, L):
         maskedDataPrime.weight = maskedData.weight[idx]
         maskedDataPrime.meanY = maskedData.meanY[idx, :, :]
         maskedDataPrime.meanEta = maskedData.meanEta[idx, :, :, :]
-        vbParamPrime, suffStatPrime = init_param_v2(
+        vbParamPrime, suffStatPrime = init_param(
             maskedDataPrime, extraK, param)
 
         for iter_creation in range(5):
@@ -1002,7 +1002,7 @@ def spikesort(score, mask, group, param):
 
 def split_merge(maskedData, param):
 
-    vbParam, suffStat = init_param_v2(maskedData, 1, param)
+    vbParam, suffStat = init_param(maskedData, 1, param)
     iter = 0
     L = np.ones(1)
     n_iter = 5
@@ -1065,7 +1065,7 @@ def spikesort_v2(score, mask, group, param):
 
 def fit_with_given_k(maskedData, k, param):
 
-    vbParam, suffStat = init_param_v2(maskedData, k, param)
+    vbParam, suffStat = init_param(maskedData, k, param)
 
     # EM step
     if k > 1:
