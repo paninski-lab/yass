@@ -129,25 +129,34 @@ class Cluster(object):
             current_indices = current_indices[idx_recovered]
             pca_wf = pca_wf[idx_recovered]
 
+        # connecting clusters
+        if vbParam2.rhat.shape[1] > 1:
+            cc_assignment, stability, idx_keep = self.get_cc_and_stability(vbParam2)
+            current_indices = current_indices[idx_keep]
+            pca_wf = pca_wf[idx_keep]
+        else:
+            cc_assignment = np.zeros(pca_wf.shape[0], 'int32')
+            stability = [1]
+
         # save generic metadata containing current branch info
-        self.save_metadata(vbParam2, pca_wf, current_indices, local,
+        self.save_metadata(cc_assignment, pca_wf, current_indices, local,
                            gen, branch, hist)
 
         # single cluster
-        if vbParam2.rhat.shape[1] == 1:
+        if len(stability) == 1:
             self.single_cluster_step(current_indices, pca_wf, local,
                                      gen, branch, hist)
 
         # multiple clusters
         else:
             self.multi_cluster_step(current_indices, pca_wf, local,
-                                    vbParam2, gen, branch, hist)
+                                    cc_assignment, gen, branch, hist)
 
-    def save_metadata(self, vbParam2, pca_wf_all, current_indices, local,
+    def save_metadata(self, label, pca_wf_all, current_indices, local,
                         gen, branch, hist):
         
         self.pca_post_triage_post_recovery.append(pca_wf_all)
-        #self.vbPar_rhat.append(vbParam2.rhat)
+        self.gen_label.append(label)
         #self.vbPar_muhat.append(vbParam2.muhat)
 
         # save history for every clustered distributions
@@ -285,6 +294,7 @@ class Cluster(object):
         #self.vbPar_rhat=[]
         #self.vbPar_muhat=[]
         self.hist=[]
+        self.gen_label = []
 
         # this list track the first clustering indexes
         self.history_local_final=[]
@@ -334,7 +344,7 @@ class Cluster(object):
             os.path.join('template_space', 'ref_template.npy')))
 
         # upsample templates so that they match raw data sampling rate
-        self.upsample_template_space()
+        #self.upsample_template_space()
 
         # turn off edges for less collision
         window = np.int32(np.int32([15, 40])*self.spike_size/61.)
@@ -484,7 +494,7 @@ class Cluster(object):
         if local:
             self.denoise_step_local()
         else:
-            self.denoise_step_distant()
+            self.denoise_step_distant2()
 
         if self.verbose:
             print ("chan "+str(self.channel)+", waveorms denoised to {} dimensions".format(self.denoised_wf.shape[1]))
@@ -552,6 +562,7 @@ class Cluster(object):
         #good_t, good_c = np.where(np.logical_and(energy > 0.5, template < - 0.5))
         template = np.median(self.wf_global, axis=0)
         good_t, good_c = np.where(template < - 0.5)
+        th = np.max((-0.5, np.min(template[:, self.channel])))
 
         t_diff = 1
         # lowest among all
@@ -976,40 +987,29 @@ class Cluster(object):
                 print ("  chan "+str(self.channel)+", template has maxchan "+str(mc), 
                         " skipping ...")  
              
-    def multi_cluster_step(self, current_indices, pca_wf, local, vbParam2,
+    def multi_cluster_step(self, current_indices, pca_wf, local, cc_assignment,
                                 gen, branch_current, hist):
         
-        # this is outside of multi_cluster_step to make 
-        
-        cc_assignment, stability, idx_keep = self.get_cc_and_stability(vbParam2)
-        current_indices = current_indices[idx_keep]
-        pca_wf = pca_wf[idx_keep]
+        # if self.plotting and gen<20:
+            # self.plot_clustering_scatter(gen, pca_wf, cc_assignment,
+                                         # stability, 'multi split')
 
-        if len(stability) == 1:
-            self.single_cluster_step(current_indices, pca_wf, local,
-                                     gen, branch_current, hist)
+        # Cat: TODO: unclear how much memory this saves
+        pca_wf = pca_subsampled = vbParam2 = None
 
-        else:
-            # if self.plotting and gen<20:
-                # self.plot_clustering_scatter(gen, pca_wf, cc_assignment,
-                                             # stability, 'multi split')
+        for branch_next, clust in enumerate(np.unique(cc_assignment)):
+            idx = np.where(cc_assignment==clust)[0]
 
-            # Cat: TODO: unclear how much memory this saves
-            pca_wf = pca_subsampled = vbParam2 = None
+            if self.verbose:
+                print("chan "+str(self.channel)+', gen '+str(gen)+
+                    ", reclustering cluster with "+ str(idx.shape[0]) +' spikes')
 
-            for branch_next, clust in enumerate(np.unique(cc_assignment)):
-                idx = np.where(cc_assignment==clust)[0]
-
-                if self.verbose:
-                    print("chan "+str(self.channel)+', gen '+str(gen)+
-                        ", reclustering cluster with "+ str(idx.shape[0]) +' spikes')
-
-                # add current branch info for child process
-                # Cat: TODO: this list append is not pythonic
-                local_hist=list(hist)
-                local_hist.append(branch_current)
-                self.cluster(current_indices[idx],local, gen+1, branch_next,
-                             local_hist)
+            # add current branch info for child process
+            # Cat: TODO: this list append is not pythonic
+            local_hist=list(hist)
+            local_hist.append(branch_current)
+            self.cluster(current_indices[idx],local, gen+1, branch_next,
+                         local_hist)
 
     def get_templates_on_all_channels(self, indices_in):
         
@@ -1061,8 +1061,10 @@ class Cluster(object):
                  clustered_indices_local=self.clustered_indices_local,
                  clustered_indices_distant=self.clustered_indices_distant,
                  pca_post_triage_post_recovery = pca_post_triage_post_recovery,
+                 spike_times_original = self.spike_times_original,
                  #vbPar_rhat = self.vbPar_rhat,
                  #vbPar_muhat = self.vbPar_muhat,
+                 gen_label = self.gen_label,
                  hist = self.hist,
                  indices_gen0=self.indices_gen0,
                  #spike_index_prerecluster=self.original_indices,
