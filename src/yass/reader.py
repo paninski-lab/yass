@@ -134,9 +134,6 @@ class READER(object):
        
        
         n_mini_batches = len(indexes) - 1
-        print (" T: ", T)
-        print (" T_mini: ", T_mini)
-        print (" n_mini_batches : ", n_mini_batches)
         # add addtional buffer if needed
         if n_mini_batches*T_mini > T:
             T_extra = n_mini_batches*T_mini - T

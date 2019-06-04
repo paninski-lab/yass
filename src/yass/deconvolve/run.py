@@ -292,6 +292,9 @@ def deconv_ONgpu(fname_templates_in,
     # add half the spike time back in to get to centre of spike
     spike_train[:,0] = spike_train[:,0]-temporal_size//2
 
+    # sort spike train by time
+    spike_train = spike_train[np.argsort(spike_train[:, 0])]
+
     # save spike train
     print ("  saving spike_train: ", spike_train.shape)
     fname_spike_train = os.path.join(d_gpu.out_dir, 'spike_train.npy')
