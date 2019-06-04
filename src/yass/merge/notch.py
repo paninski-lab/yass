@@ -19,14 +19,17 @@ def ztest_notch(greater, smaller, data):
     return pval
 
 def ttest_notch(greater, smaller, data):
+
+    data = data.astype('float32')
+    data += 0.5
+
     N = data.sum()
     if N == 0:
         return 1
-
+    
     ngreater, nsmaller = data[greater], data[smaller]
-
-    if np.any(ngreater) <= 2 or np.any(nsmaller) <= 2:
-        return 1
+    #if np.any(ngreater <= 2) or np.any(nsmaller <= 2):
+    #    return 1
 
     pg = ngreater/N
     siggsq = pg*(1-pg)/N
