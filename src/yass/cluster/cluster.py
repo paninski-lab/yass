@@ -139,7 +139,7 @@ class Cluster(object):
             stability = [1]
 
         # save generic metadata containing current branch info
-        self.save_metadata(cc_assignment, pca_wf, current_indices, local,
+        self.save_metadata(pca_wf, vbParam2, cc_assignment, current_indices, local,
                            gen, branch, hist)
 
         # single cluster
@@ -152,12 +152,14 @@ class Cluster(object):
             self.multi_cluster_step(current_indices, pca_wf, local,
                                     cc_assignment, gen, branch, hist)
 
-    def save_metadata(self, label, pca_wf_all, current_indices, local,
+    def save_metadata(self, pca_wf_all, vbParam, cc_label, current_indices, local,
                         gen, branch, hist):
         
         self.pca_post_triage_post_recovery.append(pca_wf_all)
-        self.gen_label.append(label)
+        self.gen_label.append(cc_label)
+        self.gen_local.append(local)
         #self.vbPar_muhat.append(vbParam2.muhat)
+        self.vbPar_rhat.append(vbParam.rhat)
 
         # save history for every clustered distributions
         size_ = 2
@@ -291,10 +293,11 @@ class Cluster(object):
 
         # initialize metadata saves; easier to do here than using local flags + conditional
         self.pca_post_triage_post_recovery=[]
-        #self.vbPar_rhat=[]
+        self.vbPar_rhat=[]
         #self.vbPar_muhat=[]
         self.hist=[]
         self.gen_label = []
+        self.gen_local = []
 
         # this list track the first clustering indexes
         self.history_local_final=[]
@@ -561,8 +564,8 @@ class Cluster(object):
         #template = np.median(self.wf_global, axis=0)
         #good_t, good_c = np.where(np.logical_and(energy > 0.5, template < - 0.5))
         template = np.median(self.wf_global, axis=0)
-        good_t, good_c = np.where(template < - 0.5)
         th = np.max((-0.5, np.min(template[:, self.channel])))
+        good_t, good_c = np.where(template <= th)
 
         t_diff = 1
         # lowest among all
@@ -1062,9 +1065,10 @@ class Cluster(object):
                  clustered_indices_distant=self.clustered_indices_distant,
                  pca_post_triage_post_recovery = pca_post_triage_post_recovery,
                  spike_times_original = self.spike_times_original,
-                 #vbPar_rhat = self.vbPar_rhat,
+                 vbPar_rhat = self.vbPar_rhat,
                  #vbPar_muhat = self.vbPar_muhat,
                  gen_label = self.gen_label,
+                 gen_local = self.gen_local,
                  hist = self.hist,
                  indices_gen0=self.indices_gen0,
                  #spike_index_prerecluster=self.original_indices,
