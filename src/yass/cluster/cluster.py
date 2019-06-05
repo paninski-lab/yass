@@ -564,33 +564,42 @@ class Cluster(object):
         #template = np.median(self.wf_global, axis=0)
         #good_t, good_c = np.where(np.logical_and(energy > 0.5, template < - 0.5))
         template = np.median(self.wf_global, axis=0)
-        th = np.max((-0.5, np.min(template[:, self.channel])))
-        good_t, good_c = np.where(template <= th)
+        good_t, good_c = np.where(template < -0.5)
 
-        t_diff = 1
-        # lowest among all
-        #main_c_loc = np.where(good_c==self.channel)[0]
-        #max_chan_energy = energy[good_t[main_c_loc]][:,self.channel]
-        #index = main_c_loc[np.argmax(max_chan_energy)]
-        index = template[good_t, good_c].argmin()
-        keep = connecting_points(np.vstack((good_t, good_c)).T, index, self.neighbors, t_diff)
-        good_t = good_t[keep]
-        good_c = good_c[keep]
+        if len(good_t) > self.selected_PCA_rank:
+            t_diff = 1
+            # lowest among all
+            #main_c_loc = np.where(good_c==self.channel)[0]
+            #max_chan_energy = energy[good_t[main_c_loc]][:,self.channel]
+            #index = main_c_loc[np.argmax(max_chan_energy)]
+            index = template[good_t, good_c].argmin()
+            keep = connecting_points(np.vstack((good_t, good_c)).T, index, self.neighbors, t_diff)
+            good_t = good_t[keep]
+            good_c = good_c[keep]
 
-        # limit to max_timepoints per channel
-        max_timepoints = 3
-        unique_channels = np.unique(good_c)
-        idx_keep = np.zeros(len(good_t), 'bool')
-        for channel in unique_channels:
-            idx_temp = np.where(good_c == channel)[0]
-            if len(idx_temp) > max_timepoints:
-                idx_temp = idx_temp[np.argsort(
-                    template[good_t[idx_temp], good_c[idx_temp]])[:max_timepoints]]
-            idx_keep[idx_temp] = True
-        good_t = good_t[idx_keep]
-        good_c = good_c[idx_keep]
+            # limit to max_timepoints per channel
+            max_timepoints = 3
+            unique_channels = np.unique(good_c)
+            idx_keep = np.zeros(len(good_t), 'bool')
+            for channel in unique_channels:
+                idx_temp = np.where(good_c == channel)[0]
+                if len(idx_temp) > max_timepoints:
+                    idx_temp = idx_temp[np.argsort(
+                        template[good_t[idx_temp], good_c[idx_temp]])[:max_timepoints]]
+                idx_keep[idx_temp] = True
+            good_t = good_t[idx_keep]
+            good_c = good_c[idx_keep]
 
-        self.denoised_wf = self.wf_global[:, good_t, good_c]
+            self.denoised_wf = self.wf_global[:, good_t, good_c]
+
+        else:
+            idx = np.argsort(template.reshape(-1))[-self.selected_PCA_rank:]
+            self.denoised_wf = self.wf_global.reshape(self.wf_global.shape[0], -1)[:, idx]
+            
+            
+            
+
+        
 
     def denoise_step_distant3(self):
 
