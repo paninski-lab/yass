@@ -4,7 +4,9 @@ import os
 
 from yass import read_config
 from yass.reader import READER
+from yass.geometry import n_steps_neigh_channels
 from yass.postprocess.small_ptp import remove_small_units
+from yass.postprocess.off_centered import remove_off_centered_units
 from yass.postprocess.low_fr import remove_low_fr_units
 from yass.postprocess.high_fr import remove_high_fr_units
 from yass.postprocess.duplicate import remove_duplicates
@@ -112,7 +114,7 @@ def post_process(output_directory,
     Run a single post process
     method: strings.
         Options are 'low_ptp', 'duplicate', 'collision',
-        'high_mad', 'low_fr', 'high_fr'
+        'high_mad', 'low_fr', 'high_fr', 'off_center'
     '''
 
     logger = logging.getLogger(__name__)
@@ -132,6 +134,21 @@ def post_process(output_directory,
             templates, threshold, units_in)
 
         logger.info("{} units after removing low ptp units".format(
+            len(units_out)))
+
+    elif method == 'off_center':
+
+        # Cat: TODO: move parameter to CONFIG
+        threshold = 5
+
+        # load templates
+        templates = np.load(fname_templates)
+
+        # remove off centered units
+        units_out = remove_off_centered_units(
+            templates, threshold, units_in)
+
+        logger.info("{} units after removing off centered units".format(
             len(units_out)))
 
     elif method == 'duplicate':
@@ -179,12 +196,17 @@ def post_process(output_directory,
         save_dir = os.path.join(output_directory,
                                 'mad_{}'.format(ctr))
 
+        # neighboring channels
+        neigh_channels = n_steps_neigh_channels(
+            CONFIG.neigh_channels, 2)
+
         # find high mad units and remove
         units_out = remove_high_mad(
             fname_templates,
             fname_spike_train,
             fname_weights,
             reader,
+            neigh_channels,
             save_dir,
             units_in,
             CONFIG.resources.multi_processing,

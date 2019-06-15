@@ -166,7 +166,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     templates = np.load(fname_templates).transpose(1,2,0)
     # align spike time to the beginning
     spike_train = np.load(fname_spike_train)
-    spike_train[:,0] -= CONFIG.spike_size//2
+    #spike_train[:,0] -= CONFIG.spike_size//2
     np.save(fname_templates_final, templates)
     np.save(fname_spike_train_final, spike_train)
 
@@ -226,7 +226,7 @@ def initial_block(TMP_FOLDER,
         full_run)
 
     #methods = ['duplicate', 'high_mad', 'collision']
-    methods = ['duplicate', 'high_mad', 'collision']
+    methods = ['off_center', 'high_mad', 'duplicate', 'collision']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
@@ -311,7 +311,7 @@ def iterative_block(TMP_FOLDER,
         fname_templates_up=fname_templates_up,
         fname_spike_train_up=fname_spike_train_up)
     
-    methods = ['duplicate', 'high_mad', 'collision']
+    methods = ['off_center', 'high_mad', 'duplicate', 'collision']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
