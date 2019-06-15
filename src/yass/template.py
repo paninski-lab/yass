@@ -331,6 +331,10 @@ def run_template_computation(
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
         
+    fname_templates = os.path.join(out_dir, 'templates.npy')
+    if os.path.exists(fname_templates):
+        return fname_templates
+
     # make temp folder
     tmp_folder = os.path.join(out_dir, 'tmp_template')
     if not os.path.exists(tmp_folder):
@@ -360,7 +364,7 @@ def run_template_computation(
         parmap.starmap(run_template_computation_parallel,
                    list(zip(unit_ids, max_channels, fnames_out)),
                    fname_spike_times,
-                   reader,
+                   reader,   
                    processes=n_processors,
                    pm_pbar=True)
     else:
@@ -378,7 +382,6 @@ def run_template_computation(
         if os.path.exists(fnames_out[ctr]):
             templates_new[unit] = np.load(fnames_out[ctr])
 
-    fname_templates = os.path.join(out_dir, 'templates.npy')
     np.save(fname_templates, templates_new)
 
     return fname_templates
@@ -419,14 +422,8 @@ def compute_a_template(spike_times, max_channel, reader):
     if max_channel is None:
         max_channel = np.mean(wf, axis=0).ptp(0).argmax()
 
-    # load reference template
-    ref_template = np.load(absolute_path_to_asset(
-            os.path.join('template_space', 'ref_template.npy')))
-
-
     wf, _ = align_waveforms(wf=wf,
                             max_channel=max_channel,
-                            ref=ref_template,
                             upsample_factor=3,
                             nshifts=3)
 
@@ -454,7 +451,7 @@ def partition_spike_time(save_dir,
 
     return fname, n_units
 
-def align_waveforms(wf, max_channel=None, ref=None, upsample_factor=5, nshifts=7):
+def align_waveforms(wf, max_channel=None, upsample_factor=5, nshifts=7):
 
     # get shapes
     n_spikes, n_times, n_channels = wf.shape
@@ -464,29 +461,14 @@ def align_waveforms(wf, max_channel=None, ref=None, upsample_factor=5, nshifts=7
     if max_channel is None:
         max_channel = mean_wf.ptp(0).argmax()
 
-    # if no reference, make a reference using mean
-    if ref is None:
-        ref = mean_wf[:, max_channel]
-    n_times_ref = len(ref)
-
-    # if length of waveforms is different than ref,
-    # either pad zeros to ref or cut edges of ref
-    len_diff = n_times - n_times_ref
-    if len_diff > 0:
-        ref = np.hstack((np.zeros(len_diff//2),
-                         ref,
-                         np.zeros(len_diff - len_diff//2)))
-    elif len_diff < 0:
-        ref = ref[len_diff//2:-(len_diff-len_diff//2)]
-    
     shifts = align_get_shifts_with_ref(
-        wf[:, :, max_channel], ref, upsample_factor, nshifts)
+        wf[:, :, max_channel], None, upsample_factor, nshifts)
     
     wf_aligned = shift_chans(wf, shifts)
     
     return wf_aligned, shifts
     
-def align_get_shifts_with_ref(wf, ref, upsample_factor = 5, nshifts = 7):
+def align_get_shifts_with_ref(wf, ref=None, upsample_factor=5, nshifts=7):
 
     ''' Align all waveforms on a single channel
     
@@ -498,27 +480,31 @@ def align_get_shifts_with_ref(wf, ref, upsample_factor = 5, nshifts = 7):
     '''
     # Cat: TODO: Peter's fix to clip/lengthen loaded waveforms to match reference templates    
     n_data, n_time = wf.shape
-    n_time_rf = len(ref)
-    if n_time > n_time_rf:
-      left_cut = (n_time - n_time_rf)//2
-      right_cut = n_time - n_time_rf - left_cut
-      wf = wf[:, left_cut:-right_cut]
-    elif n_time < n_time_rf:
-      left_buffer = np.zeros((n_data, (n_time_rf - n_time)//2))
-      right_buffer = np.zeros((n_data,n_time_rf - n_time - left_buffer))
-      wf = np.concatenate((left_buffer, wf, right_buffer), axis=1)
+
+    if ref is None:
+        ref = np.mean(wf, axis=0)
+
+    #n_time_rf = len(ref)
+    #if n_time > n_time_rf:
+    #    left_cut = (n_time - n_time_rf)//2
+    #    right_cut = n_time - n_time_rf - left_cut
+    #    wf = wf[:, left_cut:-right_cut]
+    #elif n_time < n_time_rf:
+    #    left_buffer = np.zeros((n_data, (n_time_rf - n_time)//2))
+    #    right_buffer = np.zeros((n_data,n_time_rf - n_time - left_buffer))
+    #    wf = np.concatenate((left_buffer, wf, right_buffer), axis=1)
       
     # convert nshifts from timesamples to  #of times in upsample_factor
     nshifts = (nshifts*upsample_factor)
     if nshifts%2==0:
-        nshifts+=1    
+        nshifts+=1
 
     # or loop over every channel and parallelize each channel:
     #wf_up = []
     wf_up = upsample_resample(wf, upsample_factor)
     wlen = wf_up.shape[1]
-    wf_start = int(.2 * (wlen-1))
-    wf_end = -int(.3 * (wlen-1))
+    wf_start = nshifts//2
+    wf_end = -nshifts//2
     
     wf_trunc = wf_up[:,wf_start:wf_end]
     wlen_trunc = wf_trunc.shape[1]
@@ -527,8 +513,8 @@ def align_get_shifts_with_ref(wf, ref, upsample_factor = 5, nshifts = 7):
     ref_upsampled = upsample_resample(ref[np.newaxis], upsample_factor)[0]
     ref_shifted = np.zeros([wf_trunc.shape[1], nshifts])
     
-    for i,s in enumerate(range(-int((nshifts-1)/2), int((nshifts-1)/2+1))):
-        ref_shifted[:,i] = ref_upsampled[s+ wf_start: s+ wf_end]
+    for i,s in enumerate(range(-(nshifts//2), (nshifts//2)+1)):
+        ref_shifted[:,i] = ref_upsampled[s + wf_start: s + wf_end]
 
     bs_indices = np.matmul(wf_trunc[:,np.newaxis], ref_shifted).squeeze(1).argmax(1)
     best_shifts = (np.arange(-int((nshifts-1)/2), int((nshifts-1)/2+1)))[bs_indices]
