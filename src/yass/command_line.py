@@ -19,6 +19,7 @@ import tensorflow as tf
 
 import yass
 from yass import pipeline
+from yass import pipeline_nn_training
 from yass import geometry
 from yass.export import generate
 from yass.util import load_yaml, get_version
@@ -75,6 +76,27 @@ def sort(config, logger_level, clean, output_dir, complete, zero_seed,
     return pipeline.run(config, logger_level=logger_level, clean=clean,
                         output_dir=output_dir, complete=complete,
                         calculate_rf=calculate_rf, visualize=visualize)#,
+                        #set_zero_seed=zero_seed)
+
+@cli.command()
+@click.argument('config', type=click.Path(exists=True, dir_okay=False,
+                                          resolve_path=True))
+@click.option('-l', '--logger_level',
+              help='Python logger level, defaults to INFO',
+              default='INFO')
+@click.option('-c', '--clean',
+              help='Delete CONFIG.data.root_folder/output_dir/ before running',
+              is_flag=True, default=False)
+@click.option('-o', '--output_dir',
+              help='Output directory (relative to CONFIG.data.root_folder '
+              'to store the output data, defaults to tmp/',
+              default='tmp/')
+def train(config, logger_level, clean, output_dir):
+    """
+    Sort recordings using a configuration file located in CONFIG
+    """
+    return pipeline_nn_training.run(config, logger_level=logger_level, clean=clean,
+                        output_dir=output_dir)#,
                         #set_zero_seed=zero_seed)
 
 
