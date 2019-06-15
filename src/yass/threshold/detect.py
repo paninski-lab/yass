@@ -7,17 +7,38 @@ import logging
 import numpy as np
 from scipy.signal import argrelmin
 
-from yass.batch import BatchProcessor
-from yass.util import check_for_files, LoadFile, save_numpy_object
-from yass.geometry import n_steps_neigh_channels
+def amplitude_threshold(recording, threshold, spike_size):
+    
+    T, C = recording.shape
+    
+    spike_index = np.zeros((0, 2), 'int32')
+    energy = np.zeros(0, 'float32')
+    for c in range(C):
+        index = argrelmin(single_chan_rec, order=3)
+        index = index[single_chan_rec[index] < threshold]
 
-# FIXME: seems like the detector is throwing slightly different results
-# when n batch > 1
-logger = logging.getLogger(__name__)
+        t_range = np.arange(-spike_size//2, spike_size//2+1)
+        wf = single_chan_rec[index[:, None] + t_range]
+
+        spike_index_temp = np.hstack((index, c*np.ones(len(index), 'int32'))).T
+        spike_index = np.concatenate((spike_index, spike_index_temp), axis=0)
+
+        energy = np.hstack((energy, wf.ptp(1)))
+
+    return spike_index, energy
 
 
-@check_for_files(filenames=[LoadFile('spike_index_clear_filename')],
-                 mode='extract', relative_to='output_path')
+def amplitude_treshold_parallel(single_chan_rec, threshold, spike_size):
+
+    index = argrelmin(single_chan_rec, order=3)
+    index = index[single_chan_rec[index] < threshold]
+    
+    t_range = np.arange(-spike_size//2, spike_size//2+1)
+    wf = single_chan_rec[index[:, None] + t_range]
+    energy = wf.ptp(1)
+    
+    return index, energy
+    
 def threshold(path_to_data, dtype, n_channels, data_order,
               max_memory, neighbors, spike_size,
               minimum_half_waveform_size, threshold, output_path=None,
