@@ -51,7 +51,7 @@ class deconvGPU(object):
         self.sample_rate = self.CONFIG.recordings.sampling_rate
         
         # Cat: TODO: unclear if this is always the case
-        self.n_time = self.CONFIG.recordings.spike_size_ms*self.sample_rate//1000+1
+        self.n_time = self.CONFIG.spike_size
         
         # set length of lockout window
         # Cat: TODO: unclear if this is always correct

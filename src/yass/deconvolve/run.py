@@ -247,8 +247,7 @@ def deconv_ONgpu(fname_templates_in,
     print ("  gathering spike trains and shifts from deconv ")
     batch_size = d_gpu.reader.batch_size
     buffer_size = d_gpu.reader.buffer
-    temporal_size = (CONFIG.recordings.sampling_rate/1000*
-                        CONFIG.recordings.spike_size_ms)
+    temporal_size = CONFIG.spike_size
     
     # loop over chunks and run sutraction step
     spike_train = [np.zeros((0,2),'int32')]

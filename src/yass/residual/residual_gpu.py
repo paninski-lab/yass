@@ -83,8 +83,7 @@ class RESIDUAL_GPU(object):
         
         
         # subtract hafl spike width again as gpu_deconv expects beginning not middle of waveform
-        self.spike_train[:,0] = self.spike_train[:,0]-(self.CONFIG.recordings.sampling_rate/1000*
-                        self.CONFIG.recordings.spike_size_ms)//2
+        self.spike_train[:,0] = self.spike_train[:,0]-(self.CONFIG.spike_size//2)
 
         # compute chunks of data to be processed
         n_sec = self.CONFIG.resources.n_sec_chunk_gpu
