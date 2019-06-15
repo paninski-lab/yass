@@ -97,6 +97,8 @@ class MatchPursuit_objectiveUpsample(object):
         temps = np.load(fname_templates).transpose(1, 2, 0)
         self.temps = temps.astype(np.float32)
 
+        print ("expected shape of templates loaded (n_times, n_chan, n_units) : ", temps.shape)
+        #quit()
         self.n_time, self.n_chan, self.n_unit = temps.shape
         self.deconv_dir = save_dir
         self.reader = reader

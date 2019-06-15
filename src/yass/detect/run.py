@@ -113,7 +113,8 @@ def run(standardized_path, standardized_params,
             run_chunk_sec=run_chunk_sec)
 
     ###### deduplication #####
-    logger.info('removing axons in parallel')
+    logger.info('removing axons in parallel (TODO: repartition  \
+                chunks to match # of cpus)')
 
     # save directory for deduplication
     dedup_output = os.path.join(

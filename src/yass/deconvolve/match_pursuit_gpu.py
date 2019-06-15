@@ -632,6 +632,7 @@ class deconvGPU(object):
         
        # print ("idx tripler: ", idx_tripler)
         self.threePts = self.obj_gpu[idx_tripler]
+        #np.save('/home/cat/trips.npy', self.threePts.cpu().data.numpy())
         self.shift_from_quad_fit_3pts_flat_equidistant_constants(self.threePts.transpose(0,1))
 
         
@@ -644,7 +645,6 @@ class deconvGPU(object):
 
         self.xshifts = ((((pts[1]-pts[2])*(-1)-(pts[0]-pts[1])*(-3))/2)/
                   (-2*((pts[0]-pts[1])-(((pts[1]-pts[2])*(-1)-(pts[0]-pts[1])*(-3))/(2)))))-1        
-
 
         
     def find_peaks(self):
@@ -666,13 +666,13 @@ class deconvGPU(object):
         # Second step: find relative peaks across max function above for some lockout window
         #       input: n_times (i.e. values of energy at each point in time)
         #       output:  1D array = relative peaks across time for given lockout_window
+        # Cat: TODO: this may atually crash if a spike is located in exactly the 1 time step bewteen buffer and 2 xlockout widnow
         window_maxima = torch.nn.functional.max_pool1d_with_indices(self.gpu_max.view(1,1,-1), 
                                                                     self.lockout_window*2, 1, 
                                                                     padding=self.lockout_window)[1].squeeze()
         candidates = window_maxima.unique()
         self.spike_times = candidates[(window_maxima[candidates]==candidates).nonzero()]
-
-        
+       
         # Third step: only deconvolve spikes where obj_function max > threshold
         idx = torch.where(self.gpu_max[self.spike_times]>self.deconv_thresh, 
                           self.gpu_max[self.spike_times]*0+1, 
@@ -682,7 +682,8 @@ class deconvGPU(object):
 
         # Fourth step: exclude spikes that occur in lock_outwindow at start;
         idx1 = torch.where((self.spike_times>self.lockout_window) &
-                           (self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
+                           #(self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
+                           (self.spike_times<self.obj_gpu.shape[1]),
         #idx1 = torch.where(self.spike_times>self.lockout_window,
                            self.spike_times*0+1, 
                            self.spike_times*0)

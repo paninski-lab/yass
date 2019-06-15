@@ -83,7 +83,13 @@ class RESIDUAL_GPU(object):
         
         
         # subtract hafl spike width again as gpu_deconv expects beginning not middle of waveform
-        self.spike_train[:,0] = self.spike_train[:,0]-(self.CONFIG.spike_size//2)
+        #self.spike_train[:,0] = self.spike_train[:,0]-(self.CONFIG.recordings.sampling_rate/1000*
+        #                self.CONFIG.recordings.spike_size_ms)//2
+                        
+        #self.spike_train[:,0] = self.spike_train[:,0]-(self.CONFIG.recordings.sampling_rate/1000*
+        #                self.CONFIG.recordings.spike_size_ms)//2
+
+        self.waveform_len = self.CONFIG.spike_size
 
         # compute chunks of data to be processed
         n_sec = self.CONFIG.resources.n_sec_chunk_gpu
@@ -108,6 +114,7 @@ class RESIDUAL_GPU(object):
         template_vals=[]
         for k in range(temps.shape[2]):
             template_vals.append(torch.from_numpy(0.5*temps[:,:,k]).cuda())
+            #template_vals.append(torch.from_numpy(0.25*temps[:,:,k]).cuda())
 
         print (" example filter (n_chans, n_times): ", template_vals[0].shape)
         print (template_vals[0].shape)
@@ -176,22 +183,19 @@ class RESIDUAL_GPU(object):
         f = open(self.fname_residual,'wb')
         
         pad_chunk = np.zeros((self.CONFIG.recordings.n_channels,self.buffer),'float32')
-        #for ctr, chunk in enumerate(chunks):
-        #for ctr, chunk in enumerate(self.chunks):
-        #for k in tqdm(range(len(d_gpu.spike_list))):
+
         ctr=0
-        #for chunk in tqdm(self.reader.idx_list[:10]):
+        spike_list = []
+        id_list = []
         for chunk in tqdm(self.reader.idx_list):
             tlocal = time.time()
             chunk_start = chunk[0]
             chunk_end = chunk[1]
-        
+                
             # pad data with buffer
             batch_id = ctr
             #self.data_temp = self.reader.read_data_batch(batch_id, add_buffer=True)
             data_chunk = self.reader.read_data_batch(batch_id, add_buffer=True).T
-            #data_chunk = self.data_temp.T
-            #data_chunk = np.hstack((pad_chunk, np.hstack((data_chunk, pad_chunk))))
 
             # transfer raw data to cuda
             objective = torch.from_numpy(data_chunk).cuda()
@@ -199,23 +203,26 @@ class RESIDUAL_GPU(object):
                 print ("Input size: ",objective.shape, int(sys.getsizeof(objective)), "MB")
 
             # Cat: TODO: may wish to pre-compute spike indiexes in chunks using cpu-multiprocessing
+            #            because this constant search is expensive;
             # index into spike train at chunks:
-            idx = np.where(np.logical_and(self.spike_train[:,0]>=chunk_start, 
-                            self.spike_train[:,0]<chunk_end))[0]
+            # Cat: TODO: this may miss spikes that land exactly at time 61.
+            idx = np.where(np.logical_and(self.spike_train[:,0]>=(chunk_start-self.waveform_len), 
+                            self.spike_train[:,0]<=(chunk_end+self.waveform_len)))[0]
             if verbose: 
                 print (" # idx of spikes in chunk ", idx.shape, idx)
             
             # offset time indices by added buffer above
-            times_local = self.spike_train[idx,0]+self.buffer-chunk_start
+            times_local = (self.spike_train[idx,0]+self.buffer-chunk_start
+                                                  -self.waveform_len//2)
             time_indices = torch.from_numpy(times_local).long().cuda()
-
+            spike_list.append(times_local+chunk_start)
             if verbose: 
                 print ("spike times: ", time_indices.shape, time_indices)
 
             # select template ids
             templates_local = self.spike_train[idx,1]
             template_ids = torch.from_numpy(templates_local).long().cuda()
-
+            id_list.append(templates_local)
             if verbose: 
                 print (" template ids: ", template_ids.shape, template_ids)
 
@@ -265,7 +272,8 @@ class RESIDUAL_GPU(object):
             ctr+=1
         f.close()
 
-        
+        np.save("/home/cat/times_local.npy",np.hstack(spike_list))
+        np.save("/home/cat/ids_local.npy",np.hstack(id_list))
         print ("Total residual time: ", time.time()-t0)
             
    #quit()

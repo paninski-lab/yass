@@ -287,12 +287,14 @@ def deconv_ONgpu(fname_templates_in,
         # shifts.append(d_gpu.shift_list[k].cpu().data.numpy()[idx_keep])
             
     spike_train = np.vstack(spike_train)
-
+    shifts = np.hstack(shifts)
     # add half the spike time back in to get to centre of spike
     spike_train[:,0] = spike_train[:,0]-temporal_size//2
 
     # sort spike train by time
-    spike_train = spike_train[np.argsort(spike_train[:, 0])]
+    idx = spike_train[:,0].argsort(0)
+    spike_train = spike_train[idx]
+    shifts = shifts[idx]
 
     # save spike train
     print ("  saving spike_train: ", spike_train.shape)
@@ -302,7 +304,7 @@ def deconv_ONgpu(fname_templates_in,
 
     # save shifts
     fname_shifts = os.path.join(d_gpu.out_dir, 'shifts.npy')
-    np.save(fname_shifts,np.hstack(shifts))
+    np.save(fname_shifts,shifts)
 
     # save templates and upsampled templates
     templates_in_original = np.load(fname_templates_in)
