@@ -26,9 +26,6 @@ def run(standardized_path, standardized_params,
            
     """Execute detect step
 
-    Cat: THIS CODE KEEP TENSORFLOW OPEN FOR DETECTION AND THEN COMPUTES 
-         corrections post-detection
-
     Parameters
     ----------
     standardized_path: str or pathlib.Path
@@ -70,7 +67,7 @@ def run(standardized_path, standardized_params,
     * ``scores_clear.npy`` - Scores for clear spikes
 
     Threshold detector runs on CPU, neural network detector runs CPU and GPU,
-    depending on how tensorflow is configured.
+    depending on how pytorch is configured.
 
     Examples
     --------
