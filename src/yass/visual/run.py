@@ -69,6 +69,7 @@ class Visualizer(object):
         
         # load spike train and templates
         self.spike_train = np.load(fname_spike_train)
+        self.spike_train = self.spike_train[self.spike_train[:, 0] > 0]
         # load templates
         self.templates = np.load(fname_templates)
         
@@ -113,7 +114,6 @@ class Visualizer(object):
                 deconv_dir, 'deconv', 'spike_train_up.npy'))
             n_times = self.templates_upsampled.shape[0]
             self.spike_train_upsampled[:, 0] -= n_times//2
-
 
         # template space directory
         self.template_space_dir = template_space_dir
@@ -212,7 +212,7 @@ class Visualizer(object):
             #self.add_raw_deno_resid_plot()  
             self.add_raw_resid_snippets()
 
-    def individiual_cell_plot(self, units=None):
+    def individiual_cell_plot(self, units=None, order_by_fr=False):
         
         if units is None:
             units = np.arange(self.n_units)
@@ -221,24 +221,27 @@ class Visualizer(object):
         self.save_dir_ind = os.path.join(self.save_dir,'individual')
         if not os.path.exists(self.save_dir_ind):
             os.makedirs(self.save_dir_ind)
-            
-        ptp_order = np.argsort(self.templates[:, :, units].ptp(0).max(0))
+        
+        if order_by_fr:
+            order = np.argsort(self.f_rates[units])
+        else:
+            order = np.argsort(self.templates[:, :, units].ptp(0).max(0))
         
         fnames = []
         for j in range(len(units)):
-            unit = units[ptp_order[j]]
+            unit = units[order[j]]
             fname = os.path.join(self.save_dir_ind, 'order_{}_unit_{}.png'.format(j, unit))
             fnames.append(fname)
 
         if False:
             parmap.map(self.make_individual_cell_plot,
-                       list(units[ptp_order]),
+                       list(units[order]),
                        fnames,
                        processes=3,
                        pm_pbar=True)
         else:
             for j in tqdm(range(len(units))):
-                unit = units[ptp_order[j]]
+                unit = units[order[j]]
                 fname = fnames[j]
                 self.make_individual_cell_plot(unit, fname)
 
@@ -329,10 +332,10 @@ class Visualizer(object):
                 np.hstack((unit, neighbor_units)),
                 self.colors[:self.n_neighbours+1])
             
-            start_row += 1
-            x_locs = [self.n_neighbours+start_row]*10 + [self.n_neighbours+start_row+1]*10
-            y_locs = [c for c in range(10)]*2
-            gs = self.add_full_sta(gs, x_locs, y_locs, unit)
+            #start_row += 1
+            #x_locs = [self.n_neighbours+start_row]*10 + [self.n_neighbours+start_row+1]*10
+            #y_locs = [c for c in range(10)]*2
+            #gs = self.add_full_sta(gs, x_locs, y_locs, unit)
 
         fig.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close('all')
@@ -405,7 +408,7 @@ class Visualizer(object):
         idx = np.random.choice(idx, 
                                np.min((n_examples, len(idx))),
                                False)
-        spt = self.spike_train[idx,0]
+        spt = self.spike_train[idx,0] - self.templates.shape[0]//2
         mc = self.templates[:, :, unit].ptp(0).argmax()
         neigh_chans = np.where(self.neigh_channels[mc])[0]
 
@@ -415,17 +418,9 @@ class Visualizer(object):
             self.templates.shape[0],
             spt, neigh_chans)
 
-        if self.template_space_dir is not None:
-            ref_template = np.load(
-                os.path.join(self.template_space_dir,
-                             'ref_template.npy'))
-        else:
-            ref_template = self.templates[:, mc][:, unit]
-
         mc_neigh = np.where(neigh_chans == mc)[0][0]
         shifts = align_get_shifts_with_ref(
-                    wf[:, :, mc_neigh],
-                    ref_template)
+                    wf[:, :, mc_neigh])
         wf = shift_chans(wf, shifts)
 
         return wf, idx
@@ -493,7 +488,7 @@ class Visualizer(object):
         if idx is None:
             _, idx = self.get_waveforms(unit)
 
-        spt = self.spike_train[idx, 0]
+        spt = self.spike_train[idx, 0] - self.templates.shape[0]//2
         units = self.spike_train_upsampled[idx, 1]
 
         wf, _ = read_spikes(
@@ -503,17 +498,9 @@ class Visualizer(object):
             channels=neigh_chans,
             residual_flag=True)            
 
-        if self.template_space_dir is not None:
-            ref_template = np.load(
-                os.path.join(self.template_space_dir,
-                             'ref_template.npy'))
-        else:
-            ref_template = self.templates[:, mc][:, unit]
-
         mc_neigh = np.where(neigh_chans == mc)[0][0]
         shifts = align_get_shifts_with_ref(
-                    wf[:, :, mc_neigh],
-                    ref_template)
+                    wf[:, :, mc_neigh])
         wf = shift_chans(wf, shifts)
 
         order_neigh_chans = np.argsort(
@@ -721,26 +708,17 @@ class Visualizer(object):
             return
 
         if self.template_space_dir is not None:
-            ref_template = np.load(
-                os.path.join(self.template_space_dir,
-                             'ref_template.npy'))
-            
             pca_main = self.pca_main_components
             pca_sec = self.pca_sec_components
 
             add_row = 1
         else:
-            # template with the largest amplitude will be ref_template
-            ref_template = self.templates[:, :, self.ptps.argmax()]
-            mc = ref_template.ptp(0).argmax()
-            ref_template = ref_template[:, mc]
-            
             add_row = 0
         
         (templates_mc, templates_sec, 
          ptp_mc, ptp_sec, _) = get_normalized_templates(
             self.templates.transpose(2, 0, 1), 
-            self.neigh_channels, ref_template)
+            self.neigh_channels)
         
         plt.figure(figsize=(14, 4*(add_row+2)))
 
@@ -1182,7 +1160,7 @@ class CompareSpikeTrains(Visualizer):
         self.nearest_units = nearest_units
         self.nearest_units_rf = nearest_units_rf
 
-def get_normalized_templates(templates, neigh_channels, ref_template):
+def get_normalized_templates(templates, neigh_channels):
 
     """
     plot normalized templates on their main channels and secondary channels
@@ -1200,8 +1178,7 @@ def get_normalized_templates(templates, neigh_channels, ref_template):
 
     # shift templates_mc
     best_shifts_mc = align_get_shifts_with_ref(
-                    templates_mc,
-                    ref_template)
+                    templates_mc)
     templates_mc = shift_chans(templates_mc, best_shifts_mc)
     ptp_mc = templates_mc.ptp(1)
 
