@@ -134,10 +134,13 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
         os.path.join(TMP_FOLDER, 'augment'))
 
     # Train Detector
-    detector = Detect(CONFIG.spike_size_small, CONFIG.channel_index)
+    detector = Detect(CONFIG.neuralnetwork.detect.n_filters,
+                      CONFIG.spike_size_nn,
+                      CONFIG.channel_index)
     detector.train(CONFIG.neuralnetwork.detect.filename, DetectTD)
     
     # Train Denoiser
-    deno = Denoise(CONFIG.spike_size_small)
-    #deno.load('/home/peter/peter/ej49_20min/tmp/augment/test_deno.pt')
-    deno.train(CONFIG.neuralnetwork.detect.filename, DenoTD)
+    denoiser = Denoise(CONFIG.neuralnetwork.dnoise.n_filters,
+                       CONFIG.neuralnetwork.denoise.filter_sizes,
+                       CONFIG.spike_size_nn)
+    deno.train(CONFIG.neuralnetwork.denoise.filename, DenoTD)

@@ -8,9 +8,7 @@ try:
 except ImportError:
     from pathlib import Path
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import numpy as np
-import tensorflow as tf
 import torch
 import parmap
 
@@ -148,15 +146,18 @@ def run_neural_network_pytorch(standardized_path, standardized_params,
     CONFIG = read_config()
 
     # load NN detector
-    detector = Detect(CONFIG.spike_size_small, CONFIG.channel_index)
-    #detector = Detect_Single(CONFIG.spike_size_small)
+    detector = Detect(CONFIG.neuralnetwork.detect.n_filters,
+                      CONFIG.spike_size_nn,
+                      CONFIG.channel_index)
     detector.load(CONFIG.neuralnetwork.detect.filename)
     
     # threshold for neuralnet detection
     detect_threshold = CONFIG.detect.threshold
 
     # load NN denoiser
-    denoiser = Denoise(CONFIG.spike_size_small)
+    denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
+                       CONFIG.neuralnetwork.denoise.filter_sizes,
+                       CONFIG.spike_size_nn)
     denoiser.load(CONFIG.neuralnetwork.denoise.filename)
 
     # get data reader
@@ -166,7 +167,7 @@ def run_neural_network_pytorch(standardized_path, standardized_params,
     print ("   batch length to (sec): ", batch_length, 
            " (longer increase speed a bit)")
     print ("   length of each seg (sec): ", n_sec_chunk)
-    buffer = CONFIG.spike_size_small
+    buffer = CONFIG.spike_size_nn
     if run_chunk_sec == 'full':
         chunk_sec = None
     else:

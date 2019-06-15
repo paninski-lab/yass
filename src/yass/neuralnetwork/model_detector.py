@@ -7,16 +7,14 @@ from torch import distributions
 
 
 class Detect(nn.Module):
-    def __init__(self, spike_size, channel_index):
+    def __init__(self, n_filters, spike_size, channel_index):
         super(Detect, self).__init__()
         
         self.spike_size = spike_size
         self.channel_index = channel_index
         n_neigh = self.channel_index.shape[1]
         
-        feat1 = 16
-        feat2 = 8
-        feat3 = 8
+        feat1, feat2, feat3 = n_filters
 
         self.temporal_filter1 = nn.Sequential(         # input shape (1, 28, 28)
             nn.Conv2d(

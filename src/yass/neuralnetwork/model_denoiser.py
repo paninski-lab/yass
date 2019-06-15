@@ -6,15 +6,11 @@ from torch.nn import functional as F
 from torch import distributions
 
 class Denoise(nn.Module):
-    def __init__(self, spike_size):
+    def __init__(self, n_filters, filter_sizes, spike_size):
         super(Denoise, self).__init__()
         
-        feat1 = 16
-        feat2 = 8
-        feat3 = 4
-        size1 = 5
-        size2 = 11
-        size3 = 21
+        feat1, feat2, feat3 = n_filters
+        size1, size2, size3 = filter_sizes
         
         self.conv1 = nn.Sequential(         # input shape (1, 28, 28)
             nn.Conv1d(

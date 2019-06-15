@@ -119,7 +119,9 @@ def run(fname_spike_index,
 
     logger.info("NN denoise")
     # load NN denoiser
-    denoiser = Denoise(CONFIG.spike_size_small)
+    denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
+                       CONFIG.neuralnetwork.denoise.filter_sizes,
+                       CONFIG.spike_size_nn)
     denoiser.load(CONFIG.neuralnetwork.denoise.filename)
     # denoise it
     nn_denoise_wf(fnames_input, denoiser)

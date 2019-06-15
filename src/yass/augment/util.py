@@ -29,7 +29,7 @@ def crop_and_align_templates(fname_templates, save_dir, CONFIG):
     
     n_units, n_times, n_channels = templates.shape
     mcs = templates.ptp(1).argmax(1)
-    spike_size = (CONFIG.spike_size_small - 1)*2 + 1
+    spike_size = (CONFIG.spike_size_nn - 1)*2 + 1
 
     ########## TEMPORALLY ALIGN TEMPLATES #################
     

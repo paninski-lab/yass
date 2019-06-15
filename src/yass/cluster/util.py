@@ -46,7 +46,7 @@ def make_CONFIG2(CONFIG):
     CONFIG2.cluster.max_n_spikes = CONFIG.cluster.max_n_spikes
     
     CONFIG2.spike_size = CONFIG.spike_size
-    CONFIG2.spike_size_small = CONFIG.spike_size_small
+    CONFIG2.spike_size_nn = CONFIG.spike_size_nn
 
     return CONFIG2
 
@@ -252,8 +252,8 @@ def load_align_waveforms_parallel(
 
     # first read waveforms in a bigger size
     # then align and cut down edges
-    spike_size_read = (CONFIG.spike_size_small-1)*2 + 1
-    spike_size_out = CONFIG.spike_size_small
+    spike_size_read = (CONFIG.spike_size_nn-1)*2 + 1
+    spike_size_out = CONFIG.spike_size_nn
 
     if not raw_data:
         up_templates = input_data['up_templates']

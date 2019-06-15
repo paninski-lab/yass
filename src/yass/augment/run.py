@@ -34,7 +34,7 @@ def run(fname_recording, recording_dtype, fname_spike_train,
     reader = READER(fname_recording,
                     recording_dtype,
                     CONFIG)
-    reader.spike_size = CONFIG.spike_size_small
+    reader.spike_size = CONFIG.spike_size_nn
 
     # get noise covariance
     logger.info('Compute Noise Covaraince')

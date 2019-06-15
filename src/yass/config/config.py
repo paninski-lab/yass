@@ -189,8 +189,16 @@ class Config:
         self._set_param('spike_size', spike_size)
 
         channel_index = geom.make_channel_index(self.neigh_channels,
-                                                self.geom, steps=2)
+                                                self.geom, steps=1)
         self._set_param('channel_index', channel_index)
+
+
+        spike_size_nn = int(
+                np.round(self.neuralnetwork.spike_size_ms*
+                         self.recordings.sampling_rate/1000))
+        if spike_size_nn % 2 == 0:
+            spike_size_nn += 1
+        self._set_param('spike_size_nn', spike_size_nn)
 
         # compute the length of recording
         filename_dat = os.path.join(
