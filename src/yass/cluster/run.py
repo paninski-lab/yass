@@ -6,16 +6,19 @@ import parmap
 
 from yass import read_config
 from yass.reader import READER
-from yass.cluster.cluster import Cluster
+from yass.cluster.cluster2 import Cluster
 from yass.cluster.util import (make_CONFIG2, 
                                partition_input,
-                               gather_clustering_result)
+                               gather_clustering_result,
+                               load_align_waveforms,
+                               nn_denoise_wf)
+from yass.neuralnetwork import Denoise
 
 def run(fname_spike_index,
         fname_recording,
         recording_dtype,
         output_directory,
-        raw_data=False,
+        raw_data=True,
         full_run=False,
         chunk_sec=None,
         fname_residual=None,
@@ -83,7 +86,7 @@ def run(fname_spike_index,
 
     else:
         max_time = CONFIG.recordings.sampling_rate*CONFIG.rec_len
-        logger.info("clustering entire recording")
+        logger.info("clustering on full chunk")
 
     # partition spike_idnex_chunk using the second column
     partition_dir = os.path.join(output_directory, 'spt_partition')
@@ -103,6 +106,23 @@ def run(fname_spike_index,
                               CONFIG)
     else:
         reader_resid = None
+        
+    # load and align waveforms
+    logger.info("load and align waveforms on local channels")
+    fnames_input = load_align_waveforms(
+        os.path.join(output_directory, 'wfs'),
+        fnames_input,
+        reader_raw,
+        reader_resid,
+        raw_data,
+        CONFIG2)
+
+    logger.info("NN denoise")
+    # load NN denoiser
+    denoiser = Denoise(CONFIG.spike_size_small)
+    denoiser.load(CONFIG.neuralnetwork.denoise.filename)
+    # denoise it
+    nn_denoise_wf(fnames_input, denoiser)
 
     # save location for intermediate results
     tmp_save_dir = os.path.join(output_directory, 'cluster_result')
@@ -145,5 +165,8 @@ def run(fname_spike_index,
     # first gather clustering result
     fname_templates, fname_spike_train = gather_clustering_result(
         tmp_save_dir, output_directory)
-        
+
+    for fname in fnames_input:
+        os.remove(fname)
+
     return fname_templates, fname_spike_train
