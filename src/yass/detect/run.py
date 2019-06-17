@@ -134,8 +134,8 @@ def run(standardized_path, standardized_params,
     return fname_spike_index
 
 
-def run_neural_network_pytorch(standardized_path, standardized_params,
-                               output_directory, run_chunk_sec='full'):
+def run_neural_network(standardized_path, standardized_params,
+                       output_directory, run_chunk_sec='full'):
                            
     """Run neural network detection
     """

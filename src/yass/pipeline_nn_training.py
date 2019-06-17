@@ -140,7 +140,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     detector.train(CONFIG.neuralnetwork.detect.filename, DetectTD)
     
     # Train Denoiser
-    denoiser = Denoise(CONFIG.neuralnetwork.dnoise.n_filters,
+    denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
                        CONFIG.neuralnetwork.denoise.filter_sizes,
                        CONFIG.spike_size_nn)
-    deno.train(CONFIG.neuralnetwork.denoise.filename, DenoTD)
+    denoiser.train(CONFIG.neuralnetwork.denoise.filename, DenoTD)

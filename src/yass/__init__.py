@@ -10,7 +10,6 @@ import logging
 from logging import NullHandler
 
 from yass.config import Config
-from yass.util import running_on_gpu
 
 logging.getLogger(__name__).addHandler(NullHandler())
 

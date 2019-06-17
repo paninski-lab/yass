@@ -1,4 +1,5 @@
 import numpy as np
+import os 
 import torch
 from torch import nn, optim
 import torch.utils.data as Data
@@ -88,14 +89,18 @@ class Detect(nn.Module):
 
         return spike_index_torch, wf
     
-    def train(self, fname_save, DetectTD, n_train=50000, n_test=1000, EPOCH=100, BATCH_SIZE=512, LR=0.0001):
+    def train(self, fname_save, DetectTD, n_train=50000, n_test=1000, EPOCH=1000, BATCH_SIZE=512, LR=0.0001):
+
+        print('Training NN detector')
+
+        if os.path.exists(fname_save):
+            return
 
         self.temporal_filter1[0].padding = [0, 0]
             
         optimizer = torch.optim.Adam(self.parameters(), lr=LR)   # optimize all cnn parameters
         loss_func = nn.BCELoss()                       # the target label is not one-hotted
         
-        print('Making Training Data')
         x_train, y_train, y_test_clean = DetectTD.make_training_data(n_train)
         train = Data.TensorDataset(torch.FloatTensor(x_train), torch.FloatTensor(y_train))
         train_loader = Data.DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
@@ -201,14 +206,13 @@ class Detect_Single(nn.Module):
         return spike_index_torch, wf
     
     
-    def train(self, fname_save, DetectTD, n_train=50000, n_test=1000, EPOCH=100, BATCH_SIZE=512, LR=0.0001):
+    def train(self, fname_save, DetectTD, n_train=50000, n_test=1000, EPOCH=1000, BATCH_SIZE=512, LR=0.0001):
 
         self.temporal_filter1[0].padding = (0,)
 
         optimizer = torch.optim.Adam(self.parameters(), lr=LR)   # optimize all cnn parameters
         loss_func = nn.BCELoss()                       # the target label is not one-hotted
         
-        print('Making Training Data')
         x_train, y_train, y_test_clean = DetectTD.make_training_data(n_train)
         train = Data.TensorDataset(torch.FloatTensor(x_train), torch.FloatTensor(y_train))
         train_loader = Data.DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)

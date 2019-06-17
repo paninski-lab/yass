@@ -50,7 +50,7 @@ def crop_and_align_templates(fname_templates, save_dir, CONFIG):
     
     # crop out the edges since they have bad artifacts
     templates_aligned = templates_aligned[:, nshifts//2:-nshifts//2]
-    
+
     ########## Find High Energy Center of Templates #################
 
     templates_max_channel_aligned = np.zeros((n_units, templates_aligned.shape[1]))

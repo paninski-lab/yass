@@ -1,4 +1,5 @@
 import numpy as np
+import os
 import torch
 from torch import nn, optim
 import torch.utils.data as Data
@@ -49,10 +50,14 @@ class Denoise(nn.Module):
 
     def train(self, fname_save, DenoTD, n_train=50000, n_test=500, EPOCH=500, BATCH_SIZE=512, LR=0.0001):
 
+        print('Training NN denoiser')
+
+        if os.path.exists(fname_save):
+            return
+
         optimizer = torch.optim.Adam(self.parameters(), lr=LR)   # optimize all cnn parameters
         loss_func = nn.MSELoss()                       # the target label is not one-hotted
 
-        print('Making Training Data')
         wf_col_train, wf_clean_train = DenoTD.make_training_data(n_train)
         train = Data.TensorDataset(torch.FloatTensor(wf_col_train), torch.FloatTensor(wf_clean_train))
         train_loader = Data.DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
