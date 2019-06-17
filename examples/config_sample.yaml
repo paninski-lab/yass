@@ -34,8 +34,9 @@ recordings:
   # channels spatial radius to consider them neighbors, see
   # yass.geometry.find_channel_neighbors for details
   spatial_radius: 70
-  # temporal length of waveforms in ms
-  spike_size_ms: 3
+  # temporal length of waveforms in ms. It must capture
+  # the full shape of waveforms but longer means slower
+  spike_size_ms: 4
 
 preprocess:
   # apply butterworth filter in the preprocessing step
@@ -51,30 +52,36 @@ preprocess:
     # High pass factor (proportion of sampling rate)
     high_factor: 0.45
 
+# Once neural net is trained using the config below,
+# the same config must be used in actual spike sorting
+neuralnetwork:
+  # temporal size of spikes to be used for training neural net
+  spike_size_ms: 1.5
+  detect:
+    # model name, it can be an absolute path to a model 
+    # (e.g. /path/to/my/model.ckpt) or a name of one of models included in yass 
+    # (e.g. detect.pt). Check /src/yass/assets/nn_models for the list of available
+    # models.
+    filename: detect.pt  
+    n_filters: [16, 8, 8] 
+  denoise:
+    # model name, same rule as detect filename
+    filename: denoise.pt
+    n_filters: [16, 8, 4]
+    filter_sizes : [5, 11, 21]
+  training:
+    # input spike train file name. It must be a numpy file of an arroay of n x 2.
+    # n is the number of spikes, the first column is the spike times 
+    # (center of spikes), the second column is the unit id.
+    input_spike_train_filname: spike_train.npy
+
 detect:
-  n_sec_chunk: 1
   # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
   method: nn
-  # Configuration parameters when when detect.method = 'nn'
-  neural_network_detector:
-    # model name, can be any of the models included in yass (detectnet1.ckpt),
-    # a relative folder to data.root_fodler (e.g.
-    # $ROOT_FOLDER/models/mymodel.ckpt) or an absolute path to a model
-    # (e.g. /path/to/my/model.ckpt). In the same folder as your model, there
-    # must be a yaml file with the number and size of the filters, the file
-    # should be named exactly as your model but with yaml extension
-    # see yass/src/assets/models/ for an example
-    filename: detect_nn1.ckpt
-    #filename: /ssd/data/peter/yass_nn/edu_nn_oct3/2018-10-03T02-40-52.ckpt
-    # Threshold for spike event detection
-    threshold_spike: 0.1
-  neural_network_autoencoder:
-    # same rules apply as in neural_network_detector.filename but no
-    # yaml file is needed
-    filename: ae_nn1.ckpt
-  # Configuration parameters when when detect.method = 'threshold'
-  threshold_detector:
-    std_factor: 4
+  # threshold 
+  # if it is nn detector, must be between [0, 1]
+  # if amplitude threshold detector, recommended between [3, 6]
+  threshold: 0.5
 
 # All values are optional
 cluster:
@@ -91,5 +98,7 @@ cluster:
     V: 2
 
 deconvolution:
-    threshold: 40
-    deconv_gpu: False
+    # threshold on objective function on greedy deconv
+    threshold: 20
+    # use gpu version or not
+    deconv_gpu: True
