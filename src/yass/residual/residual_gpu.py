@@ -272,8 +272,6 @@ class RESIDUAL_GPU(object):
             ctr+=1
         f.close()
 
-        np.save("/home/cat/times_local.npy",np.hstack(spike_list))
-        np.save("/home/cat/ids_local.npy",np.hstack(id_list))
         print ("Total residual time: ", time.time()-t0)
             
    #quit()

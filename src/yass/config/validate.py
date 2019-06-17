@@ -3,28 +3,38 @@ Custom rules to validate specific files
 """
 import pkg_resources
 import yaml
+import os
 from cerberus import Validator
 from pkg_resources import resource_filename
-
 
 def expand_asset_model(mapping, section, subsection, field):
     """Expand filenames
     """
     value = mapping[section][subsection][field]
 
-    # if root_folder, expand and return
-    if '$ROOT_FOLDER' in value:
-        root = mapping['data']['root_folder']
-        new_value = value.replace('$ROOT_FOLDER', root)
-
     # if absolute path, just return the value
-    elif value.startswith('/'):
+    if value.startswith('/'):
         new_value = value
 
     # else, look into assets
     else:
-        path = 'assets/models/{}'.format(value)
+        path = 'assets/nn_models/{}'.format(value)
         new_value = pkg_resources.resource_filename('yass', path)
+
+    mapping[section][subsection][field] = new_value
+
+def expand_to_root(mapping, section, subsection, field):
+    """Expand filenames
+    """
+    value = mapping[section][subsection][field]
+
+    # if root_folder, expand and return
+    if value.startswith('/'):
+        new_value = value
+
+    else:
+        root = mapping['data']['root_folder']
+        new_value = os.path.join(root, value)
 
     mapping[section][subsection][field] = new_value
 
@@ -48,9 +58,11 @@ def validate(mapping, silent=True):
     document = validator.document
 
     # expand paths to filenames
-    expand_asset_model(document, 'detect', 'neural_network_detector',
+    expand_asset_model(document, 'neuralnetwork', 'detect',
                        'filename')
-    expand_asset_model(document, 'detect', 'neural_network_autoencoder',
+    expand_asset_model(document, 'neuralnetwork', 'denoise',
                        'filename')
+    expand_to_root(document, 'neuralnetwork', 'training',
+                   'input_spike_train_filname')
 
     return document

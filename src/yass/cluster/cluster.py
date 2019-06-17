@@ -77,9 +77,8 @@ class Cluster(object):
             indices_train_final_2 = []
             for indices_train_k in indices_train_final:
                 template = self.get_templates_on_all_channels(indices_train_k)
-                if self.check_max_chan(template):
-                    templates_final_2.append(template)
-                    indices_train_final_2.append(indices_train_k)
+                templates_final_2.append(template)
+                indices_train_final_2.append(indices_train_k)
 
             templates_final = templates_final_2
             indices_train_final = indices_train_final_2
@@ -335,12 +334,11 @@ class Cluster(object):
         self.indices_train = []
         self.templates = []
         self.indices_in = indices_in
-
+        self.neighbor_chans = np.where(self.neighbors[self.channel])[0]
         if local:
             # initialize
             #self.shifts = np.zeros(len(self.spike_times_original))
             #self.find_main_channel()
-            self.neighbor_chans = np.where(self.neighbors[self.channel])[0]
             self.loaded_channels = self.neighbor_chans
         else:
             # load waveforms

@@ -192,7 +192,6 @@ class Config:
                                                 self.geom, steps=1)
         self._set_param('channel_index', channel_index)
 
-
         spike_size_nn = int(
                 np.round(self.neuralnetwork.spike_size_ms*
                          self.recordings.sampling_rate/1000))
