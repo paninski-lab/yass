@@ -8,7 +8,10 @@ def remove_off_centered_units(templates, threshold=5, units_in=None):
         units_in = np.arange(n_units)
 
     # compute min points
-    min_points = templates[units_in].min(2).argmin(1)
+    mc = templates[units_in].ptp(1).argmax(1)
+    min_points = np.zeros(len(units_in))
+    for j in range(len(units_in)):
+        min_points[j] = templates[units_in[j]][:, mc[j]].argmin()
     idx_keep = np.abs(min_points - np.mean(min_points)) <= threshold
 
     # units_keep 

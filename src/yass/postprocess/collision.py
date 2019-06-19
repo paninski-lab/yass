@@ -105,10 +105,10 @@ def deconv_on_template(unit, fname_out, units_in, fname_templates,
     while it < max_it and not collision:
 
         # run one iteration of deconv
-        residual, best_fit_unit = run_deconv(data, templates, up_factor, 'l2')
+        residual, best_fit_unit, obj = run_deconv(data, templates, up_factor, 'l2')
 
         # if nothing fits more, quit
-        if best_fit_unit is None:
+        if obj < 0:
             it = max_it
 
         # if residual is small enough, stop

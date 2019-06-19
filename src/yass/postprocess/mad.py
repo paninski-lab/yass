@@ -71,6 +71,9 @@ def find_high_mad_unit(
     up_factor=2,
     min_ptp=2):
 
+    if os.path.exists(fname_out):
+        return
+
     # load spike times
     spt = np.load(fname_spike_time)
 

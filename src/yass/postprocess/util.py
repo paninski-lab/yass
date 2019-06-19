@@ -33,14 +33,15 @@ def run_deconv(data, templates, up_factor, method='l1'):
     #start = dt.datetime.now().timestamp()
 
     # find overlapping units with data and run in on those units only
-    vis_th = 2
-    vis_chans = data.ptp(0) > vis_th
+    data_ptp = data.ptp(0)
+    vis_th = np.min((2, np.max(data_ptp)))
+    vis_chans =  data_ptp > vis_th
     overlap_units = np.where(
         np.any((templates.ptp(1))[:, vis_chans] > vis_th, axis=1))[0]
 
     # if no overlap units, just skip
     if len(overlap_units) == 0:
-        return data, None
+        return data, None, -10000
     else:
         templates = templates[overlap_units]
 
@@ -61,8 +62,9 @@ def run_deconv(data, templates, up_factor, method='l1'):
     obj = 2*obj - norm_temps[:, np.newaxis]
     #print ("  obj fun time: ",  dt.datetime.now().timestamp() - start2)
 
-    if np.max(obj) > 0:
-        best_fit_unit = np.max(obj, axis=1).argmax()
+    max_obj = np.max(obj, axis=1)
+    best_fit_unit = max_obj.argmax()    
+    if np.max(max_obj) > 0:
         best_fit_time = obj[best_fit_unit].argmax()
         shift = best_fit_time - n_times//2
         shifted_temp = np.roll(templates[best_fit_unit], shift, axis=0)
@@ -87,14 +89,12 @@ def run_deconv(data, templates, up_factor, method='l1'):
             idx_best_fit = np.sum(np.square(data[:,None] - up_shifted_temps), (0,2)).argmin()
         residual = data - up_shifted_temps[:,idx_best_fit]
 
-        # best fit unit relative to all units
-        best_fit_unit = overlap_units[best_fit_unit]
     else:
         residual = data
-        best_fit_unit = None
 
     #print ("  total time: ",  dt.datetime.now().timestamp() - start)
-    return residual, best_fit_unit
+            # best fit unit relative to all units
+    return residual, overlap_units[best_fit_unit], np.max(max_obj)
 
 def partition_spike_time(save_dir,
                          fname_spike_index,
