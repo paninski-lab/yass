@@ -341,11 +341,14 @@ def run_template_computation(
         os.makedirs(tmp_folder)
 
     # partition spike train per unit for multiprocessing
-    fname_spike_times, n_units = partition_spike_time(
-        tmp_folder, fname_spike_train)
+    #fname_spike_times, n_units = partition_spike_time(
+    #    tmp_folder, fname_spike_train)
+
+    n_units = np.max(np.load(fname_spike_train)[:, 1]) + 1
 
     if unit_ids is None:
         unit_ids = np.arange(n_units)
+
     # gather input arguments
     fnames_out = []
     for unit in unit_ids:
@@ -363,14 +366,14 @@ def run_template_computation(
     if multi_processing:
         parmap.starmap(run_template_computation_parallel,
                    list(zip(unit_ids, max_channels, fnames_out)),
-                   fname_spike_times,
-                   reader,   
+                   fname_spike_train,
+                   reader,
                    processes=n_processors,
                    pm_pbar=True)
     else:
         for ctr in unit_ids:
             run_template_computation_parallel(
-                fnames_spike_times[ctr],
+                fname_spike_train,
                 max_channels[ctr],
                 fnames_out[ctr],
                 reader)
@@ -388,11 +391,14 @@ def run_template_computation(
 
 
 def run_template_computation_parallel(
-    unit_id, max_channel, fname_out, fname_spike_times, reader):
+    unit_id, max_channel, fname_out, fname_spike_train, reader):
+
+    if os.path.exists(fname_out):
+        return
 
     # load spike times
-    spike_times = np.array(
-        np.load(fname_spike_times)[unit_id])
+    spike_train = np.load(fname_spike_train)
+    spike_times = spike_train[spike_train[:, 1] == unit_id, 0]
 
     if len(spike_times) > 0:
         template = compute_a_template(spike_times,
