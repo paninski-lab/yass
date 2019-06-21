@@ -22,6 +22,15 @@ def match_units(selected_unit, fname_templates, fname_spike_train,
     templates = np.load(fname_templates)
     spike_train = np.load(fname_spike_train).astype('int')
 
+    n_times_gt = templates_ground_truth.shape[0]
+    n_times = templates.shape[0]
+    
+    if n_times > n_times_gt:
+        diff_times = (n_times - n_times_gt)//2
+        templates = templates[diff_times:-diff_times]
+    elif n_times_gt > n_times:
+        diff_times = (n_times_gt - n_times)//2
+        templates_ground_truth = templates_ground_truth[diff_times:-diff_times]
 
     #print('matching gt unit {}'.format(selected_unit))
     ''' **** MATCH USING TEMPLATES ****
@@ -39,7 +48,7 @@ def match_units(selected_unit, fname_templates, fname_spike_train,
         shift = 0
         for k in range(-10,10,1):
             data_test = np.roll(data1,k,axis=1).ravel()
-            result = 1 - scipy.spatial.distance.cosine(data_test,data2)
+            result = 1 - scipy.spatial.distance.cosine(data_test, data2)
             if result>best_result:
                 best_result = result
                 shift = k

@@ -38,8 +38,6 @@ from copy import copy
 from functools import wraps, reduce
 
 import numpy as np
-import tensorflow
-from tensorflow.python.client import device_lib
 from dateutil.relativedelta import relativedelta
 
 import yaml
@@ -583,23 +581,6 @@ def check_for_files(filenames, mode, relative_to=None, auto_save=False):
         return wrapper
 
     return _check_for_files
-
-
-def running_on_gpu():
-    """Determines whether tensorflow is running on GPU or not
-    """
-    try:
-        # list local devices
-        devices = device_lib.list_local_devices()
-
-        # get only gpus
-        gpus = [device for device in devices if 'GPU' in device.name]
-    except TypeError:
-        logger.info('Failed to get Tensorflow devices, this is ok when '
-                    'building documentation since we mock the package')
-        return False
-
-    return True if gpus else False
 
 
 def dict2yaml(output_path, **kwargs):

@@ -1,6 +1,0 @@
-# num. of filters in each layer
-filters_size: [16, 8]
-# temporal filter size
-waveform_length: 31
-# number of neighboring channels
-n_neighbors: 7

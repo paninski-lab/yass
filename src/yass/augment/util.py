@@ -2,332 +2,276 @@
 """
 import random
 import numpy as np
+import os
+import scipy
 import logging
 
-import yass.array as yarr
-from yass import util
+from yass.template import align_get_shifts_with_ref, shift_chans
+from yass.geometry import order_channels_by_distance
 
 
-logger = logging.getLogger(__name__)
-
-
-# TODO: remove
-def _make_noisy(x, the_noise):
-    """Make a noisy version of x
-    """
-    noise_sample = the_noise[np.random.choice(the_noise.shape[0],
-                                              x.shape[0],
-                                              replace=False)]
-    return x + noise_sample
-
-
-def sample_from_zero_axis(x):
-    """Sample from a certain axis
-    """
-    idx = np.random.choice(x.shape[0], 1, replace=True)[0]
-    return x[idx], idx
-
-
-def amplitudes(x):
-    """Compute amplitudes
-    """
-    return np.max(np.abs(x), axis=(1, 2))
-
-
-def draw_with_group_probabilities(elements, probabilities):
-    """
-    Group elements in a 1D array and draw them depending on the probabilities
-    passed
-    """
-    n_groups = len(probabilities)
-    groups = np.array_split(elements, n_groups)
-
-    def draw_one():
-        group_idx = (np.random
-                       .choice(np
-                               .arange(n_groups), size=1, p=probabilities)[0])
-
-        element = np.random.choice(groups[group_idx], size=1)[0]
-        return element
-
-    elements_new = np.empty(elements.shape)
-
-    for i in range(len(elements)):
-        elements_new[i] = draw_one()
-
-    return elements_new
-
-
-def make_from_templates(templates, min_amplitude, max_amplitude,
-                        n_per_amplitude_step, probabilities=None,
-                        return_metadata=False,
-                        n_repeat=1):
-    """Make spikes with varying amplitudes from templates
+def crop_and_align_templates(fname_templates, save_dir, CONFIG):
+    """Crop (spatially) and align (temporally) templates
 
     Parameters
     ----------
-    templates: numpy.ndarray, (n_templates, waveform_length, n_channels)
-        Templates
-
-    min_amplitude: float
-        Minimum value allowed for the maximum absolute amplitude of the
-        isolated spike on its main channel
-
-    max_amplitude: float
-        Maximum value allowed for the maximum absolute amplitude of the
-        isolated spike on its main channel
-
-    n_per_amplitude_step: int
-        How many scaled versions are created between min_amplitude and
-        max_amplitude
-
-    probabilities: tuple
-        Tuple of probabilities for the amplitude range. When the linear
-        amplitude range is generated, equal number of spikes are generated
-        along the range, by passing probabolities, you can choose how this
-        distribution looks like
-
-    n_repeat: int
-        How many repeatitions create from the same spike
 
     Returns
     -------
-    numpy.ndarray (n_templates * n_per_amplitude_step,
-    waveform_length, n_channels)
-        Clean spikes
     """
     logger = logging.getLogger(__name__)
-
-    logger.debug('templates shape: %s, min amplitude: %s, '
-                 'max_amplitude: %s', templates.shape, min_amplitude,
-                 max_amplitude)
-
-    n_templates, waveform_length, n_neighbors = templates.shape
-
-    n_per_template = n_per_amplitude_step * n_repeat
-
-    x = np.zeros((n_per_template * n_templates,
-                  waveform_length, n_neighbors))
-
-    d = max_amplitude - min_amplitude
-
-    amps_range = (min_amplitude + np.arange(n_per_amplitude_step)
-                  * d / (n_per_amplitude_step - 1))
-
-    if probabilities is not None:
-        amps_range = draw_with_group_probabilities(amps_range, probabilities)
-
-    amps_range = amps_range[:, np.newaxis, np.newaxis]
-
-    # go over every template
-    for k in range(n_templates):
-
-        # get current template and scale it
-        current = templates[k]
-        amp = np.max(np.abs(current))
-        scaled = (current/amp)[np.newaxis, :, :]
-
-        # create n clean spikes by scaling the template along the range
-        spikes_in_range = scaled * amps_range
-
-        # repeat n times
-        spikes_in_range_repeated = np.repeat(spikes_in_range,
-                                             repeats=n_repeat,
-                                             axis=0)
-
-        x[k * n_per_template:
-          (k + 1) * n_per_template] = spikes_in_range_repeated
-
-    if return_metadata:
-        ids = [[k]*n_per_amplitude_step for k in range(n_templates)]
-        ids = np.array([item for sublist in ids for item in sublist])
-        metadata = dict(ids=ids)
-        return yarr.ArrayWithMetadata(x, metadata)
-    else:
-        return x
-
-
-def make_collided(x1, x2, n_per_spike, min_shift='auto',
-                  amp_tolerance=0.2, max_shift='auto', return_metadata=False):
-    """Make collided spikes
-
-    Parameters
-    ----------
-    x1
-    x2
-    n_per_spike
-    amp_tolerance: float, optional
-        Maximum relative difference in amplitude between the collided spikes,
-        defaults to 0.2
-    max_shift: int or string, optional
-        Maximum amount of shift for the collided spike. If 'auto', it sets
-        to half the waveform length in x
-    min_shift: float, int
-        Minimum shift
-    return_metadata: bool, optional
-        Return data used to generate the collisions
-    """
-    logger = logging.getLogger(__name__)
-
-    n_clean, wf_length, n_neighbors = x1.shape
-
-    if max_shift == 'auto':
-        max_shift = int(0.5 * wf_length)
-
-    if min_shift == 'auto':
-        min_shift = int(0.1 * wf_length)
-
-    logger.debug('Making collided spikes with n_per_spike: %s max shift: '
-                 '%s, amp_tolerance: %s, clean spikes with'
-                 ' shape: %s', n_per_spike, max_shift,
-                 amp_tolerance, x1.shape)
-
-    x_first = np.zeros((n_clean*int(n_per_spike),
-                        wf_length,
-                        n_neighbors))
-
-    n_collided, _, _ = x_first.shape
-
-    amps1 = amplitudes(x1)
-    amps2 = amplitudes(x2)
-
-    spikes_first = []
-    spikes_second = []
-    shifts = []
-
-    for j in range(n_collided):
-
-        # random shifting
-        shift = random.choice([-1, 1]) * random.randint(min_shift, max_shift)
-
-        # sample a clean spike - first spike
-        x_first[j], i = sample_from_zero_axis(x1)
-
-        # get amplitude for sampled x and compute bounds
-        amp = amps1[i]
-        lower = amp * (1.0 - amp_tolerance)
-        upper = amp * (1.0 + amp_tolerance)
-
-        # generate 100 possible scaling values and select one of them
-        scale_factor = np.random.uniform(lower, upper)
-
-        # draw another clean spike and scale it to be within bounds
-        scale_factor = np.linspace(lower, upper, num=50)[random.randint(0, 49)]
-        x_second, i = sample_from_zero_axis(x2)
-        x_second = scale_factor * x_second / amps2[i]
-
-        x_second = shift_waveform(x_second, shift)
-
-        # if on debug mode, add the spikes and shift to the lists
-        if return_metadata:
-            spikes_first.append(np.copy(x_first[j]))
-            spikes_second.append(x_second)
-            shifts.append(shift)
-
-        # add the two spikes
-        x_first[j] += x_second
-
-    if return_metadata:
-        spikes_first = np.stack(spikes_first)
-        spikes_second = np.stack(spikes_second)
-
-        params = dict(n_per_spike=n_per_spike,
-                      min_shift=min_shift,
-                      max_shift=max_shift,
-                      amp_tolerance=amp_tolerance,
-                      yass_version=util.get_version())
-
-        metadata = dict(first=spikes_first,
-                        second=spikes_second,
-                        shift=shifts,
-                        params=params)
-
-        return yarr.ArrayWithMetadata(x_first, metadata)
-    else:
-        return x_first
-
-
-def shift_waveform(x, shift):
-
-    wf_length, _, = x.shape
-    zeros = np.zeros(x.shape)
-
-    if shift > 0:
-        zeros[:(wf_length-shift)] += x[shift:]
-        return zeros
-    elif shift < 0:
-        zeros[(-shift):] += x[:(wf_length+shift)]
-        return zeros
-    else:
-        return x
-
-
-def make_spatially_misaligned(x, n_per_spike,
-                              force_first_channel_shuffle=True):
-    """Make spatially misaligned spikes (shuffles channels)
-    """
-
-    n_spikes, waveform_length, n_neigh = x.shape
-    n_out = int(n_spikes * n_per_spike)
-
-    x_spatially = np.zeros((n_out, waveform_length, n_neigh))
-
-    def shuffle():
-        if force_first_channel_shuffle:
-            success = False
-
-            while not success:
-                shuffled = np.random.choice(n_neigh, n_neigh, replace=False)
-                success = shuffled[0] != 0
-        else:
-            shuffled = np.random.choice(n_neigh, n_neigh, replace=False)
-
-        return shuffled
-
-    for j in range(n_out):
-        shuffled = shuffle()
-
-        to_shuffle = x[np.random.choice(n_spikes, 1, replace=True)]
-        x_spatially[j] = to_shuffle[:, :, shuffled]
-
-    return x_spatially
-
-
-def make_temporally_misaligned(x, n_per_spike=1, min_shift='auto',
-                               max_shift='auto'):
-    """Make temporally shifted spikes from clean spikes
-    """
-    n_spikes, waveform_length, n_neigh = x.shape
-    n_out = int(n_spikes * n_per_spike)
-
-    if max_shift == 'auto':
-        max_shift = int(0.5 * waveform_length)
-
-    if min_shift == 'auto':
-        min_shift = int(0.1 * waveform_length)
-
-    x_temporally = np.zeros((n_out, waveform_length, n_neigh))
-
-    logger.debug('Making spikes with max_shift: %i, output shape: %s',
-                 max_shift, x_temporally.shape)
-
-    for j in range(n_out):
-
-        shift = random.choice([-1, 1]) * random.randint(min_shift, max_shift)
-
-        idx = np.random.choice(x.shape[0], 1, replace=True)[0]
-        spike = x[idx]
-
-        if shift > 0:
-            x_temporally[j, :(x_temporally.shape[1]-shift)] += spike[shift:]
-
-        elif shift < 0:
-            x_temporally[
-                j, (-shift):] += spike[:(x_temporally.shape[1]+shift)]
-        else:
-            x_temporally[j] += spike
-
-    return x_temporally
+    
+    if not os.path.exists(save_dir):
+        os.mkdir(save_dir)
+
+    # load templates
+    templates = np.load(fname_templates)
+    
+    n_units, n_times, n_channels = templates.shape
+    mcs = templates.ptp(1).argmax(1)
+    spike_size = (CONFIG.spike_size_nn - 1)*2 + 1
+
+    ########## TEMPORALLY ALIGN TEMPLATES #################
+    
+    # template on max channel only
+    templates_max_channel = np.zeros((n_units, n_times))
+    for k in range(n_units):
+        templates_max_channel[k] = templates[k, :, mcs[k]]
+
+    # align them
+    ref = np.mean(templates_max_channel, axis=0)
+    upsample_factor = 8
+    nshifts = spike_size//2
+
+    shifts = align_get_shifts_with_ref(
+        templates_max_channel, ref, upsample_factor, nshifts)
+
+    templates_aligned = shift_chans(templates, shifts)
+    
+    # crop out the edges since they have bad artifacts
+    templates_aligned = templates_aligned[:, nshifts//2:-nshifts//2]
+
+    ########## Find High Energy Center of Templates #################
+
+    templates_max_channel_aligned = np.zeros((n_units, templates_aligned.shape[1]))
+    for k in range(n_units):
+        templates_max_channel_aligned[k] = templates_aligned[k, :, mcs[k]]
+
+    # determin temporal center of templates and crop around it
+    total_energy = np.sum(np.square(templates_max_channel_aligned), axis=0)
+    center = np.argmax(np.convolve(total_energy, np.ones(spike_size), 'same'))
+    templates_aligned = templates_aligned[:, (center-spike_size//2):(center+spike_size//2+1)]
+    
+    ########## spatially crop (only keep neighbors) #################
+
+    neighbors = CONFIG.neigh_channels
+    n_neigh = np.max(np.sum(CONFIG.neigh_channels, axis=1))
+    templates_cropped = np.zeros((n_units, spike_size, n_neigh))
+
+    for k in range(n_units):
+
+        # get neighbors for the main channel in the kth template
+        ch_idx = np.where(neighbors[mcs[k]])[0]
+
+        # order channels
+        ch_idx, _ = order_channels_by_distance(mcs[k], ch_idx, CONFIG.geom)
+
+        # new kth template is the old kth template by keeping only
+        # ordered neighboring channels
+        templates_cropped[k, :, :ch_idx.shape[0]] = templates_aligned[k][:, ch_idx]
+
+    fname_templates_cropped = os.path.join(save_dir, 'templates_cropped.npy')
+    np.save(fname_templates_cropped, templates_cropped)
+
+    return fname_templates_cropped
+
+
+class Detection_Training_Data(object):
+    
+    def __init__(self,
+                 fname_templates_cropped,
+                 fname_spatial_sig,
+                 fname_temporal_sig):
+
+        self.spatial_sig = np.load(fname_spatial_sig)
+        self.temporal_sig = np.load(fname_temporal_sig)
+        self.templates = np.load(fname_templates_cropped)
+        self.remove_bad_templates()
+        self.standardize_templates()
+        
+        self.spike_size = self.temporal_sig.shape[0]
+
+    def remove_bad_templates(self):
+        
+        ptp = self.templates.ptp(1).max(1)
+        self.templates = self.templates[ptp > 5]
+    
+    def standardize_templates(self):
+
+        # standardize templates
+        min_val = np.abs(np.min(self.templates[: ,:, 0], 1))
+        self.templates = self.templates/min_val[:, None, None]
+        
+    def make_training_data(self, n_data):
+        
+        n_templates, n_times, n_channels = self.templates.shape
+
+        center = n_times//2
+        t_idx_in = slice(center - self.spike_size//2,
+                         center + (self.spike_size//2) + 1)
+
+        # sample templates
+        idx1 = np.random.choice(n_templates, n_data)
+        idx2 = np.random.choice(n_templates, n_data)
+        wf1 = self.templates[idx1]
+        wf2 = self.templates[idx2]
+
+        # sample scale
+        s1 = np.exp(np.random.randn(n_data)*0.8 + 2)
+        s2 = np.exp(np.random.randn(n_data)*0.8 + 2)
+
+        # minimum scale
+        min_scale = 3
+        s1[s1 < min_scale] = min_scale
+        s2[s2 < min_scale] = min_scale
+
+        # turn off some
+        c1 = np.random.binomial(1, 0.5, n_data)
+        c2 = np.random.binomial(1, 0.7, n_data)
+
+        # multiply them
+        wf1 = wf1*s1[:, None, None]*c1[:, None, None]
+        wf2 = wf2*s2[:, None, None]*c2[:, None, None]
+
+        # choose shift amount
+        shift = np.random.randint(low=3, high=self.spike_size-1, size=(n_data,))    
+        shift *= np.random.choice([-1, 1], size=n_data, p=[0.2, 0.8])
+
+        # make colliding wf    
+        wf_col = np.zeros(wf2.shape)
+        for j in range(n_data):
+            temp = np.roll(wf2[j], shift[j], axis=0)
+            chan_shuffle_idx = np.random.choice(
+                n_channels, n_channels, replace=False)
+            wf_col[j] = temp[:, chan_shuffle_idx]
+
+        noise = make_noise(n_data, self.spatial_sig, self.temporal_sig)
+
+        wf = wf1[:, t_idx_in] + wf_col[:, t_idx_in] + noise
+        label = c1
+
+        return wf, label, wf1[:, t_idx_in]
+
+class Denoising_Training_Data(object):
+    
+    def __init__(self,
+                 fname_templates_cropped,
+                 fname_spatial_sig,
+                 fname_temporal_sig):
+
+        self.spatial_sig = np.load(fname_spatial_sig)
+        self.temporal_sig = np.load(fname_temporal_sig)
+        self.templates = np.load(fname_templates_cropped)
+        self.templates = self.templates.transpose(0,2,1).reshape(
+            -1, self.templates.shape[1])
+        self.remove_bad_templates()
+        self.standardize_templates()
+        self.jitter_templates()
+        
+        self.spike_size = self.temporal_sig.shape[0]
+
+    def remove_bad_templates(self):
+        
+        ptp = self.templates.ptp(1)
+        self.templates = self.templates[ptp > 5]
+    
+    def standardize_templates(self):
+    
+        # standardize templates
+        min_val = np.abs(np.min(self.templates, 1))
+        self.templates = self.templates/min_val[:, None]
+
+        ref = np.mean(self.templates, 0)
+        shifts = align_get_shifts_with_ref(
+            self.templates, ref)
+        self.templates = shift_chans(self.templates, shifts)
+        
+    def jitter_templates(self, up_factor=8):
+        
+        n_templates, n_times = self.templates.shape
+
+        # upsample best fit template
+        up_temp = scipy.signal.resample(
+            x=self.templates,
+            num=n_times*up_factor,
+            axis=1)
+        up_temp = up_temp.T
+
+        idx = (np.arange(0, n_times)[:,None]*up_factor + np.arange(up_factor))
+        up_shifted_temps = up_temp[idx].transpose(2,0,1)
+        up_shifted_temps = np.concatenate(
+            (up_shifted_temps,
+             np.roll(up_shifted_temps, shift=1, axis=1)),
+            axis=2)
+        self.templates = up_shifted_temps.transpose(0,2,1).reshape(-1, n_times)
+
+        ref = np.mean(self.templates, 0)
+        shifts = align_get_shifts_with_ref(
+            self.templates, ref, upsample_factor=1)
+        self.templates = shift_chans(self.templates, shifts)
+
+    def make_training_data(self, n):
+
+        n_templates, n_times = self.templates.shape
+
+        center = n_times//2
+        t_idx_in = slice(center - self.spike_size//2,
+                         center + (self.spike_size//2) + 1)
+    
+        # sample templates
+        idx1 = np.random.choice(n_templates, n)
+        idx2 = np.random.choice(n_templates, n)
+        wf1 = self.templates[idx1]
+        wf2 = self.templates[idx2]
+
+        # sample scale
+        s1 = np.exp(np.random.randn(n)*0.8 + 2)
+        s2 = np.exp(np.random.randn(n)*0.8 + 2)
+
+        # turn off some
+        c1 = np.random.binomial(1, 1-0.05, n)
+        c2 = np.random.binomial(1, 1-0.05, n)
+
+        # multiply them
+        wf1 = wf1*s1[:, None]*c1[:, None]
+        wf2 = wf2*s2[:, None]*c2[:, None]
+
+        # choose shift amount
+        shift = np.random.randint(low=0, high=3, size=(n,))
+
+        # choose shift amount
+        shift2 = np.random.randint(low=5, high=self.spike_size, size=(n,))
+
+        shift *= np.random.choice([-1, 1], size=n)
+        shift2 *= np.random.choice([-1, 1], size=n, p=[0.2, 0.8])
+
+        # make colliding wf    
+        wf_clean = np.zeros(wf1.shape)
+        for j in range(n):
+            temp = np.roll(wf1[j], shift[j])
+            wf_clean[j] = temp
+
+        # make colliding wf    
+        wf_col = np.zeros(wf2.shape)
+        for j in range(n):
+            temp = np.roll(wf2[j], shift2[j])
+            wf_col[j] = temp
+
+        noise_wf = make_noise(n, self.spatial_sig, self.temporal_sig)[:, :, 0]
+
+        wf_clean = wf_clean[:, t_idx_in]
+        return (wf_clean + wf_col[:, t_idx_in] + noise_wf,
+                wf_clean)
 
 
 def make_noise(n, spatial_SIG, temporal_SIG):
@@ -357,49 +301,3 @@ def make_noise(n, spatial_SIG, temporal_SIG):
                            (n, waveform_length, n_neigh))
 
     return the_noise
-
-
-def add_noise(x, spatial_SIG, temporal_SIG, reject_cancelling_noise=False,
-              ):
-    """Returns a noisy version of x
-
-    Parameters
-    ----------
-    reject_cancelling: bool
-        Reject examples where the noise is canceling the signal
-        (it uses the following heuristic: reject noisy samples where
-        the amplitude is less than their original version
-    """
-    # in case x is empty
-    if not len(x):
-        return np.zeros(x.shape), x
-
-    if reject_cancelling_noise:
-        amps = amplitudes(x)
-        noise = make_noise(x.shape[0], spatial_SIG, temporal_SIG)
-        x_noise = x + noise
-        amps_new = amplitudes(x_noise)
-        good_idx = amps_new >= amps
-        return x_noise[good_idx], x[good_idx]
-    else:
-        noise = make_noise(x.shape[0], spatial_SIG, temporal_SIG)
-        return x + noise, x
-
-
-class ArrayWithMetadata:
-    """Wrapper to store metadata in numpy.ndarray, see the metadata attribute
-    """
-
-    def __init__(self, array, metadata):
-        self.array = array
-        self._metadata = metadata
-
-    @property
-    def metadata(self):
-        return self._metadata
-
-    def __getattr__(self, name):
-        return getattr(self.array, name)
-
-    def __getitem__(self, key):
-        return self.array[key]

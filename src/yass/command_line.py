@@ -14,11 +14,10 @@ import shutil
 
 import click
 import numpy as np
-import tensorflow as tf
-
 
 import yass
 from yass import pipeline
+from yass import pipeline_nn_training
 from yass import geometry
 from yass.export import generate
 from yass.util import load_yaml, get_version
@@ -52,7 +51,7 @@ def cli():
               help='Sets numpy random seed to zero before running',
               is_flag=True, default=False)
 @click.option('-g', '--global_gpu_memory',
-              help='Limit the maximum portion of gpu memory that a tensorflow '
+              help='Limit the maximum portion of gpu memory that a pytorch '
               'session can allocate, no limit by default',
               default=1.0, type=float)
 @click.option('-rf', '--calculate_rf',
@@ -66,15 +65,31 @@ def sort(config, logger_level, clean, output_dir, complete, zero_seed,
     """
     Sort recordings using a configuration file located in CONFIG
     """
-    if global_gpu_memory != 1.0:
-        tf_config = tf.ConfigProto()
-        (tf_config.
-         gpu_options.per_process_gpu_memory_fraction) = global_gpu_memory
-        yass.set_tensorflow_config(config=tf_config)
 
     return pipeline.run(config, logger_level=logger_level, clean=clean,
                         output_dir=output_dir, complete=complete,
                         calculate_rf=calculate_rf, visualize=visualize)#,
+                        #set_zero_seed=zero_seed)
+
+@cli.command()
+@click.argument('config', type=click.Path(exists=True, dir_okay=False,
+                                          resolve_path=True))
+@click.option('-l', '--logger_level',
+              help='Python logger level, defaults to INFO',
+              default='INFO')
+@click.option('-c', '--clean',
+              help='Delete CONFIG.data.root_folder/output_dir/ before running',
+              is_flag=True, default=False)
+@click.option('-o', '--output_dir',
+              help='Output directory (relative to CONFIG.data.root_folder '
+              'to store the output data, defaults to tmp/',
+              default='tmp/')
+def train(config, logger_level, clean, output_dir):
+    """
+    Sort recordings using a configuration file located in CONFIG
+    """
+    return pipeline_nn_training.run(config, logger_level=logger_level, clean=clean,
+                        output_dir=output_dir)#,
                         #set_zero_seed=zero_seed)
 
 

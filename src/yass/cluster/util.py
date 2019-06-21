@@ -3,6 +3,7 @@ import logging
 import os
 from tqdm import tqdm
 import parmap
+import torch
 from numba import jit
 
 from yass.util import absolute_path_to_asset
@@ -23,9 +24,7 @@ def make_CONFIG2(CONFIG):
     CONFIG2.data=empty()
     CONFIG2.cluster=empty()
     CONFIG2.cluster.prior=empty()
-    CONFIG2.cluster.min_spikes = CONFIG.cluster.min_spikes
 
-    CONFIG2.recordings.spike_size_ms = CONFIG.recordings.spike_size_ms
     CONFIG2.recordings.sampling_rate = CONFIG.recordings.sampling_rate
     CONFIG2.recordings.n_channels = CONFIG.recordings.n_channels
     
@@ -47,17 +46,13 @@ def make_CONFIG2(CONFIG):
     CONFIG2.cluster.max_n_spikes = CONFIG.cluster.max_n_spikes
     
     CONFIG2.spike_size = CONFIG.spike_size
-
-    CONFIG2.resources.n_processors = CONFIG.resources.n_processors
-    CONFIG2.resources.multi_processing = CONFIG.resources.multi_processing
+    CONFIG2.spike_size_nn = CONFIG.spike_size_nn
 
     return CONFIG2
 
 @jit
 def split_spikes(spike_index_list, spike_index, idx_keep):
     for j in idx_keep:
-        if j%100000==0: 
-            print (j)
         tt, ii = spike_index[j]
         spike_index_list[ii].append(tt)
     return spike_index_list
@@ -226,15 +221,27 @@ def load_align_waveforms_parallel(
     fname_out, fname_input_data, unit,
     reader_raw, reader_resid, raw_data, CONFIG):
 
-    ref_template = np.load(absolute_path_to_asset(
-        os.path.join('template_space', 'ref_template.npy')))
-
     input_data = np.load(fname_input_data)
     if os.path.exists(fname_out):
         return
 
     # load spike times
     spike_times = input_data['spike_times']
+
+    # calculate min_spikes
+    n_spikes_in = len(spike_times)
+    rec_len = np.max(spike_times) - np.min(spike_times)
+    min_fr = 0.1
+    n_sec_data = rec_len/float(CONFIG.recordings.sampling_rate)
+    min_spikes = int(n_sec_data*min_fr)
+    # if it will be subsampled, min spikes should decrease also
+    min_spikes = int(min_spikes*np.min((
+        1, CONFIG.cluster.max_n_spikes/
+        float(n_spikes_in))))
+    # min_spikes needs to be at least 1
+    min_spikes = max(min_spikes, 1)
+
+    # subsample spikes
     (spike_times,
      idx_sampled,
      idx_inbounds) = subsample_spikes(
@@ -243,8 +250,15 @@ def load_align_waveforms_parallel(
         CONFIG.spike_size,
         reader_raw.rec_len)
 
+    # first read waveforms in a bigger size
+    # then align and cut down edges
+    spike_size_read = (CONFIG.spike_size_nn-1)*2 + 1
+    spike_size_out = CONFIG.spike_size_nn
+
     if not raw_data:
         up_templates = input_data['up_templates']
+        size_diff = (up_templates.shape[1] - spike_size_out)//2
+        up_templates = up_templates[:, size_diff:-size_diff]
         upsampled_ids = input_data['up_ids']
         upsampled_ids = upsampled_ids[
             idx_sampled][idx_inbounds].astype('int32')    
@@ -258,12 +272,12 @@ def load_align_waveforms_parallel(
     neighbor_chans = np.where(CONFIG.neigh_channels[channel])[0]
     if raw_data:
         wf, skipped_idx = reader_raw.read_waveforms(
-            spike_times, CONFIG.spike_size, neighbor_chans)
+            spike_times, spike_size_read, neighbor_chans)
         spike_times = np.delete(spike_times, skipped_idx)
     else:
         wf, skipped_idx = reader_resid.read_clean_waveforms(
             spike_times, upsampled_ids, up_templates,
-            CONFIG.spike_size, neighbor_chans)
+            spike_size_read, neighbor_chans)
         spike_times = np.delete(spike_times, skipped_idx)
         upsampled_ids = np.delete(upsampled_ids, skipped_idx)
 
@@ -273,15 +287,17 @@ def load_align_waveforms_parallel(
     # align
     mc = np.where(neighbor_chans==channel)[0][0]
     shifts = align_get_shifts_with_ref(
-        wf[:, :, mc],
-        ref_template)
+        wf[:, :, mc])
     wf = shift_chans(wf, shifts)
+    wf = wf[:, (spike_size_out//2):-(spike_size_out//2)]
+
     if raw_data:
         np.savez(fname_out,
                  spike_times=spike_times,
                  wf=wf,
                  shifts=shifts,
-                 channel=channel
+                 channel=channel,
+                 min_spikes=min_spikes
                 )
     else:
         np.savez(fname_out,
@@ -290,7 +306,8 @@ def load_align_waveforms_parallel(
                  shifts=shifts,
                  upsampled_ids=upsampled_ids,
                  up_templates=up_templates,
-                 channel=channel
+                 channel=channel,
+                 min_spikes=min_spikes
                 )
 
 
@@ -314,4 +331,32 @@ def subsample_spikes(spike_times, max_spikes, spike_size, rec_len):
         idx_inbounds].astype('int32')
 
     return spike_times, idx_sampled, idx_inbounds
-    
+
+
+def nn_denoise_wf(fnames_input_data, denoiser):
+
+    with tqdm(total=len(fnames_input_data)) as pbar:
+        for fname in fnames_input_data:
+            temp = np.load(fname)
+
+            if 'denoised_wf' in temp.files:
+                continue
+
+            wf = temp['wf']
+            n_data, n_times, n_chans = wf.shape
+            wf_reshaped = wf.transpose(0, 2, 1).reshape(-1, n_times)
+            wf_torch = torch.FloatTensor(wf_reshaped).cuda()
+            denoised_wf = denoiser(wf_torch)[0]
+            denoised_wf = denoised_wf.reshape(
+                n_data, n_chans, n_times)
+            denoised_wf = denoised_wf.cpu().data.numpy().transpose(0, 2, 1)
+
+            # reshape it
+            #window = np.arange(15, 40)
+            #denoised_wf = denoised_wf[:, window]
+            denoised_wf = denoised_wf.reshape(n_data, -1)
+
+            temp = dict(temp)
+            temp['denoised_wf'] = denoised_wf
+            np.savez(fname, **temp)
+            pbar.update()

@@ -1,9 +1,7 @@
 import random
 import logging
 
-
 import numpy as np
-
 
 def kill_signal(recordings, threshold, window_size):
     """
@@ -91,9 +89,11 @@ def noise_cov(recordings, temporal_size, window_size, sample_size=1000,
     logger = logging.getLogger(__name__)
 
     # kill signal above threshold in recordings
+    logger.info('Get Noise Floor')
     rec, is_noise_idx = kill_signal(recordings, threshold, window_size)
 
     # compute spatial covariance, output: (n_channels, n_channels)
+    logger.info('Compute Spatial Covariance')
     spatial_cov = np.divide(np.matmul(rec.T, rec),
                             np.matmul(is_noise_idx.T, is_noise_idx))
 
@@ -104,6 +104,7 @@ def noise_cov(recordings, temporal_size, window_size, sample_size=1000,
                             v_spatial.T)
 
     # apply spatial whitening to recordings
+    logger.info('Compute Temporal Covaraince')
     spatial_whitener = np.matmul(np.matmul(v_spatial,
                                            np.diag(1/np.sqrt(w_spatial))),
                                  v_spatial.T)
@@ -116,8 +117,6 @@ def noise_cov(recordings, temporal_size, window_size, sample_size=1000,
         channel_choices=None,
         max_trials_per_sample=max_trials_per_sample,
         allow_smaller_sample_size=allow_smaller_sample_size)
-
-    logger.debug('Computing temporal sig...')
 
     w, v = np.linalg.eig(np.cov(noise_wf.T))
 

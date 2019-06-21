@@ -118,76 +118,31 @@ detect:
   type: dict
   default:
     method: nn
-    temporal_features: 3
-    neural_network_detector:
-      filename: detect_nn1.ckpt
-      threshold_spike: 0.5
-    neural_network_autoencoder:
-      filename: ae_nn1.ckpt
-    threshold_detector:
-      std_factor: 4
-    n_sec_chunk: 1
+    threshold: 0.5
   schema:
-    n_sec_chunk:
-      type: integer
-      default: 1
     # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
     method:
       type: string
       required: True
       allowed: [threshold, nn]
-    # number of features in the temporal dimension to use when applying
-    # dimensionality reduction
-    temporal_features:
-      type: integer
-      default: 3
-    neural_network_detector:
-      type: dict
-      default:
-        # model name, can be any of the models included in yass (detectnet1.ckpt),
-        # a relative folder to data.root_fodler (e.g.
-        # $ROOT_FOLDER/models/mymodel.ckpt) or an absolute path to a model
-        # (e.g. /path/to/my/model.ckpt). In the same folder as your model, there
-        # must be a yaml file with the number and size of the filters, the file
-        # should be named exactly as your model but with yaml extension
-        # see yass/src/assets/models/ for an example
-        filename: detect_nn1.ckpt
-        # Threshold for spike event detection
-        threshold_spike: 0.5
-    neural_network_autoencoder:
-      type: dict
-      default:
-        # same rules apply as in neural_network_detector.filename but no
-        # yaml file is needed
-        filename: ae_nn1.ckpt
-    threshold_detector:
-      type: dict
-      default:
-        std_factor: 4
+    threshold:
+      type: float
+      default: 0.5
 
 cluster:
   type: dict
   default:
-    max_n_spikes: 50000
-    min_spikes: 1
+    max_n_spikes: 10000
     prior:
       beta: 1
       a: 1
       lambda0: 0.01
       nu: 5
       V: 2
-
   schema:
     max_n_spikes:
         type: integer
-        default: 50000
-    # minimum number of spikes per cluster
-    # if the total number of spikes per cluster is less than this,
-    # the cluster is killed
-    min_spikes:
-        type: integer
-        default: 1
-    # the cluster is killed
+        default: 10000
     prior:
       type: dict
       default:
@@ -217,4 +172,25 @@ deconvolution:
   type: dict
   default:
     threshold: 20
-    deconv_gpu: False
+    deconv_gpu: True
+  schema:
+    threshold:
+      type: float
+      default: 20
+    deconv_gpu:
+      type: boolean
+      default: True
+
+neuralnetwork:
+  type: dict
+  default:
+    spike_size_ms: 1.5
+    detect:
+      filename: detect.pt  
+      n_filters: [16, 8, 8] 
+    denoise:
+      filename: denoise.pt
+      n_filters: [16, 8, 4]
+      filter_sizes : [5, 11, 21]
+    training:
+      input_spike_train_filname: spike_train.npy

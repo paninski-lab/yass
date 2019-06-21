@@ -68,19 +68,20 @@ def deconv_on_template(unit, fname_out, units_in, fname_templates,
 
     # data noise chan
     noise_chan = np.max(
-        np.abs(data), axis=0) < residual_max_norm
-    
+        np.abs(data), axis=0) < residual_max_norm/2
+
     # if no noise chans, select max chan
     if noise_chan.sum()==0:
-        noise_chan[data.ptp(0).argmax(0)]=True
-        
-    # exclude units that won't help deconvolve this unit
-    # if it has large energy on noise chan, then it should not help
-    #print (" n_units: ", n_units, 'templates: ', templates.shape, 'noise: ', 
-    #        noise_chan.sum())
-    idx_include = np.abs(templates[:, :, noise_chan]
-                        ).max(axis=(1, 2)) < residual_max_norm
+        idx_include = np.ones(templates.shape[0], 'bool')
+    else:
+        # exclude units that won't help deconvolve this unit
+        # if it has large energy on noise chan, then it should not help
+        #print (" n_units: ", n_units, 'templates: ', templates.shape, 'noise: ', 
+        #        noise_chan.sum())
+        idx_include = np.abs(templates[:, :, noise_chan]
+                            ).max(axis=(1, 2)) < residual_max_norm/2
     templates = templates[idx_include]
+    units_ = units_[idx_include]
 
     if templates.shape[0] == 0:
         # save result
@@ -104,10 +105,10 @@ def deconv_on_template(unit, fname_out, units_in, fname_templates,
     while it < max_it and not collision:
 
         # run one iteration of deconv
-        residual, best_fit_unit = run_deconv(data, templates, up_factor, 'l2')
+        residual, best_fit_unit, obj = run_deconv(data, templates, up_factor, 'l2')
 
         # if nothing fits more, quit
-        if best_fit_unit is None:
+        if obj < 0:
             it = max_it
 
         # if residual is small enough, stop

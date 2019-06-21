@@ -1,11 +1,6 @@
 """
 YASS init file, it contains setup for the package.
 
-One of the functions provided here is the ability to setup global config for
-tensorflow sessions, there are some oddities to this documented here:
-
-https://github.com/tensorflow/tensorflow/issues/8021
-
 Summary: the only way to set global configuration is to create a first session
 and pass the desired config, also, make sure that list_devices is not executed
 before creating the first session. So do not create sessions here or use
@@ -14,19 +9,7 @@ list_devices here, since it will break that feature
 import logging
 from logging import NullHandler
 
-
-try:
-    import tensorflow as tf
-except ImportError:
-    message = ('YASS requires tensorflow to work. It is not installed '
-               'automatically to avoid overwriting existing installations.'
-               ' See this for instructions: '
-               'https://www.tensorflow.org/install/')
-    raise ImportError(message)
-
-
 from yass.config import Config
-from yass.util import running_on_gpu
 
 logging.getLogger(__name__).addHandler(NullHandler())
 
@@ -35,19 +18,6 @@ logger = logging.getLogger(__name__)
 __version__ = '0.10dev'
 
 CONFIG = None
-
-
-#GPU_ENABLED = running_on_gpu()
-
-#if GPU_ENABLED:
-#    logger.debug('Tensorflow GPU configuration detected')
-#else:
-#    logger.debug('No Tensorflow GPU configuration detected')
-
-
-# reduce tensorflow logger verbosity, ignore DEBUG and INFO
-tf.logging.set_verbosity(tf.logging.WARN)
-
 
 def read_config():
     """
@@ -99,26 +69,3 @@ def set_config(config, output_directory):
 def reset_config():
     global CONFIG
     CONFIG = None
-
-
-def set_tensorflow_config(config):
-    """Set tensorflow config for all sessions
-
-    Examples
-    --------
-
-    .. code-block:: python
-
-    import yass
-
-    config = tf.ConfigProto()
-    config.gpu_options.per_process_gpu_memory_fraction = 0.4
-    yass.set_tensorflow_config(config=config)
-
-    Notes
-    -----
-    create first session and pass config, this will set the config for all
-    sessions (that's how tensorflow works for now)
-    """
-    sess = tf.Session(config=config)
-    sess.close()

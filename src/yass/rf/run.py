@@ -198,6 +198,7 @@ class RF(object):
         command = '{} -nodisplay -r \"cd(\'{}\'); fit_sta_liam_parallel(\'{}\', \'{}\'); exit\"'.format(
             self.matlab_bin, rf_matlab_loc, tmp_dir_sta, tmp_dir_rgc)
         os.system(command)
+        print(command)
         print('done running matlab code')
 
         STA_spatial = np.zeros((self.Ncells, stim_size[0], stim_size[1], n_color_channels))

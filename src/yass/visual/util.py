@@ -202,8 +202,8 @@ def get_l2_features(filename_residual, spike_train, spike_train_upsampled,
         spt2_idx = np.random.choice(
             spt2_idx, n_samples2, False)
     
-    spt1 = spike_train[spt1_idx, 0]
-    spt2 = spike_train[spt2_idx, 0]
+    spt1 = spike_train[spt1_idx, 0] - spike_size//2
+    spt2 = spike_train[spt2_idx, 0] - spike_size//2
 
     units1 = spike_train_upsampled[spt1_idx, 1]
     units2 = spike_train_upsampled[spt2_idx, 1]
@@ -241,8 +241,8 @@ def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, 
         ctr_skipped=0
         for spike in spikes:
             # index into binary file: time steps * 4  4byte floats * n_channels
-            fin.seek(spike * 4 * n_channels, os.SEEK_SET)
             try:
+                fin.seek(spike * 4 * n_channels, os.SEEK_SET)
                 wfs[ctr_wfs] = np.fromfile(
                     fin,
                     dtype='float32',

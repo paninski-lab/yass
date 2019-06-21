@@ -29,13 +29,14 @@ def gather_result(fname_save, batch_files_dir, dedup_dir):
             spike_index_temp = spike_index[ctr][dedup_idx[ctr]]
             t_start, t_end = minibatch_loc[ctr]
 
+            n_spikes_detected += len(spike_index_temp)
+
             idx_keep = np.logical_and(
                 spike_index_temp[:, 0] >= t_start,
                 spike_index_temp[:, 0] < t_end)
             spike_index_temp = spike_index_temp[idx_keep]
             spike_index_postkill.append(spike_index_temp)
-            
-            n_spikes_detected += len(spike_index_temp)
+
 
     spike_index_postkill = np.vstack(spike_index_postkill)
     
