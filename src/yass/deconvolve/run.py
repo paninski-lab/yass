@@ -115,8 +115,7 @@ def run(fname_templates_in,
                     CONFIG,
                     n_sec_chunk,
                     chunk_sec=chunk_sec)
-    print ("temp chunk len: ", n_sec_chunk)
-    print ("chunk_sec: ", chunk_sec)     
+ 
          
     # deconv using GPU
     if CONFIG.deconvolution.deconv_gpu:
@@ -169,7 +168,6 @@ def deconv_ONgpu2(fname_templates_in,
 
     #print (kfadfa)
     # Cat: TODO: gpu deconv requires own chunk_len variable
-    n_sec = CONFIG.resources.n_sec_chunk_gpu
     #root_dir = '/media/cat/1TB/liam/49channels/data1_allset'
     root_dir = CONFIG.data.root_folder
 
@@ -198,13 +196,21 @@ def deconv_ONgpu2(fname_templates_in,
     # parameter allows templates to be updated forward (i.e. templates
     #       are updated based on spikes in previous chunk)
     # Cat: TODO read from CONFIG
-    d_gpu.update_templates = True
+    d_gpu.update_templates = False
     
     # parameter forces deconv to do a backward step
     #   i.e. deconv is rerun on previous chunk using templates made 
     #   from that chunk
     # Cat: TODO read from CONFIG
-    d_gpu.update_templates_recursive = 1
+    if d_gpu.update_templates:
+        d_gpu.update_templates_recursive = 1
+    else:
+        d_gpu.update_templates_recursive = 0        
+        
+    # update tempalte time chunk
+    # Cat: TODO: read from CONFIG file
+    d_gpu.template_update_time = 60
+
 
     # additional parameter that loops back to do deconv using updated templates
     recursion_time = 1E10  #dummy variable
@@ -212,9 +218,7 @@ def deconv_ONgpu2(fname_templates_in,
     # add reader
     d_gpu.reader = reader
 
-    # update tempalte time chunk
-    # Cat: TODO: read from CONFIG file
-    d_gpu.template_update_time = 60
+
     
     # ****************************************************************
     # *********************** INITIALIZE DECONV **********************
@@ -230,20 +234,13 @@ def deconv_ONgpu2(fname_templates_in,
     # ****************************************************************
     # *********************** ITERAT OVER CHUNKS *********************
     # ****************************************************************
-    print ("Subtraction step...")
     begin=dt.datetime.now().timestamp()
     # Cat: TODO: flag to run deconv just on segments of data not all data
-    if True:
-        chunks = []
-        for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
-                        CONFIG.resources.n_sec_chunk_gpu):
-            chunks.append([k,k+n_sec])
-    # run data on small chunk only
-    else:
-        chunks = [run_chunk_sec]
-
-    # Cat: TODO : last chunk of data may be skipped if this doesn't work right.
-    print ("  (TODO: Make sure last bit is added if rec_len not multiple of n_sec_gpu_chnk)")
+    # Cat: this may fail if length of recording not multipole of n_sec_gpu
+    chunks = []
+    for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
+                    CONFIG.resources.n_sec_chunk_gpu):
+        chunks.append([k,k+CONFIG.resources.n_sec_chunk_gpu])
 
     # loop over chunks and run sutraction step
     templates_old = None
@@ -292,12 +289,15 @@ def deconv_ONgpu2(fname_templates_in,
 
                     # save forward pass state
                     np.savetxt(os.path.join(d_gpu.seg_dir,'state.txt'),['forward'],fmt="%s")
-                    
-            if d_gpu.update_templates_recursive:
-                print ("Forward pass - updating templates ...", time_index, " sec", recursion_time)
-            else:
-                print ("Backwards pass - redecon with updated templates ...", time_index, " sec", recursion_time)
             
+            if d_gpu.update_templates:
+                if d_gpu.update_templates_recursive:
+                    print ("Forward pass - updating templates", time_index, " sec")
+                else:
+                    print ("Backwards pass - redecon with updated templates ...", time_index, " sec")
+            else:
+                print ("Forward deconv only ", time_index, " sec")
+                
             #***********************************************************
             #********************* MAIN DECONV STEP ********************
             #***********************************************************
@@ -377,6 +377,7 @@ def deconv_ONgpu2(fname_templates_in,
         #fname = os.path.join(d_gpu.seg_dir,str(chunk_id).zfill(5)+'.npz')
         time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
         fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
+
         data = np.load(fname)
         
         spike_array = data['spike_array']
@@ -518,12 +519,17 @@ def update_templates_GPU(d_gpu,
         #print ("wfs_local: ", wfs_local.shape)
         #print ("n_spikes_local: ", n_spikes_local.shape)
         
+        n_spikes = n_spikes_local.sum(0)
+
+        # if there are no spikes at all matched, just use previous template shape
+        if n_spikes==0:
+            templates_new[:,:,unit]=template
+            continue
+            
         template = np.average(wfs_local, weights=n_spikes_local,axis=0).T
         #print ("Wfs local weighted averages: ", wfs_local.shape)
         
-        n_spikes = n_spikes_local.sum(0)
-        #print ("wfs local: ", wfs_local.shape, "n spikes: ", n_spikes)
-        
+        # first chunk of data just use without weight.        
         if time_index==d_gpu.template_update_time:
             templates_new[:,:,unit]=template
         # use KS eq (6)

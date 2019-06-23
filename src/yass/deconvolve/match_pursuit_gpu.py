@@ -2,6 +2,7 @@ import numpy as np
 import sys, os, math
 import datetime as dt
 import scipy, scipy.signal
+import parmap
 from scipy.interpolate import splrep, splev, make_interp_spline, splder, sproot
 
 # doing imports inside module until travis is fixed
@@ -16,6 +17,70 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 import cudaSpline as deconv
 
 
+# # ****************************************************************************
+# # ****************************************************************************
+# # ****************************************************************************
+
+def parallel_conv_filter2(units, 
+                          n_time,
+                          up_up_map,
+                          deconv_dir,
+                          update_templates_recursive,
+                          svd_dir,
+                          chunk_id,
+                          n_sec_chunk_gpu,
+                          vis_chan,
+                          unit_overlap,
+                          approx_rank,
+                          temporal,
+                          singular,
+                          spatial,
+                          temporal_up):
+
+    # find name of svd compressed file; and load from disk 
+    # if update_templates_recursive:
+        # fname = os.path.join(svd_dir,'templates_svd_'+
+                  # str((chunk_id+1)*n_sec_chunk_gpu) + '_1.npz')
+    # else:
+        # fname = os.path.join(svd_dir,'templates_svd_'+
+                  # str((chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu) + '.npz')
+         
+    # data = np.load(fname)
+    # temporal = data['temporal']
+    # singular = data['singular']
+    # spatial = data['spatial']
+    # temporal_up = data['temporal_up']
+                     
+         # approx_rank = self.RANK
+
+    # loop over asigned units:
+    conv_res_len = n_time * 2 - 1
+    pairwise_conv_array = []
+    for unit2 in units:
+        #if unit2%100==0:
+        #    print (" temp_temp: ", unit2)
+        n_overlap = np.sum(unit_overlap[unit2, :])
+        pairwise_conv = np.zeros([n_overlap, conv_res_len], dtype=np.float32)
+        orig_unit = unit2 
+        masked_temp = np.flipud(np.matmul(
+                temporal_up[unit2] * singular[orig_unit][None, :],
+                spatial[orig_unit, :, :]))
+
+        for j, unit1 in enumerate(np.where(unit_overlap[unit2, :])[0]):
+            u, s, vh = temporal[unit1], singular[unit1], spatial[unit1] 
+
+            vis_chan_idx = vis_chan[:, unit1]
+            mat_mul_res = np.matmul(
+                    masked_temp[:, vis_chan_idx], vh[:approx_rank, vis_chan_idx].T)
+
+            for i in range(approx_rank):
+                pairwise_conv[j, :] += np.convolve(
+                        mat_mul_res[:, i],
+                        s[i] * u[:, i].flatten(), 'full')
+
+        pairwise_conv_array.append(pairwise_conv)
+
+    return pairwise_conv_array
 
 # # ****************************************************************************
 # # ****************************************************************************
@@ -78,11 +143,7 @@ class deconvGPU(object):
         self.deconv_thresh = self.CONFIG.deconvolution.threshold
 
         # svd compression flag
-        self.svd_flag = True
-        
-        # rank for SVD
-        # Cat: TODO: read from CONFIG
-        # self.RANK = 5
+        #self.svd_flag = True
         
         # make a 3 point array to be used in quadratic fit below
         self.peak_pts = torch.arange(-1,+2).to(device)
@@ -107,9 +168,9 @@ class deconvGPU(object):
             self.compress_templates()
             self.compute_temp_temp_svd()
 
-        # Cat: TODO we should dissable all non-SVD options?!
-        else:
-            self.compute_temp_temp()
+        # # Cat: TODO we should dissable all non-SVD options?!
+        # else:
+            # self.compute_temp_temp()
    
         # move data to gpu
         self.data_to_gpu()
@@ -137,18 +198,25 @@ class deconvGPU(object):
         
         # make objective function
         self.make_objective()
-        
-        # set inifinities where obj < 0 or some other value
-        # Cat:TODO not currently used; not sure this helps.
-        #self.set_objective_infinities()
-                
+               
         # run 
         self.subtraction_step()
                 
         # empty cache
         torch.cuda.empty_cache()
 
-    
+
+    # not currently used
+    def make_splines_parallel(self):
+        
+        res = parmap.map(bsplines_parallel, 
+                         list(zip(self.temp_temp, self.vis_units)),
+                         processes=self.CONFIG.resources.n_processors,
+                         pm_pbar=True)                         
+                    
+        self.coefficients = deconv.BatchedTemplates(res)
+
+
     def initialize_cpp(self):
         
         # make a list of pairwise batched temp_temp and their vis_units
@@ -157,13 +225,47 @@ class deconvGPU(object):
         
     def templates_to_bsplines(self):
 
-        print ("  making template bsplines (TODO: make template bsplines in parallel on CPU")
-        #print ("                           (TODO: save template bsplines to disk to not recompute)")
+        print ("  making template bsplines (todo: parallelize)")
         
-        self.coefficients = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp])
+        fname = os.path.join(self.svd_dir,'bsplines_'+
+                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npy')
+                  
+        if os.path.exists(fname)==False:
+            # make initial lists of templates
+            self.coefficients = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp])
+            
+            # make bsplines 
+            coefficients_local = [self.transform_template(template) for template in self.temp_temp_cpp]
+        
+            # save data from bsplines to disk
+            
+            list_out = []
+            for k in range(len(coefficients_local)):
+                list_out.append(coefficients_local[k].data)
 
+            np.save(fname, list_out, allow_pickle=True)
+            self.coefficients = deconv.BatchedTemplates(coefficients_local)
+            
+        else:
+            # load saved coefficients before made into deconv.BatchedTemplates
+            coefficients_local = np.load(fname)
+                    
+            # load dummy cpp templates 
+            temp_temp_list = []
+            for k in range(len(self.temp_temp)):
+                temp_temp_empty = np.zeros((self.temp_temp[k].shape[0],self.temp_temp[k].shape[1]+4),'float32')
+                temp_temp_list.append(torch.from_numpy(temp_temp_empty).float().to(device))
 
-    def fit_spline(self, curve, knots=None,  prepad=0, postpad=0, order=3):
+            self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(temp_temp_list, self.vis_units)])
+
+            self.coefficients = []
+            for k in range(len(coefficients_local)):
+                self.temp_temp_cpp[k].data.copy_(coefficients_local[k])
+                self.coefficients.append(self.temp_temp_cpp[k])
+
+            self.coefficients = deconv.BatchedTemplates(self.coefficients)
+
+    def fit_spline(self, curve, knots=None, prepad=0, postpad=0, order=3):
         if knots is None:
             knots = np.arange(len(curve) + prepad + postpad)
         return splrep(knots, np.pad(curve, (prepad, postpad), mode='symmetric'), k=order)
@@ -183,6 +285,7 @@ class deconvGPU(object):
      
     def compute_temp_temp_svd(self):
 
+        print ("  making temp_temp filters...")
         if self.update_templates_recursive:
             fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+
                   str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npy')
@@ -201,146 +304,117 @@ class deconvGPU(object):
             units = np.arange(self.temps.shape[2])
             
             # Cat: TODO: work on multi CPU and GPU versions
-            self.temp_temp= self.parallel_conv_filter(units, 
-                                                    self.n_time,
-                                                    self.up_up_map,
-                                                    deconv_dir)
-                
+            if self.CONFIG.resources.multi_processing:
+                units_split = np.array_split(units, self.CONFIG.resources.n_processors)
+                self.temp_temp = parmap.map(parallel_conv_filter2, 
+                                              units_split, 
+                                              self.n_time,
+                                              self.up_up_map,
+                                              deconv_dir,
+                                              self.update_templates_recursive,
+                                              self.svd_dir,
+                                              self.chunk_id,
+                                              self.CONFIG.resources.n_sec_chunk_gpu,
+                                              self.vis_chan,
+                                              self.unit_overlap,
+                                              self.RANK,
+                                              self.temporal,
+                                              self.singular,
+                                              self.spatial,
+                                              self.temporal_up,
+                                              processes=self.CONFIG.resources.n_processors,
+                                              pm_pbar=False)
+            else:
+                units_split = np.array_split(units, self.CONFIG.resources.n_processors)
+                self.temp_temp = []
+                for units_ in units_split:
+                    self.temp_temp.append(parallel_conv_filter2(units_, 
+                                                      self.n_time,
+                                                      self.up_up_map,
+                                                      deconv_dir,
+                                                      self.update_templates_recursive,
+                                                      self.svd_dir,
+                                                      self.chunk_id,
+                                                      self.CONFIG.resources.n_sec_chunk_gpu,
+                                                      self.vis_chan,
+                                                      self.unit_overlap,
+                                                      self.RANK,
+                                                      self.temporal,
+                                                      self.singular,
+                                                      self.spatial,
+                                                      self.temporal_up))
+                                                      
+            # gather results
+            temp_temp_local = [None]*units.shape[0]
+            for ctr1, u1 in enumerate(units_split):
+                for ctr2, u2 in enumerate(u1):
+                    temp_temp_local[units_split[ctr1][ctr2]] = self.temp_temp[ctr1][ctr2]
+
+            # transfer list to GPU
             temp_gpu = []
-            for k in range(len(self.temp_temp)):
-                temp_gpu.append(torch.from_numpy(self.temp_temp[k]).float().to(device))
+            for k in range(len(temp_temp_local)):
+                temp_gpu.append(torch.from_numpy(temp_temp_local[k]).float().to(device))
 
             self.temp_temp = temp_gpu
             np.save(fname, self.temp_temp)
                                  
         else:
             self.temp_temp = np.load(fname)
-        
-        # # load also the diagonal of the temp temp function:
-        # # Cat: TODO: is this required any longer? 
-        # fname = os.path.join(self.out_dir,"temp_temp_diagonal_svd.npy")
-        # if os.path.exists(fname)==False:
-            # self.temp_temp_diagonal = []
-            # for k in range(len(self.temp_temp)):
-                # self.temp_temp_diagonal.append(self.temp_temp[k][self.orig_index[k]].cpu().data.numpy())
 
-            # self.temp_temp_diagonal = np.vstack(self.temp_temp_diagonal)
-            # np.save(fname, self.temp_temp_diagonal)
-        # else:
-            # self.temp_temp_diagonal = np.load(fname)
+    # keep non-SVD option here for now
+    # def compute_temp_temp(self):
+
+        # fname = os.path.join(self.svd_dir,"temp_temp_sparse.npy")
+
+        # if os.path.exists(fname)==False: 
+            # temps = np.load(os.path.join(self.fname_templates)).transpose(1,0,2)
+            # print ("Computing temp_temp")
+            # print ("  clustered templates (n_templates, n_chans, n_times): ", temps.shape)
+
+            # # Cat: TODO: can make this less GPU memory intesnive and just load each indivdiaully
+            # temps_reversed = np.flip(temps,axis=2).copy()
+            # temps_reversed = torch.from_numpy(temps_reversed).float().to(device)
+
+            # # input data stack: templates, channels, times
+            # print ("  input templates: ", temps_reversed.shape)
+
+            # # same as input_var except with extra dimension
+            # filter_var = temps_reversed[:,None]
+            # print ("  filter shapes: ", filter_var.shape)
+
+            # units = np.arange(temps.shape[0])
+            # temp_temp = []
+            # start =dt.datetime.now().timestamp()
+            # for unit in units:
+
+                # # select vis_chans_local
+                # vis_chan_local = np.where(self.vis_chan[:,unit])[0]
+
+                # # select vis_units_local
+                # vis_unit = np.where(self.vis_units[unit])[0]
     
-    
-    def parallel_conv_filter(self,units, 
-                            n_time,
-                            up_up_map,
-                            deconv_dir):
-
-        # Cat: must load these structures from disk for multiprocessing step; 
-        #       where there are many templates; due to multiproc 4gb limit 
-        temporal = self.temporal #data['temporal']
-        singular = self.singular #data['singular']
-        spatial = self.spatial #data['spatial']
-        temporal_up = self.temporal_up #data['temporal_up']
-
-        vis_chan = self.vis_chan
-        unit_overlap = self.unit_overlap
-        approx_rank = self.RANK
+                # i_var = temps_reversed[vis_unit][:,vis_chan_local,:]
+                # f_var = filter_var[unit,:,vis_chan_local]
         
-        #for unit2 in units:
-        conv_res_len = n_time * 2 - 1
-        pairwise_conv_array = []
-        print ("  TODO: parallelize temp_temp computation")
-        for unit2 in units:
-            if unit2%100==0:
-                print (" temp_temp: ", unit2)
-            n_overlap = np.sum(unit_overlap[unit2, :])
-            pairwise_conv = np.zeros([n_overlap, conv_res_len], dtype=np.float32)
-            orig_unit = unit2 
-            masked_temp = np.flipud(np.matmul(
-                    temporal_up[unit2] * singular[orig_unit][None, :],
-                    spatial[orig_unit, :, :]))
+                # # convolve 
+                # output_var = nn.functional.conv1d(i_var, f_var, padding=60)
 
-            for j, unit1 in enumerate(np.where(unit_overlap[unit2, :])[0]):
-                u, s, vh = temporal[unit1], singular[unit1], spatial[unit1] 
-
-                vis_chan_idx = vis_chan[:, unit1]
-                mat_mul_res = np.matmul(
-                        masked_temp[:, vis_chan_idx], vh[:approx_rank, vis_chan_idx].T)
-
-                for i in range(approx_rank):
-                    pairwise_conv[j, :] += np.convolve(
-                            mat_mul_res[:, i],
-                            s[i] * u[:, i].flatten(), 'full')
-
-            pairwise_conv_array.append(pairwise_conv)
-
-        return pairwise_conv_array
-
-    def compute_temp_temp(self):
-
-        fname = os.path.join(self.svd_dir,"temp_temp_sparse.npy")
-
-        if os.path.exists(fname)==False: 
-            temps = np.load(os.path.join(self.fname_templates)).transpose(1,0,2)
-            print ("Computing temp_temp")
-            print ("  clustered templates (n_templates, n_chans, n_times): ", temps.shape)
-
-            # Cat: TODO: can make this less GPU memory intesnive and just load each indivdiaully
-            temps_reversed = np.flip(temps,axis=2).copy()
-            temps_reversed = torch.from_numpy(temps_reversed).float().to(device)
-
-            # input data stack: templates, channels, times
-            print ("  input templates: ", temps_reversed.shape)
-
-            # same as input_var except with extra dimension
-            filter_var = temps_reversed[:,None]
-            print ("  filter shapes: ", filter_var.shape)
-
-            units = np.arange(temps.shape[0])
-            temp_temp = []
-            start =dt.datetime.now().timestamp()
-            for unit in units:
-
-                # select vis_chans_local
-                vis_chan_local = np.where(self.vis_chan[:,unit])[0]
-
-                # select vis_units_local
-                vis_unit = np.where(self.vis_units[unit])[0]
-    
-                i_var = temps_reversed[vis_unit][:,vis_chan_local,:]
-                f_var = filter_var[unit,:,vis_chan_local]
-        
-                # convolve 
-                output_var = nn.functional.conv1d(i_var, f_var, padding=60)
-
-                # Cat: TODO: squeeze these arrays (and others)
-                temp_temp.append(output_var[:,0])
-                if unit%100==0:
-                    print ("  unit: ", unit, "input: ", i_var.shape, 
-                           ", filter: ", f_var.shape,
-                           ", output: ", output_var.shape,'\n')
+                # # Cat: TODO: squeeze these arrays (and others)
+                # temp_temp.append(output_var[:,0])
+                # if unit%100==0:
+                    # print ("  unit: ", unit, "input: ", i_var.shape, 
+                           # ", filter: ", f_var.shape,
+                           # ", output: ", output_var.shape,'\n')
 
 
-            print ("  total time : ", dt.datetime.now().timestamp()-start)
+            # print ("  total time : ", dt.datetime.now().timestamp()-start)
             
-            np.save(fname, temp_temp)
-            self.temp_temp = temp_temp
-        else:
-
-            self.temp_temp = np.load(fname)
-
-        # # load also the diagonal of the temp temp function:
-        # fname = os.path.join(self.out_dir,"temp_temp_diagonal.npy")
-        # if os.path.exists(fname)==False:
-            # self.temp_temp_diagonal = []
-            # for k in range(len(self.temp_temp)):
-                # self.temp_temp_diagonal.append(self.temp_temp[k][self.orig_index[k]].cpu().data.numpy())
-
-            # self.temp_temp_diagonal = np.vstack(self.temp_temp_diagonal)
-            # np.save(fname, self.temp_temp_diagonal)
+            # np.save(fname, temp_temp)
+            # self.temp_temp = temp_temp
         # else:
-            # self.temp_temp_diagonal = np.load(fname)
- 
+
+            # self.temp_temp = np.load(fname)
+
     
     def visible_chans(self):
         #if self.vis_chan is None:
@@ -376,13 +450,14 @@ class deconvGPU(object):
         #print ("Loading template: ", self.fname_templates)
         self.temps = np.load(self.fname_templates).transpose(2,1,0)
         self.N_CHAN, self.STIME, self.K = self.temps.shape
-        print (" Loaded templates shape (n_chan, n_time, n_temps): ", self.temps.shape)
+        #print (" Loaded templates shape (n_chan, n_time, n_temps): ", self.temps.shape)
         self.temps_gpu = torch.from_numpy(self.temps).float().to(device)
         
         
     def compress_templates(self):
         """Compresses the templates using SVD and upsample temporal compoents."""
 
+        print ("   making SVD data... (todo: move to GPU)")
         ## compute everythign using SVD
         # Cat: TODO: is this necessary?  
         #      can just overwrite all the svd stuff every template update
@@ -394,10 +469,7 @@ class deconvGPU(object):
                       str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '.npz')
             
         if os.path.exists(fname)==False:
-        #if True:
-            print ("  computing SVD on templates (TODO: implement torch.svd()")
-    
-            #self.approx_rank = self.RANK
+   
             self.temporal, self.singular, self.spatial = np.linalg.svd(
                 np.transpose(np.flipud(np.transpose(self.temps,(1,0,2))),(2, 0, 1)))
             
@@ -405,15 +477,7 @@ class deconvGPU(object):
             self.temporal = self.temporal[:, :, :self.RANK]
             self.singular = self.singular[:, :self.RANK]
             self.spatial = self.spatial[:, :self.RANK, :]
-            
-            #print ("self.temps: ", self.temps.shape)
-            #print ("self.temps.transpose: ", self.temps_cpu.transpose(1,0,2)[0][0])
-            
-            #print ("temporal: ", self.temporal.shape)
-            #print ("self.temporal: ", self.temporal[0][0])
-            #print (" singular: ", self.singular.shape)
-            #print (" spatial: ", self.spatial.shape)            
-            
+
             # Upsample the temporal components of the SVD
             # in effect, upsampling the reconstruction of the
             # templates.
@@ -424,7 +488,6 @@ class deconvGPU(object):
                      spatial=self.spatial, temporal_up=self.temporal_up)
             
         else:
-            print ("  loading SVD (from disk)")
                 
             # load data for for temp_temp computation
             data = np.load(fname)
