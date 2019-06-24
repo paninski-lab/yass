@@ -311,7 +311,8 @@ class RESIDUAL_GPU2(object):
         
         
         # updated templates options
-        self.update_templates = True
+        # Cat: TODO read from CONFIG
+        self.update_templates = False
         
         # Cat: TODO read from CONFIG File
         self.template_update_time = 60
@@ -357,6 +358,7 @@ class RESIDUAL_GPU2(object):
         
 
     def load_templates(self):
+        print ("  loading templates...")
         # load templates
         self.temps = np.load(self.fname_templates).transpose(2,1,0).astype('float32')
         #print ("loaded temps:", self.temps.shape)
@@ -382,6 +384,7 @@ class RESIDUAL_GPU2(object):
 
     
     def make_bsplines(self):
+        print ("  making bsplines...")
         # make template objects
         self.templates = deconv.BatchedTemplates(
                         [deconv.Template(vals, inds) for vals, inds in 
@@ -407,12 +410,8 @@ class RESIDUAL_GPU2(object):
             return deconv.Template(torch.from_numpy(coefficients).cuda(), template.indices)
 
         # make bspline coefficients
-        #print ("  making bspline coefficients")
         self.coefficients = deconv.BatchedTemplates(
                     [transform_template(template) for template in self.templates])
-        #print (" # of coefficients: ", len(self.coefficients))
-                             
-       # print ("  PRELOADING COMPLETED: ", np.round(time.time()-t0,2),"sec")
 
 
     def subtract_step(self):

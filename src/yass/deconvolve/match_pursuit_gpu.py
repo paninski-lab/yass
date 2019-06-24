@@ -25,7 +25,7 @@ def parallel_conv_filter2(units,
                           n_time,
                           up_up_map,
                           deconv_dir,
-                          update_templates_recursive,
+                          update_templates_backwards,
                           svd_dir,
                           chunk_id,
                           n_sec_chunk_gpu,
@@ -36,22 +36,6 @@ def parallel_conv_filter2(units,
                           singular,
                           spatial,
                           temporal_up):
-
-    # find name of svd compressed file; and load from disk 
-    # if update_templates_recursive:
-        # fname = os.path.join(svd_dir,'templates_svd_'+
-                  # str((chunk_id+1)*n_sec_chunk_gpu) + '_1.npz')
-    # else:
-        # fname = os.path.join(svd_dir,'templates_svd_'+
-                  # str((chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu) + '.npz')
-         
-    # data = np.load(fname)
-    # temporal = data['temporal']
-    # singular = data['singular']
-    # spatial = data['spatial']
-    # temporal_up = data['temporal_up']
-                     
-         # approx_rank = self.RANK
 
     # loop over asigned units:
     conv_res_len = n_time * 2 - 1
@@ -286,7 +270,7 @@ class deconvGPU(object):
     def compute_temp_temp_svd(self):
 
         print ("  making temp_temp filters...")
-        if self.update_templates_recursive:
+        if self.update_templates_backwards:
             fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+
                   str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npy')
         else:
@@ -311,7 +295,7 @@ class deconvGPU(object):
                                               self.n_time,
                                               self.up_up_map,
                                               deconv_dir,
-                                              self.update_templates_recursive,
+                                              self.update_templates_backwards,
                                               self.svd_dir,
                                               self.chunk_id,
                                               self.CONFIG.resources.n_sec_chunk_gpu,
@@ -332,7 +316,7 @@ class deconvGPU(object):
                                                       self.n_time,
                                                       self.up_up_map,
                                                       deconv_dir,
-                                                      self.update_templates_recursive,
+                                                      self.update_templates_backwards,
                                                       self.svd_dir,
                                                       self.chunk_id,
                                                       self.CONFIG.resources.n_sec_chunk_gpu,
@@ -461,7 +445,7 @@ class deconvGPU(object):
         ## compute everythign using SVD
         # Cat: TODO: is this necessary?  
         #      can just overwrite all the svd stuff every template update
-        if self.update_templates_recursive:
+        if self.update_templates_backwards:
             fname = os.path.join(self.svd_dir,'templates_svd_'+
                       str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npz')
         else:
@@ -651,8 +635,10 @@ class deconvGPU(object):
             search_time = self.find_peaks()
             
             ## test if trehsold reached; 
-            ## Cat: TODO: this info might already be availble from above function
+            ## Cat: TODO: this info might already be availble from above function; don't search again!
+            #  Cat: TODO: Fix this
             t_max,_ = torch.max(self.gpu_max[self.lockout_window:-self.lockout_window],0)
+            #t_max,_ = torch.max(self.gpu_max[200:-200],0)
             if t_max<self.deconv_thresh:
                 if self.verbose:
                     print ("... threshold reached, exiting...")
@@ -758,9 +744,15 @@ class deconvGPU(object):
         self.spike_times = self.spike_times[idx]
 
         # Fourth step: exclude spikes that occur in lock_outwindow at start;
+        # Cat: TODO: check that this is correct, 
+        #      unclear whetther spikes on edge of window get correctly excluded
+        #      Currently we lock out first ~ 60 timesteps (for 3ms wide waveforms)
+        #       and last 120 timesteps
+        #      obj function is usually rec_len + buffer*2 + lockout_window
+        #                   e.g. 100000 + 200*2 + 60 = 100460
         idx1 = torch.where((self.spike_times>self.lockout_window) &
                            #(self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
-                           (self.spike_times<self.obj_gpu.shape[1]),
+                           (self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window*2)),
         #idx1 = torch.where(self.spike_times>self.lockout_window,
                            self.spike_times*0+1, 
                            self.spike_times*0)

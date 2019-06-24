@@ -123,7 +123,6 @@ class TemplateMerge(object):
         fname = os.path.join(self.save_dir,
                              'merge_pairs.npy')
 
-        # Cat: TODO: does python2 like list(zip())?
         if not os.path.exists(fname):
             if self.multi_processing:
                 merge_list = parmap.map(self.merge_templates_parallel, 

@@ -186,7 +186,7 @@ def deconv_ONgpu2(fname_templates_in,
     # Cat: TODO: read all from CONFIG
     d_gpu.save_objective = False
     d_gpu.verbose = False
-    d_gpu.print_iteration_counter = 50
+    d_gpu.print_iteration_counter = 1
     d_gpu.save_state = False
     d_gpu.chunk_id = 0
 
@@ -203,9 +203,9 @@ def deconv_ONgpu2(fname_templates_in,
     #   from that chunk
     # Cat: TODO read from CONFIG
     if d_gpu.update_templates:
-        d_gpu.update_templates_recursive = 1
+        d_gpu.update_templates_backwards = 1
     else:
-        d_gpu.update_templates_recursive = 0        
+        d_gpu.update_templates_backwards = 0        
         
     # update tempalte time chunk
     # Cat: TODO: read from CONFIG file
@@ -256,9 +256,9 @@ def deconv_ONgpu2(fname_templates_in,
             recursion_time = np.load(os.path.join(d_gpu.seg_dir,'time.npy'))
             state = np.loadtxt(os.path.join(d_gpu.seg_dir,'state.txt'), dtype='str')
             if state=='forward':
-                d_gpu.update_templates_recursive = 1
+                d_gpu.update_templates_backwards = 1
             else:
-                d_gpu.update_templates_recursive = 0
+                d_gpu.update_templates_backwards = 0
         except:
             pass
                 
@@ -270,7 +270,7 @@ def deconv_ONgpu2(fname_templates_in,
         d_gpu.chunk_id = chunk_id
         time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
                             
-        if d_gpu.update_templates_recursive:
+        if d_gpu.update_templates_backwards:
             fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'_forward.npz')
         else:
             fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
@@ -281,17 +281,17 @@ def deconv_ONgpu2(fname_templates_in,
             #       this turns on every chunk (e.g. 60sec) of finished deconv
             if (d_gpu.update_templates and 
                 (time_index>recursion_time) and 
-                d_gpu.update_templates_recursive==False):
+                d_gpu.update_templates_backwards==False):
 
                     #print ("Forward pass ON ...")
-                    d_gpu.update_templates_recursive = True
+                    d_gpu.update_templates_backwards = True
                     fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'_forward.npz')
 
                     # save forward pass state
                     np.savetxt(os.path.join(d_gpu.seg_dir,'state.txt'),['forward'],fmt="%s")
             
             if d_gpu.update_templates:
-                if d_gpu.update_templates_recursive:
+                if d_gpu.update_templates_backwards:
                     print ("Forward pass - updating templates", time_index, " sec")
                 else:
                     print ("Backwards pass - redecon with updated templates ...", time_index, " sec")
@@ -312,12 +312,12 @@ def deconv_ONgpu2(fname_templates_in,
                      shift_list = d_gpu.shift_list)
             
             #***********************************************************
-            #***********************************************************
+            #******************* UPDATE TEMPLATE STEP ******************
             #***********************************************************
 
             # UPDATE TEMPLATES: every batch of data (e.g. 10sec)
             # GENERATE NEW TEMPLATES every chunk (e.g. 60sec) 
-            if d_gpu.update_templates and d_gpu.update_templates_recursive:
+            if d_gpu.update_templates and d_gpu.update_templates_backwards:
                 d_gpu, wfs_array = update_templates_GPU(d_gpu, 
                                                         CONFIG, 
                                                         time_index, 
@@ -328,7 +328,7 @@ def deconv_ONgpu2(fname_templates_in,
                 # IF NEW TEMPLATES, re-decon previous chunk
                 if (time_index%d_gpu.template_update_time==0):
                     #print ("Backward pass ON ...")
-                    d_gpu.update_templates_recursive = False
+                    d_gpu.update_templates_backwards = False
                     chunk_id = (chunk_id - 
                             d_gpu.template_update_time//CONFIG.resources.n_sec_chunk_gpu)
                     
