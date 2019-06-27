@@ -42,6 +42,24 @@ class Cluster(object):
                      hist=[])
         #self.finish_plotting()
 
+        if True:
+            save_dir = self.filename_postclustering
+            save_dir = save_dir[:save_dir[:(save_dir.rfind('/'))].rfind('/')]
+            save_dir = os.path.join(save_dir, 'local_clustering_result')
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+
+            orig_fname = self.filename_postclustering
+            fname_save = os.path.join(save_dir, orig_fname[(orig_fname.rfind('/')+1):])
+
+            indices_train_local = np.copy(self.indices_train)
+            templates_local = []
+            for indices_train_k in self.indices_train:
+                template = self.get_templates_on_all_channels(indices_train_k)
+                templates_local.append(template)
+            # save clusters
+            self.save_result_local(indices_train_local, templates_local, fname_save)
+
         if self.full_run:
             if self.verbose:
                 print('START DISTANT')
@@ -68,9 +86,8 @@ class Cluster(object):
             templates_final = []
             for indices_train_k in self.indices_train:
                 template = self.get_templates_on_all_channels(indices_train_k)
-                if self.check_max_chan(template):
-                    templates_final.append(template)
-                    indices_train_final.append(indices_train_k)
+                templates_final.append(template)
+                indices_train_final.append(indices_train_k)
 
         if (self.full_run) and (not self.raw_data):
             templates_final_2 = []
@@ -432,7 +449,7 @@ class Cluster(object):
         if local:
             self.denoise_step_local()
         else:
-            self.denoise_step_distant2()
+            self.denoise_step_distant3()
 
         if self.verbose:
             print ("chan "+str(self.channel)+", waveorms denoised to {} dimensions".format(self.denoised_wf.shape[1]))
@@ -536,19 +553,25 @@ class Cluster(object):
         energy = np.median(self.wf_global, axis=0)
         max_energy = np.min(energy, axis=0)
 
+        main_channel_loc = np.where(self.loaded_channels == self.channel)[0][0]
+
         # max_energy_loc is n x 2 matrix, where each row has time point and channel info
-        th = np.max((-0.5, max_energy[self.channel]))
+        th = np.max((-0.5, max_energy[main_channel_loc]))
         max_energy_loc_c = np.where(max_energy <= th)[0]
-        max_energy_loc_t = energy.argmin(axis=0)
-        max_energy_loc = np.hstack((max_energy_loc_t[max_energy_loc_c][:, np.newaxis],
+        max_energy_loc_t = energy.argmin(axis=0)[max_energy_loc_c]
+        max_energy_loc = np.hstack((max_energy_loc_t[:, np.newaxis],
                                     max_energy_loc_c[:, np.newaxis]))
 
         t_diff = 3
-        main_channel_loc = np.where(self.loaded_channels == self.channel)[0][0]
-        index = np.where(max_energy_loc[:,1]== main_channel_loc)[0][0]
+        index = np.where(max_energy_loc[:, 1]== main_channel_loc)[0][0]
         keep = connecting_points(max_energy_loc, index, self.neighbors, t_diff)
 
-        max_energy_loc = max_energy_loc[keep]
+        if np.sum(keep) >= self.selected_PCA_rank:
+            max_energy_loc = max_energy_loc[keep]
+        else:
+            idx_sorted = np.argsort(
+                energy[max_energy_loc[:,0], max_energy_loc[:,1]])[-self.selected_PCA_rank:]
+            max_energy_loc = max_energy_loc[idx_sorted]
 
         # exclude main and secondary channels
         #if np.sum(~np.in1d(max_energy_loc[:,1], self.neighbor_chans)) > 0:
@@ -558,9 +581,11 @@ class Cluster(object):
 
         # denoised wf in distant channel clustering is 
         # the most active time point in each active channels
-        self.denoised_wf = np.zeros((self.wf_global.shape[0], len(max_energy_loc)), dtype='float32')
-        for ii in range(len(max_energy_loc)):
-            self.denoised_wf[:, ii] = self.wf_global[:, max_energy_loc[ii,0], max_energy_loc[ii,1]]
+        self.denoised_wf = self.wf_global[:, max_energy_loc[:,0], max_energy_loc[:,1]]
+
+        #self.denoised_wf = np.zeros((self.wf_global.shape[0], len(max_energy_loc)), dtype='float32')
+        #for ii in range(len(max_energy_loc)):
+        #    self.denoised_wf[:, ii] = self.wf_global[:, max_energy_loc[ii,0], max_energy_loc[ii,1]]
 
     def featurize_step(self, gen, indices_to_feat, indices_to_transform, local):
         ''' Indices hold the index of the current spike times relative all spikes
@@ -1027,6 +1052,14 @@ class Cluster(object):
             keys.append(key)
         for key in keys:
             delattr(self, key)
+
+    def save_result_local(self, indices_train, templates, fname_save):
+
+        spike_train = [self.spike_times_original[indices] - self.shifts[indices] for indices in indices_train]
+        np.savez(fname_save,
+                 spiketime=spike_train,
+                 templates=templates
+                )
 
 def knn_triage(th, pca_wf):
 
