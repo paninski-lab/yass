@@ -42,7 +42,7 @@ class Cluster(object):
                      hist=[])
         #self.finish_plotting()
 
-        if True:
+        if False:
             save_dir = self.filename_postclustering
             save_dir = save_dir[:save_dir[:(save_dir.rfind('/'))].rfind('/')]
             save_dir = os.path.join(save_dir, 'local_clustering_result')
