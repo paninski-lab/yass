@@ -209,7 +209,7 @@ def deconv_ONgpu2(fname_templates_in,
         
     # update tempalte time chunk
     # Cat: TODO: read from CONFIG file
-    d_gpu.template_update_time = 60
+    d_gpu.template_update_time = 30
 
 
     # additional parameter that loops back to do deconv using updated templates
@@ -232,7 +232,7 @@ def deconv_ONgpu2(fname_templates_in,
     print ("")
 
     # ****************************************************************
-    # *********************** ITERAT OVER CHUNKS *********************
+    # ********************** ITERATE OVER CHUNKS *********************
     # ****************************************************************
     begin=dt.datetime.now().timestamp()
     # Cat: TODO: flag to run deconv just on segments of data not all data
@@ -262,10 +262,10 @@ def deconv_ONgpu2(fname_templates_in,
         except:
             pass
                 
+
     # this flag loops back and recomputes deconv in previous time chunk 
     #       based on updated templates
     while True:
-        
         # keep track of chunk being deconved and time_index
         d_gpu.chunk_id = chunk_id
         time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
@@ -318,7 +318,8 @@ def deconv_ONgpu2(fname_templates_in,
             # UPDATE TEMPLATES: every batch of data (e.g. 10sec)
             # GENERATE NEW TEMPLATES every chunk (e.g. 60sec) 
             if d_gpu.update_templates and d_gpu.update_templates_backwards:
-                d_gpu, wfs_array = update_templates_GPU(d_gpu, 
+                d_gpu, wfs_array = update_templates_GPU_forward_backward(
+                                                        d_gpu, 
                                                         CONFIG, 
                                                         time_index, 
                                                         wfs_array, 
@@ -423,10 +424,156 @@ def deconv_ONgpu2(fname_templates_in,
 
 
 
+def update_templates_GPU_forward_backward(d_gpu, 
+                                         CONFIG, 
+                                         time_index, 
+                                         wfs_array, 
+                                         n_spikes_array,
+                                         output_directory):
+
+    # ******************************************************
+    # ***************** SAVE WFS FIRST *********************
+    # ******************************************************
+
+    # make new entry in array
+    wfs_array.append([])
+    
+    # is this array redundant?
+    n_spikes_array.append([])
+    
+    iter_ = len(wfs_array)-1
+    # raw data:
+    
+    # original templates needed for array generation
+    #templates_old = d_gpu.temps
+    ids = torch.cat(d_gpu.neuron_array)
+    units = np.arange(d_gpu.temps.shape[2])
+
+    # GPU version + weighted computation
+    data = d_gpu.data        
+    spike_array = torch.cat(d_gpu.spike_array)
+    snipit = torch.arange(0,d_gpu.temps.shape[1],1).cuda() #torch.from_numpy(coefficients).cuda()
+    wfs_empty = np.zeros((d_gpu.temps.shape[1],d_gpu.temps.shape[0]),'float32')
+    for unit in units:
+        # 
+        idx = torch.where(ids==unit, ids*0+1, ids*0)
+        idx = torch.nonzero(idx)[:,0]
+        #print ("spike array: ", spike_array.shape)
+        times = spike_array[idx]
+        
+        # exclude buffer; technically should exclude both start and ends
+        #       note: spiketimes are relative to current chunk; i.e. start at 0
+        idx2 = torch.where(times<data.shape[1], times*0+1, times*0)
+        idx2 = torch.nonzero(idx2)[:,0]
+        
+        # grab waveforms; need to add a time point to data
+        if idx2.shape[0]>0:
+            wfs = torch.median(data[:,times[idx2][:,None]+
+                                    snipit-d_gpu.temps.shape[1]+1].
+                                    transpose(0,1).transpose(1,2),0)[0]
+
+            # Cat: TODO: maybe save only vis chans to save space? 
+            wfs_array[iter_].append(wfs.cpu().data.numpy())
+            n_spikes_array[iter_].append(idx2.shape[0])
+        else:
+            wfs_array[iter_].append(wfs_empty)
+            n_spikes_array[iter_].append(0)
+            
+        
+    # ******************************************************
+    # ********** UPDATE TEMPLATES EVERY 60SEC **************
+    # ******************************************************
+
+    # update only every 60 seconds
+    #print ("time_index: ", time_index)
+    # Cat: TODO read length of time to update from CONFIG
+    if (((time_index%d_gpu.template_update_time)!=0) or (time_index==0)):
+        return (d_gpu, wfs_array)
+
+    # forgetting factor ~ number of spikes
+    # Cat: TODO: read from CONFIG file
+    nu = 10
+    
+    # find max chans of templates
+    max_chans = d_gpu.temps.ptp(1).argmax(0)
+
+    # make new templates
+    templates_new = np.zeros(d_gpu.temps.shape,'float32')
+    units = np.arange(d_gpu.temps.shape[2])
+    
+    # *****************************************************************
+    # *************** Weighted template computation *******************
+    # *****************************************************************
+    # n_chunks = chunk length / batch length x 2 to capture window on both sides
+    n_batches_per_chunk = d_gpu.template_update_time//CONFIG.resources.n_sec_chunk_gpu
+    
+    # Cat: TODO: this might crash if we don't have enough spikes overall
+    #           or even within a single window
+    # batch_offset indicates the start of the previous chunk in order to do averaging over both prev+following chunks
+    if iter_> n_batches_per_chunk:
+        batch_offset = (iter_+1) - n_batches_per_chunk*2
+        n_chunks = n_batches_per_chunk*2
+        wfs_local = np.zeros((n_chunks, d_gpu.temps.shape[1], d_gpu.temps.shape[0]),'float32')
+        n_spikes_local = np.zeros((n_chunks), 'int32')
+
+    # first block will use only forward data for new templates 
+    #       old templates will be as usual the old templates;
+    else:
+        batch_offset = 0
+        n_chunks = n_batches_per_chunk
+        wfs_local = np.zeros((n_chunks, d_gpu.temps.shape[1], d_gpu.temps.shape[0]),'float32')
+        n_spikes_local = np.zeros((n_chunks), 'int32')
+
+    print ("iter: ", iter_, " batch_offset: ", batch_offset, " len wfs_array: ", len(wfs_array))
+    for unit in units:
+        # get saved waveforms and number of spikes
+        # Cat: TODO this is not pythonic/necessary; can just do 
+        for c in range(n_chunks):
+            wfs_local[c] = wfs_array[batch_offset+c][unit]#.cpu().data.numpy()
+            n_spikes_local[c] = n_spikes_array[batch_offset+c][unit]
+        
+        n_spikes = n_spikes_local.sum(0)
+        # if there are no spikes at all matched, just use previous template shape
+        if n_spikes==0:
+            templates_new[:,:,unit]=template
+            continue
+            
+        template = np.average(wfs_local, weights=n_spikes_local,axis=0).T
+        #print ("Wfs local weighted averages: ", wfs_local.shape)
+        
+        # first chunk of data just use without weight.        
+        if time_index==d_gpu.template_update_time:
+            templates_new[:,:,unit]=template
+        # use KS eq (6)
+        else:
+            t1 = d_gpu.temps[:,:,unit]*np.exp(-n_spikes/nu)
+            t2 = (1-np.exp(-n_spikes/nu))*template
+            templates_new[:,:,unit] = (t1+t2)
+
+    # # save template chunk for offline analysis only
+    # np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/block_2/deconv/'+
+            # str(time_index)+'.npy', templates_new)
+
+    out_file = os.path.join(output_directory,'template_updates',
+                    'templates_'+
+                    str((d_gpu.chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu)+
+                    'sec.npy')
+    # print (" TEMPS DONE: ", templates_in.shape, templates_new.shape)
+    np.save(out_file, templates_new.transpose(2,1,0))
+    
+    # re-initialize d_gpu
+    # change fname-templates
+    d_gpu.fname_templates = out_file
+    d_gpu.initialize()    
+
+    # pass wfs-array back into stack
+    return (d_gpu, wfs_array)
+
 def update_templates_GPU(d_gpu, 
-                         #templates_in, 
                          CONFIG, 
-                         time_index, wfs_array, n_spikes_array,
+                         time_index, 
+                         wfs_array, 
+                         n_spikes_array,
                          output_directory):
 
     # ******************************************************

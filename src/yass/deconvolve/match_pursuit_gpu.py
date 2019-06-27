@@ -190,15 +190,15 @@ class deconvGPU(object):
         torch.cuda.empty_cache()
 
 
-    # not currently used
-    def make_splines_parallel(self):
+    # # not currently used
+    # def make_splines_parallel(self):
         
-        res = parmap.map(bsplines_parallel, 
-                         list(zip(self.temp_temp, self.vis_units)),
-                         processes=self.CONFIG.resources.n_processors,
-                         pm_pbar=True)                         
+        # res = parmap.map(bsplines_parallel, 
+                         # list(zip(self.temp_temp, self.vis_units)),
+                         # processes=self.CONFIG.resources.n_processors,
+                         # pm_pbar=True)                         
                     
-        self.coefficients = deconv.BatchedTemplates(res)
+        # self.coefficients = deconv.BatchedTemplates(res)
 
 
     def initialize_cpp(self):
@@ -269,7 +269,7 @@ class deconvGPU(object):
      
     def compute_temp_temp_svd(self):
 
-        print ("  making temp_temp filters...")
+        print ("  making temp_temp filters (todo: move to GPU)")
         if self.update_templates_backwards:
             fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+
                   str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npy')
