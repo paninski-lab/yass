@@ -41,7 +41,7 @@ def run_deconv(data, templates, up_factor, method='l1'):
 
     # if no overlap units, just skip
     if len(overlap_units) == 0:
-        return data, None, -10000
+        return data, -1000, -10000
     else:
         templates = templates[overlap_units]
 
@@ -82,6 +82,8 @@ def run_deconv(data, templates, up_factor, method='l1'):
             up_shifted_temps[shift-1:] = 0
         elif shift == 0:
             up_shifted_temps[[0,-1]] = 0
+
+        data[[0, -1]] = 0
 
         if method == 'l1':
             idx_best_fit = np.max(np.abs(data[:,None] - up_shifted_temps), (0,2)).argmin()
