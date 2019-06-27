@@ -197,7 +197,8 @@ def load_align_waveforms(save_dir, fnames_input_data,
                   for unit in range(n_units)]
 
     if CONFIG.resources.multi_processing:
-        parmap.starmap(load_align_waveforms_parallel,
+        #parmap.starmap(load_align_waveforms_parallel,
+        parmap.map(load_align_waveforms_parallel,
                        list(zip(fnames_out, fnames_input_data, units)),
                        reader_raw,
                        reader_resid,
@@ -210,17 +211,26 @@ def load_align_waveforms(save_dir, fnames_input_data,
         with tqdm(total=n_units) as pbar:
             for unit in units:
                 load_align_waveforms_parallel(
-                    fnames_out[unit], fnames_input_data[unit], unit,      
+                    [fnames_out[unit], fnames_input_data[unit], unit],      
                     reader_raw, reader_resid, raw_data, CONFIG)
                 pbar.update()
 
     return fnames_out
 
 
-def load_align_waveforms_parallel(
-    fname_out, fname_input_data, unit,
-    reader_raw, reader_resid, raw_data, CONFIG):
+#def load_align_waveforms_parallel(
+#    fname_out, fname_input_data, unit,
+#    reader_raw, reader_resid, raw_data, CONFIG):
+def load_align_waveforms_parallel(data_in, 
+                                  reader_raw, 
+                                  reader_resid, 
+                                  raw_data, 
+                                  CONFIG):
 
+    fname_out = data_in[0]
+    fname_input_data = data_in[1]
+    unit = data_in[2]
+        
     input_data = np.load(fname_input_data)
     if os.path.exists(fname_out):
         return
