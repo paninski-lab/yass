@@ -760,14 +760,14 @@ def deconv_ONgpu(fname_templates_in,
     # ************ RUN DECONV ***************
     print ("Subtraction step...")
     begin=dt.datetime.now().timestamp()
-    if True:
-        chunks = []
-        for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
-                        CONFIG.resources.n_sec_chunk_gpu):
-            chunks.append([k,k+n_sec])
-    # run data on small chunk only
-    else:
-        chunks = [run_chunk_sec]
+    #if True:
+    #    chunks = []
+    #    for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
+    #                    CONFIG.resources.n_sec_chunk_gpu):
+    #        chunks.append([k,k+n_sec])
+    ## run data on small chunk only
+    #else:
+    #    chunks = [run_chunk_sec]
 
     # Cat: TODO : last chunk of data may be skipped if this doesn't work right.
     print ("  (TODO: Make sure last bit is added if rec_len not multiple of n_sec_gpu_chnk)")
