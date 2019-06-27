@@ -16,8 +16,7 @@ from yass import read_config
 from yass.reader import READER
 from yass.neuralnetwork import Detect, Denoise
 from yass.util import file_loader
-from yass.threshold.detect import threshold
-from yass.threshold.dimensionality_reduction import pca
+from yass.threshold.detect import voltage_threshold
 from yass.detect.deduplication import run_deduplication
 from yass.detect.output import gather_result
 
@@ -101,9 +100,9 @@ def run(standardized_path, standardized_params,
 
     # run detection
     if CONFIG.detect.method == 'threshold':
-        run_threshold(standardized_path,
-                      standardized_params,
-                      output_temp_files)
+        run_voltage_treshold(standardized_path,
+                             standardized_params,
+                             output_temp_files)
 
     elif CONFIG.detect.method == 'nn':
         run_neural_network(
@@ -113,7 +112,7 @@ def run(standardized_path, standardized_params,
             run_chunk_sec=run_chunk_sec)
 
     ###### deduplication #####
-    logger.info('removing axons in parallel (TODO: repartition  \
+    logger.info('Deduplicating detected spikes (TODO: repartition  \
                 chunks to match # of cpus)')
 
     # save directory for deduplication
@@ -129,7 +128,8 @@ def run(standardized_path, standardized_params,
     ##### gather results #####
     gather_result(fname_spike_index,
                   output_temp_files,
-                  dedup_output)
+                  dedup_output,
+                  output_directory)
 
     return fname_spike_index
 
@@ -241,8 +241,8 @@ def run_neural_network(standardized_path, standardized_params,
                  minibatch_loc=minibatch_loc)
 
 
-def run_amplitude_threshold(standardized_path, standardized_params,
-                            output_directory, run_chunk_sec='full'):
+def run_voltage_treshold(standardized_path, standardized_params,
+                         output_directory, run_chunk_sec='full'):
                            
     """Run detection that thresholds on amplitude
     """
@@ -257,6 +257,7 @@ def run_amplitude_threshold(standardized_path, standardized_params,
     print ("   batch length to (sec): ", batch_length, 
            " (longer increase speed a bit)")
     print ("   length of each seg (sec): ", n_sec_chunk)
+    buffer = CONFIG.spike_size
     if run_chunk_sec == 'full':
         chunk_sec = None
     else:
@@ -270,66 +271,66 @@ def run_amplitude_threshold(standardized_path, standardized_params,
                     chunk_sec)
 
     # number of processed chunks
-    processing_ctr = 0
     n_mini_per_big_batch = int(np.ceil(batch_length/n_sec_chunk))    
     total_processing = int(reader.n_batches*n_mini_per_big_batch)
 
-    threshold = CONFIG.detect.amplitude_threshold
-    spike_size = CONFIG.spike_sze
+    if CONFIG.resources.multi_processing:
+        parmap.starmap(run_voltage_threshold_parallel, 
+                       list(zip(np.arange(reader.n_batches))),
+                       reader,
+                       n_sec_chunk,
+                       CONFIG.detect.threshold,
+                       output_directory,
+                       processes=CONFIG.resources.n_processors,
+                       pm_pbar=True)                
+    else:
+        for batch_id in range(reader.n_batches):
+            run_voltage_threshold_parallel(
+                batch_id,
+                reader,
+                n_sec_chunk,
+                CONFIG.detect.threshold,
+                output_directory)
 
-    # loop over each chunk
-    for batch_id in range(reader.n_batches):
 
-        # skip if the file exists
-        fname = os.path.join(
-            output_directory,
-            "detect_" + str(batch_id).zfill(5) + '.npz')
+def run_voltage_threshold_parallel(batch_id, reader, n_sec_chunk,
+                                     threshold, output_directory):
 
-        if os.path.exists(fname):
-            processing_ctr += n_mini_per_big_batch
-            continue
+    # skip if the file exists
+    fname = os.path.join(
+        output_directory,
+        "detect_" + str(batch_id).zfill(5) + '.npz')
 
-        # get a bach of size n_sec_chunk
-        # but partioned into smaller minibatches of 
-        # size n_sec_chunk_gpu
-        batched_recordings, minibatch_loc_rel = reader.read_data_batch_batch(
-            batch_id,
-            #CONFIG.detect.n_sec_chunk,
-            n_sec_chunk,
-            add_buffer=True)
+    if os.path.exists(fname):
+        return
 
-        # offset for big batch
-        batch_offset = reader.idx_list[batch_id, 0] - reader.buffer
-        # location of each minibatch (excluding buffer)
-        minibatch_loc = minibatch_loc_rel + batch_offset
-        spike_index_list = []
-        energy_list = []
-        for j in range(batched_recordings.shape[0]):
-            # print ("  batchid: ", batch_id, ",  index: ", j, 
-                   # batched_recordings[j].shape)
-            spike_index, wfs = NND.predict_recording(
-                batched_recordings[j],
-                sess=sess,
-                output_names=('spike_index', 'waveform'))
+    # get a bach of size n_sec_chunk
+    # but partioned into smaller minibatches of 
+    # size n_sec_chunk_gpu
+    batched_recordings, minibatch_loc_rel = reader.read_data_batch_batch(
+        batch_id,
+        n_sec_chunk,
+        add_buffer=True)
 
-            spike_index, energy_ = amplitude_threshold(
-                batched_recordings[j], 
-                threshold,
-                spike_size)
+    # offset for big batch
+    batch_offset = reader.idx_list[batch_id, 0] - reader.buffer
+    # location of each minibatch (excluding buffer)
+    minibatch_loc = minibatch_loc_rel + batch_offset
+    spike_index_list = []
+    energy_list = []
+    for j in range(batched_recordings.shape[0]):
+        spike_index, energy_ = voltage_threshold(
+            batched_recordings[j], 
+            threshold)
 
-            # update the location relative to the whole recording
-            spike_index[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
-            spike_index_list.append(spike_index)
-            energy_list.append(energy_)
+        # update the location relative to the whole recording
+        spike_index[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
+        spike_index_list.append(spike_index)
+        energy_list.append(energy_)
 
-            processing_ctr+=1
-
-        #if processing_ctr%100==0:
-        logger.info('processed chunk: %s/%s,  # spikes: %s', 
-              str(processing_ctr), str(total_processing), len(spike_index))
-
-        # save result
-        np.savez(fname,
-                 spike_index=spike_index_list,
-                 energy=energy_list,
-                 minibatch_loc=minibatch_loc)
+    # save result
+    np.savez(fname,
+             spike_index=spike_index_list,
+             energy=energy_list,
+             minibatch_loc=minibatch_loc)
+        
