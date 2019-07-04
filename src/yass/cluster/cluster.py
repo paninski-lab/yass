@@ -416,6 +416,7 @@ class Cluster(object):
                 spike_times, unit_ids, self.upsampled_templates,
                 self.spike_size, self.loaded_channels)
         
+        # Cat: TODO: we're cliping the waveforms at 1000 SU; need to check this
         # clip waveforms; seems necessary for neuropixel probe due to artifacts
         self.wf_global = self.wf_global.clip(min=-1000, max=1000)
 
