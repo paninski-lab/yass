@@ -89,7 +89,7 @@ def find_high_mad_unit(
     _, n_times, n_channels = wf.shape
 
     # get mean waveform
-    mean_wf = np.mean(wf, axis=0)
+    mean_wf = np.median(wf, axis=0)
 
     # limit to visible channels
     ptps = mean_wf.ptp(0)
@@ -105,8 +105,9 @@ def find_high_mad_unit(
                                   axis=1)
 
     # max channel within visible channels
-    e_var, t_var = get_mad(wf_up, up_factor, ptps.argmax())
-    violation_per_channel = np.sum(e_var > (t_var+min_var), axis=0)
+    e_var, t_var, active_area = get_mad(wf_up, up_factor, ptps.argmax())
+    e_var[~active_area] = 0
+    violation_per_channel = np.sum(e_var > (t_var + min_var), axis=0)
 
     channels_checked = np.zeros(len(visch), 'bool')
     mc = ptps.argmax()
@@ -119,9 +120,10 @@ def find_high_mad_unit(
         
         cands = np.where(~channels_checked)[0]
         channel = cands[ptps[cands].argmax()]
-        e_var, t_var = get_mad(wf_up, up_factor, channel)
+        e_var, t_var, active_area = get_mad(wf_up, up_factor, channel)
+        e_var[~active_area] = 0
 
-        violation_temp = np.sum(e_var > (t_var+min_var), axis=0)
+        violation_temp = np.sum(e_var > (t_var + min_var), axis=0)
         violation_per_channel = np.vstack((
             violation_per_channel,
             violation_temp)).min(0)
@@ -156,10 +158,12 @@ def get_mad(wf_up, up_factor, channel):
     t_var = t_var[up_factor//2:-up_factor//2]
     t_var = t_var[np.arange(0, len(t_var), up_factor)]
 
+    active_area = np.abs(np.median(wf_aligned, 0)) > 0.5
+
     # mad value for aligned waveforms
     e_var = np.square(np.median(np.abs(np.median(wf_aligned, axis=0)[None] - wf_aligned), axis=0)/0.67449)
     
-    return e_var, t_var
+    return e_var, t_var, active_area
 
 
 def get_t_var(wf):
