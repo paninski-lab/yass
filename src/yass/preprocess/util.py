@@ -99,7 +99,11 @@ def _standardize(rec, sd=None, centered=False):
     if sd is None:
         sd = _standard_deviation(rec, centered=True)
     
-    return np.divide(rec, sd)
+    idx = np.where(sd!=0.)[0]
+    rec[:,idx] = np.divide(rec[:,idx],sd[idx])
+    
+    return rec
+    #return np.divide(rec, sd)
 
 
 def filter_standardize_batch(batch_id, reader, low_frequency, high_factor, order,
