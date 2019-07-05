@@ -278,7 +278,7 @@ def iterative_block(TMP_FOLDER,
         run_chunk_sec=run_chunk_sec)
 
     logger.info('BLOCK1 MERGE')
-    fname_templates_up, fname_spike_train_up = merge.run(
+    fname_templates, fname_spike_train = merge.run(
         os.path.join(TMP_FOLDER,
                      'post_deconv_merge'),
         False,
@@ -290,11 +290,17 @@ def iterative_block(TMP_FOLDER,
         standardized_params['dtype'],
         fname_residual,
         residual_dtype)
-        
-    fname_templates = fname_templates_up
-    fname_spike_train = fname_spike_train_up
-        
-        
+
+    methods = ['low_fr']
+    fname_templates, fname_spike_train = postprocess.run(
+        methods,
+        fname_templates,
+        fname_spike_train,
+        os.path.join(TMP_FOLDER,
+                     'deconv_post_process'),
+        standardized_path,
+        standardized_params['dtype'])
+
     # cluster
     logger.info('RECLUSTERING')
     raw_data = False
