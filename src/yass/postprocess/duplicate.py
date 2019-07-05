@@ -3,12 +3,12 @@ import os
 import parmap
 import scipy
 
-def remove_duplicates(fname_templates, fname_weights, save_dir, units_in=None,
-                      multi_processing=False, n_processors=1):
+def remove_duplicates(fname_templates, fname_weights, save_dir, CONFIG,
+                      units_in=None, multi_processing=False, n_processors=1):
 
     # first find duplicates
     units, fnames_out = find_duplicates(
-        fname_templates, save_dir, units_in, 
+        fname_templates, save_dir, CONFIG, units_in,
         multi_processing, n_processors)
 
     # load weights
@@ -32,7 +32,7 @@ def remove_duplicates(fname_templates, fname_weights, save_dir, units_in=None,
     return units_keep
 
 
-def find_duplicates(fname_templates, save_dir, units_in=None,
+def find_duplicates(fname_templates, save_dir, CONFIG, units_in=None,
                     multi_processing=False, n_processors=1):
         
     ''' Compute absolute max distance using denoised templates
@@ -69,11 +69,18 @@ def find_duplicates(fname_templates, save_dir, units_in=None,
         fname = os.path.join(save_dir, 'unit_{}.npy'.format(unit))
         fnames_out.append(fname)
 
+    up_factor = 4
+    max_diff_threshold = CONFIG.clean_up.abs_max_diff
+    max_diff_rel_threshold = CONFIG.clean_up.rel_max_diff
+    
     # find duplicates
     if multi_processing:
         parmap.starmap(abs_max_dist,
                        list(zip(units_in, units_compare, fnames_out)),
                        fname_templates,
+                       up_factor,
+                       max_diff_threshold,
+                       max_diff_rel_threshold,
                        processes=n_processors,
                        pm_pbar=True)
     else:
@@ -81,7 +88,10 @@ def find_duplicates(fname_templates, save_dir, units_in=None,
             abs_max_dist(units_in[ctr],
                          units_compare[ctr], 
                          fnames_out[ctr],
-                         fname_templates)
+                         fname_templates,
+                         up_factor,
+                         max_diff_threshold,
+                         max_diff_rel_threshold)
 
     return units_in, fnames_out
 
@@ -122,7 +132,7 @@ def compute_units_to_compare(fname_templates):
     return units_to_compare
 
 def abs_max_dist(unit, candidates, fname_out, fname_templates,
-                 up_factor=8, max_diff_threshold=1.2,
+                 up_factor=4, max_diff_threshold=1.2,
                  max_diff_rel_threshold=0.15):
 
     if os.path.exists(fname_out):

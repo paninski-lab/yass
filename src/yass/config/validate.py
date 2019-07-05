@@ -62,7 +62,9 @@ def validate(mapping, silent=True):
                        'filename')
     expand_asset_model(document, 'neuralnetwork', 'denoise',
                        'filename')
-    expand_to_root(document, 'neuralnetwork', 'training',
-                   'input_spike_train_filname')
+
+    if document['neuralnetwork']['training']['input_spike_train_filname'] is not None:
+        expand_to_root(document, 'neuralnetwork', 'training',
+                       'input_spike_train_filname')
 
     return document

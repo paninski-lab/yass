@@ -124,7 +124,7 @@ def post_process(output_directory,
     if method == 'low_ptp':
 
         # Cat: TODO: move parameter to CONFIG
-        threshold = 3
+        threshold = CONFIG.clean_up.min_ptp
 
         # load templates
         templates = np.load(fname_templates)
@@ -139,7 +139,7 @@ def post_process(output_directory,
     elif method == 'off_center':
 
         # Cat: TODO: move parameter to CONFIG
-        threshold = 5
+        threshold = CONFIG.clean_up.off_center
 
         # load templates
         templates = np.load(fname_templates)
@@ -162,6 +162,7 @@ def post_process(output_directory,
             fname_templates,
             fname_weights,
             save_dir,
+            CONFIG,
             units_in,
             CONFIG.resources.multi_processing,
             CONFIG.resources.n_processors)
@@ -178,6 +179,7 @@ def post_process(output_directory,
         units_out = remove_collision(
             fname_templates,
             save_dir,
+            CONFIG,
             units_in,
             CONFIG.resources.multi_processing,
             CONFIG.resources.n_processors)
@@ -200,6 +202,9 @@ def post_process(output_directory,
         neigh_channels = n_steps_neigh_channels(
             CONFIG.neigh_channels, 2)
 
+        max_violations = CONFIG.clean_up.mad.max_violations
+        min_var_gap = CONFIG.clean_up.mad.min_var_gap
+
         # find high mad units and remove
         units_out = remove_high_mad(
             fname_templates,
@@ -208,6 +213,8 @@ def post_process(output_directory,
             reader,
             neigh_channels,
             save_dir,
+            min_var_gap,
+            max_violations,
             units_in,
             CONFIG.resources.multi_processing,
             CONFIG.resources.n_processors)

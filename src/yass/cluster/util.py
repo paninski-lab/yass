@@ -4,6 +4,7 @@ import os
 from tqdm import tqdm
 import parmap
 import torch
+from sklearn.decomposition import PCA
 from numba import jit
 
 from yass.util import absolute_path_to_asset
@@ -24,6 +25,7 @@ def make_CONFIG2(CONFIG):
     CONFIG2.data=empty()
     CONFIG2.cluster=empty()
     CONFIG2.cluster.prior=empty()
+    CONFIG2.neuralnetwork = empty()
 
     CONFIG2.recordings.sampling_rate = CONFIG.recordings.sampling_rate
     CONFIG2.recordings.n_channels = CONFIG.recordings.n_channels
@@ -44,9 +46,12 @@ def make_CONFIG2(CONFIG):
 
     CONFIG2.neigh_channels = CONFIG.neigh_channels
     CONFIG2.cluster.max_n_spikes = CONFIG.cluster.max_n_spikes
-    
+    CONFIG2.cluster.min_fr = CONFIG.cluster.min_fr
+
     CONFIG2.spike_size = CONFIG.spike_size
     CONFIG2.spike_size_nn = CONFIG.spike_size_nn
+
+    CONFIG2.neuralnetwork.apply_nn = CONFIG.neuralnetwork.apply_nn
 
     return CONFIG2
 
@@ -102,7 +107,7 @@ def partition_input(save_dir, max_time,
 
     fnames = []
     for unit in range(n_units):
-        
+
         fname = os.path.join(save_dir, 'partition_{}.npz'.format(unit))
         fnames.append(fname)
 
@@ -197,7 +202,6 @@ def load_align_waveforms(save_dir, fnames_input_data,
                   for unit in range(n_units)]
 
     if CONFIG.resources.multi_processing:
-        #parmap.starmap(load_align_waveforms_parallel,
         parmap.map(load_align_waveforms_parallel,
                        list(zip(fnames_out, fnames_input_data, units)),
                        reader_raw,
@@ -241,7 +245,7 @@ def load_align_waveforms_parallel(data_in,
     # calculate min_spikes
     n_spikes_in = len(spike_times)
     rec_len = np.max(spike_times) - np.min(spike_times)
-    min_fr = 0.1
+    min_fr = CONFIG.cluster.min_fr
     n_sec_data = rec_len/float(CONFIG.recordings.sampling_rate)
     min_spikes = int(n_sec_data*min_fr)
     # if it will be subsampled, min spikes should decrease also
@@ -262,13 +266,18 @@ def load_align_waveforms_parallel(data_in,
 
     # first read waveforms in a bigger size
     # then align and cut down edges
-    spike_size_read = (CONFIG.spike_size_nn-1)*2 + 1
-    spike_size_out = CONFIG.spike_size_nn
+    if CONFIG.neuralnetwork.apply_nn:
+        spike_size_out = CONFIG.spike_size_nn
+    else:
+        spike_size_out = CONFIG.spike_size
+
+    spike_size_read = (spike_size_out-1)*2 + 1
 
     if not raw_data:
         up_templates = input_data['up_templates']
         size_diff = (up_templates.shape[1] - spike_size_out)//2
-        up_templates = up_templates[:, size_diff:-size_diff]
+        if size_diff > 0:
+            up_templates = up_templates[:, size_diff:-size_diff]
         upsampled_ids = input_data['up_ids']
         upsampled_ids = upsampled_ids[
             idx_sampled][idx_inbounds].astype('int32')    
@@ -364,6 +373,47 @@ def nn_denoise_wf(fnames_input_data, denoiser):
             # reshape it
             #window = np.arange(15, 40)
             #denoised_wf = denoised_wf[:, window]
+            denoised_wf = denoised_wf.reshape(n_data, -1)
+
+            temp = dict(temp)
+            temp['denoised_wf'] = denoised_wf
+            np.savez(fname, **temp)
+            pbar.update()
+
+
+def denoise_wf(fnames_input_data):
+
+    with tqdm(total=len(fnames_input_data)) as pbar:
+        for fname in fnames_input_data:
+            temp = np.load(fname)
+
+            if 'denoised_wf' in temp.files:
+                continue
+
+            wf = temp['wf']
+            n_data, n_times, n_chans = wf.shape
+            wf_reshaped = wf.transpose(0, 2, 1).reshape(-1, n_times)
+
+            # restrict to high energy locations
+            energy = np.max(np.median(np.square(wf), 0), 1)
+            idx = np.where(energy > 0.5)[0]
+            if len(idx) == 0:
+                idx = [energy.argmax()]
+            wf_reshaped = wf_reshaped[:, idx]
+
+            if len(idx) > 5:
+                # denoise using pca
+                pca = PCA(n_components=5)
+                score = pca.fit_transform(wf_reshaped)
+                denoised_wf = pca.inverse_transform(score)
+            else:
+                denoised_wf = wf_reshaped
+
+            # reshape it
+            #window = np.arange(15, 40)
+            #denoised_wf = denoised_wf[:, window]
+            denoised_wf = denoised_wf.reshape(
+                n_data, n_chans, len(idx)).transpose(0, 2, 1)
             denoised_wf = denoised_wf.reshape(n_data, -1)
 
             temp = dict(temp)

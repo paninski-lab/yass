@@ -99,17 +99,17 @@ def run(standardized_path, standardized_params,
         os.mkdir(output_temp_files)
 
     # run detection
-    if CONFIG.detect.method == 'threshold':
-        run_voltage_treshold(standardized_path,
-                             standardized_params,
-                             output_temp_files)
-
-    elif CONFIG.detect.method == 'nn':
+    if CONFIG.neuralnetwork.apply_nn:
         run_neural_network(
             standardized_path,
             standardized_params,
             output_temp_files,
             run_chunk_sec=run_chunk_sec)
+
+    else:
+        run_voltage_treshold(standardized_path,
+                     standardized_params,
+                     output_temp_files)
 
     ###### deduplication #####
     logger.info('Deduplicating detected spikes (TODO: repartition  \

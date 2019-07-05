@@ -11,7 +11,7 @@ from yass.cluster.util import (make_CONFIG2,
                                partition_input,
                                gather_clustering_result,
                                load_align_waveforms,
-                               nn_denoise_wf)
+                               nn_denoise_wf, denoise_wf)
 from yass.neuralnetwork import Denoise
 
 def run(fname_spike_index,
@@ -117,14 +117,19 @@ def run(fname_spike_index,
         raw_data,
         CONFIG2)
 
-    logger.info("NN denoise")
-    # load NN denoiser
-    denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
-                       CONFIG.neuralnetwork.denoise.filter_sizes,
-                       CONFIG.spike_size_nn)
-    denoiser.load(CONFIG.neuralnetwork.denoise.filename)
-    # denoise it
-    nn_denoise_wf(fnames_input, denoiser)
+    if CONFIG.neuralnetwork.apply_nn:
+        logger.info("NN denoise")
+        # load NN denoiser
+        denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
+                           CONFIG.neuralnetwork.denoise.filter_sizes,
+                           CONFIG.spike_size_nn)
+        denoiser.load(CONFIG.neuralnetwork.denoise.filename)
+        # denoise it
+        nn_denoise_wf(fnames_input, denoiser)
+
+    else:
+        logger.info("denoise")
+        denoise_wf(fnames_input)
 
     # save location for intermediate results
     tmp_save_dir = os.path.join(output_directory, 'cluster_result')

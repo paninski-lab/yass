@@ -11,6 +11,8 @@ def remove_high_mad(fname_templates,
                     reader,
                     neigh_channels,
                     save_dir,
+                    min_var_gap,
+                    max_mad_violation,
                     units_in=None,
                     multi_processing=False,
                     n_processors=1):
@@ -35,11 +37,17 @@ def remove_high_mad(fname_templates,
         fname = os.path.join(save_dir, 'unit_{}.npz'.format(unit))
         fnames_out.append(fname)
 
+    up_factor = 2
+    min_ptp = 2
     if multi_processing:
         parmap.starmap(find_high_mad_unit, 
                        list(zip(fnames_spike_times, fnames_out)),
                        reader,
                        neigh_channels,
+                       min_var_gap,
+                       max_mad_violation,
+                       up_factor,
+                       min_ptp,
                        processes=n_processors,
                        pm_pbar=True)                
     else:
@@ -48,7 +56,11 @@ def remove_high_mad(fname_templates,
                 fnames_spike_times[ctr],
                 fnames_out[ctr],
                 reader,
-                neigh_channels)
+                neigh_channels,
+                min_var_gap,
+                max_mad_violation,
+                up_factor,
+                min_ptp)
 
     collision_units = []
     for ctr, fname in enumerate(fnames_out):
@@ -66,8 +78,8 @@ def find_high_mad_unit(
     fname_out,
     reader,
     neigh_channels,
-    min_var=2,
-    breach=10,
+    min_var_gap=2,
+    max_mad_violation=10,
     up_factor=2,
     min_ptp=2):
 
@@ -107,15 +119,15 @@ def find_high_mad_unit(
     # max channel within visible channels
     e_var, t_var, active_area = get_mad(wf_up, up_factor, ptps.argmax())
     e_var[~active_area] = 0
-    violation_per_channel = np.sum(e_var > (t_var + min_var), axis=0)
+    violation_per_channel = np.sum(e_var > (t_var + min_var_gap), axis=0)
 
     channels_checked = np.zeros(len(visch), 'bool')
     mc = ptps.argmax()
     channels_checked[neigh_channels[mc]] = True
     
-    while ((violation_per_channel.sum() > breach) and 
+    while ((violation_per_channel.sum() > max_mad_violation) and 
            (not np.all(channels_checked)) and 
-           (violation_per_channel[channels_checked].sum() <= breach)
+           (violation_per_channel[channels_checked].sum() <= max_mad_violation)
           ):
         
         cands = np.where(~channels_checked)[0]
@@ -123,14 +135,14 @@ def find_high_mad_unit(
         e_var, t_var, active_area = get_mad(wf_up, up_factor, channel)
         e_var[~active_area] = 0
 
-        violation_temp = np.sum(e_var > (t_var + min_var), axis=0)
+        violation_temp = np.sum(e_var > (t_var + min_var_gap), axis=0)
         violation_per_channel = np.vstack((
             violation_per_channel,
             violation_temp)).min(0)
         
         channels_checked[neigh_channels[channel]] = True
 
-    if violation_per_channel.sum() > breach:
+    if violation_per_channel.sum() > max_mad_violation:
         kill = True
     else:
         kill = False

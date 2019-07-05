@@ -4,7 +4,7 @@ import parmap
 
 from yass.postprocess.util import run_deconv
 
-def remove_collision(fname_templates, save_dir, units_in=None,
+def remove_collision(fname_templates, save_dir, CONFIG, units_in=None,
                       multi_processing=False, n_processors=1):
 
     # output folder
@@ -22,20 +22,27 @@ def remove_collision(fname_templates, save_dir, units_in=None,
         fname = os.path.join(save_dir, 'unit_{}.npz'.format(unit))
         fnames_out.append(fname)
 
+    up_factor = 8
+    residual_max_norm = CONFIG.clean_up.abs_max_diff
+
     # run deconv on template
     if multi_processing:
         parmap.starmap(deconv_on_template,
                        list(zip(units_in, fnames_out)),
                        units_in,
                        fname_templates,
+                       up_factor,
+                       residual_max_norm,
                        processes=n_processors,
                        pm_pbar=True)      
     else:
         for ctr in range(len(units_in)):
             deconv_on_template(units_in[ctr],
                                fnames_out[ctr],
-                               units_in, 
-                               fname_templates)
+                               units_in,
+                               fname_templates,
+                               up_factor,
+                               residual_max_norm)
 
     # gather result
     units_kill = np.zeros(len(units_in), 'bool')

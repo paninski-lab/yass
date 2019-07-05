@@ -117,14 +117,8 @@ preprocess:
 detect:
   type: dict
   default:
-    method: nn
     threshold: 0.5
   schema:
-    # 'nn' for neural net detction, 'threshold' for amplitude threshold detection
-    method:
-      type: string
-      required: True
-      allowed: [threshold, nn]
     threshold:
       type: float
       default: 0.5
@@ -133,12 +127,14 @@ cluster:
   type: dict
   default:
     max_n_spikes: 10000
+    min_fr: 0.1
     prior:
       beta: 1
       a: 1
       lambda0: 0.01
       nu: 5
       V: 2
+    max_mad_violation: 10
   schema:
     max_n_spikes:
         type: integer
@@ -184,7 +180,7 @@ deconvolution:
 neuralnetwork:
   type: dict
   default:
-    spike_size_ms: 1.5
+    apply_nn: True
     detect:
       filename: detect.pt  
       n_filters: [16, 8, 8] 
@@ -193,4 +189,22 @@ neuralnetwork:
       n_filters: [16, 8, 4]
       filter_sizes : [5, 11, 21]
     training:
-      input_spike_train_filname: spike_train.npy
+      input_spike_train_filname:
+      spike_size_ms:
+  schema:
+    training:
+      type: dict
+      default:
+        input_spike_train_filname:
+        spike_size_ms:
+
+clean_up:
+  type: dict
+  default:
+    abs_max_diff: 1.2
+    rel_max_diff: 0.15
+    min_ptp: 3
+    off_center: 5
+    mad:
+      min_var_gap: 2
+      max_violations: 10

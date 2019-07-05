@@ -15,6 +15,7 @@ import logging
 import multiprocess
 import yaml
 import numpy as np
+import torch
 
 from yass import geometry as geom
 from yass.config.validate import validate
@@ -192,11 +193,27 @@ class Config:
                                                 self.geom, steps=1)
         self._set_param('channel_index', channel_index)
 
-        spike_size_nn = int(
-                np.round(self.neuralnetwork.spike_size_ms*
-                         self.recordings.sampling_rate/1000))
-        if spike_size_nn % 2 == 0:
-            spike_size_nn += 1
+        # spike size to nn
+        if self.neuralnetwork.training.spike_size_ms is None:
+            spike_size_nn_detector = torch.load(
+                self.neuralnetwork.detect.filename)[
+                'temporal_filter1.0.weight'].shape[2]
+
+            spike_size_nn_denoiser = torch.load(
+                self.neuralnetwork.denoise.filename)[
+                'out.weight'].shape[0]
+
+            if spike_size_nn_detector != spike_size_nn_denoiser:
+                raise ValueError('input spike sizes of nn detector and denoiser do not match. change models')
+
+            else:
+                spike_size_nn = spike_size_nn_detector
+        else:
+            spike_size_nn = int(
+                    np.round(self.neuralnetwork.training.spike_size_ms*
+                             self.recordings.sampling_rate/1000))
+            if spike_size_nn % 2 == 0:
+                spike_size_nn += 1
         self._set_param('spike_size_nn', spike_size_nn)
 
         # compute the length of recording
