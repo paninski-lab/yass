@@ -48,7 +48,7 @@ class Denoise(nn.Module):
 
         return output, x   # return x for visualization
 
-    def train(self, fname_save, DenoTD, n_train=50000, n_test=500, EPOCH=500, BATCH_SIZE=512, LR=0.0001):
+    def train(self, fname_save, DenoTD, n_train=50000, n_test=500, EPOCH=2000, BATCH_SIZE=512, LR=0.0001):
 
         print('Training NN denoiser')
 

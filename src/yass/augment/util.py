@@ -5,6 +5,7 @@ import numpy as np
 import os
 import scipy
 import logging
+from sklearn.decomposition import PCA
 
 from yass.template import align_get_shifts_with_ref, shift_chans
 from yass.geometry import order_channels_by_distance
@@ -59,7 +60,7 @@ def crop_and_align_templates(fname_templates, save_dir, CONFIG):
 
     # determin temporal center of templates and crop around it
     total_energy = np.sum(np.square(templates_max_channel_aligned), axis=0)
-    center = np.argmax(np.convolve(total_energy, np.ones(spike_size), 'same'))
+    center = np.argmax(np.convolve(total_energy, np.ones(spike_size//2), 'same'))
     templates_aligned = templates_aligned[:, (center-spike_size//2):(center+spike_size//2+1)]
     
     ########## spatially crop (only keep neighbors) #################
@@ -86,6 +87,50 @@ def crop_and_align_templates(fname_templates, save_dir, CONFIG):
     return fname_templates_cropped
 
 
+def denoise_templates(fname_templates, save_dir):
+
+    # load templates
+    templates = np.load(fname_templates)
+
+    n_templates, n_times, n_chan = templates.shape
+    denoised_templates = np.zeros(templates.shape)
+
+    #templates on max channels (index 0)
+    templates_mc = templates[:, :, 0]
+    ptp_mc = templates_mc.ptp(1)
+    templates_mc = templates_mc/ptp_mc[:, None]
+
+    # denoise max channel templates
+    pca_mc = PCA(n_components=5)
+    score = pca_mc.fit_transform(templates_mc)
+    deno_temp = pca_mc.inverse_transform(score)
+    denoised_templates[:, :, 0] = deno_temp*ptp_mc[:, None]
+
+    # templates on neighboring channels
+    templates_neigh = templates[:, :, 1:]
+    templates_neigh = templates_neigh.transpose(0, 2, 1).reshape(-1, n_times)
+    ptp_neigh = templates_neigh.ptp(1)
+    idx_non_zero = ptp_neigh > 0
+
+    # get pca trained
+    pca_neigh = PCA(n_components=5)
+    pca_neigh.fit(templates_neigh[idx_non_zero]/ptp_neigh[idx_non_zero][:, None])
+
+    # denoise them
+    for j in range(1, n_chan):
+        temp = templates[:, :, j]
+        temp_ptp = np.abs(temp.min(1))
+        idx = temp_ptp > 0
+        temp = (temp[idx]/temp_ptp[idx, None])
+        denoised_templates[idx, :, j] = pca_neigh.inverse_transform(
+            pca_neigh.transform(temp))*temp_ptp[idx, None]
+
+    fname_out = os.path.join(save_dir, 'denoised_templates.npy')
+    np.save(fname_out, denoised_templates)
+
+    return fname_out
+
+
 class Detection_Training_Data(object):
     
     def __init__(self,
@@ -96,21 +141,15 @@ class Detection_Training_Data(object):
         self.spatial_sig = np.load(fname_spatial_sig)
         self.temporal_sig = np.load(fname_temporal_sig)
         self.templates = np.load(fname_templates_cropped)
-        self.remove_bad_templates()
         self.standardize_templates()
-        
-        self.spike_size = self.temporal_sig.shape[0]
 
-    def remove_bad_templates(self):
-        
-        ptp = self.templates.ptp(1).max(1)
-        self.templates = self.templates[ptp > 5]
+        self.spike_size = self.temporal_sig.shape[0]
     
     def standardize_templates(self):
 
         # standardize templates
-        min_val = np.abs(np.min(self.templates[: ,:, 0], 1))
-        self.templates = self.templates/min_val[:, None, None]
+        ptps = np.ptp(self.templates[: ,:, 0], 1)
+        self.templates = self.templates/ptps[:, None, None]
         
     def make_training_data(self, n_data):
         
@@ -174,22 +213,22 @@ class Denoising_Training_Data(object):
         self.templates = np.load(fname_templates_cropped)
         self.templates = self.templates.transpose(0,2,1).reshape(
             -1, self.templates.shape[1])
-        self.remove_bad_templates()
+        self.remove_small_templates()
         self.standardize_templates()
         self.jitter_templates()
         
         self.spike_size = self.temporal_sig.shape[0]
 
-    def remove_bad_templates(self):
+    def remove_small_templates(self):
         
         ptp = self.templates.ptp(1)
-        self.templates = self.templates[ptp > 5]
+        self.templates = self.templates[ptp > 3]
     
     def standardize_templates(self):
     
         # standardize templates
-        min_val = np.abs(np.min(self.templates, 1))
-        self.templates = self.templates/min_val[:, None]
+        ptp = self.templates.ptp(1)
+        self.templates = self.templates/ptp[:, None]
 
         ref = np.mean(self.templates, 0)
         shifts = align_get_shifts_with_ref(

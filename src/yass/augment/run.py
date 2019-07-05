@@ -13,7 +13,8 @@ import numpy as np
 from yass import read_config
 from yass.reader import READER
 from yass.augment.noise import noise_cov
-from yass.augment.util import crop_and_align_templates, Detection_Training_Data, Denoising_Training_Data
+from yass.augment.util import (crop_and_align_templates, denoise_templates,
+                               Detection_Training_Data, Denoising_Training_Data)
 from yass.template import run_template_computation
 
 def run(fname_recording, recording_dtype, fname_spike_train,
@@ -51,15 +52,19 @@ def run(fname_recording, recording_dtype, fname_spike_train,
                                                                fname_spike_train,
                                                                CONFIG)
 
+    # denoise templates
+    fname_templates_denoised = denoise_templates(fname_templates_snippets,
+                                                 save_dir)
+
     # make training data
     logger.info('Make Training Data')
     DetectTD = Detection_Training_Data(
-        fname_templates_snippets,
+        fname_templates_denoised,
         fname_spatial_sig,
         fname_temporal_sig)
     
     DenoTD = Denoising_Training_Data(
-        fname_templates_snippets,
+        fname_templates_denoised,
         fname_spatial_sig,
         fname_temporal_sig)
     
@@ -121,4 +126,3 @@ def get_templates_on_local_channels(reader, save_dir,
         fname_templates, save_dir, CONFIG)
 
     return fname_templates_cropped
-

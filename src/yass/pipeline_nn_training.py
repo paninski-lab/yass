@@ -26,8 +26,10 @@ import yaml
 import yass
 from yass import set_config
 from yass import read_config
+from yass.config import Config
 
-from yass import (preprocess, augment)
+from yass import (preprocess, detect, cluster, postprocess, augment)
+
 from yass.neuralnetwork import Detect, Denoise
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
@@ -76,7 +78,14 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     """
 
     # load yass configuration parameters
-    set_config(config, output_dir)
+    CONFIG = Config.from_yaml(config)
+    CONFIG._data['cluster']['min_fr'] = 2
+    CONFIG._data['clean_up']['mad']['min_var_gap'] = 1.5
+    CONFIG._data['clean_up']['mad']['max_violations'] = 5
+    CONFIG._data['neuralnetwork']['apply_nn'] = False
+    CONFIG._data['detect']['threshold'] = 5
+
+    set_config(CONFIG._data, output_dir)
     CONFIG = read_config()
     TMP_FOLDER = CONFIG.path_to_output_directory
 
@@ -126,11 +135,56 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
      standardized_params) = preprocess.run(
         os.path.join(TMP_FOLDER, 'preprocess'))
 
+    TMP_FOLDER = os.path.join(TMP_FOLDER, 'nn_train')
+    if not os.path.exists(TMP_FOLDER):
+        os.makedirs(TMP_FOLDER)
+
+    if CONFIG.neuralnetwork.training.input_spike_train_filname is None:
+
+        # run on 10 minutes of data
+        rec_len = np.min((CONFIG.rec_len,
+                         CONFIG.recordings.sampling_rate*10*60))
+        # detect
+        logger.info('DETECTION')
+        spike_index_path = detect.run(
+            standardized_path,
+            standardized_params,
+            os.path.join(TMP_FOLDER, 'detect'),
+            run_chunk_sec=[0, rec_len])
+
+        logger.info('CLUSTERING')
+
+        # cluster
+        raw_data = True
+        full_run = False
+        fname_templates, fname_spike_train = cluster.run(
+            spike_index_path,
+            standardized_path,
+            standardized_params['dtype'],
+            os.path.join(TMP_FOLDER, 'cluster'),
+            raw_data,
+            full_run)
+
+        methods = ['off_center', 'low_ptp', 'high_mad', 'duplicate', 'collision']
+        fname_templates, fname_spike_train = postprocess.run(
+            methods,
+            fname_templates,
+            fname_spike_train,
+            os.path.join(TMP_FOLDER,
+                         'cluster_post_process'),
+            standardized_path,
+            standardized_params['dtype'])
+
+    else:
+        # if there is an input spike train, use it
+        fname_spike_train = CONFIG.neuralnetwork.training.input_spike_train_filname
+
+
     # Get training data maker
     DetectTD, DenoTD = augment.run(
         standardized_path,
         standardized_params['dtype'],
-        CONFIG.neuralnetwork.training.input_spike_train_filname,
+        fname_spike_train,
         os.path.join(TMP_FOLDER, 'augment'))
 
     # Train Detector
