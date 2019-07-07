@@ -113,6 +113,7 @@ def run(output_directory):
     order = CONFIG.preprocess.filter.order
     sampling_rate = CONFIG.recordings.sampling_rate
 
+    # Cat: TODO: Is this still relevant/used?
     #get standard deviation using a small chunk of data
     chunk_5sec = 5*CONFIG.recordings.sampling_rate
     if CONFIG.rec_len < chunk_5sec:

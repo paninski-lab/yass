@@ -98,9 +98,15 @@ def _standardize(rec, sd=None, centered=False):
     
     if sd is None:
         sd = _standard_deviation(rec, centered=True)
+
+    # standardize all channels with SD> 0.1 (Voltage?) units
+    # Cat: TODO: ensure that this is actually correct for all types of channels
+    idx1 = np.where(sd>=0.1)[0]
+    rec[:,idx1] = np.divide(rec[:,idx1],sd[idx1])
     
-    idx = np.where(sd!=0.)[0]
-    rec[:,idx] = np.divide(rec[:,idx],sd[idx])
+    # zero out bad channels
+    idx2 = np.where(sd<0.1)[0]
+    rec[:,idx2]=0.
     
     return rec
     #return np.divide(rec, sd)
