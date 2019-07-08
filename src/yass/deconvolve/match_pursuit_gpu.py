@@ -270,7 +270,7 @@ class deconvGPU(object):
                   
         if os.path.exists(fname)==False:
             # make initial lists of templates
-            self.coefficients = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp_inverted])
+            self.coefficients_inverted = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp_inverted])
             
             # make bsplines 
             coefficients_local = [self.transform_template(template) for template in self.temp_temp_cpp_inverted]
