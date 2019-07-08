@@ -165,11 +165,12 @@ class deconvGPU(object):
         # conver templates to bpslines
         self.templates_to_bsplines()
 
-        # also need to make inverted templates for addition step
-        self.initialize_cpp_inverted()
-        
-        # conver templates to bpslines
-        self.templates_to_bsplines_inverted()
+        if self.scd:
+            # also need to make inverted templates for addition step
+            self.initialize_cpp_inverted()
+            
+            # conver templates to bpslines
+            self.templates_to_bsplines_inverted()
         
            
             
@@ -226,40 +227,43 @@ class deconvGPU(object):
         fname = os.path.join(self.svd_dir,'bsplines_'+
                   str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npy')
                   
-        if os.path.exists(fname)==False:
+        #if os.path.exists(fname)==False:
             # make initial lists of templates
-            self.coefficients = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp])
+            # Cat: TODO: is this initizliation still required?!
+        self.coefficients = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp])
             
-            # make bsplines 
-            coefficients_local = [self.transform_template(template) for template in self.temp_temp_cpp]
-        
-            # save data from bsplines to disk
+            # print ("Skiipping rest") 
+            # if False:
+                # # make bsplines 
+                # coefficients_local = [self.transform_template(template) for template in self.temp_temp_cpp]
             
-            list_out = []
-            for k in range(len(coefficients_local)):
-                list_out.append(coefficients_local[k].data)
+                # # save data from bsplines to disk
+                
+                # list_out = []
+                # for k in range(len(coefficients_local)):
+                    # list_out.append(coefficients_local[k].data)
 
-            np.save(fname, list_out, allow_pickle=True)
-            self.coefficients = deconv.BatchedTemplates(coefficients_local)
+                # np.save(fname, list_out, allow_pickle=True)
+                # self.coefficients = deconv.BatchedTemplates(coefficients_local)
             
-        else:
-            # load saved coefficients before made into deconv.BatchedTemplates
-            coefficients_local = np.load(fname, allow_pickle=True)
+        # else:
+            # # load saved coefficients before made into deconv.BatchedTemplates
+            # coefficients_local = np.load(fname, allow_pickle=True)
                     
-            # load dummy cpp templates 
-            temp_temp_list = []
-            for k in range(len(self.temp_temp)):
-                temp_temp_empty = np.zeros((self.temp_temp[k].shape[0],self.temp_temp[k].shape[1]+4),'float32')
-                temp_temp_list.append(torch.from_numpy(temp_temp_empty).float().to(device))
+            # # load dummy cpp templates 
+            # temp_temp_list = []
+            # for k in range(len(self.temp_temp)):
+                # temp_temp_empty = np.zeros((self.temp_temp[k].shape[0],self.temp_temp[k].shape[1]+4),'float32')
+                # temp_temp_list.append(torch.from_numpy(temp_temp_empty).float().to(device))
 
-            self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(temp_temp_list, self.vis_units)])
+            # self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(temp_temp_list, self.vis_units)])
 
-            self.coefficients = []
-            for k in range(len(coefficients_local)):
-                self.temp_temp_cpp[k].data.copy_(coefficients_local[k])
-                self.coefficients.append(self.temp_temp_cpp[k])
+            # self.coefficients = []
+            # for k in range(len(coefficients_local)):
+                # self.temp_temp_cpp[k].data.copy_(coefficients_local[k])
+                # self.coefficients.append(self.temp_temp_cpp[k])
 
-            self.coefficients = deconv.BatchedTemplates(self.coefficients)
+            # self.coefficients = deconv.BatchedTemplates(self.coefficients)
 
     def templates_to_bsplines_inverted(self):
 
@@ -270,7 +274,8 @@ class deconvGPU(object):
                   
         if os.path.exists(fname)==False:
             # make initial lists of templates
-            self.coefficients_inverted = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp_inverted])
+            # Cat: TODO: is this required?
+            #self.coefficients_inverted = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp_inverted])
             
             # make bsplines 
             coefficients_local = [self.transform_template(template) for template in self.temp_temp_cpp_inverted]
@@ -832,7 +837,7 @@ class deconvGPU(object):
                                   spike_ids=spike_temps,
                                   fill_length=self.n_time,  # variable fill length here
                                   fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
-                                  fill_value=-1E8)
+                                  fill_value=-1E10)
 
         torch.cuda.synchronize()
             
@@ -930,7 +935,7 @@ class deconvGPU(object):
                                   spike_ids=spike_temps,
                                   fill_length=self.n_time,  # variable fill length here
                                   fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
-                                  fill_value=-1E8)
+                                  fill_value=-1E10)
 
         torch.cuda.synchronize()
             

@@ -269,8 +269,7 @@ def deconv_ONgpu2(fname_templates_in,
             pass
                 
 
-    # this flag loops back and recomputes deconv in previous time chunk 
-    #       based on updated templates
+    # loop until deconv done;
     while True:
         # keep track of chunk being deconved and time_index
         d_gpu.chunk_id = chunk_id
@@ -284,7 +283,6 @@ def deconv_ONgpu2(fname_templates_in,
         if os.path.exists(fname)==False:
                 
             # if true: forward pass over data using previous chunk templates
-            #       this turns on every chunk (e.g. 60sec) of finished deconv
             if (d_gpu.update_templates and 
                 (time_index>recursion_time) and 
                 d_gpu.update_templates_backwards==False):
@@ -295,7 +293,8 @@ def deconv_ONgpu2(fname_templates_in,
 
                     # save forward pass state
                     np.savetxt(os.path.join(d_gpu.seg_dir,'state.txt'),['forward'],fmt="%s")
-            
+
+            # printout flags
             if d_gpu.update_templates:
                 if d_gpu.update_templates_backwards:
                     print ("Forward pass - updating templates", time_index, " sec")
@@ -371,7 +370,7 @@ def deconv_ONgpu2(fname_templates_in,
         
 
     # ************** SAVE SPIKES & SHIFTS **********************
-    print ("  gathering spike trains and shifts from deconv ")
+    print ("  gathering spike trains and shifts from deconv (todo: parallelize)")
     batch_size = d_gpu.reader.batch_size
     buffer_size = d_gpu.reader.buffer
     temporal_size = (CONFIG.recordings.sampling_rate/1000*
