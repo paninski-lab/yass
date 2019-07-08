@@ -244,7 +244,7 @@ class deconvGPU(object):
             
         else:
             # load saved coefficients before made into deconv.BatchedTemplates
-            coefficients_local = np.load(fname)
+            coefficients_local = np.load(fname, allow_pickle=True)
                     
             # load dummy cpp templates 
             temp_temp_list = []
@@ -285,7 +285,7 @@ class deconvGPU(object):
             
         else:
             # load saved coefficients before made into deconv.BatchedTemplates
-            coefficients_local = np.load(fname)
+            coefficients_local = np.load(fname, allow_pickle=True)
                     
             # make dummy cpp templates 
             temp_temp_list = []
@@ -407,8 +407,8 @@ class deconvGPU(object):
             np.save(fname_inverted, self.temp_temp_inverted)
                                  
         else:
-            self.temp_temp = np.load(fname)
-            self.temp_temp_inverted = np.load(fname_inverted)
+            self.temp_temp = np.load(fname, allow_pickle=True)
+            self.temp_temp_inverted = np.load(fname_inverted, allow_pickle=True)
 
     
     def visible_chans(self):
@@ -443,7 +443,7 @@ class deconvGPU(object):
         
         # load templates
         #print ("Loading template: ", self.fname_templates)
-        self.temps = np.load(self.fname_templates).transpose(2,1,0)
+        self.temps = np.load(self.fname_templates, allow_pickle=True).transpose(2,1,0)
         self.N_CHAN, self.STIME, self.K = self.temps.shape
         #print (" Loaded templates shape (n_chan, n_time, n_temps): ", self.temps.shape)
         self.temps_gpu = torch.from_numpy(self.temps).float().to(device)
@@ -485,7 +485,7 @@ class deconvGPU(object):
         else:
                 
             # load data for for temp_temp computation
-            data = np.load(fname)
+            data = np.load(fname, allow_pickle=True)
             self.temporal_up = data['temporal_up']
             self.temporal = data['temporal']
             self.singular = data['singular']
