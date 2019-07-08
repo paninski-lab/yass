@@ -826,13 +826,13 @@ class deconvGPU(object):
         # also fill in self-convolution traces with low energy so the
         #   spikes cannot be detected again (i.e. enforcing refactoriness)
         # Cat: TODO: read from CONFIG
-        if False:
+        if self.refactoriness:
             deconv.refrac_fill(energy=self.obj_gpu,
                                   spike_times=spike_times,
                                   spike_ids=spike_temps,
                                   fill_length=self.n_time,  # variable fill length here
                                   fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
-                                  fill_value=-1E6)
+                                  fill_value=-1E8)
 
         torch.cuda.synchronize()
             
@@ -924,13 +924,13 @@ class deconvGPU(object):
         # also fill in self-convolution traces with low energy so the
         #   spikes cannot be detected again (i.e. enforcing refactoriness)
         # Cat: TODO: investgiate whether putting the refractoriness back in is viable
-        if False:
+        if self.refactoriness:
             deconv.refrac_fill(energy=self.obj_gpu,
                                   spike_times=spike_times,
                                   spike_ids=spike_temps,
                                   fill_length=self.n_time,  # variable fill length here
                                   fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
-                                  fill_value=-1E6)
+                                  fill_value=-1E8)
 
         torch.cuda.synchronize()
             
