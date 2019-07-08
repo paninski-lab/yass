@@ -5,7 +5,7 @@ from tqdm import tqdm
 import parmap
 import torch
 from sklearn.decomposition import PCA
-from numba import jit
+#from numba import jit
 
 from yass.util import absolute_path_to_asset
 from yass.empty import empty
@@ -55,7 +55,7 @@ def make_CONFIG2(CONFIG):
 
     return CONFIG2
 
-@jit
+#@jit
 def split_spikes(spike_index_list, spike_index, idx_keep):
     for j in idx_keep:
         tt, ii = spike_index[j]
@@ -74,7 +74,7 @@ def partition_input(save_dir, max_time,
         os.makedirs(save_dir)
 
     # load data
-    spike_index = np.load(fname_spike_index)
+    spike_index = np.load(fname_spike_index, allow_pickle=True)
 
     # consider only spikes times less than max_time
     idx_keep = np.where(spike_index[:,0] < max_time)[0]
@@ -97,8 +97,8 @@ def partition_input(save_dir, max_time,
     # if there are upsampled data as input,
     # load and partition them also
     if fname_templates_up is not None:
-        spike_index_up = np.load(fname_spike_train_up)
-        templates_up = np.load(fname_templates_up)
+        spike_index_up = np.load(fname_spike_train_up, allow_pickle=True)
+        templates_up = np.load(fname_templates_up, allow_pickle=True)
         up_id_list = [[] for ii in range(n_units)]
         for j in idx_keep:
             ii = spike_index[j, 1]
@@ -161,7 +161,7 @@ def gather_clustering_result(result_dir, out_dir):
     
     filenames = sorted(os.listdir(result_dir))
     for fname in filenames:
-        data = np.load(os.path.join(result_dir, fname))
+        data = np.load(os.path.join(result_dir, fname), allow_pickle=True)
         temp_temp = data['templates']
         if (temp_temp.shape[0]) != 0:
             templates.append(temp_temp)
@@ -239,7 +239,7 @@ def load_align_waveforms_parallel(data_in,
     fname_input_data = data_in[1]
     unit = data_in[2]
         
-    input_data = np.load(fname_input_data)
+    input_data = np.load(fname_input_data, allow_pickle=True)
     if os.path.exists(fname_out):
         return
 
@@ -360,7 +360,7 @@ def nn_denoise_wf(fnames_input_data, denoiser):
 
     with tqdm(total=len(fnames_input_data)) as pbar:
         for fname in fnames_input_data:
-            temp = np.load(fname)
+            temp = np.load(fname,allow_pickle=True)
 
             if 'denoised_wf' in temp.files:
                 continue
@@ -389,7 +389,7 @@ def denoise_wf(fnames_input_data):
 
     with tqdm(total=len(fnames_input_data)) as pbar:
         for fname in fnames_input_data:
-            temp = np.load(fname)
+            temp = np.load(fname, allow_pickle=True)
 
             if 'denoised_wf' in temp.files:
                 continue

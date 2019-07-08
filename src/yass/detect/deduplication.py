@@ -46,7 +46,7 @@ def run_deduplication_batch_simple(batch_id, batch_files_dir,
     fname = os.path.join(
         batch_files_dir,
         "detect_"+str(batch_id).zfill(5)+'.npz')
-    data = np.load(fname)
+    data = np.load(fname,allow_pickle=True)
     spike_index = data['spike_index']
     energy = data['energy']
 
@@ -123,7 +123,7 @@ def run_deduplication_batch(batch_id, batch_files_dir,
     fname = os.path.join(
         batch_files_dir,
         "detect_"+str(batch_id).zfill(5)+'.npz')
-    data = np.load(fname)
+    data = np.load(fname,allow_pickle=True)
     spike_index = data['spike_index']
     energy = data['energy']
 
