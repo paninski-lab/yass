@@ -5,7 +5,7 @@ from tqdm import tqdm
 import parmap
 import torch
 from sklearn.decomposition import PCA
-from numba import jit
+#from numba import jit
 
 from yass.util import absolute_path_to_asset
 from yass.empty import empty
@@ -55,7 +55,7 @@ def make_CONFIG2(CONFIG):
 
     return CONFIG2
 
-@jit
+#@jit
 def split_spikes(spike_index_list, spike_index, idx_keep):
     for j in idx_keep:
         tt, ii = spike_index[j]

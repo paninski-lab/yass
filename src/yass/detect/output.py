@@ -16,7 +16,7 @@ def gather_result(fname_save, batch_files_dir, dedup_dir, output_directory):
         fname_index = os.path.join(
             batch_files_dir,
             "detect_"+str(batch_id).zfill(5)+'.npz')
-        detect_data =  np.load(fname_index)
+        detect_data =  np.load(fname_index,allow_pickle=True)
         spike_index = detect_data['spike_index']
         minibatch_loc = detect_data['minibatch_loc']
 
@@ -24,7 +24,7 @@ def gather_result(fname_save, batch_files_dir, dedup_dir, output_directory):
         fname_dedup = os.path.join(
             dedup_dir,
             "dedup_"+str(batch_id).zfill(5)+'.npy')
-        dedup_idx = np.load(fname_dedup)
+        dedup_idx = np.load(fname_dedup,allow_pickle=True)
 
         for ctr in range(len(spike_index)):
             t_start, t_end = minibatch_loc[ctr]
