@@ -190,6 +190,9 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.save_state = False
     d_gpu.chunk_id = 0
     
+    # Turn on refactoriness
+    d_gpu.refactoriness = True
+    
     # Stochastic gradient descent option
     d_gpu.scd = False
 
