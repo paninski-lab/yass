@@ -6,6 +6,7 @@ import scipy
 
 from diptest import diptest as dp
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+from sklearn.metrics import pairwise_distances
 
 from yass.template import shift_chans, align_get_shifts_with_ref
 from yass.merge.correlograms_phy import compute_correlogram_v2
@@ -49,34 +50,112 @@ class TemplateMerge(object):
             self.merge_candidates = np.load(fname_candidates)
 
         else:
-            # distance among templates
-            print ("computing distances")
-            affinity_matrix = template_dist_linear_align(templates)
+            ## distance among templates
+            #print ("computing distances")
+            #affinity_matrix = template_dist_linear_align(templates)
 
-            # Distance metric with diagonal set to large numbers
-            dist_mat = np.zeros_like(affinity_matrix)
-            for i in range(self.n_unit):
-                dist_mat[i, i] = 1e4
-            dist_mat += affinity_matrix
+            ## Distance metric with diagonal set to large numbers
+            #dist_mat = np.zeros_like(affinity_matrix)
+            #for i in range(self.n_unit):
+            #    dist_mat[i, i] = 1e4
+            #dist_mat += affinity_matrix
 
-            # Template norms
-            print ("computing norms")
-            norms = np.sum(np.square(templates), axis=(1,2))
+            ## Template norms
+            #print ("computing norms")
+            #norms = np.sum(np.square(templates), axis=(1,2))
 
-            # relative difference
-            dist_norm_ratio = dist_mat / np.maximum(norms[np.newaxis],
-                                                    norms[:, np.newaxis])
+            ## relative difference
+            #dist_norm_ratio = dist_mat / np.maximum(norms[np.newaxis],
+            #                                        norms[:, np.newaxis])
 
-            # ptp of each unit
-            ptps = templates.ptp(1).max(1)
+            ## ptp of each unit
+            #ptps = templates.ptp(1).max(1)
 
-            print ("finding merge candidates")
- 
-            self.find_merge_candidates(dist_norm_ratio,
-                                       ptps)
+            print("finding candidates using ptp")
+            unique_pairs = self.find_merge_candidates(templates)
+
+            print('check if it passes xcor test')
+            self.merge_candidates = self.xcor_notch_test(self, pairs, templates)
             np.save(fname_candidates, self.merge_candidates)
 
-    def find_merge_candidates(self, dist_norm_ratio, ptps):
+    def find_merge_candidates(self, templates):
+
+        # find candidates by comparing ptps
+        # if distance of ptps are close, then they need to be checked.
+
+        # compute ptp
+        ptps = templates.ptp(1)
+        # mask out small ptp
+        ptps[ptps < 1] = 0
+
+        # distances of ptps
+        dist_mat = pairwise_distances(ptps)
+        for i in range(self.n_unit):
+            dist_mat[i, i] = 1e4
+
+        # compute distance relative to the norm of ptps
+        norms = np.linalg.norm(ptps, axis=1)
+        dist_norm_ratio = dist / np.maximum(
+            norms[np.newaxis], norms[:, np.newaxis])
+        # units need to be close to each other
+        idx1 = dist_norm_ratio < 0.5
+
+        # ptp of both units need to be bigger than 4
+        ptp_max = ptps.max(1)
+        smaller_ptps = np.minimum(ptp_max[np.newaxis],
+                                  ptp_max[:, np.newaxis])
+        idx2 = smaller_ptps > 4
+
+        # get candidates
+        units_1, units_2 = np.where(
+            np.logical_and(idx1, idx2))
+
+        # get unique pairs only for comparison
+        unique_pairs = []
+        for x, y in zip(units_1, units_2):
+            if [x, y] not in unique_pairs and [y, x] not in unique_pairs:
+                unique_pairs.append([x, y])
+
+        return unique_pairs
+
+    def xcor_notch_test(self, pairs, templates):
+
+        # if there is a dip, do further test
+        merge_candidates = []
+        for pair in pairs:
+
+            # get spike times
+            unit1, unit2 = pair
+            spt1 = np.load(self.fnames_input[unit1])['spike_times']
+            spt2 = np.load(self.fnames_input[unit2])['spike_times']
+
+            temps = templates[pair]
+            mc = temps.ptp(1).max(0).argmax()
+            shift = np.diff(temps[:, :, mc].argmin(1))[0]
+            spt1 += shift
+
+            if len(spt1) > 1 and len(spt2) > 1:
+                # compute xcorr
+                xcor = compute_correlogram_v2(spt1, spt2)
+                if xcor.shape[0] == 1:
+                    xcor = xcor[0,0]
+                elif xcor.shape[0] > 1:
+                    xcor = xcor[1,0]
+
+                # if there are not enough synchronous spike
+                # activities between two units, add it
+                centerbins = np.arange(len(xcor)//2, len(xcor)//2+2)
+                if xcor[centerbins].min() < 10:
+                    merge_candidates.append(pair)
+                else:
+                    # check for notch and if there, add it
+                    notch, pval1 = notch_finder(xcor)
+                    if notch:
+                        merge_candidates.append(pair)
+
+        return merge_candidates
+
+    def find_merge_candidates_orig(self, dist_norm_ratio, ptps):
 
         # units need to be close to each other
         idx1 = dist_norm_ratio < 0.5
@@ -112,8 +191,8 @@ class TemplateMerge(object):
                     xcor = xcor[1,0]
 
                 # check for notch and if there, add it
-                notch, pval1, pval2 = notch_finder(xcor)
-                if pval1 < 0.05:
+                notch, pval1 = notch_finder(xcor)
+                if notch:
                     self.merge_candidates.append(pair)
 
     def get_merge_pairs(self):
@@ -197,6 +276,10 @@ class TemplateMerge(object):
         spt1 = unit1_data['spike_times']
         spt2 = unit2_data['spike_times']
 
+        # templates
+        template1 = unit1_data['template'][np.newaxis]
+        template2 = unit2_data['template'][np.newaxis]
+
         # subsample
         if len(spt1) + len(spt2) > n_samples:
             ratio = len(spt1)/float(len(spt1)+len(spt2))
@@ -218,38 +301,46 @@ class TemplateMerge(object):
         spt1 = spt1[spt1_idx]
         spt2 = spt2[spt2_idx]
 
+        # find shifts
+        temps = np.concatenate((template1[None], template2[None]), axis=0)
+        mc = temps.ptp(1).max(0).argmax()
+        shift = np.diff(temps[:, :, mc].argmin(1))[0]
+
         # get waveforms
         if self.raw_data:
             wfs1, _ = self.reader.read_waveforms(
-                spt1, self.spike_size)
+                spt1+shift, self.spike_size)
 
             wfs2, _ = self.reader.read_waveforms(
                 spt2, self.spike_size)
+
         else:
             up_ids1 = unit1_data['up_ids'][spt1_idx]
             up_templates1 = unit1_data['up_templates']
-            wfs1, skipped_idx1 = self.reader.read_clean_waveforms(
-                spt1, up_ids1, up_templates1, self.spike_size)
-            if len(skipped_idx1) > 0:
-                spt1 = np.delete(spt1, skipped_idx1)
+            wfs1, _ = self.reader.read_clean_waveforms(
+                spt1, up_ids1, up_templates1, self.spike_size + 2*np.abs(shift))
+
+            # if two templates are not aligned, get bigger window
+            # and cut oneside to get shifted waveforms
+            if shift > 0:
+                wfs1 = wfs1[:, 2*shift:]
+            elif shift < 0:
+                wfs1 = wfs1[:, :self.spike_size]
 
             up_ids2 = unit2_data['up_ids'][spt2_idx]
             up_templates2 = unit2_data['up_templates']
-            wfs2, skipped_idx2 = self.reader.read_clean_waveforms(
+            wfs2, _ = self.reader.read_clean_waveforms(
                 spt2, up_ids2, up_templates2, self.spike_size)
-            if len(skipped_idx2) > 0:
-                spt2 = np.delete(spt2, skipped_idx2)
 
         # assignment
         spike_ids = np.append(
-            np.zeros(len(spt1), 'int32'),
-            np.ones(len(spt2), 'int32'),
+            np.zeros(len(wfs1), 'int32'),
+            np.ones(len(wfs2), 'int32'),
             axis=0)
 
-        # templates
-        template1 = unit1_data['template'][np.newaxis]
-        template2 = unit2_data['template'][np.newaxis]
-
+        # recompute templates using deconvolved spikes
+        template1 = np.median(wfs1, axis=0)
+        template2 = np.median(wfs2, axis=0)
         l2_features = template_spike_dist_linear_align(
             np.concatenate((template1, template2), axis=0),
             np.concatenate((wfs1, wfs2), axis=0))
@@ -338,7 +429,7 @@ def template_spike_dist_linear_align(templates, spikes, vis_ptp=2.):
     # align all spikes on max channel
     best_shifts = align_get_shifts_with_ref(
         spikes[:,:,max_chan],
-        ref_template, nshifts = 21)
+        ref_template, nshifts = 7)
     spikes = shift_chans(spikes, best_shifts)
     
     n_unit = templates.shape[0]
@@ -394,12 +485,13 @@ def template_dist_linear_align(templates, distance=None, units=None, max_shift=5
 
     if distance is None:
         distance = np.ones((K, K))*1e4
+
     if units is None:
         units = np.arange(K)
 
     for k in units:
-        candidates = np.abs(ptps[:, max_chans[k]] - ptps[k, max_chans[k]])/ptps[k,max_chans[k]] < 0.5
-        
+        candidates = np.abs(ptps[:, max_chans[k]] - ptps[k, max_chans[k]])/ptps[k, max_chans[k]] < 0.5
+
         dist = np.min(np.sum(np.square(
             templates[k][np.newaxis, np.newaxis] - shifted_templates[:, candidates]),
                              axis=(2,3)), 0)

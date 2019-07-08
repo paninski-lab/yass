@@ -91,17 +91,17 @@ def notch_finder(correlogram, sig=0.05):
     
     baseline = np.arange(0, 20)
     baseline = np.concatenate([baseline, np.arange(numbins - 20, numbins)])
-    centrebins = [numbins//2-1, numbins//2, numbins//2+1]
+    centrebins = [numbins//2, numbins//2+1, numbins//2+2]
     offbins = np.arange(numbins//2-13, numbins//2-3)
     offbins = np.concatenate([offbins, np.arange(numbins//2+3, numbins//2+13)])
 
 
     pval1 = ttest_notch(baseline, centrebins, correlogram)
-    pval2 = ttest_notch(offbins, baseline, correlogram)
+    #pval2 = ttest_notch(offbins, baseline, correlogram)
     
-    if pval1 < sig and pval2 < sig:
+    if pval1 < sig:
         notch = True
     else:
         notch = False
 
-    return notch, pval1, pval2
+    return notch, pval1
