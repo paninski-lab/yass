@@ -291,16 +291,6 @@ def iterative_block(TMP_FOLDER,
         fname_residual,
         residual_dtype)
 
-    methods = ['low_fr']
-    fname_templates, fname_spike_train = postprocess.run(
-        methods,
-        fname_templates,
-        fname_spike_train,
-        os.path.join(TMP_FOLDER,
-                     'deconv_post_process'),
-        standardized_path,
-        standardized_params['dtype'])
-
     # cluster
     logger.info('RECLUSTERING')
     raw_data = False
@@ -316,7 +306,7 @@ def iterative_block(TMP_FOLDER,
         residual_dtype=residual_dtype,
         fname_templates_up=fname_templates_up,
         fname_spike_train_up=fname_spike_train_up)
-    
+
     methods = ['off_center', 'high_mad', 'duplicate', 'collision']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
