@@ -108,6 +108,10 @@ def partition_input(save_dir, max_time,
     fnames = []
     for unit in range(n_units):
 
+        # it needs at least 5 spikes to cluster
+        if len(spike_index_list[unit]) < 5:
+            continue
+
         fname = os.path.join(save_dir, 'partition_{}.npz'.format(unit))
         fnames.append(fname)
 
