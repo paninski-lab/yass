@@ -191,7 +191,7 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.chunk_id = 0
     
     # Stochastic gradient descent option
-    d_gpu.scd= = False
+    d_gpu.scd = False
 
     # this can turn off the superresolution alignemnt as an option
     d_gpu.superres_shift = True
