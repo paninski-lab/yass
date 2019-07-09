@@ -42,6 +42,7 @@ class TemplateMerge(object):
 
         templates = np.load(fname_templates)
         self.n_unit, self.spike_size, _ = templates.shape
+        print('{} units in'.format(self.n_unit))
 
         # proposed merge pairs
         fname_candidates = os.path.join(self.save_dir,
