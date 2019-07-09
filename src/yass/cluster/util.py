@@ -106,6 +106,7 @@ def partition_input(save_dir, max_time,
             up_id_list[ii].append(up_id)
 
     fnames = []
+    units = []
     for unit in range(n_units):
 
         # it needs at least 5 spikes to cluster
@@ -114,6 +115,7 @@ def partition_input(save_dir, max_time,
 
         fname = os.path.join(save_dir, 'partition_{}.npz'.format(unit))
         fnames.append(fname)
+        units.append(unit)
 
         if os.path.exists(fname):
             continue
@@ -140,7 +142,7 @@ def partition_input(save_dir, max_time,
             np.savez(fname,
                      spike_times = spike_index_list[unit])
         
-    return np.arange(n_units), fnames
+    return units, fnames
 
 def gather_clustering_result(result_dir, out_dir):
 
