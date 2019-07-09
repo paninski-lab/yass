@@ -72,10 +72,10 @@ class TemplateMerge(object):
             #ptps = templates.ptp(1).max(1)
 
             print("finding candidates using ptp")
-            unique_pairs = self.find_merge_candidates(templates)
+            pairs = self.find_merge_candidates(templates)
 
             print('check if it passes xcor test')
-            self.merge_candidates = self.xcor_notch_test(self, pairs, templates)
+            self.merge_candidates = self.xcor_notch_test(pairs, templates)
             np.save(fname_candidates, self.merge_candidates)
 
     def find_merge_candidates(self, templates):
@@ -95,7 +95,7 @@ class TemplateMerge(object):
 
         # compute distance relative to the norm of ptps
         norms = np.linalg.norm(ptps, axis=1)
-        dist_norm_ratio = dist / np.maximum(
+        dist_norm_ratio = dist_mat / np.maximum(
             norms[np.newaxis], norms[:, np.newaxis])
         # units need to be close to each other
         idx1 = dist_norm_ratio < 0.5
@@ -122,6 +122,7 @@ class TemplateMerge(object):
 
         # if there is a dip, do further test
         merge_candidates = []
+
         for pair in pairs:
 
             # get spike times
@@ -277,8 +278,8 @@ class TemplateMerge(object):
         spt2 = unit2_data['spike_times']
 
         # templates
-        template1 = unit1_data['template'][np.newaxis]
-        template2 = unit2_data['template'][np.newaxis]
+        template1 = unit1_data['template']
+        template2 = unit2_data['template']
 
         # subsample
         if len(spt1) + len(spt2) > n_samples:
@@ -302,7 +303,8 @@ class TemplateMerge(object):
         spt2 = spt2[spt2_idx]
 
         # find shifts
-        temps = np.concatenate((template1[None], template2[None]), axis=0)
+        temps = np.concatenate((template1[None], template2[None]),
+                               axis=0)
         mc = temps.ptp(1).max(0).argmax()
         shift = np.diff(temps[:, :, mc].argmin(1))[0]
 
@@ -342,7 +344,7 @@ class TemplateMerge(object):
         template1 = np.median(wfs1, axis=0)
         template2 = np.median(wfs2, axis=0)
         l2_features = template_spike_dist_linear_align(
-            np.concatenate((template1, template2), axis=0),
+            np.concatenate((template1[None], template2[None]), axis=0),
             np.concatenate((wfs1, wfs2), axis=0))
 
         return l2_features.T, spike_ids
