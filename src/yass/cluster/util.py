@@ -11,6 +11,9 @@ from yass.util import absolute_path_to_asset
 from yass.empty import empty
 from yass.template import align_get_shifts_with_ref, shift_chans
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+
 def make_CONFIG2(CONFIG):
     ''' Makes a copy of several attributes of original config parameters
         to be sent into parmap function; original CONFIG can't be pickled;
@@ -63,36 +66,91 @@ def split_spikes(spike_index_list, spike_index, idx_keep):
     return spike_index_list
 
 
+# def split_spikes2(spike_index_list, spike_index, idx_keep, n_units):
+    
+    # for ii in range(n_units):
+        # idx = np.where(spike_index[:,1]==ii)[0]
+        # spike_index_list[ii] = spike_index[idx,0]
+    # return spike_index_list
+
+
+def split_parallel(units, spike_index):
+    
+    spike_index_list = []
+    for ii in units:    
+        idx = np.where(spike_index[:,1]==ii)[0]
+        spike_index_list.append(spike_index[idx,0])
+        
+    return spike_index_list
+   
+   
+def split_spikes_GPU(spike_index, idx_keep, n_units):
+    
+    spike_index_local = spike_index[idx_keep]
+    spike_index_local = torch.from_numpy(spike_index_local).to(device)
+    spike_index_list = []
+
+    with tqdm(total=n_units) as pbar:
+        for unit in range(n_units):
+            idx = torch.where(spike_index_local[:,1]==unit, 
+                              spike_index_local[:,1]*0+1, 
+                              spike_index_local[:,1]*0)
+            idx = torch.nonzero(idx)[:,0]
+            spike_index_list.append(spike_index_local[idx,0].cpu().data.numpy())
+            
+            pbar.update()
+
+    return spike_index_list
+            
+    
+def split_spikes_parallel(spike_index_list, spike_index, idx_keep, 
+                          n_units, CONFIG):
+    
+    np.save('/home/cat/spike_index.npy', spike_index[idx_keep])
+    spike_index_local = spike_index[idx_keep]
+    units = np.array_split(np.arange(n_units), CONFIG.resources.n_processors)
+        
+    print ("start parallel...# of chunks: ", len(units))
+    res = parmap.map(split_parallel, units, spike_index_local, 
+                      pm_processes=CONFIG.resources.n_processors)
+    print ("end parallel...")
+    print ("len res: ", len(res))
+
+    spike_index_list = [[]]*n_units
+    for i in range(len(res)):
+        for ctr, unit in enumerate(units[i]):
+            print ("saving unit: ", unit)
+            spike_index_list[unit]==res[i][ctr]
+
+    return spike_index_list
+
+
 def partition_input(save_dir, max_time,
                     fname_spike_index,
+                    CONFIG,
                     fname_templates_up=None,
                     fname_spike_train_up=None):
 
-    print ("  partitioning input (TODO: Parallize for larger datasets)")
+    print ("  partitioning input data (todo: skip if already computed)")
     # make directory
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
 
     # load data
     spike_index = np.load(fname_spike_index, allow_pickle=True)
-
     # consider only spikes times less than max_time
     idx_keep = np.where(spike_index[:,0] < max_time)[0]
 
     # re-organize spike times and templates id
     n_units = np.max(spike_index[:, 1]) + 1
-    spike_index_list = [[] for ii in range(n_units)]
-    #for j in idx_keep:
-    #    tt, ii = spike_index[j]
-    #    spike_index_list[ii].append(tt)
+    #spike_index_list = [[] for ii in range(n_units)]
 
-    spike_index_list = split_spikes(spike_index_list, spike_index, idx_keep)
-
-    # replacement for above list generator for speed (butnot much faster)
-    #for ii in np.unique(spike_index[idx_keep,1]):
-    #    idx_temp = np.where(spike_index[idx_keep,1]==ii)
-    #    tt = spike_index[idx_keep,0][idx_temp]
-    #    spike_index_list[ii].append(tt)
+    # Cat: TODO: have GPU-use flag in CONFIG file
+    if CONFIG.resources.n_sec_chunk_gpu>0:
+        spike_index_list = split_spikes_GPU(spike_index, idx_keep, n_units)
+    else:
+        spike_index_list = split_spikes_parallel(spike_index_list, spike_index, 
+                                             idx_keep, n_units, CONFIG)
 
     # if there are upsampled data as input,
     # load and partition them also
@@ -369,17 +427,21 @@ def nn_denoise_wf(fnames_input_data, denoiser):
 
             wf = temp['wf']
             n_data, n_times, n_chans = wf.shape
-            wf_reshaped = wf.transpose(0, 2, 1).reshape(-1, n_times)
-            wf_torch = torch.FloatTensor(wf_reshaped).cuda()
-            denoised_wf = denoiser(wf_torch)[0]
-            denoised_wf = denoised_wf.reshape(
-                n_data, n_chans, n_times)
-            denoised_wf = denoised_wf.cpu().data.numpy().transpose(0, 2, 1)
+            if wf.shape[0]>0:
+                wf_reshaped = wf.transpose(0, 2, 1).reshape(-1, n_times)
+                wf_torch = torch.FloatTensor(wf_reshaped).cuda()
+                denoised_wf = denoiser(wf_torch)[0]
+                denoised_wf = denoised_wf.reshape(
+                    n_data, n_chans, n_times)
+                denoised_wf = denoised_wf.cpu().data.numpy().transpose(0, 2, 1)
 
-            # reshape it
-            #window = np.arange(15, 40)
-            #denoised_wf = denoised_wf[:, window]
-            denoised_wf = denoised_wf.reshape(n_data, -1)
+                # reshape it
+                #window = np.arange(15, 40)
+                #denoised_wf = denoised_wf[:, window]
+                denoised_wf = denoised_wf.reshape(n_data, -1)
+            else:
+                denoised_wf = np.zeros((wf.shape[0], 
+                                        wf.shape[1]*wf.shape[2]),'float32')
 
             temp = dict(temp)
             temp['denoised_wf'] = denoised_wf

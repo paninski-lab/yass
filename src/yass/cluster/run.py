@@ -93,6 +93,7 @@ def run(fname_spike_index,
     units, fnames_input = partition_input(partition_dir, 
                                           max_time,
                                           fname_spike_index,
+                                          CONFIG,
                                           fname_templates_up,
                                           fname_spike_train_up)
 
