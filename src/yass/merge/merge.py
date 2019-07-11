@@ -3,6 +3,7 @@ import numpy as np
 import tqdm
 import parmap
 import scipy
+import logging
 
 from diptest import diptest as dp
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
@@ -31,6 +32,8 @@ class TemplateMerge(object):
             First column is times and second is cluster id.
         """
         
+        logger = logging.getLogger(__name__)
+
         # 
         self.save_dir = save_dir
         self.raw_data = raw_data
@@ -42,7 +45,7 @@ class TemplateMerge(object):
 
         templates = np.load(fname_templates)
         self.n_unit, self.spike_size, _ = templates.shape
-        print('{} units in'.format(self.n_unit))
+        logger.info('{} units in'.format(self.n_unit))
 
         # proposed merge pairs
         fname_candidates = os.path.join(self.save_dir,
@@ -72,10 +75,10 @@ class TemplateMerge(object):
             ## ptp of each unit
             #ptps = templates.ptp(1).max(1)
 
-            print("finding candidates using ptp")
+            logger.info("finding candidates using ptp")
             pairs = self.find_merge_candidates(templates)
 
-            print('check if it passes xcor test')
+            logger.info('check if it passes xcor test')
             self.merge_candidates = self.xcor_notch_test(pairs, templates)
             np.save(fname_candidates, self.merge_candidates)
 
