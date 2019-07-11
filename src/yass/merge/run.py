@@ -71,17 +71,19 @@ def run(output_directory,
     print ("merging pairs")
     merge_pairs = tm.get_merge_pairs()
 
+    # save result
+    fname_merge_pairs = os.path.join(output_directory,
+                                     'merge_pairs.npy')
+    np.save(fname_merge_pairs, merge_pairs)
+
     # update templates adn spike train accordingly
     print ("udpating templates and spike train")
     spike_train_new, templates_new, merge_array = merge_units(
         fname_templates, fname_spike_train, merge_pairs)
-    
-    # save result
-    fname_merge_pairs = os.path.join(output_directory,
-                                     'merge_pairs.npy')
+
+    # save results
     fname_merge_array = os.path.join(output_directory,
                                      'merge_array.npy')
-    np.save(fname_merge_pairs, merge_pairs)
     np.save(fname_merge_array, merge_array)    
     np.save(fname_spike_train_out, spike_train_new)
     np.save(fname_templates_out, templates_new)

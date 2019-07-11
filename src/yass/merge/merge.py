@@ -90,12 +90,12 @@ class TemplateMerge(object):
         ptps[ptps < 1] = 0
 
         # distances of ptps
-        dist_mat = pairwise_distances(ptps)
+        dist_mat = np.square(pairwise_distances(ptps))
         for i in range(self.n_unit):
             dist_mat[i, i] = 1e4
 
         # compute distance relative to the norm of ptps
-        norms = np.linalg.norm(ptps, axis=1)
+        norms = np.square(np.linalg.norm(ptps, axis=1))
         dist_norm_ratio = dist_mat / np.maximum(
             norms[np.newaxis], norms[:, np.newaxis])
         # units need to be close to each other
@@ -134,7 +134,7 @@ class TemplateMerge(object):
             temps = templates[pair]
             mc = temps.ptp(1).max(0).argmax()
             shift = np.diff(temps[:, :, mc].argmin(1))[0]
-            spt1 += shift
+            spt1 -= shift
 
             if len(spt1) > 1 and len(spt2) > 1:
                 # compute xcorr
@@ -146,7 +146,7 @@ class TemplateMerge(object):
 
                 # if there are not enough synchronous spike
                 # activities between two units, add it
-                centerbins = np.arange(len(xcor)//2, len(xcor)//2+2)
+                centerbins = np.arange(len(xcor)//2-1, len(xcor)//2+2)
                 if xcor[centerbins].min() < 10:
                     merge_candidates.append(pair)
                 else:
@@ -246,25 +246,32 @@ class TemplateMerge(object):
             # get l2 features
             l2_features, spike_ids = self.get_l2_features(unit1, unit2)
 
+            if np.sum(np.abs(l2_features)) == 0:
+                print(unit1)
+                print(unit2)
+                raise ValueError("something is wrong")
+            # two spikes need to present otherwise skip it
             if len(spike_ids) > 0 and np.sum(spike_ids==0) < len(spike_ids):
-                # get p value for dip test
-                dp_val, lda_feat = test_unimodality(l2_features, spike_ids)
-                merge = dp_val > threshold
+                # test if they need to be merged
+                (merge,
+                 lda_prob, dp_val) = test_merge(l2_features, spike_ids)
 
                 np.savez(fname_out,
                          merge=merge,
                          spike_ids=spike_ids,
                          l2_features=l2_features,
-                         dp_val=dp_val,
-                         lda_feat=lda_feat)
+                         lda_prob=lda_prob,
+                         dp_val=dp_val)
+                         #lda_feat=lda_feat)
             else:
                 merge = False
                 np.savez(fname_out,
                          merge=merge,
                          spike_ids=spike_ids,
                          l2_features=l2_features,
-                         dp_val=None,
-                         lda_feat=None)
+                         lda_prob=None,
+                         dp_val=None)
+                         #lda_feat=None)
 
             return merge
 
@@ -321,19 +328,21 @@ class TemplateMerge(object):
             up_ids1 = unit1_data['up_ids'][spt1_idx]
             up_templates1 = unit1_data['up_templates']
             wfs1, _ = self.reader.read_clean_waveforms(
-                spt1, up_ids1, up_templates1, self.spike_size + 2*np.abs(shift))
-
-            # if two templates are not aligned, get bigger window
-            # and cut oneside to get shifted waveforms
-            if shift > 0:
-                wfs1 = wfs1[:, 2*shift:]
-            elif shift < 0:
-                wfs1 = wfs1[:, :self.spike_size]
+                spt1, up_ids1, up_templates1, self.spike_size)
 
             up_ids2 = unit2_data['up_ids'][spt2_idx]
             up_templates2 = unit2_data['up_templates']
             wfs2, _ = self.reader.read_clean_waveforms(
                 spt2, up_ids2, up_templates2, self.spike_size)
+
+            # if two templates are not aligned, get bigger window
+            # and cut oneside to get shifted waveforms
+            if shift < 0:
+                wfs1 = wfs1[:, -shift:]
+                wfs2 = wfs2[:, :shift]
+            elif shift > 0:
+                wfs1 = wfs1[:, :-shift]
+                wfs2 = wfs2[:, shift:]
 
         # assignment
         spike_ids = np.append(
@@ -348,7 +357,127 @@ class TemplateMerge(object):
             np.concatenate((template1[None], template2[None]), axis=0),
             np.concatenate((wfs1, wfs2), axis=0))
 
-        return l2_features.T, spike_ids
+        return l2_features, spike_ids
+
+def test_merge(features, assignment,
+               lda_threshold=0.7,
+               diptest_threshold=0.8):
+
+    '''
+    Parameters
+    ----------
+    features:  feataures
+    ssignment:  spike assignments (must be either 0 or 1)
+    '''
+
+    # do lda test
+    lda_prob = run_ldatest(features, assignment)
+    dip_pval = run_diptest(features, assignment)
+    if lda_prob < lda_threshold or dip_pval > diptest_threshold:
+        merge = True
+    else:
+        merge = False
+
+    return merge, lda_prob, dip_pval
+
+def run_ldatest(features, assignment):
+
+    # determine which one has more spikes
+    _, n_spikes = np.unique(assignment, return_counts=True)
+    id_big = np.argmax(n_spikes)
+    id_small = np.argmin(n_spikes)
+    n_diff = n_spikes[id_big] - n_spikes[id_small]
+
+    if n_diff > 0:
+        n_repeat = int(np.ceil(np.max(n_spikes)/np.min(n_spikes)))
+        idx_big = np.where(assignment == id_big)[0]
+
+        lda_probs = np.zeros(n_repeat)
+        for j in range(n_repeat):
+            idx_remove = np.random.choice(idx_big, n_diff, replace=False)
+            idx_in = np.ones(len(assignment), 'bool')
+            idx_in[idx_remove] = False
+
+            # fit lda
+            lda = LDA(n_components = 1)
+            lda.fit(features[idx_in], assignment[idx_in])
+
+            # check tp of lda
+            lda_probs[j] = lda.score(features[idx_in],
+                                     assignment[idx_in])
+        lda_prob = np.median(lda_probs)
+    else:
+        lda = LDA(n_components = 1)
+        lda.fit(features, assignment)
+        lda_prob = lda.score(features,
+                             assignment)
+
+    return lda_prob
+
+
+def run_diptest(features, assignment):
+
+    '''
+    Parameters
+    ----------
+    pca_wf:  pca projected data
+    assignment:  spike assignments
+    '''
+
+    _, n_spikes = np.unique(assignment, return_counts=True)
+    ratio = n_spikes[0]/n_spikes[1]
+    if ratio < 1:
+        ratio = 1/ratio
+
+    if ratio > 3:
+        pval = 0
+    else:
+        lda = LDA(n_components = 1)
+        lda_feat = lda.fit_transform(features, assignment).ravel()
+        pval = dp(lda_feat)[1]
+
+    return pval
+
+
+def run_diptest2(features, assignment):
+
+    '''
+    Parameters
+    ----------
+    pca_wf:  pca projected data
+    assignment:  spike assignments
+    '''
+
+    _, n_spikes = np.unique(assignment, return_counts=True)
+    id_big = np.argmax(n_spikes)
+    id_small = np.argmin(n_spikes)
+    n_diff = n_spikes[id_big] - n_spikes[id_small]
+
+    if n_diff > 0:
+        n_repeat = int(np.ceil(np.max(n_spikes)/np.min(n_spikes)))
+        idx_big = np.where(assignment == id_big)[0]
+
+        pvals = np.zeros(n_repeat)
+        for j in range(n_repeat):
+            idx_remove = np.random.choice(idx_big, n_diff, replace=False)
+            idx_in = np.ones(len(assignment), 'bool')
+            idx_in[idx_remove] = False
+
+            # fit lda
+            lda = LDA(n_components = 1)
+            lda_feat = lda.fit_transform(features[idx_in], assignment[idx_in]).ravel()
+
+            # check tp of lda
+            pvals[j] = dp(lda_feat)[1]
+
+        pval = np.median(pvals)
+    else:
+        lda = LDA(n_components = 1)
+        lda_feat = lda.fit_transform(features, assignment).ravel()
+        pval = dp(lda_feat)[1]
+
+    return pval
+
 
 def test_unimodality(pca_wf, assignment, max_spikes = 10000):
 
@@ -426,7 +555,7 @@ def template_spike_dist_linear_align(templates, spikes, vis_ptp=2.):
     # align templates on max channel
     best_shifts = align_get_shifts_with_ref(
         templates[:, :, max_chan],
-        ref_template, nshifts = 21)
+        ref_template, nshifts = 7)
     templates = shift_chans(templates, best_shifts)
 
     # align all spikes on max channel
@@ -435,13 +564,20 @@ def template_spike_dist_linear_align(templates, spikes, vis_ptp=2.):
         ref_template, nshifts = 7)
     spikes = shift_chans(spikes, best_shifts)
     
-    n_unit = templates.shape[0]
-    n_spikes = spikes.shape[0]
+    # if shifted, cut shifted parts
+    # because it is contaminated by roll function
+    cut = int(np.ceil(np.max(np.abs(best_shifts))))
+    if cut > 0:
+        templates = templates[:,cut:-cut]
+        spikes = spikes[:,cut:-cut]
 
     # get visible channels
+    vis_ptp = np.min((vis_ptp, np.max(templates.ptp(1))))
     vis_chan = np.where(templates.ptp(1).max(0) >= vis_ptp)[0]
-    templates = templates[:, :, vis_chan].reshape(n_unit, -1)
-    spikes = spikes[:, :, vis_chan].reshape(n_spikes, -1)
+    templates = templates[:, :, vis_chan].reshape(
+        templates.shape[0], -1)
+    spikes = spikes[:, :, vis_chan].reshape(
+        spikes.shape[0], -1)
 
     # get a subset of locations with maximal difference
     if templates.shape[0] == 1:
@@ -472,7 +608,7 @@ def template_spike_dist_linear_align(templates, spikes, vis_ptp=2.):
 
     dist = scipy.spatial.distance.cdist(templates, spikes)
 
-    return dist
+    return dist.T
 
 def template_dist_linear_align(templates, distance=None, units=None, max_shift=5, step=0.5):
 

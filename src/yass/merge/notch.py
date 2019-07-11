@@ -91,7 +91,7 @@ def notch_finder(correlogram, sig=0.05):
     
     baseline = np.arange(0, 20)
     baseline = np.concatenate([baseline, np.arange(numbins - 20, numbins)])
-    centrebins = [numbins//2, numbins//2+1, numbins//2+2]
+    centrebins = [numbins//2-1, numbins//2, numbins//2+1]
     offbins = np.arange(numbins//2-13, numbins//2-3)
     offbins = np.concatenate([offbins, np.arange(numbins//2+3, numbins//2+13)])
 
