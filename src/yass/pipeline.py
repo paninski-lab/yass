@@ -277,19 +277,20 @@ def iterative_block(TMP_FOLDER,
         dtype_out='float32',
         run_chunk_sec=run_chunk_sec)
 
-    logger.info('BLOCK1 MERGE')
-    fname_templates, fname_spike_train = merge.run(
-        os.path.join(TMP_FOLDER,
-                     'post_deconv_merge'),
-        False,
-        fname_spike_train,
-        fname_templates,
-        fname_spike_train_up,
-        fname_templates_up,
-        standardized_path,
-        standardized_params['dtype'],
-        fname_residual,
-        residual_dtype)
+    if True:
+        logger.info('BLOCK1 MERGE')
+        _, _ = merge.run(
+            os.path.join(TMP_FOLDER,
+                         'post_deconv_merge'),
+            False,
+            fname_spike_train,
+            fname_templates,
+            fname_spike_train_up,
+            fname_templates_up,
+            standardized_path,
+            standardized_params['dtype'],
+            fname_residual,
+            residual_dtype)
 
     # cluster
     logger.info('RECLUSTERING')
