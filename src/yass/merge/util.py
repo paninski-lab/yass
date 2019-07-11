@@ -100,49 +100,34 @@ def merge_units(fname_templates, fname_spike_train, merge_pairs):
     weights[unique_ids] = n_spikes
     
     spike_train_new = np.copy(spike_train)
-    templates_new = np.zeros((len(merge_array), n_times, n_channels))
+    templates_new = np.zeros((len(merge_array), n_times, n_channels),
+                             'float32')
 
     for new_id, units in enumerate(merge_array):
-        
-        # update templates
         if len(units) > 1:
-            # align first
-            aligned_temps, shifts = align_templates(templates[units])
-            temp_ = np.average(aligned_temps, weights=weights[units], axis=2)
-            templates_new[new_id] = temp_
-            
+
+            # update templates
+            temp = templates[units]
+            # save only a unit with the highest weight
+            id_keep = weights[units].argmax()
+            templates_new[new_id] = templates[units[id_keep]]
+
+            # update spike train
+            # determine shifts
+            mc = temp[id_keep].ptp(0).argmax()
+            shifts = temp[:, :, mc].argmin(1) - temp[id_keep][:, mc].argmin()
+            # update id and shift
+            for ii, unit in enumerate(units):
+
+                idx = spike_train[:, 1] == unit
+
+                # updated id
+                spike_train_new[idx, 1] = new_id
+                # shift time
+                spt_old = spike_train[idx, 0]
+                spike_train_new[idx, 0] = spt_old + shifts[ii]
+
         elif len(units) == 1:
             templates_new[new_id] = templates[units[0]]
 
-        # update spike train id
-        # also update time and upsampled templates based on the shift
-        for ii, unit in enumerate(units):
-            
-            idx = spike_train[:,1] == unit
-
-            # updated spike train id
-            spike_train_new[idx,1] = new_id
-
-            if len(units) > 1:
-                # shift spike train time
-                spt_old = spike_train[idx,0]
-                shift_int = int(np.round(shifts[ii]))
-                spike_train_new[idx,0] = spt_old - shift_int                
-
     return spike_train_new, templates_new, merge_array
-
-def align_templates(templates):
-
-    max_idx = templates.ptp(1).max(1).argmax(0)
-    ref_template = templates[max_idx]
-    max_chan = ref_template.ptp(0).argmax(0)
-    ref_template = ref_template[:, max_chan]
-
-    temps = templates[:, :, max_chan]
-
-    best_shifts = align_get_shifts_with_ref(
-                    temps, ref_template)
-
-    aligned_templates = shift_chans(templates, best_shifts)
-    
-    return aligned_templates.transpose(1,2,0), best_shifts
