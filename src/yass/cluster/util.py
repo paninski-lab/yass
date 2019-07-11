@@ -83,7 +83,7 @@ def split_parallel(units, spike_index):
         
     return spike_index_list
    
-   
+
 def split_spikes_GPU(spike_index, idx_keep, n_units):
     
     spike_index_local = spike_index[idx_keep]
@@ -101,8 +101,8 @@ def split_spikes_GPU(spike_index, idx_keep, n_units):
             pbar.update()
 
     return spike_index_list
-            
-    
+
+
 def split_spikes_parallel(spike_index_list, spike_index, idx_keep, 
                           n_units, CONFIG):
     
