@@ -206,11 +206,14 @@ class RF(object):
         gaussian_fits = np.zeros((self.Ncells, 5))
         for unit in unique_ids:
             fname = os.path.join(tmp_dir_rgc, 'rgc_{}.mat'.format(unit))
-            data = scipy.io.loadmat(fname)
-            if 'temp_rf' in data.keys():
-                STA_spatial[unit] = data['temp_rf']
-                STA_temporal[unit] = data['fit_tc']
-                gaussian_fits[unit] = data['temp_fit_params']['fit_params'][0][0][0][:5]
+            try:
+                data = scipy.io.loadmat(fname)
+                if 'temp_rf' in data.keys():
+                    STA_spatial[unit] = data['temp_rf']
+                    STA_temporal[unit] = data['fit_tc']
+                    gaussian_fits[unit] = data['temp_fit_params']['fit_params'][0][0][0][:5]
+            except:
+                print('unit {} corrupted'.format(unit))
         
         np.save(os.path.join(self.save_dir, 'STA_spatial.npy'), STA_spatial)
         np.save(os.path.join(self.save_dir, 'STA_temporal.npy'), STA_temporal)
