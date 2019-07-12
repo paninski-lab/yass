@@ -99,7 +99,7 @@ def merge_units(fname_templates, fname_spike_train, merge_pairs):
     unique_ids, n_spikes = np.unique(spike_train[:,1], return_counts=True)
     weights[unique_ids] = n_spikes
     
-    spike_train_new = np.copy(spike_train)
+    spike_train_new = np.zeros(spike_train.shape, 'int32')
     templates_new = np.zeros((len(merge_array), n_times, n_channels),
                              'float32')
 
@@ -130,7 +130,8 @@ def merge_units(fname_templates, fname_spike_train, merge_pairs):
         elif len(units) == 1:
             templates_new[new_id] = templates[units[0]]
 
-            idx = spike_train[:, 1] == unit[0]
-            spike_train[idx, 1] = new_id
+            idx = spike_train[:, 1] == units[0]
+            spike_train_new[idx, 1] = new_id
+            spike_train_new[idx, 0] = spike_train[idx, 0]
 
     return spike_train_new, templates_new, merge_array
