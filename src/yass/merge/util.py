@@ -130,4 +130,7 @@ def merge_units(fname_templates, fname_spike_train, merge_pairs):
         elif len(units) == 1:
             templates_new[new_id] = templates[units[0]]
 
+            idx = spike_train[:, 1] == unit[0]
+            spike_train[idx, 1] = new_id
+
     return spike_train_new, templates_new, merge_array
