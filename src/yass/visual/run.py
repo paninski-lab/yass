@@ -27,9 +27,9 @@ def run():
     CONFIG = read_config()
 
     fname_templates = os.path.join(CONFIG.path_to_output_directory,
-                                     'templates_post_deconv_post_merge.npy')
+                                     'templates.npy')
     fname_spike_train = os.path.join(CONFIG.path_to_output_directory,
-                                     'spike_train_post_deconv_post_merge.npy')
+                                     'spike_train.npy')
     rf_dir = os.path.join(CONFIG.path_to_output_directory, 'rf')
     fname_recording = os.path.join(CONFIG.path_to_output_directory,
                                    'preprocess',
@@ -179,8 +179,11 @@ class Visualizer(object):
         self.nearest_units = np.array(nearest_units)
 
     def compute_neighbours_rf(self):
-        
-        th = 0.002
+
+        std = np.median(np.abs(
+            self.STAs - np.median(self.STAs)))/0.6745
+        th = std*0.5
+
         STAs_th = np.copy(self.STAs)
         STAs_th[np.abs(STAs_th) < th] = 0
         STAs_th = STAs_th.reshape(self.n_units, -1)
@@ -633,7 +636,7 @@ class Visualizer(object):
     
     def add_xcorr_plot(self, gs, x_loc, y_loc, unit1, unit2):
         # COMPUTE XCORRS w. neighbouring units;
-        
+
         result = compute_correlogram(
             np.hstack((unit1, unit2)), self.spike_train)
         if result.shape[0] == 1:
@@ -641,9 +644,8 @@ class Visualizer(object):
         elif result.shape[0] > 1:
             result = result[1,0]
 
-        notch, pval1, pval2 = notch_finder(result)
+        notch, pval1 = notch_finder(result)
         pval1 = np.round(pval1, 2)
-        pval2 = np.round(pval2, 2)
 
         ax = plt.subplot(gs[x_loc, y_loc])
         plt.plot(result,color='black', linewidth=2)
@@ -652,7 +654,7 @@ class Visualizer(object):
         plt.xlim(0,101)
         plt.xticks([])
         plt.tick_params(axis='both', which='major', labelsize=6)
-        plt.title('pval1: {}, pval2: {}'.format(pval1, pval2), fontsize=self.fontsize)
+        plt.title('pval1: {}'.format(pval1), fontsize=self.fontsize)
        
         return gs
     
@@ -1200,8 +1202,7 @@ def get_normalized_templates(templates, neigh_channels):
 
     # shift templates_sec
     best_shifts_sec = align_get_shifts_with_ref(
-                    templates_sec,
-                    ref_template)
+                    templates_sec)
     templates_sec = shift_chans(templates_sec, best_shifts_sec)
     ptp_sec = templates_sec.ptp(1)
 
