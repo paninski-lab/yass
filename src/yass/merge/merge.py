@@ -94,11 +94,14 @@ class TemplateMerge(object):
 
         # distances of ptps
         dist_mat = np.square(pairwise_distances(ptps))
-        for i in range(self.n_unit):
-            dist_mat[i, i] = 1e4
 
         # compute distance relative to the norm of ptps
         norms = np.square(np.linalg.norm(ptps, axis=1))
+
+        # exclude comparing to self
+        for i in range(self.n_unit):
+            dist_mat[i, i] = np.max(norms)*100
+
         dist_norm_ratio = dist_mat / np.maximum(
             norms[np.newaxis], norms[:, np.newaxis])
         # units need to be close to each other
@@ -249,15 +252,18 @@ class TemplateMerge(object):
             # get l2 features
             l2_features, spike_ids = self.get_l2_features(unit1, unit2)
 
-            if np.sum(np.abs(l2_features)) == 0:
-                print(unit1)
-                print(unit2)
-                raise ValueError("something is wrong")
-            # two spikes need to present otherwise skip it
-            if len(spike_ids) > 0 and np.sum(spike_ids==0) < len(spike_ids):
+            # enough spikes from both need to present otherwise skip it
+            if np.sum(spike_ids==0) > 5 and np.sum(spike_ids==1) > 5:
+
+                if np.sum(np.abs(l2_features)) == 0:
+                    print(unit1)
+                    print(unit2)
+                    raise ValueError("something is wrong")
+
                 # test if they need to be merged
                 (merge,
-                 lda_prob, dp_val) = test_merge(l2_features, spike_ids)
+                 lda_prob,
+                 dp_val) = test_merge(l2_features, spike_ids)
 
                 np.savez(fname_out,
                          merge=merge,
@@ -297,6 +303,13 @@ class TemplateMerge(object):
             ratio = len(spt1)/float(len(spt1)+len(spt2))
 
             n_samples1 = int(n_samples*ratio)
+
+            # at least one sample per grounp
+            if n_samples1 == n_samples:
+                n_samples1 = n_samples - 1
+            elif n_samples1 == 0:
+                n_samples1 = 1
+
             n_samples2 = n_samples - n_samples1
 
             spt1_idx = np.random.choice(
