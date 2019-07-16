@@ -316,8 +316,8 @@ def load_align_waveforms_parallel(data_in,
     min_spikes = int(min_spikes*np.min((
         1, CONFIG.cluster.max_n_spikes/
         float(n_spikes_in))))
-    # min_spikes needs to be at least 1
-    min_spikes = max(min_spikes, 1)
+    # min_spikes needs to be at least 5 to cluster
+    min_spikes = max(min_spikes, 5)
 
     # subsample spikes
     (spike_times,
