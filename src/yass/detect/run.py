@@ -17,8 +17,10 @@ from yass.reader import READER
 from yass.neuralnetwork import Detect, Denoise
 from yass.util import file_loader
 from yass.threshold.detect import voltage_threshold
-from yass.detect.deduplication import run_deduplication
+from yass.detect.deduplication import deduplicate_gpu, deduplicate
 from yass.detect.output import gather_result
+from yass.geometry import make_channel_index
+
 
 def run(standardized_path, standardized_params,
         output_directory, run_chunk_sec='full'):
@@ -111,25 +113,9 @@ def run(standardized_path, standardized_params,
                      standardized_params,
                      output_temp_files)
 
-    ###### deduplication #####
-    logger.info('Deduplicating detected spikes (TODO: repartition  \
-                chunks to match # of cpus)')
-
-    # save directory for deduplication
-    dedup_output = os.path.join(
-        output_directory, 'dedup')
-    if not os.path.exists(dedup_output):
-        os.mkdir(dedup_output)
-
-    # run deduplication
-    run_deduplication(output_temp_files,
-                      dedup_output)
-
     ##### gather results #####
     gather_result(fname_spike_index,
-                  output_temp_files,
-                  dedup_output,
-                  output_directory)
+                  output_temp_files)
 
     return fname_spike_index
 
@@ -178,6 +164,10 @@ def run_neural_network(standardized_path, standardized_params,
                     buffer,
                     chunk_sec)
 
+    # neighboring channels
+    channel_index = make_channel_index(
+        CONFIG.neigh_channels, CONFIG.geom, steps=2)
+
     # number of processed chunks
     processing_ctr = 0
     n_mini_per_big_batch = int(np.ceil(batch_length/n_sec_chunk))
@@ -209,24 +199,32 @@ def run_neural_network(standardized_path, standardized_params,
         # location of each minibatch (excluding buffer)
         minibatch_loc = minibatch_loc_rel + batch_offset
         spike_index_list = []
-        energy_list = []
+        spike_index_dedup_list = []
         for j in range(batched_recordings.shape[0]):
 
+            # detect spikes and get wfs
             spike_index, wfs = detector.get_spike_times(
                 batched_recordings[j], threshold=detect_threshold)
 
+            # denoise and take ptp as energy
+            wfs = denoiser(wfs)[0]
+            energy = (torch.max(wfs, 1)[0] - torch.min(wfs, 1)[0])
+
+            # deduplicate
+            spike_index_dedup = deduplicate_gpu(
+                spike_index, energy,
+                batched_recordings[j].shape,
+                channel_index)
+
             # convert to numpy
             spike_index = spike_index.cpu().data.numpy()
+            spike_index_dedup = spike_index_dedup.cpu().data.numpy()
 
             # update the location relative to the whole recording
             spike_index[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
+            spike_index_dedup[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
             spike_index_list.append(spike_index)
-
-            # denoise and take ptp as energy
-            #energy_ = denoiser(wfs)[0].data.numpy().ptp(1)
-            wfs = denoiser(wfs)[0]
-            energy_ = (torch.max(wfs, 1)[0] - torch.min(wfs, 1)[0]).cpu().data.numpy()
-            energy_list.append(energy_)
+            spike_index_dedup_list.append(spike_index_dedup)
 
             processing_ctr+=1
 
@@ -237,9 +235,8 @@ def run_neural_network(standardized_path, standardized_params,
         # save result
         np.savez(fname,
                  spike_index=spike_index_list,
-                 energy=energy_list,
+                 spike_index_dedup=spike_index_dedup_list,
                  minibatch_loc=minibatch_loc)
-
 
 def run_voltage_treshold(standardized_path, standardized_params,
                          output_directory, run_chunk_sec='full'):
@@ -312,25 +309,35 @@ def run_voltage_threshold_parallel(batch_id, reader, n_sec_chunk,
         n_sec_chunk,
         add_buffer=True)
 
+    # neighboring channels
+    channel_index = make_channel_index(
+        CONFIG.neigh_channels, CONFIG.geom, steps=2)
+
     # offset for big batch
     batch_offset = reader.idx_list[batch_id, 0] - reader.buffer
     # location of each minibatch (excluding buffer)
     minibatch_loc = minibatch_loc_rel + batch_offset
     spike_index_list = []
-    energy_list = []
+    spike_index_dedup_list = []
     for j in range(batched_recordings.shape[0]):
-        spike_index, energy_ = voltage_threshold(
+        spike_index, energy = voltage_threshold(
             batched_recordings[j], 
             threshold)
 
+        # deduplicate
+        spike_index_dedup = deduplicate(
+            spike_index, energy,
+            batched_recordings[j].shape,
+            channel_index)
+
         # update the location relative to the whole recording
         spike_index[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
+        spike_index_dedup[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
         spike_index_list.append(spike_index)
-        energy_list.append(energy_)
+        spike_index_dedup_list.append(spike_index_dedup)
 
     # save result
     np.savez(fname,
              spike_index=spike_index_list,
-             energy=energy_list,
+             spike_index_dedup=spike_index_dedup_list,
              minibatch_loc=minibatch_loc)
-        
