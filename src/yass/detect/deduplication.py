@@ -21,7 +21,7 @@ def deduplicate_gpu(spike_index_torch, energy_torch,
     max_energy = torch.max(max_energy[:,channel_index], 2)[0] - 1e-8
     
     # deduplicated spikes: temporal and spatial locally it has the maximum energy
-    spike_index_dedup = torch.nonzero((energy_train >= max_energy) & (energy_train > 3))
+    spike_index_dedup = torch.nonzero((energy_train >= max_energy) & (energy_train > 2))
 
     return spike_index_dedup
 
@@ -43,6 +43,6 @@ def deduplicate(spike_index, energy,
         1)
     max_energy = torch.max(max_energy[:, channel_index], 2)[0] - 1e-8
     spike_train_dedup = torch.nonzero(
-        (energy_train >= max_energy) & (energy_train > 3)).data.numpy()
+        (energy_train >= max_energy) & (energy_train > 2)).data.numpy()
 
     return spike_index_dedup
