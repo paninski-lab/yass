@@ -187,17 +187,20 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.save_objective = False
     d_gpu.verbose = False
     d_gpu.print_iteration_counter = 1
-    d_gpu.save_state = False
     d_gpu.chunk_id = 0
     
     # Turn on refactoriness
-    d_gpu.refactoriness = True
+    d_gpu.refractoriness = True
     
     # Stochastic gradient descent option
+    # Cat: TODO: move these and other params to CONFIG
     d_gpu.scd = False
-
+    d_gpu.scd_max_iteration = 1000  # maximum iteration number from which to grab spikes
+                                    # smaller means grabbing spikes from earlier (i.e. larger SNR units)
+    d_gpu.scd_n_additions = 3       # number of addition steps to be done for every loop
+    
     # this can turn off the superresolution alignemnt as an option
-    d_gpu.superres_shift = True
+    d_gpu.superres_shift = False
     
     # parameter allows templates to be updated forward (i.e. templates
     #       are updated based on spikes in previous chunk)
@@ -218,13 +221,11 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.template_update_time = 30
 
 
-    # additional parameter that loops back to do deconv using updated templates
-    recursion_time = 1E10  #dummy variable
+    # additional parameter that tracks the save state of deconv 
+    recursion_time = 1E10  # dummy value
         
     # add reader
     d_gpu.reader = reader
-
-
     
     # ****************************************************************
     # *********************** INITIALIZE DECONV **********************
@@ -331,7 +332,7 @@ def deconv_ONgpu2(fname_templates_in,
                                                         n_spikes_array, 
                                                         output_directory)
 
-                # IF NEW TEMPLATES, re-decon previous chunk
+                # IF NEW TEMPLATES, re-deconvolve previous chunk
                 if (time_index%d_gpu.template_update_time==0):
                     #print ("Backward pass ON ...")
                     d_gpu.update_templates_backwards = False
@@ -339,6 +340,7 @@ def deconv_ONgpu2(fname_templates_in,
                             d_gpu.template_update_time//CONFIG.resources.n_sec_chunk_gpu)
                     
                     # make a note of where the last backward step was
+                    # this is important for save state recovery
                     recursion_time = time_index
                     
                     # save backward pass state
@@ -399,6 +401,8 @@ def deconv_ONgpu2(fname_templates_in,
             temp[:,0]=spike_times[idx_keep]+offset_array[p]
             temp[:,1]=neuron_array[p].cpu().data.numpy()[idx_keep]
 
+            # Cat: TODO: is it faster to make list and then array?
+            #            or make array on the fly?
             spike_train.extend(temp)
             shifts.append(shift_list[p].cpu().data.numpy()[idx_keep])
             
