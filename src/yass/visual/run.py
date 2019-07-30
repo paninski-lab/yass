@@ -8,6 +8,8 @@ import matplotlib.patches as mpatches
 import yaml
 from tqdm import tqdm
 import parmap
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+import torch
 
 from yass.merge.correlograms_phy import compute_correlogram
 from yass.merge.notch import notch_finder
@@ -19,6 +21,7 @@ from yass.merge.merge import (template_dist_linear_align,
                               test_unimodality)
 from yass.util import absolute_path_to_asset
 from yass import read_config
+from yass.reader import READER
 
 def run():
     """Visualization Package
@@ -62,63 +65,71 @@ def run():
 class Visualizer(object):
 
     def __init__(self, fname_templates, fname_spike_train,
-                 fname_recording, recording_dtype, 
-                 fname_geometry, sampling_rate, save_dir,
-                 rf_dir=None, template_space_dir=None,
-                 deconv_dir=None, post_deconv_merge=True):
-        
-        # load spike train and templates
-        self.spike_train = np.load(fname_spike_train)
-        self.spike_train = self.spike_train[self.spike_train[:, 0] > 0]
-        # load templates
-        self.templates = np.load(fname_templates)
+                 fname_recording, recording_dtype,
+                 CONFIG, save_dir, rf_dir=None,
+                 fname_residual=None, residual_dtype=None):
+
+        # saving directory location
+        self.save_dir = save_dir
+        if not os.path.exists(self.save_dir):
+            os.makedirs(self.save_dir)
+
+        self.tmp_folder = os.path.join(self.save_dir, 'tmp')
+        if not os.path.exists(self.tmp_folder):
+            os.makedirs(self.tmp_folder)
         
         # necessary numbers
         self.n_neighbours = 3
-        _, self.n_channels, self.n_units = self.templates.shape
-        self.sampling_rate = sampling_rate
- 
+        self.sampling_rate = CONFIG.recordings.sampling_rate
+        self.geom = CONFIG.geom
+        self.neigh_channels = CONFIG.neigh_channels
+
+        # load templates
+        self.templates = np.load(fname_templates)
+        self.n_times_templates, self.n_channels, self.n_units = self.templates.shape
+        # compute neighbors for each unit
+        self.compute_neighbours()
+
+        # load spike train and templates
+        self.spike_train = np.load(fname_spike_train)
+        self.unique_ids = np.unique(self.spike_train[:,1])
+        # compute firing rates
+        self.compute_firing_rates()
+        self.compute_xcorrs()
+
+        # recording readers
+        self.reader = READER(fname_recording, recording_dtype, CONFIG, 1)
+        # change spike size just in case
+        self.reader.spike_size = self.n_times_templates
+
+        if fname_residual is not None:
+            self.reader_resid = READER(fname_residual, residual_dtype, CONFIG, 1)
+            self.reader_resid.spike_size = self.n_times_templates
+        else:
+            self.reader_resid = None
+
         # rf files
         self.rf_dir = rf_dir
         if rf_dir is not None:
-            self.STAs = np.load(os.path.join(rf_dir, 'STA_spatial.npy'))
-            self.STAs = np.flip(self.STAs, axis=(1,2))
+            self.STAs = np.load(os.path.join(rf_dir, 'STA_spatial.npy'))[:, :, :, 1]
+            self.STAs = np.flip(self.STAs, axis=2)
             self.STAs_temporal = np.load(os.path.join(rf_dir, 'STA_temporal.npy'))
             self.gaussian_fits = np.load(os.path.join(rf_dir, 'gaussian_fits.npy'))
             self.idx_single_rf = np.load(os.path.join(rf_dir, 'idx_single_rf.npy'))
             self.idx_no_rf = np.load(os.path.join(rf_dir, 'idx_no_rf.npy'))
             self.idx_multi_rf = np.load(os.path.join(rf_dir, 'idx_multi_rf.npy'))
             self.rf_labels = np.load(os.path.join(rf_dir, 'labels.npy'))
+            #TODO: generalize
+            self.cell_types = ['Off-Midget','Off-Parasol',
+                               'Off-SM', 'On-Midget','On-Parasol']
+            self.stim_size = np.load(os.path.join(rf_dir, 'stim_size.npy'))
             
             max_t = np.argmax(np.abs(self.STAs_temporal[:,:,1]), axis=1)
             self.sta_sign = np.sign(self.STAs_temporal[
-                np.arange(self.STAs_temporal.shape[0]),max_t,1])
-        
-        # get geometry
-        self.geom = parse(fname_geometry, self.n_channels)
-        # compute neighboring channels
-        self.neigh_channels = find_channel_neighbors(self.geom, 70)
+                np.arange(self.STAs_temporal.shape[0]),max_t, 1])
 
-        # location of standardized recording
-        self.fname_recording = fname_recording
-        self.recording_dtype = recording_dtype
-
-        # residual recording
-        self.deconv_dir = deconv_dir
-        if deconv_dir is not None:
-            self.residual_recording = os.path.join(
-                deconv_dir, 'residual', 'residual.bin')
-            self.templates_upsampled = np.load(os.path.join(
-                deconv_dir, 'deconv', 'templates_up.npy')).transpose(1,2,0)
-            self.spike_train_upsampled = np.load(os.path.join(
-                deconv_dir, 'deconv', 'spike_train_up.npy'))
-            n_times = self.templates_upsampled.shape[0]
-            self.spike_train_upsampled[:, 0] -= n_times//2
-
-        # template space directory
-        self.template_space_dir = template_space_dir
-        if template_space_dir is not None:
-            self.get_template_pca()
+            # also compute rf
+            self.compute_neighbours_rf()
 
         # get colors
         self.colors = colors = [
@@ -127,77 +138,104 @@ class Visualizer(object):
             'darkgreen','darkorange','indianred','darkviolet','deepskyblue','greenyellow',
             'peru','cadetblue','forestgreen','slategrey','lightsteelblue','rebeccapurple',
             'darkmagenta','yellow','hotpink']
-
-        # saving directory location
-        self.save_dir = save_dir
-        if not os.path.exists(self.save_dir):
-            os.makedirs(self.save_dir)
-
-        # compute firing rates
-        self.compute_firing_rates()
         
-        # compute neighbors for each unit
-        self.compute_neighbours()
-        
-        if rf_dir is not None:
-            self.compute_neighbours_rf()
-
-    def get_template_pca(self):
-                    
-        self.pca_main_components = np.load(os.path.join(
-            self.template_space_dir, 'pca_main_components.npy'))
-        self.pca_sec_components = np.load(os.path.join(
-            self.template_space_dir, 'pca_sec_components.npy'))
-        self.pca_main_mean = np.load(os.path.join(
-            self.template_space_dir, 'pca_main_mean.npy'))
-        self.pca_sec_mean = np.load(os.path.join(
-            self.template_space_dir, 'pca_sec_mean.npy'))
-
     def compute_firing_rates(self):
         
         # COMPUTE FIRING RATES
         n_chans = self.n_channels
         samplerate = self.sampling_rate
-        fp_len = np.memmap(self.fname_recording, dtype=self.recording_dtype, mode='r').shape[0]
-        rec_len = fp_len/n_chans/samplerate
+        rec_len = np.ptp(self.spike_train[:, 0])/samplerate
 
         # compute firing rates and ptps
         unique, n_spikes = np.unique(self.spike_train[:,1], return_counts=True)
         
-        self.f_rates = np.zeros(self.templates.shape[2])
+        self.f_rates = np.zeros(self.n_units)
         self.f_rates[unique] = n_spikes/rec_len
         self.ptps = self.templates.ptp(0).max(0)
 
+    def compute_xcorrs(self):
+        self.window_size = 0.04
+        self.bin_width = 0.001
+
+        fname = os.path.join(self.tmp_folder, 'xcorrs.npy')
+        if os.path.exists(fname):
+            self.xcorrs = np.load(fname)
+        else:
+            self.xcorrs = compute_correlogram(
+                np.arange(self.n_units),
+                self.spike_train,
+                bin_width=self.bin_width,
+                window_size=self.window_size)
+            np.save(fname, self.xcorrs)
+
     def compute_neighbours(self):
 
-        dist = template_dist_linear_align(self.templates.transpose(2,0,1))
-        
-        nearest_units = []
-        for k in range(dist.shape[0]):
-            idx = np.argsort(dist[k])[1:self.n_neighbours+1]
-            nearest_units.append(idx)
-        self.nearest_units = np.array(nearest_units)
+        fname = os.path.join(self.tmp_folder, 'neighbours.npy')
+        if os.path.exists(fname):
+            self.nearest_units = np.load(fname)
+        else:
+            dist = template_dist_linear_align(self.templates.transpose(2,0,1))
+            nearest_units = []
+            for k in range(dist.shape[0]):
+                idx = np.argsort(dist[k])[1:self.n_neighbours+1]
+                nearest_units.append(idx)
+            self.nearest_units = np.array(nearest_units)
+
+            np.save(fname, self.nearest_units)
 
     def compute_neighbours_rf(self):
 
         std = np.median(np.abs(
             self.STAs - np.median(self.STAs)))/0.6745
-        th = std*0.5
+        self.rf_std = std
 
-        STAs_th = np.copy(self.STAs)
-        STAs_th[np.abs(STAs_th) < th] = 0
-        STAs_th = STAs_th.reshape(self.n_units, -1)
-        STAs_th = STAs_th*self.sta_sign[:, None]
+        fname = os.path.join(self.tmp_folder, 'neighbours_rf.npy')
+        if os.path.exists(fname):
+            self.nearest_units_rf = np.load(fname)
 
-        norms = np.linalg.norm(STAs_th.T, axis=0)[:, np.newaxis]
-        cos = np.matmul(STAs_th, STAs_th.T)/np.matmul(norms, norms.T)
-        cos[np.isnan(cos)] = 0
+        else:
+            th = std*0.5
 
-        nearest_units_rf = np.zeros((self.n_units, self.n_neighbours), 'int32')
-        for k in range(self.n_units):
-            nearest_units_rf[k] = np.argsort(cos[k])[-self.n_neighbours-1:-1][::-1]
+            STAs_th = np.copy(self.STAs)
+            STAs_th[np.abs(STAs_th) < th] = 0
+            STAs_th = STAs_th.reshape(self.n_units, -1)
+            STAs_th = STAs_th*self.sta_sign[:, None]
 
-        self.nearest_units_rf = nearest_units_rf
+            norms = np.linalg.norm(STAs_th.T, axis=0)[:, np.newaxis]
+            cos = np.matmul(STAs_th, STAs_th.T)/np.matmul(norms, norms.T)
+            cos[np.isnan(cos)] = 0
+
+            nearest_units_rf = np.zeros((self.n_units, self.n_neighbours), 'int32')
+            for j in np.unique(self.rf_labels):
+                units_same_class = np.where(self.rf_labels == j)[0]
+                for k in units_same_class:
+                    idx_ = np.argsort(cos[k][units_same_class])[::-1][1:self.n_neighbours+1]
+                    nearest_units_rf[k] = units_same_class[idx_]
+
+            self.nearest_units_rf = nearest_units_rf
+            np.save(fname, self.nearest_units_rf)
+
+    def compute_neighbours_xcorrs(self, unit):
+        xcorrs = self.xcorrs[np.where(
+            self.unique_ids == unit)[0][0]]
+        xcorrs = xcorrs[self.unique_ids != unit]
+        idx_others = self.unique_ids[self.unique_ids != unit]
+
+        xcorrs = xcorrs - np.median(xcorrs, 1, keepdims=True)
+        std = np.median(np.abs(xcorrs), 1)/0.6745
+        std[std==0] = 10000
+        xcorrs = xcorrs/std[:,None]
+
+        idx_max = np.argsort(xcorrs.max(1))[::-1][:self.n_neighbours]
+        max_vals = xcorrs.max(1)[idx_max]
+        idx_max = idx_others[idx_max]
+
+
+        idx_min = np.argsort(xcorrs.min(1))[:self.n_neighbours]
+        min_vals = xcorrs.min(1)[idx_min]
+        idx_min = idx_others[idx_min]
+
+        return idx_max, max_vals, idx_min, min_vals
 
     def population_level_plot(self):
 
@@ -207,140 +245,409 @@ class Visualizer(object):
         self.make_normalized_templates_plot()
 
         if self.rf_dir is not None:
-            self.make_rf_plots()
+            #self.make_rf_plots()
+            self.make_all_rf_templates_plots()
             self.cell_classification_plots()
+        else:
+            self.make_all_templates_summary_plots()
 
-        if self.deconv_dir is not None:
+        if self.reader_resid is not None:
+            self.residual_varaince()
             self.add_residual_qq_plot()
-            #self.add_raw_deno_resid_plot()  
             self.add_raw_resid_snippets()
 
-    def individiual_cell_plot(self, units=None, order_by_fr=False):
-        
-        if units is None:
-            units = np.arange(self.n_units)
+    def individiual_level_plot(self, units_full_analysis=None, sample=False):
 
         # saving directory location
-        self.save_dir_ind = os.path.join(self.save_dir,'individual')
+        self.save_dir_ind = os.path.join(
+            self.save_dir, 'individual')
         if not os.path.exists(self.save_dir_ind):
             os.makedirs(self.save_dir_ind)
-        
-        if order_by_fr:
-            order = np.argsort(self.f_rates[units])
-        else:
-            order = np.argsort(self.templates[:, :, units].ptp(0).max(0))
-        
-        fnames = []
-        for j in range(len(units)):
-            unit = units[order[j]]
-            fname = os.path.join(self.save_dir_ind, 'order_{}_unit_{}.png'.format(j, unit))
-            fnames.append(fname)
 
+        for cell_type in self.cell_types:
+            dir_tmp = os.path.join(
+                self.save_dir_ind, cell_type)
+            if not os.path.exists(dir_tmp):
+                os.makedirs(dir_tmp)
+        dir_tmp = os.path.join(
+            self.save_dir_ind, 'Others')
+        if not os.path.exists(dir_tmp):
+            os.makedirs(dir_tmp)
+
+        # which units to do full analysis
+        if units_full_analysis is None:
+            units_full_analysis = np.arange(self.n_units)
+        else:
+            units_full_analysis = np.array(units_full_analysis)
+        # random sample if requested
+        n_sample = 100
+        if sample and (len(units_full_analysis) > n_sample):
+            fname_units = os.path.join(
+                self.tmp_folder,
+                'units_full_analysis_individual_plot.npy')
+            if os.path.exists(fname_units):
+                units_full_analysis = np.load(fname_units)
+            else:
+                units_full_analysis = np.random.choice(
+                    units_full_analysis, n_sample, False)
+                np.save(fname_units, units_full_analysis)
+        full_analysis = np.zeros(self.n_units, 'bool')
+        full_analysis[units_full_analysis] = True
+        full_analysis = list(full_analysis)
+
+        # file names
+        names = []
+        for unit in range(self.n_units):
+            ptp = str(int(np.round(self.ptps[unit]))).zfill(3)
+            name = 'ptp_{}_unit_{}'.format(ptp, unit)
+            names.append(name)
+        
         if False:
-            parmap.map(self.make_individual_cell_plot,
-                       list(units[order]),
-                       fnames,
+            parmap.map(self.make_individiual_level_plot,
+                       list(np.arange(self.n_units)),
+                       names,
+                       full_analysis,
                        processes=3,
                        pm_pbar=True)
         else:
-            for j in tqdm(range(len(units))):
-                unit = units[order[j]]
-                fname = fnames[j]
-                self.make_individual_cell_plot(unit, fname)
+            for unit in tqdm(range(self.n_units)):
+                self.make_individiual_level_plot(unit,
+                                                 names[unit],
+                                                 full_analysis[unit])
+
+    def make_individiual_level_plot(self, unit, name, full_analysis=True):
+
+        # cell type
+        if self.rf_labels[unit] != -1:
+            cell_type = self.cell_types[self.rf_labels[unit]]
+        else:
+            cell_type = 'Others'
+
+        # save directory
+        save_dir = os.path.join(self.save_dir_ind, cell_type)
+
+        # template
+        fname = os.path.join(save_dir, name+'_p0_template.png')
+        self.make_template_plot(unit, fname)
+
+        if full_analysis:
+            # waveform plots
+            fname = os.path.join(save_dir, name+'_p1_wfs.png')
+            self.make_waveforms_plot(unit, fname)
+
+            # template neighbors plots
+            neighbor_units = self.nearest_units[unit]
+            fname = os.path.join(save_dir, name+'_p2_temp_neigh.png')
+            if cell_type == 'Others':
+                title = 'Unit {}, Template Space Neighbors'.format(unit)
+            else:
+                title = 'Unit {} ({}), Template Space Neighbors'.format(
+                    unit, cell_type)
+            self.make_neighbors_plot(unit, neighbor_units, fname, title)
+
+            # rf neighbors plots
+            if np.max(np.abs(self.STAs[unit])) > 1.5*self.rf_std:
+                neighbor_units = self.nearest_units_rf[unit]
+                fname = os.path.join(save_dir, name+'_p3_rf_neigh.png')
+                if cell_type == 'Others':
+                    title = 'Unit {}, RF Space Neighbors'.format(unit)
+                else:
+                    title = 'Unit {} ({}), RF Space Neighbors'.format(
+                        unit, cell_type)
+                self.make_neighbors_plot(unit, neighbor_units, fname, title)
+
+            # xcorr neighbours
+            (idx_max, max_vals,
+             idx_min, min_vals) = self.compute_neighbours_xcorrs(unit)
+            fname = os.path.join(save_dir, name+'_p4_high_xcorr_neigh.png')
+            if cell_type == 'Others':
+                title = 'Unit {}, Xcor Space Neighbors'.format(unit)
+            else:
+                title = 'Unit {} ({}), Xcor Space Neighbors'.format(
+                    unit, cell_type)
+            self.make_neighbors_plot(unit, idx_max, fname, title)
+
+            if np.min(min_vals) < -6:
+                fname = os.path.join(save_dir, name+'_p5_xcorr_notches.png')
+                if cell_type == 'Others':
+                    title = 'Unit {}, Xcor Notches'.format(unit)
+                else:
+                    title = 'Unit {} ({}), Xcor Notches'.format(
+                        unit, cell_type)
+                self.make_neighbors_plot(unit, idx_min, fname, title)
 
 
-    def make_individual_cell_plot(self, unit, fname):
-
-        # plotting parameters
-        self.fontsize = 20
-        self.figsize = [100, 40]
+    def make_template_plot(self, unit, fname):
 
         if os.path.exists(fname):
             return
 
-        fig=plt.figure(figsize=self.figsize)
-        gs = gridspec.GridSpec(self.n_neighbours+7, 10, fig)  
+        # determin channels to include
+        ptp = self.templates[:, :, unit].ptp(0)
+        mc = ptp.argmax()
+        vis_chan = np.where(ptp > 2)[0]
+        if len(vis_chan) == 0:
+            vis_chan = [mc]
+        geom_vis_chan = self.geom[vis_chan]
+        max_x, max_y = np.max(geom_vis_chan, 0)
+        min_x, min_y = np.min(geom_vis_chan, 0)
+        chan_idx = np.logical_and(
+            np.logical_and(self.geom[:,0] >= min_x-3, self.geom[:,0] <= max_x+3),
+            np.logical_and(self.geom[:,1] >= min_y-3, self.geom[:,1] <= max_y+3))
+        chan_idx = np.where(chan_idx)[0]
+        chan_idx = chan_idx[ptp[chan_idx] > 1]
+        # also include neighboring channels
+        neigh_chans = np.where(self.neigh_channels[mc])[0]
+        chan_idx = np.unique(np.hstack((chan_idx, neigh_chans)))
 
-        if np.sum(self.spike_train[:,1] == unit) > 0:
-            ## Main Unit ##
-            start_row = 0
-            # add example waveforms
-            gs, wf, idx = self.add_example_waveforms(gs, start_row, unit)
-            start_row += 1
+        # plotting parameters
+        self.fontsize = 40
+        fig = plt.figure(figsize=[30, 10])
+        gs = gridspec.GridSpec(1, 1, fig)
 
-            # add denoised waveforms
-            if self.template_space_dir is not None:
-                gs = self.add_denoised_waveforms(gs, start_row, unit, wf)
-                start_row += 1
+        # add template summary plot
+        if self.rf_labels[unit] != -1:
+            cell_type = self.cell_types[self.rf_labels[unit]]
+        else:
+            cell_type = 'Others'
+        fr = str(np.round(self.f_rates[unit], 1))
+        ptp = str(np.round(self.ptps[unit], 1))
+        title = "Template of Unit {}, {}Hz, {}SU, Max Channel: {}".format(unit, fr, ptp, mc)
+        if cell_type != 'Others':
+            title =  title +', '+cell_type
 
-            # add residual + template
-            if self.deconv_dir is not None:
-                gs = self.add_residual_template(gs, start_row, unit, idx)
-                start_row += 1
+        gs = self.add_template_plot(gs, 0, 0,
+                        [unit], [self.colors[0]],
+                        chan_idx, title)
 
-            # add template
-            gs = self.add_template_plot(gs, start_row, slice(2), 
-                                        [unit], [self.colors[0]])
-            # add rf
-            gs = self.add_RF_plot(gs, start_row, 2, unit)
-
-            # add autocorrelogram
-            gs = self.add_xcorr_plot(gs, start_row, 3, unit, unit)
-
-            # single unit raster plot
-            gs = self.add_single_unit_raster(gs, start_row, slice(4,5), unit)
-
-            start_row += 1
-
-            ## Neighbor Units by templates ##
-            neighbor_units = self.nearest_units[unit]
-            for ctr, neigh in enumerate(neighbor_units):
-
-                gs = self.add_template_plot(gs, ctr+start_row, slice(0,2), 
-                                        np.hstack((unit, neigh)),
-                                        [self.colors[c] for c in [0,ctr+1]])
-
-                gs = self.add_RF_plot(gs, ctr+start_row, 2, neigh)
-
-                gs = self.add_xcorr_plot(gs, ctr+start_row, 3, unit, neigh)
-
-                if self.deconv_dir is not None:
-                    gs = self.add_l2_feature_plot(gs, ctr+start_row, 4, unit, neigh,
-                                                 [self.colors[c] for c in [0,ctr+1]])
-
-            # add contour plots
-            gs = self.add_contour_plot(
-                gs, self.n_neighbours+start_row, 2,
-                np.hstack((unit, neighbor_units)),
-                self.colors[:self.n_neighbours+1])
-
-            ## Neighbor Units by RF ##
-            neighbor_units = self.nearest_units_rf[unit]
-            for ctr, neigh in enumerate(neighbor_units):
-
-                gs = self.add_template_plot(gs, ctr+start_row, slice(5,7), 
-                                        np.hstack((unit, neigh)),
-                                        [self.colors[c] for c in [0,ctr+1]])
-
-                gs = self.add_RF_plot(gs, ctr+start_row, 7, neigh)
-
-                gs = self.add_xcorr_plot(gs, ctr+start_row, 8, unit, neigh)
-
-                if self.deconv_dir is not None:
-                    gs = self.add_l2_feature_plot(gs, ctr+start_row, 9, unit, neigh,
-                                                 [self.colors[c] for c in [0,ctr+1]])
-
-            gs = self.add_contour_plot(
-                gs, self.n_neighbours+start_row, 7,
-                np.hstack((unit, neighbor_units)),
-                self.colors[:self.n_neighbours+1])
-            
-            #start_row += 1
-            #x_locs = [self.n_neighbours+start_row]*10 + [self.n_neighbours+start_row+1]*10
-            #y_locs = [c for c in range(10)]*2
-            #gs = self.add_full_sta(gs, x_locs, y_locs, unit)
-
+        plt.tight_layout()
         fig.savefig(fname, bbox_inches='tight', dpi=100)
+        fig.clf()
+        plt.close('all')
+        gs = None
+
+
+    def make_waveforms_plot(self, unit, fname):
+
+        if os.path.exists(fname):
+            return
+
+        n_waveforms = 1000
+        n_examples = 100
+        fontsize = 20
+
+        wf, wf_resid, spt, neigh_chans = self.get_waveforms(unit, n_waveforms)
+        if wf.shape[0] == 0:
+            return
+
+        template = self.templates[:,:,unit][:, neigh_chans]
+        spt = spt/self.sampling_rate
+
+        spikes_ptp = self.get_spikes_ptp(wf, template)
+        spikes_ptp_clean = self.get_spikes_ptp(wf_resid, template)
+        template_ptp = template[:, template.ptp(0).argmax()].ptp()
+
+        n_rows = 3
+        if self.reader_resid is not None:
+            n_rows += 1
+        n_cols = len(neigh_chans)
+
+        chan_order = np.argsort(template.ptp(0))[::-1]
+        if n_examples < wf.shape[0]:
+            idx_plot = np.random.choice(wf.shape[0], n_examples, False)
+        else:
+            idx_plot = np.arange(wf.shape[0])
+
+
+        plt.figure(figsize=(n_cols*4, n_rows*4))
+        # add raw wfs
+        count = 0
+        x_range = np.arange(wf.shape[1])/self.sampling_rate*1000
+        for j, c in enumerate(chan_order):
+            count += 1
+            plt.subplot(n_rows, n_cols, count)
+            plt.plot(x_range, wf[:, :, c][idx_plot].T, color='k', alpha=0.1)
+            plt.plot(x_range, template[:,c], color='r', linewidth=2)
+            title = "Channel: {}".format(neigh_chans[c])
+            if j == 0:
+                title = 'Raw Waveforms\n' + title
+            plt.title(title, fontsize=fontsize)
+
+            if j == 0:
+                plt.xlabel('Time (ms)', fontsize=fontsize)
+                plt.ylabel('Voltage (S.U.)', fontsize=fontsize)
+
+        # add clean wfs
+        for j, c in enumerate(chan_order):
+            count += 1
+            plt.subplot(n_rows, n_cols, count)
+            plt.plot(x_range, wf_resid[:, :, c][idx_plot].T, color='k', alpha=0.1)
+            plt.plot(x_range, template[:,c], color='r', linewidth=2)
+            if j == 0:
+                title = 'Clean Waveforms'
+                plt.title(title, fontsize=fontsize)
+
+            if j == 0:
+                plt.xlabel('Time (ms)', fontsize=fontsize)
+                plt.ylabel('Voltage (S.U.)', fontsize=fontsize)
+
+        if wf_resid is None:
+            count = 2
+        else:
+            count = 3
+
+        plt.subplot(n_rows, 1, count)
+        plt.scatter(spt, spikes_ptp, c='k')
+        plt.plot([np.min(spt), np.max(spt)], [template_ptp, template_ptp], 'r')
+        plt.title('ptp vs spike times (red = template ptp)\n Raw Waveforms',
+                  fontsize=fontsize)
+        plt.xlabel('Time (seconds)', fontsize=fontsize)
+        plt.ylabel('PTP (S.U.)', fontsize=fontsize)
+
+        plt.subplot(n_rows, 1, count+1)
+        plt.scatter(spt, spikes_ptp_clean, c='k')
+        plt.plot([np.min(spt), np.max(spt)], [template_ptp, template_ptp], 'r')
+        plt.title('Clean Waveforms', fontsize=fontsize)
+        plt.xlabel('Time (seconds)', fontsize=fontsize)
+        plt.ylabel('PTP (S.U.)', fontsize=fontsize)
+
+        # suptitle
+        fr = np.round(float(self.f_rates[unit]), 1)
+        ptp = np.round(float(self.ptps[unit]), 1)
+        suptitle = 'Unit: {}, {}Hz, {}SU'.format(unit, fr, ptp)
+        if self.rf_labels[unit] != -1:
+            suptitle = suptitle + ', ' + self.cell_types[self.rf_labels[unit]]
+        plt.suptitle(suptitle,
+                     fontsize=int(1.5*fontsize))
+        plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+        plt.savefig(fname, bbox_inches='tight')
+        plt.clf()
+        plt.close('all')
+
+
+    def make_neighbors_plot(self, unit, neighbor_units, fname, title):
+
+        if os.path.exists(fname):
+            return
+
+        mc = self.templates[:, :, unit].ptp(0).argmax()
+        chan_idx = np.where(self.neigh_channels[mc])[0]
+
+        zoom_windows = zoom_in_window(self.STAs, unit, self.rf_std*1.5)
+        if zoom_windows is not None:
+            col_minus = 0
+        else:
+            col_minus = 1
+
+        # plotting parameters
+        self.fontsize = 30
+        self.figsize = [int(6*(8-col_minus)), 25]
+
+        fig = plt.figure(figsize=self.figsize)
+        fig.suptitle(title, fontsize=2*self.fontsize)
+
+        gs = gridspec.GridSpec(self.n_neighbours+2, 8-col_minus, fig,
+                               left=0, right=1, top=0.92, bottom=0.05,
+                               hspace=0.2, wspace=0.1)
+
+        start_row = 0
+
+        # add template summary plot
+        fr = str(np.round(self.f_rates[unit], 1))
+        ptp = str(np.round(self.ptps[unit], 1))
+        title = "Unit: {}, {}Hz, {}SU".format(unit, fr, ptp)
+        gs = self.add_template_summary(
+            gs, start_row, slice(2), unit, title)
+
+        # add template
+        title = 'Zoomed-in Templates'
+        gs = self.add_template_plot(gs, start_row, 2,
+                                    [unit], [self.colors[0]],
+                                    chan_idx, title)
+
+        # add rf
+        title = 'Spatial RF'
+        gs = self.add_RF_plot(gs, start_row, 3, unit, None, title)
+        if zoom_windows is not None:
+            title = 'Zoomed-in Spatial RF'
+            gs = self.add_RF_plot(gs, start_row, 4,
+                                  unit, zoom_windows, title)
+
+        # add temporal sta
+        title = 'Temporal RF'
+        gs = self.add_temporal_sta(gs, start_row, 5-col_minus,
+                                   unit, title)
+
+        # add autocorrelogram
+        title = 'Autocorrelogram'
+        gs = self.add_xcorr_plot(gs, start_row, 6-col_minus, unit, unit, title)
+
+        start_row += 1
+        ## Neighbor Units by templates ##
+        for ctr, neigh in enumerate(neighbor_units):
+            fr = str(np.round(self.f_rates[neigh], 1))
+            ptp = str(np.round(self.ptps[neigh], 1))
+            title = "Unit: {}, {}Hz, {}SU".format(neigh, fr, ptp)
+            gs = self.add_template_summary(
+                gs, ctr+start_row, slice(2), neigh, title)
+
+            gs = self.add_template_plot(
+                gs, ctr+start_row, 2,
+                np.hstack((unit, neigh)),
+                [self.colors[c] for c in [0,ctr+1]],
+                chan_idx
+            )
+
+            gs = self.add_RF_plot(gs, ctr+start_row, 3, neigh)
+            if zoom_windows is not None:
+                gs = self.add_RF_plot(gs, ctr+start_row, 4, neigh, zoom_windows)
+
+            if ctr == len(neighbor_units)-1:
+                add_label = True
+            else:
+                add_label = False
+
+            gs = self.add_temporal_sta(
+                gs, ctr+start_row, 5-col_minus, neigh, None, add_label)
+
+            if ctr == 0:
+                title = 'Cross-correlogram'
+            else:
+                title = None
+            gs = self.add_xcorr_plot(gs, ctr+start_row, 6-col_minus,
+                                     unit, neigh, title, add_label)
+
+            if self.reader_resid is not None:
+                if ctr == 0:
+                    title = 'Histogram of\nLDA Projection of\nSpikes-to-Templates\nDistance'
+                else:
+                    title = None
+                if ctr == len(neighbor_units)-1:
+                    add_label = True
+                else:
+                    add_label = False
+                gs = self.add_l2_feature_plot(gs, ctr+start_row, 7-col_minus, unit, neigh,
+                                              [self.colors[c] for c in [0,ctr+1]],
+                                              title, add_label)
+
+        # add contour plots
+        title = 'Contours of Spatial RF'
+        gs = self.add_contour_plot(
+            gs, self.n_neighbours+start_row, 3,
+            np.hstack((unit, neighbor_units)),
+            self.colors[:self.n_neighbours+1], None, title)
+        if zoom_windows is not None:
+            title = 'zoomed-in Contours'
+            gs = self.add_contour_plot(
+                gs, self.n_neighbours+start_row, 4,
+                np.hstack((unit, neighbor_units)),
+                self.colors[:self.n_neighbours+1],
+                True, title)
+
+        #plt.tight_layout(rect=[0, 0.03, 1, 0.93])
+        fig.savefig(fname, bbox_inches='tight', dpi=100)
+        fig.clf()
         plt.close('all')
         gs = None
 
@@ -383,7 +690,7 @@ class Visualizer(object):
 
                 gs = self.add_xcorr_plot(gs, count, 4, unit1, unit2)
 
-                if self.deconv_dir is not None:
+                if self.fname_residual is not None:
                     gs = self.add_l2_feature_plot(gs, count, 5, unit1, unit2, self.colors[:2])
 
 
@@ -402,183 +709,299 @@ class Visualizer(object):
                     
         fname = os.path.join(save_dir_ind, 'page_{}.png'.format(n_pages))
         fig.savefig(fname, bbox_inches='tight', dpi=100)
-        plt.close()
-          
+        fig.clf()
+        fig.cla()
+        plt.close('all')
 
-    def get_waveforms(self, unit, n_examples=500):
-        
+
+    def get_waveforms(self, unit, n_examples=200):
+
         idx = np.where(self.spike_train[:,1]==unit)[0]
         idx = np.random.choice(idx, 
                                np.min((n_examples, len(idx))),
                                False)
-        spt = self.spike_train[idx,0] - self.templates.shape[0]//2
+        spt = self.spike_train[idx, 0]
+        mc = self.templates[:, :, unit].ptp(0).argmax()
+        neigh_chans = np.where(self.neigh_channels[mc])[0]
+        temp = self.templates[:, :, unit][:, mc]
+
+        wf, skipped_idx = self.reader.read_waveforms(spt, self.n_times_templates, neigh_chans)
+        mc_neigh = np.where(neigh_chans == mc)[0][0]
+        shifts = align_get_shifts_with_ref(
+                    wf[:, :, mc_neigh], temp)
+        wf = shift_chans(wf, shifts)
+        spt = np.delete(spt, skipped_idx)
+
+        if self.reader_resid is not None:
+            wf_resid, _ = self.reader_resid.read_waveforms(spt, self.n_times_templates, neigh_chans)
+            wf_resid = wf_resid + self.templates[:, :, unit][:, neigh_chans][None]
+            shifts = align_get_shifts_with_ref(
+                    wf_resid[:, :, mc_neigh], temp)
+            wf_resid = shift_chans(wf_resid, shifts)
+        else:
+            wf_resid = None
+
+        return wf, wf_resid, spt, neigh_chans
+
+
+    def get_clean_waveforms(self, unit, n_examples=200, spt=None):
+
+        if spt is None:
+            idx = np.where(self.spike_train[:,1]==unit)[0]
+            idx = np.random.choice(idx,
+                                   np.min((n_examples, len(idx))),
+                                   False)
+            spt = self.spike_train[idx,0] - self.templates.shape[0]//2
         mc = self.templates[:, :, unit].ptp(0).argmax()
         neigh_chans = np.where(self.neigh_channels[mc])[0]
 
-        wf, _ = binary_reader_waveforms(
-            self.fname_recording,
+        wf_res, idx_skipped = binary_reader_waveforms(
+            self.fname_residual,
             self.n_channels,
             self.templates.shape[0],
             spt, neigh_chans)
+        spt = np.delete(spt, idx_skipped)
+
+        wf = wf_res + self.templates[:, :, unit][:, neigh_chans]
 
         mc_neigh = np.where(neigh_chans == mc)[0][0]
         shifts = align_get_shifts_with_ref(
                     wf[:, :, mc_neigh])
         wf = shift_chans(wf, shifts)
 
-        return wf, idx
+        return wf, spt
 
     def add_example_waveforms(self, gs, x_loc, unit):
         
-        wf, idx = self.get_waveforms(unit)
-        mc = self.templates[:, :, unit].ptp(0).argmax()
-        neigh_chans = np.where(self.neigh_channels[mc])[0]
+        wf, spt = self.get_waveforms(unit)
 
-        order_neigh_chans = np.argsort(
-            np.linalg.norm(self.geom[neigh_chans] - self.geom[[mc]], axis=1))
-        for ii, j in enumerate(order_neigh_chans):
-            chan = neigh_chans[j]
-            ax = plt.subplot(gs[x_loc, ii])
-            ax.plot(wf[:, :, j].T, color='k', alpha=0.1)
-            ax.plot(self.templates[:, chan, unit].T, color='r', linewidth=2)
-            title = "Channel: {}".format(chan)
-            if ii == 0:
-                title = 'Raw Waveforms, Unit: {}, '.format(unit) + title
-            ax.set_title(title, fontsize=self.fontsize)
+        if wf.shape[0] > 0:
+            mc = self.templates[:, :, unit].ptp(0).argmax()
+            neigh_chans = np.where(self.neigh_channels[mc])[0]
+
+            order_neigh_chans = np.argsort(
+                np.linalg.norm(self.geom[neigh_chans] - self.geom[[mc]], axis=1))
+            for ii, j in enumerate(order_neigh_chans):
+                chan = neigh_chans[j]
+                ax = plt.subplot(gs[x_loc, ii])
+                ax.plot(wf[:, :, j].T, color='k', alpha=0.1)
+                ax.plot(self.templates[:, chan, unit].T, color='r', linewidth=2)
+                title = "Channel: {}".format(chan)
+                if ii == 0:
+                    title = 'Raw Waveforms, Unit: {}, '.format(unit) + title
+                ax.set_title(title, fontsize=self.fontsize)
         
-        return gs, wf, idx
+        return gs, wf, spt
 
     def add_denoised_waveforms(self, gs, x_loc, unit, wf=None):
-        
-        mc = self.templates[:, :, unit].ptp(0).argmax()
-        neigh_chans = np.where(self.neigh_channels[mc])[0]
 
         if wf is None:
-            wf, idx = self.get_waveforms(unit)
-        
-        norms = np.linalg.norm(wf, axis=1)[:,np.newaxis]
-        normalized_wf = wf/norms
-        denoised_wf = np.zeros(wf.shape)
-        for ii in range(wf.shape[2]):
-            if neigh_chans[ii] == mc:
-                temp = pca_denoise(normalized_wf[:,:,ii],
-                                   self.pca_main_mean,
-                                   self.pca_main_components)
-            else:
-                temp = pca_denoise(normalized_wf[:,:,ii],
-                                   self.pca_sec_mean,
-                                   self.pca_sec_components)
-            denoised_wf[:,:,ii] = temp*norms[:,:,ii]
+            wf, spt = self.get_waveforms(unit)
 
-        order_neigh_chans = np.argsort(
-            np.linalg.norm(self.geom[neigh_chans] - self.geom[[mc]], axis=1))
-        for ii, j in enumerate(order_neigh_chans):
-            chan = neigh_chans[j]
-            ax = plt.subplot(gs[x_loc, ii])
-            ax.plot(denoised_wf[:, :, j].T, color='k', alpha=0.1)
-            ax.plot(self.templates[:, chan, unit].T, color='r', linewidth=2)
-            if ii == 0:
-                title = 'Denoised Waveforms'
-                ax.set_title(title, fontsize=self.fontsize)
+        if wf.shape[0] > 0:
+            n_data, n_times, n_chans = wf.shape
+
+            denoised_wf = np.zeros((n_data, n_times, n_chans))
+
+            n_times_deno = 61
+            n_times_diff = (n_times - n_times_deno)//2
+            wf = wf[:, n_times_diff:-n_times_diff]
+
+            wf_reshaped = wf.transpose(0, 2, 1).reshape(-1, n_times_deno)
+            wf_torch = torch.FloatTensor(wf_reshaped).cuda()
+            denoised_wf_short = self.denoiser(wf_torch)[0].reshape(
+                n_data, n_chans, n_times_deno)
+            denoised_wf_short = denoised_wf_short.cpu().data.numpy().transpose(0, 2, 1)
+            denoised_wf[:, n_times_diff:-n_times_diff] = denoised_wf_short
+
+            mc = self.templates[:, :, unit].ptp(0).argmax()
+            neigh_chans = np.where(self.neigh_channels[mc])[0]
+
+            order_neigh_chans = np.argsort(
+                np.linalg.norm(self.geom[neigh_chans] - self.geom[[mc]], axis=1))
+            for ii, j in enumerate(order_neigh_chans):
+                chan = neigh_chans[j]
+                ax = plt.subplot(gs[x_loc, ii])
+                ax.plot(denoised_wf[:, :, j].T, color='k', alpha=0.1)
+                ax.plot(self.templates[:, chan, unit].T, color='r', linewidth=2)
+                if ii == 0:
+                    title = 'Denoised Waveforms'
+                    ax.set_title(title, fontsize=self.fontsize)
         
         return gs
     
-    def add_residual_template(self, gs, x_loc, unit, idx=None):
+    def add_residual_template(self, gs, x_loc, unit, spt=None):
 
         mc = self.templates[:, :, unit].ptp(0).argmax()
         neigh_chans = np.where(self.neigh_channels[mc])[0]
 
-        if idx is None:
-            _, idx = self.get_waveforms(unit)
+        wf, spt = self.get_clean_waveforms(unit, spt=spt)
 
-        spt = self.spike_train[idx, 0] - self.templates.shape[0]//2
-        units = self.spike_train_upsampled[idx, 1]
+        if wf.shape[0] > 0:
+            order_neigh_chans = np.argsort(
+                np.linalg.norm(self.geom[neigh_chans] - self.geom[[mc]], axis=1))
+            for ii, j in enumerate(order_neigh_chans):
+                chan = neigh_chans[j]
+                ax = plt.subplot(gs[x_loc, ii])
+                ax.plot(wf[:, :, j].T, color='k', alpha=0.1)
+                ax.plot(self.templates[:, chan, unit].T, color='r', linewidth=2)
+                if ii == 0:
+                    title = 'Residual + Template'
+                    ax.set_title(title, fontsize=self.fontsize)
 
-        wf, _ = read_spikes(
-            self.residual_recording, spt, self.n_channels,
-            self.templates.shape[0], units,
-            self.templates_upsampled.transpose(2,0,1),
-            channels=neigh_chans,
-            residual_flag=True)            
-
-        mc_neigh = np.where(neigh_chans == mc)[0][0]
-        shifts = align_get_shifts_with_ref(
-                    wf[:, :, mc_neigh])
-        wf = shift_chans(wf, shifts)
-
-        order_neigh_chans = np.argsort(
-            np.linalg.norm(self.geom[neigh_chans] - self.geom[[mc]], axis=1))
-        for ii, j in enumerate(order_neigh_chans):
-            chan = neigh_chans[j]
-            ax = plt.subplot(gs[x_loc, ii])
-            ax.plot(wf[:, :, j].T, color='k', alpha=0.1)
-            ax.plot(self.templates[:, chan, unit].T, color='r', linewidth=2)
-            if ii == 0:
-                title = 'Residual + Template'
-                ax.set_title(title, fontsize=self.fontsize)
-        
         return gs
 
-    def add_template_plot(self, gs, x_loc, y_loc, units, colors):
+
+    def determine_channels_in(self, unit, n_max_chans = 30):
+
+        temp = self.templates[:, :, unit]
+        ptp = temp.ptp(0)
+        mc = ptp.argmax()
+
+        dist_to_mc = np.linalg.norm(
+            self.geom - self.geom[mc], axis=1)
+
+        idx_tmp = np.argsort(dist_to_mc)[:n_max_chans]
+        max_dist = dist_to_mc[idx_tmp].max()
+        chans_plot = np.where(dist_to_mc <= max_dist)[0]
+
+        return chans_plot
+
+        chans_plot = []
+        n_vis_chans = 1
+        while len(chans_plot) < n_max_chans:
+            n_vis_chans += 1
+            idx_chan = np.argsort(ptp)[::-1][:n_vis_chans]
+            center = np.mean(self.geom[idx_chan], axis=0)
+            max_dist = np.linalg.norm(self.geom[idx_chan] - center, axis=1).max()
+            chans_plot = np.where(np.linalg.norm(self.geom - center, axis=1) <= max_dist)[0]
+
+        n_vis_chans -= 1
+        idx_chan = np.argsort(ptp)[::-1][:n_vis_chans]
+        center = np.mean(self.geom[idx_chan], axis=0)
+        max_dist = np.linalg.norm(self.geom[idx_chan] - center, axis=1).max()
+        chans_plot = np.where(np.linalg.norm(self.geom - center, axis=1) <= max_dist)[0]
+
+        return chans_plot
+
+    def add_template_plot(self, gs, x_loc, y_loc, units, colors, chan_idx=None, title=None):
         
         # plotting parameters
-        time_scale=3.
-        scale=10.
+        time_scale=1.8
+        max_ptp = np.max(self.ptps[units])
+        scale= 100/max_ptp
         alpha=0.4
         
         R = self.templates.shape[0]
         
+        if chan_idx is None:
+            chan_idx = np.arange(self.n_channels)
+
         ax = plt.subplot(gs[x_loc, y_loc])
         
         for ii, unit in enumerate(units):
-            ax.plot(self.geom[:,0]+np.arange(-R,0)[:,np.newaxis]/time_scale, 
-             self.geom[:,1] + self.templates[:,:,unit]*scale,
-             color=colors[ii], alpha=alpha)
+            ax.plot(self.geom[chan_idx, 0]+np.arange(-R, 0)[:,np.newaxis]/time_scale, 
+             self.geom[chan_idx, 1] + self.templates[:, :, unit][:, chan_idx]*scale,
+             color=colors[ii], linewidth=2)
 
         # add channel number
-        for k in range(self.n_channels):
-            ax.text(self.geom[k,0]+1, self.geom[k,1], str(k), fontsize=self.fontsize)
+        #for k in chan_idx:
+        #    ax.text(self.geom[k,0]+1, self.geom[k,1], str(k), fontsize=self.fontsize)
 
         # add +-1 su grey shade 
         x = np.arange(-R,0)/time_scale
         y = -np.ones(x.shape)*scale
-        for k in range(self.n_channels):
+        for k in chan_idx:
             ax.fill_between(x+self.geom[k,0], 
                             y+self.geom[k,1], 
                             y+2*scale+ self.geom[k,1], color='grey', alpha=0.1)
-                
+        plt.yticks([])
+        plt.xticks([])
+
+        if title is not None:
+            ax.set_title(title, fontsize=self.fontsize)
+
         return gs
-    
-    
-    def add_RF_plot(self, gs, x_loc, y_loc, unit):
+
+
+    def add_template_summary(self, gs, x_loc, y_loc, unit, title=None, add_color_bar=True, scale=50):
+
+        temp = self.templates[:,:,unit]
+        ptp = temp.ptp(0)
+        mc = ptp.argmax()
+        min_point = np.argmin(temp, 0)
+        min_point -= min_point[mc]
+
+        vis_chan = ptp > 0.5
+        ptp = ptp[vis_chan]
+        min_point = min_point[vis_chan]
+
+        ax = plt.subplot(gs[x_loc, y_loc])
+
+        plt.scatter(self.geom[vis_chan, 0],
+                    self.geom[vis_chan, 1],
+                    s=ptp*scale, c=min_point)
+
+        np.max(self.geom[:,0]) + 30
+        plt.xlim([np.min(self.geom[:,0]) - 30, np.max(self.geom[:,0]) + 30])
+        plt.ylim([np.min(self.geom[:,1]) - 30, np.max(self.geom[:,1]) + 30])
+
+        plt.setp(ax.get_xticklabels(), visible=False)
+        plt.setp(ax.get_yticklabels(), visible=False)
+        ax.tick_params(axis='both', which='both', length=0)
+
+        if add_color_bar:
+            cbar = plt.colorbar(pad=0.01, fraction=0.05)
+            ticks = cbar.get_ticks()
+            ticklabels = ticks/self.sampling_rate*1000
+            cbar.set_ticks(ticks)
+            cbar.set_ticklabels(ticklabels)
+
+        if title is not None:
+            ax.set_title(title, fontsize=self.fontsize)
+
+        # add channel number
+        #for k in np.arange(self.n_channels):
+        #    plt.text(self.geom[k,0]+1, self.geom[k,1], str(k), fontsize=self.fontsize//3)
+
+        return gs
+
+
+    def add_RF_plot(self, gs, x_loc, y_loc, unit, windows=None, title=None):
         # COMPUTE 
         #neighbor_units = self.nearest_units[unit]
         
         ax = plt.subplot(gs[x_loc, y_loc])
-        
-        ax.set_title("Unit: "+str(unit)+", "+str(np.round(self.f_rates[unit],1))+
-             "Hz, "+str(np.round(self.ptps[unit],1))+"SU", fontsize=self.fontsize)
 
-        img = self.sta_sign[unit]*self.STAs[unit,:,:,1].T
+        img = self.sta_sign[unit]*self.STAs[unit].T
         vmax = np.max(np.abs(img))
         vmin = -vmax
         ax.imshow(img, vmin=vmin, vmax=vmax)
-        ax.set_xlim([64,0])
-        ax.set_ylim([0,32])
         
+        if windows is not None:
+            ax.set_xlim([windows[0][0], windows[0][1]])
+            ax.set_ylim([windows[1][0], windows[1][1]])
+        else:
+            ax.set_xlim([0,self.stim_size[0]])
+            ax.set_ylim([0,self.stim_size[1]])
+
+        if title is not None:
+            ax.set_title(title, fontsize=self.fontsize)
+
+        ax.set_axis_off()
         # also plot all in one plot
         #ax = plt.subplot(gs[self.n_neighbours+1, ax_col])
         #ax = self.plot_contours(ax, np.hstack((unit,neighbor_units)),
         #                        self.colors[:self.n_neighbours+1])
 
         return gs
-    
-    
-    def add_contour_plot(self, gs, x_loc, y_loc, units, colors):
+
+    def add_contour_plot(self, gs, x_loc, y_loc, units, colors, zoom_in=False, title=None):
         
         ax = plt.subplot(gs[x_loc, y_loc])
         labels = []
         
+        x_min = None
         for ii, unit in enumerate(units):
             # also plot all in one plot
             if np.any(self.gaussian_fits[unit] != 0):
@@ -587,27 +1010,81 @@ class Visualizer(object):
                 ax.plot(plotting_data[1],plotting_data[0],
                         color=colors[ii], linewidth=3)
 
+                x_min_, x_max_ = np.min(plotting_data[1]), np.max(plotting_data[1])
+                y_min_, y_max_ = np.min(plotting_data[0]), np.max(plotting_data[0])
+                if x_min is None:
+                    x_min, x_max = x_min_, x_max_
+                    y_min, y_max = y_min_, y_max_
+                else:
+                    x_min = np.min((x_min_, x_min))
+                    x_max = np.max((x_max_, x_max))
+                    y_min = np.min((y_min_, y_min))
+                    y_max = np.max((y_max_, y_max))
+
                 labels.append(mpatches.Patch(color = colors[ii], label = "Unit {}".format(unit)))
         
         ax.legend(handles=labels)
-        ax.set_xlim([64,0])
-        ax.set_ylim([0,32])
-                
+        if zoom_in:
+            ax.set_xlim([x_min-1, x_max+1])
+            ax.set_ylim([y_min-1, y_max+1])
+        else:
+            ax.set_xlim([0,self.stim_size[0]])
+            ax.set_ylim([0,self.stim_size[1]])
+
+        if title is not None:
+            ax.set_title(title, fontsize=self.fontsize)
+
         return gs
 
-    
-    def add_single_unit_raster(self, gs, x_loc, y_loc, unit):
+
+    def add_temporal_sta(self, gs, x_loc, y_loc, unit, title=None, add_label=False):
         
         ax = plt.subplot(gs[x_loc, y_loc])
         
-        idx = self.spike_train[:, 1] == unit
-        spt = self.spike_train[idx, 0]/self.sampling_rate
-            
-        plt.eventplot(spt, color='k', linewidths=0.01)
-        plt.title('Single Unit Raster Plot', fontsize=self.fontsize)
+        lw = 3
+        sta = self.STAs_temporal[unit]
+        ax.plot(sta[:,0], 'r', linewidth=lw)
+        ax.plot(sta[:,1], 'g', linewidth=lw)
+        ax.plot(sta[:,2], 'b', linewidth=lw)
+
+        plt.yticks([])
+        #plt.xticks([])
+
+        if title is not None:
+            ax.set_title(title, fontsize=self.fontsize)
+
+        if add_label:
+            ax.set_xlabel('time (A.U.)', fontsize=self.fontsize)
+
+        return gs
+
+
+    def add_ptp_vs_time(self, ptp, spt, template):
+
+        plt.scatter(spt, ptp/self.sampling_rate, c='k')
+        plt.plot([np.min(spt), np.max(spt)], [temp.ptp(), temp.ptp()], 'r')
+
+        #plt.eventplot(spt, color='k', linewidths=0.01)
+        plt.title('ptp vs spike times (red = template ptp)',
+                  fontsize=self.fontsize)
         
         return gs
-                        
+
+
+    def get_spikes_ptp(self, wf, template):
+
+        mc = template.ptp(0).argmax()
+        temp = template[:, mc]
+        min_point = temp.argmin()
+        max_point = temp.argmax()
+        first_point = np.min((min_point, max_point))
+        second_point = np.max((min_point, max_point))
+
+        window = np.arange(first_point-2, second_point+3)
+
+        ptp_spikes = wf[:, :, mc][:, window].ptp(1)
+
+        return ptp_spikes
     
     def get_circle_plotting_data(self,i_cell,Gaussian_params):
         # Adapted from Nora's matlab code, hasn't been tripled checked
@@ -617,10 +1094,10 @@ class Visualizer(object):
         y_circle = np.sin(circle_samples)
 
         # Get Gaussian parameters
-        angle = np.pi - Gaussian_params[i_cell,4]
+        angle = Gaussian_params[i_cell,4]
         sd = Gaussian_params[i_cell,2:4]
-        x_shift= 32 - Gaussian_params[i_cell,0]
-        y_shift = 64 - Gaussian_params[i_cell,1]
+        x_shift = self.stim_size[1] - Gaussian_params[i_cell,0]
+        y_shift = Gaussian_params[i_cell,1]
 
         R = np.asarray([[np.cos(angle), np.sin(angle)],[-np.sin(angle), np.cos(angle)]])
         L = np.asarray([[sd[0], 0],[0, sd[1]]])
@@ -634,42 +1111,59 @@ class Visualizer(object):
         return plotting_data
 
     
-    def add_xcorr_plot(self, gs, x_loc, y_loc, unit1, unit2):
+    def add_xcorr_plot(self, gs, x_loc, y_loc, unit1, unit2, title=None, add_label=False):
         # COMPUTE XCORRS w. neighbouring units;
 
-        result = compute_correlogram(
-            np.hstack((unit1, unit2)), self.spike_train)
-        if result.shape[0] == 1:
-            result = result[0,0]
-        elif result.shape[0] > 1:
-            result = result[1,0]
+        if (unit1 in self.unique_ids) and (unit2 in self.unique_ids):
 
-        notch, pval1 = notch_finder(result)
-        pval1 = np.round(pval1, 2)
+            unit1_ = np.where(self.unique_ids == unit1)[0][0]
+            unit2_ = np.where(self.unique_ids == unit2)[0][0]
+
+            result = self.xcorrs[unit1_, unit2_]
+        else:
+            result = np.zeros(self.xcorrs.shape[2])
+
+        window_size_ms = self.window_size*1000
+        bin_width_ms = self.bin_width*1000
+        x_range = np.arange(-(window_size_ms//2),
+                            window_size_ms//2+1, bin_width_ms)
+
+        #notch, pval1 = notch_finder(result)
+        #pval1 = np.round(pval1, 2)
 
         ax = plt.subplot(gs[x_loc, y_loc])
-        plt.plot(result,color='black', linewidth=2)
-        plt.ylim(0, np.max(result*1.5))
-        plt.plot([50,50],[0,np.max(result*1.5)],'r--')
-        plt.xlim(0,101)
-        plt.xticks([])
-        plt.tick_params(axis='both', which='major', labelsize=6)
-        plt.title('pval1: {}'.format(pval1), fontsize=self.fontsize)
+        plt.plot(x_range, result,color='black', linewidth=2)
+        y_max = np.max((10, 1.5*np.max(result)))
+        plt.ylim(0, y_max)
+        plt.plot([0,0],[0, np.max(result*1.5)],'r--')
+        if add_label:
+            plt.xlabel('time (ms)', fontsize=self.fontsize)
+        #plt.ylabel('counts', fontsize=self.fontsize)
+        plt.tick_params(axis='both', which='major')#, labelsize=self.fontsize//2)
+
+        if title is not None:
+            plt.title(title, fontsize=self.fontsize)
        
         return gs
     
     
-    def add_l2_feature_plot(self, gs, x_loc, y_loc, unit1, unit2, colors):
+    def add_l2_feature_plot(self, gs, x_loc, y_loc, unit1, unit2, colors, title=None, add_label=False):
         
         #n_samples = 5000
         l2_features, spike_ids = get_l2_features(
-            self.residual_recording, self.spike_train,
-            self.spike_train_upsampled,
+            self.reader_resid, self.spike_train,
             self.templates.transpose(2,0,1),
-            self.templates_upsampled.transpose(2,0,1),
             unit1, unit2)
+
+        if l2_features is None:
+            return gs
+
+        lda = LDA(n_components = 1)
+        feat = lda.fit_transform(l2_features, spike_ids).ravel()
         #try:
-        dp_val, feat = test_unimodality(l2_features, spike_ids)
+        #(merge,
+        # lda_prob,
+        # dp_val) = test_merge(l2_features, spike_ids)
 
         #l2_1d_features = np.diff(l2_features, axis=0)[0]
         n_bins = int(len(feat)/20)
@@ -680,12 +1174,18 @@ class Visualizer(object):
         plt.hist(feat, bins, color='slategrey')
         plt.hist(feat[spike_ids==0], bins, color=colors[0], alpha=0.7)
         plt.hist(feat[spike_ids==1], bins, color=colors[1], alpha=0.7)
-        plt.title(
-            'Dip Test: {}'.format(np.round(dp_val,4)), 
-            fontsize=self.fontsize)
+
+        if add_label:
+            plt.xlabel('LDA Projection', fontsize=self.fontsize)
+        #plt.title(
+        #    'Dip Test: {}'.format(np.round(dp_val,4)),
+        #    fontsize=self.fontsize)
         #except:
         #    print ("Diptest error for unit {} and {} with size {}".format(
         #        unit1, unit2, l2_features.shape[0]))
+
+        if title is not None:
+            plt.title(title, fontsize=self.fontsize)
 
         return gs
 
@@ -698,7 +1198,7 @@ class Visualizer(object):
             ax = plt.subplot(gs[x_loc, y_loc])
             img = full_sta[:,:,:,ii]
             ax.imshow(img, vmin=vmin, vmax=vmax)
-            ax.set_xlim([0,64])
+            ax.set_xlim([0, 64])
             ax.set_ylim([32,0])
             ax.set_title('time {}'.format(ii), fontsize=self.fontsize)
         return gs
@@ -708,66 +1208,77 @@ class Visualizer(object):
         fname = os.path.join(self.save_dir, 'normalized_templates.png')
         if os.path.exists(fname):
             return
-
-        if self.template_space_dir is not None:
-            pca_main = self.pca_main_components
-            pca_sec = self.pca_sec_components
-
-            add_row = 1
-        else:
-            add_row = 0
         
         (templates_mc, templates_sec, 
          ptp_mc, ptp_sec, _) = get_normalized_templates(
             self.templates.transpose(2, 0, 1), 
             self.neigh_channels)
         
-        plt.figure(figsize=(14, 4*(add_row+2)))
+        plt.figure(figsize=(14, 8))
 
-        ths = [0,3,5]
+        x_range = np.arange(templates_mc.shape[1])/self.sampling_rate*1000
+
+        ths = [2, 4, 6]
         for ii, th in enumerate(ths):
-            plt.subplot(2+add_row, 3, ii+1)
+            plt.subplot(2, 3, ii+1)
 
-            if ii < 2:
+            if ii == 0:
                 idx = np.logical_and(ptp_mc >= th, ptp_mc < ths[ii+1])
+                plt.title("Templates on Main Channel\n Templates with {} < PTP < {}".format(
+                    th, ths[ii+1]), fontsize=self.fontsize//2)
+            elif ii == 1:
+                idx = np.logical_and(ptp_mc >= th, ptp_mc < ths[ii+1])
+                plt.title("Templates with {} < PTP < {}".format(th, ths[ii+1]), fontsize=self.fontsize//2)
             else:
                 idx = ptp_mc >= th
-            if sum(idx) > 0:
-                plt.plot(templates_mc[idx].T, color='k', alpha=0.2)
+                plt.title("Templates with {} < PTP".format(th), fontsize=self.fontsize//2)
 
-            if ii < 2:
-                plt.xlabel('Main Chan., {} < PTP < {}'.format(th, ths[ii+1]), fontsize=self.fontsize//2)
-            else:
-                plt.xlabel('Main Chan., {} < PTP'.format(th), fontsize=self.fontsize//2)
+            if sum(idx) > 0:
+                plt.plot(x_range, templates_mc[idx].T,
+                         color='k', alpha=0.1)
+                plt.xlabel('time (ms)')
+                plt.xlim([0, np.max(x_range)])
+
+            if ii == 0:
+                plt.ylabel('Normalized Voltage (A.U.)',
+                           fontsize=self.fontsize//2)
+
+            #if ii < 2:
+            #    plt.xlabel('Main Chan., {} < PTP < {}'.format(th, ths[ii+1]), fontsize=self.fontsize//2)
+            #else:
+            #    plt.xlabel('Main Chan., {} < PTP'.format(th), fontsize=self.fontsize//2)
                 
         for ii, th in enumerate(ths):
-            plt.subplot(2+add_row, 3, ii+4)
+            plt.subplot(2, 3, ii+4)
+
+            if ii == 0:
+                plt.title("Templates on Secondary Channels", fontsize=self.fontsize//2)
 
             if ii < 2:
                 idx = np.logical_and(ptp_sec >= th, ptp_sec < ths[ii+1])
+                #plt.title("Templates with {} < PTP < {}".format(th, ths[ii+1]), fontsize=self.fontsize//2)
             else:
                 idx = ptp_sec >= th
+                #plt.title("Templates with {} < PTP".format(th), fontsize=self.fontsize//2)
 
             if sum(idx) > 0:
-                plt.plot(templates_sec[idx].T, color='k', alpha=0.05)
+                plt.plot(x_range, templates_sec[idx].T, color='k', alpha=0.02)
+                plt.xlabel('time (ms)')
+                plt.xlim([0, np.max(x_range)])
 
-            if ii < 2:
-                plt.xlabel('Sec. Chan., {} < PTP < {}'.format(th, ths[ii+1]), fontsize=self.fontsize//2)
-            else:
-                plt.xlabel('Sec. Chan., {} < PTP'.format(th), fontsize=self.fontsize//2)
+            if ii == 0:
+                plt.ylabel('Normalized Voltage (A.U.)',
+                           fontsize=self.fontsize//2)
 
-        if add_row == 1:
-            plt.subplot(3, 3, 7)
-            plt.plot(pca_main.T, color='k')
-            plt.xlabel('PCs for main chan. denoise', fontsize=self.fontsize//2)
-            
-            plt.subplot(3, 3, 8)
-            plt.plot(pca_sec.T, color='k')
-            plt.xlabel('PCs for sec chan. denoise', fontsize=self.fontsize//2)
-            
+            #if ii < 2:
+            #    plt.xlabel('Sec. Chan., {} < PTP < {}'.format(th, ths[ii+1]), fontsize=self.fontsize//2)
+            #else:
+            #    plt.xlabel('Sec. Chan., {} < PTP'.format(th), fontsize=self.fontsize//2)
+
     
         plt.suptitle('Aligned Templates on Their Main/Secondary Channels', fontsize=20)
-        plt.savefig(fname, bbox_inches='tight', dpi=100)
+        plt.tight_layout(rect=[0, 0.01, 1, 0.95])
+        plt.savefig(fname, dpi=100)
         plt.close()
 
     def make_raster_plot(self):
@@ -788,7 +1299,7 @@ class Visualizer(object):
         plt.yticks(np.arange(0,self.n_units,10), sorted_ptps[0:self.n_units:10])
         plt.ylabel('ptps', fontsize=self.fontsize)
         plt.xlabel('time (seconds)', fontsize=self.fontsize)
-        plt.title('rater plot sorted by PTP', fontsize=self.fontsize)
+        plt.title('Raster Plot Sorted by PTP', fontsize=self.fontsize)
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close()
 
@@ -798,29 +1309,65 @@ class Visualizer(object):
         if os.path.exists(fname):
             return
         
-        plt.figure(figsize=(20,10))
-        plt.scatter(np.log(self.ptps), self.f_rates, color='k')
-        plt.xlabel('log ptps', fontsize=self.fontsize)
-        plt.ylabel('firing rates', fontsize=self.fontsize)
-        plt.title('Firing Rates vs. PTP', fontsize=self.fontsize)
+        cell_types = self.cell_types + ['Others']
+        rf_labels = np.copy(self.rf_labels)
+        rf_labels[rf_labels==-1] = len(cell_types) - 1
+        unique_labels = np.unique(rf_labels)
+
+        fontsize = 15
+        n_figs = len(cell_types) - 1
+        n_cols = 3
+        n_rows = int(np.ceil(n_figs/n_cols))
+        max_fr = np.max(self.f_rates)
+        plt.figure(figsize=(5*n_cols, n_rows*3))
+
+        x_max = int(np.max(np.log(self.ptps))) + 1
+        x_ticks = np.round(np.exp(np.arange(0, x_max+1)), 1)
+
+        for ii, label in enumerate(unique_labels):
+            plt.subplot(n_rows, n_cols, ii+1)
+            idx_ = rf_labels == label
+            plt.scatter(np.log(self.ptps[idx_]),
+                        self.f_rates[idx_],
+                        color=self.colors[label],
+                        alpha=0.5)
+            plt.xticks(np.arange(0, x_max+1), x_ticks)
+            plt.xlim([-0.5, x_max+0.5])
+            plt.ylim([0, max_fr])
+            plt.title(cell_types[ii], fontsize=fontsize)
+
+            if ii == 0:
+                plt.ylabel('firing rates', fontsize=fontsize)
+
+            if ii == (n_rows-1)*n_cols:
+                plt.xlabel('ptps (log scaled)', fontsize=fontsize)
+
+            if ii % n_cols != 0:
+                plt.yticks([])
+
+        plt.subplots_adjust(top = 0.85, wspace = 0.001, hspace=0.3)
+        plt.suptitle('Firing Rate vs. PTP', fontsize=2*fontsize)
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close()
         
     def add_residual_qq_plot(self):
         
-        fname = os.path.join(self.save_dir, 'res_qq_plot.png')
+        fname = os.path.join(self.save_dir, 'residual_qq_plot.png')
         if os.path.exists(fname):
             return
         
-        plt.figure(figsize=(20,23))
         nrow = int(np.sqrt(self.n_channels))
         ncol = int(np.ceil(self.n_channels/nrow))
+
+        plt.figure(figsize=(int(ncol*2.5), nrow*2))
+
         
         sample_size = 10000
+        t_start = int(np.random.choice(
+            self.reader_resid.rec_len-sample_size-1, 1)[0])
         
-        res = np.memmap(self.residual_recording, 
-                        dtype='float32', mode='r')
-        res = np.reshape(res, [-1, self.n_channels])
+        res = self.reader_resid.read_data(
+            t_start, t_start+sample_size)
         
         th = np.sort(np.random.normal(size = sample_size))
         for c in range(self.n_channels):
@@ -828,133 +1375,166 @@ class Visualizer(object):
                 res[:, c], sample_size, False))
             
             plt.subplot(nrow, ncol, c+1)
+            plt.subplots_adjust(top = 0.95, wspace = 0.001)
             plt.scatter(th, qq, s=5)
             min_val = np.min((th.min(), qq.min()))
             max_val = np.max((th.max(), qq.max()))
             plt.plot([min_val, max_val], [min_val, max_val], color='r')
             plt.title('Channel: {}'.format(c))
-        
-        fname = os.path.join(self.save_dir, 'res_qq_plot.png')
+            plt.xticks([])
+            plt.yticks([])
+
+        plt.suptitle(
+            'QQ plot of Residual Recording: Sample from {} to {} Timepoints'.format(
+            t_start, t_start+sample_size), fontsize=int(3*ncol))
+        #plt.tight_layout(rect=[0, 0.03, 1, 0.95])
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close()
 
-    def add_raw_deno_resid_plot(self):
+
+    def residual_varaince(self):
         
-        fname = os.path.join(self.save_dir, 'raw_denoised_residual.png')
+        fname = os.path.join(self.save_dir, 'residual_variance.png')
         if os.path.exists(fname):
             return
-
-        raw = np.memmap(self.fname_recording, 
-                        dtype='float32', mode='r')
-        raw = np.reshape(raw, [-1, self.n_channels])
-        res = np.memmap(self.residual_recording, 
-                        dtype='float32', mode='r')
-        res = np.reshape(res, [-1, self.n_channels])
         
-        t_max = np.abs(res[1000:-1000]).max(1).argmax() + 1000
+        # calculate variance per unit
+        n_examples = 1000
+        units, counts = np.unique(self.spike_train[:, 1], return_counts=True)
+        units = units[counts > 10]
+        resid_var = np.zeros((len(units), self.n_times_templates))
+        for ii, unit in enumerate(units):
+            idx = np.where(self.spike_train[:,1]==unit)[0]
+            idx = np.random.choice(idx,
+                                   np.min((n_examples, len(idx))),
+                                   False)
+            spt = self.spike_train[idx, 0]
+            mc = self.templates[:, :, unit].ptp(0).argmax()
+            resid_var[ii] = np.var(self.reader_resid.read_waveforms(spt, None, [mc])[0][:,:,0], 0)
 
-        t_start = t_max - 500
-        t_end = t_max + 500
+        # values for plotting
+        ptps = self.ptps[units]
+        max_var = resid_var.max(1)
+        rf_labels = self.rf_labels[units]
+        cell_types = ['Others'] + self.cell_types
+        unique_labels = np.unique(rf_labels)
 
-        c_max = res[t_max].argmax()
-        dist_to_max_c = np.linalg.norm(self.geom - self.geom[c_max][None], axis=1)
-        channels = dist_to_max_c.argsort()[:20]
+        plt.figure(figsize=(15,5))
+        plt.subplot(1,2,1)
+        plt.plot(np.arange(resid_var.shape[1])/self.sampling_rate*1000, resid_var.T, 'k', alpha=0.2)
+        plt.ylim([0,5])
+        plt.xlabel('time (ms)', fontsize=self.fontsize)
+        plt.ylabel('maximum variance', fontsize=self.fontsize)
+        plt.title('Time vs Residual Variance of all units')
 
-        idx_temp = np.where(np.logical_and(
-            self.spike_train_upsampled[:,0] < t_end, self.spike_train_upsampled[:,0] > t_start-61))[0]
-        spike_train_temp = self.spike_train_upsampled[idx_temp]
+        plt.subplot(1,2,2)
+        legends = []
+        for ii, label in enumerate(unique_labels):
+            idx_ = rf_labels == label
+            plt.scatter(np.log(ptps[idx_]), max_var[idx_], color=self.colors[label], alpha=0.5)
+            legends.append(mpatches.Patch(color = self.colors[label], label = cell_types[ii]))
+        plt.legend(handles=legends, loc='center left', bbox_to_anchor=(1, 0.5), fontsize=self.fontsize)
 
-        t_tics = np.arange(t_start, t_end)/20
-        summed_templates = np.zeros((t_end-t_start+61*2, len(channels)))
-        for j in range(spike_train_temp.shape[0]):
-            tt, ii = spike_train_temp[j]
-            tt -= (t_start-61)
-            summed_templates[tt:tt+61] += self.templates_upsampled[:,channels][:,:,ii]
-        summed_templates = summed_templates[61:-61]
-        
-        raw = raw[t_start:t_end][:, channels]
-        res = res[t_start:t_end][:, channels]
+        x_max = int(np.max(np.log(ptps))) + 1
+        x_ticks = np.round(np.exp(np.arange(0, x_max+1)), 1)
+        plt.xticks(np.arange(0, x_max+1), x_ticks)
+        plt.xlim([0, x_max])
+        plt.xlabel('ptp (log scaled)', fontsize=self.fontsize)
+        plt.ylabel('Maximum Variance', fontsize=self.fontsize)
+        plt.title('PTP vs Maximum Residual Variance')
 
-        spread = np.arange(len(channels))*30
-        plt.figure(figsize=(40,10))
-        ax = plt.subplot(111)
-        ax.set_facecolor((0.1,0.1,0.1))
-        ax.plot(t_tics,raw+spread[None], 'r')
-        ax.plot(t_tics,summed_templates+spread[None], 'b')
-        ax.plot(t_tics,res+spread[None], 'white')
-        ax.set_xlabel('Time (ms)', fontsize=30)
-        ax.set_xlim([min(t_tics), max(t_tics)])
-
-        labels_legend=[]
-        colors = ['r','b','white']
-        names = ['raw recording', 'denoised', 'residual']
-        for k in range(3):
-            patch_j = mpatches.Patch(color=colors[k], label=names[k])
-            labels_legend.append(patch_j)
-
-        plt.legend(handles = labels_legend, bbox_to_anchor=[1,1], fontsize=20)
         plt.savefig(fname, bbox_inches='tight', dpi=100)
-        plt.close() 
+        plt.close()
+
 
     def add_raw_resid_snippets(self):
-        
+
         save_dir = os.path.join(self.save_dir, 'raw_residual_snippets/')
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
 
-        n_snippets_per_channel = 3
-        
-        raw = np.memmap(self.fname_recording, 
-                        dtype='float32', mode='r')
-        raw = np.reshape(raw, [-1, self.n_channels])
-        res = np.memmap(self.residual_recording, 
-                        dtype='float32', mode='r')
-        res = np.reshape(res, [-1, self.n_channels])
+        n_batches = np.minimum(self.reader.n_batches, 10)
+        n_big = 5
+        n_random = 5
+        t_window = 50
 
-        for channel in range(self.n_channels):
+        batch_ids = np.random.choice(self.reader.n_batches, n_batches)
 
-            max_ids = None
-            for j in range(n_snippets_per_channel):
+        for batch_id in batch_ids:
 
-                fname = os.path.join(save_dir, 'snippet_{}_channel_{}.png'.format(j, channel))
-                if os.path.exists(fname):
-                    continue
-                elif max_ids is None:
-                    abs_rec = np.abs(res[1000:-1000, channel])
-                    max_ids = scipy.signal.argrelmax(abs_rec, order=100)[0]
-                    max_ids = max_ids[
-                        np.argsort(abs_rec[max_ids])[-n_snippets_per_channel:][::-1]]
-                    max_ids += 1000
+            fname = os.path.join(save_dir, 'large_residual_chunk_{}.png'.format(batch_id))
+            if os.path.exists(fname):
+                continue
 
-                    neigh_chans = np.where(self.neigh_channels[channel])[0]
+            offset = self.reader.idx_list[batch_id][0]
 
-                t_start = max_ids[j] - 150
-                t_end = max_ids[j] + 151
-                raw_snip = raw[t_start:t_end][:, neigh_chans]
-                res_snip = res[t_start:t_end][:, neigh_chans]
+            raw = self.reader.read_data_batch(batch_id)
+            res = self.reader_resid.read_data_batch(batch_id)
 
-                t_tics = np.arange(t_start, t_end)/20
-                spread = np.arange(len(neigh_chans))*10
-                plt.figure(figsize=(5,5))
-                ax = plt.subplot(111)
-                ax.set_facecolor((0.1,0.1,0.1))
-                ax.plot(t_tics,raw_snip+spread[None], 'r')
-                ax.plot(t_tics,res_snip+spread[None], 'white')
-                ax.set_xlabel('Time (ms)', fontsize=30)
-                ax.set_xlim([min(t_tics), max(t_tics)])
-                plt.savefig(fname, bbox_inches='tight', dpi=100)
-                plt.close()
+            max_res = np.abs(np.max(res, 1))
+            max_ids = scipy.signal.argrelmax(max_res, order=2*t_window+1)[0]
+            max_ids = max_ids[np.logical_and(max_ids > t_window, max_ids < res.shape[0]-t_window)]
+            max_res = max_res[max_ids]
+
+            id_keep = max_res > 4
+            max_ids = max_ids[id_keep]
+            max_res = max_res[id_keep]
+
+            id_big = max_ids[np.argsort(max_res)[-n_big:]]
+            id_random = np.random.choice(max_ids, n_random)
+
+            id_big_c = res[id_big].argmax(1)
+            id_random_c = res[id_random].argmax(1)
+
+            id_check = np.hstack((id_big, id_random))
+            id_check_c = np.hstack((id_big_c, id_random_c))
+
+            x_range = np.arange(t_window*2+1)/self.sampling_rate*1000
+
+            plt.figure(figsize=(30, 10))
+            for j in range(n_big+n_random):
+                chans = np.where(self.neigh_channels[id_check_c[j]])[0]
+                tt = id_check[j]
+
+                snip_raw = raw[:, chans][tt-t_window:tt+t_window+1]
+                snip_res = res[:, chans][tt-t_window:tt+t_window+1]
+
+                spread = np.arange(len(chans))*10
+
+                plt.subplot(2, n_big, j+1)
+                plt.plot(x_range, snip_raw+spread[None], 'k')
+                plt.plot(x_range, snip_res+spread[None], 'r')
+                plt.xlabel('Time (ms)')
+                plt.yticks([])
+
+                y = -np.ones(t_window*2+1)
+                for s in spread:
+                    plt.fill_between(x_range,
+                                     y + s,
+                                     y + s + 2,
+                                     color='grey',
+                                     alpha=0.1)
+
+                plt.title('Recording Time {}, Channel {}'.format(tt + offset, id_check_c[j]))
+
+                if j == 0:
+                    legends = [mpatches.Patch(color = 'k', label = 'raw'),
+                               mpatches.Patch(color = 'r', label = 'residual')
+                              ]
+                    plt.legend(handles=legends)
+            plt.tight_layout()
+            plt.savefig(fname, bbox_inches='tight', dpi=100)
+            plt.close('all')
+
 
     def cell_classification_plots(self):
 
         fname = os.path.join(self.save_dir, 'contours.png')
         if os.path.exists(fname):
             return
-        
-        type_names = ['off-midget','off-parasol',
-               'off-sm',
-               'on-midget','on-parasol',
-               'unknown','multiple/no rf']
+
+        type_names = list(np.copy(self.cell_types))
+        type_names += ['unknown','multiple/no rf']
 
         idx_per_type = []
         for j in range(5):
@@ -963,16 +1543,18 @@ class Visualizer(object):
         all_units = np.arange(self.n_units)
         idx_per_type.append(all_units[~np.in1d(all_units, self.idx_single_rf)])
 
-        plt.figure(figsize=(22,6))
+        plt.figure(figsize=(44,12))
         for ii, idx in enumerate(idx_per_type):
             plt.subplot(1,7,ii+1)
             for unit in idx:
                 # also plot all in one plot
                 plotting_data = self.get_circle_plotting_data(unit, self.gaussian_fits)
-                plt.plot(plotting_data[0],plotting_data[1], 'k')
-                plt.xlim([0,32])
-                plt.ylim([0,64])
-            plt.title(type_names[ii])
+                plt.plot(plotting_data[0],plotting_data[1], 'k', alpha=0.4)
+                plt.xlim([0, self.stim_size[1]])
+                plt.ylim([0, self.stim_size[0]])
+            plt.title(type_names[ii], fontsize=30)
+        plt.suptitle('RF Contours by Cell Types', fontsize=50)
+        plt.tight_layout(rect=[0, 0.03, 1, 0.9])
         plt.savefig(fname, bbox_inches='tight', dpi=100)
         plt.close()         
         
@@ -984,25 +1566,30 @@ class Visualizer(object):
 
         n_units = self.STAs.shape[0]
 
-        type_names = ['off-midget','off-parasol',
-                      'off-sm', 'on-midget',
-                      'on-parasol', 'unknown',
-                      'multiple rf', 'no rf']
+        type_names = list(np.copy(self.cell_types))
+        type_names += ['unknown','multiple rf', 'no rf']
 
         idx_per_type = []
         for j in range(5):
             idx_per_type.append(np.where(self.rf_labels == j)[0])
-        idx_per_type.append(self.idx_single_rf[self.rf_labels[self.idx_single_rf] == -1]) 
+        idx_per_type.append(self.idx_single_rf[self.rf_labels[self.idx_single_rf] == -1])
         all_units = np.arange(n_units)
         idx_per_type.append(self.idx_multi_rf)
         idx_per_type.append(self.idx_no_rf)
 
+        n_cols = 10
+
         n_rows_per_type = []
         for idx in idx_per_type:
-            n_rows_per_type.append(int(np.ceil(len(idx)/10.)))
-        
-        fig=plt.figure(figsize=(50, 100))
-        gs = gridspec.GridSpec(sum(n_rows_per_type)+9, 10, fig)
+            n_rows_per_type.append(int(np.ceil(len(idx)/float(n_cols))))
+        n_rows = sum(n_rows_per_type)+9
+
+        self.fontsize = 20
+
+        fig=plt.figure(figsize=(3*n_cols, 3*n_rows))
+        gs = gridspec.GridSpec(n_rows, n_cols, fig,
+                               left=0, right=1, top=0.95, bottom=0.05,
+                               hspace=0.2, wspace=0)
 
         row = 0
         for ii, idx in enumerate(idx_per_type):
@@ -1014,15 +1601,18 @@ class Visualizer(object):
             plt.text(0.5, 0.5, type_names[ii],
                      horizontalalignment='center',
                      verticalalignment='center',
-                     fontsize=40,
+                     fontsize=60,
                      transform=ax.transAxes)
             ax.set_axis_off()
-            
+
             row += 1
 
             idx_sort = idx[np.argsort(self.ptps[idx])[::-1]]
             for unit in idx_sort:
-                gs = self.add_RF_plot(gs, row, col, unit)
+                fr = str(np.round(self.f_rates[unit], 1))
+                ptp = str(np.round(self.ptps[unit], 1))
+                title = "Unit: {}\n{}Hz, {}SU".format(unit, fr, ptp)
+                gs = self.add_RF_plot(gs, row, col, unit, None, title)
                 if col == 9:
                     col = 0
                     row += 1
@@ -1031,8 +1621,146 @@ class Visualizer(object):
             if col != 0:
                 row += 1
 
+        #plt.tight_layout()
+        #fig.savefig(fname)
         fig.savefig(fname, bbox_inches='tight', dpi=100)
-        plt.close()
+        fig.clf()
+        plt.close('all')
+
+    def make_all_templates_summary_plots(self):
+
+        fname = os.path.join(self.save_dir, 'all_templates.png')
+        if os.path.exists(fname):
+            return
+
+        n_units = self.n_units
+
+        type_names = list(np.copy(self.cell_types))
+        type_names += ['unknown','multiple rf', 'no rf']
+ 
+        idx_per_type = []
+        for j in range(5):
+            idx_per_type.append(np.where(self.rf_labels == j)[0])
+        idx_per_type.append(self.idx_single_rf[self.rf_labels[self.idx_single_rf] == -1]) 
+        all_units = np.arange(n_units)
+        idx_per_type.append(self.idx_multi_rf)
+        idx_per_type.append(self.idx_no_rf)
+
+        n_cols = 10
+
+        n_rows_per_type = []
+        for idx in idx_per_type:
+            n_rows_per_type.append(int(np.ceil(len(idx)/float(n_cols))))
+        n_rows = sum(n_rows_per_type)+9
+
+        self.fontsize = 20
+
+        fig=plt.figure(figsize=(3*n_cols, 3*n_rows))
+        gs = gridspec.GridSpec(n_rows, n_cols, fig,
+                               left=0, right=1, top=0.95, bottom=0.05,
+                               hspace=0.5, wspace=0)
+
+        row = 0
+        for ii, idx in enumerate(idx_per_type):
+
+            col = 0
+
+            # add label
+            ax = plt.subplot(gs[row, 0])
+            plt.text(0.5, 0.5, type_names[ii],
+                     horizontalalignment='center',
+                     verticalalignment='center',
+                     fontsize=60,
+                     transform=ax.transAxes)
+            ax.set_axis_off()
+            
+            row += 1
+
+            idx_sort = idx[np.argsort(self.ptps[idx])[::-1]]
+            for unit in idx_sort:
+                fr = str(np.round(self.f_rates[unit], 1))
+                ptp = str(np.round(self.ptps[unit], 1))
+                title = "Unit: {}\n{}Hz, {}SU".format(unit, fr, ptp)
+                gs = self.add_template_summary(
+                    gs, row, col, unit, title=title,
+                    add_color_bar=False, scale=8)
+                if col == 9:
+                    col = 0
+                    row += 1
+                else:
+                    col += 1
+            if col != 0:
+                row += 1
+
+        #plt.tight_layout()
+        fig.savefig(fname, bbox_inches='tight', dpi=100)
+        fig.clf()
+        plt.close('all')
+
+
+    def make_all_rf_templates_plots(self):
+
+        type_names = list(np.copy(self.cell_types))
+        type_names += ['unknown','multiple_rf', 'no_rf']
+ 
+        idx_per_type = []
+        for j in range(5):
+            idx_per_type.append(np.where(self.rf_labels == j)[0])
+        idx_per_type.append(self.idx_single_rf[self.rf_labels[self.idx_single_rf] == -1]) 
+        idx_per_type.append(self.idx_multi_rf)
+        idx_per_type.append(self.idx_no_rf)
+
+        n_cols = 10
+        self.fontsize = 20
+        
+        for ii in range(len(type_names)):
+            
+            type_name = type_names[ii]
+            
+            fname = os.path.join(self.save_dir,
+                                 'all_rf_templates_{}.png'.format(type_name))
+            if os.path.exists(fname):
+                continue
+            
+            idx = idx_per_type[ii]
+            idx_sort = idx[np.argsort(self.ptps[idx])[::-1]]
+            n_rows = int(np.ceil(len(idx)/float(n_cols/2))) + 1
+
+            fig=plt.figure(figsize=(3*n_cols, 3*n_rows))
+
+            gs = gridspec.GridSpec(n_rows, n_cols, fig,
+                                   left=0, right=1, top=1, bottom=0.05,
+                                   hspace=0.5, wspace=0)
+            
+            ax = plt.subplot(gs[0, n_cols//2])
+            plt.text(0.5, 0.5, type_name,
+                     horizontalalignment='center',
+                     verticalalignment='center',
+                     fontsize=4*self.fontsize,
+                     transform=ax.transAxes)
+            ax.set_axis_off()
+
+            row = 1
+            col = 0
+            for unit in idx_sort:
+                fr = str(np.round(self.f_rates[unit], 1))
+                ptp = str(np.round(self.ptps[unit], 1))
+                title = "Unit: {}, {}Hz, {}SU".format(unit, fr, ptp)
+                gs = self.add_template_summary(
+                    gs, row, col, unit, title=title,
+                    add_color_bar=False, scale=8)
+                col += 1
+                gs = self.add_RF_plot(gs, row, col, unit, None, None)
+                if col == n_cols-1:
+                    col = 0
+                    row += 1
+                else:
+                    col += 1
+
+            #plt.tight_layout()
+            fig.savefig(fname, bbox_inches='tight', dpi=100)
+            fig.clf()
+            plt.close('all')
 
 
 class CompareSpikeTrains(Visualizer):

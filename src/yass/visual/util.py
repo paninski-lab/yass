@@ -5,6 +5,57 @@ from scipy.stats import t
 from yass.template import align_get_shifts_with_ref, shift_chans
 
 
+def connected_components(img, x, y, cc):
+    pixel = [x, y]
+    if (pixel in cc) or (x < 0) or (x >= img.shape[0]) or (y < 0) or (y >= img.shape[1]) or (img[x,y] == 0):
+        return cc
+    else:
+        cc.append(pixel)
+        cc = connected_components(img, x-1, y, cc)
+        cc = connected_components(img, x+1, y, cc)
+        cc = connected_components(img, x, y-1, cc)
+        cc = connected_components(img, x, y+1, cc)
+        
+        return cc
+
+def zoom_in_window(sta, unit, th):
+
+    img = sta[unit]
+
+    #th = np.std(sta)*1.5
+    sign = np.sign(img.ravel()[np.abs(img).argmax()])
+    th = th*sign
+
+    img_2 = np.copy(img)
+    if sign == 1:
+        img_2[img_2 < th] = 0
+    elif sign == -1:
+        img_2[img_2 > th] = 0
+
+    img_2 = np.abs(img_2)
+    x_start, y_start = np.where(img_2 == np.max(img_2))
+    x_start, y_start = x_start[0], y_start[0]
+    cc = []
+
+    cc = connected_components(img_2, x_start, y_start, cc)
+    buff = 5
+    if len(cc) > 0:
+        cc = np.vstack(cc)
+        windows = [[np.min(cc[:,0])-buff, np.max(cc[:,0])+buff],
+                   [np.min(cc[:,1])-buff, np.max(cc[:,1])+buff]]
+        if windows[0][0] < 0:
+            windows[0][0] = 0
+        if windows[0][1] >= img.shape[0]:
+            windows[0][1] = img.shape[0]-1
+        if windows[1][0] < 0:
+            windows[1][0] = 0
+        if windows[1][1] >= img.shape[1]:
+            windows[1][1] = img.shape[1]-1   
+    else:
+        windows = None
+    
+    return windows
+
 def two_templates_dist_linear_align(templates1, templates2, max_shift=5, step=0.5):
 
     K1, R, C = templates1.shape
@@ -101,6 +152,7 @@ def combine_two_rf(STAs1, STAs2, Gaussian_params1, Gaussian_params2):
 
 def template_spike_dist_linear_align(templates, spikes, vis_ptp=2.):
     """compares the templates and spikes.
+
     parameters:
     -----------
     templates: numpy.array shape (K, T, C)
@@ -111,61 +163,55 @@ def template_spike_dist_linear_align(templates, spikes, vis_ptp=2.):
         Upsample rate of the templates and spikes.
     """
 
-    #print ("templates: ", templates.shape)
-    #print ("spikes: ", spikes.shape)
-    # new way using alignment only on max channel
-    # maek reference template based on templates
+    # get ref template
     max_idx = templates.ptp(1).max(1).argmax(0)
     ref_template = templates[max_idx]
     max_chan = ref_template.ptp(0).argmax(0)
     ref_template = ref_template[:, max_chan]
 
-    # stack template max chan waveforms only
-    #max_chans = templates.ptp(2).argmax(1)
-    #temps = []
-    #for k in range(max_chans.shape[0]):
-    #    temps.append(templates[k,max_chans[k]])
-    #temps = np.vstack(temps)
-    #print ("tempsl stacked: ", temps.shape)
-    
-    #upsample_factor=5
+    # align templates on max channel
     best_shifts = align_get_shifts_with_ref(
         templates[:, :, max_chan],
-        ref_template, nshifts = 21)
-    #print (" best shifts: ", best_shifts.shape)
+        ref_template, nshifts = 7)
     templates = shift_chans(templates, best_shifts)
-    #print ("  new aligned templates: ", templates_aligned.shape)
 
-    # find spike shifts
-    #max_chans = spikes.ptp(2).argmax(1)
-    #print ("max chans: ", max_chans.shape)
-    #spikes_aligned = []
-    #for k in range(max_chans.shape[0]):
-    #    spikes_aligned.append(spikes[k,max_chans[k]])
-    #spikes_aligned = np.vstack(spikes_aligned)
-    #print ("spikes aligned max chan: ", spikes_aligned.shape)
+    # align all spikes on max channel
     best_shifts = align_get_shifts_with_ref(
-        spikes[:,:,max_chan], ref_template, nshifts = 21)
+        spikes[:,:,max_chan],
+        ref_template, nshifts = 7)
     spikes = shift_chans(spikes, best_shifts)
-    #print ("  new aligned spikes: ", spikes_aligned.shape)
     
-    n_unit = templates.shape[0]
-    n_spikes = spikes.shape[0]
+    # if shifted, cut shifted parts
+    # because it is contaminated by roll function
+    cut = int(np.ceil(np.max(np.abs(best_shifts))))
+    if cut > 0:
+        templates = templates[:,cut:-cut]
+        spikes = spikes[:,cut:-cut]
 
+    # get visible channels
+    vis_ptp = np.min((vis_ptp, np.max(templates.ptp(1))))
     vis_chan = np.where(templates.ptp(1).max(0) >= vis_ptp)[0]
-    templates = templates[:, :, vis_chan].reshape(n_unit, -1)
-    spikes = spikes[:, :, vis_chan].reshape(n_spikes, -1)
+    templates = templates[:, :, vis_chan].reshape(
+        templates.shape[0], -1)
+    spikes = spikes[:, :, vis_chan].reshape(
+        spikes.shape[0], -1)
 
+    # get a subset of locations with maximal difference
     if templates.shape[0] == 1:
+        # single unit: all timepoints
         idx = np.arange(templates.shape[1])
     elif templates.shape[0] == 2:
+        # two units:
+        # get difference
         diffs = np.abs(np.diff(templates, axis=0)[0])
-        
+        # points with large difference
         idx = np.where(diffs > 1.5)[0]
         min_diff_points = 5
         if len(idx) < 5:
             idx = np.argsort(diffs)[-min_diff_points:]
     else:
+        # more than two units:
+        # diff is mean diff to the largest unit
         diffs = np.mean(np.abs(
             templates-templates[max_idx][None]), axis=0)
         
@@ -179,52 +225,89 @@ def template_spike_dist_linear_align(templates, spikes, vis_ptp=2.):
 
     dist = scipy.spatial.distance.cdist(templates, spikes)
 
-    return dist
+    return dist.T
 
-def get_l2_features(filename_residual, spike_train, spike_train_upsampled,
-                    templates, templates_upsampled, unit1, unit2, n_samples=2000):
+
+def get_l2_features(reader_residual, spike_train, templates,
+                    unit1, unit2, n_samples=2000):
+
+    n_units, n_times, n_channels = templates.shape
+
+    # get spike times
+    spt1 = spike_train[spike_train[:, 1] == unit1, 0]
+    spt2 = spike_train[spike_train[:, 1] == unit2, 0]
     
-    _, spike_size, n_channels = templates.shape
-    
-    # get n_sample of cleaned spikes per template.
-    spt1_idx = np.where(spike_train[:, 1] == unit1)[0]
-    spt2_idx = np.where(spike_train[:, 1] == unit2)[0]
-    
+    if (len(spt1) < 10) or (len(spt2) < 10):
+        return None, None
+
+    # templates
+    template1 = templates[unit1]
+    template2 = templates[unit2]
+
     # subsample
-    if len(spt1_idx) + len(spt2_idx) > n_samples:
-        ratio = len(spt1_idx)/(len(spt1_idx)+len(spt2_idx))
-        
+    if len(spt1) + len(spt2) > n_samples:
+        ratio = len(spt1)/float(len(spt1)+len(spt2))
+
         n_samples1 = int(n_samples*ratio)
+
+        # at least one sample per grounp
+        if n_samples1 == n_samples:
+            n_samples1 = n_samples - 1
+        elif n_samples1 == 0:
+            n_samples1 = 1
+
         n_samples2 = n_samples - n_samples1
 
         spt1_idx = np.random.choice(
-            spt1_idx, n_samples1, False)
+            np.arange(len(spt1)),
+            n_samples1, False)
         spt2_idx = np.random.choice(
-            spt2_idx, n_samples2, False)
-    
-    spt1 = spike_train[spt1_idx, 0] - spike_size//2
-    spt2 = spike_train[spt2_idx, 0] - spike_size//2
+            np.arange(len(spt2)),
+            n_samples2, False)
 
-    units1 = spike_train_upsampled[spt1_idx, 1]
-    units2 = spike_train_upsampled[spt2_idx, 1]
+    else:
+        spt1_idx = np.arange(len(spt1))
+        spt2_idx = np.arange(len(spt2))
 
-    spikes_1, _ = read_spikes(
-        filename_residual, spt1, n_channels, spike_size,
-        units1, templates_upsampled, residual_flag=True)
-    spikes_2, _ = read_spikes(
-        filename_residual, spt2, n_channels, spike_size,
-        units2, templates_upsampled, residual_flag=True)
+    spt1 = spt1[spt1_idx]
+    spt2 = spt2[spt2_idx]
 
+    # find shifts
+    temps = np.concatenate((template1[None], template2[None]),
+                           axis=0)
+    mc = temps.ptp(1).max(0).argmax()
+    shift = np.diff(temps[:, :, mc].argmin(1))[0]
+
+    # residuals
+    wf_res = reader_residual.read_waveforms(spt1)[0]
+    wfs1 = wf_res + template1
+
+    wf_res = reader_residual.read_waveforms(spt2)[0]
+    wfs2 = wf_res + template2
+
+    # if two templates are not aligned, get bigger window
+    # and cut oneside to get shifted waveforms
+    if shift < 0:
+        wfs1 = wfs1[:, -shift:]
+        wfs2 = wfs2[:, :shift]
+    elif shift > 0:
+        wfs1 = wfs1[:, :-shift]
+        wfs2 = wfs2[:, shift:]
+
+    # assignment
     spike_ids = np.append(
-        np.zeros(len(spikes_1), 'int32'),
-        np.ones(len(spikes_2), 'int32'),
+        np.zeros(len(wfs1), 'int32'),
+        np.ones(len(wfs2), 'int32'),
         axis=0)
-    
+
+    # recompute templates using deconvolved spikes
+    template1 = np.median(wfs1, axis=0)
+    template2 = np.median(wfs2, axis=0)
     l2_features = template_spike_dist_linear_align(
-        templates[[unit1, unit2], :, :],
-        np.append(spikes_1, spikes_2, axis=0))
+        np.concatenate((template1[None], template2[None]), axis=0),
+        np.concatenate((wfs1, wfs2), axis=0))
     
-    return l2_features.T, spike_ids
+    return l2_features, spike_ids
 
 def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, channels=None):
 
