@@ -130,6 +130,7 @@ cluster:
   type: dict
   default:
     max_n_spikes: 10000
+    knn_triage: 0.01
     min_fr: 0.1
     prior:
       beta: 1
@@ -140,8 +141,11 @@ cluster:
     max_mad_violation: 10
   schema:
     max_n_spikes:
-        type: integer
-        default: 10000
+      type: integer
+      default: 10000
+    knn_triage:
+      type: float
+      default: 0.01
     prior:
       type: dict
       default:

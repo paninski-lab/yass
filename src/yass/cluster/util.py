@@ -48,6 +48,7 @@ def make_CONFIG2(CONFIG):
 
     CONFIG2.neigh_channels = CONFIG.neigh_channels
     CONFIG2.cluster.max_n_spikes = CONFIG.cluster.max_n_spikes
+    CONFIG2.cluster.knn_triage = CONFIG.cluster.knn_triage
     CONFIG2.cluster.min_fr = CONFIG.cluster.min_fr
 
     CONFIG2.spike_size = CONFIG.spike_size

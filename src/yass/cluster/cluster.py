@@ -245,8 +245,9 @@ class Cluster(object):
         # spike size
         self.spike_size = self.CONFIG.spike_size
         self.neighbors = self.CONFIG.neigh_channels
+        self.triage_value = self.CONFIG.cluster.knn_triage
         # max number of spikes for each mfm call
-        self.max_mfm_spikes = 10000
+        #self.max_mfm_spikes = 10000
         # TODO: should be merged with min_spikes below
         #if self.raw_data:
         #    min_fr = 3
@@ -691,7 +692,6 @@ class Cluster(object):
         if self.verbose:
             print("chan "+str(self.channel)+', gen '+str(gen)+', knn triage')
 
-        self.triage_value = 0.01
         knn_triage_threshold = 100*(1-self.triage_value)
 
         if pca_wf.shape[0] > 1/self.triage_value:

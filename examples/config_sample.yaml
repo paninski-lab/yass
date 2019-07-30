@@ -23,6 +23,8 @@ resources:
   n_sec_chunk: 5
   # n_sec_chunk for gpu
   n_sec_chunk_gpu: 1
+  # number of gpus
+  n_gpu_processors: 1
 
 recordings:
   # precision of the recording – must be a valid numpy dtype
@@ -89,6 +91,8 @@ cluster:
   # if the total number of spikes per clustering group exceeds it,
   # it randomly subsample
   max_n_spikes: 10000
+  # knn_triage percentage (0.05 means triage 5%)
+  knn_triage: 0.01
   # minimum firing rate
   min_fr: 0.5
   # cluster prior information
