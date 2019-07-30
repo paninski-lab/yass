@@ -75,7 +75,8 @@ def partition_input(save_dir,
                          spike_times = spike_train_list[unit])
     return fnames
 
-def merge_units(fname_templates, fname_spike_train, merge_pairs):
+def merge_units(fname_templates, fname_spike_train,
+                merge_pairs):
     
     # load templates
     templates = np.load(fname_templates)
@@ -99,9 +100,11 @@ def merge_units(fname_templates, fname_spike_train, merge_pairs):
     unique_ids, n_spikes = np.unique(spike_train[:,1], return_counts=True)
     weights[unique_ids] = n_spikes
     
-    spike_train_new = np.zeros(spike_train.shape, 'int32')
+    spike_train_new = np.zeros((0, 2), 'int32')
     templates_new = np.zeros((len(merge_array), n_times, n_channels),
                              'float32')
+
+    refactory_period = np.min(np.diff(np.sort(spike_train[:,0])))
 
     for new_id, units in enumerate(merge_array):
         if len(units) > 1:
@@ -116,22 +119,66 @@ def merge_units(fname_templates, fname_spike_train, merge_pairs):
             # determine shifts
             mc = temp[id_keep].ptp(0).argmax()
             shifts = temp[:, :, mc].argmin(1) - temp[id_keep][:, mc].argmin()
-            # update id and shift
-            for ii, unit in enumerate(units):
+            
+            # we want to concatenate all spike times
+            # but don't want them to violate refactroy period
+            # do to so, keep all spike times of the unit with
+            # largest weight.
+            # for the rest, iteratively update from higher weights
+            # to lower weights and only add spikes that don't
+            # violate refractory period.
+            spt_temp = np.zeros(0, 'int32')
+            idx_sort_units = np.argsort(weights[units])[::-1]
+            for ii in idx_sort_units:
 
-                idx = spike_train[:, 1] == unit
+                unit = units[ii]
+                spt_old = spike_train[spike_train[:, 1] == unit, 0]
+                spt_old = spt_old + shifts[ii]
 
-                # updated id
-                spike_train_new[idx, 1] = new_id
-                # shift time
-                spt_old = spike_train[idx, 0]
-                spike_train_new[idx, 0] = spt_old + shifts[ii]
+                if len(spt_temp) == 0:
+                    spt_temp = np.hstack((spt_temp, spt_old))
+                    spt_temp = np.sort(spt_temp)
+                else:
+                    n_spt_temp = len(spt_temp)
+                    n_spt_old = len(spt_old)
+
+                    # concatenate old spikes to spt_temp
+                    # also keep the labels of which ones are from spt_old
+                    spt_temp = np.hstack((spt_temp, spt_old))
+                    spt_temp_label = np.hstack((np.repeat(0, n_spt_temp),
+                                                np.repeat(1, n_spt_old)))
+
+                    # sort by time
+                    idx_sort_temp = np.argsort(spt_temp)
+                    spt_temp = spt_temp[idx_sort_temp]
+                    spt_temp_label = spt_temp_label[idx_sort_temp]
+
+                    # idx that violates refractory period
+                    idx_violations = np.where(
+                        np.diff(spt_temp) < refactory_period)[0]
+                    spt_temp_label_violations = spt_temp_label[idx_violations]
+
+                    # kill if idx violates and its label is 1 (meaning it is from spt_old)
+                    idx_kill = idx_violations[spt_temp_label_violations == 1]
+                    # if its label is 0 then idx +1 must have label 1
+                    idx_kill2 = idx_violations[spt_temp_label_violations == 0] + 1
+                    if np.any(spt_temp_label[idx_kill2] == 0):
+                        raise ValueError('bug in the code!')
+
+                    idx_kill = np.hstack((idx_kill, idx_kill2))
+                    spt_temp = np.delete(spt_temp, idx_kill)
 
         elif len(units) == 1:
             templates_new[new_id] = templates[units[0]]
 
-            idx = spike_train[:, 1] == units[0]
-            spike_train_new[idx, 1] = new_id
-            spike_train_new[idx, 0] = spike_train[idx, 0]
+            spt_temp = spike_train[spike_train[:, 1] == units[0], 0]
+
+        spike_train_temp = np.vstack(
+            (spt_temp, np.repeat(new_id, len(spt_temp)).astype('int32'))).T
+        spike_train_new = np.vstack((spike_train_new, spike_train_temp))
+
+    # sort them by spike times
+    idx_sort = np.argsort(spike_train_new[:, 0])
+    spike_train_new = spike_train_new[idx_sort]
 
     return spike_train_new, templates_new, merge_array

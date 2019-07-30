@@ -69,11 +69,6 @@ def run(output_directory,
     logger.info("merging pairs")
     merge_pairs = tm.get_merge_pairs()
 
-    # save result
-    fname_merge_pairs = os.path.join(output_directory,
-                                     'merge_pairs.npy')
-    np.save(fname_merge_pairs, merge_pairs)
-
     # update templates adn spike train accordingly
     logger.info("udpating templates and spike train")
     spike_train_new, templates_new, merge_array = merge_units(

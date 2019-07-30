@@ -275,8 +275,9 @@ class TemplateMerge(object):
                          dp_val=dp_val)
                          #lda_feat=lda_feat)
             else:
+                merge = True
                 np.savez(fname_out,
-                         merge=False,
+                         merge=merge,
                          spike_ids=spike_ids,
                          l2_features=l2_features,
                          lda_prob=None,
