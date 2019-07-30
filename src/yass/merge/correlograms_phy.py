@@ -161,7 +161,6 @@ def correlograms(spike_times,
     # Find `winsize_bins`.
     window_size = np.clip(window_size, 1e-5, 1e5)  # in seconds
     winsize_bins = 2 * int(.5 * window_size / bin_size) + 1
-
     assert winsize_bins >= 1
     assert winsize_bins % 2 == 1
 
@@ -187,6 +186,7 @@ def correlograms(spike_times,
     # The loop continues as long as there is at least one spike with
     # a matching spike.
     while mask[:-shift].any():
+
         # Number of time samples between spike i and spike i+shift.
         spike_diff = _diff_shifted(spike_samples, shift)
 
@@ -198,7 +198,6 @@ def correlograms(spike_times,
 
         # Cache the masked spike delays.
         m = mask[:-shift].copy()
-        d = spike_diff_b[m]
 
         # # Update the masks given the clusters to update.
         d = spike_diff_b[m]
@@ -229,11 +228,14 @@ def correlograms(spike_times,
 def compute_correlogram(units, spike_train, sample_rate=20000, bin_width = 0.001, window_size = 0.1):
 
     #Reduce spike_train to two units; ensure to keep order of spikes 
-    spike_train_temp = []
-    for unit in units:
-        spike_train_temp.append(spike_train[np.where(spike_train[:,1]==unit)[0]])
+    #spike_train_temp = []
+    #for unit in units:
+    #    spike_train_temp.append(spike_train[np.where(spike_train[:,1]==unit)[0]])
+    #spike_train = np.vstack(spike_train_temp)
+   
+    spike_train = spike_train[np.in1d(spike_train[:,1], units)]
     
-    spike_train = np.vstack(spike_train_temp)
+    
     order_indexes = np.argsort(spike_train[:,0])
     spike_train = spike_train[order_indexes]
     

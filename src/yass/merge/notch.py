@@ -1,6 +1,6 @@
 import numpy as np
 import scipy
-from scipy.stats import t
+from scipy.stats import t, norm
 
 def ztest_notch(greater, smaller, data):
     ngreater, nsmaller = data[greater].sum(), data[smaller].sum()
