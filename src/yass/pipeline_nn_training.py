@@ -79,11 +79,11 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
 
     # load yass configuration parameters
     CONFIG = Config.from_yaml(config)
-    CONFIG._data['cluster']['min_fr'] = 2
+    CONFIG._data['cluster']['min_fr'] = 1
     CONFIG._data['clean_up']['mad']['min_var_gap'] = 1.5
     CONFIG._data['clean_up']['mad']['max_violations'] = 5
     CONFIG._data['neuralnetwork']['apply_nn'] = False
-    CONFIG._data['detect']['threshold'] = 5
+    CONFIG._data['detect']['threshold'] = 4
 
     set_config(CONFIG._data, output_dir)
     CONFIG = read_config()

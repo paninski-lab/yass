@@ -47,14 +47,12 @@ def run(fname_recording, recording_dtype, fname_spike_train,
     # get processed templates
     logger.info('Crop Templates')
     save_dir = os.path.join(output_directory, 'templates')
-    fname_templates_snippets = get_templates_on_local_channels(reader,
-                                                               save_dir,
-                                                               fname_spike_train,
-                                                               CONFIG)
+    fname_templates_snippets = get_templates_on_local_channels(
+        reader, save_dir, fname_spike_train, CONFIG)
 
     # denoise templates
-    fname_templates_denoised = denoise_templates(fname_templates_snippets,
-                                                 save_dir)
+    fname_templates_denoised = denoise_templates(
+        fname_templates_snippets, save_dir)
 
     # make training data
     logger.info('Make Training Data')
