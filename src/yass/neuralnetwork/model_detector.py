@@ -136,7 +136,12 @@ class Detect(nn.Module):
         torch.save(self.state_dict(), fname_save)
                 
     def load(self, fname_model):
-        self.load_state_dict(torch.load(fname_model))
+        checkpoint = torch.load(fname_model,
+                                map_location=lambda storage,
+                                loc: storage)
+        self.load_state_dict(checkpoint)
+        del checkpoint
+        torch.cuda.empty_cache()
 
 
 class Detect_Single(nn.Module):
