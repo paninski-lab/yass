@@ -216,6 +216,16 @@ class Config:
                 spike_size_nn += 1
         self._set_param('spike_size_nn', spike_size_nn)
 
+        # torch devices
+        devices = []
+        if torch.cuda.is_available():
+            n_processors = np.min((torch.cuda.device_count(), self.resources.n_gpu_processors))
+            for j in range(n_processors):
+                devices.append(torch.device("cuda:{}".format(j)))
+        if len(devices) == 0:
+            devices = [torch.device("cpu")]
+        self._set_param('torch_devices', devices)
+
         # compute the length of recording
         filename_dat = os.path.join(
             self.data.root_folder, self.data.recordings)

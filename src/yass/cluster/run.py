@@ -126,7 +126,7 @@ def run(fname_spike_index,
                            CONFIG.spike_size_nn)
         denoiser.load(CONFIG.neuralnetwork.denoise.filename)
         # denoise it
-        nn_denoise_wf(fnames_input, denoiser)
+        nn_denoise_wf(fnames_input, denoiser, CONFIG.torch_devices)
 
     else:
         logger.info("denoise")

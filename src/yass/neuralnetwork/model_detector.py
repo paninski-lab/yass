@@ -26,18 +26,18 @@ class Detect(nn.Module):
                 padding=[(self.spike_size-1)//2, 0],                # if want same width and length of this image after Conv2d, padding=(kernel_size-1)/2 if stride=1
             ),                              # output shape (16, 28, 28)
             nn.ReLU(),                      # activation
-        ).cuda()
+        )
 
         self.temporal_filter2 = nn.Sequential(         # input shape (16, 14, 14)
             nn.Conv2d(feat1, feat2, [1, 1], 1, 0),     # output shape (32, 14, 14)
             nn.ReLU(),                      # activation
-        ).cuda()
+        )
         
         #self.spatial_filter = nn.Sequential(         # input shape (16, 14, 14)
         #    nn.Conv1d(feat2, feat3, [1, n_neigh], 1, 0),     # output shape (32, 14, 14)
         #    nn.ReLU(),                      # activation
         #)
-        self.out = nn.Linear(feat3*n_neigh, 1).cuda()
+        self.out = nn.Linear(feat3*n_neigh, 1)
 
     def forward(self, x):
 
@@ -50,29 +50,32 @@ class Detect(nn.Module):
 
         return output, x   # return x for visualization
     
-    def forward_recording(self, recording):
-        
-        x = recording[None, None]
+    def forward_recording(self, recording_tensor):
+
+        x = recording_tensor[None, None]
         x = self.temporal_filter1(x)
         x = self.temporal_filter2(x)
-        x = torch.cat((x, torch.zeros([1, x.shape[1], x.shape[2], 1]).cuda()), 3)[0]
+
+        zero_buff = torch.zeros(
+            [1, x.shape[1], x.shape[2], 1]).to(x.device)
+        x = torch.cat((x, zero_buff), 3)[0]
         x = x[:, :, self.channel_index].permute(1, 2, 0, 3)
-        x = self.out(x.reshape(recording.shape[0]*recording.shape[1], -1))
-        x = x.reshape(recording.shape[0], recording.shape[1])
+        x = self.out(x.reshape(
+            recording_tensor.shape[0]*recording_tensor.shape[1], -1))
+        x = x.reshape(recording_tensor.shape[0],
+                      recording_tensor.shape[1])
         
         return x
 
-    def get_spike_times(self, recording, max_window=5, threshold=0.5, buffer=None):
+    def get_spike_times(self, recording_tensor, max_window=5, threshold=0.5, buffer=None):
         
-        recording_torch = torch.FloatTensor(recording).cuda()
-        
-        x = self.forward_recording(recording_torch)[None]
+        probs = self.forward_recording(recording_tensor)
         
         maxpool = torch.nn.MaxPool2d(kernel_size=[max_window, 1], stride=1, padding=[(max_window-1)//2, 0])
-        temporal_max = maxpool(x)[0] - 1e-8
-        x = x[0]
+        temporal_max = maxpool(probs[None])[0] - 1e-8
 
-        spike_index_torch = torch.nonzero((x >= temporal_max) & (x > np.log(threshold / (1 - threshold))))
+        spike_index_torch = torch.nonzero(
+            (probs >= temporal_max) & (probs > np.log(threshold / (1 - threshold))))
         
         # remove edge spikes
         if buffer is None:
@@ -80,12 +83,13 @@ class Detect(nn.Module):
 
         spike_index_torch = spike_index_torch[
             (spike_index_torch[:, 0] > buffer) & 
-            (spike_index_torch[:, 0] < recording_torch.shape[0] - buffer)]
+            (spike_index_torch[:, 0] < recording_tensor.shape[0] - buffer)]
 
-        time_index = (spike_index_torch[:, 0][:, None] + 
-                      torch.arange(-(self.spike_size//2), self.spike_size//2+1).cuda())
+        wf_t_range = torch.arange(
+            -(self.spike_size//2), self.spike_size//2+1).to(spike_index_torch.device)
+        time_index = spike_index_torch[:, 0][:, None] + wf_t_range
         channel_index = spike_index_torch[:, 1][:,None].repeat((1, self.spike_size))
-        wf = recording_torch[time_index, channel_index]
+        wf = recording_tensor[time_index, channel_index]
 
         return spike_index_torch, wf
     
