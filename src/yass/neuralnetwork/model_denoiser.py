@@ -22,21 +22,21 @@ class Denoise(nn.Module):
                 padding=0,                # if want same width and length of this image after Conv2d, padding=(kernel_size-1)/2 if stride=1
             ),                              # output shape (16, 28, 28)
             nn.ReLU(),                      # activation
-        ).cuda()
+        )
 
         self.conv2 = nn.Sequential(         # input shape (16, 14, 14)
             nn.Conv1d(feat1, feat2, size2, 1, 0),     # output shape (32, 14, 14)
             nn.ReLU(),                      # activation
-        ).cuda()
+        )
 
         self.conv3 = nn.Sequential(         # input shape (16, 14, 14)
             nn.Conv1d(feat2, feat3, size3, 1, 0),     # output shape (32, 14, 14)
             nn.ReLU(),                      # activation
-        ).cuda()
+        )
 
         #n_input_feat = feat3*(61-size1-size2-size3+3)
         n_input_feat = feat2*(spike_size-size1-size2+2)
-        self.out = nn.Linear(n_input_feat, spike_size).cuda()
+        self.out = nn.Linear(n_input_feat, spike_size)
 
     def forward(self, x):
         x = x[:, None]
@@ -82,4 +82,9 @@ class Denoise(nn.Module):
         torch.save(self.state_dict(), fname_save)
                 
     def load(self, fname_model):
-        self.load_state_dict(torch.load(fname_model))
+        checkpoint = torch.load(fname_model,
+                                map_location=lambda storage,
+                                loc: storage)
+        self.load_state_dict(checkpoint)
+        del checkpoint
+        torch.cuda.empty_cache()

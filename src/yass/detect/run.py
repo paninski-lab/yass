@@ -10,6 +10,7 @@ except ImportError:
 
 import numpy as np
 import torch
+import torch.multiprocessing as mp
 import parmap
 
 from yass import read_config
@@ -134,9 +135,6 @@ def run_neural_network(standardized_path, standardized_params,
                       CONFIG.spike_size_nn,
                       CONFIG.channel_index)
     detector.load(CONFIG.neuralnetwork.detect.filename)
-    
-    # threshold for neuralnet detection
-    detect_threshold = CONFIG.detect.threshold
 
     # load NN denoiser
     denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
@@ -165,25 +163,46 @@ def run_neural_network(standardized_path, standardized_params,
                     chunk_sec)
 
     # neighboring channels
-    channel_index = make_channel_index(
+    channel_index_dedup = make_channel_index(
         CONFIG.neigh_channels, CONFIG.geom, steps=2)
 
-    # number of processed chunks
-    processing_ctr = 0
-    n_mini_per_big_batch = int(np.ceil(batch_length/n_sec_chunk))
-    total_processing = int(reader.n_batches*n_mini_per_big_batch)
+    # threshold for neuralnet detection
+    detect_threshold = CONFIG.detect.threshold
 
     # loop over each chunk
-    for batch_id in range(reader.n_batches):
+    batch_ids = np.arange(reader.n_batches)
+    batch_ids_split = np.split(batch_ids, len(CONFIG.torch_devices))
+    processes = []
+    for ii, device in enumerate(CONFIG.torch_devices):
+        p = mp.Process(target=run_nn_detction_batch,
+                       args=(batch_ids_split[ii], output_directory, reader, n_sec_chunk,
+                             detector, denoiser, channel_index_dedup,
+                             detect_threshold, device))
+        p.start()
+        processes.append(p)
+    for p in processes:
+        p.join()
 
+
+def run_nn_detction_batch(batch_ids, output_directory,
+                          reader, n_sec_chunk,
+                          detector, denoiser,
+                          channel_index_dedup,
+                          detect_threshold,
+                          device):
+
+    detector = detector.to(device)
+    denoiser = denoiser.to(device)
+
+    for batch_id in batch_ids:
         # skip if the file exists
         fname = os.path.join(
             output_directory,
             "detect_" + str(batch_id).zfill(5) + '.npz')
 
         if os.path.exists(fname):
-            processing_ctr += n_mini_per_big_batch
             continue
+
 
         # get a bach of size n_sec_chunk
         # but partioned into smaller minibatches of 
@@ -201,10 +220,10 @@ def run_neural_network(standardized_path, standardized_params,
         spike_index_list = []
         spike_index_dedup_list = []
         for j in range(batched_recordings.shape[0]):
-
             # detect spikes and get wfs
             spike_index, wfs = detector.get_spike_times(
-                batched_recordings[j], threshold=detect_threshold)
+                torch.FloatTensor(batched_recordings[j]).to(device),
+                threshold=detect_threshold)
 
             # denoise and take ptp as energy
             wfs = denoiser(wfs)[0]
@@ -214,7 +233,7 @@ def run_neural_network(standardized_path, standardized_params,
             spike_index_dedup = deduplicate_gpu(
                 spike_index, energy,
                 batched_recordings[j].shape,
-                channel_index)
+                channel_index_dedup)
 
             # convert to numpy
             spike_index = spike_index.cpu().data.numpy()
@@ -226,17 +245,15 @@ def run_neural_network(standardized_path, standardized_params,
             spike_index_list.append(spike_index)
             spike_index_dedup_list.append(spike_index_dedup)
 
-            processing_ctr+=1
-
         #if processing_ctr%100==0:
-        logger.info('processed chunk: %s/%s,  # spikes: %s', 
-              str(processing_ctr), str(total_processing), len(spike_index))
+        print('batch : {},  # spikes: {}'.format(batch_id, len(spike_index)))
 
         # save result
         np.savez(fname,
                  spike_index=spike_index_list,
                  spike_index_dedup=spike_index_dedup_list,
                  minibatch_loc=minibatch_loc)
+
 
 def run_voltage_treshold(standardized_path, standardized_params,
                          output_directory, run_chunk_sec='full'):
