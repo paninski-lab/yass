@@ -109,7 +109,7 @@ def run(fname_templates_in,
         chunk_sec = run_chunk_sec
 
     if CONFIG.deconvolution.deconv_gpu:
-        n_sec_chunk = CONFIG.resources.n_sec_chunk_gpu
+        n_sec_chunk = CONFIG.resources.n_sec_chunk_gpu_deconv
     else:
         n_sec_chunk = CONFIG.resources.n_sec_chunk
 
@@ -266,7 +266,7 @@ def deconv_ONgpu2(fname_templates_in,
     shifts = []
     for chunk_id in tqdm(range(reader.n_batches)):
         #fname = os.path.join(d_gpu.seg_dir,str(chunk_id).zfill(5)+'.npz')
-        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
+        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv
         fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
         data = np.load(fname, allow_pickle=True)
 
@@ -320,7 +320,7 @@ def run_deconv_no_templates_update(d_gpu, CONFIG):
     chunk_ids_split = np.split(chunk_ids,
                                len(CONFIG.torch_devices))
 
-    n_sec_chunk_gpu = CONFIG.resources.n_sec_chunk_gpu
+    n_sec_chunk_gpu = CONFIG.resources.n_sec_chunk_gpu_deconv
 
     processes = []
     for ii, device in enumerate(CONFIG.torch_devices):
@@ -380,8 +380,8 @@ def run_deconv_with_templates_update(d_gpu, CONFIG, begin):
     # Cat: this may fail if length of recording not multipole of n_sec_gpu
     #chunks = []
     #for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
-    #                CONFIG.resources.n_sec_chunk_gpu):
-    #    chunks.append([k,k+CONFIG.resources.n_sec_chunk_gpu])
+    #                CONFIG.resources.n_sec_chunk_gpu_deconv):
+    #    chunks.append([k,k+CONFIG.resources.n_sec_chunk_gpu_deconv])
 
     # loop over chunks and run sutraction step
     #templates_old = None
@@ -405,7 +405,7 @@ def run_deconv_with_templates_update(d_gpu, CONFIG, begin):
     # loop until deconv done;
     while True:
         # keep track of chunk being deconved and time_index
-        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
+        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv
 
         if d_gpu.update_templates_backwards:
             fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'_forward.npz')
@@ -464,7 +464,7 @@ def run_deconv_with_templates_update(d_gpu, CONFIG, begin):
                     #print ("Backward pass ON ...")
                     d_gpu.update_templates_backwards = False
                     chunk_id = (chunk_id - 
-                            d_gpu.template_update_time//CONFIG.resources.n_sec_chunk_gpu)
+                            d_gpu.template_update_time//CONFIG.resources.n_sec_chunk_gpu_deconv)
                     
                     # make a note of where the last backward step was
                     # this is important for save state recovery
@@ -564,7 +564,7 @@ def update_templates_GPU_forward_backward(d_gpu,
     # *************** Weighted template computation *******************
     # *****************************************************************
     # n_chunks = chunk length / batch length x 2 to capture window on both sides
-    n_batches_per_chunk = d_gpu.template_update_time//CONFIG.resources.n_sec_chunk_gpu
+    n_batches_per_chunk = d_gpu.template_update_time//CONFIG.resources.n_sec_chunk_gpu_deconv
     
     # Cat: TODO: this might crash if we don't have enough spikes overall
     #           or even within a single window
@@ -615,7 +615,7 @@ def update_templates_GPU_forward_backward(d_gpu,
 
     out_file = os.path.join(output_directory,'template_updates',
                     'templates_'+
-                    str((d_gpu.chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu)+
+                    str((d_gpu.chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv)+
                     'sec.npy')
     # print (" TEMPS DONE: ", templates_in.shape, templates_new.shape)
     np.save(out_file, templates_new.transpose(2,1,0))
@@ -750,7 +750,7 @@ def update_templates_GPU(d_gpu,
 
     out_file = os.path.join(output_directory,'template_updates',
                     'templates_'+
-                    str((d_gpu.chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu)+
+                    str((d_gpu.chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv)+
                     'sec.npy')
     # print (" TEMPS DONE: ", templates_in.shape, templates_new.shape)
     np.save(out_file, templates_new.transpose(2,1,0))
@@ -781,7 +781,7 @@ def deconv_ONgpu(fname_templates_in,
 
     #print (kfadfa)
     # Cat: TODO: gpu deconv requires own chunk_len variable
-    n_sec=CONFIG.resources.n_sec_chunk_gpu
+    n_sec=CONFIG.resources.n_sec_chunk_gpu_deconv
     #root_dir = '/media/cat/1TB/liam/49channels/data1_allset'
     root_dir = CONFIG.data.root_folder
 
@@ -822,7 +822,7 @@ def deconv_ONgpu(fname_templates_in,
     #if True:
     #    chunks = []
     #    for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
-    #                    CONFIG.resources.n_sec_chunk_gpu):
+    #                    CONFIG.resources.n_sec_chunk_gpu_deconv):
     #        chunks.append([k,k+n_sec])
     ## run data on small chunk only
     #else:

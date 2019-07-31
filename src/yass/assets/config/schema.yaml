@@ -46,7 +46,11 @@ resources:
       type: [integer, string]
       required: True
       default: 2
-    n_sec_chunk_gpu:
+    n_sec_chunk_gpu_detect:
+      type: [integer, string]
+      required: True
+      default: 1
+    n_sec_chunk_gpu_deconv:
       type: [integer, string]
       required: True
       default: 1

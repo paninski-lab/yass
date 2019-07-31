@@ -143,9 +143,8 @@ def run_neural_network(standardized_path, standardized_params,
     denoiser.load(CONFIG.neuralnetwork.denoise.filename)
 
     # get data reader
-    #n_sec_chunk = CONFIG.resources.n_sec_chunk*CONFIG.resources.n_processors
-    batch_length = CONFIG.resources.n_sec_chunk*10
-    n_sec_chunk = 0.5
+    batch_length = CONFIG.resources.n_sec_chunk*CONFIG.resources.n_processors
+    n_sec_chunk = CONFIG.resources.n_sec_chunk_gpu_detect
     print ("   batch length to (sec): ", batch_length, 
            " (longer increase speed a bit)")
     print ("   length of each seg (sec): ", n_sec_chunk)
