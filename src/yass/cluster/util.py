@@ -12,7 +12,6 @@ from yass.util import absolute_path_to_asset
 from yass.empty import empty
 from yass.template import align_get_shifts_with_ref, shift_chans
 
-
 def make_CONFIG2(CONFIG):
     ''' Makes a copy of several attributes of original config parameters
         to be sent into parmap function; original CONFIG can't be pickled;
@@ -84,19 +83,20 @@ def split_parallel(units, spike_index):
     return spike_index_list
    
 
-def split_spikes_GPU(spike_index, idx_keep, n_units):
-    
-    spike_index_local = spike_index[idx_keep]
-    spike_index_local = torch.from_numpy(spike_index_local).cuda()
+def split_spikes_GPU(spike_index, n_units):
+
+    # Cat: TODO: have GPU-use flag in CONFIG file
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    spike_index = torch.from_numpy(spike_index).to(device)
     spike_index_list = []
 
     with tqdm(total=n_units) as pbar:
         for unit in range(n_units):
-            idx = torch.where(spike_index_local[:,1]==unit, 
-                              spike_index_local[:,1]*0+1, 
-                              spike_index_local[:,1]*0)
+            idx = torch.where(spike_index[:,1]==unit,
+                              spike_index[:,1]*0+1,
+                              spike_index[:,1]*0)
             idx = torch.nonzero(idx)[:,0]
-            spike_index_list.append(spike_index_local[idx,0].cpu().data.numpy())
+            spike_index_list.append(spike_index[idx,0].cpu().data.numpy())
             
             pbar.update()
 
@@ -133,7 +133,7 @@ def partition_input(save_dir, max_time,
 
     print ("  partitioning input data (todo: skip if already computed)")
     # make directory
-    if not os.path.isdir(save_dir):
+    if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
     # load data
@@ -145,12 +145,9 @@ def partition_input(save_dir, max_time,
     n_units = np.max(spike_index[:, 1]) + 1
     #spike_index_list = [[] for ii in range(n_units)]
 
-    # Cat: TODO: have GPU-use flag in CONFIG file
-    if CONFIG.resources.n_sec_chunk_gpu>0:
-        spike_index_list = split_spikes_GPU(spike_index, idx_keep, n_units)
-    else:
-        spike_index_list = split_spikes_parallel(spike_index_list, spike_index, 
-                                             idx_keep, n_units, CONFIG)
+    spike_index_list = split_spikes_GPU(spike_index[idx_keep], n_units)
+    #spike_index_list = split_spikes_parallel(spike_index_list, spike_index,
+    #                                     idx_keep, n_units, CONFIG)
 
     # if there are upsampled data as input,
     # load and partition them also
@@ -252,18 +249,16 @@ def gather_clustering_result(result_dir, out_dir):
     return fname_templates, fname_spike_train
 
 
-def load_align_waveforms(save_dir, fnames_input_data,
-               reader_raw, reader_resid, raw_data, CONFIG):
+def load_align_waveforms(save_dir, units, fnames_input_data,
+                         reader_raw, reader_resid, raw_data, CONFIG):
     '''load and align waveforms first to run nn denoise
     '''
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    n_units = len(fnames_input_data)
-    units = [unit for unit in range(n_units)]
     fnames_out = [os.path.join(save_dir, 'partition_{}.npz'.format(unit))
-                  for unit in range(n_units)]
+                  for unit in units]
 
     if CONFIG.resources.multi_processing:
         parmap.map(load_align_waveforms_parallel,
@@ -277,18 +272,15 @@ def load_align_waveforms(save_dir, fnames_input_data,
 
     else:
         with tqdm(total=n_units) as pbar:
-            for unit in units:
+            for ii in range(len(units)):
                 load_align_waveforms_parallel(
-                    [fnames_out[unit], fnames_input_data[unit], unit],      
+                    [fnames_out[ii], fnames_input_data[ii], units[ii]],
                     reader_raw, reader_resid, raw_data, CONFIG)
                 pbar.update()
 
     return fnames_out
 
 
-#def load_align_waveforms_parallel(
-#    fname_out, fname_input_data, unit,
-#    reader_raw, reader_resid, raw_data, CONFIG):
 def load_align_waveforms_parallel(data_in, 
                                   reader_raw, 
                                   reader_resid, 

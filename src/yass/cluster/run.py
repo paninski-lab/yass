@@ -112,6 +112,7 @@ def run(fname_spike_index,
     logger.info("load and align waveforms on local channels")
     fnames_input = load_align_waveforms(
         os.path.join(output_directory, 'wfs'),
+        units,
         fnames_input,
         reader_raw,
         reader_resid,
