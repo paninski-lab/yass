@@ -56,9 +56,10 @@ def partition_input(save_dir,
                 unique_up_ids = np.unique(up_id_list[unit])
                 if unique_up_ids.shape[0]==0:
                     np.savez(fname,
-                         spike_times = [],
-                         up_ids = [],
-                         up_templates = [])
+                             templates = [],
+                             spike_times = [],
+                             up_ids = [],
+                             up_templates = [])
                 else:
                     up_templates = templates_up[unique_up_ids]
                     new_id_map = {iid: ctr for ctr, iid in enumerate(unique_up_ids)}

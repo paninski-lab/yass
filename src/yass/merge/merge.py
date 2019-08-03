@@ -296,9 +296,10 @@ class TemplateMerge(object):
         spt1 = unit1_data['spike_times']
         spt2 = unit2_data['spike_times']
 
-        # templates
-        template1 = unit1_data['template']
-        template2 = unit2_data['template']
+        # minimum spikes
+        min_spikes = 10
+        if len(spt1) <= min_spikes or len(spt2) <= min_spikes:
+            return None, None
 
         # subsample
         if len(spt1) + len(spt2) > n_samples:
@@ -328,7 +329,11 @@ class TemplateMerge(object):
         spt1 = spt1[spt1_idx]
         spt2 = spt2[spt2_idx]
 
-        if len(spt1) > 5 and len(spt2) > 5:
+        if len(spt1) > min_spikes and len(spt2) > min_spikes:
+
+            # templates
+            template1 = unit1_data['template']
+            template2 = unit2_data['template']
 
             # find shifts
             temps = np.concatenate((template1[None], template2[None]),
@@ -378,7 +383,6 @@ class TemplateMerge(object):
                 np.concatenate((wfs1, wfs2), axis=0))
 
         else:
-
             l2_features = None
             spike_ids = None
 
