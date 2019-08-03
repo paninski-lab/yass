@@ -68,8 +68,7 @@ def remove_duplicates(fname_templates, fname_weights,
                                          up_factor,
                                          max_diff_threshold,
                                          max_diff_rel_threshold,
-                                         processes=n_processors,
-                                         pm_pbar=True)
+                                         processes=n_processors)
 
             duplicates = {}
             for sub_list in duplicates_list:
