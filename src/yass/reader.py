@@ -143,7 +143,7 @@ class READER(object):
 
             data = np.concatenate((data, pad_zeros), axis=0)
         data_loc = np.zeros((n_mini_batches, 2), 'int32')
-        data_batched = np.zeros((n_mini_batches, T_mini + 2*buffer, C))
+        data_batched = np.zeros((n_mini_batches, T_mini + 2*buffer, C), 'float32')
         for k in range(n_mini_batches):
             data_batched[k] = data[indexes[k]-buffer:indexes[k+1]+buffer]
             data_loc[k] = [indexes[k], indexes[k+1]]
