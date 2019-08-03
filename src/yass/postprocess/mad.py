@@ -1,7 +1,7 @@
 import numpy as np
 import os
 import parmap
-import scipy
+import scipy.signal
 
 from yass.postprocess.util import run_deconv, partition_spike_time
 

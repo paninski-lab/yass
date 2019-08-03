@@ -78,8 +78,10 @@ class TemplateMerge(object):
             logger.info("finding candidates using ptp")
             pairs = self.find_merge_candidates(templates)
 
-            logger.info('check if it passes xcor test')
-            self.merge_candidates = self.xcor_notch_test(pairs, templates)
+            #logger.info('check if it passes xcor test')
+            #self.merge_candidates = self.xcor_notch_test(pairs, templates)
+            self.merge_candidates = pairs
+
             np.save(fname_candidates, self.merge_candidates)
 
     def find_merge_candidates(self, templates):
@@ -253,7 +255,7 @@ class TemplateMerge(object):
             l2_features, spike_ids = self.get_l2_features(unit1, unit2)
 
             # enough spikes from both need to present otherwise skip it
-            if np.sum(spike_ids==0) > 5 and np.sum(spike_ids==1) > 5:
+            if l2_features is not None:
 
                 if np.sum(np.abs(l2_features)) == 0:
                     print(unit1)
@@ -273,9 +275,8 @@ class TemplateMerge(object):
                          dp_val=dp_val)
                          #lda_feat=lda_feat)
             else:
-                merge = False
                 np.savez(fname_out,
-                         merge=merge,
+                         merge=False,
                          spike_ids=spike_ids,
                          l2_features=l2_features,
                          lda_prob=None,
@@ -326,52 +327,59 @@ class TemplateMerge(object):
         spt1 = spt1[spt1_idx]
         spt2 = spt2[spt2_idx]
 
-        # find shifts
-        temps = np.concatenate((template1[None], template2[None]),
-                               axis=0)
-        mc = temps.ptp(1).max(0).argmax()
-        shift = np.diff(temps[:, :, mc].argmin(1))[0]
+        if len(spt1) > 5 and len(spt2) > 5:
 
-        # get waveforms
-        if self.raw_data:
-            wfs1, _ = self.reader.read_waveforms(
-                spt1+shift, self.spike_size)
+            # find shifts
+            temps = np.concatenate((template1[None], template2[None]),
+                                   axis=0)
+            mc = temps.ptp(1).max(0).argmax()
+            shift = np.diff(temps[:, :, mc].argmin(1))[0]
 
-            wfs2, _ = self.reader.read_waveforms(
-                spt2, self.spike_size)
+            # get waveforms
+            if self.raw_data:
+                wfs1, _ = self.reader.read_waveforms(
+                    spt1+shift, self.spike_size)
+
+                wfs2, _ = self.reader.read_waveforms(
+                    spt2, self.spike_size)
+
+            else:
+                up_ids1 = unit1_data['up_ids'][spt1_idx]
+                up_templates1 = unit1_data['up_templates']
+                wfs1, _ = self.reader.read_clean_waveforms(
+                    spt1, up_ids1, up_templates1, self.spike_size)
+
+                up_ids2 = unit2_data['up_ids'][spt2_idx]
+                up_templates2 = unit2_data['up_templates']
+                wfs2, _ = self.reader.read_clean_waveforms(
+                    spt2, up_ids2, up_templates2, self.spike_size)
+
+                # if two templates are not aligned, get bigger window
+                # and cut oneside to get shifted waveforms
+                if shift < 0:
+                    wfs1 = wfs1[:, -shift:]
+                    wfs2 = wfs2[:, :shift]
+                elif shift > 0:
+                    wfs1 = wfs1[:, :-shift]
+                    wfs2 = wfs2[:, shift:]
+
+            # assignment
+            spike_ids = np.append(
+                np.zeros(len(wfs1), 'int32'),
+                np.ones(len(wfs2), 'int32'),
+                axis=0)
+
+            # recompute templates using deconvolved spikes
+            template1 = np.median(wfs1, axis=0)
+            template2 = np.median(wfs2, axis=0)
+            l2_features = template_spike_dist_linear_align(
+                np.concatenate((template1[None], template2[None]), axis=0),
+                np.concatenate((wfs1, wfs2), axis=0))
 
         else:
-            up_ids1 = unit1_data['up_ids'][spt1_idx]
-            up_templates1 = unit1_data['up_templates']
-            wfs1, _ = self.reader.read_clean_waveforms(
-                spt1, up_ids1, up_templates1, self.spike_size)
 
-            up_ids2 = unit2_data['up_ids'][spt2_idx]
-            up_templates2 = unit2_data['up_templates']
-            wfs2, _ = self.reader.read_clean_waveforms(
-                spt2, up_ids2, up_templates2, self.spike_size)
-
-            # if two templates are not aligned, get bigger window
-            # and cut oneside to get shifted waveforms
-            if shift < 0:
-                wfs1 = wfs1[:, -shift:]
-                wfs2 = wfs2[:, :shift]
-            elif shift > 0:
-                wfs1 = wfs1[:, :-shift]
-                wfs2 = wfs2[:, shift:]
-
-        # assignment
-        spike_ids = np.append(
-            np.zeros(len(wfs1), 'int32'),
-            np.ones(len(wfs2), 'int32'),
-            axis=0)
-
-        # recompute templates using deconvolved spikes
-        template1 = np.median(wfs1, axis=0)
-        template2 = np.median(wfs2, axis=0)
-        l2_features = template_spike_dist_linear_align(
-            np.concatenate((template1[None], template2[None]), axis=0),
-            np.concatenate((wfs1, wfs2), axis=0))
+            l2_features = None
+            spike_ids = None
 
         return l2_features, spike_ids
 

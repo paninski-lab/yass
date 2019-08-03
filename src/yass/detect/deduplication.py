@@ -5,8 +5,10 @@ def deduplicate_gpu(spike_index_torch, energy_torch,
                     recording_shape, channel_index,
                     max_window=5):
 
+    # find device
+    device = spike_index_torch.device
     # initialize energy train
-    energy_train = torch.zeros(recording_shape).cuda()
+    energy_train = torch.zeros(recording_shape).to(device)
     energy_train[spike_index_torch[:,0], spike_index_torch[:, 1]] = energy_torch
 
     # get temporal max
@@ -16,7 +18,7 @@ def deduplicate_gpu(spike_index_torch, energy_torch,
     # get spatial max
     max_energy = torch.cat(
         (max_energy,
-         torch.zeros([max_energy.shape[0], 1]).cuda()),
+         torch.zeros([max_energy.shape[0], 1]).to(device)),
         1)
     max_energy = torch.max(max_energy[:,channel_index], 2)[0] - 1e-8
     

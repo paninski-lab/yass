@@ -5,6 +5,7 @@ import parmap
 import datetime as dt
 from tqdm import tqdm
 import torch
+import torch.multiprocessing as mp
 
 from yass import read_config
 from yass.reader import READER
@@ -13,6 +14,7 @@ from yass.deconvolve.match_pursuit_gpu import deconvGPU, deconvGPU2
 from yass.template import shift_chans, align_get_shifts_with_ref
 from yass.util import absolute_path_to_asset
 from scipy import interpolate
+from yass.deconvolve.util import make_CONFIG2
 
 #from yass.deconvolve.soft_assignment import get_soft_assignments
 
@@ -61,6 +63,7 @@ def run(fname_templates_in,
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
+    CONFIG = make_CONFIG2(CONFIG)
 
     # output folder
     if not os.path.exists(output_directory):
@@ -220,7 +223,6 @@ def deconv_ONgpu2(fname_templates_in,
     # Cat: TODO: read from CONFIG file
     d_gpu.template_update_time = 30
 
-
     # additional parameter that tracks the save state of deconv 
     recursion_time = 1E10  # dummy value
         
@@ -230,6 +232,136 @@ def deconv_ONgpu2(fname_templates_in,
     # enforce broad buffer
     d_gpu.reader.buffer=1000
 
+    # *********************************************************
+    # *********************** RUN DECONV **********************
+    # *********************************************************
+    begin=dt.datetime.now().timestamp()
+    if d_gpu.update_templates:
+        d_gpu, setup_time = run_deconv_with_templates_update(d_gpu, CONFIG, begin)
+    else:
+        d_gpu, setup_time = run_deconv_no_templates_update(d_gpu, CONFIG)
+
+    # ****************************************************************
+    # *********************** GATHER SPIKE TRAINS ********************
+    # ****************************************************************
+    subtract_time = np.round((dt.datetime.now().timestamp()-begin),4)
+
+    print ("-------------------------------------------")
+    total_length_sec = int((d_gpu.reader.end - d_gpu.reader.start)/d_gpu.reader.sampling_rate)
+    print ("Total Deconv Speed ", np.round(total_length_sec/(setup_time+subtract_time),2), " x Realtime")
+
+    # ************* DEBUG MODE *****************
+    if d_gpu.save_objective:
+        fname_obj_array = os.path.join(d_gpu.out_dir, 'obj_array.npy')
+        np.save(fname_obj_array, d_gpu.obj_array)
+
+
+    # ************** SAVE SPIKES & SHIFTS **********************
+    print ("  gathering spike trains and shifts from deconv (todo: parallelize)")
+    batch_size = d_gpu.reader.batch_size
+    buffer_size = d_gpu.reader.buffer
+    temporal_size = (CONFIG.recordings.sampling_rate/1000*
+                     CONFIG.recordings.spike_size_ms)
+    
+    # loop over chunks and run sutraction step
+    spike_train = [np.zeros((0,2),'int32')]
+    shifts = []
+    for chunk_id in tqdm(range(reader.n_batches)):
+        #fname = os.path.join(d_gpu.seg_dir,str(chunk_id).zfill(5)+'.npz')
+        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
+        fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
+        data = np.load(fname, allow_pickle=True)
+
+        spike_array = data['spike_array']
+        neuron_array = data['neuron_array']
+        offset_array = data['offset_array']
+        shift_list = data['shift_list']
+        for p in range(len(spike_array)):
+            spike_times = spike_array[p].cpu().data.numpy()
+            idx_keep = np.logical_and(spike_times >= buffer_size,
+                                      spike_times < batch_size+buffer_size)
+            idx_keep = np.where(idx_keep)[0]
+            temp=np.zeros((len(idx_keep),2), 'int32')
+            temp[:,0]=spike_times[idx_keep]+offset_array[p]
+            temp[:,1]=neuron_array[p].cpu().data.numpy()[idx_keep]
+
+            # Cat: TODO: is it faster to make list and then array?
+            #            or make array on the fly?
+            spike_train.extend(temp)
+            shifts.append(shift_list[p].cpu().data.numpy()[idx_keep])
+
+    spike_train = np.vstack(spike_train)
+    shifts = np.hstack(shifts)
+    # add half the spike time back in to get to centre of spike
+    spike_train[:,0] = spike_train[:,0]-temporal_size//2
+
+    # sort spike train by time
+    idx = spike_train[:,0].argsort(0)
+    spike_train = spike_train[idx]
+    shifts = shifts[idx]
+
+    # save spike train
+    print ("  saving spike_train: ", spike_train.shape)
+    fname_spike_train = os.path.join(d_gpu.out_dir, 'spike_train.npy')
+    np.save(fname_spike_train, spike_train)
+    np.save(fname_spike_train_up, spike_train)
+
+    # save shifts
+    fname_shifts = os.path.join(d_gpu.out_dir, 'shifts.npy')
+    np.save(fname_shifts,shifts)
+
+    # save templates and upsampled templates
+    templates_in_original = np.load(fname_templates_in)
+    np.save(fname_templates, templates_in_original)
+    np.save(fname_templates_up, templates_in_original)
+
+
+def run_deconv_no_templates_update(d_gpu, CONFIG):
+
+    chunk_ids = np.arange(d_gpu.reader.n_batches)
+    chunk_ids_split = np.split(chunk_ids,
+                               len(CONFIG.torch_devices))
+
+    n_sec_chunk_gpu = CONFIG.resources.n_sec_chunk_gpu
+
+    processes = []
+    for ii, device in enumerate(CONFIG.torch_devices):
+        p = mp.Process(target=run_deconv_no_templates_update_parallel,
+                       args=(d_gpu, chunk_ids_split[ii],
+                             n_sec_chunk_gpu, device))
+        p.start()
+        processes.append(p)
+    for p in processes:
+        p.join()
+
+    return d_gpu, 0
+
+
+def run_deconv_no_templates_update_parallel(d_gpu, chunk_ids, n_sec_chunk_gpu, device):
+
+    torch.cuda.set_device(device)
+    d_gpu.initialize()
+
+    for chunk_id in chunk_ids:
+        time_index = (chunk_id+1)*n_sec_chunk_gpu
+        fname = os.path.join(d_gpu.seg_dir, str(time_index).zfill(6)+'.npz')
+
+        if os.path.exists(fname)==False:
+
+            print ("Forward deconv only ", time_index, " sec")
+
+            # run deconv
+            d_gpu.run(chunk_id)
+
+            # save deconv results
+            np.savez(fname,
+                     spike_array = d_gpu.spike_array,
+                     offset_array = d_gpu.offset_array,
+                     neuron_array = d_gpu.neuron_array,
+                     shift_list = d_gpu.shift_list)
+
+
+def run_deconv_with_templates_update(d_gpu, CONFIG, begin):
 
     # ****************************************************************
     # *********************** INITIALIZE DECONV **********************
@@ -248,30 +380,28 @@ def deconv_ONgpu2(fname_templates_in,
     begin=dt.datetime.now().timestamp()
     # Cat: TODO: flag to run deconv just on segments of data not all data
     # Cat: this may fail if length of recording not multipole of n_sec_gpu
-    chunks = []
-    for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
-                    CONFIG.resources.n_sec_chunk_gpu):
-        chunks.append([k,k+CONFIG.resources.n_sec_chunk_gpu])
+    #chunks = []
+    #for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
+    #                CONFIG.resources.n_sec_chunk_gpu):
+    #    chunks.append([k,k+CONFIG.resources.n_sec_chunk_gpu])
 
     # loop over chunks and run sutraction step
-    templates_old = None
+    #templates_old = None
     wfs_array = []
     n_spikes_array = []
     
     
     # determine if yass is recovering from crash by reading last state
     #   if state exists, then recover from there.
-    if d_gpu.update_templates:
-        try: 
-            recursion_time = np.load(os.path.join(d_gpu.seg_dir,'time.npy'))
-            state = np.loadtxt(os.path.join(d_gpu.seg_dir,'state.txt'), dtype='str')
-            if state=='forward':
-                d_gpu.update_templates_backwards = 1
-            else:
-                d_gpu.update_templates_backwards = 0
-        except:
-            pass
-                
+    try: 
+        recursion_time = np.load(os.path.join(d_gpu.seg_dir,'time.npy'))
+        state = np.loadtxt(os.path.join(d_gpu.seg_dir,'state.txt'), dtype='str')
+        if state=='forward':
+            d_gpu.update_templates_backwards = 1
+        else:
+            d_gpu.update_templates_backwards = 0
+    except:
+        pass
 
     # loop until deconv done;
     #***********************************************************
@@ -280,19 +410,17 @@ def deconv_ONgpu2(fname_templates_in,
     chunk_id = 0
     while True:
         # keep track of chunk being deconved and time_index
-        d_gpu.chunk_id = chunk_id
         time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
-                            
+
         if d_gpu.update_templates_backwards:
             fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'_forward.npz')
         else:
             fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
-                                
+
         if os.path.exists(fname)==False:
                 
             # if true: forward pass over data using previous chunk templates
-            if (d_gpu.update_templates and 
-                (time_index>recursion_time) and 
+            if (time_index>recursion_time and 
                 d_gpu.update_templates_backwards==False):
 
                     #print ("Forward pass ON ...")
@@ -303,13 +431,10 @@ def deconv_ONgpu2(fname_templates_in,
                     np.savetxt(os.path.join(d_gpu.seg_dir,'state.txt'),['forward'],fmt="%s")
 
             # printout flags
-            if d_gpu.update_templates:
-                if d_gpu.update_templates_backwards:
-                    print ("Forward pass - updating templates", time_index, " sec")
-                else:
-                    print ("Backwards pass - redecon with updated templates ...", time_index, " sec")
+            if d_gpu.update_templates_backwards:
+                print ("Forward pass - updating templates", time_index, " sec")
             else:
-                print ("Forward deconv only ", time_index, " sec")
+                print ("Backwards pass - redecon with updated templates ...", time_index, " sec")
                 
             #***********************************************************
             #********************* MAIN DECONV STEP ********************
@@ -330,7 +455,7 @@ def deconv_ONgpu2(fname_templates_in,
 
             # UPDATE TEMPLATES: every batch of data (e.g. 10sec)
             # GENERATE NEW TEMPLATES every chunk (e.g. 60sec) 
-            if d_gpu.update_templates and d_gpu.update_templates_backwards:
+            if d_gpu.update_templates_backwards:
                 d_gpu, wfs_array = update_templates_GPU_forward_backward(
                                                         d_gpu, 
                                                         CONFIG, 
@@ -360,97 +485,9 @@ def deconv_ONgpu2(fname_templates_in,
         # exit when finished reading;
         if chunk_id>=reader.n_batches:
             break
-        
-        # exit when finished reading;
-        #if chunk_id>3:
-        #    break
-        
-        
-    # ****************************************************************
-    # *********************** GATHER SPIKE TRAINS ********************
-    # ****************************************************************
-                                                        
-    subtract_time = np.round((dt.datetime.now().timestamp()-begin),4)
 
-    print ("-------------------------------------------")
-    total_length_sec = int((d_gpu.reader.end - d_gpu.reader.start)/d_gpu.reader.sampling_rate)
-    print ("Total Deconv Speed ", np.round(total_length_sec/(setup_time+subtract_time),2), " x Realtime")
-
-    # ************* DEBUG MODE *****************
-    if d_gpu.save_objective:
-        fname_obj_array = os.path.join(d_gpu.out_dir, 'obj_array.npy')
-        np.save(fname_obj_array, d_gpu.obj_array)
-        
-
-    # ************** SAVE SPIKES & SHIFTS **********************
-    print ("  gathering spike trains and shifts from deconv (todo: parallelize)")
-    batch_size = d_gpu.reader.batch_size
-    buffer_size = d_gpu.reader.buffer
-    temporal_size = (CONFIG.recordings.sampling_rate/1000*
-                     CONFIG.recordings.spike_size_ms)
+    return d_gpu, setup_time
     
-    # loop over chunks and run sutraction step
-    spike_train = [np.zeros((0,2),'int32')]
-    shifts = []
-    for chunk_id in tqdm(range(reader.n_batches)):
-    #for chunk_id in tqdm(range(4)):
-        #fname = os.path.join(d_gpu.seg_dir,str(chunk_id).zfill(5)+'.npz')
-        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
-        fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
-
-        data = np.load(fname)
-        
-        # load files for every deconv iteration in each chunk
-        spike_array = data['spike_array']
-        neuron_array = data['neuron_array']
-        offset_array = data['offset_array']
-        shift_list = data['shift_list']
-        #print ("")
-        #print ("")
-        
-        for p in range(len(spike_array)):
-            spike_times = spike_array[p].cpu().data.numpy()
-            #print ("spike_times; ", spike_times[:5], spike_times[-5:], 
-            #       " buffer: ", buffer_size, " offset_array: ", offset_array[p])
-            idx_keep = np.where(np.logical_and(spike_times >= buffer_size,
-                                      spike_times < batch_size+buffer_size))[0]
-            #idx_keep = np.where(idx_keep)[0]
-            temp=np.zeros((idx_keep.shape[0],2), 'int32')
-            temp[:,0]=spike_times[idx_keep]+offset_array[p]
-            temp[:,1]=neuron_array[p].cpu().data.numpy()[idx_keep]
-
-            # Cat: TODO: is it faster to make list and then array?
-            #            or make array on the fly?
-            spike_train.extend(temp)
-            shifts.append(shift_list[p].cpu().data.numpy()[idx_keep])
-            
-    spike_train = np.vstack(spike_train)
-    shifts = np.hstack(shifts)
-    # add half the spike time back in to get to centre of spike
-    spike_train[:,0] = spike_train[:,0]-temporal_size//2
-
-    # sort spike train by time
-    idx = spike_train[:,0].argsort(0)
-    spike_train = spike_train[idx]
-    shifts = shifts[idx]
-
-    # save spike train
-    print ("  saving spike_train: ", spike_train.shape)
-    fname_spike_train = os.path.join(d_gpu.out_dir, 'spike_train.npy')
-    np.save(fname_spike_train, spike_train)
-    np.save(fname_spike_train_up, spike_train)
-
-    # save shifts
-    fname_shifts = os.path.join(d_gpu.out_dir, 'shifts.npy')
-    np.save(fname_shifts,shifts)
-
-    # save templates and upsampled templates
-    templates_in_original = np.load(fname_templates_in)
-    np.save(fname_templates, templates_in_original)
-    np.save(fname_templates_up, templates_in_original)
-
-
-
 def update_templates_GPU_forward_backward(d_gpu, 
                                          CONFIG, 
                                          time_index, 

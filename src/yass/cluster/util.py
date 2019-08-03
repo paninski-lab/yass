@@ -4,14 +4,13 @@ import os
 from tqdm import tqdm
 import parmap
 import torch
+import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
 #from numba import jit
 
 from yass.util import absolute_path_to_asset
 from yass.empty import empty
 from yass.template import align_get_shifts_with_ref, shift_chans
-
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
 def make_CONFIG2(CONFIG):
@@ -87,7 +86,7 @@ def split_parallel(units, spike_index):
 def split_spikes_GPU(spike_index, idx_keep, n_units):
     
     spike_index_local = spike_index[idx_keep]
-    spike_index_local = torch.from_numpy(spike_index_local).to(device)
+    spike_index_local = torch.from_numpy(spike_index_local).cuda()
     spike_index_list = []
 
     with tqdm(total=n_units) as pbar:
@@ -415,39 +414,56 @@ def subsample_spikes(spike_times, max_spikes, spike_size, rec_len):
 
     return spike_times, idx_sampled, idx_inbounds
 
+def split(a, n):
+    k, m = divmod(len(a), n)
+    return [a[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
 
-def nn_denoise_wf(fnames_input_data, denoiser):
+def nn_denoise_wf(fnames_input_data, denoiser, devices):
 
-    with tqdm(total=len(fnames_input_data)) as pbar:
-        for fname in fnames_input_data:
-            temp = np.load(fname,allow_pickle=True)
+    fnames_input_split = split(fnames_input_data, len(devices))
+    processes = []
+    for ii, device in enumerate(devices):
+        p = mp.Process(target=nn_denoise_wf_parallel,
+                       args=(fnames_input_split[ii],
+                             denoiser, device))
+        p.start()
+        processes.append(p)
 
-            if 'denoised_wf' in temp.files:
-                continue
+    for p in processes:
+        p.join()
 
-            wf = temp['wf']
-            n_data, n_times, n_chans = wf.shape
-            if wf.shape[0]>0:
-                wf_reshaped = wf.transpose(0, 2, 1).reshape(-1, n_times)
-                wf_torch = torch.FloatTensor(wf_reshaped).cuda()
-                denoised_wf = denoiser(wf_torch)[0]
-                denoised_wf = denoised_wf.reshape(
-                    n_data, n_chans, n_times)
-                denoised_wf = denoised_wf.cpu().data.numpy().transpose(0, 2, 1)
 
-                # reshape it
-                #window = np.arange(15, 40)
-                #denoised_wf = denoised_wf[:, window]
-                denoised_wf = denoised_wf.reshape(n_data, -1)
-            else:
-                denoised_wf = np.zeros((wf.shape[0], 
-                                        wf.shape[1]*wf.shape[2]),'float32')
+def nn_denoise_wf_parallel(fnames, denoiser, device):
 
-            temp = dict(temp)
-            temp['denoised_wf'] = denoised_wf
-            np.savez(fname, **temp)
-            pbar.update()
+    denoiser = denoiser.to(device)
 
+    for fname in fnames:
+        temp = np.load(fname, allow_pickle=True)
+
+        if 'denoised_wf' in temp.files:
+            continue
+
+        wf = temp['wf']
+        n_data, n_times, n_chans = wf.shape
+        if wf.shape[0]>0:
+            wf_reshaped = wf.transpose(0, 2, 1).reshape(-1, n_times)
+            wf_torch = torch.FloatTensor(wf_reshaped).to(device)
+            denoised_wf = denoiser(wf_torch)[0]
+            denoised_wf = denoised_wf.reshape(
+                n_data, n_chans, n_times)
+            denoised_wf = denoised_wf.cpu().data.numpy().transpose(0, 2, 1)
+
+            # reshape it
+            #window = np.arange(15, 40)
+            #denoised_wf = denoised_wf[:, window]
+            denoised_wf = denoised_wf.reshape(n_data, -1)
+        else:
+            denoised_wf = np.zeros((wf.shape[0],
+                                    wf.shape[1]*wf.shape[2]),'float32')
+
+        temp = dict(temp)
+        temp['denoised_wf'] = denoised_wf
+        np.savez(fname, **temp)
 
 def denoise_wf(fnames_input_data):
 

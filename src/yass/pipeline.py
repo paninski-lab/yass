@@ -22,6 +22,8 @@ except ImportError:
 
 import numpy as np
 import yaml
+import torch
+torch.multiprocessing.set_start_method('spawn', force=True)
 
 
 import yass
@@ -118,6 +120,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         ************** PREPROCESS ********************
         **********************************************
     '''
+
     # preprocess
     start = time.time()
     (standardized_path,

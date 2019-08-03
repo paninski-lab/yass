@@ -10,8 +10,6 @@ from scipy.interpolate import splrep, splev, make_interp_spline, splder, sproot
 import torch
 from torch import nn
 #from torch.autograd import Variable
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 
 # cuda package to do GPU based spline interpolation and subtraction
 import cudaSpline as deconv
@@ -124,7 +122,7 @@ class deconvGPU(object):
         self.fill_value = 1E6
 
         # length of conv filter
-        self.n_times = torch.arange(-self.lockout_window,self.n_time,1).long().to(device)
+        #self.n_times = torch.arange(-self.lockout_window,self.n_time,1).long().cuda()
 
         # set max deconv thersho
         self.deconv_thresh = self.CONFIG.deconvolution.threshold
@@ -133,10 +131,15 @@ class deconvGPU(object):
         #self.svd_flag = True
         
         # make a 3 point array to be used in quadratic fit below
-        self.peak_pts = torch.arange(-1,+2).to(device)
+        #self.peak_pts = torch.arange(-1,+2).cuda()
         
         
     def initialize(self):
+
+        # length of conv filter
+        self.n_times = torch.arange(-self.lockout_window,self.n_time,1).long().cuda()
+        # make a 3 point array to be used in quadratic fit below
+        self.peak_pts = torch.arange(-1,+2).cuda()
         
         # load templates and svd componenets
         self.load_temps()
@@ -189,7 +192,7 @@ class deconvGPU(object):
         self.add_spike_times = []
         # save iteration 
         self.chunk_id = chunk_id
-        
+
         # load raw data and templates
         self.load_data(chunk_id)
         
@@ -223,9 +226,9 @@ class deconvGPU(object):
 
 
     def initialize_cpp(self):
-        
+
         # make a list of pairwise batched temp_temp and their vis_units
-        self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temp_temp, self.vis_units)])   
+        self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temp_temp, self.vis_units)])
 
 
     def initialize_cpp_inverted(self):
@@ -240,7 +243,7 @@ class deconvGPU(object):
         
         # Cat: TODO: implement proper parallelized bspline computation
         self.coefficients = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp])
-
+        self.temp_temp_cpp = None
 
         #fname = os.path.join(self.svd_dir,'bsplines_'+
         #          str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npy')
@@ -427,8 +430,8 @@ class deconvGPU(object):
             temp_gpu = []
             temp_gpu_inverted = []
             for k in range(len(temp_temp_local)):
-                temp_gpu.append(torch.from_numpy(temp_temp_local[k]).float().to(device))
-                temp_gpu_inverted.append(torch.from_numpy(-temp_temp_local[k]).float().to(device))
+                temp_gpu.append(torch.from_numpy(temp_temp_local[k]).float().cuda())
+                temp_gpu_inverted.append(torch.from_numpy(-temp_temp_local[k]).float().cuda())
 
             self.temp_temp = temp_gpu
             self.temp_temp_inverted = temp_gpu_inverted
@@ -502,7 +505,7 @@ class deconvGPU(object):
         self.temps = np.load(self.fname_templates, allow_pickle=True).transpose(2,1,0)
         self.N_CHAN, self.STIME, self.K = self.temps.shape
         #print (" Loaded templates shape (n_chan, n_time, n_temps): ", self.temps.shape)
-        self.temps_gpu = torch.from_numpy(self.temps).float().to(device)
+        self.temps_gpu = torch.from_numpy(self.temps).float().cuda()
         
         
     def compress_templates(self):
@@ -556,27 +559,27 @@ class deconvGPU(object):
             norm[i] = np.sum(np.square(self.temps.transpose(1,0,2)[:, self.vis_chan[:,i], i]))
         
         #move data to gpu
-        self.norm = torch.from_numpy(norm).float().to(device)
+        self.norm = torch.from_numpy(norm).float().cuda()
         
         # load vis chans on gpu
         self.vis_chan_gpu=[]
         for k in range(self.vis_chan.shape[1]):
-            self.vis_chan_gpu.append(torch.from_numpy(np.where(self.vis_chan[:,k])[0]).long().to(device))
+            self.vis_chan_gpu.append(torch.from_numpy(np.where(self.vis_chan[:,k])[0]).long().cuda())
         self.vis_chan = self.vis_chan_gpu
             
         # load vis_units onto gpu
         self.vis_units_gpu=[]
         for k in range(self.vis_units.shape[1]):
-            self.vis_units_gpu.append(torch.FloatTensor(np.where(self.vis_units[k])[0]).long().to(device))
+            self.vis_units_gpu.append(torch.FloatTensor(np.where(self.vis_units[k])[0]).long().cuda())
         self.vis_units = self.vis_units_gpu
         
         # move svd items to gpu
         if self.svd_flag:
             self.n_rows = self.temps.shape[2] * self.RANK
-            self.spatial_gpu = torch.from_numpy(self.spatial.reshape([self.n_rows, -1])).float().to(device)
-            self.singular_gpu = torch.from_numpy(self.singular.reshape([-1, 1])).float().to(device)
+            self.spatial_gpu = torch.from_numpy(self.spatial.reshape([self.n_rows, -1])).float().cuda()
+            self.singular_gpu = torch.from_numpy(self.singular.reshape([-1, 1])).float().cuda()
             self.temporal_gpu = np.flip(self.temporal,1)
-            self.filters_gpu = torch.from_numpy(self.temporal_gpu.transpose([0, 2, 1]).reshape([self.n_rows, -1])).float().to(device)[None,None]
+            self.filters_gpu = torch.from_numpy(self.temporal_gpu.transpose([0, 2, 1]).reshape([self.n_rows, -1])).float().cuda()[None,None]
 
   
     def load_data(self, chunk_id):
@@ -596,8 +599,8 @@ class deconvGPU(object):
         
         self.offset = self.reader.idx_list[chunk_id, 0] - self.reader.buffer
 
-        self.data = torch.from_numpy(self.data_cpu).float().to(device)
-        torch.cuda.synchronize()
+        self.data = torch.from_numpy(self.data_cpu).float().cuda()
+        #torch.cuda.synchronize()
         #print ("Input size: ",self.data.shape, int(sys.getsizeof(self.data.astype(np.float32))/1E6), "MB")
         if self.verbose:
 
@@ -614,14 +617,14 @@ class deconvGPU(object):
 
         # transfer data to GPU
         self.obj_gpu = torch.zeros((self.temps.shape[2], self.data.shape[1]+self.STIME-1),
-                                       dtype=torch.float, device='cuda')
+                                   dtype=torch.float).cuda()
             
         # make objective using full rank (i.e. no SVD)
         if self.svd_flag==False:
             
             #traces = torch.from_numpy(self.data).to(device) 
             traces = self.data
-            temps = torch.from_numpy(self.temps).to(device)
+            temps = torch.from_numpy(self.temps).cuda()
             for i in range(self.K):
                 self.obj_gpu[i,:] = nn.functional.conv1d(traces[None, self.vis_chan[i],:], 
                                                          temps[None,self.vis_chan[i],:,i],
@@ -632,7 +635,6 @@ class deconvGPU(object):
          
             # move data to gpu
             data_gpu = self.data
-
             # U_ x H_ (spatial * vals)
             # looping over ranks
             for r in range(self.RANK):
@@ -655,8 +657,7 @@ class deconvGPU(object):
         # adaptive value 
         else:
             self.obj_gpu-= 1.25*self.norm
-            
-        
+
         if self.verbose:
             print ("Total time obj func (run every chunk): ", np.round(dt.datetime.now().timestamp()-start,2),"sec")
             print ("---------------------------------------")
@@ -667,7 +668,7 @@ class deconvGPU(object):
     def set_objective_infinities(self):
         
         self.inf_thresh = -1E10
-        zero_trace = torch.zeros(self.obj_gpu.shape[1],dtype=torch.float, device='cuda')
+        zero_trace = torch.zeros(self.obj_gpu.shape[1],dtype=torch.float).cuda()
         
         # loop over all templates and set to -Inf
         for k in range(self.obj_gpu.shape[0]):
@@ -815,7 +816,7 @@ class deconvGPU(object):
         #np.save('/home/cat/trips.npy', self.threePts.cpu().data.numpy())
         self.shift_from_quad_fit_3pts_flat_equidistant_constants(self.threePts.transpose(0,1))
 
-        
+
     # compute shift for subtraction in objective function space
     def shift_from_quad_fit_3pts_flat_equidistant_constants(self, pts):
         ''' find x-shift after fitting quadratic to 3 points

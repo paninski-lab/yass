@@ -50,6 +50,9 @@ resources:
       type: [integer, string]
       required: True
       default: 1
+    n_gpu_processors:
+      type: integer
+      default: 1
 
 recordings:
   type: dict
