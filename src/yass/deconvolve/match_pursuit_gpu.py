@@ -699,7 +699,7 @@ class deconvGPU(object):
         self.n_iter=0
         for k in range(self.max_iter):
             if False:
-                np.save('/media/cat/2TB/liam/49channels/nonoise_deconvonly/tmp/block_2/deconv/objectives/objective_'+
+                np.save('/media/cat/2TB/liam/49channels/data1_allset/tmp/block_2/deconv/objectives/objective_'+
                     str(self.n_iter)+'.npy', self.obj_gpu.cpu().data.numpy())
                 
             # **********************************************
@@ -710,14 +710,17 @@ class deconvGPU(object):
             ## test if trehsold reached; 
             ## Cat: TODO: this info might already be availble from above function; don't search again!
             #  Cat: TODO: also, seems like threshold gets stuck on artifact peaks; FIX THIS
-            t_max,_ = torch.max(self.gpu_max[self.lockout_window:-self.lockout_window],0)
-            #t_max,_ = torch.max(self.gpu_max[200:-200],0)
-            if t_max<self.deconv_thresh:
-                if self.verbose:
-                    print ("... threshold reached, exiting...")
-                break
+            #t_max,_ = torch.max(self.gpu_max[self.lockout_window:-self.lockout_window],0)
+            #self.gpu_max, self.neuron_ids = torch.max(self.obj_gpu, 0)
 
-            elif self.spike_times.shape[0]==0:
+            # Cat: TODO: Is this required?  find_peaks function already checks this...
+            #t_max,_ = torch.max(self.gpu_max[200:-200],0)
+            #if self.gpu_max<self.deconv_thresh:
+            #    if self.verbose:
+            #        print ("... threshold reached, exiting...")
+            #    break
+
+            if self.spike_times.shape[0]==0:
                 if self.verbose:
                     print ("... no detected spikes, exiting...")
                 break                
@@ -845,8 +848,8 @@ class deconvGPU(object):
         #       output:  1D array = relative peaks across time for given lockout_window
         # Cat: TODO: this may atually crash if a spike is located in exactly the 1 time step bewteen buffer and 2 xlockout widnow
         window_maxima = torch.nn.functional.max_pool1d_with_indices(self.gpu_max.view(1,1,-1), 
-                                                                    self.lockout_window*2, 1, 
-                                                                    padding=self.lockout_window)[1].squeeze()
+                                                                    self.lockout_window, 1, 
+                                                                    padding=self.lockout_window//2)[1].squeeze()
         candidates = window_maxima.unique()
         self.spike_times = candidates[(window_maxima[candidates]==candidates).nonzero()]
        
@@ -864,14 +867,24 @@ class deconvGPU(object):
         #       and last 120 timesteps
         #      obj function is usually rec_len + buffer*2 + lockout_window
         #                   e.g. 100000 + 200*2 + 60 = 100460
-        idx1 = torch.where((self.spike_times>self.lockout_window) &
+        
+        # original window
+        if False:
+            idx1 = torch.where((self.spike_times>self.lockout_window) &
                            #(self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
                            (self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window*2)),
-        #idx1 = torch.where(self.spike_times>self.lockout_window,
                            self.spike_times*0+1, 
                            self.spike_times*0)
+        else:
+            idx1 = torch.where((self.spike_times>self.lockout_window) &
+                                (self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
+                                self.spike_times*0+1, 
+                                self.spike_times*0)
+
+
         idx2 = torch.nonzero(idx1)[:,0]
         self.spike_times = self.spike_times[idx2]
+        #print ("self.spke_times: ", self.spike_times[-10:], self.obj_gpu.shape)
 
         # save only neuron ids for spikes to be deconvolved
         self.neuron_ids = self.neuron_ids[self.spike_times]
@@ -920,8 +933,6 @@ class deconvGPU(object):
                                   fill_value=-self.fill_value)
 
         torch.cuda.synchronize()
-
-
             
         return (dt.datetime.now().timestamp()-start)
                      

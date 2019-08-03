@@ -200,7 +200,7 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.scd_n_additions = 3       # number of addition steps to be done for every loop
     
     # this can turn off the superresolution alignemnt as an option
-    d_gpu.superres_shift = False
+    d_gpu.superres_shift = True
     
     # parameter allows templates to be updated forward (i.e. templates
     #       are updated based on spikes in previous chunk)
@@ -227,6 +227,10 @@ def deconv_ONgpu2(fname_templates_in,
     # add reader
     d_gpu.reader = reader
     
+    # enforce broad buffer
+    d_gpu.reader.buffer=1000
+
+
     # ****************************************************************
     # *********************** INITIALIZE DECONV **********************
     # ****************************************************************
@@ -254,7 +258,6 @@ def deconv_ONgpu2(fname_templates_in,
     wfs_array = []
     n_spikes_array = []
     
-    chunk_id = 0
     
     # determine if yass is recovering from crash by reading last state
     #   if state exists, then recover from there.
@@ -271,6 +274,10 @@ def deconv_ONgpu2(fname_templates_in,
                 
 
     # loop until deconv done;
+    #***********************************************************
+    #********************* MAIN DECONV LOOP ********************
+    #***********************************************************
+    chunk_id = 0
     while True:
         # keep track of chunk being deconved and time_index
         d_gpu.chunk_id = chunk_id
@@ -354,7 +361,11 @@ def deconv_ONgpu2(fname_templates_in,
         if chunk_id>=reader.n_batches:
             break
         
-
+        # exit when finished reading;
+        #if chunk_id>3:
+        #    break
+        
+        
     # ****************************************************************
     # *********************** GATHER SPIKE TRAINS ********************
     # ****************************************************************
@@ -382,22 +393,29 @@ def deconv_ONgpu2(fname_templates_in,
     spike_train = [np.zeros((0,2),'int32')]
     shifts = []
     for chunk_id in tqdm(range(reader.n_batches)):
+    #for chunk_id in tqdm(range(4)):
         #fname = os.path.join(d_gpu.seg_dir,str(chunk_id).zfill(5)+'.npz')
         time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
         fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
 
         data = np.load(fname)
         
+        # load files for every deconv iteration in each chunk
         spike_array = data['spike_array']
         neuron_array = data['neuron_array']
         offset_array = data['offset_array']
         shift_list = data['shift_list']
+        #print ("")
+        #print ("")
+        
         for p in range(len(spike_array)):
             spike_times = spike_array[p].cpu().data.numpy()
-            idx_keep = np.logical_and(spike_times >= buffer_size,
-                                      spike_times < batch_size+buffer_size)
-            idx_keep = np.where(idx_keep)[0]
-            temp=np.zeros((len(idx_keep),2), 'int32')
+            #print ("spike_times; ", spike_times[:5], spike_times[-5:], 
+            #       " buffer: ", buffer_size, " offset_array: ", offset_array[p])
+            idx_keep = np.where(np.logical_and(spike_times >= buffer_size,
+                                      spike_times < batch_size+buffer_size))[0]
+            #idx_keep = np.where(idx_keep)[0]
+            temp=np.zeros((idx_keep.shape[0],2), 'int32')
             temp[:,0]=spike_times[idx_keep]+offset_array[p]
             temp[:,1]=neuron_array[p].cpu().data.numpy()[idx_keep]
 
