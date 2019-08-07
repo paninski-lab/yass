@@ -112,7 +112,7 @@ def residual_ONgpu(recordings_filename,
     reader = READER(recordings_filename,
                     recording_dtype,
                     CONFIG,
-                    CONFIG.resources.n_sec_chunk_gpu,
+                    CONFIG.resources.n_sec_chunk_gpu_deconv,
                     chunk_sec=chunk_sec)
                     
     RESIDUAL_GPU2(reader,

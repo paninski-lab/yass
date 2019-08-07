@@ -106,7 +106,7 @@ class deconvGPU(object):
         self.fname_templates = fname_templates
         
         # number of seconds to load from recording
-        self.n_sec = self.CONFIG.resources.n_sec_chunk_gpu
+        self.n_sec = self.CONFIG.resources.n_sec_chunk_gpu_deconv
         
         # Cat: TODO: Load sample rate from disk
         self.sample_rate = self.CONFIG.recordings.sampling_rate
@@ -120,6 +120,11 @@ class deconvGPU(object):
         
         # 
         self.fill_value = 1E6
+
+        # refractory period
+        # TODO: move to config
+        refrac_ms = 1
+        self.refractory = int(self.CONFIG.recordings.sampling_rate/1000*refrac_ms)
 
         # length of conv filter
         #self.n_times = torch.arange(-self.lockout_window,self.n_time,1).long().cuda()
@@ -246,7 +251,7 @@ class deconvGPU(object):
         self.temp_temp_cpp = None
 
         #fname = os.path.join(self.svd_dir,'bsplines_'+
-        #          str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npy')
+        #          str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
                   
         #if os.path.exists(fname)==False:
             # make initial lists of templates
@@ -293,7 +298,7 @@ class deconvGPU(object):
 
 
         #fname = os.path.join(self.svd_dir,'bsplines_inverted_'+
-        #          str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npy')
+        #          str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
         
         # if os.path.exists(fname)==False:
             # # make initial lists of templates
@@ -355,19 +360,19 @@ class deconvGPU(object):
         print ("  making temp_temp filters (todo: move to GPU)")
         if self.update_templates_backwards:
             fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+
-                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npy')
+                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
             fname_inverted = os.path.join(self.svd_dir,'temp_temp_sparse_svd_inverted_'+
-                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npy')
+                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
             fname_refractory = os.path.join(self.svd_dir,'temp_temp_sparse_svd_refractory'+
-                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npy')
+                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
                                     
         else:
             fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+
-                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '.npy')            
+                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
             fname_inverted = os.path.join(self.svd_dir,'temp_temp_sparse_svd_inverted_'+
-                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '.npy')  
+                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
             fname_refractory = os.path.join(self.svd_dir,'temp_temp_sparse_svd_refractory_'+
-                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '.npy')            
+                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
         
         if os.path.exists(fname)==False:
 
@@ -390,7 +395,7 @@ class deconvGPU(object):
                                               self.update_templates_backwards,
                                               self.svd_dir,
                                               self.chunk_id,
-                                              self.CONFIG.resources.n_sec_chunk_gpu,
+                                              self.CONFIG.resources.n_sec_chunk_gpu_deconv,
                                               self.vis_chan,
                                               self.unit_overlap,
                                               self.RANK,
@@ -411,7 +416,7 @@ class deconvGPU(object):
                                                       self.update_templates_backwards,
                                                       self.svd_dir,
                                                       self.chunk_id,
-                                                      self.CONFIG.resources.n_sec_chunk_gpu,
+                                                      self.CONFIG.resources.n_sec_chunk_gpu_deconv,
                                                       self.vis_chan,
                                                       self.unit_overlap,
                                                       self.RANK,
@@ -517,10 +522,10 @@ class deconvGPU(object):
         #      can just overwrite all the svd stuff every template update
         if self.update_templates_backwards:
             fname = os.path.join(self.svd_dir,'templates_svd_'+
-                      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '_1.npz')
+                      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npz')
         else:
             fname = os.path.join(self.svd_dir,'templates_svd_'+
-                      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '.npz')
+                      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npz')
             
         if os.path.exists(fname)==False:
    
@@ -591,7 +596,7 @@ class deconvGPU(object):
         # Old way of buffering using zeros
         # if False:
             # self.buffer=200
-            # self.chunk_len = (self.CONFIG.resources.n_sec_chunk_gpu*self.CONFIG.recordings.sampling_rate)
+            # self.chunk_len = (self.CONFIG.resources.n_sec_chunk_gpu_deconv*self.CONFIG.recordings.sampling_rate)
             # self.data = np.zeros((self.N_CHAN, self.buffer*2+self.chunk_len))
         # else:
         self.data_cpu = self.reader.read_data_batch(
@@ -916,7 +921,7 @@ class deconvGPU(object):
             deconv.refrac_fill(energy=self.obj_gpu,
                                   spike_times=spike_times,
                                   spike_ids=spike_temps,
-                                  fill_length=self.n_time,  # variable fill length here
+                                  fill_length=self.refractory*2+1,  # variable fill length here
                                   fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
                                   fill_value=-self.fill_value)
 
@@ -992,7 +997,7 @@ class deconvGPU(object):
             deconv.refrac_fill(energy=self.obj_gpu,
                               spike_times=spike_times,
                               spike_ids=spike_temps,
-                              fill_length=self.n_time,  # variable fill length here
+                              fill_length=self.refractory*2+1,  # variable fill length here
                               fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
                               fill_value=self.fill_value)
                               
@@ -1057,7 +1062,7 @@ class deconvGPU2(object):
         # self.fname_templates = fname_templates
         
         # # number of seconds to load from recording
-        # self.n_sec = self.CONFIG.resources.n_sec_chunk_gpu
+        # self.n_sec = self.CONFIG.resources.n_sec_chunk_gpu_deconv
         
         # # Cat: TODO: Load sample rate from disk
         # self.sample_rate = self.CONFIG.recordings.sampling_rate
@@ -1455,7 +1460,7 @@ class deconvGPU2(object):
         # # Old way of buffering using zeros
         # # if False:
             # # self.buffer=200
-            # # self.chunk_len = (self.CONFIG.resources.n_sec_chunk_gpu*self.CONFIG.recordings.sampling_rate)
+            # # self.chunk_len = (self.CONFIG.resources.n_sec_chunk_gpu_deconv*self.CONFIG.recordings.sampling_rate)
             # # self.data = np.zeros((self.N_CHAN, self.buffer*2+self.chunk_len))
         # # else:
         # self.data_cpu = self.reader.read_data_batch(

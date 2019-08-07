@@ -56,7 +56,7 @@ class RESIDUAL_GPU(object):
         data_dir = self.output_directory
 
         #
-        rec_len = self.CONFIG.resources.n_sec_chunk_gpu
+        rec_len = self.CONFIG.resources.n_sec_chunk_gpu_deconv
 
         # Cat: TODO: read buffer from disk
         self.buffer = 200
@@ -93,7 +93,7 @@ class RESIDUAL_GPU(object):
         self.waveform_len = self.CONFIG.spike_size
 
         # compute chunks of data to be processed
-        n_sec = self.CONFIG.resources.n_sec_chunk_gpu
+        n_sec = self.CONFIG.resources.n_sec_chunk_gpu_deconv
         chunk_len = n_sec*self.CONFIG.recordings.sampling_rate
         rec_len = self.CONFIG.rec_len
 
@@ -430,7 +430,7 @@ class RESIDUAL_GPU2(object):
         batch_id=0
         for chunk in tqdm(self.reader.idx_list):
             
-            time_sec = (batch_id*self.CONFIG.resources.n_sec_chunk_gpu)
+            time_sec = (batch_id*self.CONFIG.resources.n_sec_chunk_gpu_deconv)
                             
             # updated templates options
             if ((self.update_templates) and 

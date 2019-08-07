@@ -203,7 +203,7 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.scd_n_additions = 3       # number of addition steps to be done for every loop
     
     # this can turn off the superresolution alignemnt as an option
-    d_gpu.superres_shift = False
+    d_gpu.superres_shift = True
     
     # parameter allows templates to be updated forward (i.e. templates
     #       are updated based on spikes in previous chunk)

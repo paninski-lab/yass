@@ -21,7 +21,7 @@ def make_CONFIG2(CONFIG):
     CONFIG2.resources.multi_processing = CONFIG.resources.multi_processing
     CONFIG2.resources.n_sec_chunk = CONFIG.resources.n_sec_chunk
     CONFIG2.resources.n_gpu_processors = CONFIG.resources.n_gpu_processors
-    CONFIG2.resources.n_sec_chunk_gpu = CONFIG.resources.n_sec_chunk_gpu
+    CONFIG2.resources.n_sec_chunk_gpu_deconv = CONFIG.resources.n_sec_chunk_gpu_deconv
 
     CONFIG2.data.root_folder = CONFIG.data.root_folder
     CONFIG2.data.geometry = CONFIG.data.geometry
