@@ -197,7 +197,7 @@ def deconv_ONgpu2(fname_templates_in,
     
     # Stochastic gradient descent option
     # Cat: TODO: move these and other params to CONFIG
-    d_gpu.scd = False
+    d_gpu.scd = True
     d_gpu.scd_max_iteration = 1000  # maximum iteration number from which to grab spikes
                                     # smaller means grabbing spikes from earlier (i.e. larger SNR units)
     d_gpu.scd_n_additions = 3       # number of addition steps to be done for every loop
@@ -219,17 +219,19 @@ def deconv_ONgpu2(fname_templates_in,
     else:
         d_gpu.update_templates_backwards = 0        
         
-    # update tempalte time chunk
+    # update template time chunk; in seconds
     # Cat: TODO: read from CONFIG file
     d_gpu.template_update_time = 30
 
-
-    # additional parameter that tracks the save state of deconv 
-    recursion_time = 1E10  # dummy value
+    # dummy flag that tracks the save state of deconv 
+    recursion_time = 1E10 
         
     # add reader
     d_gpu.reader = reader
     
+    # enforce broad buffer
+    d_gpu.reader.buffer=1000
+
     # *********************************************************
     # *********************** RUN DECONV **********************
     # *********************************************************
@@ -252,7 +254,6 @@ def deconv_ONgpu2(fname_templates_in,
     if d_gpu.save_objective:
         fname_obj_array = os.path.join(d_gpu.out_dir, 'obj_array.npy')
         np.save(fname_obj_array, d_gpu.obj_array)
-
 
     # ************** SAVE SPIKES & SHIFTS **********************
     print ("  gathering spike trains and shifts from deconv (todo: parallelize)")
@@ -288,6 +289,7 @@ def deconv_ONgpu2(fname_templates_in,
             spike_train.extend(temp)
             shifts.append(shift_list[p].cpu().data.numpy()[idx_keep])
 
+    # Cat; TODO: sepped this up.
     spike_train = np.vstack(spike_train)
     shifts = np.hstack(shifts)
     # add half the spike time back in to get to centre of spike
@@ -297,6 +299,26 @@ def deconv_ONgpu2(fname_templates_in,
     idx = spike_train[:,0].argsort(0)
     spike_train = spike_train[idx]
     shifts = shifts[idx]
+
+    # remove duplicates
+    print ("removing duplicates...")
+    for k in np.unique(spike_train[:,1]):
+        idx = np.where(spike_train[:,1]==k)[0]
+        _,idx2 = np.unique(spike_train[idx,0], return_index=True)
+        idx3 = np.delete(np.arange(idx.shape[0]),idx2)
+        print ("idx: ", idx[:10], idx.shape, " idx2: ", idx2[:10], idx2.shape, 
+              " idx3: ", idx3[:10], idx2.shape,
+              " idx[idx3]: ", idx[idx3])
+        print ("unit: ", k, "  spike train: ", spike_train[idx][:10])
+
+        if idx3.shape[0]>0:
+            spike_train[idx[idx3],0]=-1E6
+        
+        #quit()
+    idx = np.where(spike_train[:,0]==-1E6)[0]
+    spike_train = np.delete(spike_train, idx, 0)
+    shifts = np.delete(shifts, idx, 0)
+        
 
     # save spike train
     print ("  saving spike_train: ", spike_train.shape)
@@ -388,7 +410,6 @@ def run_deconv_with_templates_update(d_gpu, CONFIG, begin):
     wfs_array = []
     n_spikes_array = []
     
-    chunk_id = 0
     
     # determine if yass is recovering from crash by reading last state
     #   if state exists, then recover from there.
@@ -403,6 +424,10 @@ def run_deconv_with_templates_update(d_gpu, CONFIG, begin):
         pass
 
     # loop until deconv done;
+    #***********************************************************
+    #********************* MAIN DECONV LOOP ********************
+    #***********************************************************
+    chunk_id = 0
     while True:
         # keep track of chunk being deconved and time_index
         time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv

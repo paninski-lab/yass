@@ -428,6 +428,7 @@ class RESIDUAL_GPU2(object):
         f = open(self.fname_residual,'wb')
 
         batch_id=0
+        #for chunk in tqdm(self.reader.idx_list):
         for chunk in tqdm(self.reader.idx_list):
             
             time_sec = (batch_id*self.CONFIG.resources.n_sec_chunk_gpu_deconv)
@@ -525,6 +526,8 @@ class RESIDUAL_GPU2(object):
             f.write(temp_out.T)
             
             batch_id+=1
+            #if batch_id > 3:
+            #    break
         f.close()
 
         print ("Total residual time: ", time.time()-t0)

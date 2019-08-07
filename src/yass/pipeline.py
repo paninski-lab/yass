@@ -23,7 +23,7 @@ except ImportError:
 import numpy as np
 import yaml
 import torch
-torch.multiprocessing.set_start_method('spawn')
+torch.multiprocessing.set_start_method('spawn', force=True)
 
 
 import yass
