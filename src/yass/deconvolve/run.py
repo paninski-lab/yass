@@ -197,7 +197,7 @@ def deconv_ONgpu2(fname_templates_in,
     
     # Stochastic gradient descent option
     # Cat: TODO: move these and other params to CONFIG
-    d_gpu.scd = True
+    d_gpu.scd = False
     d_gpu.scd_max_iteration = 1000  # maximum iteration number from which to grab spikes
                                     # smaller means grabbing spikes from earlier (i.e. larger SNR units)
     d_gpu.scd_n_additions = 3       # number of addition steps to be done for every loop
@@ -301,23 +301,23 @@ def deconv_ONgpu2(fname_templates_in,
     shifts = shifts[idx]
 
     # remove duplicates
-    print ("removing duplicates...")
-    for k in np.unique(spike_train[:,1]):
-        idx = np.where(spike_train[:,1]==k)[0]
-        _,idx2 = np.unique(spike_train[idx,0], return_index=True)
-        idx3 = np.delete(np.arange(idx.shape[0]),idx2)
-        print ("idx: ", idx[:10], idx.shape, " idx2: ", idx2[:10], idx2.shape, 
-              " idx3: ", idx3[:10], idx2.shape,
-              " idx[idx3]: ", idx[idx3])
-        print ("unit: ", k, "  spike train: ", spike_train[idx][:10])
-
-        if idx3.shape[0]>0:
-            spike_train[idx[idx3],0]=-1E6
+    #print ("removing duplicates...")
+    #for k in np.unique(spike_train[:,1]):
+    #    idx = np.where(spike_train[:,1]==k)[0]
+    #    _,idx2 = np.unique(spike_train[idx,0], return_index=True)
+    #    idx3 = np.delete(np.arange(idx.shape[0]),idx2)
+    #    print ("idx: ", idx[:10], idx.shape, " idx2: ", idx2[:10], idx2.shape, 
+    #          " idx3: ", idx3[:10], idx2.shape,
+    #          " idx[idx3]: ", idx[idx3])
+    #    print ("unit: ", k, "  spike train: ", spike_train[idx][:10])
+    #
+    #    if idx3.shape[0]>0:
+    #        spike_train[idx[idx3],0]=-1E6
         
-        #quit()
-    idx = np.where(spike_train[:,0]==-1E6)[0]
-    spike_train = np.delete(spike_train, idx, 0)
-    shifts = np.delete(shifts, idx, 0)
+    #    #quit()
+    #idx = np.where(spike_train[:,0]==-1E6)[0]
+    #spike_train = np.delete(spike_train, idx, 0)
+    #shifts = np.delete(shifts, idx, 0)
         
 
     # save spike train

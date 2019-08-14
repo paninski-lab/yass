@@ -5,6 +5,8 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
+from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
+from mpl_toolkits.axes_grid1.colorbar import colorbar
 import yaml
 from tqdm import tqdm
 import parmap
@@ -89,6 +91,7 @@ class Visualizer(object):
         self.n_times_templates, self.n_channels, self.n_units = self.templates.shape
         # compute neighbors for each unit
         self.compute_neighbours()
+        self.compute_propagation()
 
         # load spike train and templates
         self.spike_train = np.load(fname_spike_train)
@@ -115,15 +118,28 @@ class Visualizer(object):
             self.STAs = np.flip(self.STAs, axis=2)
             self.STAs_temporal = np.load(os.path.join(rf_dir, 'STA_temporal.npy'))
             self.gaussian_fits = np.load(os.path.join(rf_dir, 'gaussian_fits.npy'))
+            
             self.idx_single_rf = np.load(os.path.join(rf_dir, 'idx_single_rf.npy'))
             self.idx_no_rf = np.load(os.path.join(rf_dir, 'idx_no_rf.npy'))
             self.idx_multi_rf = np.load(os.path.join(rf_dir, 'idx_multi_rf.npy'))
-            self.rf_labels = np.load(os.path.join(rf_dir, 'labels.npy'))
-            #TODO: generalize
-            self.cell_types = ['Off-Midget','Off-Parasol',
-                               'Off-SM', 'On-Midget','On-Parasol']
+
+            self.cell_types = list(np.load(os.path.join(rf_dir, 'cell_types.npy')))
+            self.cell_types += ['Multiple-Rf', 'No-Rf']
+
+            if os.path.exists(os.path.join(rf_dir, 'labels_new.npy')):
+                self.rf_labels = np.load(os.path.join(rf_dir, 'labels_new.npy'))
+            else:
+                self.rf_labels = np.load(os.path.join(rf_dir, 'labels.npy'))
+            self.idx_multi_rf = self.idx_multi_rf[
+                self.rf_labels[self.idx_multi_rf] == -1]
+            self.idx_no_rf = self.idx_no_rf[
+                self.rf_labels[self.idx_no_rf] == -1]
+            self.rf_labels[self.idx_multi_rf] = len(self.cell_types) - 2
+            self.rf_labels[self.idx_no_rf] = len(self.cell_types) - 1
+            self.rf_labels[self.rf_labels== -1] = len(self.cell_types) - 1
+
             self.stim_size = np.load(os.path.join(rf_dir, 'stim_size.npy'))
-            
+
             max_t = np.argmax(np.abs(self.STAs_temporal[:,:,1]), axis=1)
             self.sta_sign = np.sign(self.STAs_temporal[
                 np.arange(self.STAs_temporal.shape[0]),max_t, 1])
@@ -138,7 +154,24 @@ class Visualizer(object):
             'darkgreen','darkorange','indianred','darkviolet','deepskyblue','greenyellow',
             'peru','cadetblue','forestgreen','slategrey','lightsteelblue','rebeccapurple',
             'darkmagenta','yellow','hotpink']
+        self.cmap = cm = plt.cm.get_cmap('RdYlBu')
         
+    def compute_propagation(self):
+        ptps = self.templates.ptp(0)
+        shifts = np.zeros((self.n_units, self.n_channels))
+        for k in range(self.n_units):
+            temp = self.templates[:, :, k]
+            mc = temp.ptp(0).argmax()
+            arg_min = temp.argmin(0)
+            arg_min -= arg_min[mc]
+
+            vis_chan = np.where(temp.ptp(0) > 0.5)[0]
+            shifts[k][vis_chan] = arg_min[vis_chan]
+            
+        self.shifts = shifts
+        self.max_shift = np.max(self.shifts)
+        self.min_shift = np.min(self.shifts)
+
     def compute_firing_rates(self):
         
         # COMPUTE FIRING RATES
@@ -199,7 +232,7 @@ class Visualizer(object):
             STAs_th = np.copy(self.STAs)
             STAs_th[np.abs(STAs_th) < th] = 0
             STAs_th = STAs_th.reshape(self.n_units, -1)
-            STAs_th = STAs_th*self.sta_sign[:, None]
+            STAs_th = STAs_th#*self.sta_sign[:, None]
 
             norms = np.linalg.norm(STAs_th.T, axis=0)[:, np.newaxis]
             cos = np.matmul(STAs_th, STAs_th.T)/np.matmul(norms, norms.T)
@@ -208,9 +241,16 @@ class Visualizer(object):
             nearest_units_rf = np.zeros((self.n_units, self.n_neighbours), 'int32')
             for j in np.unique(self.rf_labels):
                 units_same_class = np.where(self.rf_labels == j)[0]
-                for k in units_same_class:
-                    idx_ = np.argsort(cos[k][units_same_class])[::-1][1:self.n_neighbours+1]
-                    nearest_units_rf[k] = units_same_class[idx_]
+                if len(units_same_class) > self.n_neighbours+1:
+                    for k in units_same_class:
+                        idx_ = np.argsort(cos[k][units_same_class])[::-1][1:self.n_neighbours+1]
+                        nearest_units_rf[k] = units_same_class[idx_]
+                else:
+                    for k in units_same_class:
+                        other_units = units_same_class[units_same_class != k]
+                        nearest_units_rf[k][:len(other_units)] = other_units
+                        nearest_units_rf[k][len(other_units):] = k
+                        
 
             self.nearest_units_rf = nearest_units_rf
             np.save(fname, self.nearest_units_rf)
@@ -246,17 +286,17 @@ class Visualizer(object):
 
         if self.rf_dir is not None:
             #self.make_rf_plots()
-            self.make_all_rf_templates_plots()
             self.cell_classification_plots()
         else:
             self.make_all_templates_summary_plots()
 
         if self.reader_resid is not None:
-            self.residual_varaince()
+            #self.residual_varaince()
             self.add_residual_qq_plot()
             self.add_raw_resid_snippets()
 
-    def individiual_level_plot(self, units_full_analysis=None, sample=False):
+    def individiual_level_plot(self, units_full_analysis=None, sample=False,
+                               plot_all=True, plot_summary=True):
 
         # saving directory location
         self.save_dir_ind = os.path.join(
@@ -269,10 +309,9 @@ class Visualizer(object):
                 self.save_dir_ind, cell_type)
             if not os.path.exists(dir_tmp):
                 os.makedirs(dir_tmp)
-        dir_tmp = os.path.join(
-            self.save_dir_ind, 'Others')
-        if not os.path.exists(dir_tmp):
-            os.makedirs(dir_tmp)
+
+        if plot_summary:
+            self.make_all_rf_templates_plots()
 
         # which units to do full analysis
         if units_full_analysis is None:
@@ -295,33 +334,36 @@ class Visualizer(object):
         full_analysis[units_full_analysis] = True
         full_analysis = list(full_analysis)
 
-        # file names
         names = []
-        for unit in range(self.n_units):
+        if plot_all:
+            units_in = np.arange(self.n_units)
+        else:
+            units_in = np.copy(units_full_analysis)
+
+            
+        # file names
+        for unit in units_in:
             ptp = str(int(np.round(self.ptps[unit]))).zfill(3)
             name = 'ptp_{}_unit_{}'.format(ptp, unit)
             names.append(name)
         
         if False:
             parmap.map(self.make_individiual_level_plot,
-                       list(np.arange(self.n_units)),
+                       list(units_in),
                        names,
-                       full_analysis,
+                       full_analysis[units_in],
                        processes=3,
                        pm_pbar=True)
         else:
-            for unit in tqdm(range(self.n_units)):
-                self.make_individiual_level_plot(unit,
-                                                 names[unit],
-                                                 full_analysis[unit])
+            for ii in tqdm(range(len(units_in))):
+                self.make_individiual_level_plot(units_in[ii],
+                                                 names[ii],
+                                                 full_analysis[units_in[ii]])
 
     def make_individiual_level_plot(self, unit, name, full_analysis=True):
 
         # cell type
-        if self.rf_labels[unit] != -1:
-            cell_type = self.cell_types[self.rf_labels[unit]]
-        else:
-            cell_type = 'Others'
+        cell_type = self.cell_types[self.rf_labels[unit]]
 
         # save directory
         save_dir = os.path.join(self.save_dir_ind, cell_type)
@@ -338,42 +380,30 @@ class Visualizer(object):
             # template neighbors plots
             neighbor_units = self.nearest_units[unit]
             fname = os.path.join(save_dir, name+'_p2_temp_neigh.png')
-            if cell_type == 'Others':
-                title = 'Unit {}, Template Space Neighbors'.format(unit)
-            else:
-                title = 'Unit {} ({}), Template Space Neighbors'.format(
-                    unit, cell_type)
+            title = 'Unit {} ({}), Template Space Neighbors'.format(
+                unit, cell_type)
             self.make_neighbors_plot(unit, neighbor_units, fname, title)
 
             # rf neighbors plots
             if np.max(np.abs(self.STAs[unit])) > 1.5*self.rf_std:
                 neighbor_units = self.nearest_units_rf[unit]
                 fname = os.path.join(save_dir, name+'_p3_rf_neigh.png')
-                if cell_type == 'Others':
-                    title = 'Unit {}, RF Space Neighbors'.format(unit)
-                else:
-                    title = 'Unit {} ({}), RF Space Neighbors'.format(
-                        unit, cell_type)
+                title = 'Unit {} ({}), RF Space Neighbors'.format(
+                    unit, cell_type)
                 self.make_neighbors_plot(unit, neighbor_units, fname, title)
 
             # xcorr neighbours
             (idx_max, max_vals,
              idx_min, min_vals) = self.compute_neighbours_xcorrs(unit)
             fname = os.path.join(save_dir, name+'_p4_high_xcorr_neigh.png')
-            if cell_type == 'Others':
-                title = 'Unit {}, Xcor Space Neighbors'.format(unit)
-            else:
-                title = 'Unit {} ({}), Xcor Space Neighbors'.format(
-                    unit, cell_type)
+            title = 'Unit {} ({}), Xcor Space Neighbors'.format(
+                unit, cell_type)
             self.make_neighbors_plot(unit, idx_max, fname, title)
 
-            if np.min(min_vals) < -6:
+            if np.min(min_vals) < -10:
                 fname = os.path.join(save_dir, name+'_p5_xcorr_notches.png')
-                if cell_type == 'Others':
-                    title = 'Unit {}, Xcor Notches'.format(unit)
-                else:
-                    title = 'Unit {} ({}), Xcor Notches'.format(
-                        unit, cell_type)
+                title = 'Unit {} ({}), Xcor Notches'.format(
+                    unit, cell_type)
                 self.make_neighbors_plot(unit, idx_min, fname, title)
 
 
@@ -406,15 +436,10 @@ class Visualizer(object):
         gs = gridspec.GridSpec(1, 1, fig)
 
         # add template summary plot
-        if self.rf_labels[unit] != -1:
-            cell_type = self.cell_types[self.rf_labels[unit]]
-        else:
-            cell_type = 'Others'
+        cell_type = self.cell_types[self.rf_labels[unit]]
         fr = str(np.round(self.f_rates[unit], 1))
         ptp = str(np.round(self.ptps[unit], 1))
         title = "Template of Unit {}, {}Hz, {}SU, Max Channel: {}".format(unit, fr, ptp, mc)
-        if cell_type != 'Others':
-            title =  title +', '+cell_type
 
         gs = self.add_template_plot(gs, 0, 0,
                         [unit], [self.colors[0]],
@@ -449,7 +474,7 @@ class Visualizer(object):
 
         n_rows = 3
         if self.reader_resid is not None:
-            n_rows += 1
+            n_rows += 2
         n_cols = len(neigh_chans)
 
         chan_order = np.argsort(template.ptp(0))[::-1]
@@ -477,25 +502,39 @@ class Visualizer(object):
                 plt.xlabel('Time (ms)', fontsize=fontsize)
                 plt.ylabel('Voltage (S.U.)', fontsize=fontsize)
 
-        # add clean wfs
-        for j, c in enumerate(chan_order):
-            count += 1
-            plt.subplot(n_rows, n_cols, count)
-            plt.plot(x_range, wf_resid[:, :, c][idx_plot].T, color='k', alpha=0.1)
-            plt.plot(x_range, template[:,c], color='r', linewidth=2)
-            if j == 0:
-                title = 'Clean Waveforms'
-                plt.title(title, fontsize=fontsize)
-
-            if j == 0:
-                plt.xlabel('Time (ms)', fontsize=fontsize)
-                plt.ylabel('Voltage (S.U.)', fontsize=fontsize)
-
         if wf_resid is None:
             count = 2
         else:
-            count = 3
+            # add clean wfs
+            for j, c in enumerate(chan_order):
+                count += 1
+                plt.subplot(n_rows, n_cols, count)
+                plt.plot(x_range, wf_resid[:, :, c][idx_plot].T, color='k', alpha=0.1)
+                plt.plot(x_range, template[:,c], color='r', linewidth=2)
+                if j == 0:
+                    title = 'Clean Waveforms'
+                    plt.title(title, fontsize=fontsize)
+                    plt.xlabel('Time (ms)', fontsize=fontsize)
+                    plt.ylabel('Voltage (S.U.)', fontsize=fontsize)
 
+
+            # add residual variance
+            residual_std = np.std(wf_resid, axis=0)
+            max_std = np.max(residual_std)
+            min_std = np.min(residual_std)
+            for j, c in enumerate(chan_order):
+                count += 1
+                plt.subplot(n_rows, n_cols, count)
+                plt.plot(x_range, residual_std[:, c], color='k', linewidth=2)
+                plt.ylim([0.95*min_std, 1.05*max_std])
+                if j == 0:
+                    title = 'STD. of Residuals'
+                    plt.title(title, fontsize=fontsize)
+                    plt.xlabel('Time (ms)', fontsize=fontsize)
+                    plt.ylabel('STD', fontsize=fontsize)
+            count = 4
+
+        # ptp vs spike times
         plt.subplot(n_rows, 1, count)
         plt.scatter(spt, spikes_ptp, c='k')
         plt.plot([np.min(spt), np.max(spt)], [template_ptp, template_ptp], 'r')
@@ -504,6 +543,7 @@ class Visualizer(object):
         plt.xlabel('Time (seconds)', fontsize=fontsize)
         plt.ylabel('PTP (S.U.)', fontsize=fontsize)
 
+        # ptp vs spike times (clean waveforms)
         plt.subplot(n_rows, 1, count+1)
         plt.scatter(spt, spikes_ptp_clean, c='k')
         plt.plot([np.min(spt), np.max(spt)], [template_ptp, template_ptp], 'r')
@@ -515,8 +555,7 @@ class Visualizer(object):
         fr = np.round(float(self.f_rates[unit]), 1)
         ptp = np.round(float(self.ptps[unit]), 1)
         suptitle = 'Unit: {}, {}Hz, {}SU'.format(unit, fr, ptp)
-        if self.rf_labels[unit] != -1:
-            suptitle = suptitle + ', ' + self.cell_types[self.rf_labels[unit]]
+        suptitle = suptitle + ', ' + self.cell_types[self.rf_labels[unit]]
         plt.suptitle(suptitle,
                      fontsize=int(1.5*fontsize))
         plt.tight_layout(rect=[0, 0.03, 1, 0.95])
@@ -827,7 +866,7 @@ class Visualizer(object):
                 if ii == 0:
                     title = 'Denoised Waveforms'
                     ax.set_title(title, fontsize=self.fontsize)
-        
+
         return gs
     
     def add_residual_template(self, gs, x_loc, unit, spt=None):
@@ -885,17 +924,17 @@ class Visualizer(object):
         return chans_plot
 
     def add_template_plot(self, gs, x_loc, y_loc, units, colors, chan_idx=None, title=None):
-        
+
+        if chan_idx is None:
+            chan_idx = np.arange(self.n_channels)
+
         # plotting parameters
         time_scale=1.8
-        max_ptp = np.max(self.ptps[units])
+        max_ptp = np.max(self.templates[:, :, units][:, chan_idx].ptp(0))
         scale= 100/max_ptp
         alpha=0.4
         
         R = self.templates.shape[0]
-        
-        if chan_idx is None:
-            chan_idx = np.arange(self.n_channels)
 
         ax = plt.subplot(gs[x_loc, y_loc])
         
@@ -928,9 +967,7 @@ class Visualizer(object):
 
         temp = self.templates[:,:,unit]
         ptp = temp.ptp(0)
-        mc = ptp.argmax()
-        min_point = np.argmin(temp, 0)
-        min_point -= min_point[mc]
+        min_point = self.shifts[unit]
 
         vis_chan = ptp > 0.5
         ptp = ptp[vis_chan]
@@ -940,7 +977,11 @@ class Visualizer(object):
 
         plt.scatter(self.geom[vis_chan, 0],
                     self.geom[vis_chan, 1],
-                    s=ptp*scale, c=min_point)
+                    s=ptp*scale, c=min_point,
+                    vmin=self.min_shift,
+                    vmax=self.max_shift,
+                    cmap=self.cmap
+                   )
 
         np.max(self.geom[:,0]) + 30
         plt.xlim([np.min(self.geom[:,0]) - 30, np.max(self.geom[:,0]) + 30])
@@ -952,8 +993,10 @@ class Visualizer(object):
 
         if add_color_bar:
             cbar = plt.colorbar(pad=0.01, fraction=0.05)
-            ticks = cbar.get_ticks()
-            ticklabels = ticks/self.sampling_rate*1000
+            #ticks = cbar.get_ticks()
+            ticks = np.arange(self.min_shift, self.max_shift+1, 10)
+            ticklabels = np.round((
+                ticks/self.sampling_rate*1000).astype('float32'), 1)
             cbar.set_ticks(ticks)
             cbar.set_ticklabels(ticklabels)
 
@@ -973,7 +1016,7 @@ class Visualizer(object):
         
         ax = plt.subplot(gs[x_loc, y_loc])
 
-        img = self.sta_sign[unit]*self.STAs[unit].T
+        img = self.STAs[unit].T #*self.sta_sign[unit] 
         vmax = np.max(np.abs(img))
         vmin = -vmax
         ax.imshow(img, vmin=vmin, vmax=vmax)
@@ -1054,7 +1097,7 @@ class Visualizer(object):
             ax.set_title(title, fontsize=self.fontsize)
 
         if add_label:
-            ax.set_xlabel('time (A.U.)', fontsize=self.fontsize)
+            ax.set_xlabel('time (frames)', fontsize=self.fontsize)
 
         return gs
 
@@ -1094,10 +1137,10 @@ class Visualizer(object):
         y_circle = np.sin(circle_samples)
 
         # Get Gaussian parameters
-        angle = Gaussian_params[i_cell,4]
-        sd = Gaussian_params[i_cell,2:4]
-        x_shift = self.stim_size[1] - Gaussian_params[i_cell,0]
-        y_shift = Gaussian_params[i_cell,1]
+        angle = -Gaussian_params[i_cell,5]
+        sd = Gaussian_params[i_cell,3:5]
+        x_shift = self.stim_size[1] - Gaussian_params[i_cell,1]
+        y_shift = Gaussian_params[i_cell,2]
 
         R = np.asarray([[np.cos(angle), np.sin(angle)],[-np.sin(angle), np.cos(angle)]])
         L = np.asarray([[sd[0], 0],[0, sd[1]]])
@@ -1308,14 +1351,11 @@ class Visualizer(object):
         fname = os.path.join(self.save_dir, 'firing_rates.png')
         if os.path.exists(fname):
             return
-        
-        cell_types = self.cell_types + ['Others']
-        rf_labels = np.copy(self.rf_labels)
-        rf_labels[rf_labels==-1] = len(cell_types) - 1
-        unique_labels = np.unique(rf_labels)
+
+        unique_labels = np.unique(self.rf_labels)
 
         fontsize = 15
-        n_figs = len(cell_types) - 1
+        n_figs = len(self.cell_types)
         n_cols = 3
         n_rows = int(np.ceil(n_figs/n_cols))
         max_fr = np.max(self.f_rates)
@@ -1323,18 +1363,22 @@ class Visualizer(object):
 
         x_max = int(np.max(np.log(self.ptps))) + 1
         x_ticks = np.round(np.exp(np.arange(0, x_max+1)), 1)
+        
+        y_max = int(np.max(np.log(self.f_rates))) + 1
+        y_ticks = np.round(np.exp(np.arange(0, y_max+1)), 1)
 
         for ii, label in enumerate(unique_labels):
             plt.subplot(n_rows, n_cols, ii+1)
-            idx_ = rf_labels == label
+            idx_ = self.rf_labels == label
             plt.scatter(np.log(self.ptps[idx_]),
-                        self.f_rates[idx_],
+                        np.log(self.f_rates[idx_]),
                         color=self.colors[label],
                         alpha=0.5)
             plt.xticks(np.arange(0, x_max+1), x_ticks)
+            plt.yticks(np.arange(0, y_max+1), y_ticks)
             plt.xlim([-0.5, x_max+0.5])
-            plt.ylim([0, max_fr])
-            plt.title(cell_types[ii], fontsize=fontsize)
+            plt.ylim([-0.5, y_max+0.5])
+            plt.title(self.cell_types[label], fontsize=fontsize)
 
             if ii == 0:
                 plt.ylabel('firing rates', fontsize=fontsize)
@@ -1416,7 +1460,6 @@ class Visualizer(object):
         ptps = self.ptps[units]
         max_var = resid_var.max(1)
         rf_labels = self.rf_labels[units]
-        cell_types = ['Others'] + self.cell_types
         unique_labels = np.unique(rf_labels)
 
         plt.figure(figsize=(15,5))
@@ -1432,7 +1475,7 @@ class Visualizer(object):
         for ii, label in enumerate(unique_labels):
             idx_ = rf_labels == label
             plt.scatter(np.log(ptps[idx_]), max_var[idx_], color=self.colors[label], alpha=0.5)
-            legends.append(mpatches.Patch(color = self.colors[label], label = cell_types[ii]))
+            legends.append(mpatches.Patch(color = self.colors[label], label = self.cell_types[ii]))
         plt.legend(handles=legends, loc='center left', bbox_to_anchor=(1, 0.5), fontsize=self.fontsize)
 
         x_max = int(np.max(np.log(ptps))) + 1
@@ -1533,26 +1576,21 @@ class Visualizer(object):
         if os.path.exists(fname):
             return
 
-        type_names = list(np.copy(self.cell_types))
-        type_names += ['unknown','multiple/no rf']
-
         idx_per_type = []
-        for j in range(5):
-            idx_per_type.append(np.where(self.rf_labels == j)[0])
-        idx_per_type.append(self.idx_single_rf[self.rf_labels[self.idx_single_rf] == -1]) 
-        all_units = np.arange(self.n_units)
-        idx_per_type.append(all_units[~np.in1d(all_units, self.idx_single_rf)])
+        for j in range(len(self.cell_types[:-2])):
+            if self.cell_types[j] != 'Unknown':
+                idx_per_type.append(np.where(self.rf_labels == j)[0])
 
-        plt.figure(figsize=(44,12))
+        plt.figure(figsize=(50, 12))
         for ii, idx in enumerate(idx_per_type):
-            plt.subplot(1,7,ii+1)
+            plt.subplot(1, len(idx_per_type), ii+1)
             for unit in idx:
                 # also plot all in one plot
                 plotting_data = self.get_circle_plotting_data(unit, self.gaussian_fits)
                 plt.plot(plotting_data[0],plotting_data[1], 'k', alpha=0.4)
                 plt.xlim([0, self.stim_size[1]])
                 plt.ylim([0, self.stim_size[0]])
-            plt.title(type_names[ii], fontsize=30)
+            plt.title(self.cell_types[ii], fontsize=30)
         plt.suptitle('RF Contours by Cell Types', fontsize=50)
         plt.tight_layout(rect=[0, 0.03, 1, 0.9])
         plt.savefig(fname, bbox_inches='tight', dpi=100)
@@ -1566,16 +1604,9 @@ class Visualizer(object):
 
         n_units = self.STAs.shape[0]
 
-        type_names = list(np.copy(self.cell_types))
-        type_names += ['unknown','multiple rf', 'no rf']
-
         idx_per_type = []
-        for j in range(5):
+        for j in range(len(self.cell_types)):
             idx_per_type.append(np.where(self.rf_labels == j)[0])
-        idx_per_type.append(self.idx_single_rf[self.rf_labels[self.idx_single_rf] == -1])
-        all_units = np.arange(n_units)
-        idx_per_type.append(self.idx_multi_rf)
-        idx_per_type.append(self.idx_no_rf)
 
         n_cols = 10
 
@@ -1598,7 +1629,7 @@ class Visualizer(object):
 
             # add label
             ax = plt.subplot(gs[row, 0])
-            plt.text(0.5, 0.5, type_names[ii],
+            plt.text(0.5, 0.5, self.cell_types[ii],
                      horizontalalignment='center',
                      verticalalignment='center',
                      fontsize=60,
@@ -1634,17 +1665,10 @@ class Visualizer(object):
             return
 
         n_units = self.n_units
-
-        type_names = list(np.copy(self.cell_types))
-        type_names += ['unknown','multiple rf', 'no rf']
  
         idx_per_type = []
-        for j in range(5):
+        for j in range(len(self.cell_types)):
             idx_per_type.append(np.where(self.rf_labels == j)[0])
-        idx_per_type.append(self.idx_single_rf[self.rf_labels[self.idx_single_rf] == -1]) 
-        all_units = np.arange(n_units)
-        idx_per_type.append(self.idx_multi_rf)
-        idx_per_type.append(self.idx_no_rf)
 
         n_cols = 10
 
@@ -1667,7 +1691,7 @@ class Visualizer(object):
 
             # add label
             ax = plt.subplot(gs[row, 0])
-            plt.text(0.5, 0.5, type_names[ii],
+            plt.text(0.5, 0.5, self.cell_types[ii],
                      horizontalalignment='center',
                      verticalalignment='center',
                      fontsize=60,
@@ -1699,25 +1723,19 @@ class Visualizer(object):
 
 
     def make_all_rf_templates_plots(self):
-
-        type_names = list(np.copy(self.cell_types))
-        type_names += ['unknown','multiple_rf', 'no_rf']
  
         idx_per_type = []
-        for j in range(5):
+        for j in range(len(self.cell_types)):
             idx_per_type.append(np.where(self.rf_labels == j)[0])
-        idx_per_type.append(self.idx_single_rf[self.rf_labels[self.idx_single_rf] == -1]) 
-        idx_per_type.append(self.idx_multi_rf)
-        idx_per_type.append(self.idx_no_rf)
 
         n_cols = 10
         self.fontsize = 20
-        
-        for ii in range(len(type_names)):
+
+        for ii in range(len(self.cell_types)):
             
-            type_name = type_names[ii]
-            
-            fname = os.path.join(self.save_dir,
+            type_name = self.cell_types[ii]
+
+            fname = os.path.join(self.save_dir_ind,
                                  'all_rf_templates_{}.png'.format(type_name))
             if os.path.exists(fname):
                 continue

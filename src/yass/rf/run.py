@@ -14,6 +14,8 @@ from pkg_resources import resource_filename
 
 from yass import read_config
 from yass.template import upsample_resample, shift_chans
+from yass.rf.sta_fit import get_fit_on_sta
+from yass.rf.util import get_rf, get_circle_plotting_data, classifiy_contours
 
 def run():
     """RF computation
@@ -34,12 +36,13 @@ def run():
 
 
 class RF(object):
-    def __init__(self, stim_movie_file, triggers_fname, spike_train_fname, saving_dir, matlab_bin='matlab'):
+    def __init__(self, stim_movie_file, triggers_fname, spike_train_fname,
+                 saving_dir, fname_classification_boundary=None, matlab_bin='matlab'):
         
         # default parameter
         self.n_color_channels = 3
         self.sp_frame_rate = 20000
-        self.data_sample_len = 36000000 # len of white noise data (this script doesn't look at natural scenes)
+        #self.data_sample_len = 36000000 # len of white noise data (this script doesn't look at natural scenes)
         
         self.load_spike_train(spike_train_fname)
         
@@ -53,6 +56,8 @@ class RF(object):
             self.save_dir += '/'
 
         self.matlab_bin = matlab_bin
+
+        self.fname_classification_boundary = fname_classification_boundary
 
         print("spike train:\t{}".format(self.sps.shape))
         print("Number of units:\t{}".format(self.Ncells))
@@ -166,7 +171,7 @@ class RF(object):
                 these_sps = self.sps[self.sps[:,1]==i_cell]
                 these_sps = these_sps[:,0]
                 #spikes before 36000000 are white noise spikes, divide by frame rate to get seconds
-                these_sps = these_sps[these_sps<self.data_sample_len] / float(self.sp_frame_rate)
+                these_sps = these_sps / float(self.sp_frame_rate)
 
                 ## Line up spikes with frames
                 binned_spikes, rr = np.histogram(these_sps,self.frame_times)
@@ -191,30 +196,44 @@ class RF(object):
         else:
             for unit in tqdm(range(len(args_in))):
                 sta_calculation_parallel(args_in[unit])
+                
+        sta_array = np.zeros((Ncells, stim_size[0], stim_size[1],
+                              n_color_channels, STA_temporal_length))
+        for unit in range(Ncells):
+            fname = os.path.join(tmp_dir_sta, 'unit_'+str(unit)+'.mat')
+            sta  = sio.loadmat(fname)['temp_stas']
+            sta_array[unit] = sta
 
-        # run matlab code
-        print('running matlab code')
-        rf_matlab_loc = resource_filename('yass', 'rf/rf_matlab')
-        command = '{} -nodisplay -r \"cd(\'{}\'); fit_sta_liam_parallel(\'{}\', \'{}\'); exit\"'.format(
-            self.matlab_bin, rf_matlab_loc, tmp_dir_sta, tmp_dir_rgc)
-        print(command)
-        os.system(command)
-        print('done running matlab code')
+        ## run matlab code
+        #print('running matlab code')
+        #rf_matlab_loc = resource_filename('yass', 'rf/rf_matlab')
+        #command = '{} -nodisplay -r \"cd(\'{}\'); fit_sta_liam_parallel(\'{}\', \'{}\'); exit\"'.format(
+        #    self.matlab_bin, rf_matlab_loc, tmp_dir_sta, tmp_dir_rgc)
+        #print(command)
+        #os.system(command)
+        #print('done running matlab code')
 
-        STA_spatial = np.zeros((self.Ncells, stim_size[0], stim_size[1], n_color_channels))
-        STA_temporal = np.zeros((self.Ncells, STA_temporal_length, n_color_channels))
-        gaussian_fits = np.zeros((self.Ncells, 5))
-        for unit in unique_ids:
-            fname = os.path.join(tmp_dir_rgc, 'rgc_{}.mat'.format(unit))
-            try:
-                data = scipy.io.loadmat(fname)
-                if 'temp_rf' in data.keys():
-                    STA_spatial[unit] = data['temp_rf']
-                    STA_temporal[unit] = data['fit_tc']
-                    gaussian_fits[unit] = data['temp_fit_params']['fit_params'][0][0][0][:5]
-            except:
-                print('unit {} corrupted'.format(unit))
+        #STA_spatial = np.zeros((self.Ncells, stim_size[0], stim_size[1], n_color_channels))
+        #STA_temporal = np.zeros((self.Ncells, STA_temporal_length, n_color_channels))
+        #gaussian_fits = np.zeros((self.Ncells, 5))
+        #for unit in unique_ids:
+        #    fname = os.path.join(tmp_dir_rgc, 'rgc_{}.mat'.format(unit))
+        #    try:
+        #        data = scipy.io.loadmat(fname)
+        #        if 'temp_rf' in data.keys():
+        #            STA_spatial[unit] = data['temp_rf']
+        #            STA_temporal[unit] = data['fit_tc']
+        #            gaussian_fits[unit] = data['temp_fit_params']['fit_params'][0][0][0][:5]
+        #    except:
+        #        print('unit {} corrupted'.format(unit))
         
+        STA_spatial, STA_temporal, gaussian_fits = get_fit_on_sta(sta_array)
+        
+        # hack for now
+        STA_spatial = np.tile(STA_spatial[:, :, :, None],
+                              (1, 1, 1, n_color_channels))
+        STA_temporal = STA_temporal.transpose(0, 2, 1)
+
         np.save(os.path.join(self.save_dir, 'STA_spatial.npy'), STA_spatial)
         np.save(os.path.join(self.save_dir, 'STA_temporal.npy'), STA_temporal)
         np.save(os.path.join(self.save_dir, 'gaussian_fits.npy'), gaussian_fits)
@@ -222,119 +241,98 @@ class RF(object):
     def detect_multi_rf(self):
         
         STA_spatial = np.load(self.save_dir+'STA_spatial.npy')
+        n_units = STA_spatial.shape[0]
 
-        n_rf = 1
-
-        # loop over all units and compute 
-        rfs_array = []
-        units = np.arange(STA_spatial.shape[0])
-        for unit in units:
-            img = STA_spatial[unit,:,:,1]
-
-            # smooth out img; seems to help overall
-            img_smooth = gaussian_filter(img, sigma=1)
-
-            # compute std over smooth image and threshold for significant pixels
-            std = np.std(img_smooth)
-            std_pixels = np.vstack(np.where(np.abs(img_smooth)>std*3.75))
-
-            # exit if no significant pixels
-            if std_pixels.shape[1]==0:
-                rfs_array.append(0)
-                continue
-
-            # make matrix of significant pixels using euclidean pairwise distance
-            std_pixels = np.array(std_pixels).T
-            dists = cdist(std_pixels, std_pixels)
-
-            # binarize distance matrix
-            thresh = 1.5
-            upper=1
-            lower=0    
-            bin_dists = np.where(dists<thresh, upper, lower)
-
-            # enumerate over number of connected networks
-            G = nx.from_numpy_array(bin_dists)
-            for i, cc in enumerate(nx.connected_components(G)):
-                pass
-
-            rfs_array.append(i+1)
+        n_rfs = np.zeros(n_units)
+        for j in range(n_units):
+            rf = STA_spatial[j][:, :, 1]
+            n_rfs[j] = len(get_rf(rf - np.mean(rf), 2))
 
         # yass
-        idx = np.where(np.array(rfs_array)==n_rf)[0]
+        idx = np.where(n_rfs==1)[0]
         np.save(self.save_dir+'idx_single_rf.npy', idx)
 
-        idx = np.where(np.array(rfs_array)==0)[0]
+        idx = np.where(n_rfs==0)[0]
         np.save(self.save_dir+'idx_no_rf.npy', idx)
 
-        idx = np.where(np.array(rfs_array)>n_rf)[0]
+        idx = np.where(n_rfs > 1)[0]
         np.save(self.save_dir+'idx_multi_rf.npy', idx)
 
-
-    def classification(self):
-
-        # wether the dataset is from 2017 or 2007
-        run_2017 = False
-
+    def load_data_for_classification(self, load_contours=False):
+        
         # load data
-        STA_temporal = np.load(self.save_dir+'STA_temporal.npy')
-        gaussian_fits = np.load(self.save_dir+'gaussian_fits.npy')
-        idx_single_rf = np.load(self.save_dir+'idx_single_rf.npy')
+        sta_spatial = np.load(os.path.join(self.save_dir, 'STA_spatial.npy'))
+        sta_spatial[np.isnan(sta_spatial)] = 0
+        sta_temporal = np.load(os.path.join(self.save_dir, 'STA_temporal.npy'))
+        sta_temporal[np.isnan(sta_temporal)] = 0
+        gaussian_fits = np.load(os.path.join(self.save_dir, 'gaussian_fits.npy'))
 
-        # remove double rf and think contours
-        idx_keep = np.zeros(STA_temporal.shape[0], 'bool')
-        areas = np.zeros(STA_temporal.shape[0])
-        for unit in idx_single_rf:
+        n_units = sta_temporal.shape[0]
 
-            center = gaussian_fits[unit, :2]
-            rad_sd = gaussian_fits[unit, 2:4]
-            rot_angle = gaussian_fits[unit,4]
+        spike_train = self.sps
+        unique_ids, n_spikes = np.unique(spike_train[:,1], return_counts=True)
+        firing_rates = np.zeros(n_units)
+        firing_rates[unique_ids] = n_spikes/(np.ptp(spike_train[:,0])/self.sp_frame_rate)
 
-            # skip neurons with very thin contours
-            if not ((rad_sd[0]<rad_sd[1]/5.) or (rad_sd[1]<rad_sd[0]/5.)):
-                idx_keep[unit] = True
-                areas[unit] = np.pi * rad_sd[0] * rad_sd[1]
-        idx_keep = np.where(idx_keep)[0]
-        
-        # load saved feature spca and gmm params
-        path_to_assets = resource_filename('yass', 'rf/classification')
-        ref = np.load(os.path.join(path_to_assets, 'ref.npy'))
-        if run_2017:
-            temp_pca_compoents = np.load(os.path.join(path_to_assets, 'temp_pca_compoents_2017.npy'))
-            temp_pca_mean = np.load(os.path.join(path_to_assets, 'temp_pca_mean_2017.npy'))
-            pca_compoents = np.load(os.path.join(path_to_assets, 'pca_compoents_2017.npy'))
-            pca_mean = np.load(os.path.join(path_to_assets, 'pca_mean_2017.npy'))
-            gmm_covs = np.load(os.path.join(path_to_assets, 'gmm_covs_2017.npy'))
-            gmm_means = np.load(os.path.join(path_to_assets, 'gmm_means_2017.npy'))
+        max_loc = np.abs(sta_temporal[:,:,1]).argmax(1)
+        sign = np.sign(sta_temporal[np.arange(n_units), max_loc])
+
+        peak_val = np.zeros((n_units, 3)) 
+        for j in range(n_units):
+            sta_ = (sta_spatial[j].reshape(-1, 3))*sign[j][None]
+            peak_val[j] = sta_[np.max(sta_, 1).argmax()]
+        peak_val = peak_val*sign
+        green_val = peak_val[:, 1]
+
+        gaussian_sd = gaussian_fits[:, 3:5]
+
+        if load_contours:
+            contours = np.zeros((n_units, 64, 2))
+            for j in range(n_units):
+                xy = get_circle_plotting_data(j, gaussian_fits)
+                contours[j] = xy.T
         else:
-            temp_pca_compoents = np.load(os.path.join(path_to_assets, 'temp_pca_compoents.npy'))
-            temp_pca_mean = np.load(os.path.join(path_to_assets, 'temp_pca_mean.npy'))
-            pca_compoents = np.load(os.path.join(path_to_assets, 'pca_compoents.npy'))
-            pca_mean = np.load(os.path.join(path_to_assets, 'pca_mean.npy'))
-            gmm_covs = np.load(os.path.join(path_to_assets, 'gmm_covs.npy'))
-            gmm_means = np.load(os.path.join(path_to_assets, 'gmm_means.npy'))
+            contours = None
 
+        return gaussian_sd, green_val, firing_rates, contours
 
-        # get features
-        STA_temporal = align_tc(STA_temporal, ref)
-        STA_temporal = STA_temporal.reshape(STA_temporal.shape[0], -1)
+    def classification(self, fname_classification_boundary=None):
 
-        temp_pc = np.matmul(STA_temporal - temp_pca_mean[None], temp_pca_compoents.T)
-        features = np.hstack((temp_pc[:, :2], np.log(areas[:, None])))
-        features = np.matmul(features - pca_mean[None], pca_compoents.T)
-        features = features[idx_keep]
+        gaussian_sd, green_val, f_rates, _ = self.load_data_for_classification()
         
-        # do classification based on mahalanobis distance
-        feat_centered = (features[None] - gmm_means[:,None])
-        inv_gmm_covs = np.linalg.inv(gmm_covs)
-        maha_dist = np.sqrt(np.sum(np.matmul(feat_centered, inv_gmm_covs)*feat_centered, -1))
+        idx_single = np.load(os.path.join(self.save_dir, 'idx_single_rf.npy'))
+
+        if fname_classification_boundary is None:
+            fname_classification_boundary = self.fname_classification_boundary
+
+        temp = np.load(fname_classification_boundary)
+        sd_mean_noise_th = temp['sd_mean_noise_th']
+        sd_ratio_noise_th = temp['sd_ratio_noise_th']
+        green_noise_th = temp['green_noise_th']
+        midget_on_th = temp['midget_on_th']
+        midget_off_th = temp['midget_off_th']
+        large_on_th = temp['large_on_th']
+        large_off_th = temp['large_off_th']
+        sbc_fr_th = temp['sbc_fr_th']
         
-        labels = np.ones(STA_temporal.shape[0], 'int32')*-1
-        labels_tmp = np.argmin(maha_dist, 0)
-        idx_close = maha_dist.min(0) < 4
-        labels[idx_keep[idx_close]] = labels_tmp[idx_close]
+        labels_single, cell_types = classifiy_contours(
+            gaussian_sd[idx_single],
+            green_val[idx_single],
+            f_rates[idx_single],
+            sd_mean_noise_th,
+            sd_ratio_noise_th,
+            green_noise_th,
+            midget_on_th,
+            midget_off_th,
+            large_on_th,
+            large_off_th,
+            sbc_fr_th)
+
+        labels = np.ones(self.Ncells, 'int32')*-1
+        labels[idx_single] = labels_single
         
         np.save(os.path.join(self.save_dir, 'labels.npy'), labels)
+        np.save(os.path.join(self.save_dir, 'cell_types.npy'), cell_types)
 
     def twoD_Gaussian(self, xdata_tuple, amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
         ## Define 2D Gaussian that we'll fit to spatial STAs
@@ -522,3 +520,4 @@ def align_get_shifts_tc(wf, ref, upsample_factor = 5, nshifts = 21):
     best_shifts = (np.arange(-int((nshifts-1)/2), int((nshifts-1)/2+1)))[bs_indices]
 
     return best_shifts/np.float32(upsample_factor)
+
