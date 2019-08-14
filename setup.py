@@ -35,12 +35,13 @@ INSTALL_REQUIRES = [
     # from experimental pipeline (nnet and clustering)
     # TODO: consider reducing the number of dependencies: parmap, matplotlib
     # and progressbar2 are not necessary
-    'parmap', 'statsmodels', 'matplotlib', 'networkx', 'Cython', 'progressbar2'
+    'parmap', 'statsmodels', 'matplotlib', 'networkx', 'Cython', 'progressbar2',
+    'h5py'
 ]
 
 # this will be installed when doing `pip install yass-algorithm[tf]`
 # or `pip install yass-algorithm[tf-gpu]
-EXTRAS_REQUIRE = {'tf': ['tensorflow'], 'tf-gpu': ['tensorflow-gpu']}
+#EXTRAS_REQUIRE = {'tf': ['tensorflow'], 'tf-gpu': ['tensorflow-gpu']}
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -117,7 +118,7 @@ setup(
         'Programming Language :: Python :: Implementation :: CPython',
     ],
     install_requires=INSTALL_REQUIRES,
-    extras_require=EXTRAS_REQUIRE,
+    #extras_require=EXTRAS_REQUIRE,
     entry_points={
         'console_scripts': ['yass=yass.command_line:cli'],
     },
