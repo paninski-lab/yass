@@ -122,7 +122,7 @@ class deconvGPU(object):
         self.fill_value = 1E6
 
         # refractory period
-        # TODO: move to config
+        # Cat: TODO: move to config
         refrac_ms = 1
         self.refractory = int(self.CONFIG.recordings.sampling_rate/1000*refrac_ms)
 
@@ -705,11 +705,42 @@ class deconvGPU(object):
         # tracks the number of addition steps during SCD
         self.add_iteration_counter=0
         self.save_spike_flag=True
+        
         for k in range(self.max_iter):
             if False:
-                np.save('/media/cat/2TB/liam/49channels/data1_allset/tmp/block_2/deconv/objectives/objective_'+
-                    str(self.n_iter)+'.npy', self.obj_gpu.cpu().data.numpy())
-                
+                #if k < 30:
+                np.save(self.out_dir+'/objectives/chunk'+
+                        str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', self.obj_gpu.cpu().data.numpy())
+ 
+            # **********************************************
+            # *********** SCD ADDITION STEP ****************
+            # **********************************************
+            # Note; this step needs to be carried out before peak search + subtraction to make logic simpler
+            if self.scd:
+                # old scd method where every 10 iterations, there's a random addition step of spikes from up to 5 prev iterations
+                if False:
+                    if (k%2==10) and (k>0):
+                        if False:
+                            # add up to spikes from up to 5 previous iterations
+                            idx_iter = np.random.choice(np.arange(min(len(self.spike_array),self.scd_max_iteration)),
+                                                        size=min(self.n_iter,self.scd_n_additions),
+                                                        replace=False)
+                            for idx_ in idx_iter: 
+                                self.add_cpp(idx_)
+                    
+                # newer scd method: inject spikes from top 10 iterations and redeconvolve 
+                else:
+                    # updated exhuastive SCD over top 10 deconv iterations
+                    # This conditional checks that loop is in an iteration that should be an addition step
+                    if ((k%(self.n_scd_iterations*2))>=self.n_scd_iterations and \
+                        (k%(self.n_scd_iterations*2))<(self.n_scd_iterations*2)) and \
+                        (k<self.n_scd_stages*self.n_scd_iterations*2):
+                    # if ((k>=10) and (k<20)) or ((k>=30) and (k<40)) or ((k>=50) and (k<60)):
+                        self.save_spike_flag=False
+                        # add spikes back in; then find peaks again below
+                        self.add_cpp_allspikes(self.add_iteration_counter)                
+
+                  
             # **********************************************
             # **************** FIND PEAKS ******************
             # **********************************************
@@ -729,65 +760,43 @@ class deconvGPU(object):
             # **********************************************
             # **************** SUBTRACTION STEP ************
             # **********************************************
-            total_time = self.subtract_cpp()
-            
-            
+            total_time = self.subtract_cpp()           
+           
+
             # **********************************************
-            # *********** SCD ADDITION STEP ****************
+            # ************** SCD FINISHING UP **************
             # **********************************************
+            # Note; after adding spikes back in - and running peak discover+subtraction
+            #       - need to reassign rediscovered spikes back to the original list where they came from
             if self.scd:
-                if False:
-                    if (k%2==10) and (k>0):
-                        if False:
-                            # add up to spikes from up to 5 previous iterations
-                            idx_iter = np.random.choice(np.arange(min(len(self.spike_array),self.scd_max_iteration)),
-                                                        size=min(self.n_iter,self.scd_n_additions),
-                                                        replace=False)
-                            for idx_ in idx_iter: 
-                                self.add_cpp(idx_)
-                    
-                # different method adding all spikes from specific iteration
-                else:
-                    # updated exhuastive SCD over first 10 iterations
-                    if True:
-                        if (k>9) and (k<=19):
-                            self.save_spike_flag=False
-                            self.add_cpp_allspikes(self.add_iteration_counter)                
-
-                            # don't append to existing spike list; just insert into original iteration
-                            self.spike_array[self.add_iteration_counter] = self.spike_times[:,0]
-                            self.neuron_array[self.add_iteration_counter] = self.neuron_ids[:,0]
-                            self.shift_list[self.add_iteration_counter] = self.xshifts
-                            
-                            self.add_iteration_counter+=1
-
-                        if k==9:
-                            self.save_spike_flag=True
-                            self.add_iteration_counter=0
-                    
-                    # updated exhaustive SCD that runs multiple times
-                    else:
-                        if (k>9) and (k<=19):
-                            self.save_spike_flag=False
-                            self.add_cpp_allspikes(self.add_iteration_counter)                
-
-                            # don't append to existing spike list; just insert into original iteration
-                            self.spike_array[self.add_iteration_counter] = self.spike_times[:,0]
-                            self.neuron_array[self.add_iteration_counter] = self.neuron_ids[:,0]
-                            self.shift_list[self.add_iteration_counter] = self.xshifts
-                            
-                            self.add_iteration_counter+=1
-
-                        if k==19:
-                            self.save_spike_flag=True
-                            self.add_iteration_counter=0
-
-
-
+                #if ((k>=10) and (k<=19)) or ((k>=30) and (k<40)) or ((k>=50) and (k<60)):
+                if ((k%(self.n_scd_iterations*2))>=self.n_scd_iterations and \
+                    (k%(self.n_scd_iterations*2))<(self.n_scd_iterations*2)) and \
+                    (k<self.n_scd_stages*self.n_scd_iterations*2):
+                    # insert spikes back to original iteration. 
+                    self.spike_array[self.add_iteration_counter] = self.spike_times[:,0]
+                    self.neuron_array[self.add_iteration_counter] = self.neuron_ids[:,0]
+                    self.shift_list[self.add_iteration_counter] = self.xshifts
+                
+                    self.add_iteration_counter+=1
 
             # **********************************************
             # ************** POST PROCESSING ***************
             # **********************************************
+            # save spiketimes only when doing deconv outside SCD loop
+            if self.save_spike_flag:
+                self.save_spikes()
+
+            # reset regular spike save after finishing SCD (note: this should be done after final addition/subtraction
+            #       gets added to the list of spikes;
+            #       otherwise the spieks are saved twice
+            if (k%(self.n_scd_iterations*2)==0):
+                self.save_spike_flag=True
+                self.add_iteration_counter=0
+                
+            # increase index
+            self.n_iter+=1
+        
             # post-processing steps;
             if self.verbose:
                 if self.n_iter%self.print_iteration_counter==0:
@@ -797,19 +806,13 @@ class deconvGPU(object):
                            ", search time: ", np.round(search_time,6), 
                            ", quad fit time: ", np.round(shift_time,6),
                            ", subtract time: ", np.round(total_time,6), "sec")
-            
-            # save spiketimes
-            if self.save_spike_flag:
-                self.save_spikes()
-        
-            # increase index
-            self.n_iter+=1
-        
-        
+                                   
         if self.verbose:
             print ("Total subtraction step: ", np.round(dt.datetime.now().timestamp()-start,3))
         
     
+        #np.save('/home/cat/saved_array.npy', self.saved_gpu_array)
+        
     def find_shifts(self):
         '''  Function that fits quadratic to 3 points centred on each peak of obj_func 
         '''
@@ -851,6 +854,7 @@ class deconvGPU(object):
         #       output:  n_times (i.e. the max energy function value at each point in time)
         #       note: windows are padded
         start = dt.datetime.now().timestamp()
+        torch.cuda.synchronize()
         self.gpu_max, self.neuron_ids = torch.max(self.obj_gpu, 0)
         torch.cuda.synchronize()
         end_max = dt.datetime.now().timestamp()-start
@@ -920,6 +924,7 @@ class deconvGPU(object):
             self.xshifts = self.xshifts*0
         
         # if single spike, wrap it in list
+        # Cat: TODO make this faster/pythonic
         if self.spike_times.size()[0]==1:
             spike_times = spike_times[None]
             spike_temps = spike_temps[None]
@@ -936,13 +941,16 @@ class deconvGPU(object):
         # also fill in self-convolution traces with low energy so the
         #   spikes cannot be detected again (i.e. enforcing refractoriness)
         # Cat: TODO: read from CONFIG
+        
         if self.refractoriness:
-
+            #print ("filling in timesteps: ", self.n_time)
             deconv.refrac_fill(energy=self.obj_gpu,
                                   spike_times=spike_times,
                                   spike_ids=spike_temps,
+                                  #fill_length=self.n_time,  # variable fill length here
+                                  #fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
                                   fill_length=self.refractory*2+1,  # variable fill length here
-                                  fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
+                                  fill_offset=self.n_time//2+self.refractory//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
                                   fill_value=-self.fill_value)
 
         torch.cuda.synchronize()
@@ -1001,33 +1009,11 @@ class deconvGPU(object):
         """
             Same as sample_spikes() but pick all spikes from a previous iteration,
         """
-        
-        # OPTION 1: pick a single previous iteration index; for now only use the first 10 iterations
-        #           - one issue is that later iterations have few spikes and //10 yeilds 0 for example
-        #           - to dsicuss 
 
-        # pick all spikes from the selected iteration
-        #idx_inject = np.arange(self.spike_array[idx_iter].shape[0])
-        
-        # Cat: TODO: this is a bit hacky way to stop picking from some iteration:
-        #if idx_inject.shape[0]<10:
-        #    return ([], [], [], False)
-            
-        #idx_not = np.delete(np.arange(self.spike_array[idx_iter].shape[0]),idx_inject)
-
-        # pick spikes from those lists
-        #print ("len spike array: ", len(self.spike_array))
-        #print ("Iter: ", idx_iter)
         spike_times_list = self.spike_array[idx_iter]-self.lockout_window
         spike_ids_list = self.neuron_array[idx_iter]
         spike_shifts_list= self.shift_list[idx_iter]
 
-        # delete spikes, ids etc that were selected above; 
-        #self.spike_array[idx_iter] = self.spike_array[idx_iter][idx_not]
-        #self.neuron_array[idx_iter] = self.neuron_array[idx_iter][idx_not]
-        #self.shift_list[idx_iter] = self.shift_list[idx_iter][idx_not]
-        
-        # return lists for addition below
         return spike_times_list, spike_ids_list, spike_shifts_list, True
         
         
@@ -1039,6 +1025,7 @@ class deconvGPU(object):
         # select randomly 10% of spikes from previous deconv; 
         spike_times, spike_temps, spike_shifts, flag = self.sample_spikes(idx_iter)
 
+        # Cat: TODO is this flag required still?
         if flag == False:
             return 
             
@@ -1049,8 +1036,10 @@ class deconvGPU(object):
             deconv.refrac_fill(energy=self.obj_gpu,
                               spike_times=spike_times,
                               spike_ids=spike_temps,
+                              #fill_length=self.n_time,  # variable fill length here
+                              #fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
                               fill_length=self.refractory*2+1,  # variable fill length here
-                              fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
+                              fill_offset=self.n_time//2+self.refractory//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
                               fill_value=self.fill_value)
                               
             # deconv.subtract_spikes(data=self.obj_gpu,
@@ -1086,6 +1075,8 @@ class deconvGPU(object):
         # select all spikes from a previous iteration
         spike_times, spike_temps, spike_shifts, flag = self.sample_spikes_allspikes(idx_iter)
 
+        torch.cuda.synchronize()
+
         if flag == False:
             return 
             
@@ -1096,9 +1087,12 @@ class deconvGPU(object):
             deconv.refrac_fill(energy=self.obj_gpu,
                               spike_times=spike_times,
                               spike_ids=spike_temps,
-                              fill_length=self.n_time,  # variable fill length here
-                              fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
+                              #fill_length=self.n_time,  # variable fill length here
+                              #fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
+                              fill_length=self.refractory*2+1,  # variable fill length here
+                              fill_offset=self.n_time//2+self.refractory//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
                               fill_value=self.fill_value)
+                              
                               
             # deconv.subtract_spikes(data=self.obj_gpu,
                                    # spike_times=spike_times,

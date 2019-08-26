@@ -197,10 +197,21 @@ def deconv_ONgpu2(fname_templates_in,
     
     # Stochastic gradient descent option
     # Cat: TODO: move these and other params to CONFIG
-    d_gpu.scd = False
-    d_gpu.scd_max_iteration = 1000  # maximum iteration number from which to grab spikes
-                                    # smaller means grabbing spikes from earlier (i.e. larger SNR units)
-    d_gpu.scd_n_additions = 3       # number of addition steps to be done for every loop
+    d_gpu.scd = True
+
+    # Cat: TODO: move to CONFIG; # of times to run scd inside the chunk
+    # Cat: TODO: the number of stages need to be a fuction of # of channels; 
+    #      around 1 stage per 20-30 channels seems to work
+    # d_gpu.n_scd_stages = self.CONFIG.recordings.n_channels // 24 
+    d_gpu.n_scd_stages = 2
+
+    # Cat: TODO move to CONFIG; # of addition steps each time
+    d_gpu.n_scd_iterations = 10
+    
+    # Cat: TODO: parameters no longer used, to remove;
+    #d_gpu.scd_max_iteration = 1000  # maximum iteration number from which to grab spikes
+    #                                # smaller means grabbing spikes from earlier (i.e. larger SNR units)
+    #d_gpu.scd_n_additions = 3       # number of addition steps to be done for every loop
     
     # this can turn off the superresolution alignemnt as an option
     d_gpu.superres_shift = True
@@ -232,6 +243,9 @@ def deconv_ONgpu2(fname_templates_in,
     # enforce broad buffer
     d_gpu.reader.buffer=1000
 
+
+    #d_gpu.reader.n_batches = 30
+
     # *********************************************************
     # *********************** RUN DECONV **********************
     # *********************************************************
@@ -240,6 +254,7 @@ def deconv_ONgpu2(fname_templates_in,
         d_gpu, setup_time = run_deconv_with_templates_update(d_gpu, CONFIG, begin)
     else:
         d_gpu, setup_time = run_deconv_no_templates_update(d_gpu, CONFIG)
+
 
     # ****************************************************************
     # *********************** GATHER SPIKE TRAINS ********************
@@ -300,24 +315,28 @@ def deconv_ONgpu2(fname_templates_in,
     spike_train = spike_train[idx]
     shifts = shifts[idx]
 
+    np.save(fname_spike_train[:-4]+"_prededuplication.npy", spike_train)
+
     # remove duplicates
-    #print ("removing duplicates...")
-    #for k in np.unique(spike_train[:,1]):
-    #    idx = np.where(spike_train[:,1]==k)[0]
-    #    _,idx2 = np.unique(spike_train[idx,0], return_index=True)
-    #    idx3 = np.delete(np.arange(idx.shape[0]),idx2)
-    #    print ("idx: ", idx[:10], idx.shape, " idx2: ", idx2[:10], idx2.shape, 
-    #          " idx3: ", idx3[:10], idx2.shape,
-    #          " idx[idx3]: ", idx[idx3])
-    #    print ("unit: ", k, "  spike train: ", spike_train[idx][:10])
+    # Cat: TODO: are there still duplicates in spike trains!?
+    print ("removing duplicates...")
+    for k in np.unique(spike_train[:,1]):
+       idx = np.where(spike_train[:,1]==k)[0]
+       _,idx2 = np.unique(spike_train[idx,0], return_index=True)
+       idx3 = np.delete(np.arange(idx.shape[0]),idx2)
+       #print ("idx: ", idx[:10], idx.shape, " idx2: ", idx2[:10], idx2.shape, 
+       #      " idx3: ", idx3[:10], idx2.shape,
+       #      " idx[idx3]: ", idx[idx3])
+       #print ("unit: ", k, "  spike train: ", spike_train[idx][:10])
     #
-    #    if idx3.shape[0]>0:
-    #        spike_train[idx[idx3],0]=-1E6
+       if idx3.shape[0]>0:
+           print ("unit: ", k, " has duplicates: ", idx3.shape[0])
+           spike_train[idx[idx3],0]=-1E6
         
-    #    #quit()
-    #idx = np.where(spike_train[:,0]==-1E6)[0]
-    #spike_train = np.delete(spike_train, idx, 0)
-    #shifts = np.delete(shifts, idx, 0)
+       #quit()
+    idx = np.where(spike_train[:,0]==-1E6)[0]
+    spike_train = np.delete(spike_train, idx, 0)
+    shifts = np.delete(shifts, idx, 0)
         
 
     # save spike train
@@ -341,7 +360,7 @@ def run_deconv_no_templates_update(d_gpu, CONFIG):
     chunk_ids = np.arange(d_gpu.reader.n_batches)
     chunk_ids_split = np.split(chunk_ids,
                                len(CONFIG.torch_devices))
-
+                               
     n_sec_chunk_gpu = CONFIG.resources.n_sec_chunk_gpu_deconv
 
     processes = []
