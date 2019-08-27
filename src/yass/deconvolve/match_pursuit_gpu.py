@@ -193,6 +193,7 @@ class deconvGPU(object):
         self.spike_array = []
         self.neuron_array = []
         self.shift_list = []
+        self.obj_val_list = []
         self.add_spike_temps = []
         self.add_spike_times = []
         # save iteration 
@@ -691,6 +692,7 @@ class deconvGPU(object):
         self.spike_array.append(self.spike_times[:,0])
         self.neuron_array.append(self.neuron_ids[:,0])
         self.shift_list.append(self.xshifts)
+        self.obj_val_list.append(self.peak_vals)
         #self.add_spike_times.append(spike_times)
         #self.add_spike_temps.a
         
@@ -825,8 +827,18 @@ class deconvGPU(object):
         self.threePts = self.obj_gpu[idx_tripler]
         #np.save('/home/cat/trips.npy', self.threePts.cpu().data.numpy())
         self.shift_from_quad_fit_3pts_flat_equidistant_constants(self.threePts.transpose(0,1))
+        
+        self.peak_vals = self.quad_interp_3pt(self.threePts.transpose(0,1), self.xshifts)
+        
 
         return (dt.datetime.now().timestamp()- start1)
+
+    def quad_interp_3pt(self, vals, shift):
+        a = 0.5*vals[0] + 0.5*vals[2] - vals[1]
+        b = -0.5*vals[0] + 0.5*vals[2]
+        c = vals[1]
+
+        return a*shift**2 + b*shift + c
 
     # compute shift for subtraction in objective function space
     def shift_from_quad_fit_3pts_flat_equidistant_constants(self, pts):
@@ -941,7 +953,7 @@ class deconvGPU(object):
             deconv.refrac_fill(energy=self.obj_gpu,
                                   spike_times=spike_times,
                                   spike_ids=spike_temps,
-                                  fill_length=self.refractory*2+1,  # variable fill length here
+                                  fill_length=self.n_time,#self.refractory*2+1,  # variable fill length here
                                   fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
                                   fill_value=-self.fill_value)
 
@@ -1049,7 +1061,7 @@ class deconvGPU(object):
             deconv.refrac_fill(energy=self.obj_gpu,
                               spike_times=spike_times,
                               spike_ids=spike_temps,
-                              fill_length=self.refractory*2+1,  # variable fill length here
+                              fill_length=self.n_time,#self.refractory*2+1,  # variable fill length here
                               fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
                               fill_value=self.fill_value)
                               
