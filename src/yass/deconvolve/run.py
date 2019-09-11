@@ -394,7 +394,7 @@ def run_deconv_no_templates_update_parallel(d_gpu, chunk_ids, n_sec_chunk_gpu, d
 
         if os.path.exists(fname)==False:
 
-            print ("Forward deconv only ", time_index, " sec")
+            print ("Forward deconv only ", time_index, " sec, ", chunk_id, "/", len(chunk_ids))
 
             # run deconv
             d_gpu.run(chunk_id)

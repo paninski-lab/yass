@@ -244,78 +244,58 @@ class deconvGPU(object):
         self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temp_temp, self.vis_units)])
 
 
-    def initialize_cpp_inverted(self):
+    # def initialize_cpp_inverted(self):
         
-        # make a list of pairwise batched temp_temp and their vis_units
-        self.temp_temp_cpp_inverted = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temp_temp_inverted, self.vis_units)])   
+        # # make a list of pairwise batched temp_temp and their vis_units
+        # self.temp_temp_cpp_inverted = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temp_temp_inverted, self.vis_units)])   
  
          
     def templates_to_bsplines(self):
 
-        print ("  making template bsplines (todo: save to disk)")
+        print ("  making template bsplines")
+        fname = os.path.join(self.svd_dir,'bsplines_'+
+                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
         
-        # Cat: TODO: implement proper parallelized bspline computation
-        #self.coefficients = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp])
+        if os.path.exists(fname)==False:
+            
+            # multi-core bsplines
+            if self.CONFIG.resources.multi_processing:
+                templates_cpu = []
+                for template in self.temp_temp_cpp:
+                    templates_cpu.append(template.data.cpu().numpy())
 
-        #self.coefficients = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp])
-       
-        # multi-core bsplines
-        if self.CONFIG.resources.multi_processing:
-            templates_cpu = []
-            for template in self.temp_temp_cpp:
-                templates_cpu.append(template.data.cpu().numpy())
-
-            coefficients = parmap.map(transform_template_parallel, templates_cpu, 
-                                        processes=self.CONFIG.resources.n_processors,
-                                        pm_pbar=False)
-        # single core
+                coefficients = parmap.map(transform_template_parallel, templates_cpu, 
+                                            processes=self.CONFIG.resources.n_processors,
+                                            pm_pbar=False)
+            # single core
+            else:
+                coefficients = []
+                for template in self.temp_temp_cpp:
+                    template_cpu = template.data.cpu().numpy()
+                    coefficients.append(transform_template_parallel(template_cpu))
+            
+            np.save(fname, coefficients)
         else:
-            coefficients = []
-            for template in self.temp_temp_cpp:
-                template_cpu = template.data.cpu().numpy()
-                coefficients.append(transform_template_parallel(template_cpu))
-        
+            print ("... loading coefficients from disk")
+            coefficients = np.load(fname)
+
+        print ("... moving coefficients to cuda objects")
         coefficients_cuda = []
         for p in range(len(coefficients)):
             coefficients_cuda.append(deconv.Template(torch.from_numpy(coefficients[p]).cuda(), self.temp_temp_cpp[p].indices))
         
         self.coefficients = deconv.BatchedTemplates(coefficients_cuda)
-
-        # # save the cpu coefficients for inverted computation if scd Flag is on
-        # self.saved_coefficients_cpu = coefficients
-
-    # def templates_to_bsplines_inverted(self):
-
-        # print ("  making template bsplines - inverted (todo: parallelize)")
         
-        # #self.coefficients_inverted = deconv.BatchedTemplates([self.transform_template(template) for template in self.temp_temp_cpp_inverted])
+        #print (" self.temp_temp: ", self.temp_temp.shape, ", size: ", sys.getsizeof(self.temp_temp.storage()))
+        #print (" self.temp_temp_cpp: ", self.temp_temp_cpp[0].shape, ", size: ", 
+        #       sys.getsizeof(self.temp_temp_cpp[0].storage()))
 
-        # coefficients_cuda_inverted = []
-        # for p in range(len(self.saved_coefficients_cpu)):
-            # coefficients_cuda_inverted.append(deconv.Template(torch.from_numpy(-self.saved_coefficients_cpu[p]).cuda(), self.temp_temp_cpp[p].indices))
-        
-        # self.coefficients_inverted = deconv.BatchedTemplates(coefficients_cuda_inverted)
-        
-        
-
-    # def fit_spline(self, curve, knots=None, prepad=0, postpad=0, order=3):
-        # if knots is None:
-            # knots = np.arange(len(curve) + prepad + postpad)
-        # return splrep(knots, np.pad(curve, (prepad, postpad), mode='symmetric'), k=order)
-
-
-    # def transform_template(self, template, knots=None, prepad=7, postpad=3, order=3):
-
-        # if knots is None:
-            # knots = np.arange(len(template.data[0]) + prepad + postpad)
-        # splines = [
-            # self.fit_spline(curve, knots=knots, prepad=prepad, postpad=postpad, order=order) 
-            # for curve in template.data.cpu().numpy()
-        # ]
-        # coefficients = np.array([spline[1][prepad-1:-1*(postpad+1)] for spline in splines], dtype='float32')
-        # return deconv.Template(torch.from_numpy(coefficients).cuda(), template.indices)
-
-
+        del self.temp_temp
+        del self.temp_temp_cpp
+        del coefficients_cuda
+        del coefficients
+        torch.cuda.empty_cache()
+            
      
     def compute_temp_temp_svd(self):
 
@@ -323,18 +303,9 @@ class deconvGPU(object):
         if self.update_templates_backwards:
             fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+
                   str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
-            #fname_inverted = os.path.join(self.svd_dir,'temp_temp_sparse_svd_inverted_'+
-            #      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
-            #fname_refractory = os.path.join(self.svd_dir,'temp_temp_sparse_svd_refractory'+
-            #      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
-                                    
         else:
             fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+
                   str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
-            #fname_inverted = os.path.join(self.svd_dir,'temp_temp_sparse_svd_inverted_'+
-            #      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
-            #fname_refractory = os.path.join(self.svd_dir,'temp_temp_sparse_svd_refractory_'+
-            #      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
         
         if os.path.exists(fname)==False:
 
@@ -394,40 +365,17 @@ class deconvGPU(object):
                     temp_temp_local[units_split[ctr1][ctr2]] = self.temp_temp[ctr1][ctr2]
 
             # transfer list to GPU
-            temp_gpu = []
-            #temp_gpu_inverted = []
+            self.temp_temp = []
             for k in range(len(temp_temp_local)):
-                temp_gpu.append(torch.from_numpy(temp_temp_local[k]).float().cuda())
-                #temp_gpu_inverted.append(torch.from_numpy(-temp_temp_local[k]).float().cuda())
+                self.temp_temp.append(torch.from_numpy(temp_temp_local[k]).float().cuda())
 
-            self.temp_temp = temp_gpu
-            #self.temp_temp_inverted = temp_gpu_inverted
-            
+            # save GPU list as numpy object
             np.save(fname, self.temp_temp)
-            #np.save(fname_inverted, self.temp_temp_inverted)
-            
-            # also make dummy temp_temp values for refractory period subtraction
-
-            # if self.scd:
-                # self.temp_temp_refractory = []
-                # for unit in range(len(self.temp_temp)):
-                    # temp3 = self.temp_temp[unit].cpu().data.numpy().copy()
-
-                    # # find the index of the template in its own visible unit stack
-                    # idx = np.where(np.where(self.vis_units[unit])[0]==unit)[0]
-                    # temp3 *= 0
-                    # temp3[idx] = -1E6
-                    # self.temp_temp_refractory.append(torch.from_numpy(temp3).float().to(device))
-
-                # np.save(fname_refractory, self.temp_temp_refractory)
                                  
         else:
+            print (".... loading temp-temp from disk")
             self.temp_temp = np.load(fname, allow_pickle=True)
-            #self.temp_temp_inverted = np.load(fname_inverted, allow_pickle=True)
-
-            # if self.scd:
-                # self.temp_temp_refractory = np.load(fname_refractory, allow_pickle=True)
-                
+               
     
     def visible_chans(self):
         #if self.vis_chan is None:
@@ -568,6 +516,8 @@ class deconvGPU(object):
         self.offset = self.reader.idx_list[chunk_id, 0] - self.reader.buffer
         self.data = torch.from_numpy(self.data_cpu).float().cuda()
 
+        #print (" self.data: ", self.data.shape, ", size: ", sys.getsizeof(self.data.storage()))
+
         if self.verbose:
 
             print ("Input size: ",self.data.shape, int(sys.getsizeof(self.data)), "MB")
@@ -580,20 +530,14 @@ class deconvGPU(object):
         start = dt.datetime.now().timestamp()
         if self.verbose:
             print ("Computing objective ")
-
-        # transfer data to GPU
-        #try:
-        #    del self.data 
-        #    torch.cuda.empty_cache()
-        #except:
-        #    pass
-            
+           
         try: 
             self.obj_gpu*=0.
         except:
             self.obj_gpu = torch.zeros((self.temps.shape[2], self.data.shape[1]+self.STIME-1),
                                    dtype=torch.float).cuda()
         
+        #print (" self.obj_gpu: ", self.obj_gpu.shape, ", size: ", sys.getsizeof(self.obj_gpu.storage()))
         # make objective using full rank (i.e. no SVD)
         if self.svd_flag==False:
             
@@ -606,21 +550,23 @@ class deconvGPU(object):
                                                          padding=self.STIME-1)[0][0]
                 
         # use SVD to make objective:
-        else:
-         
-            # move data to gpu
-            #data_gpu = self.data
+        else:         
             # U_ x H_ (spatial * vals)
             # looping over ranks
             for r in range(self.RANK):
                 mm = torch.mm(self.spatial_gpu[r::self.RANK]*self.singular_gpu[r::self.RANK], 
                               self.data)[None,None]
 
+                #print (" mm: ", mm.shape, ", size: ", sys.getsizeof(mm.storage()))
+
                 for i in range(self.temps.shape[2]):
                     self.obj_gpu[i,:] += nn.functional.conv1d(mm[:,:,i,:], 
                                                          self.filters_gpu[:,:,i*self.RANK+r, :], 
                                                          padding=self.STIME-1)[0][0]
-
+            
+            del mm
+            torch.cuda.empty_cache()
+            
         torch.cuda.synchronize()
         
         # compute objective function = 2 x Convolution term - norms
@@ -655,13 +601,11 @@ class deconvGPU(object):
         
             
     def save_spikes(self):
-        
         # # save offset of chunk time; spiketimes and neuron ids
         self.offset_array.append(self.offset)
         self.spike_array.append(self.spike_times[:,0])
         self.neuron_array.append(self.neuron_ids[:,0])
         self.shift_list.append(self.xshifts)
-
         
                 
     def subtraction_step(self):
