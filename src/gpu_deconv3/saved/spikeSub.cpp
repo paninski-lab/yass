@@ -25,13 +25,14 @@ void launchTemplateSubKernel(
     size_t  const             nnzRows,
     int64_t const*const       d_spikeTemps,
     int64_t const*const       d_spikeTimes,
-    int64_t const*const       d_spikeRowOffset
+    int64_t const*const       d_spikeRowOffset,
+    float   const             d_tempScale
 );
 
 void launchRefracFillKernel(
     size_t const              fill_length,
     size_t const              fill_offset,
-    float const               fill_value,
+    float  const              fill_value,
     float        *const       d_convData,
     size_t  const             ldConvData,
     int64_t const*const       d_spikeTemps,
@@ -180,8 +181,9 @@ void spikeSub(
         at::Tensor                           & convData,
         at::Tensor                      const& spikeTimes,
         at::Tensor                      const& spikeTemps,
-        NeuralTemplates<float, int64_t> const& templates
-){
+        NeuralTemplates<float, int64_t> const& templates)
+
+{
     // Validate Input Tensors
     CHECK_MATRIX(convData);
     CHECK_ARRAY(spikeTimes);
@@ -205,7 +207,8 @@ void spikeSub(
                             spikeLookup.size(0),
                             spikeTemps.data<int64_t>(),
                             spikeTimes.data<int64_t>(),
-                            spikeRowOffset.data<int64_t>());
+                            spikeRowOffset.data<int64_t>()
+                            );
 }
 
 /* Sets Energy Within Refractory Periods Given Spike Id's + Times
@@ -253,6 +256,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
             return self[index];
         })
         .def_property_readonly("nnz", &NeuralTemplates<float, int64_t>::nnz);
+        
     // Batched Template Subtraction 
     m.def("subtract_spikes",
           &spikeSub,
@@ -261,6 +265,7 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
           py::arg("spike_times"), 
           py::arg("spike_ids"), 
           py::arg("templates")); 
+          
     m.def("refrac_fill",
           &refracFill,
           "Sets energy function during refractory period for a set of detected spikes.",

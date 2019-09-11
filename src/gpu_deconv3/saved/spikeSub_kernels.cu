@@ -63,7 +63,8 @@ void templateSubKernel(
     index_t const*const       g_spikeLookup,
     index_t const*const       g_spikeTemps,
     index_t const*const       g_spikeTimes,
-    index_t const*const       g_spikeRowOffsets
+    index_t const*const       g_spikeRowOffsets,
+    data_t  const             g_tempScale
 ){
     // Each Thread-Block Maps To One Row, So Row-Heads Can Be Shared
     __shared__ data_t      * s_convDataRowHead;
@@ -104,7 +105,7 @@ void templateSubKernel(
         // Perform Global Mem Reads
         //__syncwarp(mask);
         // TODO handle scaling directly on templates? Alternatively as a param?
-        data_t const t_tempDataElem = *t_tempDataAddr * -2;
+        data_t const t_tempDataElem = *t_tempDataAddr * -g_tempScale;
     
         // Write Results To Global Mem
         //__syncwarp(mask);
@@ -176,7 +177,8 @@ void launchTemplateSubKernel(
     size_t  const             nnzRows,
     int64_t const*const       d_spikeTemps,
     int64_t const*const       d_spikeTimes,
-    int64_t const*const       d_spikeRowOffset
+    int64_t const*const       d_spikeRowOffset,
+    float   const             d_tempScale
 ){
     // Determine Launch Configuration
     const int block = ((ldTempData + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
@@ -191,7 +193,8 @@ void launchTemplateSubKernel(
                                                        d_spikeLookup,
                                                        d_spikeTemps,
                                                        d_spikeTimes,
-                                                       d_spikeRowOffset);
+                                                       d_spikeRowOffset,
+                                                       d_tempScale);
 }
 
 /*

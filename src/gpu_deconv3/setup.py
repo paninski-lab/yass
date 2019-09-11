@@ -9,9 +9,9 @@ from torch.utils.cpp_extension import CppExtension, CUDAExtension, BuildExtensio
 
 setup(name='deconv',
       ext_modules=[
-          CUDAExtension('cudaSub',
-                        ['spikeSub.cpp',
-                         'spikeSub_kernels.cu']),
+          #CUDAExtension('cudaSub',
+          #              ['spikeSub.cpp',
+          #               'spikeSub_kernels.cu']),
           CUDAExtension('cudaSpline',
                         ['interpSub.cpp',
                          'interpSub_kernels.cu'])
