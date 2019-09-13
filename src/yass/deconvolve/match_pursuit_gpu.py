@@ -146,7 +146,6 @@ class deconvGPU(object):
         
         # objective function scaling for the template term;
         self.tempScaling = 2.0
-        #self.tempScaling = torch.from_numpy(np.array(self.tempScaling)).long().cuda()
 
         # refractory period
         # Cat: TODO: move to config
@@ -243,13 +242,7 @@ class deconvGPU(object):
         # make a list of pairwise batched temp_temp and their vis_units
         self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temp_temp, self.vis_units)])
 
-
-    # def initialize_cpp_inverted(self):
         
-        # # make a list of pairwise batched temp_temp and their vis_units
-        # self.temp_temp_cpp_inverted = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temp_temp_inverted, self.vis_units)])   
- 
-         
     def templates_to_bsplines(self):
 
         print ("  making template bsplines")
@@ -276,19 +269,15 @@ class deconvGPU(object):
             
             np.save(fname, coefficients)
         else:
-            print ("... loading coefficients from disk")
+            print ("  ... loading coefficients from disk")
             coefficients = np.load(fname)
 
-        print ("... moving coefficients to cuda objects")
+        print ("  ... moving coefficients to cuda objects")
         coefficients_cuda = []
         for p in range(len(coefficients)):
             coefficients_cuda.append(deconv.Template(torch.from_numpy(coefficients[p]).cuda(), self.temp_temp_cpp[p].indices))
         
         self.coefficients = deconv.BatchedTemplates(coefficients_cuda)
-        
-        #print (" self.temp_temp: ", self.temp_temp.shape, ", size: ", sys.getsizeof(self.temp_temp.storage()))
-        #print (" self.temp_temp_cpp: ", self.temp_temp_cpp[0].shape, ", size: ", 
-        #       sys.getsizeof(self.temp_temp_cpp[0].storage()))
 
         del self.temp_temp
         del self.temp_temp_cpp
@@ -399,7 +388,6 @@ class deconvGPU(object):
             np.logical_and(vis[:, None, :], vis[None, :, :]), axis=2)
         self.unit_overlap = self.unit_overlap > 0
         self.vis_units = self.unit_overlap
-
         # fname = os.path.join(self.svd_dir,'vis_units.npy')
         # np.save(fname, self.vis_units)
                         
@@ -419,8 +407,22 @@ class deconvGPU(object):
         #print ("Loading template: ", self.fname_templates)
         self.temps = np.load(self.fname_templates, allow_pickle=True).transpose(2,1,0)
         self.N_CHAN, self.STIME, self.K = self.temps.shape
-        #print (" Loaded templates shape (n_chan, n_time, n_temps): ", self.temps.shape)
-        self.temps_gpu = torch.from_numpy(self.temps).float().cuda()
+        # this transfer to GPU is not required any longer
+        # self.temps_gpu = torch.from_numpy(self.temps).float().cuda()
+        
+        # compute max chans for data
+        print ("Making max chans, ptps, etc. for iteration 0: ", self.temps.shape)
+        self.max_chans = self.temps.ptp(1).argmax(0)
+
+        # compute ptps for data
+        self.ptps = self.temps.ptp(1).max(0)
+
+        # Robust PTP location computation; find argmax and argmin of 
+        self.ptp_locs = []
+        for k in range(self.temps.shape[2]):
+            max_temp = self.temps[self.max_chans[k],:,k].argmax(0)
+            min_temp = self.temps[self.max_chans[k],:,k].argmin(0)
+            self.ptp_locs.append([max_temp,min_temp])
         
         
     def compress_templates(self):
@@ -438,7 +440,9 @@ class deconvGPU(object):
                       str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npz')
             
         if os.path.exists(fname)==False:
-   
+            #print ("self.temps: ", self.temps.shape)
+            #np.save("/home/cat/temps.npy", self.temps)
+            
             self.temporal, self.singular, self.spatial = np.linalg.svd(
                 np.transpose(np.flipud(np.transpose(self.temps,(1,0,2))),(2, 0, 1)))
             
