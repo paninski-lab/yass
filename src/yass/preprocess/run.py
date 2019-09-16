@@ -101,7 +101,7 @@ def run(output_directory):
 
     # Check if data already saved to disk and skip:
     if os.path.exists(standardized_path):
-        return standardized_path, standardized_params
+        return standardized_path, standardized_params['dtype']
 
     # **********************************************
     # *********** run filter & stdarize  ***********
@@ -169,4 +169,4 @@ def run(output_directory):
         logger.info('Saving params...')
         yaml.dump(standardized_params, f)
 
-    return standardized_path, standardized_params
+    return standardized_path, standardized_params['dtype']

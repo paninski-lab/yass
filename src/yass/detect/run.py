@@ -23,7 +23,7 @@ from yass.detect.output import gather_result
 from yass.geometry import make_channel_index
 
 
-def run(standardized_path, standardized_params,
+def run(standardized_path, standardized_dtype,
         output_directory, run_chunk_sec='full'):
            
     """Execute detect step
@@ -33,8 +33,8 @@ def run(standardized_path, standardized_params,
     standardized_path: str or pathlib.Path
         Path to standardized data binary file
 
-    standardized_params: dict, str or pathlib.Path
-        Dictionary with standardized data parameters or path to a yaml file
+    standardized_dtype: string
+        data type of standardized data
 
     output_directory: str, optional
       Location to store partial results, relative to CONFIG.data.root_folder,
@@ -81,9 +81,6 @@ def run(standardized_path, standardized_params,
 
     CONFIG = read_config()
 
-    # load files in case they are strings or Path objects
-    standardized_params = file_loader(standardized_params)
-
     # make output directory if not exist
     if not os.path.exists(output_directory):
         os.mkdir(output_directory)
@@ -105,13 +102,13 @@ def run(standardized_path, standardized_params,
     if CONFIG.neuralnetwork.apply_nn:
         run_neural_network(
             standardized_path,
-            standardized_params,
+            standardized_dtype,
             output_temp_files,
             run_chunk_sec=run_chunk_sec)
 
     else:
         run_voltage_treshold(standardized_path,
-                     standardized_params,
+                     standardized_dtype,
                      output_temp_files)
 
     ##### gather results #####
@@ -121,7 +118,7 @@ def run(standardized_path, standardized_params,
     return fname_spike_index
 
 
-def run_neural_network(standardized_path, standardized_params,
+def run_neural_network(standardized_path, standardized_dtype,
                        output_directory, run_chunk_sec='full'):
                            
     """Run neural network detection
@@ -155,7 +152,7 @@ def run_neural_network(standardized_path, standardized_params,
         chunk_sec = run_chunk_sec
 
     reader = READER(standardized_path,
-                    standardized_params['dtype'],
+                    standardized_dtype,
                     CONFIG,
                     batch_length,
                     buffer,
@@ -254,7 +251,7 @@ def run_nn_detction_batch(batch_ids, output_directory,
                  minibatch_loc=minibatch_loc)
 
 
-def run_voltage_treshold(standardized_path, standardized_params,
+def run_voltage_treshold(standardized_path, standardized_dtype,
                          output_directory, run_chunk_sec='full'):
                            
     """Run detection that thresholds on amplitude
@@ -277,7 +274,7 @@ def run_voltage_treshold(standardized_path, standardized_params,
         chunk_sec = run_chunk_sec
 
     reader = READER(standardized_path,
-                    standardized_params['dtype'],
+                    standardized_dtype,
                     CONFIG,
                     batch_length,
                     buffer,

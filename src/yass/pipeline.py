@@ -30,7 +30,7 @@ import yass
 from yass import set_config
 from yass import read_config
 from yass import (preprocess, detect, cluster, postprocess,
-                  deconvolve, residual, merge, rf, visual)
+                  deconvolve, residual, noise, merge, rf, visual)
 from yass.template import update_templates
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
@@ -124,7 +124,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # preprocess
     start = time.time()
     (standardized_path,
-     standardized_params) = preprocess.run(
+     standardized_dtype) = preprocess.run(
         os.path.join(TMP_FOLDER, 'preprocess'))
 
     #### Block 1: Detection, Clustering, Postprocess
@@ -132,7 +132,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
      fname_spike_train) = initial_block(
         os.path.join(TMP_FOLDER, 'block_1'),
         standardized_path,
-        standardized_params,
+        standardized_dtype,
         run_chunk_sec = [0, CONFIG.rec_len])
 
     print (" inpput to block2: ", fname_templates)
@@ -144,20 +144,17 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
          fname_spike_train) = iterative_block(
             os.path.join(TMP_FOLDER, 'block_{}'.format(it+2)),
             standardized_path,
-            standardized_params,
+            standardized_dtype,
             fname_templates,
             run_chunk_sec = [0, CONFIG.rec_len])
     
     ### Block 3: Deconvolve, Residual, Merge
     (fname_templates,
      fname_spike_train,
-     fname_templates_up,
-     fname_spike_train_up,
-     fname_residual,
-     residual_dtype)= final_deconv(
+     fname_soft_assignment)= final_deconv(
         os.path.join(TMP_FOLDER, 'final_deconv'),
         standardized_path,
-        standardized_params,
+        standardized_dtype,
         fname_templates)
 
     ## save the final templates and spike train
@@ -165,13 +162,18 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         TMP_FOLDER, 'templates.npy')
     fname_spike_train_final = os.path.join(
         TMP_FOLDER, 'spike_train.npy')
+    fname_soft_assignment_final = os.path.join(
+        TMP_FOLDER, 'soft_assignment.npy')
+
     # tranpose axes
     templates = np.load(fname_templates).transpose(1,2,0)
     # align spike time to the beginning
     spike_train = np.load(fname_spike_train)
     #spike_train[:,0] -= CONFIG.spike_size//2
+    soft_assignment = np.load(fname_soft_assignment)
     np.save(fname_templates_final, templates)
     np.save(fname_spike_train_final, spike_train)
+    np.save(fname_soft_assignment_final, soft_assignment)
 
     total_time = time.time() - start
 
@@ -194,7 +196,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
 def initial_block(TMP_FOLDER,
                   standardized_path,
-                  standardized_params,
+                  standardized_dtype,
                   run_chunk_sec):
     
     logger = logging.getLogger(__name__)
@@ -211,25 +213,25 @@ def initial_block(TMP_FOLDER,
     logger.info('INITIAL DETECTION')
     spike_index_path = detect.run(
         standardized_path,
-        standardized_params,
+        standardized_dtype,
         os.path.join(TMP_FOLDER, 'detect'),
         run_chunk_sec=run_chunk_sec)
 
     logger.info('INITIAL CLUSTERING')
 
     # cluster
-    raw_data = True
-    full_run = True
     fname_templates, fname_spike_train = cluster.run(
-        spike_index_path,
-        standardized_path,
-        standardized_params['dtype'],
         os.path.join(TMP_FOLDER, 'cluster'),
-        raw_data, 
-        full_run)
+        standardized_path,
+        standardized_dtype,
+        fname_spike_index=spike_index_path,
+        raw_data=True, 
+        full_run=True)    
 
     #methods = ['duplicate', 'high_mad', 'collision']
-    methods = ['off_center', 'high_mad', 'duplicate', 'collision']
+    #methods = ['off_center', 'high_mad', 'duplicate']
+    methods = ['off_center', 'high_mad', 'duplicate_l2', 'duplicate']
+    #methods = ['off_center', 'high_mad', 'duplicate']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
@@ -237,14 +239,14 @@ def initial_block(TMP_FOLDER,
         os.path.join(TMP_FOLDER,
                      'cluster_post_process'),
         standardized_path,
-        standardized_params['dtype'])
+        standardized_dtype)
 
     return fname_templates, fname_spike_train
 
 
 def iterative_block(TMP_FOLDER,
                     standardized_path,
-                    standardized_params,
+                    standardized_dtype,
                     fname_templates,
                     run_chunk_sec):
 
@@ -264,54 +266,69 @@ def iterative_block(TMP_FOLDER,
         os.path.join(TMP_FOLDER,
                      'deconv'),
         standardized_path,
-        standardized_params['dtype'],
+        standardized_dtype,
         run_chunk_sec=run_chunk_sec)
 
     # compute residual
     logger.info('RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
         fname_shifts,
-        fname_templates_up,
-        fname_spike_train_up,
+        fname_templates,
+        fname_spike_train,
         os.path.join(TMP_FOLDER,
                      'residual'),
         standardized_path,
-        standardized_params['dtype'],
+        standardized_dtype,
         dtype_out='float32',
         run_chunk_sec=run_chunk_sec)
 
-    if True:
+    #logger.info('KILL NOISE')
+    #fname_spike_train2 = noise.run(
+    #    fname_templates,
+    #    fname_spike_train,
+    #    fname_shifts,
+    #    os.path.join(TMP_FOLDER,
+    #                 'noise_kill'),
+    #    fname_residual,
+    #    residual_dtype)
+
+    if False:
+        
+        logger.info('SOFT NOISE ASSIGNMENT')
+        fname_soft_assignment = noise.run(
+            fname_templates,
+            fname_spike_train,
+            fname_shifts,
+            os.path.join(TMP_FOLDER,
+                         'soft_assignment'),
+            fname_residual,
+            residual_dtype)
+    
         logger.info('BLOCK1 MERGE')
-        _, _ = merge.run(
+        _, _, _ = merge.run(
             os.path.join(TMP_FOLDER,
                          'post_deconv_merge'),
-            False,
             fname_spike_train,
             fname_templates,
-            fname_spike_train_up,
-            fname_templates_up,
-            standardized_path,
-            standardized_params['dtype'],
+            fname_soft_assignment,
             fname_residual,
             residual_dtype)
 
     # cluster
     logger.info('RECLUSTERING')
-    raw_data = False
-    full_run = True
     fname_templates, fname_spike_train = cluster.run(
-        fname_spike_train,
-        standardized_path,
-        standardized_params['dtype'],
         os.path.join(TMP_FOLDER, 'cluster'),
-        raw_data, 
-        full_run,
+        standardized_path,
+        standardized_dtype,
         fname_residual=fname_residual,
         residual_dtype=residual_dtype,
-        fname_templates_up=fname_templates_up,
-        fname_spike_train_up=fname_spike_train_up)
+        fname_spike_index=None,
+        fname_templates=fname_templates,
+        fname_spike_train=fname_spike_train,
+        raw_data=False, 
+        full_run=True)
 
-    methods = ['off_center', 'high_mad', 'duplicate', 'collision']
+    methods = ['off_center', 'high_mad', 'duplicate_l2', 'duplicate']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         fname_templates,
@@ -319,14 +336,14 @@ def iterative_block(TMP_FOLDER,
         os.path.join(TMP_FOLDER,
                      'cluster_post_process'),
         standardized_path,
-        standardized_params['dtype'])
+        standardized_dtype)
 
     return fname_templates, fname_spike_train
 
 
 def final_deconv(TMP_FOLDER,
                  standardized_path,
-                 standardized_params,
+                 standardized_dtype,
                  fname_templates):
 
     logger = logging.getLogger(__name__)
@@ -350,33 +367,42 @@ def final_deconv(TMP_FOLDER,
         os.path.join(TMP_FOLDER,
                      'deconv'),
         standardized_path,
-        standardized_params['dtype'])
+        standardized_dtype)
 
     # compute residual
     logger.info('RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
         fname_shifts,
-        fname_templates_up,
-        fname_spike_train_up,
+        fname_templates,
+        fname_spike_train,
         os.path.join(TMP_FOLDER,
                      'residual'),
         standardized_path,
-        standardized_params['dtype'],
+        standardized_dtype,
         dtype_out='float32')
 
-    #logger.info('FINAL MERGE')
-    fname_templates, fname_spike_train = merge.run(
-        os.path.join(TMP_FOLDER,
-                     'post_deconv_merge'),
-        False,
-        fname_spike_train,
+    logger.info('SOFT NOISE ASSIGNMENT')
+    fname_soft_assignment = noise.run(
         fname_templates,
-        fname_spike_train_up,
-        fname_templates_up,
-        standardized_path,
-        standardized_params['dtype'],
+        fname_spike_train,
+        fname_shifts,
+        os.path.join(TMP_FOLDER,
+                     'soft_assignment'),
         fname_residual,
         residual_dtype)
 
-    return (fname_templates, fname_spike_train, fname_templates_up,
-            fname_spike_train_up, fname_residual, residual_dtype)
+    logger.info('FINAL MERGE')
+    (fname_templates,
+     fname_spike_train,
+     fname_soft_assignment) = merge.run(
+        os.path.join(TMP_FOLDER,
+                     'post_deconv_merge'),
+        fname_spike_train,
+        fname_templates,
+        fname_soft_assignment,
+        fname_residual,
+        residual_dtype)
+
+    return (fname_templates,
+            fname_spike_train,
+            fname_soft_assignment)
