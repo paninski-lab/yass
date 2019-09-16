@@ -68,7 +68,7 @@ def _standard_deviation(rec, centered=False):
 
     # find standard deviation using robust method
     if not centered:
-        rec = rec - np.median(rec, axis=0, keepdims=True)
+        rec = rec - np.mean(rec, axis=0, keepdims=True)
     return np.median(np.abs(rec), 0)/0.6745
 
 
@@ -94,7 +94,7 @@ def _standardize(rec, sd=None, centered=False):
 
     # find standard deviation using robust method
     if not centered:
-        rec = rec - np.median(rec, axis=0, keepdims=True)
+        rec = rec - np.mean(rec, axis=0, keepdims=True)
     
     if sd is None:
         sd = _standard_deviation(rec, centered=True)
