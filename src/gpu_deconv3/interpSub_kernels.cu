@@ -74,69 +74,69 @@ void repeatKernel(index_t const*const g_repeats,
         g_out[s_offset + xid] = yid;
 }
 
-/* Each Block Is A Single Nonzero Row
- * (1D Grid Of 1D Blocks)
- */
-// TODO restrict pointers for better compiler optim
-template<typename data_t, typename index_t>
-__global__ 
-void pointwiseSubKernel(
-    data_t       *const       g_convData,
-    size_t const              ldConvData,
-    data_t  const*const*const g_tempDataPtrs,
-    size_t const              ldTempData,
-    index_t const*const*const g_tempIndPtrs,
-    index_t const*const       g_spikeLookup,
-    index_t const*const       g_spikeTemps,
-    index_t const*const       g_spikeTimes,
-    index_t const*const       g_spikeRowOffsets
-){
-    // Each Thread-Block Maps To One Row, So Row-Heads Can Be Shared
-    __shared__ data_t      * s_convDataRowHead;
-    __shared__ data_t const* s_tempDataRowHead;
+///* Each Block Is A Single Nonzero Row
+ //* (1D Grid Of 1D Blocks)
+ //*/
+//// TODO restrict pointers for better compiler optim
+//template<typename data_t, typename index_t>
+//__global__ 
+//void pointwiseSubKernel(
+    //data_t       *const       g_convData,
+    //size_t const              ldConvData,
+    //data_t  const*const*const g_tempDataPtrs,
+    //size_t const              ldTempData,
+    //index_t const*const*const g_tempIndPtrs,
+    //index_t const*const       g_spikeLookup,
+    //index_t const*const       g_spikeTemps,
+    //index_t const*const       g_spikeTimes,
+    //index_t const*const       g_spikeRowOffsets
+//){
+    //// Each Thread-Block Maps To One Row, So Row-Heads Can Be Shared
+    //__shared__ data_t      * s_convDataRowHead;
+    //__shared__ data_t const* s_tempDataRowHead;
 
-    // tid0 Is Responsible For Computing Row-Heads 
-    if(threadIdx.x == 0)
-    {
-        // Lookup Spike's Template Row Offset
-        const index_t spike = g_spikeLookup[blockIdx.x];
-        const index_t temp = g_spikeTemps[spike];
-        const index_t tempRowId = (spike > 0) ? 
-            (blockIdx.x - g_spikeRowOffsets[spike-1]) : blockIdx.x;
+    //// tid0 Is Responsible For Computing Row-Heads 
+    //if(threadIdx.x == 0)
+    //{
+        //// Lookup Spike's Template Row Offset
+        //const index_t spike = g_spikeLookup[blockIdx.x];
+        //const index_t temp = g_spikeTemps[spike];
+        //const index_t tempRowId = (spike > 0) ? 
+            //(blockIdx.x - g_spikeRowOffsets[spike-1]) : blockIdx.x;
 
-        // Compute Template & Time Offset In Convolved
-        s_convDataRowHead = pointerOffset<data_t, index_t>(g_convData,
-                                                            ldConvData,
-                                                            g_tempIndPtrs[temp][tempRowId],
-                                                            g_spikeTimes[spike]);
+        //// Compute Template & Time Offset In Convolved
+        //s_convDataRowHead = pointerOffset<data_t, index_t>(g_convData,
+                                                            //ldConvData,
+                                                            //g_tempIndPtrs[temp][tempRowId],
+                                                            //g_spikeTimes[spike]);
     
-        // Compute Nonzero-Row Offset Within Template
-        s_tempDataRowHead = pointerOffset<data_t const, index_t>(g_tempDataPtrs[temp],
-                                                                  ldTempData,
-                                                                  tempRowId,
-                                                                  0);
-    }
-    // In-Bounds Threads Perform Indpendent Reads->Sub->Write
-    //unsigned mask = __ballot_sync(FULL_MASK, threadIdx.x < ldTempData);
-    __syncthreads();
-    if (threadIdx.x < ldTempData)
-    {
-        // Compute Thread-Unique Addresses
-        //__syncwarp(mask);
-        data_t const*const t_tempDataAddr = s_tempDataRowHead + threadIdx.x;
-        //__syncwarp(mask);
-        data_t      *const t_convDataAddr = s_convDataRowHead + threadIdx.x;
+        //// Compute Nonzero-Row Offset Within Template
+        //s_tempDataRowHead = pointerOffset<data_t const, index_t>(g_tempDataPtrs[temp],
+                                                                  //ldTempData,
+                                                                  //tempRowId,
+                                                                  //0);
+    //}
+    //// In-Bounds Threads Perform Indpendent Reads->Sub->Write
+    ////unsigned mask = __ballot_sync(FULL_MASK, threadIdx.x < ldTempData);
+    //__syncthreads();
+    //if (threadIdx.x < ldTempData)
+    //{
+        //// Compute Thread-Unique Addresses
+        ////__syncwarp(mask);
+        //data_t const*const t_tempDataAddr = s_tempDataRowHead + threadIdx.x;
+        ////__syncwarp(mask);
+        //data_t      *const t_convDataAddr = s_convDataRowHead + threadIdx.x;
     
-        // Perform Global Mem Reads
-        //__syncwarp(mask);
-        // TODO handle scaling directly on templates? Alternatively as a param?
-        data_t const t_tempDataElem = *t_tempDataAddr * -2;
+        //// Perform Global Mem Reads
+        ////__syncwarp(mask);
+        //// TODO handle scaling directly on templates? Alternatively as a param?
+        //data_t const t_tempDataElem = *t_tempDataAddr * -2;
     
-        // Write Results To Global Mem
-        //__syncwarp(mask);
-        atomicAdd(t_convDataAddr, t_tempDataElem);
-    }
-}
+        //// Write Results To Global Mem
+        ////__syncwarp(mask);
+        //atomicAdd(t_convDataAddr, t_tempDataElem);
+    //}
+//}
 
 /* Each Block Is A Single Nonzero Row
  * (1D Grid Of 1D Blocks)
@@ -158,7 +158,8 @@ void splineSubKernel(
     index_t const*const       g_eventTempIds,
     index_t const*const       g_eventTimeIdx,
     data_t  const*const       g_eventTimeOffset,
-    index_t const*const       g_eventBlockOffset
+    index_t const*const       g_eventBlockOffset,
+    data_t  const             g_tempScaling
 ){
     // Basis Evals Same In Every Thread (Uniform Spacing) => Only Compute Once
     __shared__ data_t s_basisVals[order + 1];
@@ -268,7 +269,7 @@ void splineSubKernel(
     __syncthreads();
     data_t *const t_energyValAddr = s_energyValHeadAddr + threadIdx.x;
     if (threadIdx.x < numCoef - order - 1){
-        atomicAdd(t_energyValAddr, 2 * t_tempVal);
+        atomicAdd(t_energyValAddr, g_tempScaling * t_tempVal);
     }
 }
 
@@ -335,41 +336,41 @@ void launchRepeatKernel(
 
 /*
  */
-void launchPointwiseSubKernel(
-    float        *const       d_convData,
-    size_t  const             ldConvData,
-    float   const*const*const d_tempDataPtrs,
-    size_t  const             ldTempData,
-    int64_t const*const*const d_tempIndPtrs,
-    int64_t const*const       d_spikeLookup,
-    size_t  const             nnzRows,
-    int64_t const*const       d_spikeTemps,
-    int64_t const*const       d_spikeTimes,
-    int64_t const*const       d_spikeRowOffset
-){
-    // Determine Launch Configuration
-    const int block = ((ldTempData + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
-    const int grid = nnzRows;
+//void launchPointwiseSubKernel(
+    //float        *const       d_convData,
+    //size_t  const             ldConvData,
+    //float   const*const*const d_tempDataPtrs,
+    //size_t  const             ldTempData,
+    //int64_t const*const*const d_tempIndPtrs,
+    //int64_t const*const       d_spikeLookup,
+    //size_t  const             nnzRows,
+    //int64_t const*const       d_spikeTemps,
+    //int64_t const*const       d_spikeTimes,
+    //int64_t const*const       d_spikeRowOffset
+//){
+    //// Determine Launch Configuration
+    //const int block = ((ldTempData + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
+    //const int grid = nnzRows;
 
-    // Dispatch Kernel
-    pointwiseSubKernel<float, int64_t><<<grid, block>>>(d_convData,
-                                                       ldConvData,
-                                                       d_tempDataPtrs,
-                                                       ldTempData,
-                                                       d_tempIndPtrs,
-                                                       d_spikeLookup,
-                                                       d_spikeTemps,
-                                                       d_spikeTimes,
-                                                       d_spikeRowOffset);
+    //// Dispatch Kernel
+    //pointwiseSubKernel<float, int64_t><<<grid, block>>>(d_convData,
+                                                       //ldConvData,
+                                                       //d_tempDataPtrs,
+                                                       //ldTempData,
+                                                       //d_tempIndPtrs,
+                                                       //d_spikeLookup,
+                                                       //d_spikeTemps,
+                                                       //d_spikeTimes,
+                                                       //d_spikeRowOffset);
 
-    // TODO: Remove Cuda Error Checking For Performance
-    cudaError_t errSync  = cudaGetLastError();
-    cudaError_t errAsync = cudaDeviceSynchronize();
-    if (errSync != cudaSuccess)
-        printf("Sync kernel error: %s\n", cudaGetErrorString(errSync));
-    if (errAsync != cudaSuccess)
-        printf("Async kernel error: %s\n", cudaGetErrorString(errAsync));
-}
+    //// TODO: Remove Cuda Error Checking For Performance
+    //cudaError_t errSync  = cudaGetLastError();
+    //cudaError_t errAsync = cudaDeviceSynchronize();
+    //if (errSync != cudaSuccess)
+        //printf("Sync kernel error: %s\n", cudaGetErrorString(errSync));
+    //if (errAsync != cudaSuccess)
+        //printf("Async kernel error: %s\n", cudaGetErrorString(errAsync));
+//}
 
 /*
  */
@@ -385,8 +386,10 @@ void launchSplineSubKernel(
     int64_t const*const       d_eventTempIds,
     int64_t const*const       d_eventTimeIdx,
     float   const*const       d_eventTimeOffset,
-    int64_t const*const       d_eventBlockOffset
-){
+    int64_t const*const       d_eventBlockOffset,
+    float   const             d_tempScaling)
+    
+{
     // Determine Launch Configuration
     const size_t ORDER = 3; // Hard Coded To Compile Cubic Bspline Kernel
     const int block = ((numCoef + WARP_SIZE - 1) / WARP_SIZE) * WARP_SIZE;
@@ -405,7 +408,8 @@ void launchSplineSubKernel(
         d_eventTempIds,
         d_eventTimeIdx,
         d_eventTimeOffset,
-        d_eventBlockOffset
+        d_eventBlockOffset,
+        d_tempScaling
     );
 
     // TODO: Remove Cuda Error Checking For Performance

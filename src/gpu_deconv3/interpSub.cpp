@@ -15,18 +15,18 @@ void launchRepeatKernel(
     at::Tensor const& offsets
 );
 
-void launchPointwiseSubKernel(
-    float        *const       d_convData,
-    size_t  const             ldConvData,
-    float   const*const*const d_tempDataPtrs,
-    size_t  const             ldTempData,
-    int64_t const*const*const d_tempIndPtrs,
-    int64_t const*const       d_spikeLookup,
-    size_t  const             nnzRows,
-    int64_t const*const       d_spikeTemps,
-    int64_t const*const       d_spikeTimes,
-    int64_t const*const       d_spikeRowOffset
-);
+//void launchPointwiseSubKernel(
+    //float        *const       d_convData,
+    //size_t  const             ldConvData,
+    //float   const*const*const d_tempDataPtrs,
+    //size_t  const             ldTempData,
+    //int64_t const*const*const d_tempIndPtrs,
+    //int64_t const*const       d_spikeLookup,
+    //size_t  const             nnzRows,
+    //int64_t const*const       d_spikeTemps,
+    //int64_t const*const       d_spikeTimes,
+    //int64_t const*const       d_spikeRowOffset
+//);
 
 void launchSplineSubKernel(
     size_t  const             numCoefs,
@@ -40,7 +40,8 @@ void launchSplineSubKernel(
     int64_t const*const       d_eventTempIds,
     int64_t const*const       d_eventTimeIdx,
     float   const*const       d_eventTimeOffset,
-    int64_t const*const       d_eventBlockOffset
+    int64_t const*const       d_eventBlockOffset,
+    float   const             d_tempScaling
 );
 
 void launchRefracFillKernel(
@@ -190,39 +191,39 @@ class NeuralTemplates
         index_t const* nnzPtr() const { return nzRowCounts.data<index_t>(); }
 };
 
-/* Performs Energy Subtraction Given Templates & Spike Id's + Times
- */
-void spikeSub(
-        at::Tensor                           & convData,
-        at::Tensor                      const& spikeTimes,
-        at::Tensor                      const& spikeTemps,
-        NeuralTemplates<float, int64_t> const& templates
-){
-    // Validate Input Tensors
-    CHECK_MATRIX(convData);
-    CHECK_ARRAY(spikeTimes);
-    CHECK_ARRAY(spikeTemps);
+//* Performs Energy Subtraction Given Templates & Spike Id's + Times
+ //*/
+//void spikeSub(
+        //at::Tensor                           & convData,
+        //at::Tensor                      const& spikeTimes,
+        //at::Tensor                      const& spikeTemps,
+        //NeuralTemplates<float, int64_t> const& templates)
+//{
+    //// Validate Input Tensors
+    //CHECK_MATRIX(convData);
+    //CHECK_ARRAY(spikeTimes);
+    //CHECK_ARRAY(spikeTemps);
 
-    // Compute Nonzero Row Info & Use To Construct RowId->SpikeId Lookup
-    auto spikeRowCounts = at::index_select(templates.nnz(), 0, spikeTemps);
-    auto spikeRowOffset = at::cumsum(spikeRowCounts, 0);
-    auto rowCount = spikeRowOffset[spikeRowOffset.size(0)-1];
-    auto spikeLookup = at::empty({rowCount.item<int64_t>()},
-                                 spikeRowCounts.options());
-    launchRepeatKernel(spikeLookup, spikeRowCounts, spikeRowOffset); 
+    //// Compute Nonzero Row Info & Use To Construct RowId->SpikeId Lookup
+    //auto spikeRowCounts = at::index_select(templates.nnz(), 0, spikeTemps);
+    //auto spikeRowOffset = at::cumsum(spikeRowCounts, 0);
+    //auto rowCount = spikeRowOffset[spikeRowOffset.size(0)-1];
+    //auto spikeLookup = at::empty({rowCount.item<int64_t>()},
+                                 //spikeRowCounts.options());
+    //launchRepeatKernel(spikeLookup, spikeRowCounts, spikeRowOffset); 
 
-    // Perform Batched Template Subtraction 
-    launchPointwiseSubKernel(convData.data<float>(),
-                             convData.stride(0),
-                             templates.dataPtrs(),
-                             templates.ld(),
-                             templates.indPtrs(),
-                             spikeLookup.data<int64_t>(),
-                             spikeLookup.size(0),
-                             spikeTemps.data<int64_t>(),
-                             spikeTimes.data<int64_t>(),
-                             spikeRowOffset.data<int64_t>());
-}
+    //// Perform Batched Template Subtraction 
+    //launchPointwiseSubKernel(convData.data<float>(),
+                             //convData.stride(0),
+                             //templates.dataPtrs(),
+                             //templates.ld(),
+                             //templates.indPtrs(),
+                             //spikeLookup.data<int64_t>(),
+                             //spikeLookup.size(0),
+                             //spikeTemps.data<int64_t>(),
+                             //spikeTimes.data<int64_t>(),
+                             //spikeRowOffset.data<int64_t>());
+//}
 
 /* Performs Energy Subtraction Given Templates & Spike Id's + Times
  */
@@ -231,8 +232,10 @@ void splineSub(
         at::Tensor                      const& eventTimeIdx,
         at::Tensor                      const& eventTimeOffset,
         at::Tensor                      const& eventTempIds,
-        NeuralTemplates<float, int64_t> const& tempCoefs
-){
+        NeuralTemplates<float, int64_t> const& tempCoefs,
+        float                           const  tempScaling)
+
+{
     // Validate Input Tensors
     CHECK_MATRIX(energyFunc);
     CHECK_ARRAY(eventTimeIdx);
@@ -260,8 +263,8 @@ void splineSub(
         eventTempIds.data<int64_t>(),
         eventTimeIdx.data<int64_t>(),
         eventTimeOffset.data<float>(),
-        eventBlockOffset.data<int64_t>()
-    );
+        eventBlockOffset.data<int64_t>(),
+        tempScaling);
 }
 
 /* Sets Energy Within Refractory Periods Given Spike Id's + Times
@@ -273,6 +276,7 @@ void refracFill(
     size_t     const  fillLength,
     size_t     const  fillOffset=0,
     float      const  fillValue=0.0)
+                      
 {
     // Validate Input Tensors
     CHECK_MATRIX(convData);
@@ -310,13 +314,14 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
         })
         .def_property_readonly("nnz", &NeuralTemplates<float, int64_t>::nnz);
     // Batched Template Subtraction 
-    m.def("subtract_spikes",
-          &spikeSub,
-          "Remove contributions to the energy function for a set of detected spikes.",
-          py::arg("energy"), 
-          py::arg("time_indices"), 
-          py::arg("time_offsets"), 
-          py::arg("templates")); 
+    //m.def("subtract_spikes",
+          //&spikeSub,
+          //"Remove contributions to the energy function for a set of detected spikes.",
+          //py::arg("energy"), 
+          //py::arg("time_indices"), 
+          //py::arg("time_offsets"), 
+          //py::arg("templates")); 
+          
     m.def("subtract_splines",
           &splineSub,
           "Remove contributions to the energy function for a set of detected spikes.",
@@ -324,7 +329,9 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
           py::arg("times_indices"), 
           py::arg("times_offsets"), 
           py::arg("template_ids"), 
-          py::arg("templates")); 
+          py::arg("templates"),
+          py::arg("tempScaling")); 
+          
     m.def("refrac_fill",
           &refracFill,
           "Sets energy function during refractory period for a set of detected spikes.",

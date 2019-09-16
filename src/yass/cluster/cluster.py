@@ -31,6 +31,10 @@ class Cluster(object):
         # local channel clustering
         if self.verbose:
             print("START LOCAL")
+        
+        # 
+        print (" Triage value: ", self.triage_value)
+        
         # neighbour channel clustering
         self.initialize(indices_in=np.arange(len(self.spike_times_original)),
                         local=True)
@@ -263,6 +267,7 @@ class Cluster(object):
         '''
 
         # flag to load all chans waveforms and featurizat for ari's work
+        # Cat: TODO: I don't think we use the meta data from Ari's project any longer; delete?
         self.ari_flag = False
         self.wf_global_allchans = None
         self.pca_wf_allchans = None
@@ -672,6 +677,7 @@ class Cluster(object):
 
         return idx_keep
 
+    # Cat: TODO: remove this function?!  also it seems like it's setting global triage value not just local
     def knn_triage_dynamic(self, gen, vbParam, pca_wf):
 
         ids = np.where(vbParam.nuhat > self.min_spikes)[0]

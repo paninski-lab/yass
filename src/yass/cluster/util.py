@@ -111,6 +111,7 @@ def split_spikes_GPU(spike_index, n_units):
 
     with tqdm(total=n_units) as pbar:
         for unit in range(n_units):
+            print ("unit: ", unit)
             idx = torch.where(spike_index[:,1]==unit,
                               spike_index[:,1]*0+1,
                               spike_index[:,1]*0)
@@ -125,7 +126,7 @@ def split_spikes_GPU(spike_index, n_units):
 def split_spikes_parallel(spike_index_list, spike_index, idx_keep, 
                           n_units, CONFIG):
     
-    np.save('/home/cat/spike_index.npy', spike_index[idx_keep])
+    #np.save('/home/cat/spike_index.npy', spike_index[idx_keep])
     spike_index_local = spike_index[idx_keep]
     units = np.array_split(np.arange(n_units), CONFIG.resources.n_processors)
         
@@ -162,7 +163,8 @@ def partition_input(save_dir,
     n_units = np.max(spike_index[:, 1]) + 1
     #spike_index_list = [[] for ii in range(n_units)]
 
-    spike_index_list = split_spikes_GPU(spike_index, n_units)
+    spike_index_list = split_parallel(np.arange(n_units), spike_index)
+    #spike_index_list = split_spikes_GPU(spike_index[idx_keep], n_units)
     #spike_index_list = split_spikes_parallel(spike_index_list, spike_index,
     #                                     idx_keep, n_units, CONFIG)
 
