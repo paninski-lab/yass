@@ -71,12 +71,12 @@ def _as_array(arr, dtype=None):
     return out
 
 
-def _increment(arr, indices):
+def _increment(arr, indices, weight=None):
     """Increment some indices in a 1D vector of non-negative integers.
     Repeated indices are taken into account."""
     arr = _as_array(arr)
     indices = _as_array(indices)
-    bbins = np.bincount(indices)
+    bbins = np.bincount(indices, weight)
     arr[:len(bbins)] += bbins
     return arr
 
@@ -88,7 +88,7 @@ def _diff_shifted(arr, steps=1):
 
 def _create_correlograms_array(n_clusters, winsize_bins):
     return np.zeros((n_clusters, n_clusters, winsize_bins // 2 + 1),
-                    dtype=np.int32)
+                    'float32')
 
 
 def _symmetrize_correlograms(correlograms):
@@ -111,12 +111,13 @@ def _symmetrize_correlograms(correlograms):
 
 def correlograms(spike_times,
                  spike_clusters,
+                 soft_assignment,
                  cluster_ids=None,
                  sample_rate=1.,
                  bin_size=None,
                  window_size=None,
-                 symmetrize=True,
-                 ):
+                 symmetrize=True):
+
     """Compute all pairwise cross-correlograms among the clusters appearing
     in `spike_clusters`.
     Parameters
@@ -138,6 +139,7 @@ def correlograms(spike_times,
         A `(n_clusters, n_clusters, winsize_samples)` array with all pairwise
         CCGs.
     """
+
     assert sample_rate > 0.
     assert np.all(np.diff(spike_times) >= 0), ("The spike times must be "
                                                "increasing.")
@@ -145,7 +147,6 @@ def correlograms(spike_times,
     # Get the spike samples.
     spike_times = np.asarray(spike_times, dtype=np.float64)
     spike_samples = (spike_times * sample_rate).astype(np.int64)
-
     
     spike_clusters = _as_array(spike_clusters)
 
@@ -209,8 +210,11 @@ def correlograms(spike_times,
                                         d),
                                        correlograms.shape)
 
+        # weight
+        weight = soft_assignment[:-shift][m]*soft_assignment[+shift:][m]
+
         # Increment the matching spikes in the correlograms array.
-        _increment(correlograms.ravel(), indices)
+        _increment(correlograms.ravel(), indices, weight)
 
         shift += 1
 
@@ -225,21 +229,31 @@ def correlograms(spike_times,
         return correlograms
 
 
-def compute_correlogram(units, spike_train, sample_rate=20000, bin_width = 0.001, window_size = 0.1):
+def compute_correlogram(units, spike_train, soft_assignment=None, sample_rate=20000, bin_width = 0.001, window_size = 0.1):
 
     #Reduce spike_train to two units; ensure to keep order of spikes 
     #spike_train_temp = []
     #for unit in units:
     #    spike_train_temp.append(spike_train[np.where(spike_train[:,1]==unit)[0]])
     #spike_train = np.vstack(spike_train_temp)
-   
-    spike_train = spike_train[np.in1d(spike_train[:,1], units)]
     
+    if soft_assignment is None:
+        soft_assignment = np.ones(len(spike_train))
+
+    idx_in = np.where(np.in1d(spike_train[:,1], units))[0]
+    spike_train = spike_train[idx_in]
+    soft_assignment = soft_assignment[idx_in]
     
     order_indexes = np.argsort(spike_train[:,0])
     spike_train = spike_train[order_indexes]
+    soft_assignment = soft_assignment[order_indexes]
     
-    return correlograms(spike_train[:,0]/float(sample_rate),spike_train[:,1],sample_rate=sample_rate, bin_size=bin_width, window_size=window_size)
+    return correlograms(spike_train[:,0]/float(sample_rate), 
+                        spike_train[:,1],
+                        soft_assignment,
+                        sample_rate=sample_rate,
+                        bin_size=bin_width,
+                        window_size=window_size)
 
 
 def compute_correlogram_v2(spt1, spt2, sample_rate=20000, bin_width = 0.001, window_size = 0.1):

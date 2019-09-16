@@ -69,7 +69,8 @@ class Visualizer(object):
     def __init__(self, fname_templates, fname_spike_train,
                  fname_recording, recording_dtype,
                  CONFIG, save_dir, rf_dir=None,
-                 fname_residual=None, residual_dtype=None):
+                 fname_residual=None, residual_dtype=None,
+                 fname_soft_assignment=None):
 
         # saving directory location
         self.save_dir = save_dir
@@ -96,6 +97,8 @@ class Visualizer(object):
         # load spike train and templates
         self.spike_train = np.load(fname_spike_train)
         self.unique_ids = np.unique(self.spike_train[:,1])
+        self.soft_assignment = np.load(fname_soft_assignment)
+
         # compute firing rates
         self.compute_firing_rates()
         self.compute_xcorrs()
@@ -118,25 +121,20 @@ class Visualizer(object):
             self.STAs = np.flip(self.STAs, axis=2)
             self.STAs_temporal = np.load(os.path.join(rf_dir, 'STA_temporal.npy'))
             self.gaussian_fits = np.load(os.path.join(rf_dir, 'gaussian_fits.npy'))
-            
-            self.idx_single_rf = np.load(os.path.join(rf_dir, 'idx_single_rf.npy'))
-            self.idx_no_rf = np.load(os.path.join(rf_dir, 'idx_no_rf.npy'))
-            self.idx_multi_rf = np.load(os.path.join(rf_dir, 'idx_multi_rf.npy'))
 
             self.cell_types = list(np.load(os.path.join(rf_dir, 'cell_types.npy')))
-            self.cell_types += ['Multiple-Rf', 'No-Rf']
+            self.cell_types += ['No-Rf', 'Multiple-Rf']
 
-            if os.path.exists(os.path.join(rf_dir, 'labels_new.npy')):
-                self.rf_labels = np.load(os.path.join(rf_dir, 'labels_new.npy'))
+            if os.path.exists(os.path.join(rf_dir, 'labels_updated.npy')):
+                self.rf_labels = np.load(os.path.join(rf_dir, 'labels_updated.npy'))
             else:
+                self.idx_single_rf = np.load(os.path.join(rf_dir, 'idx_single_rf.npy'))
+                self.idx_no_rf = np.load(os.path.join(rf_dir, 'idx_no_rf.npy'))
+                self.idx_multi_rf = np.load(os.path.join(rf_dir, 'idx_multi_rf.npy'))
+
                 self.rf_labels = np.load(os.path.join(rf_dir, 'labels.npy'))
-            self.idx_multi_rf = self.idx_multi_rf[
-                self.rf_labels[self.idx_multi_rf] == -1]
-            self.idx_no_rf = self.idx_no_rf[
-                self.rf_labels[self.idx_no_rf] == -1]
-            self.rf_labels[self.idx_multi_rf] = len(self.cell_types) - 2
-            self.rf_labels[self.idx_no_rf] = len(self.cell_types) - 1
-            self.rf_labels[self.rf_labels== -1] = len(self.cell_types) - 1
+                self.rf_labels[self.idx_multi_rf] = len(self.cell_types) - 1
+                self.rf_labels[self.idx_no_rf] = len(self.cell_types) - 2
 
             self.stim_size = np.load(os.path.join(rf_dir, 'stim_size.npy'))
 
@@ -179,11 +177,12 @@ class Visualizer(object):
         samplerate = self.sampling_rate
         rec_len = np.ptp(self.spike_train[:, 0])/samplerate
 
-        # compute firing rates and ptps
-        unique, n_spikes = np.unique(self.spike_train[:,1], return_counts=True)
-        
-        self.f_rates = np.zeros(self.n_units)
-        self.f_rates[unique] = n_spikes/rec_len
+        n_spikes_soft = np.zeros(self.n_units)
+        for j in range(self.spike_train.shape[0]):
+            n_spikes_soft[self.spike_train[j, 1]] += self.soft_assignment[j]
+        n_spikes_soft = n_spikes_soft.astype('int32')
+
+        self.f_rates = n_spikes_soft/rec_len
         self.ptps = self.templates.ptp(0).max(0)
 
     def compute_xcorrs(self):
@@ -197,6 +196,8 @@ class Visualizer(object):
             self.xcorrs = compute_correlogram(
                 np.arange(self.n_units),
                 self.spike_train,
+                self.soft_assignment,
+                sample_rate=self.sampling_rate,
                 bin_width=self.bin_width,
                 window_size=self.window_size)
             np.save(fname, self.xcorrs)
@@ -250,7 +251,7 @@ class Visualizer(object):
                         other_units = units_same_class[units_same_class != k]
                         nearest_units_rf[k][:len(other_units)] = other_units
                         nearest_units_rf[k][len(other_units):] = k
-                        
+
 
             self.nearest_units_rf = nearest_units_rf
             np.save(fname, self.nearest_units_rf)
@@ -393,18 +394,19 @@ class Visualizer(object):
                 self.make_neighbors_plot(unit, neighbor_units, fname, title)
 
             # xcorr neighbours
-            (idx_max, max_vals,
-             idx_min, min_vals) = self.compute_neighbours_xcorrs(unit)
-            fname = os.path.join(save_dir, name+'_p4_high_xcorr_neigh.png')
-            title = 'Unit {} ({}), Xcor Space Neighbors'.format(
-                unit, cell_type)
-            self.make_neighbors_plot(unit, idx_max, fname, title)
-
-            if np.min(min_vals) < -10:
-                fname = os.path.join(save_dir, name+'_p5_xcorr_notches.png')
-                title = 'Unit {} ({}), Xcor Notches'.format(
+            if self.f_rates[unit] > 0.5:
+                (idx_max, max_vals,
+                 idx_min, min_vals) = self.compute_neighbours_xcorrs(unit)
+                fname = os.path.join(save_dir, name+'_p4_high_xcorr_neigh.png')
+                title = 'Unit {} ({}), Xcor Space Neighbors'.format(
                     unit, cell_type)
-                self.make_neighbors_plot(unit, idx_min, fname, title)
+                self.make_neighbors_plot(unit, idx_max, fname, title)
+
+                if np.min(min_vals) < -10:
+                    fname = os.path.join(save_dir, name+'_p5_xcorr_notches.png')
+                    title = 'Unit {} ({}), Xcor Notches'.format(
+                        unit, cell_type)
+                    self.make_neighbors_plot(unit, idx_min, fname, title)
 
 
     def make_template_plot(self, unit, fname):
@@ -756,10 +758,16 @@ class Visualizer(object):
     def get_waveforms(self, unit, n_examples=200):
 
         idx = np.where(self.spike_train[:,1]==unit)[0]
-        idx = np.random.choice(idx, 
-                               np.min((n_examples, len(idx))),
-                               False)
         spt = self.spike_train[idx, 0]
+        prob = self.soft_assignment[idx]
+        
+        if np.sum(prob) < 1:
+            return np.zeros((0,1,1)), None, None, None
+
+        spt = np.random.choice(spt, 
+                               np.min((n_examples, int(np.sum(prob)))),
+                               False, prob/np.sum(prob))
+
         mc = self.templates[:, :, unit].ptp(0).argmax()
         neigh_chans = np.where(self.neigh_channels[mc])[0]
         temp = self.templates[:, :, unit][:, mc]
@@ -1196,6 +1204,7 @@ class Visualizer(object):
         l2_features, spike_ids = get_l2_features(
             self.reader_resid, self.spike_train,
             self.templates.transpose(2,0,1),
+            self.soft_assignment,
             unit1, unit2)
 
         if l2_features is None:
@@ -1338,7 +1347,11 @@ class Visualizer(object):
             k = order[j]
             idx = self.spike_train[:,1] == k
             spt = self.spike_train[idx, 0]/self.sampling_rate
-            plt.eventplot(spt, lineoffsets=j, color='k', linewidths=0.01)
+            prob = self.soft_assignment[idx]
+            if np.sum(prob) > 1:
+                spt = np.sort(np.random.choice(
+                    spt, int(np.sum(prob)), False, prob/np.sum(prob)))
+                plt.eventplot(spt, lineoffsets=j, color='k', linewidths=0.01)
         plt.yticks(np.arange(0,self.n_units,10), sorted_ptps[0:self.n_units:10])
         plt.ylabel('ptps', fontsize=self.fontsize)
         plt.xlabel('time (seconds)', fontsize=self.fontsize)
