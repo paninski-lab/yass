@@ -12,6 +12,7 @@ from yass.postprocess.high_fr import remove_high_fr_units
 from yass.postprocess.duplicate import remove_duplicates
 from yass.postprocess.collision import remove_collision
 from yass.postprocess.mad import remove_high_mad
+from yass.postprocess.duplicate_l2 import duplicate_l2
 from yass.postprocess.util import get_weights
 
 def run(methods = [],
@@ -114,7 +115,8 @@ def post_process(output_directory,
     Run a single post process
     method: strings.
         Options are 'low_ptp', 'duplicate', 'collision',
-        'high_mad', 'low_fr', 'high_fr', 'off_center'
+        'high_mad', 'low_fr', 'high_fr', 'off_center',
+        'duplicate_l2'
     '''
 
     logger = logging.getLogger(__name__)
@@ -168,6 +170,27 @@ def post_process(output_directory,
             CONFIG.resources.n_processors)
 
         logger.info("{} units after removing duplicate units".format(
+            len(units_out)))
+
+    elif method == 'duplicate_l2':
+
+        # tmp saving dir
+        save_dir = os.path.join(output_directory,
+                                'duplicates_l2_{}'.format(ctr))
+
+        # remove duplicates
+        n_spikes_big = 300
+        min_ptp = 2
+        units_out = duplicate_l2(
+            fname_templates,
+            fname_spike_train,
+            CONFIG.neigh_channels,
+            save_dir,
+            n_spikes_big,
+            min_ptp,
+            units_in)
+
+        logger.info("{} units after removing L2 duplicate units".format(
             len(units_out)))
 
     elif method == 'collision':
