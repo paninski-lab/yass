@@ -128,15 +128,15 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         os.path.join(TMP_FOLDER, 'preprocess'))
 
     #### Block 1: Detection, Clustering, Postprocess
-    print ("CLUSTERING DEFAULT LENGTH: ", CONFIG.rec_len, " current set to 300 sec")
+    #print ("CLUSTERING DEFAULT LENGTH: ", CONFIG.rec_len, " current set to 300 sec")
     (fname_templates,
      fname_spike_train) = initial_block(
         os.path.join(TMP_FOLDER, 'block_1'),
         standardized_path,
         standardized_dtype,
-        #run_chunk_sec = [0, CONFIG.rec_len])
+        run_chunk_sec = [0, CONFIG.rec_len])
         #run_chunk_sec = [0, 600*20000])
-        run_chunk_sec = [0, 300])
+        #run_chunk_sec = [0, 300])
 
     print (" inpput to block2: ", fname_templates)
     

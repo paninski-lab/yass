@@ -291,7 +291,6 @@ def deconv_ONgpu2(fname_templates_in,
     # loop over chunks and run sutraction step
     spike_train = [np.zeros((0,2),'int32')]
     shifts = []
-    obj_vals = []
     for chunk_id in tqdm(range(reader.n_batches)):
         #fname = os.path.join(d_gpu.seg_dir,str(chunk_id).zfill(5)+'.npz')
         time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv
@@ -302,7 +301,6 @@ def deconv_ONgpu2(fname_templates_in,
         neuron_array = data['neuron_array']
         offset_array = data['offset_array']
         shift_list = data['shift_list']
-        obj_val_list = data['obj_val_list']
         for p in range(len(spike_array)):
             spike_times = spike_array[p].cpu().data.numpy()
             idx_keep = np.logical_and(spike_times >= buffer_size,
@@ -363,9 +361,6 @@ def deconv_ONgpu2(fname_templates_in,
     fname_shifts = os.path.join(d_gpu.out_dir, 'shifts.npy')
     np.save(fname_shifts, shifts)
 
-    fname_objs = os.path.join(d_gpu.out_dir, 'obj_vals.npy')
-    np.save(fname_objs, obj_vals)
-
     # save templates and upsampled templates
     templates_in_original = np.load(fname_templates_in)
     np.save(fname_templates, templates_in_original)
@@ -414,8 +409,7 @@ def run_deconv_no_templates_update_parallel(d_gpu, chunk_ids, n_sec_chunk_gpu, d
                      spike_array = d_gpu.spike_array,
                      offset_array = d_gpu.offset_array,
                      neuron_array = d_gpu.neuron_array,
-                     shift_list = d_gpu.shift_list,
-                     obj_val_list = d_gpu.obj_val_list)
+                     shift_list = d_gpu.shift_list)
 
 
 def run_deconv_with_templates_update(d_gpu, CONFIG,

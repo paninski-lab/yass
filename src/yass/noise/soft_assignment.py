@@ -143,7 +143,8 @@ class SOFTNOISEASSIGNMENT(object):
                                     times,
                                     shifts[ii_start:ii_end],
                                     temp_ids[ii_start:ii_end],
-                                    self.coeffs)
+                                    self.coeffs, 
+                                    2.0)
             obj = obj.reshape((self.n_neigh_chans, (ii_end-ii_start), n_times))
             shifted_templates[ii_start:ii_end] = obj.transpose(0,1).transpose(1,2)
     

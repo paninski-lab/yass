@@ -42,6 +42,10 @@ class GETPTP(object):
                 spike_index_batch[:, 0] -= (self.reader.idx_list[batch_id][0] - 
                                             self.reader.buffer)
 
+                # skip if no spikes
+                if len(spike_index_batch) == 0:
+                    continue
+
                 # get residual snippets
                 t_index = spike_index_batch[:, 0][:, None] + t_range
                 c_index = spike_index_batch[:,1].long()

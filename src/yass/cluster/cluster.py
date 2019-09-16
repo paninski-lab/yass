@@ -33,7 +33,7 @@ class Cluster(object):
             print("START LOCAL")
         
         # 
-        print (" Triage value: ", self.triage_value)
+        #print (" Triage value: ", self.triage_value)
         
         # neighbour channel clustering
         self.initialize(indices_in=np.arange(len(self.spike_times_original)),
