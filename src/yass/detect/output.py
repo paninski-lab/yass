@@ -44,6 +44,12 @@ def gather_result(fname_save, batch_files_dir):
 
     spike_index = np.vstack(spike_index)
     spike_index_prekill = np.vstack(spike_index_prekill)
+    
+    idx_sort = np.argsort(spike_index[:,0])
+    spike_index = spike_index[idx_sort]
+
+    idx_sort = np.argsort(spike_index[:,0])
+    spike_index_prekill = spike_index_prekill[idx_sort]
 
     np.save(fname_save, spike_index)
     np.save(fname_save[:fname_save.rfind('.')]+'_prekill.npy',
