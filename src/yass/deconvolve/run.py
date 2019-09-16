@@ -224,6 +224,8 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.max_percent_update = 0.1
     if d_gpu.update_templates:
         print (" TODO: implement superresolution alignemtn for template updates...")
+    else:
+        print ("   templates NOT being updated...")
 
     # update template time chunk; in seconds
     # Cat: TODO: read from CONFIG file
