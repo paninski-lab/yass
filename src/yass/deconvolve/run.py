@@ -100,10 +100,8 @@ def run(fname_templates_in,
     # TODO: read from CONFIG
     if threshold is None:
         threshold = CONFIG.deconvolution.threshold
-    elif threshold == 'max':
-        min_norm_2 = np.square(
-            np.load(fname_templates_in)).sum((1,2)).min()
-        threshold = min_norm_2*0.8
+    elif threshold == 'low_fp':
+        threshold = 150
 
     if run_chunk_sec == 'full':
         chunk_sec = None
@@ -177,7 +175,7 @@ def deconv_ONgpu2(fname_templates_in,
     root_dir = CONFIG.data.root_folder
 
     # Cat: TODO: read from CONFIG
-    d_gpu.max_iter=1000
+    d_gpu.max_iter = 1000
     d_gpu.deconv_thresh=threshold
 
     # Cat: TODO: make sure svd recomputed for higher rank etc.
@@ -307,12 +305,11 @@ def deconv_ONgpu2(fname_templates_in,
             #            or make array on the fly?
             spike_train.extend(temp)
             shifts.append(shift_list[p].cpu().data.numpy()[idx_keep])
-            obj_vals.append(obj_val_list[p].cpu().data.numpy()[idx_keep])
 
     # Cat; TODO: sepped this up.
     spike_train = np.vstack(spike_train)
     shifts = np.hstack(shifts)
-    obj_vals = np.hstack(obj_vals)
+
     # add half the spike time back in to get to centre of spike
     spike_train[:,0] = spike_train[:,0]-temporal_size//2
 
@@ -320,7 +317,6 @@ def deconv_ONgpu2(fname_templates_in,
     idx = spike_train[:,0].argsort(0)
     spike_train = spike_train[idx]
     shifts = shifts[idx]
-    obj_vals = obj_vals[idx]
 
     np.save(fname_spike_train[:-4]+"_prededuplication.npy", spike_train)
 
@@ -328,17 +324,17 @@ def deconv_ONgpu2(fname_templates_in,
     # Cat: TODO: are there still duplicates in spike trains!?
     print ("removing duplicates...")
     for k in np.unique(spike_train[:,1]):
-       idx = np.where(spike_train[:,1]==k)[0]
-       _,idx2 = np.unique(spike_train[idx,0], return_index=True)
-       idx3 = np.delete(np.arange(idx.shape[0]),idx2)
-       #print ("idx: ", idx[:10], idx.shape, " idx2: ", idx2[:10], idx2.shape, 
-       #      " idx3: ", idx3[:10], idx2.shape,
-       #      " idx[idx3]: ", idx[idx3])
-       #print ("unit: ", k, "  spike train: ", spike_train[idx][:10])
-    #
-       if idx3.shape[0]>0:
-           print ("unit: ", k, " has duplicates: ", idx3.shape[0])
-           spike_train[idx[idx3],0]=-1E6
+        idx = np.where(spike_train[:,1]==k)[0]
+        _,idx2 = np.unique(spike_train[idx,0], return_index=True)
+        idx3 = np.delete(np.arange(idx.shape[0]),idx2)
+        #print ("idx: ", idx[:10], idx.shape, " idx2: ", idx2[:10], idx2.shape,
+        #      " idx3: ", idx3[:10], idx2.shape,
+        #      " idx[idx3]: ", idx[idx3])
+        #print ("unit: ", k, "  spike train: ", spike_train[idx][:10])
+     #
+        if idx3.shape[0]>0:
+            print ("unit: ", k, " has duplicates: ", idx3.shape[0])
+            spike_train[idx[idx3],0]=-1E6
         
        #quit()
     idx = np.where(spike_train[:,0]==-1E6)[0]
