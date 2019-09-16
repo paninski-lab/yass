@@ -7,24 +7,26 @@ import parmap
 from yass import read_config
 from yass.reader import READER
 from yass.cluster.cluster import Cluster
-from yass.cluster.util import (make_CONFIG2, 
+from yass.cluster.util import (make_CONFIG2,
+                               make_spike_index_from_spike_train,
                                partition_input,
                                gather_clustering_result,
                                load_align_waveforms,
                                nn_denoise_wf, denoise_wf)
+from yass.cluster.ptp_split import run_split_on_ptp
+from yass.cluster.sharpen import sharpen_templates
 from yass.neuralnetwork import Denoise
 
-def run(fname_spike_index,
+def run(output_directory,
         fname_recording,
         recording_dtype,
-        output_directory,
-        raw_data=True,
-        full_run=False,
-        chunk_sec=None,
         fname_residual=None,
         residual_dtype=None,
-        fname_templates_up=None,
-        fname_spike_train_up=None):
+        fname_spike_index=None,
+        fname_templates=None,
+        fname_spike_train=None,
+        raw_data=True,
+        full_run=False):
 
     """Spike clustering
 
@@ -64,6 +66,10 @@ def run(fname_spike_index,
     """
     logger = logging.getLogger(__name__)
 
+    ########################
+    ### INITIALIZE #########
+    ########################
+
     CONFIG = read_config()
     # get CONFIG2 for clustering
     # Cat: TODO: Edu said the CONFIG file can be passed as a dictionary
@@ -74,61 +80,84 @@ def run(fname_spike_index,
         os.makedirs(output_directory)
 
     # if the output exists and want to skip, just finish
-    fname_templates = os.path.join(output_directory, 'templates.npy')
-    fname_spike_train = os.path.join(output_directory, 'spike_train.npy')
-    if os.path.exists(fname_templates):
-        return fname_templates, fname_spike_train
-
-    # run cluster on chunk of data
-    if chunk_sec is not None:
-        max_time = CONFIG.recordings.sampling_rate*chunk_sec
-        logger.info("clustering initial {} seconds of chunk".format(chunk_sec))
-
-    else:
-        max_time = CONFIG.recordings.sampling_rate*CONFIG.rec_len
-        logger.info("clustering on full chunk")
-
-    # partition spike_idnex_chunk using the second column
-    partition_dir = os.path.join(output_directory, 'spt_partition')
-    units, fnames_input = partition_input(partition_dir, 
-                                          max_time,
-                                          fname_spike_index,
-                                          CONFIG,
-                                          fname_templates_up,
-                                          fname_spike_train_up)
+    fname_templates_out = os.path.join(output_directory, 'templates.npy')
+    fname_spike_train_out = os.path.join(output_directory, 'spike_train.npy')
+    if os.path.exists(fname_templates_out):
+        return fname_templates_out, fname_spike_train_out
 
     # data reader
     reader_raw = READER(fname_recording,
                         recording_dtype,
-                        CONFIG)
+                        CONFIG,
+                        CONFIG.resources.n_sec_chunk_gpu_deconv)
     if fname_residual is not None:
         reader_resid = READER(fname_residual,
                               residual_dtype,
-                              CONFIG)
+                              CONFIG,
+                              CONFIG.resources.n_sec_chunk_gpu_deconv)
     else:
         reader_resid = None
-        
-    # load and align waveforms
-    logger.info("load and align waveforms on local channels")
-    fnames_input = load_align_waveforms(
-        os.path.join(output_directory, 'wfs'),
-        units,
-        fnames_input,
-        reader_raw,
-        reader_resid,
-        raw_data,
-        CONFIG2)
 
+    # nn denoiser
     if CONFIG.neuralnetwork.apply_nn:
-        logger.info("NN denoise")
         # load NN denoiser
         denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
                            CONFIG.neuralnetwork.denoise.filter_sizes,
                            CONFIG.spike_size_nn)
         denoiser.load(CONFIG.neuralnetwork.denoise.filename)
+        denoiser = denoiser.cuda()
+    else:
+        denoiser = None
+
+    # if clustering on clean waveforms, spike train is given 
+    # => make spike index and labels
+    if fname_spike_index is None:
+        savedir = os.path.join(output_directory, 'spike_index')
+        if not os.path.exists(savedir):
+            os.makedirs(savedir)
+        (fname_spike_index,
+         fname_labels_input) = make_spike_index_from_spike_train(
+            fname_spike_train, fname_templates, savedir)
+    
+    else:
+        # if we have spike_index, then we have no initial labels
+        fname_labels_input = None
+
+    #################################
+    #### STAGE 1: Cluster on PTP ####
+    #################################
+
+    logger.info("Split on PTP")
+    (fname_spike_index,
+     fname_labels,
+     fname_labels_input) = run_split_on_ptp(
+        os.path.join(output_directory, 'ptp_split'),
+        fname_spike_index, CONFIG2,
+        raw_data, fname_labels_input,
+        fname_templates, reader_raw, 
+        reader_resid, denoiser)
+
+    ############################################
+    #### STAGE 2: LOCAL + DISTANT CLUSTERING ###
+    ############################################
+
+    # load and align waveforms
+    logger.info("load and align waveforms on local channels")
+    units, fnames_input = load_align_waveforms(
+        os.path.join(output_directory, 'input'),
+        raw_data,
+        fname_labels,
+        fname_spike_index,
+        fname_labels_input,
+        fname_templates,
+        reader_raw,
+        reader_resid,
+        CONFIG2)
+
+    if CONFIG.neuralnetwork.apply_nn:
+        logger.info("NN denoise")
         # denoise it
         nn_denoise_wf(fnames_input, denoiser, CONFIG.torch_devices)
-
     else:
         logger.info("denoise")
         denoise_wf(fnames_input)
@@ -172,10 +201,12 @@ def run(fname_spike_index,
 
 
     # first gather clustering result
-    fname_templates, fname_spike_train = gather_clustering_result(
+    fname_templates_out, fname_spike_train_out = gather_clustering_result(
         tmp_save_dir, output_directory)
 
     for fname in fnames_input:
         os.remove(fname)
+        
+    fname_templates_out = sharpen_templates(fname_templates_out)
 
-    return fname_templates, fname_spike_train
+    return fname_templates_out, fname_spike_train_out
