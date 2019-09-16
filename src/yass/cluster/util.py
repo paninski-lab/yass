@@ -57,6 +57,25 @@ def make_CONFIG2(CONFIG):
 
     return CONFIG2
 
+def make_spike_index_from_spike_train(fname_spike_train, fname_templates, savedir):
+    
+    spike_train = np.load(fname_spike_train)
+    templates = np.load(fname_templates)
+    
+    mcs = templates.ptp(1).argmax(1)
+    spike_index = np.copy(spike_train)
+    spike_index[:,1] = mcs[spike_train[:,1]]
+    labels = np.copy(spike_train[:,1])
+    
+    fname_spike_index = os.path.join(savedir, 'spike_index.npy')
+    fname_labels = os.path.join(savedir, 'labels.npy')
+
+    np.save(fname_spike_index, spike_index)
+    np.save(fname_labels, labels)
+
+    return fname_spike_index, fname_labels
+
+
 #@jit
 def split_spikes(spike_index_list, spike_index, idx_keep):
     for j in idx_keep:
@@ -126,7 +145,7 @@ def split_spikes_parallel(spike_index_list, spike_index, idx_keep,
     return spike_index_list
 
 
-def partition_input(save_dir, max_time,
+def partition_input(save_dir,
                     fname_spike_index,
                     CONFIG,
                     fname_templates_up=None,
@@ -139,8 +158,6 @@ def partition_input(save_dir, max_time,
 
     # load data
     spike_index = np.load(fname_spike_index, allow_pickle=True)
-    # consider only spikes times less than max_time
-    idx_keep = np.where(spike_index[:,0] < max_time)[0]
 
     # re-organize spike times and templates id
     n_units = np.max(spike_index[:, 1]) + 1
@@ -217,7 +234,7 @@ def gather_clustering_result(result_dir, out_dir):
     # convert clusters to templates
     templates = []
     spike_indexes = []
-    
+
     filenames = sorted(os.listdir(result_dir))
     for fname in filenames:
         data = np.load(os.path.join(result_dir, fname), allow_pickle=True)
@@ -251,76 +268,85 @@ def gather_clustering_result(result_dir, out_dir):
     return fname_templates, fname_spike_train
 
 
-def load_align_waveforms(save_dir, units, fnames_input_data,
-                         reader_raw, reader_resid, raw_data, CONFIG):
+def load_align_waveforms(save_dir, raw_data, fname_splits,
+                         fname_spike_index, fname_labels_input,
+                         fname_templates_input, reader_raw, reader_resid,
+                         CONFIG):
     '''load and align waveforms first to run nn denoise
     '''
 
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
-    fnames_out = [os.path.join(save_dir, 'partition_{}.npz'.format(unit))
-                  for unit in units]
+    if fname_splits is None:
+        split_labels = np.load(fname_spike_index)[:, 1]
+    else:
+        split_labels = np.load(fname_splits)
+    all_split_labels = np.unique(split_labels)
 
     if CONFIG.resources.multi_processing:
-        parmap.map(load_align_waveforms_parallel,
-                       list(zip(fnames_out, fnames_input_data, units)),
-                       reader_raw,
-                       reader_resid,
-                       raw_data,
-                       CONFIG,
-                       processes=CONFIG.resources.n_processors,
-                       pm_pbar=True)
+        n_processors = CONFIG.resources.n_processors
+        split_labels_in = []
+        for j in range(n_processors):
+            split_labels_in.append(
+                all_split_labels[slice(j, len(all_split_labels), n_processors)])
+            
+        fnames_out_parallel = parmap.map(
+            load_align_waveforms_parallel,
+            split_labels_in,
+            save_dir,
+            raw_data,
+            fname_splits,
+            fname_spike_index,
+            fname_labels_input,
+            fname_templates_input,
+            reader_raw,
+            reader_resid,
+            CONFIG,
+            processes=n_processors)
+        fnames_out = []
+        [fnames_out.extend(el) for el in fnames_out_parallel]
+        
+        units_out = []
+        [units_out.extend(el) for el in split_labels_in]
 
     else:
-        with tqdm(total=n_units) as pbar:
-            for ii in range(len(units)):
-                load_align_waveforms_parallel(
-                    [fnames_out[ii], fnames_input_data[ii], units[ii]],
-                    reader_raw, reader_resid, raw_data, CONFIG)
-                pbar.update()
+        units_out = all_split_labels
+        fnames_out = load_align_waveforms_parallel(
+            all_split_labels,
+            save_dir,
+            raw_data,
+            fname_splits,
+            fname_spike_index,
+            fname_labels_input,
+            fname_templates_input,
+            reader_raw,
+            reader_resid,
+            CONFIG)
 
-    return fnames_out
+    return units_out, fnames_out
 
 
-def load_align_waveforms_parallel(data_in, 
-                                  reader_raw, 
-                                  reader_resid, 
-                                  raw_data, 
+def load_align_waveforms_parallel(labels_in,
+                                  save_dir,
+                                  raw_data,
+                                  fname_splits,
+                                  fname_spike_index,
+                                  fname_labels_input,
+                                  fname_templates,
+                                  reader_raw,
+                                  reader_resid,
                                   CONFIG):
-
-    fname_out = data_in[0]
-    fname_input_data = data_in[1]
-    unit = data_in[2]
-        
-    input_data = np.load(fname_input_data, allow_pickle=True)
-    if os.path.exists(fname_out):
-        return
-
-    # load spike times
-    spike_times = input_data['spike_times']
-
-    # calculate min_spikes
-    n_spikes_in = len(spike_times)
-    rec_len = np.max(spike_times) - np.min(spike_times)
-    min_fr = CONFIG.cluster.min_fr
-    n_sec_data = rec_len/float(CONFIG.recordings.sampling_rate)
-    min_spikes = int(n_sec_data*min_fr)
-    # if it will be subsampled, min spikes should decrease also
-    min_spikes = int(min_spikes*np.min((
-        1, CONFIG.cluster.max_n_spikes/
-        float(n_spikes_in))))
-    # min_spikes needs to be at least 5 to cluster
-    min_spikes = max(min_spikes, 5)
-
-    # subsample spikes
-    (spike_times,
-     idx_sampled,
-     idx_inbounds) = subsample_spikes(
-        spike_times,
-        CONFIG.cluster.max_n_spikes,
-        CONFIG.spike_size,
-        reader_raw.rec_len)
+    
+    spike_index = np.load(fname_spike_index)
+    if fname_splits is None:
+        split_labels = spike_index[:, 1]
+    else:
+        split_labels = np.load(fname_splits)
+    
+    # minimum number of spikes per cluster
+    rec_len_sec = np.ptp(spike_index[:,0])
+    min_spikes = int(rec_len_sec*CONFIG.cluster.min_fr/CONFIG.recordings.sampling_rate)
 
     # first read waveforms in a bigger size
     # then align and cut down edges
@@ -328,67 +354,107 @@ def load_align_waveforms_parallel(data_in,
         spike_size_out = CONFIG.spike_size_nn
     else:
         spike_size_out = CONFIG.spike_size
-
-    spike_size_read = (spike_size_out-1)*2 + 1
-
+    spike_size_buffer = 3
+    spike_size_read = spike_size_out + 2*spike_size_buffer
+    
+    # load data for making clean wfs
     if not raw_data:
-        up_templates = input_data['up_templates']
-        size_diff = (up_templates.shape[1] - spike_size_out)//2
-        if size_diff > 0:
-            up_templates = up_templates[:, size_diff:-size_diff]
-        upsampled_ids = input_data['up_ids']
-        upsampled_ids = upsampled_ids[
-            idx_sampled][idx_inbounds].astype('int32')    
+        labels_input = np.load(fname_labels_input)
+        templates = np.load(fname_templates)
 
-    if raw_data:
-        channel = unit
-    else:
-        channel = np.argmax(up_templates.ptp(1).max(0))
+        n_times_templates = templates.shape[1]
+        if n_times_templates > spike_size_out:
+            n_times_diff = (n_times_templates - spike_size_out)//2
+            templates = templates[:, n_times_diff:-n_times_diff]
 
-    # load waveforms
-    neighbor_chans = np.where(CONFIG.neigh_channels[channel])[0]
-    if raw_data:
-        wf, skipped_idx = reader_raw.read_waveforms(
-            spike_times, spike_size_read, neighbor_chans)
-        spike_times = np.delete(spike_times, skipped_idx)
-    else:
-        wf, skipped_idx = reader_resid.read_clean_waveforms(
-            spike_times, upsampled_ids, up_templates,
-            spike_size_read, neighbor_chans)
-        spike_times = np.delete(spike_times, skipped_idx)
-        upsampled_ids = np.delete(upsampled_ids, skipped_idx)
+    # get waveforms and align
+    fname_outs = []
+    for id_ in labels_in:
+        fname_out = os.path.join(save_dir, 'partition_{}.npz'.format(id_))
+        fname_outs.append(fname_out)
 
-    # clip waveforms; seems necessary for neuropixel probe due to artifacts
-    wf = wf.clip(min=-1000, max=1000)
+        if os.path.exists(fname_out):
+            continue
 
-    # align
-    mc = np.where(neighbor_chans==channel)[0][0]
-    shifts = align_get_shifts_with_ref(
-        wf[:, :, mc])
-    wf = shift_chans(wf, shifts)
-    wf = wf[:, (spike_size_out//2):-(spike_size_out//2)]
+        idx_ = np.where(split_labels == id_)[0]
+        
+        # spike times
+        spike_times = spike_index[idx_, 0]
 
-    if raw_data:
-        np.savez(fname_out,
-                 spike_times=spike_times,
-                 wf=wf,
-                 shifts=shifts,
-                 channel=channel,
-                 min_spikes=min_spikes
-                )
-    else:
-        np.savez(fname_out,
-                 spike_times=spike_times,
-                 wf=wf,
-                 shifts=shifts,
-                 upsampled_ids=upsampled_ids,
-                 up_templates=up_templates,
-                 channel=channel,
-                 min_spikes=min_spikes
-                )
+        # if it will be subsampled, min spikes should decrease also
+        subsample_ratio = np.min(
+            (1, CONFIG.cluster.max_n_spikes/float(len(spike_times))))
+        min_spikes = int(min_spikes*subsample_ratio)
+        # min_spikes needs to be at least 20 to cluster
+        min_spikes = np.max((min_spikes, 20))
+
+        # subsample spikes
+        (spike_times,
+         idx_sampled) = subsample_spikes(
+            spike_times,
+            CONFIG.cluster.max_n_spikes)
+        
+        # max channel and neighbor channels
+        channel = int(spike_index[idx_, 1][0])
+        neighbor_chans = np.where(CONFIG.neigh_channels[channel])[0]
+
+        if raw_data:
+            wf, skipped_idx = reader_raw.read_waveforms(
+                spike_times, spike_size_read, neighbor_chans)
+            spike_times = np.delete(spike_times, skipped_idx)
+
+        else:
+
+            # get upsampled ids
+            template_ids_ = labels_input[idx_][idx_sampled]
+            unique_template_ids = np.unique(template_ids_)
+
+            # ids relabelled
+            templates_in = templates[unique_template_ids]
+            template_ids_in = np.zeros_like(template_ids_)
+            for ii, k in enumerate(unique_template_ids):
+                template_ids_in[template_ids_==k] = ii
+ 
+            # get clean waveforms
+            wf, skipped_idx = reader_resid.read_clean_waveforms(
+                spike_times, template_ids_in, templates_in,
+                spike_size_read, neighbor_chans)
+            spike_times = np.delete(spike_times, skipped_idx)
+            template_ids_in = np.delete(template_ids_in, skipped_idx)
+
+        # align
+        if wf.shape[0] > 0:
+            mc = np.where(neighbor_chans==channel)[0][0]
+            shifts = align_get_shifts_with_ref(
+                wf[:, :, mc], nshifts=3)
+            wf = shift_chans(wf, shifts)
+            wf = wf[:, spike_size_buffer:-spike_size_buffer]
+        else:
+            shifts = None
+
+        if raw_data:
+            np.savez(fname_out,
+                     spike_times=spike_times,
+                     wf=wf,
+                     shifts=shifts,
+                     channel=channel,
+                     min_spikes=min_spikes
+                    )
+        else:
+            np.savez(fname_out,
+                     spike_times=spike_times,
+                     wf=wf,
+                     shifts=shifts,
+                     upsampled_ids=template_ids_in,
+                     up_templates=templates_in,
+                     channel=channel,
+                     min_spikes=min_spikes
+                    )
+
+    return fname_outs
 
 
-def subsample_spikes(spike_times, max_spikes, spike_size, rec_len):
+def subsample_spikes(spike_times, max_spikes):
         
     # limit number of spikes
     if len(spike_times)>max_spikes:
@@ -400,14 +466,7 @@ def subsample_spikes(spike_times, max_spikes, spike_size, rec_len):
     else:
         idx_sampled = np.arange(len(spike_times))
 
-    # limit indexes away from edge of recording
-    idx_inbounds = np.where(np.logical_and(
-                    spike_times>=spike_size//2,
-                    spike_times<(rec_len - spike_size)))[0]
-    spike_times = spike_times[
-        idx_inbounds].astype('int32')
-
-    return spike_times, idx_sampled, idx_inbounds
+    return spike_times, idx_sampled
 
 def split(a, n):
     k, m = divmod(len(a), n)

@@ -128,15 +128,12 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         os.path.join(TMP_FOLDER, 'preprocess'))
 
     #### Block 1: Detection, Clustering, Postprocess
-    #print ("CLUSTERING DEFAULT LENGTH: ", CONFIG.rec_len, " current set to 300 sec")
     (fname_templates,
      fname_spike_train) = initial_block(
         os.path.join(TMP_FOLDER, 'block_1'),
         standardized_path,
         standardized_dtype,
         run_chunk_sec = [0, CONFIG.rec_len])
-        #run_chunk_sec = [0, 600*20000])
-        #run_chunk_sec = [0, 300])
 
     print (" inpput to block2: ", fname_templates)
     
@@ -154,8 +151,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     ### Block 3: Deconvolve, Residual, Merge
     (fname_templates,
      fname_spike_train,
-     fname_soft_assignment)= final_deconv(
-        os.path.join(TMP_FOLDER, 'final_deconv'),
+     fname_soft_assignment)= residual_block(
+        os.path.join(TMP_FOLDER, 'block_residual_final'),
         standardized_path,
         standardized_dtype,
         fname_templates)
@@ -200,7 +197,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 def initial_block(TMP_FOLDER,
                   standardized_path,
                   standardized_dtype,
-                  run_chunk_sec):
+                  run_chunk_sec='full'):
     
     logger = logging.getLogger(__name__)
 
@@ -342,6 +339,69 @@ def iterative_block(TMP_FOLDER,
         standardized_dtype)
 
     return fname_templates, fname_spike_train
+
+
+def residual_block(TMP_FOLDER,
+                   standardized_path,
+                   standardized_dtype,
+                   fname_templates):
+
+    logger = logging.getLogger(__name__)
+
+    if not os.path.exists(TMP_FOLDER):
+        os.makedirs(TMP_FOLDER)
+
+    ''' **********************************************
+        ************** DECONVOLUTION *****************
+        **********************************************
+    '''
+
+    # run deconvolution
+    logger.info('LOW FP DECONV')
+    (fname_templates,
+     fname_spike_train,
+     fname_templates_up,
+     fname_spike_train_up,
+     fname_shifts) = deconvolve.run(
+        fname_templates,
+        os.path.join(TMP_FOLDER,
+                     'deconv'),
+        standardized_path,
+        standardized_dtype,
+        threshold='low_fp')
+
+    # compute residual
+    logger.info('RESIDUAL COMPUTATION')
+    fname_residual, residual_dtype = residual.run(
+        fname_shifts,
+        fname_templates,
+        fname_spike_train,
+        os.path.join(TMP_FOLDER,
+                     'residual'),
+        standardized_path,
+        standardized_dtype,
+        dtype_out='float32')
+    
+    logger.info('RUN PIPELINE ON RESIDUAL')
+    (fname_templates,
+     fname_spike_train) = initial_block(
+        os.path.join(TMP_FOLDER, 'residual_init_block'),
+        fname_residual,
+        residual_dtype)
+
+    (fname_templates,
+     fname_spike_train,
+     fname_soft_assignment)= final_deconv(
+        os.path.join(TMP_FOLDER, 'residual_final_deconv'),
+        fname_residual,
+        residual_dtype,
+        fname_templates)
+    
+    
+
+    return (fname_templates,
+            fname_spike_train,
+            fname_soft_assignment)
 
 
 def final_deconv(TMP_FOLDER,

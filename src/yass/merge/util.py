@@ -77,14 +77,15 @@ def partition_input(save_dir,
     return fnames
 
 def merge_units(fname_templates, fname_spike_train,
-                merge_pairs):
+                fname_soft_assignment, merge_pairs):
     
     # load templates
     templates = np.load(fname_templates)
     n_units, n_times, n_channels = templates.shape
     
-    # load spike train
+    # load spike train and probs
     spike_train = np.load(fname_spike_train)
+    soft_assignment = np.load(fname_soft_assignment)
     
     # make connected components
     merge_matrix = np.zeros((n_units, n_units),'int32')

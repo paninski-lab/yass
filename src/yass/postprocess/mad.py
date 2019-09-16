@@ -78,7 +78,7 @@ def find_high_mad_unit(
     fname_out,
     reader,
     neigh_channels,
-    min_var_gap=2,
+    min_var_gap=1,
     max_mad_violation=10,
     up_factor=2,
     min_ptp=2):
@@ -170,7 +170,7 @@ def get_mad(wf_up, up_factor, channel):
     t_var = t_var[up_factor//2:-up_factor//2]
     t_var = t_var[np.arange(0, len(t_var), up_factor)]
 
-    active_area = np.abs(np.median(wf_aligned, 0)) > 0.5
+    active_area = np.abs(np.mean(wf_aligned, 0)) > 1
 
     # mad value for aligned waveforms
     e_var = np.square(np.median(np.abs(np.median(wf_aligned, axis=0)[None] - wf_aligned), axis=0)/0.67449)

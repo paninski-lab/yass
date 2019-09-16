@@ -36,8 +36,9 @@ def run():
 
 
 class RF(object):
-    def __init__(self, stim_movie_file, triggers_fname, spike_train_fname,
-                 saving_dir, fname_classification_boundary=None, matlab_bin='matlab'):
+    def __init__(self, saving_dir, stim_movie_file,triggers_fname,
+                 spike_train_fname, soft_assignment_fname=None,
+                 fname_classification_boundary=None, matlab_bin='matlab'):
         
         # default parameter
         self.n_color_channels = 3
@@ -45,6 +46,10 @@ class RF(object):
         #self.data_sample_len = 36000000 # len of white noise data (this script doesn't look at natural scenes)
         
         self.load_spike_train(spike_train_fname)
+        if soft_assignment_fname is not None:
+            self.soft_assignment = np.load(soft_assignment_fname)
+        else:
+            self.soft_assignment = np.ones(self.sps.shape[0])
         
         self.stim_movie_file = stim_movie_file
         self.triggers_fname = triggers_fname
@@ -168,13 +173,15 @@ class RF(object):
                 ##################################
 
                 # Get spike times of this cell in seconds
-                these_sps = self.sps[self.sps[:,1]==i_cell]
-                these_sps = these_sps[:,0]
+                idx_ = np.where(self.sps[:,1]==i_cell)[0]
+                these_sps = self.sps[idx_, 0]
                 #spikes before 36000000 are white noise spikes, divide by frame rate to get seconds
                 these_sps = these_sps / float(self.sp_frame_rate)
 
+                weight = self.soft_assignment[idx_]
+
                 ## Line up spikes with frames
-                binned_spikes, rr = np.histogram(these_sps,self.frame_times)
+                binned_spikes = weighted_histogram(these_sps, weight, self.frame_times)
                 which_spikes = np.where(binned_spikes>0)[0]
                 which_spikes = which_spikes[which_spikes>STA_temporal_length]
             
@@ -457,10 +464,10 @@ def sta_calculation_parallel(arg_in):
     STA = np.zeros((STA_temporal_length, n_color_channels, n_pixels))
     for i in range(which_spikes.shape[0]):
         bin_number = which_spikes[i]
-        if binned_spikes[bin_number] == 1:
-            STA += WN_stim[bin_number-(STA_temporal_length-1):bin_number+1]
-        else:
-            STA += binned_spikes[bin_number]*WN_stim[bin_number-(STA_temporal_length-1):bin_number+1]
+        STA += binned_spikes[bin_number]*WN_stim[bin_number-(STA_temporal_length-1):bin_number+1]
+
+    if which_spikes.shape[0] == 0:
+        STA += 0.5
 
     # full sta
     if np.sum(binned_spikes[STA_temporal_length:])>0:
@@ -521,3 +528,14 @@ def align_get_shifts_tc(wf, ref, upsample_factor = 5, nshifts = 21):
 
     return best_shifts/np.float32(upsample_factor)
 
+def weighted_histogram(data, weights, bin_range):
+    bin_counts = np.zeros(len(bin_range)-1)
+    j = 0
+    ii = 0
+    while ii < len(data):
+        if data[ii] < bin_range[j+1]:
+            bin_counts[j] += weights[ii]  
+            ii += 1
+        else:
+            j += 1
+    return bin_counts

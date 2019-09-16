@@ -33,7 +33,7 @@ class Cluster(object):
             print("START LOCAL")
         
         # 
-        print (" Triage value: ", self.triage_value)
+        #print (" Triage value: ", self.triage_value)
         
         # neighbour channel clustering
         self.initialize(indices_in=np.arange(len(self.spike_times_original)),
@@ -224,6 +224,11 @@ class Cluster(object):
         else:
             input_data = np.load(data_in[6])
             self.spike_times_original = input_data['spike_times']
+            self.min_spikes = input_data['min_spikes']
+
+            # if there is no spike to cluster, finish
+            if len(self.spike_times_original) < self.min_spikes:
+                return True
             self.wf_global = input_data['wf']
             self.denoised_wf = input_data['denoised_wf']
             self.shifts = input_data['shifts']
@@ -232,9 +237,7 @@ class Cluster(object):
                 self.upsampled_templates = input_data['up_templates']
                 self.upsampled_ids = input_data['upsampled_ids']
 
-        # if there is no spike to cluster, finish
-        if len(self.spike_times_original) == 0:
-            return True
+
 
         ''' ******************************************
             *********** FIXED PARAMETERS *************
@@ -250,39 +253,6 @@ class Cluster(object):
         self.spike_size = self.CONFIG.spike_size
         self.neighbors = self.CONFIG.neigh_channels
         self.triage_value = self.CONFIG.cluster.knn_triage
-        # max number of spikes for each mfm call
-        #self.max_mfm_spikes = 10000
-        # TODO: should be merged with min_spikes below
-        #if self.raw_data:
-        #    min_fr = 3
-        #else:
-        #    min_fr = 0.1
-        #min_fr_triage = 3
-        # min spikes : max time (length of recording) x min fr
-        #self.n_sec_data = np.max(
-        #    self.spike_times_original)/float(
-        #    self.CONFIG.recordings.sampling_rate)
-        #self.min_spikes_triage = int(self.n_sec_data*min_fr_triage)
-        # if it will be subsampled, min spikes should decrease also
-        #self.min_spikes_triage = int(self.min_spikes_triage*np.min((
-        #    1, self.CONFIG.cluster.max_n_spikes/
-        #    float(len(self.spike_times_original)))))
-        # TODO: eventually, need to be merged with min_fr
-        # should be a function of firing rate
-        # should be in CONFIG file
-        min_fr = 0.1
-        n_sec_data = np.max(
-            self.spike_times_original)/float(
-            self.CONFIG.recordings.sampling_rate)
-        self.min_spikes = int(n_sec_data*min_fr)
-        # if it will be subsampled, min spikes should decrease also
-        self.min_spikes = int(self.min_spikes*np.min((
-            1, self.CONFIG.cluster.max_n_spikes/
-            float(len(self.spike_times_original)))))
-        # min_spikes needs to be at least 1
-        self.min_spikes = max(self.min_spikes, 1)
-        #self.min_spikes = 1
-        self.min_spikes = input_data['min_spikes']
 
         # random subsample, remove edge spikes
         #self.clean_input_data()
@@ -787,7 +757,7 @@ class Cluster(object):
 
     def calculate_stability(self, rhat):
         K = rhat.shape[1]
-        mask = rhat > 0.0
+        mask = rhat > 0.05
         stability = np.zeros(K)
         for clust in range(stability.size):
             if mask[:,clust].sum() == 0.0:
@@ -856,7 +826,7 @@ class Cluster(object):
         N, K = vbParam.rhat.shape
 
         stability = self.calculate_stability(vbParam.rhat)
-        if (K == 2) or np.all(stability > 0.9):
+        if (K == 2) or np.all(stability > 0.8):
             cc = [[k] for k in range(K)]
             return vbParam.rhat.argmax(1), stability, cc
 
@@ -885,7 +855,7 @@ class Cluster(object):
             # calculate stability for each component
             # and make decision            
             stability = self.calculate_stability(rhat_cc)
-            if np.all(stability>0.90) or k_target == 2:
+            if np.all(stability>0.8) or k_target == 2:
                 return rhat_cc.argmax(1), stability, cc
 
     def get_cc_and_stability(self, vbParam):
@@ -927,7 +897,7 @@ class Cluster(object):
 
         # exclude units whose maximum channel is not on the current 
         # clustered channel; but only during clustering, not during deconv
-        template = np.median(self.wf_global[current_indices], axis=0)
+        template = np.mean(self.wf_global[current_indices], axis=0)
         #template = stats.trim_mean(self.wf_global[current_indices],
         #                           0.1, axis=0)
         #template = np.mean(self.wf_global[current_indices], axis=0)
@@ -998,7 +968,7 @@ class Cluster(object):
         self.load_waveforms(local)
         self.align_step(local)
 
-        template = np.median(self.wf_global, axis=0)
+        template = np.mean(self.wf_global, axis=0)
         
         # change raw_data option back to the orignal
         self.raw_data = self_raw_data_orig

@@ -96,6 +96,9 @@ def deconv_on_template(units_test, units_in, fname_templates,
         vis_chan = np.where(~noise_chan)[0]
         data = data[:, vis_chan]
         templates_ = templates_[:, :, vis_chan]
+        
+        if len(vis_chan) == 0:
+            continue
 
         # run at most 3 iterations
         it, max_it = 0, 3

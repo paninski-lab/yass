@@ -8,6 +8,7 @@ import logging
 from diptest import diptest as dp
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.metrics import pairwise_distances
+import networkx as nx
 
 from yass.template import shift_chans, align_get_shifts_with_ref
 from yass.merge.correlograms_phy import compute_correlogram_v2
@@ -17,10 +18,10 @@ class TemplateMerge(object):
 
     def __init__(self, 
                  save_dir,
-                 raw_data,
-                 reader,
+                 reader_residual,
                  fname_templates,
-                 fnames_input,
+                 fname_spike_train,
+                 fname_soft_assignment,
                  multi_processing=False,
                  n_processors=1):                               
         """
@@ -35,17 +36,35 @@ class TemplateMerge(object):
         logger = logging.getLogger(__name__)
 
         # 
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        
         self.save_dir = save_dir
-        self.raw_data = raw_data
-        self.reader = reader
+        self.reader_residual = reader_residual
 
-        self.fnames_input = fnames_input
+        # templates
+        self.templates = np.load(fname_templates)
+        self.n_units, self.spike_size, self.n_channels = self.templates.shape
+
+        # spike train and soft assignment
+        self.spike_train = np.load(fname_spike_train)
+        self.soft_assignment = np.load(fname_soft_assignment)
+        
+        # remove edge spikes
+        idx_in = np.logical_and(
+            self.spike_train[:, 0] > self.spike_size,
+            self.spike_train[:, 0] < self.reader_residual.rec_len - self.spike_size)
+
+        self.spike_train = self.spike_train[idx_in]
+        self.soft_assignment = self.soft_assignment[idx_in]
+
         self.multi_processing = multi_processing
         self.n_processors = n_processors
 
-        templates = np.load(fname_templates)
-        self.n_unit, self.spike_size, _ = templates.shape
-        logger.info('{} units in'.format(self.n_unit))
+        logger.info('{} units in'.format(self.n_units))
+
+        # effective number of spikes
+        self.compute_n_spikes_soft()
 
         # proposed merge pairs
         fname_candidates = os.path.join(self.save_dir,
@@ -54,43 +73,27 @@ class TemplateMerge(object):
             self.merge_candidates = np.load(fname_candidates)
 
         else:
-            ## distance among templates
-            #print ("computing distances")
-            #affinity_matrix = template_dist_linear_align(templates)
-
-            ## Distance metric with diagonal set to large numbers
-            #dist_mat = np.zeros_like(affinity_matrix)
-            #for i in range(self.n_unit):
-            #    dist_mat[i, i] = 1e4
-            #dist_mat += affinity_matrix
-
-            ## Template norms
-            #print ("computing norms")
-            #norms = np.sum(np.square(templates), axis=(1,2))
-
-            ## relative difference
-            #dist_norm_ratio = dist_mat / np.maximum(norms[np.newaxis],
-            #                                        norms[:, np.newaxis])
-
-            ## ptp of each unit
-            #ptps = templates.ptp(1).max(1)
-
             logger.info("finding candidates using ptp")
-            pairs = self.find_merge_candidates(templates)
-
-            #logger.info('check if it passes xcor test')
-            #self.merge_candidates = self.xcor_notch_test(pairs, templates)
-            self.merge_candidates = pairs
+            self.find_merge_candidates()
 
             np.save(fname_candidates, self.merge_candidates)
 
-    def find_merge_candidates(self, templates):
+
+    def compute_n_spikes_soft(self):
+
+        n_spikes_soft = np.zeros(self.n_units)
+        for j in range(self.spike_train.shape[0]):
+            n_spikes_soft[self.spike_train[j, 1]] += self.soft_assignment[j]
+        self.n_spikes_soft = n_spikes_soft.astype('int32')
+
+
+    def find_merge_candidates(self):
 
         # find candidates by comparing ptps
         # if distance of ptps are close, then they need to be checked.
 
         # compute ptp
-        ptps = templates.ptp(1)
+        ptps = self.templates.ptp(1)
         # mask out small ptp
         ptps[ptps < 1] = 0
 
@@ -101,7 +104,7 @@ class TemplateMerge(object):
         norms = np.square(np.linalg.norm(ptps, axis=1))
 
         # exclude comparing to self
-        for i in range(self.n_unit):
+        for i in range(self.n_units):
             dist_mat[i, i] = np.max(norms)*100
 
         dist_norm_ratio = dist_mat / np.maximum(
@@ -113,19 +116,28 @@ class TemplateMerge(object):
         ptp_max = ptps.max(1)
         smaller_ptps = np.minimum(ptp_max[np.newaxis],
                                   ptp_max[:, np.newaxis])
-        idx2 = smaller_ptps > 4
+        idx2 = smaller_ptps > 5
 
-        # get candidates
-        units_1, units_2 = np.where(
-            np.logical_and(idx1, idx2))
+        # expect to have at least 10 spikes
+        smaller_n_spikes = np.minimum(self.n_spikes_soft[None],
+                                      self.n_spikes_soft[:, None])
+        idx3 = smaller_n_spikes > 10
 
+        units_1, units_2 = np.where(np.logical_and(
+            np.logical_and(idx1, idx2), idx3))
+        
         # get unique pairs only for comparison
         unique_pairs = []
         for x, y in zip(units_1, units_2):
             if [x, y] not in unique_pairs and [y, x] not in unique_pairs:
-                unique_pairs.append([x, y])
+                ratio = self.n_spikes_soft[x]/self.n_spikes_soft[y]
+                # if the ratio is too bad, ignore it because it will
+                # always try to merge
+                if (ratio > 1/20) and (ratio < 20):
+                    unique_pairs.append([x, y])
 
-        return unique_pairs
+        self.merge_candidates = unique_pairs
+
 
     def xcor_notch_test(self, pairs, templates):
 
@@ -173,7 +185,7 @@ class TemplateMerge(object):
         # ptp of both units need to be bigger than 4
         smaller_ptps = np.minimum(ptps[np.newaxis],
                                   ptps[:, np.newaxis])
-        idx2 = smaller_ptps > 4
+        idx2 = smaller_ptps > 5
         units_1, units_2 = np.where(
             np.logical_and(idx1, idx2))
 
@@ -213,180 +225,200 @@ class TemplateMerge(object):
                              'merge_pairs.npy')
 
         if not os.path.exists(fname):
+
             if self.multi_processing:
-                merge_list = parmap.map(self.merge_templates_parallel, 
-                             self.merge_candidates,
-                             processes=self.n_processors,
-                             pm_pbar=True)
+                # break the list of pairs
+                merge_candidates_partition = []
+                for j in range(self.n_processors):
+                    merge_candidates_partition.append(
+                        self.merge_candidates[
+                            slice(j, len(self.merge_candidates), self.n_processors)])
+
+                merge_pairs_ = parmap.map(
+                    self.merge_templates_parallel, 
+                    merge_candidates_partition,
+                    pm_processes=self.n_processors,
+                    pm_pbar=True)
+
+                merge_pairs = []
+                for pp in merge_pairs_:
+                    if len(pp) > 0:
+                        merge_pairs.append(pp)
+                merge_pairs = np.concatenate(np.array(merge_pairs))
             # single core version
             else:
-                merge_list = []
-                for pair in self.merge_candidates:
-                    merge_list.append(self.merge_templates_parallel(pair))
+                merge_pairs = self.merge_templates_parallel(
+                    self.merge_candidates)
+                merge_pairs = np.array(merge_pairs)
 
-            merge_pairs = []
-            for j in range(len(merge_list)):
-                if merge_list[j]:
-                    merge_pairs.append(self.merge_candidates[j])
             np.save(fname, merge_pairs)
         else:
             merge_pairs = np.load(fname)
 
-        return merge_pairs
+        self.merge_pairs = merge_pairs
 
-    def merge_templates_parallel(self, pair):
+    def merge_templates_parallel(self, pairs):
         """Whether to merge two templates or not.
         """
 
-        # Cat: TODO: read from CONFIG
-        threshold=0.8
+        merge_pairs = []
 
-        unit1, unit2 = pair
+        for pair in pairs:
+            unit1, unit2 = pair
 
-        fname_out = os.path.join(
-            self.save_dir, 
-            'l2features_{}_{}.npz'.format(unit1, unit2))
+            fname_out = os.path.join(
+                self.save_dir, 
+                'l2features_{}_{}.npz'.format(unit1, unit2))
 
-        if os.path.exists(fname_out):
-            return np.load(fname_out)['merge']
+            if os.path.exists(fname_out):
+                if np.load(fname_out)['merge']:
+                    merge_pairs.append(pair)
 
-        else:
-            # get l2 features
-            l2_features, spike_ids = self.get_l2_features(unit1, unit2)
-
-            # enough spikes from both need to present otherwise skip it
-            if l2_features is not None:
-
-                if np.sum(np.abs(l2_features)) == 0:
-                    print(unit1)
-                    print(unit2)
-                    raise ValueError("something is wrong")
-
-                # test if they need to be merged
-                (merge,
-                 lda_prob,
-                 dp_val) = test_merge(l2_features, spike_ids)
-
-                np.savez(fname_out,
-                         merge=merge,
-                         spike_ids=spike_ids,
-                         l2_features=l2_features,
-                         lda_prob=lda_prob,
-                         dp_val=dp_val)
-                         #lda_feat=lda_feat)
             else:
-                merge = True
-                np.savez(fname_out,
-                         merge=merge,
-                         spike_ids=spike_ids,
-                         l2_features=l2_features,
-                         lda_prob=None,
-                         dp_val=None)
-                         #lda_feat=None)
+                # get l2 features
+                l2_features, spike_ids = self.get_l2_features(unit1, unit2)
 
-            return merge
+                # enough spikes from both need to present otherwise skip it
+                if l2_features is not None:
+
+                    if np.sum(np.abs(l2_features)) == 0:
+                        print(unit1)
+                        print(unit2)
+                        raise ValueError("something is wrong")
+
+                    # test if they need to be merged
+                    (merge,
+                     lda_prob,
+                     dp_val) = test_merge(l2_features, spike_ids)
+
+                    np.savez(fname_out,
+                             merge=merge,
+                             spike_ids=spike_ids,
+                             l2_features=l2_features,
+                             lda_prob=lda_prob,
+                             dp_val=dp_val)
+                             #lda_feat=lda_feat)
+                else:
+                    merge = False
+                    np.savez(fname_out,
+                             merge=merge,
+                             spike_ids=spike_ids,
+                             l2_features=l2_features,
+                             lda_prob=None,
+                             dp_val=None)
+                             #lda_feat=None)
+
+                if merge:
+                    merge_pairs.append(pair)
+
+        return merge_pairs
 
     def get_l2_features(self, unit1, unit2, n_samples=2000):
 
-        # get necessary data
-        unit1_data = np.load(self.fnames_input[unit1])
-        unit2_data = np.load(self.fnames_input[unit2])
+        idx1 = self.spike_train[:, 1] == unit1
+        spt1 = self.spike_train[idx1, 0]
+        prob1 = self.soft_assignment[idx1]
 
-        # get spike times
-        spt1 = unit1_data['spike_times']
-        spt2 = unit2_data['spike_times']
+        idx2 = self.spike_train[:, 1] == unit2
+        spt2 = self.spike_train[idx2, 0]
+        prob2 = self.soft_assignment[idx2]
 
-        # minimum spikes
-        min_spikes = 10
-        if len(spt1) <= min_spikes or len(spt2) <= min_spikes:
-            return None, None
-
-        # subsample
-        if len(spt1) + len(spt2) > n_samples:
-            ratio = len(spt1)/float(len(spt1)+len(spt2))
-
-            n_samples1 = int(n_samples*ratio)
-
-            # at least one sample per grounp
-            if n_samples1 == n_samples:
-                n_samples1 = n_samples - 1
-            elif n_samples1 == 0:
-                n_samples1 = 1
-
+        if self.n_spikes_soft[unit1]+self.n_spikes_soft[unit2] > n_samples:
+            ratio1 = self.n_spikes_soft[unit1]/float(self.n_spikes_soft[unit1]+self.n_spikes_soft[unit2])
+            n_samples1 = np.min((int(n_samples*ratio1), self.n_spikes_soft[unit1]))
             n_samples2 = n_samples - n_samples1
 
-            spt1_idx = np.random.choice(
-                np.arange(len(spt1)),
-                n_samples1, False)
-            spt2_idx = np.random.choice(
-                np.arange(len(spt2)),
-                n_samples2, False)
-
         else:
-            spt1_idx = np.arange(len(spt1))
-            spt2_idx = np.arange(len(spt2))
+            n_samples1 = self.n_spikes_soft[unit1]
+            n_samples2 = self.n_spikes_soft[unit2]
 
-        spt1 = spt1[spt1_idx]
-        spt2 = spt2[spt2_idx]
+        spt1 = np.random.choice(spt1, n_samples1, replace=False, p=prob1/np.sum(prob1))
+        spt2 = np.random.choice(spt2, n_samples2, replace=False, p=prob2/np.sum(prob2))
 
-        if len(spt1) > min_spikes and len(spt2) > min_spikes:
+        wfs1 = self.reader_residual.read_waveforms(spt1, self.spike_size)[0] + self.templates[unit1]
+        wfs2 = self.reader_residual.read_waveforms(spt2, self.spike_size)[0] + self.templates[unit2]
 
-            # templates
-            template1 = unit1_data['template']
-            template2 = unit2_data['template']
+        # if two templates are not aligned, get bigger window
+        # and cut oneside to get shifted waveforms
+        mc = self.templates[[unit1, unit2]].ptp(1).max(0).argmax()
+        shift = wfs2[:,:,mc].mean(0).argmin() - wfs1[:,:,mc].mean(0).argmin()
+        if np.abs(shift) > self.spike_size//4:
+            return None, None
 
-            # find shifts
-            temps = np.concatenate((template1[None], template2[None]),
-                                   axis=0)
-            mc = temps.ptp(1).max(0).argmax()
-            shift = np.diff(temps[:, :, mc].argmin(1))[0]
+        if shift < 0:
+            wfs1 = wfs1[:, -shift:]
+            wfs2 = wfs2[:, :shift]
+        elif shift > 0:
+            wfs1 = wfs1[:, :-shift]
+            wfs2 = wfs2[:, shift:]
 
-            # get waveforms
-            if self.raw_data:
-                wfs1, _ = self.reader.read_waveforms(
-                    spt1+shift, self.spike_size)
+        # assignment
+        spike_ids = np.hstack((np.zeros(len(wfs1), 'int32'),
+            np.ones(len(wfs2), 'int32')))
 
-                wfs2, _ = self.reader.read_waveforms(
-                    spt2, self.spike_size)
-
-            else:
-                up_ids1 = unit1_data['up_ids'][spt1_idx]
-                up_templates1 = unit1_data['up_templates']
-                wfs1, _ = self.reader.read_clean_waveforms(
-                    spt1, up_ids1, up_templates1, self.spike_size)
-
-                up_ids2 = unit2_data['up_ids'][spt2_idx]
-                up_templates2 = unit2_data['up_templates']
-                wfs2, _ = self.reader.read_clean_waveforms(
-                    spt2, up_ids2, up_templates2, self.spike_size)
-
-                # if two templates are not aligned, get bigger window
-                # and cut oneside to get shifted waveforms
-                if shift < 0:
-                    wfs1 = wfs1[:, -shift:]
-                    wfs2 = wfs2[:, :shift]
-                elif shift > 0:
-                    wfs1 = wfs1[:, :-shift]
-                    wfs2 = wfs2[:, shift:]
-
-            # assignment
-            spike_ids = np.append(
-                np.zeros(len(wfs1), 'int32'),
-                np.ones(len(wfs2), 'int32'),
-                axis=0)
-
-            # recompute templates using deconvolved spikes
-            template1 = np.median(wfs1, axis=0)
-            template2 = np.median(wfs2, axis=0)
-            l2_features = template_spike_dist_linear_align(
-                np.concatenate((template1[None], template2[None]), axis=0),
-                np.concatenate((wfs1, wfs2), axis=0))
-
-        else:
-            l2_features = None
-            spike_ids = None
+        # recompute templates using deconvolved spikes
+        template1 = np.mean(wfs1, axis=0, keepdims=True)
+        template2 = np.mean(wfs2, axis=0, keepdims=True)
+        l2_features = template_spike_dist_linear_align(
+            np.concatenate((template1, template2), axis=0),
+            np.concatenate((wfs1, wfs2), axis=0))
 
         return l2_features, spike_ids
+    
+    
+    def merge_units(self):
+        
+        # make connected components
+        merge_matrix = np.zeros((self.n_units, self.n_units),'int32')
+        for pair in self.merge_pairs:
+            merge_matrix[pair[0], pair[1]] = 1
+            merge_matrix[pair[1], pair[0]] = 1
+        G = nx.from_numpy_matrix(merge_matrix)
+        merge_array=[]
+        for cc in nx.connected_components(G):
+            merge_array.append(list(cc))
+
+        weights = self.n_spikes_soft
+
+        spike_train_new = np.copy(self.spike_train)
+        templates_new = np.zeros((len(merge_array), self.spike_size, self.n_channels),
+                                 'float32')
+
+        new_ids = np.zeros(self.n_units, 'int32')
+        shifts = np.zeros(self.n_units, 'int32')
+
+        for new_id, units in enumerate(merge_array):
+            if len(units) > 1:
+
+                # save only a unit with the highest weight
+                id_keep = weights[units].argmax()
+                templates_new[new_id] = self.templates[units[id_keep]]
+
+                # update spike train
+                # determine shifts
+                mc = self.templates[units[id_keep]].ptp(0).argmax()
+                min_points = self.templates[units,:,mc].argmin(1)
+                shifts_ = min_points - min_points[id_keep]
+
+                new_ids[units] = new_id
+                shifts[units] = shifts_
+
+            elif len(units) == 1:
+                templates_new[new_id] = self.templates[units[0]]
+
+                new_ids[units[0]] = new_id
+
+        spike_train_new[:, 1] = new_ids[self.spike_train[:,1]]
+        spike_train_new[:, 0] += shifts[self.spike_train[:, 1]]
+
+        # sort them by spike times
+        idx_sort = np.argsort(spike_train_new[:, 0])
+        spike_train_new = spike_train_new[idx_sort]
+        soft_assignment_new = self.soft_assignment[idx_sort]
+        
+        return (templates_new, spike_train_new,
+                soft_assignment_new, merge_array)
+
 
 def test_merge(features, assignment,
                lda_threshold=0.7,

@@ -228,86 +228,64 @@ def template_spike_dist_linear_align(templates, spikes, vis_ptp=2.):
     return dist.T
 
 
-def get_l2_features(reader_residual, spike_train, templates,
+def get_l2_features(reader_residual, spike_train,
+                    templates, soft_assignment,
                     unit1, unit2, n_samples=2000):
 
-    n_units, n_times, n_channels = templates.shape
+    spike_size = templates.shape[1]
 
-    # get spike times
-    spt1 = spike_train[spike_train[:, 1] == unit1, 0]
-    spt2 = spike_train[spike_train[:, 1] == unit2, 0]
-    
-    if (len(spt1) < 10) or (len(spt2) < 10):
+    idx1 = spike_train[:, 1] == unit1
+    spt1 = spike_train[idx1, 0]
+    prob1 = soft_assignment[idx1]
+
+    idx2 = spike_train[:, 1] == unit2
+    spt2 = spike_train[idx2, 0]
+    prob2 = soft_assignment[idx2]
+
+    if (np.sum(prob1) < 5) or (np.sum(prob2) < 5):
         return None, None
 
-    # templates
-    template1 = templates[unit1]
-    template2 = templates[unit2]
-
-    # subsample
-    if len(spt1) + len(spt2) > n_samples:
-        ratio = len(spt1)/float(len(spt1)+len(spt2))
-
-        n_samples1 = int(n_samples*ratio)
-
-        # at least one sample per grounp
-        if n_samples1 == n_samples:
-            n_samples1 = n_samples - 1
-        elif n_samples1 == 0:
-            n_samples1 = 1
-
+    if np.sum(prob1)+np.sum(prob2) > n_samples:
+        ratio1 = np.sum(prob1)/float(np.sum(prob1)+np.sum(prob2))
+        n_samples1 = np.min((int(n_samples*ratio1), int(np.sum(prob1))))
         n_samples2 = n_samples - n_samples1
 
-        spt1_idx = np.random.choice(
-            np.arange(len(spt1)),
-            n_samples1, False)
-        spt2_idx = np.random.choice(
-            np.arange(len(spt2)),
-            n_samples2, False)
-
     else:
-        spt1_idx = np.arange(len(spt1))
-        spt2_idx = np.arange(len(spt2))
+        n_samples1 = int(np.sum(prob1))
+        n_samples2 = int(np.sum(prob2))
 
-    spt1 = spt1[spt1_idx]
-    spt2 = spt2[spt2_idx]
+    spt1 = np.random.choice(spt1, n_samples1, replace=False, p=prob1/np.sum(prob1))
+    spt2 = np.random.choice(spt2, n_samples2, replace=False, p=prob2/np.sum(prob2))
 
-    # find shifts
-    temps = np.concatenate((template1[None], template2[None]),
-                           axis=0)
-    mc = temps.ptp(1).max(0).argmax()
-    shift = np.diff(temps[:, :, mc].argmin(1))[0]
-
-    # residuals
-    wf_res = reader_residual.read_waveforms(spt1)[0]
-    wfs1 = wf_res + template1
-
-    wf_res = reader_residual.read_waveforms(spt2)[0]
-    wfs2 = wf_res + template2
+    wfs1 = reader_residual.read_waveforms(spt1, spike_size)[0] + templates[unit1]
+    wfs2 = reader_residual.read_waveforms(spt2, spike_size)[0] + templates[unit2]
 
     # if two templates are not aligned, get bigger window
     # and cut oneside to get shifted waveforms
-    if shift < 0:
-        wfs1 = wfs1[:, -shift:]
-        wfs2 = wfs2[:, :shift]
-    elif shift > 0:
-        wfs1 = wfs1[:, :-shift]
-        wfs2 = wfs2[:, shift:]
+    mc = templates[[unit1, unit2]].ptp(1).max(0).argmax()
+    shift = wfs2[:,:,mc].mean(0).argmin() - wfs1[:,:,mc].mean(0).argmin()
+    if np.abs(shift) < spike_size//4:
+        if shift < 0:
+            wfs1 = wfs1[:, -shift:]
+            wfs2 = wfs2[:, :shift]
+        elif shift > 0:
+            wfs1 = wfs1[:, :-shift]
+            wfs2 = wfs2[:, shift:]
 
     # assignment
-    spike_ids = np.append(
-        np.zeros(len(wfs1), 'int32'),
-        np.ones(len(wfs2), 'int32'),
-        axis=0)
+    spike_ids = np.hstack((np.zeros(len(wfs1), 'int32'),
+        np.ones(len(wfs2), 'int32')))
 
     # recompute templates using deconvolved spikes
-    template1 = np.median(wfs1, axis=0)
-    template2 = np.median(wfs2, axis=0)
+    template1 = np.mean(wfs1, axis=0, keepdims=True)
+    template2 = np.mean(wfs2, axis=0, keepdims=True)
     l2_features = template_spike_dist_linear_align(
-        np.concatenate((template1[None], template2[None]), axis=0),
+        np.concatenate((template1, template2), axis=0),
         np.concatenate((wfs1, wfs2), axis=0))
-    
+
     return l2_features, spike_ids
+
+
 
 def binary_reader_waveforms(standardized_filename, n_channels, n_times, spikes, channels=None):
 
