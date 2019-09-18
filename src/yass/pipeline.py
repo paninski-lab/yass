@@ -134,7 +134,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         os.path.join(TMP_FOLDER, 'block_1'),
         standardized_path,
         standardized_dtype,
-        run_chunk_sec = [0, CONFIG.rec_len])
+        run_chunk_sec = CONFIG.clustering_chunk)
         #run_chunk_sec = [0, 600*20000])
         #run_chunk_sec = [0, 300])
 
@@ -149,7 +149,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
             standardized_path,
             standardized_dtype,
             fname_templates,
-            run_chunk_sec = [0, CONFIG.rec_len])
+            run_chunk_sec = CONFIG.clustering_chunk)
     
     ### Block 3: Deconvolve, Residual, Merge
     (fname_templates,
@@ -158,7 +158,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         os.path.join(TMP_FOLDER, 'final_deconv'),
         standardized_path,
         standardized_dtype,
-        fname_templates)
+        fname_templates,
+        run_chunk_sec = CONFIG.final_deconv_chunk)
 
     ## save the final templates and spike train
     fname_templates_final = os.path.join(
@@ -347,7 +348,8 @@ def iterative_block(TMP_FOLDER,
 def final_deconv(TMP_FOLDER,
                  standardized_path,
                  standardized_dtype,
-                 fname_templates):
+                 fname_templates,
+                 run_chunk_sec):
 
     logger = logging.getLogger(__name__)
 
@@ -370,7 +372,8 @@ def final_deconv(TMP_FOLDER,
         os.path.join(TMP_FOLDER,
                      'deconv'),
         standardized_path,
-        standardized_dtype)
+        standardized_dtype,
+        run_chunk_sec=run_chunk_sec)
 
     # compute residual
     logger.info('RESIDUAL COMPUTATION')
@@ -382,7 +385,8 @@ def final_deconv(TMP_FOLDER,
                      'residual'),
         standardized_path,
         standardized_dtype,
-        dtype_out='float32')
+        dtype_out='float32',
+        run_chunk_sec=run_chunk_sec)
 
     logger.info('SOFT NOISE ASSIGNMENT')
     fname_soft_assignment = noise.run(

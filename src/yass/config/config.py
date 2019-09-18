@@ -243,6 +243,22 @@ class Config:
                       dtype.itemsize / 
                       self.recordings.n_channels)
         self._set_param('rec_len', rec_len)
+        
+        #
+        if self.recordings.final_deconv_chunk is None:
+            self._set_param('final_deconv_chunk',
+                            [0, self.rec_len])
+        else:
+            self._set_param('final_deconv_chunk',
+                            self.recordings.final_deconv_chunk)
+        #
+        if self.recordings.clustering_chunk is None:
+            self._set_param('clustering_chunk',
+                            [0, self.rec_len])
+        else:
+            self._set_param('clustering_chunk',
+                            self.recordings.clustering_chunk)            
+            
 
     @property
     def path_to_output_directory(self):

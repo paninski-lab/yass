@@ -82,6 +82,12 @@ recordings:
     spike_size_ms:
       type: float
       required: True
+    # chunk for clustering
+    clustering_chunk:
+      default:
+    # chunk for final deconv
+    final_deconv_chunk:
+      default:
 
 preprocess:
   type: dict

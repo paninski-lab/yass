@@ -89,12 +89,15 @@ def run(output_directory,
     reader_raw = READER(fname_recording,
                         recording_dtype,
                         CONFIG,
-                        CONFIG.resources.n_sec_chunk_gpu_deconv)
+                        CONFIG.resources.n_sec_chunk_gpu_deconv,
+                        chunk_sec = CONFIG.clustering_chunk)
     if fname_residual is not None:
         reader_resid = READER(fname_residual,
                               residual_dtype,
                               CONFIG,
-                              CONFIG.resources.n_sec_chunk_gpu_deconv)
+                              CONFIG.resources.n_sec_chunk_gpu_deconv,
+                              chunk_sec = CONFIG.clustering_chunk
+                             )
     else:
         reader_resid = None
 
