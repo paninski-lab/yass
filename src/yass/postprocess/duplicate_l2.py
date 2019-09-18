@@ -4,7 +4,7 @@ import parmap
 import scipy.signal
 
 def duplicate_l2(fname_templates, fname_spike_train, neigh_channels,
-                 save_dir, n_spikes_big=300, min_ptp=2, units_in=None):
+                 save_dir, n_spikes_big=100, min_ptp=2, units_in=None):
 
     # output folder
     if not os.path.exists(save_dir):

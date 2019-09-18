@@ -60,7 +60,7 @@ def fit_sta(sta, frames_in):
     this_STA = spatial_sta.reshape(-1)
     init_amp = this_STA[np.argmax(np.abs(this_STA))] # get amplitude guess from most extreme (max or min) amplitude of this_STA
     init_x,init_y = np.unravel_index(np.argmax(np.abs(this_STA)),(stim_size0, stim_size1)) # guess center of Gaussian as indices of most extreme (max or min) amplitude
-    initial_guess = (init_amp,init_y,init_x,2,2,0)
+    initial_guess = (init_amp,init_y,init_x,1,1,0)
 
     # Try to fit, if it doesn't converge, log that cell
     try:

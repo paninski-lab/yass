@@ -533,15 +533,22 @@ class Cluster(object):
         main_channel_loc = np.where(self.loaded_channels == self.channel)[0][0]
 
         # max_energy_loc is n x 2 matrix, where each row has time point and channel info
-        th = np.max((-0.5, max_energy[main_channel_loc]))
+        th = np.max((-2, max_energy[main_channel_loc]))
         max_energy_loc_c = np.where(max_energy <= th)[0]
         max_energy_loc_t = energy.argmin(axis=0)[max_energy_loc_c]
         max_energy_loc = np.hstack((max_energy_loc_t[:, np.newaxis],
                                     max_energy_loc_c[:, np.newaxis]))
 
-        t_diff = 3
-        index = np.where(max_energy_loc[:, 1]== main_channel_loc)[0][0]
-        keep = connecting_points(max_energy_loc, index, self.neighbors, t_diff)
+        #t_diff = 3
+        #index = np.where(max_energy_loc[:, 1]== main_channel_loc)[0][0]
+        #keep = connecting_points(max_energy_loc, index, self.neighbors, t_diff)
+        keep = np.arange(len(max_energy_loc))
+        
+        # also high MAD points
+        mad_var = np.square(np.median(np.abs(self.wf_global - energy[None]), axis=0)/0.67449)
+        high_mad_loc = np.vstack(np.where(mad_var > 1.5)).T
+
+        max_energy_loc = np.unique(np.vstack((max_energy_loc, high_mad_loc)), axis=0)
 
         if np.sum(keep) >= self.selected_PCA_rank:
             max_energy_loc = max_energy_loc[keep]
@@ -757,7 +764,7 @@ class Cluster(object):
 
     def calculate_stability(self, rhat):
         K = rhat.shape[1]
-        mask = rhat > 0.05
+        mask = rhat > 0.0
         stability = np.zeros(K)
         for clust in range(stability.size):
             if mask[:,clust].sum() == 0.0:
@@ -826,7 +833,7 @@ class Cluster(object):
         N, K = vbParam.rhat.shape
 
         stability = self.calculate_stability(vbParam.rhat)
-        if (K == 2) or np.all(stability > 0.8):
+        if (K == 2) or np.all(stability > 0.9):
             cc = [[k] for k in range(K)]
             return vbParam.rhat.argmax(1), stability, cc
 
@@ -855,7 +862,7 @@ class Cluster(object):
             # calculate stability for each component
             # and make decision            
             stability = self.calculate_stability(rhat_cc)
-            if np.all(stability>0.8) or k_target == 2:
+            if np.all(stability>0.9) or k_target == 2:
                 return rhat_cc.argmax(1), stability, cc
 
     def get_cc_and_stability(self, vbParam):

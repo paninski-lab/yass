@@ -179,7 +179,7 @@ def post_process(output_directory,
                                 'duplicates_l2_{}'.format(ctr))
 
         # remove duplicates
-        n_spikes_big = 300
+        n_spikes_big = 100
         min_ptp = 2
         units_out = duplicate_l2(
             fname_templates,
