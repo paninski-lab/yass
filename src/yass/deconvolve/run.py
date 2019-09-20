@@ -15,6 +15,7 @@ from yass.template import shift_chans, align_get_shifts_with_ref
 from yass.util import absolute_path_to_asset
 from scipy import interpolate
 from yass.deconvolve.util import make_CONFIG2
+from yass.neuralnetwork import Denoise
 
 #from yass.deconvolve.soft_assignment import get_soft_assignments
 
@@ -220,7 +221,7 @@ def deconv_ONgpu2(fname_templates_in,
     # parameter allows templates to be updated forward (i.e. templates
     #       are updated based on spikes in previous chunk)
     # Cat: TODO read from CONFIG
-    d_gpu.update_templates = False
+    d_gpu.update_templates = True
     d_gpu.max_percent_update = 0.1
     if d_gpu.update_templates:
         print (" TODO: implement superresolution alignemtn for template updates...")
@@ -232,7 +233,7 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.template_update_time = 120
     
     # set forgetting factor to 5Hz (i.e. 5 spikes per second of chunk)
-    d_gpu.nu = 5 * d_gpu.template_update_time 
+    d_gpu.nu = 1 * d_gpu.template_update_time 
     
     # parameter forces deconv to do a backward step
     #   i.e. deconv is rerun on previous chunk using templates made 
@@ -445,9 +446,11 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
     wfs_array = []
     n_spikes_array = []    
     ptp_array = []
+    ptp_time_array = []
     
     # determine if yass is recovering from crash by reading last state
     #   if state exists, then recover from there.
+    # Cat: TODO: simplify this and remove metadata dependence; overwrite previous batch
     try: 
         recursion_time = np.load(os.path.join(d_gpu.seg_dir,'time.npy'))
         state = np.loadtxt(os.path.join(d_gpu.seg_dir,'state.txt'), dtype='str')
@@ -458,10 +461,16 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
     except:
         pass
 
-    #print ("Loading original templates (TODO delte): ")
-    #d_gpu.original_templates = np.load('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/block_1/cluster_post_process/templates.npy')
-    #print (d_gpu.original_templates.shape)
-
+    # denoiser state
+    denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
+                       CONFIG.neuralnetwork.denoise.filter_sizes,
+                       CONFIG.spike_size_nn)
+    denoiser.load(CONFIG.neuralnetwork.denoise.filename)
+    denoiser = denoiser.cuda()
+                      
+    # 
+    denoiser = denoiser.to(CONFIG.torch_devices[0])
+    
     #***********************************************************
     #********************* MAIN DECONV LOOP ********************
     #***********************************************************
@@ -514,14 +523,17 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
             # UPDATE TEMPLATES: every batch of data (e.g. 10sec)
             # GENERATE NEW TEMPLATES every chunk (e.g. 60sec) 
             if d_gpu.update_templates_backwards:
-                d_gpu, wfs_array, n_spikes_array, ptp_array = update_templates_GPU_forward_backward(
+                (d_gpu, wfs_array, n_spikes_array, ptp_array, ptp_time_array) = \
+                                    update_templates_GPU_forward_backward(
                                                         d_gpu, 
                                                         CONFIG, 
                                                         time_index, 
                                                         wfs_array, 
                                                         n_spikes_array,
                                                         ptp_array,
-                                                        output_directory)
+                                                        ptp_time_array,
+                                                        output_directory,
+                                                        denoiser)
 
                 # IF NEW TEMPLATES, re-deconvolve previous chunk
                 if (time_index%d_gpu.template_update_time==0):
@@ -531,7 +543,8 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
                             d_gpu.template_update_time//CONFIG.resources.n_sec_chunk_gpu_deconv)
                     
                     # make a note of where the last backward step was
-                    # this is important for save state recovery
+                    # Cat: TODO: unclear how important this is for save state recovery;
+                    #            - may wish to just delete previous bathc of data to allow forward step recovery
                     recursion_time = time_index
                     
                     # save backward pass state
@@ -553,7 +566,9 @@ def update_templates_GPU_forward_backward(d_gpu,
                                          wfs_array, 
                                          n_spikes_array,
                                          ptp_array,
-                                         output_directory):
+                                         ptp_time_array,
+                                         output_directory,
+                                         denoiser):
 
     # ******************************************************
     # ***************** SAVE WFS FIRST *********************
@@ -563,6 +578,7 @@ def update_templates_GPU_forward_backward(d_gpu,
     wfs_array.append([])
     n_spikes_array.append([])
     ptp_array.append([])
+    ptp_time_array.append([])
 
     iter_ = len(wfs_array)-1
     
@@ -571,35 +587,42 @@ def update_templates_GPU_forward_backward(d_gpu,
     if len(d_gpu.neuron_array)>0: 
         ids = torch.cat(d_gpu.neuron_array)
         spike_array = torch.cat(d_gpu.spike_array)
+        shifts_array = torch.cat(d_gpu.shift_list)
     else:
         ids = torch.empty(0,dtype=torch.double)
         spike_array = torch.empty(0,dtype=torch.double)
+        shifts_array = torch.empty(0,dtype=torch.double).cpu().data.numpy()
 
     units = np.arange(d_gpu.temps.shape[2])
 
-    full_wfs_array = []
-    ptp_local = []
     # Cat: TODO: move this value to CONFIG;
     # proportion of drfit allowed in each chunk of decon
     # ptp_drift_percent = 0.2
+    save_flag = False
+    verbose = False
+    super_res_align= False
+    nn_denoise = True
     if True:
         # GPU version + weighted computation
-        data = d_gpu.data        
-        snipit = torch.arange(0,d_gpu.temps.shape[1],1).cuda() #torch.from_numpy(coefficients).cuda()
+        data = d_gpu.data
+        snipit = torch.arange(0,d_gpu.temps.shape[1],1).cuda() 
         wfs_empty = np.zeros((d_gpu.temps.shape[1],d_gpu.temps.shape[0]),'float32')
         total_spikes = 0
+        
         for unit in units:
-            dot_product = []
             # 
             idx = torch.where(ids==unit, ids*0+1, ids*0)
             idx = torch.nonzero(idx)[:,0]
 
             times = spike_array[idx]
+            shifts = shifts_array[idx]
             
             # get indexes of spikes that are not too close to end; 
             #       note: spiketimes are relative to current chunk; i.e. start at 0
             idx2 = torch.where(times<(data.shape[1]-d_gpu.temps.shape[1]), times*0+1, times*0)
             idx2 = torch.nonzero(idx2)[:,0]
+            times = times[idx2]
+            shifts = shifts[idx2].cpu().data.numpy()
             
             #print (" # spikes: ", idx2.shape)
             total_spikes+=idx2.shape[0]
@@ -610,114 +633,154 @@ def update_templates_GPU_forward_backward(d_gpu,
                 #wfs = torch.median(data[:,times[idx2][:,None]+
                 #                        snipit-d_gpu.temps.shape[1]+1].
                 #                        transpose(0,1).transpose(1,2),0)[0]
-                wfs_temp = data[:,times[idx2][:,None]+
+                wfs_temp_original = data[:,times[:,None]+
                                         snipit-d_gpu.temps.shape[1]+1]. \
                                         transpose(0,1).transpose(1,2)[:,None]
-                                        
-                # Grab ptps from wfs using previously computed ptp_max and ptp_min values in ptp_locs
-                ptp = (wfs_temp.cpu().data.numpy()[:,0,d_gpu.ptp_locs[unit][0], d_gpu.max_chans[unit]]-
-                      wfs_temp.cpu().data.numpy()[:,0,d_gpu.ptp_locs[unit][1], d_gpu.max_chans[unit]])
                 
-                # exclude ptps that are > or < than 20% than the current template ptp
-                idx_ptp = np.where(np.logical_and(ptp>=d_gpu.ptps[unit]*(1-d_gpu.max_percent_update),
-                                                  ptp<=d_gpu.ptps[unit]*(1+d_gpu.max_percent_update)))[0]
-                #if unit==82 or unit==0:
-                #    print ("idx_ptp: ", idx_ptp)
+                # *********************************************************
+                # **************** NN DENOISE STEP ************************
+                # *********************************************************
+                # select max chan only
+                if nn_denoise:
+                    start = dt.datetime.now().timestamp()
+                    wf_torch = wfs_temp_original[:,0,:,d_gpu.max_chans[unit]]
+                    denoised_wf = denoiser(wf_torch)[0]
+                    if verbose: 
+                        print ("....denoise step: ", dt.datetime.now().timestamp()-start)
+                
+                # *********************************************************
+                # **************** SUPER-RES ALIGNMENT ********************
+                # *********************************************************
+                # if super_res_align:
+                    # start = dt.datetime.now().timestamp()
                     
-                # save ptp_local and full_wfs_array for debugging only
-                if False:
-                    ptp_local.append(ptp[idx_ptp])
-                    full_wfs_array.append(wfs_temp[idx_ptp].cpu().data.numpy())
-                
-                if idx_ptp.shape[0]>0:
+                    # # align denoised spikes based on template reference max chan
+                    # ref=d_gpu.temps[d_gpu.max_chans[unit],:, unit]
+                    # shifts = align_get_shifts_with_ref(denoised_wf.cpu().data.numpy(), 
+                                                # ref, 
+                                                # upsample_factor=5, nshifts=7)
 
-                    wfs = torch.mean(wfs_temp[idx_ptp],0)[0]
                     
-                    # wfs_array: the mean of the allowed spikes for each template (same size as template)
-                    #            
-                    # Cat: TODO: maybe save only vis chans to save space? 
-                    wfs_array[iter_].append(wfs.cpu().data.numpy())
+                    # wfs_temp = wfs_temp_original.cpu().data.numpy()[:,0]
+                    # wfs_temp = shift_chans(wfs_temp, shifts)
+                    # if verbose: 
+                        # print ("....align step: ", dt.datetime.now().timestamp()-start)
+                
+                # *********************************************************
+                # ************ USE DECONV SHIFTS TO ALIGN SPIKES **********
+                # *********************************************************
+                # work with original waveforms
+                #wfs_temp = wfs_temp_original.cpu().data.numpy()[:,0]
+                # work with denoised waveforms
+                wfs_temp = denoised_wf.cpu().data.numpy()
+                #print ("wfs_temp: ", wfs_temp.shape)
+                #print ("Deconv shifts: ", shifts)
+                wfs_temp_aligned = shift_chans(wfs_temp, -shifts)
+                #print ("wfs_temp: ", wfs_temp_aligned.shape)
+                
+                # *********************************************************
+                # ************ COMPUTE PTPS & TRIAGE STEP *****************
+                # *********************************************************
+
+                # Grab ptps from wfs using previously computed ptp_max and ptp_min values in ptp_locs
+                # exclude ptps that are > or < than 20% than the current template ptp
+
+                # OPTION 1: exclude spikes that have PTP outside of threshold
+                if True:
+                    start = dt.datetime.now().timestamp()
+                    if nn_denoise==False:
+                        print ("NOT IMPLEMENTED")
+                        quit()
+                        ptp = (wfs_temp.cpu().data.numpy()[:,0,d_gpu.ptp_locs[unit][0], d_gpu.max_chans[unit]]-
+                              wfs_temp.cpu().data.numpy()[:,0,d_gpu.ptp_locs[unit][1], d_gpu.max_chans[unit]])
+                        idx_ptp = np.where(np.logical_and(ptp>=d_gpu.ptps[unit]*(1-d_gpu.max_percent_update),
+                                                          ptp<=d_gpu.ptps[unit]*(1+d_gpu.max_percent_update)))[0]
+                    else:
+                        #ptp = (wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0], d_gpu.max_chans[unit]]-
+                        #      wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1], d_gpu.max_chans[unit]])
+                        #idx_ptp = np.where(np.logical_and(ptp>=d_gpu.ptps[unit]*(1-d_gpu.max_percent_update),
+                        #                                  ptp<=d_gpu.ptps[unit]*(1+d_gpu.max_percent_update)))[0]
+                        
+                        # data is already aligned and max chan only
+                        ptp = (wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]]-
+                              wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]])
+                        idx_ptp = np.where(np.logical_and(ptp>=d_gpu.ptps[unit]*(1-d_gpu.max_percent_update),
+                                                          ptp<=d_gpu.ptps[unit]*(1+d_gpu.max_percent_update)))[0]
+                    
+                    if idx_ptp.shape[0]>0:
+                        #print ("# of spikes survived: ", idx_ptp.shape[0], "/", ptp.shape[0])
+                        ptp = ptp[idx_ptp].mean(0)
+                    
+                    if verbose: 
+                        print ("....ptp step: ", dt.datetime.now().timestamp()-start)
+                                            
+                # OPTION 2: exclude spikes that independetly have PTP_min and PTP_max outside of threhsold
+                #           - this is a more aggressive triage method
+                else:
+                    maxes = wfs_temp.cpu().data.numpy()[:,0,d_gpu.ptp_locs[unit][0], d_gpu.max_chans[unit]]
+                    mins =  wfs_temp.cpu().data.numpy()[:,0,d_gpu.ptp_locs[unit][1], d_gpu.max_chans[unit]]
+                
+                    idx_maxes = np.where(np.logical_and(maxes>=d_gpu.temps[d_gpu.max_chans[unit],
+                                                                d_gpu.ptp_locs[unit][0],unit]*
+                                                                (1-d_gpu.max_percent_update),
+                                                        maxes<=d_gpu.temps[d_gpu.max_chans[unit],
+                                                        d_gpu.ptp_locs[unit][0], unit]*
+                                                        (1+d_gpu.max_percent_update)))[0]
+                    
+                    idx_mins = np.where(np.logical_and(mins<=d_gpu.temps[d_gpu.max_chans[unit],
+                                                                d_gpu.ptp_locs[unit][1],unit]*
+                                                                (1-d_gpu.max_percent_update),
+                                                        mins>=d_gpu.temps[d_gpu.max_chans[unit],
+                                                        d_gpu.ptp_locs[unit][1], unit]*
+                                                        (1+d_gpu.max_percent_update)))[0]
+                    
+                    idx_ptp, idx_ptp_maxes, idx_ptp_mins = np.intersect1d(idx_maxes,idx_mins,return_indices=True)
+                    ptp = (maxes[idx_ptp]-mins[idx_ptp]).mean(0)
+                    
+                                   
+                if idx_ptp.shape[0]>0:
+                    start = dt.datetime.now().timestamp()
+                    
+                    if False:
+                        wfs = torch.mean(wfs_temp[idx_ptp],0)[0]
+                        wfs_array[iter_].append(wfs.cpu().data.numpy())
+                    else:
+                        wfs = np.mean(wfs_temp_aligned[idx_ptp],0)[0]
+                        wfs_array[iter_].append(wfs)
+                        
                     n_spikes_array[iter_].append(idx_ptp.shape[0])
                     ptp_array[iter_].append(ptp[idx_ptp])
-                    
+                    ptp_time_array[iter_].append(times[idx_ptp].cpu().data.numpy())
+                    if verbose: 
+                        print ("....mean step: ", dt.datetime.now().timestamp()-start)
                 else:
                     # default save zeros
                     wfs_array[iter_].append(d_gpu.temps[:,:,unit].transpose(1,0))
                                             #d_gpu.temps.shape[1], d_gpu.temps.shape[0])
                     n_spikes_array[iter_].append(0)
-                    ptp_array[iter_].append([])
-                    ptp_local.append(0)
-                    full_wfs_array.append(d_gpu.temps[:,:,unit].transpose(1,0))           
+                    ptp_array[iter_].append(0)
+                    ptp_time_array[iter_].append(0)
                     
             else:
                 # default save zeros
                 wfs_array[iter_].append(d_gpu.temps[:,:,unit].transpose(1,0))
                                         #d_gpu.temps.shape[1], d_gpu.temps.shape[0])
                 n_spikes_array[iter_].append(0)
-                ptp_array[iter_].append([])
-                ptp_local.append(0)
-                full_wfs_array.append(d_gpu.temps[:,:,unit].transpose(1,0))
-
-            # compute dot product
-            #print (wfs.shape)
-            #dp = wfs
-        
-        # #print ("TOTAL SPIKES: ", total_spikes)
-    #np.save('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/block_2/deconv/full_wfs_array'+
-    #        str(iter_)+'.npy', full_wfs_array)
-
-    # else:
-        # # CPU version + weighted computation
-        # # CPU - parallel version is much slower than GPU; but may eventually be required for very large arrays
-        # ids = []
-        # spike_array = []
-        # for k in range(len(d_gpu.neuron_array)):
-            # ids.append(d_gpu.neuron_array[k].cpu().data.numpy())
-            # spike_array.append(d_gpu.spike_array[k].cpu().data.numpy())
-        # ids = np.hstack(ids)
-        # spike_array = np.hstack(spike_array)
-        
-        # data = d_gpu.data_cpu        
-        # snipit = np.arange(0,d_gpu.temps.shape[1],1)
-        # wfs_empty = np.zeros((d_gpu.temps.shape[1],d_gpu.temps.shape[0]),'float32')
-        
-        # if True:
-            # res = parmap.map(template_calculation_parallel, units, ids, spike_array, 
-                        # d_gpu.temps, data, snipit,
-                        # processes=CONFIG.resources.n_processors,
-                        # pm_pbar=False)
-            
-            # for k in range(len(res)):
-                # wfs_array[iter_].append(res[0])
-                # n_spikes_array[iter_].append(res[1])
-
-        # else:
-            # for unit in units:
-                # idx = np.where(ids==unit)[0]
-                # times = spike_array[idx]
+                ptp_array[iter_].append(0)
+                ptp_time_array[iter_].append(0)
                 
-                # # get indexes of spikes that are not too close to end; 
-                # #       note: spiketimes are relative to current chunk; i.e. start at 0
-                # idx2 = np.where(times<(data.shape[1]-d_gpu.temps.shape[1]))[0]
-     
-                # # grab waveforms; 
-                # if idx2.shape[0]>0:
-                    # wfs = np.median(data[:,times[idx2][:,None]+
-                                            # snipit-d_gpu.temps.shape[1]+1].
-                                            # transpose(1,2,0),0)
-                    # wfs_array[iter_].append(wfs)
-                    # n_spikes_array[iter_].append(idx2.shape[0])
-                # else:
-                    # wfs_array[iter_].append(wfs_empty)
-                    # n_spikes_array[iter_].append(0)
-        
-
+            # np.save('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/block_2/deconv/'+
+                        # str(unit)+'wfs_temp_original.npy', wfs_temp_original.cpu().data.numpy()
+                                    # [:,0,:, d_gpu.max_chans[unit]])
+            # np.save('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/block_2/deconv/'+
+                        # str(unit)+'wfs_temp_aligned.npy', wfs_temp_aligned)
+            # np.save('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/block_2/deconv/'+
+                        # str(unit)+'wfs_temp_denoised.npy', denoised_wf.cpu().data.numpy())
+                
     # return if in middle of forward pass
     # Cat: TODO read length of time to update from CONFIG
     if (((time_index%d_gpu.template_update_time)!=0) or (time_index==0)):
-        #np.save('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/block_2/deconv/ptp_'+str(iter_)+'.npy',
-        #         ptp_local)
-        return (d_gpu, wfs_array, n_spikes_array, ptp_array)
+        return (d_gpu, wfs_array, n_spikes_array, ptp_array, ptp_time_array)
 
     # ******************************************************
     # ********** UPDATE TEMPLATES EVERY 60SEC **************
@@ -763,17 +826,15 @@ def update_templates_GPU_forward_backward(d_gpu,
     #print ("Template updates started, n_chunks: ", n_chunks, " wfs_array: ", len(wfs_array))
     units_scaling = []
     
-    #np.save('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/block_2/deconv/wfs_array.npy', wfs_array)
-    #np.save('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/block_2/deconv/n_spikes_array.npy', n_spikes_array)
-    
-    ptp_flag = False
+    ptp_flag = True
     for unit in units:
         # get saved waveforms and number of spikes
         # Cat: TODO this is not pythonic/necessary; 
+        ptp_local = []
         for c in range(n_chunks):
             wfs_local[c] = wfs_array[batch_offset+c][unit]
             n_spikes_local[c] = n_spikes_array[batch_offset+c][unit]
-            # ptp_local[c] = ptp_array[batch_offset+c][unit]
+            ptp_local.append(ptp_array[batch_offset+c][unit])
             
         n_spikes = n_spikes_local.sum(0)
         # if there are no spikes at all matched, just use previous template 
@@ -781,15 +842,14 @@ def update_templates_GPU_forward_backward(d_gpu,
             templates_new[:,:,unit]=d_gpu.temps[:,:,unit]
             continue
 
-        # compute weighted average of the template
-        template = np.average(wfs_local, weights=n_spikes_local, axis=0).T
-        
         # compute scale of updated tempalte
         if ptp_flag:
-            ptp_temp = np.average(ptp_local, weights=n_spikes_local, axis=0)
+            ptp_temp = np.average(np.float32(ptp_local), weights=n_spikes_local, axis=0)
             scale = ptp_temp/d_gpu.temps[:,:,unit].ptp(1).max(0)
             units_scaling.append(scale)
-        #print ("Unit: ", unit, ", # spikes: ", n_spikes, ", scaling: ", scale)
+        else:
+            # compute weighted average of the template
+            template = np.average(wfs_local, weights=n_spikes_local, axis=0).T
         
         # # first chunk of data just use without weight.        
         # if time_index==d_gpu.template_update_time:
@@ -826,6 +886,7 @@ def update_templates_GPU_forward_backward(d_gpu,
     # print (" TEMPS DONE: ", templates_in.shape, templates_new.shape)
     np.save(out_file, templates_new.transpose(2,1,0))
     np.save(out_file[:-4]+"_ptp.npy", ptp_array)
+    np.save(out_file[:-4]+"_ptp_times.npy", ptp_time_array)
         
     # re-initialize d_gpu
     # change fname-templates
@@ -834,7 +895,7 @@ def update_templates_GPU_forward_backward(d_gpu,
     d_gpu.initialize()    
 
     # pass wfs-array back into stack
-    return (d_gpu, wfs_array, n_spikes_array, ptp_array)
+    return (d_gpu, wfs_array, n_spikes_array, ptp_array, ptp_time_array)
 
 def template_calculation_parallel(unit, ids, spike_array, temps, data, snipit):
 

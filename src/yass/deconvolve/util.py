@@ -12,7 +12,8 @@ def make_CONFIG2(CONFIG):
     CONFIG2.resources=empty()
     CONFIG2.deconvolution=empty()
     CONFIG2.data=empty()
-
+    CONFIG2.neuralnetwork=empty()
+    
     CONFIG2.recordings.sampling_rate = CONFIG.recordings.sampling_rate
     CONFIG2.recordings.n_channels = CONFIG.recordings.n_channels
     CONFIG2.recordings.spike_size_ms = CONFIG.recordings.spike_size_ms
@@ -38,5 +39,20 @@ def make_CONFIG2(CONFIG):
     CONFIG2.rec_len = CONFIG.rec_len
     
     CONFIG2.torch_devices = CONFIG.torch_devices
+
+    CONFIG2.neuralnetwork.apply_nn = CONFIG.neuralnetwork.apply_nn
+    
+    CONFIG2.neuralnetwork.training = empty()
+    CONFIG2.neuralnetwork.training.spike_size_ms = CONFIG.neuralnetwork.training.spike_size_ms
+    
+    CONFIG2.neuralnetwork.detect = empty()
+    CONFIG2.neuralnetwork.detect.filename = CONFIG.neuralnetwork.detect.filename
+    CONFIG2.neuralnetwork.detect.n_filters = CONFIG.neuralnetwork.detect.n_filters
+    
+    CONFIG2.neuralnetwork.denoise = empty()
+    CONFIG2.neuralnetwork.denoise.n_filters = CONFIG.neuralnetwork.denoise.n_filters
+    CONFIG2.neuralnetwork.denoise.filename = CONFIG.neuralnetwork.denoise.filename
+    CONFIG2.neuralnetwork.denoise.filter_sizes = CONFIG.neuralnetwork.denoise.filter_sizes
+    
 
     return CONFIG2

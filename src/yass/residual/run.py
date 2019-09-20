@@ -6,7 +6,7 @@ import torch
 from yass import read_config
 from yass.reader import READER
 from yass.residual.residual import RESIDUAL
-from yass.residual.residual_gpu import RESIDUAL_GPU, RESIDUAL_GPU2
+from yass.residual.residual_gpu import RESIDUAL_GPU2, RESIDUAL_GPU3
 
 
 def run(fname_shifts,
@@ -115,7 +115,7 @@ def residual_ONgpu(recordings_filename,
                     CONFIG.resources.n_sec_chunk_gpu_deconv,
                     chunk_sec=chunk_sec)
                     
-    RESIDUAL_GPU2(reader,
+    RESIDUAL_GPU3(reader,
                 recordings_filename,
                 recording_dtype,
                 CONFIG,
