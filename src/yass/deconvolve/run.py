@@ -221,7 +221,7 @@ def deconv_ONgpu2(fname_templates_in,
     # parameter allows templates to be updated forward (i.e. templates
     #       are updated based on spikes in previous chunk)
     # Cat: TODO read from CONFIG
-    d_gpu.update_templates = True
+    d_gpu.update_templates = False
     d_gpu.max_percent_update = 0.1
     if d_gpu.update_templates:
         print (" TODO: implement superresolution alignemtn for template updates...")
