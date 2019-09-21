@@ -16,6 +16,7 @@ def run(fname_shifts,
         recordings_filename,
         recording_dtype,
         dtype_out='float32',
+        update_templates=False,
         run_chunk_sec='full'):
             
     """Compute residual
@@ -68,15 +69,16 @@ def run(fname_shifts,
 
     if CONFIG.deconvolution.deconv_gpu: 
         residual_ONgpu(recordings_filename,
-                        recording_dtype,
-                        CONFIG,
-                        fname_shifts,
-                        fname_templates,
-                        output_directory,
-                        dtype_out,
-                        fname_out,
-                        fname_spike_train,
-                        run_chunk_sec)
+                       recording_dtype,
+                       CONFIG,
+                       fname_shifts,
+                       fname_templates,
+                       output_directory,
+                       dtype_out,
+                       fname_out,
+                       fname_spike_train,
+                       update_templates,
+                       run_chunk_sec)
     
     else:
         residual_ONcpu(fname_templates,
@@ -93,15 +95,16 @@ def run(fname_shifts,
 
     
 def residual_ONgpu(recordings_filename,
-                    recording_dtype,
-                    CONFIG,
-                    fname_shifts,
-                    fname_templates,
-                    output_directory,
-                    dtype_out,
-                    fname_out,
-                    fname_spike_train,
-                    run_chunk_sec):
+                   recording_dtype,
+                   CONFIG,
+                   fname_shifts,
+                   fname_templates,
+                   output_directory,
+                   dtype_out,
+                   fname_out,
+                   fname_spike_train,
+                   update_templates,
+                   run_chunk_sec):
         
     # get data reader
     if run_chunk_sec == 'full':
@@ -116,15 +119,16 @@ def residual_ONgpu(recordings_filename,
                     chunk_sec=chunk_sec)
                     
     RESIDUAL_GPU3(reader,
-                recordings_filename,
-                recording_dtype,
-                CONFIG,
-                fname_shifts,
-                fname_templates,
-                output_directory,
-                dtype_out,
-                fname_out,
-                fname_spike_train)
+                  recordings_filename,
+                  recording_dtype,
+                  CONFIG,
+                  fname_shifts,
+                  fname_templates,
+                  output_directory,
+                  dtype_out,
+                  fname_out,
+                  fname_spike_train,
+                  update_templates)
 
     
 def residual_ONcpu(fname_templates,

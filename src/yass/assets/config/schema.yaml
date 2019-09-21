@@ -193,6 +193,12 @@ deconvolution:
     deconv_gpu:
       type: boolean
       default: True
+    update_templates:
+      type: boolean
+      default: False
+    template_update_time:
+      type: float
+      default: 120
 
 neuralnetwork:
   type: dict
@@ -221,7 +227,36 @@ clean_up:
     abs_max_diff: 1.2
     rel_max_diff: 0.15
     min_ptp: 3
+    min_fr: 0.5
     off_center: 5
     mad:
       min_var_gap: 2
       max_violations: 10
+  schema:
+    abs_max_diff:
+      type: float
+      default: 1.2
+    rel_max_diff:
+      type: float
+      default: 0.12
+    min_ptp:
+      type: float
+      default: 3
+    min_fr:
+      type: float
+      default: 0.5
+    off_center:
+      type: integer
+      default: 5
+    mad:
+      type: dict
+      default:
+        min_var_gap: 2
+        max_violations: 10
+      schema:
+        min_var_gap:
+          type: float
+          default: 2
+        max_violations:
+          type: integer
+          default: 10

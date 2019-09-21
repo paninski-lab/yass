@@ -24,6 +24,7 @@ def run(fname_templates_in,
         recordings_filename,
         recording_dtype,
         threshold=None,
+        update_templates=False,
         run_chunk_sec='full',
         save_up_data=True):
     """Deconvolute spikes
@@ -128,6 +129,7 @@ def run(fname_templates_in,
                       output_directory,
                       reader,
                       threshold,
+                      update_templates,
                       fname_spike_train,
                       fname_spike_train_up,
                       fname_templates,
@@ -159,6 +161,7 @@ def deconv_ONgpu2(fname_templates_in,
                  output_directory,
                  reader,
                  threshold,
+                 update_templates,
                  fname_spike_train,
                  fname_spike_train_up,
                  fname_templates,
@@ -221,7 +224,7 @@ def deconv_ONgpu2(fname_templates_in,
     # parameter allows templates to be updated forward (i.e. templates
     #       are updated based on spikes in previous chunk)
     # Cat: TODO read from CONFIG
-    d_gpu.update_templates = True
+    d_gpu.update_templates = update_templates
     d_gpu.max_percent_update = 0.1
     if d_gpu.update_templates:
         print (" TODO: implement superresolution alignemtn for template updates...")
@@ -230,7 +233,7 @@ def deconv_ONgpu2(fname_templates_in,
 
     # update template time chunk; in seconds
     # Cat: TODO: read from CONFIG file
-    d_gpu.template_update_time = 120
+    d_gpu.template_update_time = CONFIG.deconvolution.template_update_time
     
     # set forgetting factor to 5Hz (i.e. 5 spikes per second of chunk)
     d_gpu.nu = 1 * d_gpu.template_update_time 
@@ -352,7 +355,7 @@ def deconv_ONgpu2(fname_templates_in,
     idx = np.where(spike_train[:,0]==-1E6)[0]
     spike_train = np.delete(spike_train, idx, 0)
     shifts = np.delete(shifts, idx, 0)
-        
+
 
     # save spike train
     print ("  saving spike_train: ", spike_train.shape)

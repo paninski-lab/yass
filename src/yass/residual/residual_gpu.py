@@ -22,7 +22,8 @@ class RESIDUAL_GPU3(object):
                 output_directory,
                 dtype_out,
                 fname_out,
-                fname_spike_train):
+                fname_spike_train,
+                update_templates=False):
         
         """ Initialize by computing residuals
             provide: raw data block, templates, and deconv spike train; 
@@ -43,15 +44,12 @@ class RESIDUAL_GPU3(object):
         self.fname_spike_train = fname_spike_train
         self.dir_deconv = os.path.join(os.path.split(self.output_directory)[0],'deconv')
         self.dir_bsplines = os.path.join(self.dir_deconv,'svd')
-
-        # Cat: TODO read from CONFIG File
-        self.template_update_time = 120
         
         # updated templates options
-        # Cat: TODO read from CONFIG
-        self.update_templates = True
+        self.update_templates = update_templates
 
         if self.update_templates:
+            self.template_update_time = CONFIG.deconvolution.template_update_time
             self.fname_templates = os.path.join(os.path.join(self.dir_deconv,
                                 'template_updates'),
                             'templates_'+str(self.template_update_time)+'sec.npy')
