@@ -5,7 +5,7 @@
 data:
   # project's root folder, data will be loaded and saved here
   # can be an absolute or relative path
-  root_folder: 
+  root_folder: ./
   # recordings filename (must be a binary file), details about the recordings
   # are specified in the recordings section
   recordings: data.bin
