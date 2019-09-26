@@ -105,7 +105,7 @@ Common installation issues involve incompatible gcc versions for pytorch install
 cuda code.  We recommend using gcc 5 and pytorch 1.10 as they have been tested.
 
    
-RUNNING DEFAULT TEST
+Running Default Test
 -------------------
 
 Yass comes with a small neurophysiology recording data file (20 second; 49 channels) for testing the install. To run
@@ -144,8 +144,8 @@ and cluster/neuron ids (second column)
 The templates.npy file is a python numpy array containing the neuron templates shapes.
 
 
-RUNNING ADDITIONAL TESTS/DATASETS
----------------------------------
+Running Additional Datasets
+---------------------------
 
 1.  Make a directory that will hold your data:
 
