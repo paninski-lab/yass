@@ -35,7 +35,7 @@ recordings:
   # recording rate (in Hz)
   sampling_rate: 20000
   # number of channels
-  n_channels: 49
+  n_channels: 10
   # channels spatial radius to consider them neighbors, see
   # yass.geometry.find_channel_neighbors for details
   spatial_radius: 70

@@ -20,7 +20,7 @@ YASS ver. 1.0 is now in the master branch. We are actively looking for beta-test
 feedback or requests for participation.
 
 
-YASS - HARDWARE REQUIREMENTS FOR LINUX (UBUNTU 18.04)
+YASS - Hardware Recommendations For Linux (Ubuntu 18.04)
 --------------------------------------------------
 
 Yass uses GPU and CPU and we recommend having a workstation with a minimum of 32GB of CPU-RAM, and a GPU with at least 8GB
@@ -36,7 +36,7 @@ of GPU-RAM (e.g. 1080Ti, Titan-XP etc.).  We have tested yass on:
     Titan XP (and other GPUs as old as 1050Ti)
     
 
-YASS - INSTALLATION INSTRUCTIONS FOR LINUX (UBUNTU 18.04)
+YASS - Installation Instructions For Linux (Ubuntu 18.04)
 --------------------------------------------------
 
 Installing the master branch:
@@ -78,14 +78,23 @@ https://www.anaconda.com/distribution/
 .. code-block:: shell
 
    pip install .
+
+
+5.  Pip install pytorch master
+
+.. code-block:: shell
+
+   pip install pytorch
+
    
-5.  Change directory to CUDA code directory:
+6.  Change directory to CUDA code directory:
    
 .. code-block:: shell
 
    cd src/gpu_deconv3
    
-6.  Compile cuda code using default gcc:
+   
+7.  Compile cuda code using default gcc:
 
 .. code-block:: shell
 
@@ -102,13 +111,13 @@ RUNNING DEFAULT TEST
 Yass comes with a small neurophysiology recording data file (20 second; 49 channels) for testing the install. To run
 this test:
 
-7.  Change directory to main directory of dataset:
+1.  Change directory to main directory of dataset:
 
 .. code-block:: shell
 
    cd samples/49chan
    
-8.  Run test using default configuration:
+2.  Run test using default configuration:
 
 .. code-block:: shell
 
@@ -138,19 +147,19 @@ The templates.npy file is a python numpy array containing the neuron templates s
 RUNNING ADDITIONAL TESTS/DATASETS
 ---------------------------------
 
-9.  Make a directory that will hold your data:
+1.  Make a directory that will hold your data:
 
 .. code-block:: shell
 
    mkdir ../data
 
-10.  Copy the config.yaml file to the new directory:
+2.  Copy the config.yaml file to the new directory:
 
 .. code-block:: shell
 
    cp config.yaml ../data
    
-11.  Edit the config.yaml file (using any editor) and modify the file location parameters:
+3.  Edit the config.yaml file (using any editor) and modify the file location parameters:
 
 .. code-block:: shell
 
@@ -166,7 +175,7 @@ RUNNING ADDITIONAL TESTS/DATASETS
       # where every row contains a x, y pair. see yass.geometry.parse for details
       geometry: [insert name of geometry text file]
 
-12.  Edit the config.yaml file (using any editor) and modify the recording parameters:
+4.  Edit the config.yaml file (using any editor) and modify the recording parameters:
 
 .. code-block:: shell
 
@@ -197,7 +206,7 @@ RUNNING ADDITIONAL TESTS/DATASETS
       final_deconv_chunk:         # default leave blank
 
 
-13.  Modify GPU and CPU processing parameters as required (contact yass developers for additional assistance):
+5.  Modify GPU and CPU processing parameters as required (contact yass developers for additional assistance):
 
 .. code-block:: shell
 
