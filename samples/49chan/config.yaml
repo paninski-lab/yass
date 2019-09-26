@@ -19,7 +19,7 @@ resources:
   # CPU multi-processing flag: 1 = use multiple cores
   multi_processing: 1
   # Number of cores to use
-  n_processors: 16
+  n_processors: 2
   # Length of processing chunk in seconds for multi-processing stages
   n_sec_chunk: 10
   # number of GPUs to use
