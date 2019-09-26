@@ -16,11 +16,11 @@ YASS: Yet Another Spike Sorter
 
 [UPDATE Sep 2019] 
 ------------------
-YASS ver. 1.0 is now in the master branch. We are actively looking fore beta-testers so feel free to send
+YASS ver. 1.0 is now in the master branch. We are actively looking for beta-testers so feel free to send
 feedback or requests for participation.
 
 
-INSTALLATION INSTRUCTIONS FOR LINUX (UBUNTU 18.04)
+YASS - INSTALLATION INSTRUCTIONS FOR LINUX (UBUNTU 18.04)
 --------------------------------------------------
 
 Installing the master branch:
@@ -65,10 +65,10 @@ https://www.anaconda.com/distribution/
    python setupy.py install --force
    
    
-RUNNING SAMPLE TEST
+RUNNING DEFAULT TEST
 -------------------
 
-Yass comes with a small neurophysiology recording data file (1 minute; 49 channels).
+Yass comes with a small neurophysiology recording data file (20 second; 49 channels).
 
 7.  Change directory to main directory of dataset:
 
