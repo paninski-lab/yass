@@ -16,11 +16,12 @@ from yass.postprocess.duplicate_l2 import duplicate_l2
 from yass.postprocess.util import get_weights
 
 def run(methods = [],
-        fname_templates=None,
-        fname_spike_train=None,
         output_directory=None,
         fname_recording=None,
-        recording_dtype=None):
+        recording_dtype=None,
+        fname_templates=None,
+        fname_spike_train=None,
+        fname_soft_assignment=None):
 
     ''' Run a sequence of post processes
     
@@ -38,9 +39,10 @@ def run(methods = [],
 
     # get weights and number of units
     fname_weights, n_units = get_weights(
+        output_directory,
         fname_templates,
         fname_spike_train,
-        output_directory)
+        fname_soft_assignment)
 
     # get output names
     fname_templates_out = os.path.join(output_directory, 'templates.npy')
@@ -94,10 +96,9 @@ def run(methods = [],
         dics = {unit: ii for ii, unit in enumerate(units_survived)}
         for j in range(spike_train_new.shape[0]):
             spike_train_new[j,1] = dics[spike_train_new[j,1]]
-        spike_train = spike_train_new
 
     np.save(fname_templates_out, templates)
-    np.save(fname_spike_train_out, spike_train)        
+    np.save(fname_spike_train_out, spike_train_new)
 
     return fname_templates_out, fname_spike_train_out
 
@@ -140,7 +141,6 @@ def post_process(output_directory,
 
     elif method == 'off_center':
 
-        # Cat: TODO: move parameter to CONFIG
         threshold = CONFIG.clean_up.off_center
 
         # load templates
@@ -247,8 +247,7 @@ def post_process(output_directory,
     
     elif method == 'low_fr':
 
-        # TODO: move parameter to config?
-        threshold = 0.5
+        threshold = CONFIG.clean_up.min_fr
  
         # length of recording in seconds
         rec_len = np.load(fname_spike_train)[:, 0].ptp()

@@ -31,7 +31,7 @@ from yass import set_config
 from yass import read_config
 from yass import (preprocess, detect, cluster, postprocess,
                   deconvolve, residual, noise, merge, rf, visual)
-from yass.template import update_templates
+#from yass.template import update_templates
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
                        human_readable_time)
@@ -150,8 +150,17 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
             standardized_dtype,
             fname_templates,
             run_chunk_sec = CONFIG.clustering_chunk)
+
+    ### Pre-final deconv: Deconvolve, Residual, Merge, kill low fr units
+    (fname_templates,
+     fname_spike_train)= pre_final_deconv(
+        os.path.join(TMP_FOLDER, 'pre_final_deconv'),
+        standardized_path,
+        standardized_dtype,
+        fname_templates,
+        run_chunk_sec = CONFIG.clustering_chunk)
     
-    ### Block 3: Deconvolve, Residual, Merge
+    ### Final deconv: Deconvolve, Residual, soft assignment
     (fname_templates,
      fname_spike_train,
      fname_soft_assignment)= final_deconv(
@@ -159,6 +168,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         standardized_path,
         standardized_dtype,
         fname_templates,
+        update_templates = True,
         run_chunk_sec = CONFIG.final_deconv_chunk)
 
     ## save the final templates and spike train
@@ -238,12 +248,12 @@ def initial_block(TMP_FOLDER,
     #methods = ['off_center', 'high_mad', 'duplicate']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
-        fname_templates,
-        fname_spike_train,
         os.path.join(TMP_FOLDER,
                      'cluster_post_process'),
         standardized_path,
-        standardized_dtype)
+        standardized_dtype,
+        fname_templates,
+        fname_spike_train)
 
     return fname_templates, fname_spike_train
 
@@ -335,17 +345,17 @@ def iterative_block(TMP_FOLDER,
     methods = ['off_center', 'high_mad', 'duplicate_l2', 'duplicate']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
-        fname_templates,
-        fname_spike_train,
         os.path.join(TMP_FOLDER,
                      'cluster_post_process'),
         standardized_path,
-        standardized_dtype)
+        standardized_dtype,
+        fname_templates,
+        fname_spike_train)
 
     return fname_templates, fname_spike_train
 
 
-def final_deconv(TMP_FOLDER,
+def pre_final_deconv(TMP_FOLDER,
                  standardized_path,
                  standardized_dtype,
                  fname_templates,
@@ -362,7 +372,7 @@ def final_deconv(TMP_FOLDER,
     '''
 
     # run deconvolution
-    logger.info('FINAL DECONV')
+    logger.info('DECONV')
     (fname_templates,
      fname_spike_train,
      fname_templates_up,
@@ -398,7 +408,7 @@ def final_deconv(TMP_FOLDER,
         fname_residual,
         residual_dtype)
 
-    logger.info('FINAL MERGE')
+    logger.info('POST DECONV MERGE')
     (fname_templates,
      fname_spike_train,
      fname_soft_assignment) = merge.run(
@@ -407,6 +417,78 @@ def final_deconv(TMP_FOLDER,
         fname_spike_train,
         fname_templates,
         fname_soft_assignment,
+        fname_residual,
+        residual_dtype)
+    
+    logger.info('Remove Low Firing Rate Units')
+    methods = ['low_fr']
+    fname_templates, fname_spike_train = postprocess.run(
+        methods,
+        os.path.join(TMP_FOLDER,
+                     'post_deconv_post_process'),
+        standardized_path,
+        standardized_dtype,
+        fname_templates,
+        fname_spike_train,
+        fname_soft_assignment)
+
+    return (fname_templates,
+            fname_spike_train)
+
+
+def final_deconv(TMP_FOLDER,
+                 standardized_path,
+                 standardized_dtype,
+                 fname_templates,
+                 update_templates,
+                 run_chunk_sec):
+
+    logger = logging.getLogger(__name__)
+
+    if not os.path.exists(TMP_FOLDER):
+        os.makedirs(TMP_FOLDER)
+
+    ''' **********************************************
+        ************** DECONVOLUTION *****************
+        **********************************************
+    '''
+
+    # run deconvolution
+    logger.info('FINAL DECONV')
+    (fname_templates,
+     fname_spike_train,
+     fname_templates_up,
+     fname_spike_train_up,
+     fname_shifts) = deconvolve.run(
+        fname_templates,
+        os.path.join(TMP_FOLDER,
+                     'deconv'),
+        standardized_path,
+        standardized_dtype,
+        update_templates=update_templates,
+        run_chunk_sec=run_chunk_sec)
+
+    # compute residual
+    logger.info('RESIDUAL COMPUTATION')
+    fname_residual, residual_dtype = residual.run(
+        fname_shifts,
+        fname_templates,
+        fname_spike_train,
+        os.path.join(TMP_FOLDER,
+                     'residual'),
+        standardized_path,
+        standardized_dtype,
+        dtype_out='float32',
+        update_templates=update_templates,
+        run_chunk_sec=run_chunk_sec)
+
+    logger.info('SOFT NOISE ASSIGNMENT')
+    fname_soft_assignment = noise.run(
+        fname_templates,
+        fname_spike_train,
+        fname_shifts,
+        os.path.join(TMP_FOLDER,
+                     'soft_assignment'),
         fname_residual,
         residual_dtype)
 

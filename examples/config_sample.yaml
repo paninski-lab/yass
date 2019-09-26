@@ -102,7 +102,7 @@ cluster:
   # knn_triage percentage (0.05 means triage 5%)
   knn_triage: 0.01
   # minimum firing rate
-  min_fr: 0.5
+  min_fr: 0.1
   # cluster prior information
   prior:
     beta: 1
@@ -119,6 +119,8 @@ clean_up:
   rel_max_diff: 0.15
   # minimum ptp allowed (in standardized unit)
   min_ptp: 3
+  # minimum firing rates (in Hz)
+  min_fr: 0.5
   # if a template is off centered, it is a gabarage template
   off_center: 5
   mad:
@@ -128,5 +130,7 @@ clean_up:
     max_violations: 10
 
 deconvolution:
-    threshold: 20
+    threshold: 50
     deconv_gpu: True
+    update_templates: False
+    template_update_time: 120

@@ -977,7 +977,7 @@ class Visualizer(object):
         ptp = temp.ptp(0)
         min_point = self.shifts[unit]
 
-        vis_chan = ptp > 0.5
+        vis_chan = ptp > 1
         ptp = ptp[vis_chan]
         min_point = min_point[vis_chan]
 

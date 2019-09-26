@@ -3,7 +3,8 @@ import os
 import scipy
 import datetime as dt
 
-def get_weights(fname_templates, fname_spike_train, out_dir):
+def get_weights(out_dir, fname_templates, fname_spike_train,
+                fname_soft_assignment=None):
     '''
     compute weights, which is number of spikes in each unit
     '''
@@ -16,11 +17,15 @@ def get_weights(fname_templates, fname_spike_train, out_dir):
     n_units = templates.shape[0]
 
     # compute weights
-    weights = np.zeros(n_units, 'int32')
-    unique_ids, unique_weights = np.unique(spike_train[:, 1],
-                                           return_counts=True)
-
-    weights[unique_ids] = unique_weights
+    weights = np.zeros(n_units, 'float32')
+    if fname_soft_assignment is None:
+        unique_ids, unique_weights = np.unique(spike_train[:, 1],
+                                               return_counts=True)
+        weights[unique_ids] = unique_weights
+    else:
+        soft_assignment = np.load(fname_soft_assignment)
+        for j in range(spike_train.shape[0]):
+            weights[spike_train[j, 1]] += soft_assignment[j]
     
     # save
     fname_weights = os.path.join(out_dir, 'weights.npy')

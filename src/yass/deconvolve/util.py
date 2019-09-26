@@ -35,6 +35,8 @@ def make_CONFIG2(CONFIG):
     
     CONFIG2.deconvolution.threshold = CONFIG.deconvolution.threshold
     CONFIG2.deconvolution.deconv_gpu = CONFIG.deconvolution.deconv_gpu
+    CONFIG2.deconvolution.update_templates = CONFIG.deconvolution.update_templates
+    CONFIG2.deconvolution.template_update_time = CONFIG.deconvolution.template_update_time
 
     CONFIG2.rec_len = CONFIG.rec_len
     
