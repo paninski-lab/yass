@@ -20,6 +20,22 @@ YASS ver. 1.0 is now in the master branch. We are actively looking for beta-test
 feedback or requests for participation.
 
 
+YASS - HARDWARE REQUIREMENTS FOR LINUX (UBUNTU 18.04)
+--------------------------------------------------
+
+Yass uses GPU and CPU and we recommend having a workstation with a minimum of 32GB of CPU-RAM, and a GPU with at least 8GB
+of GPU-RAM (e.g. 1080Ti, Titan-XP etc.).  We have tested yass on:
+
+
+.. code-block:: shell
+
+    Ubuntu 18.04
+    NVIDIA driver: 410
+    Conda 
+    Python 3.6
+    Titan XP (and other GPUs as old as 1050Ti)
+    
+
 YASS - INSTALLATION INSTRUCTIONS FOR LINUX (UBUNTU 18.04)
 --------------------------------------------------
 
@@ -29,55 +45,73 @@ Installing the master branch:
 
 https://www.anaconda.com/distribution/
 
+
 1.2 [Optional] Create a conda environment to run yass using python 3.6 (strongly recommended):
 
 .. code-block:: shell
+
     conda create -n yass python=3.6
+
 
 1.3 [Optional] Activate conda environment:
 
 .. code-block:: shell
+
     source activate yass
+
 
 2.  Clone the master repository:
 
 .. code-block:: shell
+
     git clone https://github.com/paninski-lab/yass
+
 
 3.  Change directory:
 
 .. code-block:: shell
+
     cd yass
     
 4.  Pip install the python code with dependencies:
 
 .. code-block:: shell
+
    pip install .
    
 5.  Change directory to CUDA code directory:
    
 .. code-block:: shell
+
    cd src/gpu_deconv3
    
 6.  Compile cuda code using default gcc:
 
 .. code-block:: shell
+
    python setupy.py install --force
    
+
+Common installation issues involve incompatible gcc versions for pytorch installation and for
+cuda code.  We recommend using gcc 5 and pytorch 1.10 as they have been tested.
+
    
 RUNNING DEFAULT TEST
 -------------------
 
-Yass comes with a small neurophysiology recording data file (20 second; 49 channels).
+Yass comes with a small neurophysiology recording data file (20 second; 49 channels) for testing the install. To run
+this test:
 
 7.  Change directory to main directory of dataset:
 
 .. code-block:: shell
+
    cd samples/49chan
    
 8.  Run test using default configuration:
 
 .. code-block:: shell
+
    yass sort config.yaml
       
 If yass runs successfully, several files will be generated in your root directory.
@@ -107,16 +141,19 @@ RUNNING ADDITIONAL TESTS/DATASETS
 9.  Make a directory that will hold your data:
 
 .. code-block:: shell
+
    mkdir ../data
 
 10.  Copy the config.yaml file to the new directory:
 
 .. code-block:: shell
+
    cp config.yaml ../data
    
 11.  Edit the config.yaml file (using any editor) and modify the file location parameters:
 
 .. code-block:: shell
+
     data:
       root_folder: [insert folder location of install]
       
