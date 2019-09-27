@@ -262,13 +262,11 @@ Contributors
 ------------
 
 `Peter Lee`_, `Eduardo Blancas`_, `Nishchal Dethe`_, `Shenghao Wu`_,
-`Hooshmand Shokri`_, `Ella Batty`_, `Yueqi Wang`_, `Ari Pakman`_, `Calvin Tong`_, `Kevin Li`_,
-`Ian Kinsella`,  `Catalin Mitelut`_, `Colleen Rhoades`_, `Nora Brackbill`_, `Alexandra Kling`_,
+`Hooshmand Shokri`_,  `Catalin Mitelut`_, `Colleen Rhoades`_, `Nora Brackbill`_, `Alexandra Kling`_,
 `David Carlson`_, `Denis Turcu`_,
 `EJ Chichilnisky`_, `Liam Paninski`_
 
 .. _Peter Lee: https://github.com/pjl4303
-.. _Eduardo Blancas: https://blancas.io
 .. _Nishchal Dethe: https://github.com/nd2506
 .. _Shenghao Wu: https://github.com/ShenghaoWu
 .. _Hooshmand Shokri: https://github.com/hooshmandshr
