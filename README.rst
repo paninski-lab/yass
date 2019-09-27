@@ -26,17 +26,20 @@ support CPU-only hardware configurations (please see the list of hardware recomm
 YASS - Hardware Recommendations For Linux (Ubuntu 18.04)
 --------------------------------------------------
 
-Yass uses GPU and CPU and we recommend having a workstation with a minimum of 32GB of CPU-RAM, and a GPU with at least 8GB
-of GPU-RAM (e.g. 1080Ti, Titan-XP etc.).  We have tested yass with the following configurations:
+Yass uses GPU and CPUs and we recommend having a workstation with a minimum of 32GB of CPU-RAM, and a GPU with at least 8GB
+of GPU-RAM (e.g. 1080Ti, Titan-XP etc.).  Having a CPU with multiple cores additionally speeds up computation (see config.yaml file). 
+We have tested yass with the following configurations:
 
 .. code-block:: shell
 
+    Multi-core CPU (single 6-core and dual processor 16-cores)
     Ubuntu 18.04
     NVIDIA driver: 410
     Cuda toolkit: 10.0
     Conda 
     Python 3.6
     Titan XP (and other GPUs as old as 1050Ti; Note: yass requires at least 1 GPU installed)
+
 
 
 NVIDIA - Driver and Support Files Installations For Linux (Ubuntu 18.04)
@@ -50,6 +53,7 @@ https://www.nvidia.com/Download/index.aspx
 2. We recommend installation of cuda toolkit 10+:
 
 https://developer.nvidia.com/cuda-toolkit
+
 
 
 YASS - Installation Instructions For Linux (Ubuntu 18.04)
