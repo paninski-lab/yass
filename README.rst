@@ -262,7 +262,10 @@ Contributors
 ------------
 
 `Peter Lee`_, `Eduardo Blancas`_, `Nishchal Dethe`_, `Shenghao Wu`_,
-`Hooshmand Shokri`_, `Calvin Tong`_, `Catalin Mitelut`_
+`Hooshmand Shokri`_, `Ella Batty`_, `Yueqi Wang`_, `Ari Pakman`_, `Calvin Tong`_, `Kevin Li`_,
+`Ian Kinsella`,  `Catalin Mitelut`_, `Colleen Rhoades`_, `Nora Brackbill`_, `Alexandra Kling`_,
+`David Carlson`_, `Denis Turcu`_,
+`EJ Chichilnisky`_, `Liam Paninski`_
 
 .. _Peter Lee: https://github.com/pjl4303
 .. _Eduardo Blancas: https://blancas.io
@@ -274,6 +277,8 @@ Contributors
 
 Reference
 ---------
+
+A new manuscript will be available shortly.  The older version can be found here:
 
 Lee, J. et al. (2017). YASS: Yet another spike sorter. Neural Information Processing Systems. Available in biorxiv: https://www.biorxiv.org/content/early/2017/06/19/151928
 
