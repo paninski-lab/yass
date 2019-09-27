@@ -16,44 +16,60 @@ YASS: Yet Another Spike Sorter
 
 [UPDATE Sep 2019] 
 ------------------
-YASS ver. 1.0 is now in the master branch. We are actively looking for beta-testers so feel free to send
+Yass ver. 1.0-Beta is now in the master branch. We are actively looking for beta-testers so feel free to send
 feedback or requests for participation.
+
+Yass has been developed to use GPUs for multiple stages of processing.  Because of this, we currently do not 
+support CPU-only hardware configurations (please see the list of hardware recommendations below).
 
 
 YASS - Hardware Recommendations For Linux (Ubuntu 18.04)
 --------------------------------------------------
 
 Yass uses GPU and CPU and we recommend having a workstation with a minimum of 32GB of CPU-RAM, and a GPU with at least 8GB
-of GPU-RAM (e.g. 1080Ti, Titan-XP etc.).  We have tested yass on:
-
+of GPU-RAM (e.g. 1080Ti, Titan-XP etc.).  We have tested yass with the following configurations:
 
 .. code-block:: shell
 
     Ubuntu 18.04
     NVIDIA driver: 410
+    Cuda toolkit: 10.0
     Conda 
     Python 3.6
-    Titan XP (and other GPUs as old as 1050Ti)
-    
+    Titan XP (and other GPUs as old as 1050Ti; Note: yass requires at least 1 GPU installed)
+
+
+NVIDIA - Driver and Support Files Installations For Linux (Ubuntu 18.04)
+--------------------------------------------------
+
+1. We strongly recommend installation of NVIDIA drivers 410+:
+
+https://www.nvidia.com/Download/index.aspx
+
+
+2. We recommend installation of cuda toolkit 10+:
+
+https://developer.nvidia.com/cuda-toolkit
+
 
 YASS - Installation Instructions For Linux (Ubuntu 18.04)
 --------------------------------------------------
 
 Installing the master branch:
 
-1.1 [Optional] Download anaconda environment manager (strongly recommended):
+1.1 [Optional] Download anaconda environment manager (recommended):
 
 https://www.anaconda.com/distribution/
 
 
-1.2 [Optional] Create a conda environment to run yass using python 3.6 (strongly recommended):
+1.2 [Optional] Create a conda environment to run yass using python 3.6 (recommended):
 
 .. code-block:: shell
 
     conda create -n yass python=3.6
 
 
-1.3 [Optional] Activate conda environment:
+1.3 [Optional] Activate conda environment (recommended):
 
 .. code-block:: shell
 
