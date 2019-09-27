@@ -19,12 +19,18 @@ YASS: Yet Another Spike Sorter
 Yass ver. 1.0-Beta is now in the master branch. We are actively looking for beta-testers so feel free to send
 feedback or requests for participation.
 
-Yass has been developed to use GPUs for multiple stages of processing.  Because of this, we currently do not 
-support CPU-only hardware configurations (please see the list of hardware recommendations below).
+Yass has been developed as a spike-sorting platform for high-firing rate, high-collision, large-spatial extent spikes obtained from
+retinal recordings.  It contains several components including: spike event detection using neural-networks, clustering 
+using mixture-of-finite-mixtures approaches, merging and splitting of neurons, and deconvolution steps involving super-resolution 
+and stochastic correction.  Finally, yass implements a simple neuron-template drift model to handle small chages in 
+neuron shape over time that are present in retinal recordings (a multi-channel drift model is in development).
 
 
 YASS - Hardware Recommendations For Linux (Ubuntu 18.04)
 --------------------------------------------------
+
+Yass has been developed to use GPUs for multiple stages of processing.  Because of this, we currently do not 
+support CPU-only hardware configurations (please see the list of hardware recommendations below).
 
 Yass uses GPU and CPUs and we recommend having a workstation with a minimum of 32GB of CPU-RAM, and a GPU with at least 8GB
 of GPU-RAM (e.g. 1080Ti, Titan-XP etc.).  Having a CPU with multiple cores additionally speeds up computation (see config.yaml file). 
@@ -128,14 +134,14 @@ cuda code.  We recommend using gcc 5 and pytorch 1.10 as they have been tested.
 Running Default Test
 -------------------
 
-Yass comes with a small neurophysiology recording data file (20 second; 49 channels) for testing the install. To run
+Yass comes with a small neurophysiology recording data file (60 second; 10 channels) for testing the install. To run
 this test:
 
 1.  Change directory to main directory of dataset:
 
 .. code-block:: shell
 
-   cd samples/49chan
+   cd samples/10chan
    
 2.  Run test using default configuration:
 
