@@ -261,10 +261,10 @@ Running Additional Datasets
 Contributors
 ------------
 
-`Peter Lee`_, `Eduardo Blancas`_, `Nishchal Dethe`_, `Shenghao Wu`_,
-`Hooshmand Shokri`_,  `Catalin Mitelut`_, `Colleen Rhoades`_, `Nora Brackbill`_, `Alexandra Kling`_,
-`David Carlson`_, `Denis Turcu`_,
-`EJ Chichilnisky`_, `Liam Paninski`_
+`Peter Lee`_, `Eduardo Blancas`, `Nishchal Dethe`_, `Shenghao Wu`_,
+`Hooshmand Shokri`_,  `Catalin Mitelut`_, `Colleen Rhoades`, `Nora Brackbill`, `Alexandra Kling`,
+`David Carlson`, `Denis Turcu`,
+`EJ Chichilnisky`, `Liam Paninski`
 
 .. _Peter Lee: https://github.com/pjl4303
 .. _Nishchal Dethe: https://github.com/nd2506
