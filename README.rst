@@ -29,22 +29,24 @@ neuron shape over time that are present in retinal recordings (a multi-channel d
 YASS - Hardware Recommendations For Linux (Ubuntu 18.04)
 --------------------------------------------------
 
-Yass has been developed to use GPUs for multiple stages of processing.  Because of this, we currently do not 
+Yass depends on GPU-based algorithms at multiple stages of processing.  Accordingly, we currently do not 
 support CPU-only hardware configurations (please see the list of hardware recommendations below).
 
-Yass uses GPU and CPUs and we recommend having a workstation with a minimum of 32GB of CPU-RAM, and a GPU with at least 8GB
-of GPU-RAM (e.g. 1080Ti, Titan-XP etc.).  Having a CPU with multiple cores additionally speeds up computation (see config.yaml file). 
-We have tested yass with the following configurations:
+We recommend having a workstation with a minimum of 32GB of CPU-RAM, and a GPU with at least 8GB
+of GPU-RAM (e.g. 1080Ti, Titan-XP etc.).  Cloud services such as AWS are also viable (we have successfuly run tests on AWS). 
+Workstation CPU-cores can speed up processing at several stages ~linearly with the # of cores (see config.yaml file). 
+
+Yass has been tested with the following configurations:
 
 .. code-block:: shell
 
-    Multi-core CPU (single 6-core and dual processor 16-cores)
+    CPUs (single 6-core and dual processor 16-cores)
     Ubuntu 18.04
     NVIDIA driver: 410
     Cuda toolkit: 10.0
     Conda 
-    Python 3.6
-    Titan XP (and other GPUs as old as 1050Ti; Note: yass requires at least 1 GPU installed)
+    Python: 3.6
+    GPU: Titan XP (1050Ti also works; Note: yass requires at least 1 GPU installed)
 
 
 
