@@ -16,14 +16,19 @@ YASS: Yet Another Spike Sorter
 
 [UPDATE Sep 2019] 
 ------------------
-Yass ver. 1.0-Beta is now in the master branch. We are actively looking for beta-testers so feel free to send
-feedback or requests for participation.
+Yass ver. 1.0-Beta is now available in the master branch. We are actively looking for beta-testers so feel free to send
+feedback or requests for participation (see list below).
 
 Yass has been developed as a spike-sorting platform for high-firing rate, high-collision, large-spatial extent spikes obtained from
 retinal recordings.  It contains several components including: spike event detection using neural-networks, clustering 
 using mixture-of-finite-mixtures approaches, merging and splitting of neurons, and deconvolution steps involving super-resolution 
 and stochastic correction.  Finally, yass implements a simple neuron-template drift model to handle small chages in 
-neuron shape over time that are present in retinal recordings (a multi-channel drift model is in development).
+neuron shape over time that are present in retinal recordings.
+
+Yass features in development:
+
+* Phy visualization (alpha)
+* Multi-channel drift tracking (alpha)
 
 
 YASS - Hardware Recommendations For Linux (Ubuntu 18.04)

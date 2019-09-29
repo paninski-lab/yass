@@ -628,7 +628,7 @@ def update_templates_GPU_forward_backward(d_gpu,
     wfs_temp_aligned_array = []
     #original_templates = []
     try:
-        os.mkdir('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/final_deconv/deconv/wfs')
+        os.mkdir(d_gpu.out_dir + '/wfs/')
     except:
         pass
         
@@ -646,6 +646,9 @@ def update_templates_GPU_forward_backward(d_gpu,
     # Cat: TODO: read debug from CONFIG
     #           - debug here saves ptp and other metadata for drift model;
     #           - important for debugging
+    
+    
+    
     debug = True
     if True:
         # GPU version + weighted computation
@@ -967,7 +970,7 @@ def update_templates_GPU_forward_backward(d_gpu,
     
     
     if debug:
-        np.savez('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/final_deconv/deconv/wfs/'+
+        np.savez(d_gpu.out_dir + '/wfs/'+
             str(iter_)+'.npz',
             wfs_temp_original_array = wfs_temp_original_array,
             denoised_wf_all_array= denoised_wf_all_array,
