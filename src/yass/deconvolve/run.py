@@ -226,7 +226,7 @@ def deconv_ONgpu2(fname_templates_in,
     #       are updated based on spikes in previous chunk)
     # Cat: TODO read from CONFIG
     d_gpu.update_templates = update_templates
-    d_gpu.max_percent_update = 0.1
+    d_gpu.max_percent_update = 0.2
     if d_gpu.update_templates:
         print ("   templates being updated ...")
     else:
@@ -755,7 +755,31 @@ def update_templates_GPU_forward_backward(d_gpu,
                     #if nn_denoise==True:
                     if True:
                         ptp_template_original_denoised = template_original_denoised.ptp(0)
-
+                        
+                        # select +/- 10% of waveform or +/- - 1SU whichever is larger
+                        max_thresh_dynamic = [max(template_original_denoised[d_gpu.ptp_locs[unit][0]]*
+                                                                        (1+max_percent_update),
+                                                    template_original_denoised[d_gpu.ptp_locs[unit][0]]+1.0),
+                                              min(template_original_denoised[d_gpu.ptp_locs[unit][0]]*
+                                                                        (1-max_percent_update),
+                                                    template_original_denoised[d_gpu.ptp_locs[unit][0]]-1.0),
+                                             ]
+                                                    
+                        min_thresh_dynamic = [max(template_original_denoised[d_gpu.ptp_locs[unit][1]]*
+                                                                        (1+max_percent_update),
+                                                    template_original_denoised[d_gpu.ptp_locs[unit][1]]+1.0),
+                                              min(template_original_denoised[d_gpu.ptp_locs[unit][1]]*
+                                                                        (1-max_percent_update),
+                                                    template_original_denoised[d_gpu.ptp_locs[unit][1]]-1.0)
+                                             ]
+                        
+                        ptp_thresh_dynamic = [max(ptp_template_original_denoised*(1+max_percent_update),
+                                                 ptp_template_original_denoised+3.0),
+                                              min(ptp_template_original_denoised*(1-max_percent_update),
+                                                 ptp_template_original_denoised-3.0)
+                                              ]
+                                                 
+                                              
                         # **************************************************
                         # ********** OPTION #1: PTP at fixed points ********
                         # **************************************************
@@ -793,30 +817,47 @@ def update_templates_GPU_forward_backward(d_gpu,
                                                                 # maxes<=d_gpu.temps[d_gpu.max_chans[unit],
                                                                 # d_gpu.ptp_locs[unit][0], unit]*
                                                                 # (1+d_gpu.max_percent_update)))[0]
-                            idx_maxes = np.where(np.logical_and(maxes>=template_original_denoised[d_gpu.ptp_locs[unit][0]]*
-                                                                        (1-max_percent_update),
-                                                                maxes<=template_original_denoised[d_gpu.ptp_locs[unit][0]]*
-                                                                        (1+max_percent_update))
-                                                )[0]
-                                                                
-                            idx_mins = np.where(np.logical_and(mins<=template_original_denoised[d_gpu.ptp_locs[unit][1]]*
-                                                                        (1-max_percent_update),
-                                                                mins>=template_original_denoised[d_gpu.ptp_locs[unit][1]]*
-                                                                        (1+max_percent_update))
-                                                )[0]
-                            
+                            # old method that uses relative threshold only:
+                            if False:
+                                idx_maxes = np.where(np.logical_and(maxes>=template_original_denoised[d_gpu.ptp_locs[unit][0]]*
+                                                                            (1-max_percent_update),
+                                                                    maxes<=template_original_denoised[d_gpu.ptp_locs[unit][0]]*
+                                                                            (1+max_percent_update))
+                                                    )[0]
+                                                                    
+                                idx_mins = np.where(np.logical_and(mins<=template_original_denoised[d_gpu.ptp_locs[unit][1]]*
+                                                                            (1-max_percent_update),
+                                                                    mins>=template_original_denoised[d_gpu.ptp_locs[unit][1]]*
+                                                                            (1+max_percent_update))
+                                                    )[0]
+                                                    
+                                # also add criteria that the ptp overall of the denoised aligned waveform is correct:
+                                ptps_dumb = wfs_temp_aligned.ptp(1)
+                                idx_ptp_dumb = np.where(np.logical_and(ptps_dumb>=ptp_template_original_denoised*(
+                                                                                    1-max_percent_update),
+                                                              ptps_dumb<=ptp_template_original_denoised*(
+                                                                                1+max_percent_update)))[0]     
+                                                                                
+                                                                                
+                            else:
+                                idx_maxes = np.where(np.logical_and(maxes>=max_thresh_dynamic[0],
+                                                                    maxes<=max_thresh_dynamic[1])
+                                                    )[0]
+                                                                    
+                                idx_mins = np.where(np.logical_and(mins<=min_thresh_dynamic[0],
+                                                                    mins>=min_thresh_dynamic[1])
+                                                    )[0]
+
+                                ptps_dumb = wfs_temp_aligned.ptp(1)
+                                idx_ptp_dumb = np.where(np.logical_and(ptps_dumb>=ptp_thresh_dynamic[0],
+                                                              ptps_dumb<=ptp_thresh_dynamic[1])
+                                                              
+                                                        )[0]     
+
+                            # find intersection of ptp_maxes and ptp_mins
                             idx_ptp_max_min, idx_ptp_maxes, idx_ptp_mins = np.intersect1d(idx_maxes,idx_mins,return_indices=True)
                             
-
-                            
-                            # also add criteria that the ptp overall of the denoised aligned waveform is correct:
-                            ptps_dumb = wfs_temp_aligned.ptp(1)
-                            idx_ptp_dumb = np.where(np.logical_and(ptps_dumb>=ptp_template_original_denoised*(
-                                                                                1-max_percent_update),
-                                                              ptps_dumb<=ptp_template_original_denoised*(
-                                                                                1+max_percent_update)))[0]             
-
-                            
+                            # find intersection with ptp_dumb
                             idx_ptp, idx_ptp_maxes, idx_ptp_mins = np.intersect1d(idx_ptp_max_min,
                                                             idx_ptp_dumb,return_indices=True)
                         

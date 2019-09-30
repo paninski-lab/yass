@@ -53,6 +53,9 @@ Yass has been tested with the following configurations:
     Python: 3.6
     GPU: Titan XP (1050Ti also works; Note: yass requires at least 1 GPU installed)
 
+In addition, yass undergoes many IO operations and we strongly recommend using solid-state-drives (SSDs) with at 
+least 5-6 times of free space compared to the size of the dataset.  For example, a 100GB raw binary file (int16) 
+will require an additional ~450GB-500GB of free space for saving metadata during processing.
 
 
 NVIDIA - Driver and Support Files Installations For Linux (Ubuntu 18.04)
@@ -117,7 +120,7 @@ https://www.anaconda.com/distribution/
 
 .. code-block:: shell
 
-   pip install pytorch
+   pip install torch
 
    
 6.  Change directory to CUDA code directory:
@@ -131,7 +134,7 @@ https://www.anaconda.com/distribution/
 
 .. code-block:: shell
 
-   python setupy.py install --force
+   python setup.py install --force
    
 
 Common installation issues involve incompatible gcc versions for pytorch installation and for
