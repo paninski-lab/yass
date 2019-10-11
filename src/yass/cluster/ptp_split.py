@@ -64,7 +64,9 @@ def run_split_on_ptp(savedir, fname_spike_index, CONFIG,
         labels = labels[idx]
         spike_index = spike_index[idx]
     else:
+        idx = np.arange(len(ptp_raw))
         ptps = ptp_raw
+        
     np.save(os.path.join(savedir, 'idx_keep.npy'), idx)
 
     logger.info("Run Split")

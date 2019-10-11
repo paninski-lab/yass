@@ -165,10 +165,12 @@ class Visualizer(object):
 
             vis_chan = np.where(temp.ptp(0) > 0.5)[0]
             shifts[k][vis_chan] = arg_min[vis_chan]
-            
+        
+        #shifts[shifts < -5] = -5
         self.shifts = shifts
         self.max_shift = np.max(self.shifts)
         self.min_shift = np.min(self.shifts)
+        self.min_shift = -10
 
     def compute_firing_rates(self):
         
@@ -1002,11 +1004,12 @@ class Visualizer(object):
         if add_color_bar:
             cbar = plt.colorbar(pad=0.01, fraction=0.05)
             #ticks = cbar.get_ticks()
-            ticks = np.arange(self.min_shift, self.max_shift+1, 10)
+            ticks = np.arange(self.min_shift, self.max_shift+1, 20)
             ticklabels = np.round((
                 ticks/self.sampling_rate*1000).astype('float32'), 1)
             cbar.set_ticks(ticks)
             cbar.set_ticklabels(ticklabels)
+            cbar.ax.tick_params(labelsize=self.fontsize) 
 
         if title is not None:
             ax.set_title(title, fontsize=self.fontsize)
@@ -1047,7 +1050,7 @@ class Visualizer(object):
 
         return gs
 
-    def add_contour_plot(self, gs, x_loc, y_loc, units, colors, zoom_in=False, title=None):
+    def add_contour_plot(self, gs, x_loc, y_loc, units, colors, zoom_in=False, title=None, windows=None, legend=True):
         
         ax = plt.subplot(gs[x_loc, y_loc])
         labels = []
@@ -1073,14 +1076,22 @@ class Visualizer(object):
                     y_max = np.max((y_max_, y_max))
 
                 labels.append(mpatches.Patch(color = colors[ii], label = "Unit {}".format(unit)))
-        
-        ax.legend(handles=labels)
-        if zoom_in:
+
+        if legend:
+            ax.legend(handles=labels)
+        if zoom_in and (windows is None):
             ax.set_xlim([x_min-1, x_max+1])
             ax.set_ylim([y_min-1, y_max+1])
+        elif zoom_in and (windows is not None):
+            ax.set_xlim([windows[0][0], windows[0][1]])
+            ax.set_ylim([windows[1][0], windows[1][1]])
         else:
             ax.set_xlim([0,self.stim_size[0]])
             ax.set_ylim([0,self.stim_size[1]])
+
+        plt.setp(ax.get_xticklabels(), visible=False)
+        plt.setp(ax.get_yticklabels(), visible=False)
+        ax.tick_params(axis='both', which='both', length=0)
 
         if title is not None:
             ax.set_title(title, fontsize=self.fontsize)
@@ -1190,7 +1201,7 @@ class Visualizer(object):
         if add_label:
             plt.xlabel('time (ms)', fontsize=self.fontsize)
         #plt.ylabel('counts', fontsize=self.fontsize)
-        plt.tick_params(axis='both', which='major')#, labelsize=self.fontsize//2)
+        plt.tick_params(axis='both', which='major', labelsize=self.fontsize)
 
         if title is not None:
             plt.title(title, fontsize=self.fontsize)
@@ -1226,6 +1237,7 @@ class Visualizer(object):
         plt.hist(feat, bins, color='slategrey')
         plt.hist(feat[spike_ids==0], bins, color=colors[0], alpha=0.7)
         plt.hist(feat[spike_ids==1], bins, color=colors[1], alpha=0.7)
+        ax.tick_params(labelsize=self.fontsize) 
 
         if add_label:
             plt.xlabel('LDA Projection', fontsize=self.fontsize)

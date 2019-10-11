@@ -102,6 +102,10 @@ def denoise_sta(temporal_sta, frames_in):
     temporal_sta_std = (temporal_sta_reshaped - temp_sta_mean)/temp_sta_std
     good_sta = temporal_sta_reshaped[np.abs(temporal_sta_std[:, frames_in]).max(1) > 3]
     
+    if len(good_sta) <= 3:
+        idx = np.argsort(np.abs(temporal_sta_std[:, frames_in]).max(1))[::-1][:5]
+        good_sta = temporal_sta_reshaped[idx]
+
     pca = decomp.PCA(n_components = 3)
     pca.fit(good_sta)
 

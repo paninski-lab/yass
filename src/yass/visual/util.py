@@ -38,7 +38,7 @@ def zoom_in_window(sta, unit, th):
     cc = []
 
     cc = connected_components(img_2, x_start, y_start, cc)
-    buff = 5
+    buff = 2
     if len(cc) > 0:
         cc = np.vstack(cc)
         windows = [[np.min(cc[:,0])-buff, np.max(cc[:,0])+buff],

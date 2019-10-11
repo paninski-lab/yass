@@ -41,12 +41,11 @@ def get_seed(image, dim = 2):
 
 def expand_rf(image, cluster_list):
     std = np.std(image)
-    std_pixels = np.vstack(np.where(np.abs(image - np.mean(image))>std*2.5))
-    
+    std_pixels = np.vstack(np.where(np.abs(image - np.mean(image))>std*2))
+
     if(std_pixels.shape[0] ==0):
         np.asarray(std_pixels = [])
         return "poop", std_pixels
-
     
     std_pixels = np.array(std_pixels).T
     
