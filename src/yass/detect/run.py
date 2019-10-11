@@ -284,12 +284,17 @@ def run_voltage_treshold(standardized_path, standardized_dtype,
     n_mini_per_big_batch = int(np.ceil(batch_length/n_sec_chunk))    
     total_processing = int(reader.n_batches*n_mini_per_big_batch)
 
+    # neighboring channels
+    channel_index = make_channel_index(
+        CONFIG.neigh_channels, CONFIG.geom, steps=2)
+    
     if CONFIG.resources.multi_processing:
         parmap.starmap(run_voltage_threshold_parallel, 
                        list(zip(np.arange(reader.n_batches))),
                        reader,
                        n_sec_chunk,
                        CONFIG.detect.threshold,
+                       channel_index,
                        output_directory,
                        processes=CONFIG.resources.n_processors,
                        pm_pbar=True)                
@@ -300,11 +305,13 @@ def run_voltage_treshold(standardized_path, standardized_dtype,
                 reader,
                 n_sec_chunk,
                 CONFIG.detect.threshold,
+                channel_index,
                 output_directory)
 
 
 def run_voltage_threshold_parallel(batch_id, reader, n_sec_chunk,
-                                     threshold, output_directory):
+                                   threshold, channel_index,
+                                   output_directory):
 
     # skip if the file exists
     fname = os.path.join(
@@ -322,10 +329,6 @@ def run_voltage_threshold_parallel(batch_id, reader, n_sec_chunk,
         n_sec_chunk,
         add_buffer=True)
 
-    # neighboring channels
-    channel_index = make_channel_index(
-        CONFIG.neigh_channels, CONFIG.geom, steps=2)
-
     # offset for big batch
     batch_offset = reader.idx_list[batch_id, 0] - reader.buffer
     # location of each minibatch (excluding buffer)
@@ -337,12 +340,20 @@ def run_voltage_threshold_parallel(batch_id, reader, n_sec_chunk,
             batched_recordings[j], 
             threshold)
 
+        # move to gpu
+        spike_index = torch.from_numpy(spike_index)
+        energy = torch.from_numpy(energy)
+
         # deduplicate
-        spike_index_dedup = deduplicate(
+        spike_index_dedup = deduplicate_gpu(
             spike_index, energy,
             batched_recordings[j].shape,
             channel_index)
 
+        # convert to numpy
+        spike_index = spike_index.cpu().data.numpy()
+        spike_index_dedup = spike_index_dedup.cpu().data.numpy()
+        
         # update the location relative to the whole recording
         spike_index[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
         spike_index_dedup[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
