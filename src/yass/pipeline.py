@@ -31,7 +31,7 @@ from yass import set_config
 from yass import read_config
 from yass import (preprocess, detect, cluster, postprocess,
                   deconvolve, residual, noise, merge, rf, visual)
-from yass.template import update_templates
+#from yass.template import update_templates
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
                        human_readable_time)
@@ -168,7 +168,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         standardized_path,
         standardized_dtype,
         fname_templates,
-        update_templates = CONFIG.deconvolution.update_templates,
+        update_templates = True,
         run_chunk_sec = CONFIG.final_deconv_chunk)
 
     ## save the final templates and spike train

@@ -246,7 +246,7 @@ class deconvGPU(object):
         #              self.temp_temp_cpp.indices - is self.vis_units
         #              
         self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temp_temp, self.vis_units)])
-
+      
         
     def templates_to_bsplines(self):
 
@@ -279,6 +279,15 @@ class deconvGPU(object):
             print ("  ... loading coefficients from disk")
             coefficients = np.load(fname)
 
+        # print (" fname: ", fname)
+        # print (" recomputed coefficients: ", coefficients[0].shape)
+        # print (" recomputed coefficients: ", coefficients[0])
+
+        # coefficients = np.load(fname)
+        # print (" loaded coefficients: ", coefficients[0].shape)
+        # print (" loaded coefficients: ", coefficients[0])
+        
+        
         print ("  ... moving coefficients to cuda objects")
         coefficients_cuda = []
         for p in range(len(coefficients)):
@@ -399,10 +408,10 @@ class deconvGPU(object):
         self.unit_overlap = self.unit_overlap > 0
         self.vis_units = self.unit_overlap
 
-        # save vis_units for residual recomputation and other steps
-        fname = os.path.join(self.svd_dir,'vis_units_'+
-                      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
-        np.save(fname, self.vis_units)
+        # # save vis_units for residual recomputation and other steps
+        # fname = os.path.join(self.svd_dir,'vis_units_'+
+                      # str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
+        # np.save(fname, self.vis_units)
                         
                         
     def spatially_mask_templates(self):
@@ -500,10 +509,16 @@ class deconvGPU(object):
         self.vis_chan = self.vis_chan_gpu
             
         # load vis_units onto gpu
+        # Cat: TODO: check this lop index, pretty sure it's correct, but 1D vs 2Dimension unclear
         self.vis_units_gpu=[]
-        for k in range(self.vis_units.shape[1]):
+        for k in range(self.vis_units.shape[0]):
             self.vis_units_gpu.append(torch.FloatTensor(np.where(self.vis_units[k])[0]).long().cuda())
         self.vis_units = self.vis_units_gpu
+        
+        # save vis_units for residual recomputation and other steps
+        fname = os.path.join(self.svd_dir,'vis_units_'+
+                      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
+        np.save(fname, self.vis_units)
         
         # move svd items to gpu
         if self.svd_flag:
@@ -728,15 +743,7 @@ class deconvGPU(object):
             self.n_iter+=1
         
             # post-processing steps;
-            if self.verbose:
-                if self.n_iter%self.print_iteration_counter==0:
-                    print ("  iter: ", self.n_iter, "  obj_funct peak: ", 
-                            np.round(t_max.item(),1), 
-                           " # of spikes ", self.spike_times.shape[0], 
-                           ", search time: ", np.round(search_time,6), 
-                           ", quad fit time: ", np.round(shift_time,6),
-                           ", subtract time: ", np.round(total_time,6), "sec")
-                                   
+
         if self.verbose:
             print ("Total subtraction step: ", np.round(dt.datetime.now().timestamp()-start,3))
         
