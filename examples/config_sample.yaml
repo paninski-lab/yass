@@ -129,8 +129,31 @@ clean_up:
     # how many points of violation are allowed
     max_violations: 10
 
+
 deconvolution:
     threshold: 50
+    
+    # only GPU option available for now
     deconv_gpu: True
-    update_templates: False
+    
+    # update templates periodically based on drift model
+    update_templates: True
+    
+    # drift models: 0-ptp scaling; 1-full template update
+    drift_model: 0
+    
+    # time batches to update templates (sec)
     template_update_time: 120
+    
+    # determine whether new neurons are searched for
+    neuron_discover: False
+
+    # time batches to check for new neurons (sec); 
+    # recommend multiple of template_udpate_time
+    neuron_discover_time: 360
+    
+    # minimum # of spikes required to split 
+    min_split_spikes: 50
+    
+
+
