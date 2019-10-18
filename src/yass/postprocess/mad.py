@@ -78,7 +78,7 @@ def find_high_mad_unit(
     fname_out,
     reader,
     neigh_channels,
-    min_var_gap=1,
+    min_var_gap=1.2,
     max_mad_violation=10,
     up_factor=2,
     min_ptp=2):

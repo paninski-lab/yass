@@ -7,14 +7,14 @@ import logging
 import numpy as np
 from scipy.signal import argrelmin
 
-def voltage_threshold(recording, threshold):
-    
+def voltage_threshold(recording, threshold, order=5):
+
     T, C = recording.shape
     spike_index = np.zeros((0, 2), 'int32')
     energy = np.zeros(0, 'float32')
     for c in range(C):
         single_chan_rec = recording[:, c]
-        index = argrelmin(single_chan_rec, order=5)[0]
+        index = argrelmin(single_chan_rec, order=order)[0]
         index = index[single_chan_rec[index] < -threshold]
         spike_index_temp = np.vstack((index,
                                       np.ones(len(index), 'int32')*c)).T

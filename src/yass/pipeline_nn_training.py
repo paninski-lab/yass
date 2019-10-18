@@ -132,7 +132,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     # preprocess
     start = time.time()
     (standardized_path,
-     standardized_params) = preprocess.run(
+     standardized_dtype) = preprocess.run(
         os.path.join(TMP_FOLDER, 'preprocess'))
 
     TMP_FOLDER = os.path.join(TMP_FOLDER, 'nn_train')
@@ -148,7 +148,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
         logger.info('DETECTION')
         spike_index_path = detect.run(
             standardized_path,
-            standardized_params,
+            standardized_dtype,
             os.path.join(TMP_FOLDER, 'detect'),
             run_chunk_sec=[0, rec_len])
 
@@ -158,22 +158,22 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
         raw_data = True
         full_run = False
         fname_templates, fname_spike_train = cluster.run(
-            spike_index_path,
-            standardized_path,
-            standardized_params['dtype'],
             os.path.join(TMP_FOLDER, 'cluster'),
-            raw_data,
-            full_run)
+            standardized_path,
+            standardized_dtype,
+            fname_spike_index=spike_index_path,
+            raw_data=True, 
+            full_run=True)
 
-        methods = ['off_center', 'low_ptp', 'high_mad', 'duplicate', 'collision']
+        methods = ['off_center', 'low_ptp', 'high_mad', 'duplicate', 'duplicate_l2']
         fname_templates, fname_spike_train = postprocess.run(
             methods,
-            fname_templates,
-            fname_spike_train,
             os.path.join(TMP_FOLDER,
                          'cluster_post_process'),
             standardized_path,
-            standardized_params['dtype'])
+            standardized_dtype,
+            fname_templates,
+            fname_spike_train)
 
     else:
         # if there is an input spike train, use it
@@ -183,7 +183,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     # Get training data maker
     DetectTD, DenoTD = augment.run(
         standardized_path,
-        standardized_params['dtype'],
+        standardized_dtype,
         fname_spike_train,
         os.path.join(TMP_FOLDER, 'augment'))
 
@@ -191,10 +191,10 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     detector = Detect(CONFIG.neuralnetwork.detect.n_filters,
                       CONFIG.spike_size_nn,
                       CONFIG.channel_index).cuda()
-    detector.train(CONFIG.neuralnetwork.detect.filename, DetectTD)
+    detector.train(os.path.join(TMP_FOLDER, 'detect.pt'), DetectTD)
     
     # Train Denoiser
     denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
                        CONFIG.neuralnetwork.denoise.filter_sizes,
                        CONFIG.spike_size_nn).cuda()
-    denoiser.train(CONFIG.neuralnetwork.denoise.filename, DenoTD)
+    denoiser.train(os.path.join(TMP_FOLDER, 'denoise.pt'), DenoTD)

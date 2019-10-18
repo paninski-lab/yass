@@ -105,7 +105,7 @@ class Detect(nn.Module):
         optimizer = torch.optim.Adam(self.parameters(), lr=LR)   # optimize all cnn parameters
         loss_func = nn.BCELoss()                       # the target label is not one-hotted
         
-        x_train, y_train, y_test_clean = DetectTD.make_training_data(n_train)
+        x_train, y_train, x_train_clean = DetectTD.make_training_data(n_train)
         train = Data.TensorDataset(torch.FloatTensor(x_train), torch.FloatTensor(y_train))
         train_loader = Data.DataLoader(train, batch_size=BATCH_SIZE, shuffle=True)
         
