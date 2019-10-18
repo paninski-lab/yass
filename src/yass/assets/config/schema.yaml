@@ -186,6 +186,9 @@ deconvolution:
   default:
     threshold: 20
     deconv_gpu: True
+    neuron_discover_time: 100000
+    drift_model: 0
+    
   schema:
     threshold:
       type: float
@@ -193,12 +196,20 @@ deconvolution:
     deconv_gpu:
       type: boolean
       default: True
+    drift_model:
+      type: integer
+      default: 0
     update_templates:
       type: boolean
       default: False
     template_update_time:
       type: float
       default: 120
+    neuron_discover_time:
+      type: float
+      default: 100000
+      
+      
 
 neuralnetwork:
   type: dict

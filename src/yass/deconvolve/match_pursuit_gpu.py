@@ -23,7 +23,6 @@ def parallel_conv_filter2(units,
                           n_time,
                           up_up_map,
                           deconv_dir,
-                          update_templates_backwards,
                           svd_dir,
                           chunk_id,
                           n_sec_chunk_gpu,
@@ -111,6 +110,13 @@ class deconvGPU(object):
         if not os.path.isdir(self.temps_dir):
             os.mkdir(self.temps_dir)
 
+        # always copy the startng templates to initalize the process
+        fname_out_temporary = os.path.join(self.temps_dir,'templates_0sec.npy')
+        if os.path.exists(fname_out_temporary)==False:
+            temps_temporary = np.load(fname_templates)
+            np.save(fname_out_temporary, temps_temporary)
+
+
         # initalize parameters for 
         self.set_params(CONFIG, fname_templates, out_dir)
 
@@ -129,7 +135,7 @@ class deconvGPU(object):
         self.fname_templates = fname_templates
         
         # number of seconds to load from recording
-        self.n_sec = self.CONFIG.resources.n_sec_chunk_gpu_deconv
+        self.n_sec = self.CONFIG.resources.n_sec_chunk_gpu
         
         # Cat: TODO: Load sample rate from disk
         self.sample_rate = self.CONFIG.recordings.sampling_rate
@@ -169,6 +175,7 @@ class deconvGPU(object):
 
         # length of conv filter
         self.n_times = torch.arange(-self.lockout_window,self.n_time,1).long().cuda()
+        
         # make a 3 point array to be used in quadratic fit below
         self.peak_pts = torch.arange(-1,+2).cuda()
         
@@ -202,18 +209,12 @@ class deconvGPU(object):
         # conver templates to bpslines
         self.templates_to_bsplines()
 
-        # if self.scd:
-            # # also need to make inverted templates for addition step
-            # # self.initialize_cpp_inverted()
-            
-            # # conver templates to bpslines
-            # self.templates_to_bsplines_inverted()
-        
-            # # make dummy templates for recovery of refractory period
-            # # self.initialize_cpp_refractory()
             
     def run(self, chunk_id):
         
+        #
+        #self.fname_templates = fname_templates
+
         # rest lists for each segment of time
         self.offset_array = []
         self.spike_array = []
@@ -224,6 +225,9 @@ class deconvGPU(object):
         
         # save iteration 
         self.chunk_id = chunk_id
+        
+        # intialize run only when templates are updated;
+        #self.initialize()        
 
         # load raw data and templates
         self.load_data(chunk_id)
@@ -252,7 +256,7 @@ class deconvGPU(object):
 
         print ("  making template bsplines")
         fname = os.path.join(self.svd_dir,'bsplines_'+
-                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
+                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '.npy')
         
         if os.path.exists(fname)==False:
             
@@ -308,13 +312,9 @@ class deconvGPU(object):
     def compute_temp_temp_svd(self):
 
         print ("  making temp_temp filters (todo: move to GPU)")
-        if self.update_templates_backwards:
-            fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+
-                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
-        else:
-            fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+
-                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
-        
+        fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+
+                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '.npy')
+
         if os.path.exists(fname)==False:
 
             # recompute vis chans and vis units 
@@ -333,10 +333,9 @@ class deconvGPU(object):
                                               self.n_time,
                                               self.up_up_map,
                                               deconv_dir,
-                                              self.update_templates_backwards,
                                               self.svd_dir,
                                               self.chunk_id,
-                                              self.CONFIG.resources.n_sec_chunk_gpu_deconv,
+                                              self.CONFIG.resources.n_sec_chunk_gpu,
                                               self.vis_chan,
                                               self.unit_overlap,
                                               self.RANK,
@@ -351,21 +350,20 @@ class deconvGPU(object):
                 self.temp_temp = []
                 for units_ in units_split:
                     self.temp_temp.append(parallel_conv_filter2(units_, 
-                                                      self.n_time,
-                                                      self.up_up_map,
-                                                      deconv_dir,
-                                                      self.update_templates_backwards,
-                                                      self.svd_dir,
-                                                      self.chunk_id,
-                                                      self.CONFIG.resources.n_sec_chunk_gpu_deconv,
-                                                      self.vis_chan,
-                                                      self.unit_overlap,
-                                                      self.RANK,
-                                                      self.temporal,
-                                                      self.singular,
-                                                      self.spatial,
-                                                      self.temporal_up))
-                                                      
+                                              self.n_time,
+                                              self.up_up_map,
+                                              deconv_dir,
+                                              self.svd_dir,
+                                              self.chunk_id,
+                                              self.CONFIG.resources.n_sec_chunk_gpu,
+                                              self.vis_chan,
+                                              self.unit_overlap,
+                                              self.RANK,
+                                              self.temporal,
+                                              self.singular,
+                                              self.spatial,
+                                              self.temporal_up))
+                                              
             # gather results
             temp_temp_local = [None]*units.shape[0]
             for ctr1, u1 in enumerate(units_split):
@@ -429,6 +427,7 @@ class deconvGPU(object):
         #print ("Loading template: ", self.fname_templates)
         self.temps = np.load(self.fname_templates, allow_pickle=True).transpose(2,1,0)
         self.N_CHAN, self.STIME, self.K = self.temps.shape
+        #print ("   LOADED TEMPS: ", self.temps.shape)
         # this transfer to GPU is not required any longer
         # self.temps_gpu = torch.from_numpy(self.temps).float().cuda()
         
@@ -454,12 +453,9 @@ class deconvGPU(object):
         ## compute everythign using SVD
         # Cat: TODO: is this necessary?  
         #      can just overwrite all the svd stuff every template update
-        if self.update_templates_backwards:
-            fname = os.path.join(self.svd_dir,'templates_svd_'+
-                      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npz')
-        else:
-            fname = os.path.join(self.svd_dir,'templates_svd_'+
-                      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npz')
+        fname = os.path.join(self.svd_dir,'templates_svd_'+
+                      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '.npz')
+
             
         if os.path.exists(fname)==False:
             #print ("self.temps: ", self.temps.shape)
@@ -484,6 +480,7 @@ class deconvGPU(object):
                      spatial=self.spatial, temporal_up=self.temporal_up)
             
         else:
+            print ("   loading SVD from disk...") 
             # load data for for temp_temp computation
             data = np.load(fname, allow_pickle=True)
             self.temporal_up = data['temporal_up']
@@ -516,9 +513,9 @@ class deconvGPU(object):
         self.vis_units = self.vis_units_gpu
         
         # save vis_units for residual recomputation and other steps
-        fname = os.path.join(self.svd_dir,'vis_units_'+
-                      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
-        np.save(fname, self.vis_units)
+        # fname = os.path.join(self.svd_dir,'vis_units_'+
+                      # str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
+        # np.save(fname, self.vis_units)
         
         # move svd items to gpu
         if self.svd_flag:
@@ -562,11 +559,11 @@ class deconvGPU(object):
         start = dt.datetime.now().timestamp()
         if self.verbose:
             print ("Computing objective ")
-           
-        try: 
-            self.obj_gpu*=0.
-        except:
-            self.obj_gpu = torch.zeros((self.temps.shape[2], self.data.shape[1]+self.STIME-1),
+        
+        #print (" COMPUTING OBJECTIVE: ")
+        #print (" slef temps: ", self.temps.shape)
+        
+        self.obj_gpu = torch.zeros((self.temps.shape[2], self.data.shape[1]+self.STIME-1),
                                    dtype=torch.float).cuda()
         
         #print (" self.obj_gpu: ", self.obj_gpu.shape, ", size: ", sys.getsizeof(self.obj_gpu.storage()))
@@ -585,12 +582,14 @@ class deconvGPU(object):
         else:         
             # U_ x H_ (spatial * vals)
             # looping over ranks
+
             for r in range(self.RANK):
                 mm = torch.mm(self.spatial_gpu[r::self.RANK]*self.singular_gpu[r::self.RANK], 
                               self.data)[None,None]
 
-                #print (" mm: ", mm.shape, ", size: ", sys.getsizeof(mm.storage()))
-
+                #print (" self.obj_gpu: ", self.obj_gpu.shape, 
+                #        ", mm: ", mm.shape)
+                
                 for i in range(self.temps.shape[2]):
                     self.obj_gpu[i,:] += nn.functional.conv1d(mm[:,:,i,:], 
                                                          self.filters_gpu[:,:,i*self.RANK+r, :], 
@@ -603,14 +602,8 @@ class deconvGPU(object):
         
         # compute objective function = 2 x Convolution term - norms
         self.obj_gpu*= 2.
+        self.obj_gpu-= self.norm
         
-        # standard objective function  
-        if True:
-            self.obj_gpu-= self.norm
-        # adaptive value 
-        else:
-            self.obj_gpu-= 1.25*self.norm
-
         if self.verbose:
             print ("Total time obj func (run every chunk): ", np.round(dt.datetime.now().timestamp()-start,2),"sec")
             print ("---------------------------------------")
@@ -662,28 +655,36 @@ class deconvGPU(object):
             # **********************************************
             # Note; this step needs to be carried out before peak search + subtraction to make logic simpler
             if self.scd:
-                # old scd method where every 10 iterations, there's a random addition step of spikes from up to 5 prev iterations
-                if False:
-                    if (k%2==10) and (k>0):
-                        if False:
-                            # add up to spikes from up to 5 previous iterations
-                            idx_iter = np.random.choice(np.arange(min(len(self.spike_array),self.scd_max_iteration)),
-                                                        size=min(self.n_iter,self.scd_n_additions),
-                                                        replace=False)
-                            for idx_ in idx_iter: 
-                                self.add_cpp(idx_)
+                # # old scd method where every 10 iterations, there's a random addition step of spikes from up to 5 prev iterations
+                # if False:
+                    # if (k%2==10) and (k>0):
+                        # if False:
+                            # # add up to spikes from up to 5 previous iterations
+                            # idx_iter = np.random.choice(np.arange(min(len(self.spike_array),self.scd_max_iteration)),
+                                                        # size=min(self.n_iter,self.scd_n_additions),
+                                                        # replace=False)
+                            # for idx_ in idx_iter: 
+                                # self.add_cpp(idx_)
                     
-                # newer scd method: inject spikes from top 10 iterations and redeconvolve 
-                else:
-                    # updated exhuastive SCD over top 10 deconv iterations
-                    # This conditional checks that loop is in an iteration that should be an addition step
-                    if ((k%(self.n_scd_iterations*2))>=self.n_scd_iterations and \
-                        (k%(self.n_scd_iterations*2))<(self.n_scd_iterations*2)) and \
-                        (k<self.n_scd_stages*self.n_scd_iterations*2):
-                    # if ((k>=10) and (k<20)) or ((k>=30) and (k<40)) or ((k>=50) and (k<60)):
-                        self.save_spike_flag=False
-                        # add spikes back in; then find peaks again below
-                        self.add_cpp_allspikes(self.add_iteration_counter)                
+                # # newer scd method: inject spikes from top 10 iterations and redeconvolve 
+                # else:
+                # updated exhuastive SCD over top 10 deconv iterations
+                # This conditional checks that loop is in an iteration that should be an addition step
+                
+                # print ("k: ", k, ", cond1: ", k%(self.n_scd_iterations*2), "ssave flag: ", self.save_spike_flag)
+                # print ('self.n_scd_iterations: ', self.n_scd_iterations)
+                # print ('nscd stages x nscd iterations *2 ', self.n_scd_stages*self.n_scd_iterations*2, self.save_spike_flag)
+                    
+                if ((k%(self.n_scd_iterations*2))>=self.n_scd_iterations and \
+                    (k%(self.n_scd_iterations*2))<(self.n_scd_iterations*2)) and \
+                    (k<self.n_scd_stages*self.n_scd_iterations*2):
+
+                    # turn off saving spikes flag so that new spikes aren't appended
+                    #       - instead they are inserted back into the original lcoation see conditional below
+                    self.save_spike_flag=False
+
+                    # add spikes back in; then run forward deconv below
+                    self.add_cpp_allspikes()                
 
                   
             # **********************************************
@@ -718,19 +719,13 @@ class deconvGPU(object):
                 if ((k%(self.n_scd_iterations*2))>=self.n_scd_iterations and \
                     (k%(self.n_scd_iterations*2))<(self.n_scd_iterations*2)) and \
                     (k<self.n_scd_stages*self.n_scd_iterations*2):
-                    # insert spikes back to original iteration. 
+                        
+                    # insert spikes back to original iteration - no need to add append them as a new list
                     self.spike_array[self.add_iteration_counter] = self.spike_times[:,0]
                     self.neuron_array[self.add_iteration_counter] = self.neuron_ids[:,0]
                     self.shift_list[self.add_iteration_counter] = self.xshifts
                 
                     self.add_iteration_counter+=1
-
-            # **********************************************
-            # ************** POST PROCESSING ***************
-            # **********************************************
-            # save spiketimes only when doing deconv outside SCD loop
-            if self.save_spike_flag:
-                self.save_spikes()
 
             # reset regular spike save after finishing SCD (note: this should be done after final addition/subtraction
             #       gets added to the list of spikes;
@@ -738,16 +733,31 @@ class deconvGPU(object):
             if (k%(self.n_scd_iterations*2)==0):
                 self.save_spike_flag=True
                 self.add_iteration_counter=0
-                
+
+            # **********************************************
+            # ************** POST PROCESSING ***************
+            # **********************************************
+            # save spiketimes only when doing deconv outside SCD loop
+            if self.save_spike_flag:
+                self.save_spikes()
+                                
             # increase index
             self.n_iter+=1
         
             # post-processing steps;
 
+            # np.savez('/media/cat/4TBSSD/liam/512channels/2005-04-26-0/data002/tmp/final_deconv/icd/'+
+                    # str(k)+'.npz',
+                    # k = k,
+                    # save_spike_flag = self.save_spike_flag,
+                    # spike_array = self.spike_array,
+                    # neuron_array = self.neuron_array,
+                    # shift_list = self.shift_list
+                    # )
         if self.verbose:
             print ("Total subtraction step: ", np.round(dt.datetime.now().timestamp()-start,3))
         
-    
+        #quit()
         #np.save('/home/cat/saved_array.npy', self.saved_gpu_array)
         
     def find_shifts(self):
@@ -943,16 +953,16 @@ class deconvGPU(object):
         return spike_times_list, spike_ids_list, spike_shifts_list, True
 
 
-    def sample_spikes_allspikes(self,idx_iter):
+    def sample_spikes_allspikes(self):
         """
-            Same as sample_spikes() but pick all spikes from a previous iteration,
+            Same as sample_spikes() but picking all spikes from a previous iteration,
         """
 
-        spike_times_list = self.spike_array[idx_iter]-self.lockout_window
-        spike_ids_list = self.neuron_array[idx_iter]
-        spike_shifts_list= self.shift_list[idx_iter]
+        spike_times_list = self.spike_array[self.add_iteration_counter]-self.lockout_window
+        spike_ids_list = self.neuron_array[self.add_iteration_counter]
+        spike_shifts_list= self.shift_list[self.add_iteration_counter]
 
-        return spike_times_list, spike_ids_list, spike_shifts_list, True
+        return spike_times_list, spike_ids_list, spike_shifts_list
         
         
     def add_cpp(self, idx_iter):
@@ -1003,7 +1013,7 @@ class deconvGPU(object):
         return 
         
         
-    def add_cpp_allspikes(self, idx_iter):
+    def add_cpp_allspikes(self):
         #start = dt.datetime.now().timestamp()
         
         torch.cuda.synchronize()
@@ -1012,12 +1022,12 @@ class deconvGPU(object):
         #spike_times, spike_temps, spike_shifts, flag = self.sample_spikes(idx_iter)
         
         # select all spikes from a previous iteration
-        spike_times, spike_temps, spike_shifts, flag = self.sample_spikes_allspikes(idx_iter)
+        spike_times, spike_temps, spike_shifts = self.sample_spikes_allspikes()
 
         torch.cuda.synchronize()
 
-        if flag == False:
-            return 
+        # if flag == False:
+            # return 
             
         # also fill in self-convolution traces with low energy so the
         #   spikes cannot be detected again (i.e. enforcing refractoriness)

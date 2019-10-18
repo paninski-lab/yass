@@ -8,9 +8,32 @@ import sys
 import cudaSpline as deconv
 import matplotlib.pyplot as plt
 from scipy.interpolate import splrep, splev, splder, sproot
-from yass.deconvolve.match_pursuit_gpu import (transform_template_parallel, 
-                                                fit_spline_cpu, parallel_conv_filter2)
-   
+import parmap
+
+
+# these functions are same asin match_pursuit; copied just in case    
+def transform_template_parallel(template, knots=None, prepad=7, postpad=3, order=3):
+
+    if knots is None:
+        #knots = np.arange(len(template.data[0]) + prepad + postpad)
+        knots = np.arange(template.shape[1] + prepad + postpad)
+        #print ("template.shape[0]: ", template.shape[1])
+    # loop over every channel?
+    splines = [
+        fit_spline_cpu(curve, knots=knots, prepad=prepad, postpad=postpad, order=order) 
+        for curve in template
+    ]
+    coefficients = np.array([spline[1][prepad-1:-1*(postpad+1)] for spline in splines], dtype='float32')
+    
+    return coefficients
+        
+        
+def fit_spline_cpu(curve, knots=None, prepad=0, postpad=0, order=3):
+    if knots is None:
+        knots = np.arange(len(curve) + prepad + postpad)
+    return splrep(knots, np.pad(curve, (prepad, postpad), mode='symmetric'), k=order)
+    
+    
 class RESIDUAL_GPU2(object):
     
     def __init__(self,
@@ -36,39 +59,50 @@ class RESIDUAL_GPU2(object):
         self.recordings_filename = recordings_filename
         self.recording_dtype = recording_dtype
         self.CONFIG = CONFIG
-        self.output_directory = output_directory
+        #self.output_directory = output_directory
+        self.data_dir = output_directory
         self.dtype_out = dtype_out
         self.fname_out = fname_out
         self.fname_templates = fname_templates
         self.fname_shifts = fname_shifts
-        self.fname_residual = os.path.join(self.output_directory,'residual.bin')
+        self.fname_residual = os.path.join(self.data_dir,'residual.bin')
         self.fname_spike_train = fname_spike_train
         
         
         # updated templates options
         # Cat: TODO read from CONFIG
         #self.update_templates = update_templates
-        self.update_templates = False
+        self.update_templates = update_templates
         
+        # grab the starting templates
+        if self.update_templates:
+            #print ("loading
+            self.fname_templates = os.path.join(os.path.split(self.data_dir)[0],
+                                    'deconv','template_updates',
+                                    'templates_'+
+                                    str(CONFIG.deconvolution.template_update_time)+
+                                    'sec.npy')
+
         # Cat: TODO read from CONFIG File
         self.template_update_time = CONFIG.deconvolution.template_update_time
 
         # fixed value for CUDA code; do not change
-        self.tempScaling = 2.0
+        self.tempScaling = 1.0
 
         # load parameters and data
         self.load_data()
 
+        # load templates
+        self.load_templates()
+        
+        # make bsplines
+        self.make_bsplines_parallel()
+        
         # run residual computation
         self.subtract_step()
 
     def load_data(self):
-
-        t0 = time.time()
-        
-        # 
-        self.data_dir = self.output_directory
-
+       
         # 
         self.n_chan = self.CONFIG.recordings.n_channels
                                 
@@ -92,18 +126,15 @@ class RESIDUAL_GPU2(object):
 
         print ("# of chunks: ", self.reader.n_batches)
 
-        # load templates
-        self.load_templates()
-        
-        # make bsplines
-        self.make_bsplines()
-        
 
     def load_templates(self):
-        #print ("  loading templates...")
+        print ("  loading templates...", self.fname_templates)
         # load templates
         self.temps = np.load(self.fname_templates).transpose(2,1,0).astype('float32')
-        #print ("loaded temps:", self.temps.shape)
+        print ("loaded temps:", self.temps.shape)
+        self.temps_gpu = torch.from_numpy(self.temps.transpose(2,0,1)).float().cuda()
+        #self.temps_gpu = torch.from_numpy(self.temps).long().cuda()
+
 
         # note shrink tempaltes by factor of 2 as there is a 2x hardcoded in CPP function
         self.template_vals=[]
@@ -118,9 +149,14 @@ class RESIDUAL_GPU2(object):
         for k in range(len(self.template_vals)):
             self.template_inds.append(torch.from_numpy(self.vis_units).cuda())
 
+        
+        #self.vis_units_parallel = []
+        #for k in range(self.temps.shape[2]):
+        #    self.vis_units_parallel
+    
     
     def make_bsplines(self):
-        #print ("  making bsplines...")
+        print ("  making bsplines... (TODO Parallelize)")
         # make template objects
         self.templates = deconv.BatchedTemplates(
                         [deconv.Template(vals, inds) for vals, inds in 
@@ -147,6 +183,58 @@ class RESIDUAL_GPU2(object):
                     [transform_template(template) for template in self.templates])
 
 
+    # TODO IMPLEMENT THIS!
+    def make_bsplines_parallel(self):
+        
+        print (self.temps_gpu.shape, len(self.template_inds), self.template_inds[0].shape)
+        self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temps_gpu, self.template_inds)])
+
+        #print ("  making template bsplines")
+        #fname = os.path.join(data_dir,'voltage_bsplines_'+
+        #          str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu) + '.npy')
+        
+        #if os.path.exists(fname)==False:
+        if True:
+            
+            # Cat; TODO: don't need to pass tensor/cuda templates to parallel function
+            #            - can just pass the raw cpu templates
+            # multi-core bsplines
+            if self.CONFIG.resources.multi_processing:
+                templates_cpu = []
+                for template in self.temp_temp_cpp:
+                    templates_cpu.append(template.data.cpu().numpy())
+
+                coefficients = parmap.map(transform_template_parallel, templates_cpu, 
+                                            processes=self.CONFIG.resources.n_processors,
+                                            pm_pbar=False)
+            # single core
+            else:
+                coefficients = []
+                for template in self.temp_temp_cpp:
+                    template_cpu = template.data.cpu().numpy()
+                    coefficients.append(transform_template_parallel(template_cpu))
+            
+            #np.save(fname, coefficients)
+       # else:
+         #   print ("  ... loading coefficients from disk")
+        #    coefficients = np.load(fname)
+        
+        print ("  ... moving coefficients to cuda objects")
+        coefficients_cuda = []
+        for p in range(len(coefficients)):
+            coefficients_cuda.append(deconv.Template(torch.from_numpy(coefficients[p]).cuda(), self.temp_temp_cpp[p].indices))
+            # print ('self.temp_temp_cpp[p].indices: ', self.temp_temp_cpp[p].indices)
+            # print ("self.vis_units: ", self.vis_units[p])
+            # coefficients_cuda.append(deconv.Template(torch.from_numpy(coefficients[p]).cuda(), self.vis_units[p]))
+        
+        self.coefficients = deconv.BatchedTemplates(coefficients_cuda)
+
+        del self.temp_temp_cpp
+        del coefficients_cuda
+        del coefficients
+        torch.cuda.empty_cache()
+
+
     def subtract_step(self):
         
         # loop over chunks and do work
@@ -165,24 +253,31 @@ class RESIDUAL_GPU2(object):
         for chunk in tqdm(self.reader.idx_list):
             
             time_sec = (batch_id*self.CONFIG.resources.n_sec_chunk_gpu_deconv)
-                            
+                          
+           # print ((self.update_templates), 
+           #     (((time_sec)%self.template_update_time)==0),
+           #     (batch_id!=0))
             # updated templates options
             if ((self.update_templates) and 
                 (((time_sec)%self.template_update_time)==0) and
                 (batch_id!=0)):
                 
-                #self.chunk_id +=1
-
-                # Cat: TODO: note this function reads the average templates +60sec to
+                # Cat: TODO: note this function reads the average templates forward to
                 #       correctly match what was computed during current window
                 #       May wish to try other options
+                
                 self.fname_templates = os.path.join(os.path.split(self.data_dir)[0],
-                        'deconv','template_updates',
-                        'templates_'+str(time_sec+self.template_update_time)+'sec.npy')
-                #print ("reloading: ", self.fname_templates)
+                                    'deconv','template_updates',
+                                    'templates_'+
+                                     str(self.CONFIG.deconvolution.template_update_time+
+                                            batch_id*self.CONFIG.resources.n_sec_chunk_gpu_deconv)+
+                                    'sec.npy')
+                                    
+                #print ("NEW TEMPLATES...")
+                #print ("   reloading: ", self.fname_templates)
                 # reload templates
                 self.load_templates()
-                self.make_bsplines()
+                self.make_bsplines_parallel()
            
             # load chunk starts and ends for indexing below
             chunk_start = chunk[0]
@@ -231,6 +326,12 @@ class RESIDUAL_GPU2(object):
             if verbose:
                 t5 = time.time()
                 
+            if False:
+                np.save('/home/cat/times.npy', time_indices.cpu().data.numpy())
+                np.save('/home/cat/objective.npy', objective.cpu().data.numpy())
+                np.save('/home/cat/template_ids.npy', template_ids.cpu().data.numpy())
+                np.save('/home/cat/time_offsets_local.npy', time_offsets_local.cpu().data.numpy())
+                
             # of of spikes to be subtracted per iteration
             # Cat: TODO: read this from CONFIG;
             # Cat: TODO this may crash if a single spike is left; 
@@ -251,7 +352,6 @@ class RESIDUAL_GPU2(object):
                                         
                             
                 else:      
-                                        
                     deconv.subtract_splines(
                                         objective,
                                         time_indices[chunk:chunk+chunk_size],
@@ -361,7 +461,7 @@ class RESIDUAL_GPU3(object):
         t0 = time.time()
         
         # 
-        self.data_dir = self.output_directory
+        #self.data_dir = self.output_directory
 
         # 
         self.n_chan = self.CONFIG.recordings.n_channels
@@ -645,7 +745,7 @@ class RESIDUAL_GPU3(object):
         
         # loop over chunks and do work
         t0 = time.time()
-        verbose = True
+        verbose = False
         debug = False
         
         residual_array = []
@@ -744,7 +844,7 @@ class RESIDUAL_GPU3(object):
             if True:
                 chunk_size = 10000
                 for chunk in range(0, time_indices.shape[0], chunk_size):
-                    print ("Chunk: ", chunk)
+                    #print ("Chunk: ", chunk)
                     torch.cuda.synchronize()
                     if time_indices[chunk:chunk+chunk_size].shape[0]==0:
                         deconv.subtract_splines(
@@ -755,7 +855,7 @@ class RESIDUAL_GPU3(object):
                                             self.coefficients,
                                             self.tempScaling)
                     else:      
-                        print (" multi-spike subtraction: ", chunk)
+                        #print (" multi-spike subtraction: ", chunk)
 
                         deconv.subtract_splines(
                                             objective,
@@ -770,7 +870,7 @@ class RESIDUAL_GPU3(object):
             # do unit-wise subtraction; thread safe
             else:
                 for unit in np.unique(template_ids.cpu().data.numpy()):
-                    print ('unit: ', unit)
+                    #print ('unit: ', unit)
                     torch.cuda.synchronize()
                     
                     idx_unit = np.where(template_ids.cpu().data.numpy()==unit)[0]

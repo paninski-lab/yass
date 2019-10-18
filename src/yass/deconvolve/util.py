@@ -22,7 +22,14 @@ def make_CONFIG2(CONFIG):
     CONFIG2.resources.multi_processing = CONFIG.resources.multi_processing
     CONFIG2.resources.n_sec_chunk = CONFIG.resources.n_sec_chunk
     CONFIG2.resources.n_gpu_processors = CONFIG.resources.n_gpu_processors
-    CONFIG2.resources.n_sec_chunk_gpu_deconv = CONFIG.resources.n_sec_chunk_gpu_deconv
+    
+    try:
+        CONFIG2.resources.n_sec_chunk_gpu_deconv = CONFIG.resources.n_sec_chunk_gpu_deconv
+        CONFIG2.resources.n_sec_chunk_gpu = CONFIG2.resources.n_sec_chunk_gpu_deconv
+    except:
+        CONFIG2.resources.n_sec_chunk_gpu = CONFIG.resources.n_sec_chunk_gpu
+        print ("older config")
+
 
     CONFIG2.data.root_folder = CONFIG.data.root_folder
     CONFIG2.data.geometry = CONFIG.data.geometry
@@ -37,7 +44,11 @@ def make_CONFIG2(CONFIG):
     CONFIG2.deconvolution.deconv_gpu = CONFIG.deconvolution.deconv_gpu
     CONFIG2.deconvolution.update_templates = CONFIG.deconvolution.update_templates
     CONFIG2.deconvolution.template_update_time = CONFIG.deconvolution.template_update_time
-
+    CONFIG2.deconvolution.neuron_discover_time = CONFIG.deconvolution.neuron_discover_time
+    CONFIG2.deconvolution.drift_model = CONFIG.deconvolution.drift_model
+    CONFIG2.deconvolution.min_split_spikes = CONFIG.deconvolution.min_split_spikes
+    CONFIG2.deconvolution.neuron_discover = CONFIG.deconvolution.neuron_discover
+    
     CONFIG2.rec_len = CONFIG.rec_len
     
     CONFIG2.torch_devices = CONFIG.torch_devices
@@ -55,6 +66,15 @@ def make_CONFIG2(CONFIG):
     CONFIG2.neuralnetwork.denoise.n_filters = CONFIG.neuralnetwork.denoise.n_filters
     CONFIG2.neuralnetwork.denoise.filename = CONFIG.neuralnetwork.denoise.filename
     CONFIG2.neuralnetwork.denoise.filter_sizes = CONFIG.neuralnetwork.denoise.filter_sizes
+    
+    
+    CONFIG2.cluster = empty()
+    CONFIG2.cluster.prior = empty()
+    CONFIG2.cluster.prior.beta = CONFIG.cluster.prior.beta
+    CONFIG2.cluster.prior.a = CONFIG.cluster.prior.a
+    CONFIG2.cluster.prior.lambda0 = CONFIG.cluster.prior.lambda0
+    CONFIG2.cluster.prior.nu = CONFIG.cluster.prior.nu
+    CONFIG2.cluster.prior.V = CONFIG.cluster.prior.V
     
 
     return CONFIG2
