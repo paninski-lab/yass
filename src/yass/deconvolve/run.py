@@ -2,6 +2,9 @@ import os
 import logging
 import numpy as np
 import parmap
+from sklearn import mixture
+import scipy
+
 import datetime as dt
 from tqdm import tqdm
 import torch
@@ -16,6 +19,11 @@ from yass.util import absolute_path_to_asset
 from scipy import interpolate
 from yass.deconvolve.util import make_CONFIG2
 from yass.neuralnetwork import Denoise
+from yass import mfm
+from yass.merge.merge import (test_merge, run_ldatest, run_diptest)
+from yass.cluster.cluster import knn_triage
+
+from yass.visual.util import binary_reader_waveforms
 
 #from yass.deconvolve.soft_assignment import get_soft_assignments
 
@@ -112,7 +120,7 @@ def run(fname_templates_in,
         chunk_sec = run_chunk_sec
 
     if CONFIG.deconvolution.deconv_gpu:
-        n_sec_chunk = CONFIG.resources.n_sec_chunk_gpu_deconv
+        n_sec_chunk = CONFIG.resources.n_sec_chunk_gpu
     else:
         n_sec_chunk = CONFIG.resources.n_sec_chunk
 
@@ -171,14 +179,15 @@ def deconv_ONgpu2(fname_templates_in,
                  CONFIG,
                  run_chunk_sec):
 
-    # *********** MAKE DECONV OBJECT ************
+    # **************** MAKE DECONV OBJECT *****************
     d_gpu = deconvGPU(CONFIG, fname_templates_in, output_directory)
 
     #print (kfadfa)
     # Cat: TODO: gpu deconv requires own chunk_len variable
     #root_dir = '/media/cat/1TB/liam/49channels/data1_allset'
     root_dir = CONFIG.data.root_folder
-
+    d_gpu.root_dir = root_dir
+    
     # Cat: TODO: read from CONFIG
     d_gpu.max_iter = 1000
     d_gpu.deconv_thresh=threshold
@@ -203,7 +212,12 @@ def deconv_ONgpu2(fname_templates_in,
     # Stochastic gradient descent option
     # Cat: TODO: move these and other params to CONFIG
     d_gpu.scd = True
-
+    
+    if d_gpu.scd==False:
+        print (" ICD TURNED OFFF.....")
+    else:
+        print (" ICD TUREND ON .....")
+        
     # Cat: TODO: move to CONFIG; # of times to run scd inside the chunk
     # Cat: TODO: the number of stages need to be a fuction of # of channels; 
     #      around 1 stage per 20-30 channels seems to work; 
@@ -225,7 +239,7 @@ def deconv_ONgpu2(fname_templates_in,
     # parameter allows templates to be updated forward (i.e. templates
     #       are updated based on spikes in previous chunk)
     # Cat: TODO read from CONFIG
-    d_gpu.update_templates = update_templates
+    d_gpu.update_templates = CONFIG.deconvolution.update_templates
     d_gpu.max_percent_update = 0.2
     if d_gpu.update_templates:
         print ("   templates being updated ...")
@@ -237,20 +251,12 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.template_update_time = CONFIG.deconvolution.template_update_time
     
     # set forgetting factor to 5Hz (i.e. 5 spikes per second of chunk)
+    # Cat: TODO: read from CONFIG
     d_gpu.nu = 1 * d_gpu.template_update_time 
-    
-    # parameter forces deconv to do a backward step
-    #   i.e. deconv is rerun on previous chunk using templates made 
-    #   from that chunk
-    # Cat: TODO read from CONFIG
-    if d_gpu.update_templates:
-        d_gpu.update_templates_backwards = 1
-    else:
-        d_gpu.update_templates_backwards = 0        
         
-
-    # dummy flag that tracks the save state of deconv 
-    recursion_time = 1E10 
+    # time to try and split deconv-based spikes
+    d_gpu.neuron_discover_time = CONFIG.deconvolution.neuron_discover_time
+    print ("    d_gpu.neuron_discover_time: ", d_gpu.neuron_discover_time)
         
     # add reader
     d_gpu.reader = reader
@@ -258,21 +264,20 @@ def deconv_ONgpu2(fname_templates_in,
     # enforce broad buffer
     d_gpu.reader.buffer=1000
 
-
-    #d_gpu.reader.n_batches = 30
-
     # *********************************************************
     # *********************** RUN DECONV **********************
     # *********************************************************
     begin=dt.datetime.now().timestamp()
     if d_gpu.update_templates:
-        d_gpu, setup_time = run_deconv_with_templates_update(d_gpu, 
-                                                            CONFIG, 
-                                                            recursion_time,
-                                                            output_directory)
+        d_gpu, fname_templates_out = run_deconv_with_templates_update(
+                                                d_gpu, 
+                                                CONFIG, 
+                                                output_directory)
+        setup_time = 0
     else:
         d_gpu, setup_time = run_deconv_no_templates_update(d_gpu, CONFIG)
-
+        
+        fname_templates_out = fname_templates_in
 
     # ****************************************************************
     # *********************** GATHER SPIKE TRAINS ********************
@@ -300,7 +305,7 @@ def deconv_ONgpu2(fname_templates_in,
     shifts = []
     for chunk_id in tqdm(range(reader.n_batches)):
         #fname = os.path.join(d_gpu.seg_dir,str(chunk_id).zfill(5)+'.npz')
-        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv
+        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
         fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
         data = np.load(fname, allow_pickle=True)
 
@@ -340,25 +345,21 @@ def deconv_ONgpu2(fname_templates_in,
 
     # remove duplicates
     # Cat: TODO: are there still duplicates in spike trains!?
-    print ("removing duplicates... (TODO: remove this requirement eventually...)")
-    for k in np.unique(spike_train[:,1]):
-        idx = np.where(spike_train[:,1]==k)[0]
-        _,idx2 = np.unique(spike_train[idx,0], return_index=True)
-        idx3 = np.delete(np.arange(idx.shape[0]),idx2)
-        #print ("idx: ", idx[:10], idx.shape, " idx2: ", idx2[:10], idx2.shape,
-        #      " idx3: ", idx3[:10], idx2.shape,
-        #      " idx[idx3]: ", idx[idx3])
-        #print ("unit: ", k, "  spike train: ", spike_train[idx][:10])
-     #
-        if idx3.shape[0]>0:
-            print ("unit: ", k, " has duplicates: ", idx3.shape[0])
-            spike_train[idx[idx3],0]=-1E6
+    print ("  skipping spike deduplication step ")
+    if False:
+        print ("removing duplicates... (TODO: remove this requirement eventually...)")
+        for k in np.unique(spike_train[:,1]):
+            idx = np.where(spike_train[:,1]==k)[0]
+            _,idx2 = np.unique(spike_train[idx,0], return_index=True)
+            idx3 = np.delete(np.arange(idx.shape[0]),idx2)
+            if idx3.shape[0]>0:
+                print ("unit: ", k, " has duplicates: ", idx3.shape[0])
+                spike_train[idx[idx3],0]=-1E6
         
-       #quit()
+    # quit()
     idx = np.where(spike_train[:,0]==-1E6)[0]
     spike_train = np.delete(spike_train, idx, 0)
     shifts = np.delete(shifts, idx, 0)
-        
 
     # save spike train
     print ("  saving spike_train: ", spike_train.shape)
@@ -371,9 +372,9 @@ def deconv_ONgpu2(fname_templates_in,
     np.save(fname_shifts, shifts)
 
     # save templates and upsampled templates
-    templates_in_original = np.load(fname_templates_in)
-    np.save(fname_templates, templates_in_original)
-    np.save(fname_templates_up, templates_in_original)
+    templates_post_deconv = np.load(fname_templates_out)
+    np.save(fname_templates, templates_post_deconv)
+    np.save(fname_templates_up, templates_post_deconv)
 
 
 def run_deconv_no_templates_update(d_gpu, CONFIG):
@@ -382,7 +383,7 @@ def run_deconv_no_templates_update(d_gpu, CONFIG):
     chunk_ids_split = np.split(chunk_ids,
                                len(CONFIG.torch_devices))
                                
-    n_sec_chunk_gpu = CONFIG.resources.n_sec_chunk_gpu_deconv
+    n_sec_chunk_gpu = CONFIG.resources.n_sec_chunk_gpu
 
     processes = []
     for ii, device in enumerate(CONFIG.torch_devices):
@@ -422,30 +423,9 @@ def run_deconv_no_templates_update_parallel(d_gpu, chunk_ids, n_sec_chunk_gpu, d
 
 
 def run_deconv_with_templates_update(d_gpu, CONFIG,
-                                    recursion_time,
                                     output_directory):
 
-    # ****************************************************************
-    # *********************** INITIALIZE DECONV **********************
-    # ****************************************************************
     begin=dt.datetime.now().timestamp()
-    d_gpu.initialize()
-    setup_time = np.round((dt.datetime.now().timestamp()-begin),4)
-    print ("-------------------------------------------")
-    print ("Total init time ", setup_time, 'sec')
-    print ("-------------------------------------------")
-    print ("")
-
-    # ****************************************************************
-    # ********************** ITERATE OVER CHUNKS *********************
-    # ****************************************************************
-    begin=dt.datetime.now().timestamp()
-    # Cat: TODO: flag to run deconv just on segments of data not all data
-    # Cat: this may fail if length of recording not multipole of n_sec_gpu
-    #chunks = []
-    #for k in range(0, CONFIG.rec_len//CONFIG.recordings.sampling_rate, 
-    #                CONFIG.resources.n_sec_chunk_gpu_deconv):
-    #    chunks.append([k,k+CONFIG.resources.n_sec_chunk_gpu_deconv])
 
     # loop over chunks and run sutraction step
     #templates_old = None
@@ -453,154 +433,226 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
     n_spikes_array = []    
     ptp_array = []
     ptp_time_array = []
-    
-    # determine if yass is recovering from crash by reading last state
-    #   if state exists, then recover from there.
-    # Cat: TODO: simplify this and remove metadata dependence; overwrite previous batch
-    try: 
-        recursion_time = np.load(os.path.join(d_gpu.seg_dir,'time.npy'))
-        state = np.loadtxt(os.path.join(d_gpu.seg_dir,'state.txt'), dtype='str')
-        if state=='forward':
-            d_gpu.update_templates_backwards = 1
-        else:
-            d_gpu.update_templates_backwards = 0
-    except:
-        pass
 
-    # denoiser state
-    if False:
-        denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
-                           CONFIG.neuralnetwork.denoise.filter_sizes,
-                           CONFIG.spike_size_nn)
-        denoiser.load(CONFIG.neuralnetwork.denoise.filename)
-        denoiser = denoiser.cuda()
-                          
-        # 
-        denoiser = denoiser.to(CONFIG.torch_devices[0])
+    # this is a place holder; gets returned to main wrapper to save templates
+    #           post deconv; 
+    #       - it is updated during deconv to contain latest updated templates;
+    fname_updated_templates = d_gpu.fname_templates
     
     #***********************************************************
     #********************* MAIN DECONV LOOP ********************
     #***********************************************************
+    # main idea: 2 loops; outer checks for backward/updated deconv
+    #                     inner does the forward deconv
     chunk_id = 0
+    neuron_discovery_flag = CONFIG.deconvolution.neuron_discover 
+    new_neuron_len = CONFIG.deconvolution.neuron_discover_time
+    batch_len = CONFIG.deconvolution.template_update_time
+    chunk_len = CONFIG.resources.n_sec_chunk_gpu
+    
+    
+    verbose = False
     while True:
         # keep track of chunk being deconved and time_index
-        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv
+        time_index = (chunk_id+1)*chunk_len
 
-        if d_gpu.update_templates_backwards:
-            fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'_forward.npz')
-        else:
-            fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
+        #if d_gpu.update_templates_backwards:
+        fname_forward = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'_forward.npz')
+        fname_updated = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
 
-        if os.path.exists(fname)==False:
+        if verbose:
+            print (" searching for finalized chunnk: ", fname_updated)
+        if os.path.exists(fname_updated):
+            #print ("             found it")
+            chunk_id+=1
+            continue
+        
+        # exit when finished reading;
+        if chunk_id>=d_gpu.reader.n_batches:
+            break
             
-            # this applies to crashes mid-run
-            # it's important to load the updated template file - not the starting template
-            if chunk_id>0:
-                out_file = os.path.join(output_directory,'template_updates',
-                                'templates_'+
-                                str((chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv)+
-                                'sec.npy')
-                d_gpu.fname_templates = out_file
+        # if updated file missing; check which block we're in
+        updated_temp_time = ((chunk_id*chunk_len)//batch_len+1)*batch_len
+        previous_temp_time = ((chunk_id*chunk_len)//batch_len)*batch_len
+
+        print ("")
+        print ("")
+        print ("")
+        
+        # check if the batch templates have already been updated;
+        # if yes, then do backward step; if not finish the forward batch
+        fname_updated_templates = os.path.join(output_directory,'template_updates',
+                                                'templates_' + str(updated_temp_time)+'sec.npy')
+        if verbose:
+            print ("searching for updated tempaltes fname: ", fname_updated_templates)
+        
     
-            # if true: forward pass over data using previous chunk templates
-            if (time_index>recursion_time and 
-                d_gpu.update_templates_backwards==False):
+        
+        # BACKWARD PASS
+        if os.path.exists(fname_updated_templates) and (d_gpu.update_templates):
+            
+            if verbose:
+                print ("")
+                print ("")
+                print ("")
+                print (" >>>>>>>>>>>>>>>> BACKWARD PASS <<<<<<<<<<<<<<<< ")
+                
+            # reinitialize 
+            # initialize deconv at the right location;
+            # forward pass need last set of updates
+            d_gpu.chunk_id = (updated_temp_time)//chunk_len-1
+            d_gpu.fname_templates = fname_updated_templates
+            d_gpu.initialize()
+            
+            for k in range(batch_len//chunk_len):
+                time_index = (updated_temp_time-batch_len+chunk_len+k*chunk_len)
+                fname_forward = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
+                #print (" searching for backward/updated deconv file: ", fname_forward)
+                
+                if os.path.exists(fname_forward):
+                    chunk_id+=1
+                    continue
+                
+                if verbose:
+                    print (" Backward pass time ", time_index)
 
-                    #print ("Forward pass ON ...")
-                    d_gpu.update_templates_backwards = True
-                    fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'_forward.npz')
+                
+                # run deconv
+                #chunk_id = 
+                if verbose:
+                    print (" chunk_id passed to deconv: ", chunk_id)
+                d_gpu.run(chunk_id)
+      
+                # save deconv results
+                fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
+                np.savez(fname, 
+                         spike_array = d_gpu.spike_array,
+                         offset_array = d_gpu.offset_array,
+                         neuron_array = d_gpu.neuron_array,
+                         shift_list = d_gpu.shift_list)
+                
+                chunk_id+=1
+            
+            print ("  DONE BACKWARD PASS: ")
+        else:
+            
+            if verbose:
+                print ("")
+                print ("")
+                print ("")
+                print (" >>>>>>>>>>>>>>>> FORWARD PASS <<<<<<<<<<<<<<<< ")
+            # initialize deconv at the right location;
+            # forward pass need last set of updates
+            fname_previous_templates = os.path.join(output_directory,'template_updates',
+                                                'templates_' + str(previous_temp_time)+'sec.npy')
 
-                    # save forward pass state
-                    np.savetxt(os.path.join(d_gpu.seg_dir,'state.txt'),['forward'],fmt="%s")
-
-            # printout flags
-            if d_gpu.update_templates_backwards:
-                print ("Forward pass - updating templates", time_index, " sec")
+            if verbose:
+                print (" fname rpev templates ", fname_previous_templates)
+            if chunk_id == 0:
+                d_gpu.chunk_id = (previous_temp_time)//chunk_len
             else:
-                print ("Backwards pass - redecon with updated templates ...", time_index, " sec")
-            
-            #***********************************************************
-            #********************* MAIN DECONV STEP ********************
-            #***********************************************************
-            # run deconv
-            d_gpu.run(chunk_id)
-  
-            # save deconv results
-            np.savez(fname, 
-                     spike_array = d_gpu.spike_array,
-                     offset_array = d_gpu.offset_array,
-                     neuron_array = d_gpu.neuron_array,
-                     shift_list = d_gpu.shift_list)
-            
-            #***********************************************************
-            #******************* UPDATE TEMPLATE STEP ******************
-            #***********************************************************
+                d_gpu.chunk_id = (previous_temp_time)//chunk_len-1
+                
+            d_gpu.fname_templates = fname_previous_templates
+            d_gpu.initialize()
 
-            # UPDATE TEMPLATES: every batch of data (e.g. 10sec)
-            # GENERATE NEW TEMPLATES every chunk (e.g. 60sec) 
-            if d_gpu.update_templates_backwards:
-                (d_gpu, wfs_array, n_spikes_array, ptp_array, ptp_time_array) = \
-                                    update_templates_GPU_forward_backward(
-                                                        d_gpu, 
-                                                        CONFIG, 
-                                                        time_index, 
-                                                        wfs_array, 
-                                                        n_spikes_array,
-                                                        ptp_array,
-                                                        ptp_time_array,
-                                                        output_directory,
-                                                        #denoiser
-                                                        )
-
-                # IF NEW TEMPLATES, re-deconvolve previous chunk
-                if (time_index%d_gpu.template_update_time==0):
-                    #print ("Backward pass ON ...")
-                    d_gpu.update_templates_backwards = False
-                    chunk_id = (chunk_id - 
-                            d_gpu.template_update_time//CONFIG.resources.n_sec_chunk_gpu_deconv)
+            # loop over batch forward steps
+            chunks = []
+            for k in range(batch_len//chunk_len):
+                time_index = (updated_temp_time-batch_len+chunk_len+k*chunk_len)
+                fname_forward = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'_forward.npz')
+                
+                chunks.append(chunk_id)
+                
+                if os.path.exists(fname_forward):
+                    if verbose:
+                        print ("  time index: ", time_index, " already completed (TODO: make sure metadata is there")
+                    chunk_id+=1
+                    continue
                     
-                    # make a note of where the last backward step was
-                    # save backward pass state
-                    # Cat: TODO: unclear how important this is for save state recovery;
-                    #            - may wish to just delete previous bathc of data to allow forward step recovery
-                    recursion_time = time_index
-                    np.savetxt(os.path.join(d_gpu.seg_dir,'state.txt'),['backward'],fmt="%s")
-                    np.save(os.path.join(d_gpu.seg_dir,'time.npy'),recursion_time)
+                if verbose:
+                    print (" Forward pass time ", time_index)
 
-        #print ("chunk id outside OFF loop: ", chunk_id)
-        chunk_id+=1       
+                # print ("   using templates: ", d_gpu.fname_templates)
+                # print ("Forward pass - deconv chunk", time_index, " sec")
+                
+                # run deconv
+                d_gpu.run(chunk_id)
+      
+                # save deconv results
+                fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'_forward.npz')
+                np.savez(fname, 
+                         spike_array = d_gpu.spike_array,
+                         offset_array = d_gpu.offset_array,
+                         neuron_array = d_gpu.neuron_array,
+                         shift_list = d_gpu.shift_list)
+            
+                track_spikes_post_deconv(d_gpu, 
+                                        CONFIG,
+                                        time_index, 
+                                        output_directory,
+                                        chunk_id
+                                        )
+                chunk_id+=1
+
+            # after batch is complete, run template update   
+            if d_gpu.update_templates:                                     
+                templates_new = update_templates_forward_backward(d_gpu,
+                                              CONFIG,
+                                              chunks,
+                                              time_index)
+
+            # check if new neurons are found
+            if d_gpu.update_templates:
+                if ((time_index%new_neuron_len==0) and (time_index>chunk_len) and
+                    (neuron_discovery_flag)):
+                    n_temps = templates_new.shape[2]
+                    templates_new = split_neurons(templates_new, 
+                                                  d_gpu, 
+                                                  CONFIG, 
+                                                  time_index
+                                                  )
+                
+                    # if finding new neurons backup all the way to beginning of 
+                    #        the new neuron_batch (note we also step back below)
+                    if n_temps!=templates_new.shape[2]:
+                        chunk_id -= (new_neuron_len-batch_len)//chunk_len                
+                        
+                        if verbose:
+                            print ("  New neurons found: ", templates_new.shape[2]-n_temps, 
+                                    ", reseeting chunk_id to: ", chunk_id)
+                
+                    neuron_discovery_flag = False
+                
+            # finalize and reinitialize deconvolution with new templates
+            if d_gpu.update_templates:
+                finish_templates(templates_new, d_gpu, CONFIG, time_index)
+        
+            # reset the chunk ID back to initialize the updated/backward template pass
+            if d_gpu.update_templates:
+                chunk_id-= (batch_len//chunk_len)
+                if verbose:
+                    print ("  tempaltes updated, resetting chunk_id to: ", chunk_id)
         
         # exit when finished reading;
         if chunk_id>=d_gpu.reader.n_batches:
             break
 
-    return d_gpu, setup_time
+    return d_gpu, fname_updated_templates
     
-def update_templates_GPU_forward_backward(d_gpu, 
-                                         CONFIG, 
-                                         time_index, 
-                                         wfs_array, 
-                                         n_spikes_array,
-                                         ptp_array,
-                                         ptp_time_array,
-                                         output_directory,
-                                         #denoiser
-                                         ):
-
-    # ******************************************************
-    # ***************** SAVE WFS FIRST *********************
-    # ******************************************************
-
-    # make new entry in array
-    wfs_array.append([])
-    n_spikes_array.append([])
-    ptp_array.append([])
-    ptp_time_array.append([])
-
-    iter_ = len(wfs_array)-1
     
-    # original templates needed for array generation
-    #templates_old = d_gpu.temps
+def track_spikes_post_deconv(d_gpu, 
+                             CONFIG, 
+                             time_index, 
+                             output_directory,
+                             chunk_id):
+
+    wfs_array = []
+    n_spikes_array = []
+    ptp_array = []
+    ptp_time_array = []
+
+    # load deconvolution shifts, ids, spike times
     if len(d_gpu.neuron_array)>0: 
         ids = torch.cat(d_gpu.neuron_array)
         spike_array = torch.cat(d_gpu.spike_array)
@@ -612,439 +664,324 @@ def update_templates_GPU_forward_backward(d_gpu,
 
     units = np.arange(d_gpu.temps.shape[2])
 
-    # Cat: TODO: move this value to CONFIG;
-    # proportion of drfit allowed in each chunk of decon
-    # ptp_drift_percent = 0.2
+    # Cat: TODO: move these values to CONFIG;
     save_flag = False
     verbose = False
     super_res_align= True
     nn_denoise = False
-    d_gpu.temps_cuda = torch.from_numpy(d_gpu.temps).cuda()  #torch(d_gpu.temps).cuda
+    debug = True
+    
+    # arrays for tracking ptp data for split step
+    # Cat: TODO move this to CONFIG files
+    resplit = True
+    ptp_all_array = []
+    wfs_all_array = []
     
     # DEBUG arrays:
-    denoised_wf_all_array = []
+    raw_wfs_array = []
     idx_ptp_array = []
     wfs_temp_original_array = []
     wfs_temp_aligned_array = []
-    #original_templates = []
+    
+    # Cat: TODO remove this try: code into wrapper code
     try:
         os.mkdir(d_gpu.out_dir + '/wfs/')
     except:
         pass
-        
-    #print ("DGPU: ", d_gpu.temps.shape)
-    #print ("self.fname_templates: ", d_gpu.fname_templates)
-    compressed_template_array = []
+    try:
+        os.mkdir(d_gpu.out_dir + '/resplit/')
+    except:
+        pass
     
-    # increase first 
-    if time_index<d_gpu.template_update_time:
-        max_percent_update = d_gpu.max_percent_update*3
-    else:
-        max_percent_update = d_gpu.max_percent_update
+    spike_train_array = []
+
+    max_percent_update = d_gpu.max_percent_update
     
-    unit_test = 99999
+    unit_test = 53400
     # Cat: TODO: read debug from CONFIG
     #           - debug here saves ptp and other metadata for drift model;
     #           - important for debugging
+            
+    # GPU version of weighted computation
+    d_gpu.temps_cuda = torch.from_numpy(d_gpu.temps).cuda()  #torch(d_gpu.temps).cuda
+    data = d_gpu.data
+    snipit = torch.arange(0,d_gpu.temps.shape[1],1).cuda() 
+    wfs_empty = np.zeros((d_gpu.temps.shape[1],d_gpu.temps.shape[0]),'float32')
+    #total_spikes = 0
     
-    
-    
-    debug = True
-    if True:
-        # GPU version + weighted computation
-        data = d_gpu.data
-        snipit = torch.arange(0,d_gpu.temps.shape[1],1).cuda() 
-        wfs_empty = np.zeros((d_gpu.temps.shape[1],d_gpu.temps.shape[0]),'float32')
-        #total_spikes = 0
+    for unit in units:
+        # 
+        idx = torch.where(ids==unit, ids*0+1, ids*0)
+        idx = torch.nonzero(idx)[:,0]
+
+        times = spike_array[idx]
+        shifts = shifts_array[idx]
         
-        for unit in units:
-            # 
-            idx = torch.where(ids==unit, ids*0+1, ids*0)
-            idx = torch.nonzero(idx)[:,0]
+        # get indexes of spikes that are not too close to end; 
+        #       note: spiketimes are relative to current chunk; i.e. start at 0
+        idx2 = torch.where(times<(data.shape[1]-d_gpu.temps.shape[1]), times*0+1, times*0)
+        idx2 = torch.nonzero(idx2)[:,0]
+        times = times[idx2]
+        shifts = shifts[idx2].cpu().data.numpy()
 
-            times = spike_array[idx]
-            shifts = shifts_array[idx]
+        # save spiketrains for resplit step
+        spike_train_array.append(times.cpu().data.numpy())
+        
+        # grab waveforms; 
+        # Cat: TODO: decide if median or mean need to be used here;
+        if idx2.shape[0]>0:
+            #wfs = torch.median(data[:,times[idx2][:,None]+
+            #                        snipit-d_gpu.temps.shape[1]+1].
+            #                        transpose(0,1).transpose(1,2),0)[0]
+            wfs_temp_original = data[:,times[:,None]+
+                                    snipit-d_gpu.temps.shape[1]+1]. \
+                                    transpose(0,1).transpose(1,2)[:,None]
             
-            # get indexes of spikes that are not too close to end; 
-            #       note: spiketimes are relative to current chunk; i.e. start at 0
-            idx2 = torch.where(times<(data.shape[1]-d_gpu.temps.shape[1]), times*0+1, times*0)
-            idx2 = torch.nonzero(idx2)[:,0]
-            times = times[idx2]
-            shifts = shifts[idx2].cpu().data.numpy()
+            # select max channel spikes only from 4D tensor
+            wf_torch = wfs_temp_original[:,0,:,d_gpu.max_chans[unit]]
+            wfs_temp_original_array.append(wf_torch.cpu().data.numpy())
             
-            #print (" # spikes: ", idx2.shape)
-            #total_spikes+=idx2.shape[0]
+            # *********************************************************
+            # **************** NN DENOISE STEP ************************
+            # *********************************************************
+            # not used any longer
+            denoised_wfs = wf_torch.cpu().data.numpy()
+            template_original_denoised = d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit].cpu().data.numpy()
 
-            # grab waveforms; 
-            # Cat: TODO: decide if median or mean need to be used here;
-            if idx2.shape[0]>0:
-                #wfs = torch.median(data[:,times[idx2][:,None]+
-                #                        snipit-d_gpu.temps.shape[1]+1].
-                #                        transpose(0,1).transpose(1,2),0)[0]
-                wfs_temp_original = data[:,times[:,None]+
-                                        snipit-d_gpu.temps.shape[1]+1]. \
-                                        transpose(0,1).transpose(1,2)[:,None]
-                
-                # select max channel spikes only from 4D tensor
-                wf_torch = wfs_temp_original[:,0,:,d_gpu.max_chans[unit]]
-                wfs_temp_original_array.append(wf_torch.cpu().data.numpy())
-                
-                # *********************************************************
-                # **************** NN DENOISE STEP ************************
-                # *********************************************************
-                # select max chan only
-                if nn_denoise:
-                    start = dt.datetime.now().timestamp()
-                    
-                    # add the orignal template max channel waveform and denoise together
-                    wf_torch_plus_original = torch.cat((
-                                    d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit][None],
-                                    wf_torch),0)
-                    
-                    #original_templates.append(d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit])
-                    
-                    denoised_wf_all = denoiser(wf_torch_plus_original)[0]
-                    
-                    # grab first waveform as the original compressed templated
-                    template_original_denoised = denoised_wf_all[0].cpu().data.numpy()
-                    
-                    # all other spikes 
-                    denoised_wfs = denoised_wf_all[1:].cpu().data.numpy()
-                        
-                    if verbose: 
-                        print ("....denoise step: ", dt.datetime.now().timestamp()-start)
-                
-                    # 
-                    denoised_wf_all_array.append(denoised_wf_all.cpu().data.numpy())
 
-                else:
-                    # these aren't really denoised
-                    template_original_denoised = d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit].cpu().data.numpy()
-                    
-                    denoised_wfs = wf_torch.cpu().data.numpy()
-                    denoised_wf_all_array.append(denoised_wfs)
-                    template_original_denoised = d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit].cpu().data.numpy()
+            # *********************************************************
+            # ************ USE DECONV SHIFTS TO ALIGN SPIKES **********
+            # *********************************************************
+            # work with denoised waveforms
+            if super_res_align: 
+                if shifts.shape[0]==1:
+                    shifts = shifts[:,None]
+                wfs_temp_aligned = shift_chans(denoised_wfs, -shifts)
+                wfs_temp_aligned_array.append(wfs_temp_aligned)
+            else:
+                wfs_temp_aligned = denoised_wfs
+                wfs_temp_aligned_array.append(wfs_temp_aligned)
 
-                # *********************************************************
-                # ************ USE DECONV SHIFTS TO ALIGN SPIKES **********
-                # *********************************************************
-                # work with denoised waveforms
-                #wfs_temp = denoised_wf.cpu().data.numpy()
-                if super_res_align: 
-                    if shifts.shape[0]==1:
-                        shifts = shifts[:,None]
-                    wfs_temp_aligned = shift_chans(denoised_wfs, -shifts)
 
-                    #print ("wfs_temp: ", wfs_temp_aligned.shape)
-                    #wfs_temp_aligned = shift_chans(wfs_temp, shifts)
-                    wfs_temp_aligned_array.append(wfs_temp_aligned)
-                else:
-                    wfs_temp_aligned = denoised_wfs
-                    wfs_temp_aligned_array.append(wfs_temp_aligned)
+            # *********************************************************
+            # ************ COMPUTE THRESHOLDS FOR TRIAGE **************
+            # *********************************************************
 
-                # *********************************************************
-                # ************ COMPUTE PTPS & TRIAGE STEP *****************
-                # *********************************************************
+            # Grab ptps from wfs using previously computed ptp_max and ptp_min values in ptp_locs
+            # exclude ptps that are > or < than 20% than the current template ptp
 
-                # Grab ptps from wfs using previously computed ptp_max and ptp_min values in ptp_locs
-                # exclude ptps that are > or < than 20% than the current template ptp
-
-                # OPTION 1: exclude spikes that have PTP outside of threshold
-                if True:
-                    start = dt.datetime.now().timestamp()
-                    #if nn_denoise==True:
-                    if True:
-                        ptp_template_original_denoised = template_original_denoised.ptp(0)
-                        
-                        # select +/- 10% of waveform or +/- - 1SU whichever is larger
-                        max_thresh_dynamic = [max(template_original_denoised[d_gpu.ptp_locs[unit][0]]*
-                                                                        (1+max_percent_update),
-                                                    template_original_denoised[d_gpu.ptp_locs[unit][0]]+1.0),
-                                              min(template_original_denoised[d_gpu.ptp_locs[unit][0]]*
-                                                                        (1-max_percent_update),
-                                                    template_original_denoised[d_gpu.ptp_locs[unit][0]]-1.0),
-                                             ]
-                                                    
-                        min_thresh_dynamic = [max(template_original_denoised[d_gpu.ptp_locs[unit][1]]*
-                                                                        (1+max_percent_update),
-                                                    template_original_denoised[d_gpu.ptp_locs[unit][1]]+1.0),
-                                              min(template_original_denoised[d_gpu.ptp_locs[unit][1]]*
-                                                                        (1-max_percent_update),
-                                                    template_original_denoised[d_gpu.ptp_locs[unit][1]]-1.0)
-                                             ]
-                        
-                        ptp_thresh_dynamic = [max(ptp_template_original_denoised*(1+max_percent_update),
-                                                 ptp_template_original_denoised+3.0),
-                                              min(ptp_template_original_denoised*(1-max_percent_update),
-                                                 ptp_template_original_denoised-3.0)
-                                              ]
-                                                 
-                                              
-                        # **************************************************
-                        # ********** OPTION #1: PTP at fixed points ********
-                        # **************************************************
-                        
-                        if False:
-                            #ptp = (wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0], d_gpu.max_chans[unit]]-
-                            #      wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1], d_gpu.max_chans[unit]])
-                            #idx_ptp = np.where(np.logical_and(ptp>=d_gpu.ptps[unit]*(1-d_gpu.max_percent_update),
-                            #                                  ptp<=d_gpu.ptps[unit]*(1+d_gpu.max_percent_update)))[0]
-                            
-                            # data is already aligned and max chan only; look for ptps that are withing triage boundary
-                            ptp = (wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]]-
-                                   wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]])
-                            
-                            #idx_ptp = np.where(np.logical_and(ptp>=d_gpu.ptps[unit]*(1-d_gpu.max_percent_update),
-                            #                                  ptp<=d_gpu.ptps[unit]*(1+d_gpu.max_percent_update)))[0]
-                            idx_ptp = np.where(np.logical_and(ptp>=ptp_template_original_denoised*(1-max_percent_update),
-                                                              ptp<=ptp_template_original_denoised*(1+max_percent_update)))[0]
-                            idx_ptp_array.append(idx_ptp)
-                        
-                        # *************************************************************
-                        # **** OPTION #2: Maxes/Mins at fixed poitns + PTP LIMITS *****
-                        # *************************************************************
-                        else:
-                            if False:
-                                maxes = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]]
-                                mins = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]]
-                            else:
-                                maxes = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]-1:d_gpu.ptp_locs[unit][0]+2].max(1)
-                                mins = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]-1:d_gpu.ptp_locs[unit][1]+2].min(1)
-                                
-                            # idx_maxes = np.where(np.logical_and(maxes>=d_gpu.temps[d_gpu.max_chans[unit],
-                                                                        # d_gpu.ptp_locs[unit][0],unit]*
-                                                                        # (1-d_gpu.max_percent_update),
-                                                                # maxes<=d_gpu.temps[d_gpu.max_chans[unit],
-                                                                # d_gpu.ptp_locs[unit][0], unit]*
-                                                                # (1+d_gpu.max_percent_update)))[0]
-                            # old method that uses relative threshold only:
-                            if False:
-                                idx_maxes = np.where(np.logical_and(maxes>=template_original_denoised[d_gpu.ptp_locs[unit][0]]*
-                                                                            (1-max_percent_update),
-                                                                    maxes<=template_original_denoised[d_gpu.ptp_locs[unit][0]]*
-                                                                            (1+max_percent_update))
-                                                    )[0]
-                                                                    
-                                idx_mins = np.where(np.logical_and(mins<=template_original_denoised[d_gpu.ptp_locs[unit][1]]*
-                                                                            (1-max_percent_update),
-                                                                    mins>=template_original_denoised[d_gpu.ptp_locs[unit][1]]*
-                                                                            (1+max_percent_update))
-                                                    )[0]
-                                                    
-                                # also add criteria that the ptp overall of the denoised aligned waveform is correct:
-                                ptps_dumb = wfs_temp_aligned.ptp(1)
-                                idx_ptp_dumb = np.where(np.logical_and(ptps_dumb>=ptp_template_original_denoised*(
-                                                                                    1-max_percent_update),
-                                                              ptps_dumb<=ptp_template_original_denoised*(
-                                                                                1+max_percent_update)))[0]     
-                                                                                
-                                                                                
-                            else:
-                                idx_maxes = np.where(np.logical_and(maxes>=max_thresh_dynamic[0],
-                                                                    maxes<=max_thresh_dynamic[1])
-                                                    )[0]
-                                                                    
-                                idx_mins = np.where(np.logical_and(mins<=min_thresh_dynamic[0],
-                                                                    mins>=min_thresh_dynamic[1])
-                                                    )[0]
-
-                                ptps_dumb = wfs_temp_aligned.ptp(1)
-                                idx_ptp_dumb = np.where(np.logical_and(ptps_dumb>=ptp_thresh_dynamic[0],
-                                                              ptps_dumb<=ptp_thresh_dynamic[1])
-                                                              
-                                                        )[0]     
-
-                            # find intersection of ptp_maxes and ptp_mins
-                            idx_ptp_max_min, idx_ptp_maxes, idx_ptp_mins = np.intersect1d(idx_maxes,idx_mins,return_indices=True)
-                            
-                            # find intersection with ptp_dumb
-                            idx_ptp, idx_ptp_maxes, idx_ptp_mins = np.intersect1d(idx_ptp_max_min,
-                                                            idx_ptp_dumb,return_indices=True)
-                        
-                            if unit==unit_test:
-                                print ("UNIT: ", unit)
-                                #print ("template_original_denoised: ", template_original_denoised)
-                                print ("template_original_denoised[d_gpu.ptp_locs[unit][0]]: ", template_original_denoised[d_gpu.ptp_locs[unit][0]])
-                                print ("template_original_denoised[d_gpu.ptp_locs[unit][1]]: ", template_original_denoised[d_gpu.ptp_locs[unit][1]])
-                                print ("idx_maxes: ", idx_maxes[:10])
-                                print ("idx_mins: ", idx_mins[:10])
-                                
-                                print ("maxes: ", maxes[:10])
-                                print ("maxes average: ", maxes.mean(0))
-                                print ("mins: ", mins[:10])
-                                print ("mins average: ", mins.mean(0))
-
-                                print ("maxes[idx_ptp]: ", maxes[idx_ptp][:10])
-                                print ("maxes average[idx_ptp]: ", maxes[idx_ptp].mean(0))
-                                print ("mins:[idx_ptp] ", mins[idx_ptp][:10])
-                                print ("mins average:[idx_ptp] ", mins[idx_ptp].mean(0))
-                                
-                                print ("idx_ptp_max_min: ", idx_ptp_max_min[:10])
-                                print ("idx_ptp_dumb: ", idx_ptp_dumb[:10])
-                                print ("idx_ptp_final: ", idx_ptp[:10])
-                                
-                                # this uses ptps of the raw waveforms
-                                ptp = (maxes-mins)
-                                ptp = ptp[idx_ptp].mean(0)
-
-                                print ("ptp value: ", ptp)
-                                print ("original Template ptp without denoise: ",
-                                        d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit].cpu().data.numpy().ptp(0))
+            # OPTION 1: exclude spikes that have PTP outside of threshold
+            start = dt.datetime.now().timestamp()
+            #if nn_denoise==True:
+            ptp_template_original_denoised = template_original_denoised.ptp(0)
+            
+            # select +/- 10% of waveform or +/- - 1SU whichever is larger
+            template_at_peak = template_original_denoised[d_gpu.ptp_locs[unit][0]]
+            template_at_trough = template_original_denoised[d_gpu.ptp_locs[unit][1]]
+            
+            max_thresh_dynamic = [max(template_at_peak*(1+max_percent_update),template_at_peak+1.0),
+                                  min(template_at_peak*(1-max_percent_update),template_at_peak-1.0)
+                                 ]
                                         
-                                print ("ptp[triaged spikes]: ", ptp)
-                                print ("all spikes ptp(mean): ", wf_torch.cpu().data.numpy().mean(0).ptp(0))
-                                print ("all spikes mean(ptp): ", wf_torch.cpu().data.numpy().ptp(1).mean(0))
-
-                                print ("")
-                                print ("")
-                                print ("")
-
-                            idx_ptp_array.append(idx_ptp)
-
-                        
-                    else:
-                        print (" drift on raw data (without NN-denoise) NOT IMPLEMENTED (quiting) ")
-                        quit()
-                        # ptp = (wfs_temp.cpu().data.numpy()[:,0,d_gpu.ptp_locs[unit][0], d_gpu.max_chans[unit]]-
-                              # wfs_temp.cpu().data.numpy()[:,0,d_gpu.ptp_locs[unit][1], d_gpu.max_chans[unit]])
-                        # idx_ptp = np.where(np.logical_and(ptp>=d_gpu.ptps[unit]*(1-d_gpu.max_percent_update),
-                                                          # ptp<=d_gpu.ptps[unit]*(1+d_gpu.max_percent_update)))[0]
-
-                    # grab ptps at specific locations
-                    if idx_ptp.shape[0]>0:
-                        #print ("# of spikes survived: ", idx_ptp.shape[0], "/", ptp.shape[0])
-                        
-                        if True:
-                            # this uses ptps of denoised waveforms
-                            #ptp = (wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]]-
-                            #       wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]])
-                            
-                            ptp = (maxes-mins)
-                                
-                        else:
-                            
-                            # this uses ptps of the raw waveforms
-                            ptp = (wf_torch[:,d_gpu.ptp_locs[unit][0]]-
-                                   wf_torch[:,d_gpu.ptp_locs[unit][1]])
-                        
-                        ptp = ptp[idx_ptp].mean(0)
-
-                    else:
-                        ptp = 0
-                        
-                    if verbose: 
-                        print ("....ptp step: ", dt.datetime.now().timestamp() - start)
-
-                # # OPTION 2: exclude spikes that independetly have PTP_min and PTP_max outside of threhsold
-                # #           - this is a more aggressive triage method
-                # else:
-                    # maxes = wfs_temp.cpu().data.numpy()[:,0,d_gpu.ptp_locs[unit][0], d_gpu.max_chans[unit]]
-                    # mins =  wfs_temp.cpu().data.numpy()[:,0,d_gpu.ptp_locs[unit][1], d_gpu.max_chans[unit]]
-                
-                    # idx_maxes = np.where(np.logical_and(maxes>=d_gpu.temps[d_gpu.max_chans[unit],
-                                                                # d_gpu.ptp_locs[unit][0],unit]*
-                                                                # (1-d_gpu.max_percent_update),
-                                                        # maxes<=d_gpu.temps[d_gpu.max_chans[unit],
-                                                        # d_gpu.ptp_locs[unit][0], unit]*
-                                                        # (1+d_gpu.max_percent_update)))[0]
-                    
-                    # idx_mins = np.where(np.logical_and(mins<=d_gpu.temps[d_gpu.max_chans[unit],
-                                                                # d_gpu.ptp_locs[unit][1],unit]*
-                                                                # (1-d_gpu.max_percent_update),
-                                                        # mins>=d_gpu.temps[d_gpu.max_chans[unit],
-                                                        # d_gpu.ptp_locs[unit][1], unit]*
-                                                        # (1+d_gpu.max_percent_update)))[0]
-                    
-                    # idx_ptp, idx_ptp_maxes, idx_ptp_mins = np.intersect1d(idx_maxes,idx_mins,return_indices=True)
-                    # ptp = (maxes[idx_ptp]-mins[idx_ptp]).mean(0)
-                    
-
-                if idx_ptp.shape[0]>0:
-                    start = dt.datetime.now().timestamp()
-                    
-                    # if False:
-                        # wfs = torch.mean(wfs_temp[idx_ptp],0)[0]
-                        # wfs_array[iter_].append(wfs.cpu().data.numpy())
-                    # else:
-                    
-                    # Cat: TODO: THIS IS NOT CORRECT FOR THE FULL TEMPLATE MODEL!!!
-                    wfs = np.mean(wfs_temp_aligned[idx_ptp],0)[0]
-                    wfs_array[iter_].append(wfs)
-                    
-                    n_spikes_array[iter_].append(idx_ptp.shape[0])
-                    ptp_array[iter_].append(ptp)
-                    
-                    # save this as metadata; not really required
-                    ptp_time_array[iter_].append(times[idx_ptp].cpu().data.numpy())
-                    if verbose: 
-                        print ("....mean step: ", dt.datetime.now().timestamp()-start)
-                else:
-                    # default save zeros
-                    wfs_array[iter_].append(d_gpu.temps[:,:,unit].transpose(1,0))
-                                            #d_gpu.temps.shape[1], d_gpu.temps.shape[0])
-                    n_spikes_array[iter_].append(0)
-                    ptp_array[iter_].append(0)
-                    ptp_time_array[iter_].append(0)
+            min_thresh_dynamic = [min(template_at_trough*(1+max_percent_update),template_at_trough+1.0),
+                                  max(template_at_trough*(1-max_percent_update),template_at_trough-1.0)
+                                 ]
             
-            # THERE ARE NO SPIKES IN TIME CHUNK
+            ptp_thresh_dynamic = [max(ptp_template_original_denoised*(1+max_percent_update),
+                                     ptp_template_original_denoised+3.0),
+                                  min(ptp_template_original_denoised*(1-max_percent_update),
+                                     ptp_template_original_denoised-3.0)
+                                  ]
+                                     
+                                  
+            # *************************************************************
+            # **** OPTION #2: Maxes/Mins at fixed poitns + PTP LIMITS *****
+            # *************************************************************
+            # if False:
+                # maxes = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]]
+                # mins = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]]
+            # else:
+            
+            # search the immediate vicinity of the peaks: -1..+1 (not just exact peak)
+            # this makes it more noisy - but helps avoid alignment/denoising steps
+            if False:
+                maxes = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]-1:d_gpu.ptp_locs[unit][0]+2].max(1)
+                mins = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]-1:d_gpu.ptp_locs[unit][1]+2].min(1)
+            
+            # search just specific peak
+            else:
+                maxes = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]]
+                mins = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]]
+            
+            
+            # save ptps for all spike waveforms at selected time points                    
+            ptp_all = (maxes-mins)
+            ptp_all_array.append(ptp_all)
+
+            # also compute ptps blindly over all waveforms at all locations
+            #       - this could be improved by limiting to a window between through and peak...
+            ptps_dumb = wfs_temp_aligned.ptp(1)
+
+            # *************************************************************
+            # ************** FIND POINTS WITHIN THRESHOLDS ****************
+            # *************************************************************
+
+            # old method that uses relative threshold only:
+            idx_maxes = np.where(np.logical_and(maxes>=max_thresh_dynamic[1],
+                                                maxes<=max_thresh_dynamic[0])
+                                )[0]
+                                                
+            idx_mins = np.where(np.logical_and(mins<=min_thresh_dynamic[1],
+                                               mins>=min_thresh_dynamic[0])
+                                )[0]
+
+            idx_ptp_dumb = np.where(np.logical_and(ptps_dumb>=ptp_thresh_dynamic[1],
+                                                   ptps_dumb<=ptp_thresh_dynamic[0])
+                                )[0]     
+
+            # find intersection of ptp_maxes and ptp_mins
+            idx_max_min, _, _ = np.intersect1d(idx_maxes,idx_mins,return_indices=True)
+            
+            # find intersection with ptp_dumb
+            idx_ptp, idx_max_min_ptp, _ = np.intersect1d(idx_max_min,
+                                            idx_ptp_dumb,return_indices=True)
+            
+            # index into the original ptp array;
+            idx_ptp_final = idx_max_min[idx_max_min_ptp]
+            
+            # save indexes where all 3 conditions are met: max, min and ptp fall within boudnaries
+            idx_ptp_array.append(idx_ptp_final)
+            
+        
+            # DEBUG PRINTOUT FOR DRIFT MODEL for a particular unit;
+            #  please leave here as we go forward
+            if unit==unit_test:
+
+                print ("UNIT: ", unit)
+                print ("template at peak: ", template_at_peak)
+                print ("template at trough: ", template_at_trough)
+                print ("max threshold dynamic: ", max_thresh_dynamic)
+                print ("min threshold dynamic: ", min_thresh_dynamic)
+                print ("ptp threshold dynamic: ", ptp_thresh_dynamic)
+                
+                
+                #print ("template_original_denoised: ", template_original_denoised)
+                print ("template_original_denoised[d_gpu.ptp_locs[unit][0]]: ", template_original_denoised[d_gpu.ptp_locs[unit][0]])
+                print ("template_original_denoised[d_gpu.ptp_locs[unit][1]]: ", template_original_denoised[d_gpu.ptp_locs[unit][1]])
+                print ("idx_maxes: ", idx_maxes[:10])
+                print ("idx_mins: ", idx_mins[:10])
+                
+                print ("maxes: ", maxes[:10])
+                print ("maxes average: ", maxes.mean(0))
+                print ("mins: ", mins[:10])
+                print ("mins average: ", mins.mean(0))
+
+                print ("maxes[idx_ptp]: ", maxes[idx_ptp_final][:10])
+                print ("maxes average[idx_ptp]: ", maxes[idx_ptp_final].mean(0))
+                print ("mins:[idx_ptp] ", mins[idx_ptp_final][:10])
+                print ("mins average:[idx_ptp] ", mins[idx_ptp_final].mean(0))
+                
+                print ("idx_ptp_max_min: ", idx_max_min[:10])
+                print ("idx_ptp_dumb: ", idx_ptp_dumb[:10])
+                print ("idx_ptp_final: ", idx_ptp_final[:10])
+                
+                # this uses ptps of the raw waveforms
+                ptp_temp1 = (maxes-mins)
+                ptp_temp1 = ptp_temp1[idx_ptp_final].mean(0)
+
+                print ("ptp value: ", ptp_temp1)
+                print ("original Template ptp without denoise: ",
+                        d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit].cpu().data.numpy().ptp(0))
+                        
+                print ("ptp[triaged spikes]: ", ptp_temp1)
+                print ("all spikes ptp(mean): ", wf_torch.cpu().data.numpy().mean(0).ptp(0))
+                print ("all spikes mean(ptp): ", wf_torch.cpu().data.numpy().ptp(1).mean(0))
+
+                print ("")
+                print ("")
+                print ("")
+
+
+            # if at least 1 spike survived
+            if idx_ptp.shape[0]>0:
+
+                # compute mean ptp at non-triaged events
+                ptp = ptp_all[idx_ptp_final].mean(0)
+
+                # Cat: TODO: THIS IS NOT CORRECT FOR THE FULL TEMPLATE MODEL!!!
+                wfs = np.mean(wfs_temp_aligned[idx_ptp_final],0)[0]
+                wfs_array.append(wfs)
+                
+                n_spikes_array.append(idx_ptp_final.shape[0])
+                ptp_array.append(ptp)
+                
+                # save this as metadata; not really required
+                ptp_time_array.append(times[idx_ptp_final].cpu().data.numpy())
+
             else:
                 # default save zeros
-                wfs_array[iter_].append(d_gpu.temps[:,:,unit].transpose(1,0))
+                wfs_array.append(d_gpu.temps[:,:,unit].transpose(1,0))
                                         #d_gpu.temps.shape[1], d_gpu.temps.shape[0])
-                n_spikes_array[iter_].append(0)
-                ptp_array[iter_].append(0)
-                ptp_time_array[iter_].append(0)
-                
-                denoised_wf_all_array.append([])
-                wfs_temp_original_array.append([])
-                idx_ptp_array.append([])
-                wfs_temp_aligned_array.append([])
-                #original_templates.append([])
-                
-            # np.save('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/block_2/deconv/'+
-                        # str(unit)+'wfs_temp_original.npy', wfs_temp_original.cpu().data.numpy()
-                                    # [:,0,:, d_gpu.max_chans[unit]])
-            # np.save('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/block_2/deconv/'+
-                        # str(unit)+'wfs_temp_aligned.npy', wfs_temp_aligned)
-            # np.save('/media/cat/4TBSSD/liam/512channels/2009-04-13-5_45chan/tmp/block_2/deconv/'+
-                        # str(unit)+'wfs_temp_denoised.npy', denoised_wf.cpu().data.numpy())
-    
+                n_spikes_array.append(0)
+                ptp_array.append(0)
+                ptp_time_array.append(0)
+        
+        
+        # THERE ARE NO SPIKES IN TIME CHUNK for unit
+        else:
+            # default save zeros
+            wfs_array.append(d_gpu.temps[:,:,unit].transpose(1,0))
+                                    #d_gpu.temps.shape[1], d_gpu.temps.shape[0])
+            n_spikes_array.append(0)
+            ptp_array.append(0)
+            ptp_time_array.append(0)
+            
+            wfs_temp_original_array.append([])
+            idx_ptp_array.append([])
+            
+            # save meta data for split information below
+            wfs_temp_aligned_array.append([])
+            ptp_all_array.append([])
+
+    # *************************************
+    # ***** POST PROCESSING SAVES *********
+    # *************************************
+    np.savez(d_gpu.out_dir + '/template_updates/chunk_data_'+
+                    str((chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu)+'.npz',
+            wfs_array=wfs_array,
+            n_spikes_array=n_spikes_array,
+            ptp_array=ptp_array,
+            ptp_time_array=ptp_time_array
+            )
     
     if debug:
         np.savez(d_gpu.out_dir + '/wfs/'+
-            str(iter_)+'.npz',
-            wfs_temp_original_array = wfs_temp_original_array,
-            denoised_wf_all_array= denoised_wf_all_array,
-            wfs_temp_aligned_array = wfs_temp_aligned_array,
-            #original_templates = original_templates,
-            idx_ptp_array = idx_ptp_array
+                str((chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu)+'.npz',
+                wfs_temp_original_array = wfs_temp_original_array,
+                idx_ptp_array = idx_ptp_array
                 )
         
+    # save meta information to do split;
+    if resplit:
+        np.savez(d_gpu.out_dir + '/resplit/'+
+                str((chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu)+'.npz',
+                ptp_all_array = ptp_all_array,
+                raw_wfs_array_aligned = wfs_temp_aligned_array,
+                spike_train_array = spike_train_array
+                )
+    
     # return if in middle of forward pass
     # Cat: TODO read length of time to update from CONFIG
-    if (((time_index%d_gpu.template_update_time)!=0) or (time_index==0)):
-                                        
-        del d_gpu.temps_cuda
-        torch.cuda.empty_cache()
+    #if (((time_index%d_gpu.template_update_time)!=0) or (time_index==0)):
+        
+    # Cat: TODO not sure this is necessary/needed
+    del d_gpu.temps_cuda
+    torch.cuda.empty_cache()
 
-        return (d_gpu, wfs_array, n_spikes_array, ptp_array, ptp_time_array)
 
-    # ****************************************************************************************
-    # ****************************************************************************************
-    # ****************************************************************************************
-    # ****************************************************************************************
-    # ****************************************************************************************
-    # **************************** UPDATE TEMPLATES EVERY BATCH ******************************
-    # ****************************************************************************************
-    # ****************************************************************************************
-    # ****************************************************************************************
-    # ****************************************************************************************
-    # ****************************************************************************************
-
-    # forgetting factor ~ number of spikes
-    # Cat: TODO: read from CONFIG file
-    #nu = d_gpu.nu
+def update_templates_forward_backward(d_gpu, CONFIG, chunks, time_index):
     
+    print ("    UPDATING TEMPLATES   <<<<<<<<<<<<<")
     # find max chans of templates
     max_chans = d_gpu.temps.ptp(1).argmax(0)
 
@@ -1052,90 +989,70 @@ def update_templates_GPU_forward_backward(d_gpu,
     templates_new = np.zeros(d_gpu.temps.shape,'float32')
     units = np.arange(d_gpu.temps.shape[2])
     
-    # *****************************************************************
-    # *************** Weighted template computation *******************
-    # *****************************************************************
-    # n_chunks = chunk length / batch length x 2 to capture window on both sides
-    n_batches_per_chunk = d_gpu.template_update_time//CONFIG.resources.n_sec_chunk_gpu_deconv
+    verbose = False
     
-    # Cat: TODO: this might crash if we don't have enough spikes overall
-    #           or even within a single window
-    # batch_offset indicates the start of the previous chunk in order to do averaging over both prev+following chunks
-    if iter_> n_batches_per_chunk:
-        batch_offset = (iter_+1) - n_batches_per_chunk*2
-        n_chunks = n_batches_per_chunk*2
-        wfs_local = np.zeros((n_chunks, d_gpu.temps.shape[1], d_gpu.temps.shape[0]),'float32')
-        n_spikes_local = np.zeros((n_chunks), 'int32')
-        ptp_local = np.zeros((n_chunks), 'float32')
+    n_batches_per_chunk = d_gpu.template_update_time//CONFIG.resources.n_sec_chunk_gpu
 
-    # first block will use only forward data for new templates 
-    #       old templates will be as usual the old templates;
-    else:
-        batch_offset = 0
-        n_chunks = n_batches_per_chunk
-        wfs_local = np.zeros((n_chunks, d_gpu.temps.shape[1], d_gpu.temps.shape[0]),'float32')
-        n_spikes_local = np.zeros((n_chunks), 'int32')
-        ptp_local = np.zeros((n_chunks), 'float32')
-
-    # print ("iter: ", iter_, " batch_offset: ", batch_offset, " len wfs_array: ", len(wfs_array))
-    #print ("Template updates started, n_chunks: ", n_chunks, " wfs_array: ", len(wfs_array))
-    units_scaling = []
-    
+    wfs_local_array = []
+    n_spikes_local_array = []
+    ptp_local_array = []
+    for k in range(len(chunks)):
+        fname = (d_gpu.out_dir + '/template_updates/chunk_data_'+
+                       str((chunks[k]+1)*CONFIG.resources.n_sec_chunk_gpu)+'.npz')
+        
+        if verbose:
+            print ("Loadin gchunks: ", fname)
+        data = np.load(fname)
+        wfs_local_array.append(data['wfs_array'])
+        n_spikes_local_array.append(data['n_spikes_array'])
+        ptp_local_array.append(data['ptp_array'])
+             
+    # Cat: TODO: This is in CONFIG file already
     ptp_flag = True
-    
-    # compress the templates for the 
-    cuda_templates = []
-    for unit in range(d_gpu.temps_cuda.shape[2]):
-        cuda_templates.append(d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit][None])
-        #print (" templ ate shape: ", d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit].shape)
-
-    # if using denoiser
-    if False:
-        #original_templates.append(d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit])
-        cuda_templates = torch.cat((cuda_templates),0)
-        #print ("cuda_templates: ", cuda_templates.shape)
-        denoised_wf_all = denoiser(cuda_templates)[0].cpu().data.numpy()
-        #print ("denoised_wf_all: ", denoised_wf_all.shape)
-                        
     for unit in units:
-        # get saved waveforms and number of spikes
-        # Cat: TODO this is not pythonic/necessary; 
         ptp_local = []
-        for c in range(n_chunks):
-            wfs_local[c] = wfs_array[batch_offset+c][unit]
-            n_spikes_local[c] = n_spikes_array[batch_offset+c][unit]
-            ptp_local.append(ptp_array[batch_offset+c][unit])
+        wfs_local = []
+        n_spikes_local = []
+        for c in range(len(chunks)):
+            #wfs_local[c] = wfs_array[batch_offset+c][unit]
+            #n_spikes_local[c] = n_spikes_array[batch_offset+c][unit]
+            #ptp_local.append(ptp_array[batch_offset+c][unit])
+            wfs_local.append(wfs_local_array[c][unit])
+            n_spikes_local.append(n_spikes_local_array[c][unit])
+            ptp_local.append(ptp_local_array[c][unit])
             
-        n_spikes = n_spikes_local.sum(0)
+        n_spikes = np.hstack(n_spikes_local).sum(0)
+        
         # if there are no spikes at all matched, just use previous template 
         if n_spikes==0:
             templates_new[:,:,unit]=d_gpu.temps[:,:,unit]
             continue
 
-        # compute scale of updated tempalte
+        
+        # *******************************************************
+        # **************** COMPUTE DRIFT MODEL SCALING **********
+        # *******************************************************
+        # DRIFT MODEL 0; PARTIAL template update using scaling of neurons
         if ptp_flag:
-            ptp_temp = np.average(np.float32(ptp_local), weights=n_spikes_local, axis=0)
-            
-            if False:
-                scale = ptp_temp/denoised_wf_all[unit].ptp(0)
-                
-                # print ("unit: ", unit, "ptp_temp: ", ptp_temp, ", original template ptp: ",
-                        # d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit].cpu().data.numpy().ptp(0),
-                        # ", denoised_wf_all[unit].ptp(0): ", denoised_wf_all[unit].ptp(0),
-                        # ", scale: ", scale)
-            else:
-                scale = ptp_temp/d_gpu.temps[:,:,unit].ptp(1).max(0)
-            
-            units_scaling.append(scale)
+            ptp_temp = np.average(np.float32(ptp_local), weights=np.int32(n_spikes_local), axis=0)
+            scale = ptp_temp/d_gpu.temps[:,:,unit].ptp(1).max(0)
+        
+        # DRIFT MODEL 1; FULL template update using raw spikes 
         else:
             # compute weighted average of the template
-            template = np.average(wfs_local, weights=n_spikes_local, axis=0).T
+            template = np.average(np.float32(wfs_local), weights=np.int32(n_spikes_local), axis=0).T
         
-        # # first chunk of data just use without weight.        
+        
+        # *******************************************************
+        # **************** UPDATE TEMPLATE **********************
+        # *******************************************************
+        # # first chunk of data; just scale starting template/or keep original     
         if time_index==d_gpu.template_update_time:
             if ptp_flag:
                 templates_new[:,:,unit]=d_gpu.temps[:,:,unit]*scale
             else:
+                print ("   NOTE: First chunk of time FULL TEMPLATE UPDATE"+
+                        " (<<<<< NOT CORRECTLY UPDATED >>>>)")
                 templates_new[:,:,unit]=template
 
         else:
@@ -1143,7 +1060,7 @@ def update_templates_GPU_forward_backward(d_gpu,
             # else:
             if ptp_flag:
                 #templates_new[:,:,unit] = d_gpu.temps[:,:,unit]*scale
-                #templates_new[:,:,unit] = d_gpu.temps[:,:,unit]*scale
+                # exponential updates
                 t1 = d_gpu.temps[:,:,unit]*np.exp(-n_spikes/d_gpu.nu)
                 t2 = (1-np.exp(-n_spikes/d_gpu.nu))*d_gpu.temps[:,:,unit]*scale
                 templates_new[:,:,unit] = (t1+t2)
@@ -1155,41 +1072,280 @@ def update_templates_GPU_forward_backward(d_gpu,
                 t2 = (1-np.exp(-n_spikes/d_gpu.nu))*template
                 templates_new[:,:,unit] = (t1+t2)
         
-        if unit==unit_test:
-            print ("  FINAL SCALE: ", scale)
-            print ("  templates_new max ptp: ", templates_new[:,:,unit].ptp(1).max(0))
-            print ("  ptp_local: ", ptp_local)
+        # if unit==unit_test:
+            # print ("  FINAL SCALE: ", scale)
+            # print ("  templates_new max ptp: ", templates_new[:,:,unit].ptp(1).max(0))
+            # print ("  ptp_local: ", ptp_local)
+    if verbose:
 
-    #quit()
+        if time_index==d_gpu.template_update_time:
+            print ("  FIRST DECONV STEP... updating existing template forward only")
+        else:
+            print ("  SECONDARY DECONV STEPs... updating existing template forward and backward")
+        
+        
+    return templates_new
+
+def split_neurons(templates_new, d_gpu, CONFIG, time_index):
+
+    print ("   CHECKING FOR NEW NEURONS (in development...)")
+    #         
+    standardized_filename = os.path.join(os.path.join(os.path.join(d_gpu.root_dir, 'tmp'),
+                                                            'preprocess'), 
+                                                            'standardized.bin')
+
+    units = np.arange(d_gpu.temps.shape[2])
+
+    # load relevant data; verify how many steps of data to load for split
+    n_steps_back = CONFIG.deconvolution.neuron_discover_time//CONFIG.resources.n_sec_chunk_gpu
+    print ("   # of steps backwards: ", n_steps_back)
+
+    ptps = []
+    raw_wfs = []
+    spike_train = []
+    for unit in units:
+        ptps.append([])
+        raw_wfs.append([])
+        spike_train.append([])
+        
+    # Cat: TODO: this is a bit hacky; should speed it up.
+    sample_rate = CONFIG.recordings.sampling_rate
+    for k in range(time_index-(n_steps_back-1)*CONFIG.resources.n_sec_chunk_gpu, 
+                   time_index+1, CONFIG.resources.n_sec_chunk_gpu):
+        fname_resplit = d_gpu.out_dir + '/resplit/'+str(k)+'.npz'
+        print ("FNAMe resplit: ", fname_resplit)
+        data = np.load(fname_resplit)
+        ptps_temp = data['ptp_all_array']
+        raw_temp = data['raw_wfs_array_aligned']
+        spikes = data['spike_train_array']
+        for unit in units:
+            ptps[unit].append(ptps_temp[unit])
+            raw_wfs[unit].append(raw_temp[unit])
+            spikes_temp = (spikes[unit]
+                           + (k-CONFIG.resources.n_sec_chunk_gpu)*sample_rate
+                           -d_gpu.reader.buffer
+                           -d_gpu.temps.shape[1]
+                           )
+            spike_train[unit].append(spikes_temp)
+
+    # loop over units and find splits:
+    print (".... Searching for new neurons...")
+    if CONFIG.resources.multi_processing:
+        #batches_in = np.array_split(units, CONFIG.resources.n_processors)
+        new_templates = parmap.map(new_neuron_search, units, ptps, CONFIG, spike_train,
+                         standardized_filename, 
+                         d_gpu.temps,
+                         d_gpu.out_dir,
+                         processes=CONFIG.resources.n_processors,
+                         pm_pbar=True)
     
-    # update template ptp computation:
-        # compute ptps for data
-    #d_gpu.ptps = templates_new.ptp(0).max(0)
-                
-    # # save template chunk for offline analysis only
-    # np.save('/media/cat/1TB/liam/49channels/data1_allset/tmp/block_2/deconv/'+
-            # str(time_index)+'.npy', templates_new)
-    #np.save('/home/cat/units_scaling.npy',units_scaling)
+    else:
+        new_templates = []
+        for unit in units:
+            temp = new_neuron_search(unit, ptps, CONFIG, spike_train,
+                         standardized_filename, 
+                         d_gpu.temps,
+                         d_gpu.out_dir)
+            
+            #if temp is not None: 
+             #   print ("new_temp: ", temp.shape)
+            new_templates.append(temp)
+            
+    print ("   TODO: delete all intermediate resplit files saved...")
+    # append the new tempaltes to 
+    print ("  STARTING TEMPLATES: ", templates_new.shape)
+    for k in range(len(new_templates)):
+        if new_templates[k] is not None:
+            templates_new = np.concatenate((templates_new, 
+                              new_templates[k][:,:,None].transpose(1,0,2)),axis=2)
+    print ("  FINAL TEMPLATES: ", templates_new.shape)
     
-    out_file = os.path.join(output_directory,'template_updates',
+    return templates_new
+
+def finish_templates(templates_new, d_gpu, CONFIG, time_index):
+    
+    verbose = False
+    if verbose:
+        print ("")
+        print ("")
+        print ("   FINISHING TEMPLATES   ")
+
+    out_file = os.path.join(d_gpu.out_dir,'template_updates',
                     'templates_'+
-                    str((d_gpu.chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv)+
+                    str(time_index)+
                     'sec.npy')
-                    
-    # print (" TEMPS DONE: ", templates_in.shape, templates_new.shape)
+    
+    if verbose:
+        print (" TEMPS being saved: ", out_file)
     np.save(out_file, templates_new.transpose(2,1,0))
-    np.save(out_file[:-4]+"_ptp.npy", ptp_array)
-    np.save(out_file[:-4]+"_ptp_times.npy", ptp_time_array)
         
     # re-initialize d_gpu
     # change fname-templates
     # Cat: TODO: is this the best way to pass on template?  probably name is fine;
     d_gpu.fname_templates = out_file
+    d_gpu.chunk_id = time_index//CONFIG.resources.n_sec_chunk_gpu-1
     d_gpu.initialize()    
 
-    # pass wfs-array back into stack
-    return (d_gpu, wfs_array, n_spikes_array, ptp_array, ptp_time_array)
 
+    # pass reinitialized object for following pass
+    return d_gpu 
+
+
+def new_neuron_search(unit, ptps, CONFIG, spike_train,
+                     standardized_filename, 
+                     d_gpu_temps,
+                     d_gpu_out_dir):
+
+    features = np.hstack(ptps[unit])
+
+    if features.shape[0]<CONFIG.deconvolution.min_split_spikes:
+        return None
+
+    # triage 5% of spikes
+    idx_keep = knn_triage(95,features[:,None]) # return boolean
+    idx_keep = np.where(idx_keep)[0]
+    features_triaged = features[idx_keep]
+
+    # screen distribution for bimodalities using diptest before running MFM
+    pval = run_diptest_resplit(features_triaged, assignment=None)
+    if pval>0.1:
+        return None
+
+    # ************************
+    # ******* SPLIT **********
+    # ************************
+    # we just do 2comp gmm now (rather than MFM + cc)
+    assignments = em_test(features_triaged[:,None])
+    
+    pvals=[]
+    for k in np.unique(assignments):
+        idx = np.where(assignments==k)[0]
+        pvals.append(run_diptest_resplit(features_triaged[idx]))
+  
+    # if neither split is stable skip unit
+    #       this is a bit too conservative; might need to retweak
+    # Cat: TODO: export to CONFIG
+    pval_thresh = 0.95
+    if max(pvals)<pval_thresh:
+        return None
+    
+    # if unit survived diptest; need to load raw waveforms to compute 
+    temp_spikes = np.hstack(spike_train[unit])[idx_keep]
+    temp_ptps = np.hstack(ptps[unit])[idx_keep]
+    wfs, skipped_idx = binary_reader_waveforms(standardized_filename, 
+                                  CONFIG.recordings.n_channels, 
+                                  d_gpu_temps.shape[1],
+                                  temp_spikes)
+    
+    #np.save('/home/cat/wfs.npy', wfs)
+    #np.save('/home/cat/spike_train.npy', spike_train)
+    #print ("idx_keep: ", .shape)            
+    #print ("WFS: ", wfs.shape)
+
+    # if reader misses spikes; delete them from assignments also
+    if len(skipped_idx)>0:
+        assignments = np.delete(assignments, skipped_idx)
+        temp_ptps = np.delete(temp_ptps, skipped_idx)
+        
+    # generate new templates for particular unit
+    wfs_resplit = []
+    new_templates = []
+    temps = []
+    # loop over the 2 assignments
+    for k in np.unique(assignments):
+        idx = np.where(assignments==k)[0]
+        temp = wfs[idx]
+        temp = temp.mean(0)
+        temps.append(temp)
+
+    # compute cosine-similarty check to see which neuron already is present in recording;
+    #       and which is not
+    res = check_matches(d_gpu_temps, temps)
+
+    match_vals1, match_vals2 = res[0], res[1]
+    match1 = match_vals1.max(0)
+    match2 = match_vals2.max(0)
+    
+    fname_newneuron = d_gpu_out_dir + '/resplit/new_'+str(unit)+'.npz'
+    if match1<=match2:
+        match_new = 0
+        match_old = 1
+        
+        np.savez(fname_newneuron, 
+                new_neuron = temps[match_new],
+                old_neuron = temps[match_old]
+                )
+
+        return temps[match_new] 
+        
+    else:
+        match_new = 1
+        match_old = 0
+
+        np.savez(fname_newneuron, 
+                new_neuron = temps[match_new],
+                old_neuron = temps[match_old]
+                )
+
+        return temps[match_new] 
+            
+
+def check_matches(templates, temp):
+    
+    templates_local = templates.transpose(1,0,2)
+    #temp = temp.transpose(0,1)
+    res = []
+    
+    for p in range(2):
+        match_vals = []
+        units = np.arange(templates_local.shape[2])
+        data1 = temp[p].T
+        for unit in units:
+            data2 = templates_local[:,:,unit].T.ravel()
+            best_result = 0
+            for k in range(-10,10,1):
+                data_test = np.roll(data1,k,axis=1).ravel()
+                result = 1 - scipy.spatial.distance.cosine(data_test,data2)
+                if result>best_result:
+                    best_result = result
+
+            match_vals.append(best_result)
+        res.append(np.hstack(match_vals))
+    
+    return (res)
+    
+
+def em_test(features):
+    gmm = mixture.GaussianMixture(n_components=2, covariance_type='full').fit(features)
+    
+    return gmm.predict(features)
+    
+
+def mfm_resplit(features, CONFIG):
+
+    mask = np.ones((features.shape[0], 1))
+    group = np.arange(features.shape[0])
+    vbParam = mfm.spikesort(features[:,:,None],
+                            mask,
+                            group,
+                            CONFIG)
+    return vbParam
+
+def run_diptest_resplit(features, assignment=None):
+
+    from diptest import diptest as dp
+
+    if assignment is not None:
+        lda = LDA(n_components = 1)
+        lda_feat = lda.fit_transform(features, assignment).ravel()
+        pval = dp(lda_feat)[1]
+    else:
+        pval = dp(features)[1]
+
+    return pval
+    
+    
+    
 def template_calculation_parallel(unit, ids, spike_array, temps, data, snipit):
 
     idx = np.where(ids==unit)[0]
@@ -1331,7 +1487,7 @@ def update_templates_GPU(d_gpu,
 
     out_file = os.path.join(output_directory,'template_updates',
                     'templates_'+
-                    str((d_gpu.chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv)+
+                    str((d_gpu.chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu)+
                     'sec.npy')
     # print (" TEMPS DONE: ", templates_in.shape, templates_new.shape)
     np.save(out_file, templates_new.transpose(2,1,0))
@@ -1357,12 +1513,12 @@ def deconv_ONgpu(fname_templates_in,
                  CONFIG,
                  run_chunk_sec):
 
-    # *********** MAKE DECONV OBJECT ************
+    # *********** CONSTRUCT DECONV OBJECT ************
     d_gpu = deconvGPU(CONFIG, fname_templates_in, output_directory)
-
+    
     #print (kfadfa)
     # Cat: TODO: gpu deconv requires own chunk_len variable
-    n_sec=CONFIG.resources.n_sec_chunk_gpu_deconv
+    n_sec=CONFIG.resources.n_sec_chunk_gpu
     #root_dir = '/media/cat/1TB/liam/49channels/data1_allset'
     root_dir = CONFIG.data.root_folder
 
