@@ -244,7 +244,7 @@ clean_up:
       default: 3
     min_fr:
       type: float
-      default: 0.5
+      default: 0.1
     off_center:
       type: integer
       default: 5
