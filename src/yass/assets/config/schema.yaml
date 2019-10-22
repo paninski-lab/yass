@@ -188,7 +188,8 @@ deconvolution:
     deconv_gpu: True
     neuron_discover_time: 100000
     drift_model: 0
-    
+    min_split_spikes: 50
+    neuron_discover: False
   schema:
     threshold:
       type: float
@@ -208,8 +209,12 @@ deconvolution:
     neuron_discover_time:
       type: float
       default: 100000
-      
-      
+    min_split_spikes:
+      type: integer
+      default: 50
+    neuron_discover:
+      type: boolean
+      default: False
 
 neuralnetwork:
   type: dict
