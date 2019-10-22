@@ -9,6 +9,8 @@ from diptest import diptest as dp
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.metrics import pairwise_distances
 import networkx as nx
+from scipy.spatial.distance import pdist, squareform
+from sklearn.cluster import AgglomerativeClustering
 
 from yass.template import shift_chans, align_get_shifts_with_ref
 from yass.merge.correlograms_phy import compute_correlogram_v2
@@ -21,7 +23,11 @@ class TemplateMerge(object):
                  reader_residual,
                  fname_templates,
                  fname_spike_train,
+                 fname_shifts,
                  fname_soft_assignment,
+                 fname_spatial_cov,
+                 fname_temporal_cov,
+                 geom,
                  multi_processing=False,
                  n_processors=1):                               
         """
@@ -46,8 +52,12 @@ class TemplateMerge(object):
         self.templates = np.load(fname_templates)
         self.n_units, self.spike_size, self.n_channels = self.templates.shape
 
-        # spike train and soft assignment
+        # compute ptp
+        self.ptps = self.templates.ptp(1)
+
+        # spike train, shift, soft assignment
         self.spike_train = np.load(fname_spike_train)
+        self.shifts = np.load(fname_shifts)
         self.soft_assignment = np.load(fname_soft_assignment)
         
         # remove edge spikes
@@ -56,6 +66,7 @@ class TemplateMerge(object):
             self.spike_train[:, 0] < self.reader_residual.rec_len - self.spike_size)
 
         self.spike_train = self.spike_train[idx_in]
+        self.shifts = self.shifts[idx_in]
         self.soft_assignment = self.soft_assignment[idx_in]
 
         self.multi_processing = multi_processing
@@ -75,9 +86,13 @@ class TemplateMerge(object):
         else:
             logger.info("finding candidates using ptp")
             self.find_merge_candidates()
-
             np.save(fname_candidates, self.merge_candidates)
-
+            
+        # load cov
+        self.temporal_cov = np.load(fname_temporal_cov)
+        self.spatial_cov = np.load(fname_spatial_cov)
+        self.get_temproal_whitener()
+        self.geom = geom
 
     def compute_n_spikes_soft(self):
 
@@ -86,22 +101,36 @@ class TemplateMerge(object):
             n_spikes_soft[self.spike_train[j, 1]] += self.soft_assignment[j]
         self.n_spikes_soft = n_spikes_soft.astype('int32')
 
+    def get_temproal_whitener(self):
+        
+        w, v = np.linalg.eig(self.temporal_cov)
+        self.temporal_whitener = np.matmul(
+            np.matmul(v, np.diag(1/np.sqrt(w))), v.T)
+        
+    def get_spatial_whitener(self, vis_chan):
+        
+        chan_dist = squareform(pdist(self.geom[vis_chan]))
+        spat_cov = np.zeros((len(vis_chan), len(vis_chan)))
+        for ii, c in enumerate(self.spatial_cov[:,1]):
+            spat_cov[chan_dist == c] = self.spatial_cov[ii, 0]
+        w, v = np.linalg.eig(spat_cov)
+        inv_half_spat_cov = np.matmul(np.matmul(v, np.diag(1/np.sqrt(w))), v.T)
+
+        return inv_half_spat_cov
 
     def find_merge_candidates(self):
 
         # find candidates by comparing ptps
         # if distance of ptps are close, then they need to be checked.
 
-        # compute ptp
-        ptps = self.templates.ptp(1)
         # mask out small ptp
-        ptps[ptps < 1] = 0
+        self.ptps[self.ptps < 1] = 0
 
         # distances of ptps
-        dist_mat = np.square(pairwise_distances(ptps))
+        dist_mat = np.square(pairwise_distances(self.ptps))
 
         # compute distance relative to the norm of ptps
-        norms = np.square(np.linalg.norm(ptps, axis=1))
+        norms = np.square(np.linalg.norm(self.ptps, axis=1))
 
         # exclude comparing to self
         for i in range(self.n_units):
@@ -113,15 +142,15 @@ class TemplateMerge(object):
         idx1 = dist_norm_ratio < 0.5
 
         # ptp of both units need to be bigger than 4
-        ptp_max = ptps.max(1)
+        ptp_max = self.ptps.max(1)
         smaller_ptps = np.minimum(ptp_max[np.newaxis],
                                   ptp_max[:, np.newaxis])
-        idx2 = smaller_ptps > 5
+        idx2 = smaller_ptps > 1
 
         # expect to have at least 10 spikes
         smaller_n_spikes = np.minimum(self.n_spikes_soft[None],
                                       self.n_spikes_soft[:, None])
-        idx3 = smaller_n_spikes > 10
+        idx3 = smaller_n_spikes > 50
 
         units_1, units_2 = np.where(np.logical_and(
             np.logical_and(idx1, idx2), idx3))
@@ -260,6 +289,132 @@ class TemplateMerge(object):
     def merge_templates_parallel(self, pairs):
         """Whether to merge two templates or not.
         """
+        n_samples = 2000
+        p_val_threshold = 0.9
+        merge_pairs = []
+
+        for pair in pairs:
+            unit1, unit2 = pair
+
+            fname_out = os.path.join(
+                self.save_dir,
+                'unit_{}_{}.npz'.format(unit1, unit2))
+
+            if os.path.exists(fname_out):
+                if np.load(fname_out)['merge']:
+                    merge_pairs.append(pair)
+
+            else:
+                
+                # get spikes times and soft assignment
+                idx1 = self.spike_train[:, 1] == unit1
+                spt1 = self.spike_train[idx1, 0]
+                prob1 = self.soft_assignment[idx1]
+                shift1 = self.shifts[idx1]
+                n_spikes1 = self.n_spikes_soft[unit1]
+                
+                idx2 = self.spike_train[:, 1] == unit2
+                spt2 = self.spike_train[idx2, 0]
+                prob2 = self.soft_assignment[idx2]
+                shift2 = self.shifts[idx2]
+                n_spikes2 = self.n_spikes_soft[unit2]
+                
+                # randomly subsample
+                if n_spikes1 + n_spikes2 > n_samples:
+                    ratio1 = n_spikes1/float(n_spikes1+n_spikes2)
+                    n_samples1 = np.min((int(n_samples*ratio1), n_spikes1))
+                    n_samples2 = n_samples - n_samples1
+
+                else:
+                    n_samples1 = n_spikes1
+                    n_samples2 = n_spikes2
+                idx1_ = np.random.choice(len(spt1), n_samples1, replace=False,
+                                         p=prob1/np.sum(prob1))
+                idx2_ = np.random.choice(len(spt2), n_samples2, replace=False,
+                                         p=prob2/np.sum(prob2))
+                spt1 = spt1[idx1_]
+                spt2 = spt2[idx2_]
+                shift1 = shift1[idx1_]
+                shift2 = shift2[idx2_]
+
+                ptp_max = self.ptps[[unit1, unit2]].max(0)
+                mc = ptp_max.argmax()
+                vis_chan = np.where(ptp_max > 1)[0]
+
+                # align two units
+                shift_temp = (self.templates[unit2, :, mc].argmin() - 
+                              self.templates[unit1, :, mc].argmin())
+                spt2 += shift_temp
+                
+                # load residuals
+                wfs1 = self.reader_residual.read_waveforms(
+                    spt1, self.spike_size, vis_chan)[0]
+                wfs2 = self.reader_residual.read_waveforms(
+                    spt2, self.spike_size, vis_chan)[0]
+                
+                # align clean waveforms
+                wfs1 = shift_chans(wfs1, -shift1)
+                wfs2 = shift_chans(wfs2, -shift2)
+
+                # make clean waveforms
+                wfs1 += self.templates[unit1, :, vis_chan].T
+                if shift_temp > 0:
+                    temp_2_shfted = self.templates[unit2, shift_temp:, vis_chan].T
+                    wfs2[:, :-shift_temp] += temp_2_shfted
+                elif shift_temp < 0:
+                    temp_2_shfted = self.templates[unit2, :shift_temp, vis_chan].T
+                    wfs2[:, -shift_temp:] += temp_2_shfted
+                else:
+                    wfs2 += self.templates[unit2,:,vis_chan].T
+
+                
+                # compute spatial covariance 
+                spatial_whitener = self.get_spatial_whitener(vis_chan)
+                # whiten
+                wfs1_w = np.matmul(wfs1, spatial_whitener)
+                wfs2_w = np.matmul(wfs2, spatial_whitener)
+                wfs1_w = np.matmul(wfs1_w.transpose(0,2,1),
+                                  self.temporal_whitener).transpose(0,2,1)
+                wfs2_w = np.matmul(wfs2_w.transpose(0,2,1),
+                                  self.temporal_whitener).transpose(0,2,1)
+
+
+                temp_diff_w = np.mean(wfs1_w, 0) - np.mean(wfs2_w,0)
+                c_w = np.sum(0.5*(np.mean(wfs1_w, 0) + np.mean(wfs2_w,0))*temp_diff_w)
+                dat1_w = np.sum(wfs1_w*temp_diff_w, (1,2))
+                dat2_w = np.sum(wfs2_w*temp_diff_w, (1,2))
+                dat_all = np.hstack((dat1_w, dat2_w))
+                p_val = dp(dat_all)[1]
+
+                if p_val > p_val_threshold:
+                    merge = True
+                else:
+                    merge= False
+
+                centers_dist = np.linalg.norm(temp_diff_w)
+
+
+                if p_val > p_val_threshold:
+                    merge = True
+                else:
+                    merge= False
+                    
+                centers_dist = np.linalg.norm(temp_diff_w)
+                np.savez(fname_out,
+                         merge=merge,
+                         dat1_w=dat1_w,
+                         dat2_w=dat2_w,
+                         centers_dist=centers_dist,
+                         p_val=p_val)
+
+                if merge:
+                    merge_pairs.append(pair)
+
+        return merge_pairs
+
+    def merge_templates_parallel_orig(self, pairs):
+        """Whether to merge two templates or not.
+        """
 
         merge_pairs = []
 
@@ -312,6 +467,7 @@ class TemplateMerge(object):
                     merge_pairs.append(pair)
 
         return merge_pairs
+
 
     def get_l2_features(self, unit1, unit2, n_samples=2000):
 
@@ -369,15 +525,38 @@ class TemplateMerge(object):
     def merge_units(self):
         
         # make connected components
+        max_dist = 10000
         merge_matrix = np.zeros((self.n_units, self.n_units),'int32')
+        dist_matrix = np.ones((self.n_units, self.n_units), 'float32')*max_dist
         for pair in self.merge_pairs:
             merge_matrix[pair[0], pair[1]] = 1
             merge_matrix[pair[1], pair[0]] = 1
+
+            fname_out = os.path.join(
+                        self.save_dir, 
+                        'unit_{}_{}.npz'.format(pair[0], pair[1]))
+            dist_ = np.load(fname_out)['centers_dist']
+            dist_matrix[pair[0], pair[1]] = dist_
+            dist_matrix[pair[1], pair[0]] = dist_
+
+
         G = nx.from_numpy_matrix(merge_matrix)
         merge_array=[]
         for cc in nx.connected_components(G):
-            merge_array.append(list(cc))
-
+            cc = list(cc)
+            if len(cc) > 2:
+                cc = np.array(cc)
+                clustering = AgglomerativeClustering(n_clusters=None,
+                                             affinity='precomputed',
+                                             linkage='complete',
+                                             distance_threshold=max_dist)
+                dist_matrix_ = dist_matrix[cc][:, cc]
+                labels_ = clustering.fit(dist_matrix_).labels_
+                for k in np.unique(labels_):
+                    merge_array.append(list(cc[labels_==k]))
+            else:
+                merge_array.append(cc)
+        
         weights = self.n_spikes_soft
 
         spike_train_new = np.copy(self.spike_train)
@@ -415,11 +594,11 @@ class TemplateMerge(object):
         idx_sort = np.argsort(spike_train_new[:, 0])
         spike_train_new = spike_train_new[idx_sort]
         soft_assignment_new = self.soft_assignment[idx_sort]
-        
+
         return (templates_new, spike_train_new,
                 soft_assignment_new, merge_array)
-
-
+    
+    
 def test_merge(features, assignment,
                lda_threshold=0.7,
                diptest_threshold=0.8):

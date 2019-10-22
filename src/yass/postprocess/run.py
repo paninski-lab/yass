@@ -96,6 +96,8 @@ def run(methods = [],
         dics = {unit: ii for ii, unit in enumerate(units_survived)}
         for j in range(spike_train_new.shape[0]):
             spike_train_new[j,1] = dics[spike_train_new[j,1]]
+    else:
+        spike_train_new = np.copy(spike_train)
 
     np.save(fname_templates_out, templates)
     np.save(fname_spike_train_out, spike_train_new)

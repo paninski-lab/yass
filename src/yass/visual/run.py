@@ -177,14 +177,14 @@ class Visualizer(object):
         # COMPUTE FIRING RATES
         n_chans = self.n_channels
         samplerate = self.sampling_rate
-        rec_len = np.ptp(self.spike_train[:, 0])/samplerate
+        self.rec_len = np.ptp(self.spike_train[:, 0])/samplerate
 
         n_spikes_soft = np.zeros(self.n_units)
         for j in range(self.spike_train.shape[0]):
             n_spikes_soft[self.spike_train[j, 1]] += self.soft_assignment[j]
         n_spikes_soft = n_spikes_soft.astype('int32')
 
-        self.f_rates = n_spikes_soft/rec_len
+        self.f_rates = n_spikes_soft/self.rec_len
         self.ptps = self.templates.ptp(0).max(0)
 
     def compute_xcorrs(self):
@@ -203,6 +203,9 @@ class Visualizer(object):
                 bin_width=self.bin_width,
                 window_size=self.window_size)
             np.save(fname, self.xcorrs)
+        
+        avg_frates = (self.f_rates[self.unique_ids][:, None]+self.f_rates[self.unique_ids][None])/2
+        self.xcorrs = self.xcorrs/avg_frates[:,:,None]/self.rec_len/self.bin_width
 
     def compute_neighbours(self):
 
@@ -1195,11 +1198,13 @@ class Visualizer(object):
 
         ax = plt.subplot(gs[x_loc, y_loc])
         plt.plot(x_range, result,color='black', linewidth=2)
-        y_max = np.max((10, 1.5*np.max(result)))
+        #y_max = np.max((10, 1.5*np.max(result)))
+        y_max = 1.5*np.max(result)
         plt.ylim(0, y_max)
-        plt.plot([0,0],[0, np.max(result*1.5)],'r--')
+        plt.plot([0,0],[0, y_max],'r--')
         if add_label:
             plt.xlabel('time (ms)', fontsize=self.fontsize)
+        #plt.ylabel('rates (Hz)', fontsize=self.fontsize)
         #plt.ylabel('counts', fontsize=self.fontsize)
         plt.tick_params(axis='both', which='major', labelsize=self.fontsize)
 
@@ -1237,8 +1242,11 @@ class Visualizer(object):
         plt.hist(feat, bins, color='slategrey')
         plt.hist(feat[spike_ids==0], bins, color=colors[0], alpha=0.7)
         plt.hist(feat[spike_ids==1], bins, color=colors[1], alpha=0.7)
-        ax.tick_params(labelsize=self.fontsize) 
-
+        #ax.tick_params(labelsize=self.fontsize) 
+        plt.setp(ax.get_xticklabels(), visible=False)
+        plt.setp(ax.get_yticklabels(), visible=False)
+        ax.tick_params(axis='both', which='both', length=0)
+        
         if add_label:
             plt.xlabel('LDA Projection', fontsize=self.fontsize)
         #plt.title(

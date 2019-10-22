@@ -168,7 +168,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         standardized_path,
         standardized_dtype,
         fname_templates,
-        update_templates = True,
+        update_templates = CONFIG.deconvolution.update_templates,
         run_chunk_sec = CONFIG.final_deconv_chunk)
 
     ## save the final templates and spike train
@@ -244,7 +244,7 @@ def initial_block(TMP_FOLDER,
 
     #methods = ['duplicate', 'high_mad', 'collision']
     #methods = ['off_center', 'high_mad', 'duplicate']
-    methods = ['off_center', 'high_mad', 'duplicate_l2', 'duplicate']
+    methods = ['off_center', 'high_mad', 'duplicate']
     #methods = ['off_center', 'high_mad', 'duplicate']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
@@ -342,7 +342,7 @@ def iterative_block(TMP_FOLDER,
         raw_data=False, 
         full_run=True)
 
-    methods = ['off_center', 'high_mad', 'duplicate_l2', 'duplicate']
+    methods = ['off_center', 'high_mad', 'duplicate']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         os.path.join(TMP_FOLDER,
@@ -415,6 +415,7 @@ def pre_final_deconv(TMP_FOLDER,
         os.path.join(TMP_FOLDER,
                      'post_deconv_merge'),
         fname_spike_train,
+        fname_shifts,
         fname_templates,
         fname_soft_assignment,
         fname_residual,
