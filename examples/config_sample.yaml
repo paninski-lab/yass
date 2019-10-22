@@ -120,7 +120,7 @@ clean_up:
   # minimum ptp allowed (in standardized unit)
   min_ptp: 3
   # minimum firing rates (in Hz)
-  min_fr: 0.5
+  min_fr: 0.1
   # if a template is off centered, it is a gabarage template
   off_center: 5
   mad:

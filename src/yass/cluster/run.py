@@ -11,8 +11,10 @@ from yass.cluster.util import (make_CONFIG2,
                                make_spike_index_from_spike_train,
                                partition_input,
                                gather_clustering_result,
-                               load_align_waveforms,
-                               nn_denoise_wf, denoise_wf)
+                               load_waveforms,
+                               align_waveforms,
+                               nn_denoise_wf, denoise_wf,
+                               denoise_then_estimate_template)
 from yass.cluster.ptp_split import run_split_on_ptp
 from yass.cluster.sharpen import sharpen_templates
 from yass.neuralnetwork import Denoise
@@ -145,8 +147,8 @@ def run(output_directory,
     ############################################
 
     # load and align waveforms
-    logger.info("load and align waveforms on local channels")
-    units, fnames_input = load_align_waveforms(
+    logger.info("load waveforms on local channels")
+    units, fnames_input = load_waveforms(
         os.path.join(output_directory, 'input'),
         raw_data,
         fname_labels,
@@ -164,6 +166,9 @@ def run(output_directory,
     else:
         logger.info("denoise")
         denoise_wf(fnames_input)
+    
+    logger.info("align waveforms on local channels")
+    align_waveforms(fnames_input, CONFIG2)
 
     # save location for intermediate results
     tmp_save_dir = os.path.join(output_directory, 'cluster_result')
@@ -209,6 +214,16 @@ def run(output_directory,
 
     for fname in fnames_input:
         os.remove(fname)
+
+    # denoise wfs before computing templates for low fr units
+    logger.info("re-estimate templates of low firing rate units")
+    fname_templates_out = denoise_then_estimate_template(
+        fname_templates_out,
+        fname_spike_train_out,
+        reader_raw,
+        denoiser,
+        CONFIG,
+        n_max_spikes=100)
         
     fname_templates_out = sharpen_templates(fname_templates_out)
 
