@@ -121,7 +121,7 @@ clean_up:
   # minimum ptp allowed (in standardized unit)
   min_ptp: 3
   # minimum firing rates (in Hz)
-  min_fr: 0.5
+  min_fr: 0.1
   # if a template is off centered, it is a gabarage template
   off_center: 5
   mad:
@@ -132,9 +132,26 @@ clean_up:
 
 deconvolution:
     threshold: 50
+    
+    # only GPU option available for now
     deconv_gpu: True
+    
+    # update templates periodically based on drift model
     update_templates: True
+    
+    # drift models: 0-ptp scaling; 1-full template update
+    drift_model: 0
+    
+    # time batches to update templates (sec)
     template_update_time: 120
     
+    # determine whether new neurons are searched for
+    neuron_discover: False
+
+    # time batches to check for new neurons (sec); 
+    # recommend multiple of template_udpate_time
+    neuron_discover_time: 360
     
+    # minimum # of spikes required to split 
+    min_split_spikes: 50
     
