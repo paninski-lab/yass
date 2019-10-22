@@ -208,7 +208,6 @@ class deconvGPU(object):
 
         # conver templates to bpslines
         self.templates_to_bsplines()
-
             
     def run(self, chunk_id):
         
@@ -601,9 +600,23 @@ class deconvGPU(object):
         torch.cuda.synchronize()
         
         # compute objective function = 2 x Convolution term - norms
-        self.obj_gpu*= 2.
-        self.obj_gpu-= self.norm
-        
+        if self.fit_height:
+            height_mu = torch.sqrt(self.norm)
+            height_est = (self.obj_gpu + self.height_penalty)*height_mu/(self.norm + self.height_penalty)
+            for k in range(self.K):
+                height_est[k,height_est[k] < height_mu[k]*(1-self.max_diff)] =  height_mu[k]*(1-self.max_diff)
+                height_est[k,height_est[k] > height_mu[k]*(1+self.max_diff)] =  height_mu[k]*(1+self.max_diff)
+            a = 1 + self.height_penalty/self.norm
+            b = (self.obj_gpu + self.height_penalty)/height_mu
+            self.obj_gpu = -a*(height_est**2) + 2*b*height_est - self.height_penalty
+            #height_est
+            #self.obj_gpu = np.square(
+            #    self.obj_gpu + self.height_penalty)/(
+            #    self.norm + self.height_penalty) - self.heigh_penalty
+        else:
+            self.obj_gpu *= 2.
+            self.obj_gpu -= self.norm
+
         if self.verbose:
             print ("Total time obj func (run every chunk): ", np.round(dt.datetime.now().timestamp()-start,2),"sec")
             print ("---------------------------------------")
