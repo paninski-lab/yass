@@ -281,7 +281,7 @@ class deconvGPU(object):
             np.save(fname, coefficients)
         else:
             print ("  ... loading coefficients from disk")
-            coefficients = np.load(fname)
+            coefficients = np.load(fname, allow_pickle=True)
 
         # print (" fname: ", fname)
         # print (" recomputed coefficients: ", coefficients[0].shape)

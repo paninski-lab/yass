@@ -1002,7 +1002,7 @@ def update_templates_forward_backward(d_gpu, CONFIG, chunks, time_index):
         
         if verbose:
             print ("Loadin gchunks: ", fname)
-        data = np.load(fname)
+        data = np.load(fname, allow_pickle=True)
         wfs_local_array.append(data['wfs_array'])
         n_spikes_local_array.append(data['n_spikes_array'])
         ptp_local_array.append(data['ptp_array'])
