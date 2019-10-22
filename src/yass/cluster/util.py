@@ -6,10 +6,13 @@ import parmap
 import torch
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
+from scipy.signal import argrelmin
+
 #from numba import jit
 
 from yass.util import absolute_path_to_asset
 from yass.empty import empty
+from yass.geometry import n_steps_neigh_channels
 from yass.template import align_get_shifts_with_ref, shift_chans
 
 def make_CONFIG2(CONFIG):
@@ -465,6 +468,177 @@ def load_align_waveforms_parallel(labels_in,
 
     return fname_outs
 
+def load_waveforms(save_dir, raw_data, fname_splits,
+                   fname_spike_index, fname_labels_input,
+                   fname_templates_input, reader_raw, reader_resid,
+                   CONFIG):
+    '''load and align waveforms first to run nn denoise
+    '''
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    if fname_splits is None:
+        split_labels = np.load(fname_spike_index)[:, 1]
+    else:
+        split_labels = np.load(fname_splits)
+    all_split_labels = np.unique(split_labels)
+
+    if CONFIG.resources.multi_processing:
+        n_processors = CONFIG.resources.n_processors
+        split_labels_in = []
+        for j in range(n_processors):
+            split_labels_in.append(
+                all_split_labels[slice(j, len(all_split_labels), n_processors)])
+            
+        fnames_out_parallel = parmap.map(
+            load_waveforms_parallel,
+            split_labels_in,
+            save_dir,
+            raw_data,
+            fname_splits,
+            fname_spike_index,
+            fname_labels_input,
+            fname_templates_input,
+            reader_raw,
+            reader_resid,
+            CONFIG,
+            processes=n_processors)
+        fnames_out = []
+        [fnames_out.extend(el) for el in fnames_out_parallel]
+        
+        units_out = []
+        [units_out.extend(el) for el in split_labels_in]
+
+    else:
+        units_out = all_split_labels
+        fnames_out = load_waveforms_parallel(
+            all_split_labels,
+            save_dir,
+            raw_data,
+            fname_splits,
+            fname_spike_index,
+            fname_labels_input,
+            fname_templates_input,
+            reader_raw,
+            reader_resid,
+            CONFIG)
+
+    return units_out, fnames_out
+
+
+def load_waveforms_parallel(labels_in,
+                             save_dir,
+                             raw_data,
+                             fname_splits,
+                             fname_spike_index,
+                             fname_labels_input,
+                             fname_templates,
+                             reader_raw,
+                             reader_resid,
+                             CONFIG):
+    
+    spike_index = np.load(fname_spike_index)
+    if fname_splits is None:
+        split_labels = spike_index[:, 1]
+    else:
+        split_labels = np.load(fname_splits)
+    
+    # minimum number of spikes per cluster
+    rec_len_sec = np.ptp(spike_index[:,0])
+    min_spikes = int(rec_len_sec*CONFIG.cluster.min_fr/CONFIG.recordings.sampling_rate)
+
+    # first read waveforms in a bigger size
+    # then align and cut down edges
+    if CONFIG.neuralnetwork.apply_nn:
+        spike_size_read = CONFIG.spike_size_nn
+    else:
+        spike_size_read = CONFIG.spike_size
+    
+    # load data for making clean wfs
+    if not raw_data:
+        labels_input = np.load(fname_labels_input)
+        templates = np.load(fname_templates)
+
+        n_times_templates = templates.shape[1]
+        if n_times_templates > spike_size_read:
+            n_times_diff = (n_times_templates - spike_size_read)//2
+            templates = templates[:, n_times_diff:-n_times_diff]
+
+    # get waveforms and align
+    fname_outs = []
+    for id_ in labels_in:
+        fname_out = os.path.join(save_dir, 'partition_{}.npz'.format(id_))
+        fname_outs.append(fname_out)
+
+        if os.path.exists(fname_out):
+            continue
+
+        idx_ = np.where(split_labels == id_)[0]
+        
+        # spike times
+        spike_times = spike_index[idx_, 0]
+
+        # if it will be subsampled, min spikes should decrease also
+        subsample_ratio = np.min(
+            (1, CONFIG.cluster.max_n_spikes/float(len(spike_times))))
+        min_spikes = int(min_spikes*subsample_ratio)
+        # min_spikes needs to be at least 20 to cluster
+        min_spikes = np.max((min_spikes, 20))
+
+        # subsample spikes
+        (spike_times,
+         idx_sampled) = subsample_spikes(
+            spike_times,
+            CONFIG.cluster.max_n_spikes)
+        
+        # max channel and neighbor channels
+        channel = int(spike_index[idx_, 1][0])
+        neighbor_chans = np.where(CONFIG.neigh_channels[channel])[0]
+
+        if raw_data:
+            wf, skipped_idx = reader_raw.read_waveforms(
+                spike_times, spike_size_read, neighbor_chans)
+            spike_times = np.delete(spike_times, skipped_idx)
+
+        else:
+
+            # get upsampled ids
+            template_ids_ = labels_input[idx_][idx_sampled]
+            unique_template_ids = np.unique(template_ids_)
+
+            # ids relabelled
+            templates_in = templates[unique_template_ids]
+            template_ids_in = np.zeros_like(template_ids_)
+            for ii, k in enumerate(unique_template_ids):
+                template_ids_in[template_ids_==k] = ii
+ 
+            # get clean waveforms
+            wf, skipped_idx = reader_resid.read_clean_waveforms(
+                spike_times, template_ids_in, templates_in,
+                spike_size_read, neighbor_chans)
+            spike_times = np.delete(spike_times, skipped_idx)
+            template_ids_in = np.delete(template_ids_in, skipped_idx)
+
+        if raw_data:
+            np.savez(fname_out,
+                     spike_times=spike_times,
+                     wf=wf,
+                     channel=channel,
+                     min_spikes=min_spikes
+                    )
+        else:
+            np.savez(fname_out,
+                     spike_times=spike_times,
+                     wf=wf,
+                     upsampled_ids=template_ids_in,
+                     up_templates=templates_in,
+                     channel=channel,
+                     min_spikes=min_spikes
+                    )
+
+    return fname_outs
+
 
 def subsample_spikes(spike_times, max_spikes):
         
@@ -542,31 +716,180 @@ def denoise_wf(fnames_input_data):
 
             wf = temp['wf']
             n_data, n_times, n_chans = wf.shape
-            wf_reshaped = wf.transpose(0, 2, 1).reshape(-1, n_times)
+            if n_data > 0:
+                wf_reshaped = wf.transpose(0, 2, 1).reshape(-1, n_times)
 
-            # restrict to high energy locations
-            energy = np.max(np.median(np.square(wf), 0), 1)
-            idx = np.where(energy > 0.5)[0]
-            if len(idx) == 0:
-                idx = [energy.argmax()]
-            wf_reshaped = wf_reshaped[:, idx]
+                # restrict to high energy locations
+                energy = np.max(np.median(np.square(wf), 0), 1)
+                idx = np.where(energy > 0.5)[0]
+                if len(idx) == 0:
+                    idx = [energy.argmax()]
+                wf_reshaped = wf_reshaped[:, idx]
 
-            if len(idx) > 5:
-                # denoise using pca
-                pca = PCA(n_components=5)
-                score = pca.fit_transform(wf_reshaped)
-                denoised_wf = pca.inverse_transform(score)
+                if len(idx) > 5:
+                    # denoise using pca
+                    pca = PCA(n_components=5)
+                    score = pca.fit_transform(wf_reshaped)
+                    denoised_wf = pca.inverse_transform(score)
+                else:
+                    denoised_wf = wf_reshaped
+
+                # reshape it
+                #window = np.arange(15, 40)
+                #denoised_wf = denoised_wf[:, window]
+                denoised_wf = denoised_wf.reshape(
+                    n_data, n_chans, len(idx)).transpose(0, 2, 1)
+                denoised_wf = denoised_wf.reshape(n_data, -1)
+            
             else:
-                denoised_wf = wf_reshaped
-
-            # reshape it
-            #window = np.arange(15, 40)
-            #denoised_wf = denoised_wf[:, window]
-            denoised_wf = denoised_wf.reshape(
-                n_data, n_chans, len(idx)).transpose(0, 2, 1)
-            denoised_wf = denoised_wf.reshape(n_data, -1)
+                denoised_wf = np.zeros_like(wf)
 
             temp = dict(temp)
             temp['denoised_wf'] = denoised_wf
             np.savez(fname, **temp)
             pbar.update()
+            
+            
+def align_waveforms(fnames_input_data,
+                    CONFIG):
+    '''load and align waveforms first to run nn denoise
+    '''
+
+    if CONFIG.resources.multi_processing:
+        n_processors = CONFIG.resources.n_processors
+        fnames_input_data_split = []
+        for j in range(n_processors):
+            fnames_input_data_split.append(
+                fnames_input_data[slice(j, len(fnames_input_data), n_processors)])
+
+        parmap.map(
+            align_waveforms_parallel,
+            fnames_input_data_split,
+            processes=n_processors)
+
+    else:
+        align_waveforms_parallel(
+            fnames_input_data)
+
+
+def align_waveforms_parallel(fnames_input_data):
+    
+    for fname in fnames_input_data:
+        temp = np.load(fname, allow_pickle=True)
+        if 'shifts' in temp.files:
+            continue
+
+        wf = temp['wf']
+
+        # align
+        if wf.shape[0] > 0:
+            mc = np.mean(wf, 0).ptp(0).argmax()
+            shifts = align_get_shifts_with_ref(
+                wf[:, :, mc], nshifts=3)
+            wf = shift_chans(wf, shifts)
+        else:
+            shifts = None
+
+        temp = dict(temp)
+        temp['wf'] = wf
+        temp['shifts'] = shifts
+        np.savez(fname, **temp)
+
+
+def connecting_points(min_times, min_channels, index, neighbors, t_diff = 5, keep=None):
+    if keep is None:
+        keep = np.zeros(len(min_times), 'bool')
+        
+    if keep[index] == 1:
+        return keep
+    else:
+        keep[index] = 1
+        spatially_close = np.where(neighbors[min_channels[index]][min_channels])[0]
+        close_index = spatially_close[np.abs(min_times[spatially_close] - min_times[index]) <= t_diff]
+
+        for j in close_index:
+            keep = connecting_points(min_times, min_channels, j, neighbors, t_diff, keep)
+
+        return keep
+
+
+def denoise_then_estimate_template(fname_template,
+                                   fname_spike_train,
+                                   reader,
+                                   denoiser,
+                                   CONFIG,
+                                   n_max_spikes=100):
+    
+    templates = np.load(fname_template)
+    spike_train = np.load(fname_spike_train)
+
+    n_units, n_times, n_chans = templates.shape
+
+    ptps = templates.ptp(1)
+    mcs = ptps.argmax(1)
+
+    templates_mc = np.zeros((n_units, n_times))
+    for j in range(n_units):
+        templates_mc[j] = templates[j,:,mcs[j]]
+    min_time_all = int(np.median(np.argmin(templates_mc, 1)))
+
+    n_spikes = np.zeros(n_units)
+    a,b = np.unique(spike_train[:,1], return_counts=True)
+    n_spikes[a] = b
+    
+    neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
+    r2 = CONFIG.spike_size_nn//2
+    
+    k_idx = np.where(n_spikes < n_max_spikes)[0]
+    for k in k_idx:
+        # step 1: get min points that are valid (can be connected from the max channel)
+        min_times, min_channels =argrelmin(templates[k], axis=0, order=5)
+        min_val = templates[k][min_times, min_channels]
+
+        th = np.max((-1, np.min(templates[k])))
+        min_times = min_times[min_val <= th]
+        min_channels = min_channels[min_val <= th]
+
+        if np.sum(min_channels == mcs[k]) > 1:
+            idx = np.where(min_channels == mcs[k])[0]
+            idx = idx[np.argmin(np.abs(min_times[idx] - min_time_all))]
+        else:
+            idx = np.where(min_channels == mcs[k])[0][0]
+
+        keep = connecting_points(min_times, min_channels, idx, neighbors)
+
+        # step 2: get longer waveforms
+        chans_in = min_channels[keep]
+        times_in = min_times[keep] - min_time_all
+        R2 = np.max(np.abs(times_in)) + r2
+        times_in = R2 + times_in
+
+        spt_ = spike_train[spike_train[:,1]==k, 0]
+        wfs_long = reader.read_waveforms(spt_, n_times=R2*2+1, channels=chans_in)[0]
+
+        # step 3: cut it such that the size works for nn denoiser and then denoise
+        wfs = np.zeros((len(wfs_long), 2*r2+1, len(chans_in)))
+        for j in range(len(chans_in)):
+            wfs[:,:,j] = wfs_long[:,:,j][:,times_in[j]-r2:times_in[j]+r2+1]
+
+        wfs_reshaped = wfs.transpose(0,2,1).reshape(-1, 2*r2+1)
+        wfs_denoised = denoiser(
+            torch.from_numpy(wfs_reshaped).float().cuda())[0].data.cpu().numpy().reshape(
+            wfs.shape[0], len(chans_in), -1).transpose(0,2,1)
+
+        # step 4: put back
+        temp_cut = wfs_denoised.mean(0)
+        temp = np.zeros((R2*2+1, n_chans))
+        for j in range(len(chans_in)):
+            temp[times_in[j]-r2:times_in[j]+r2+1, chans_in[j]] = temp_cut[:,j]
+        
+        if R2*2+1 > n_times:
+            templates[k] = temp[R2-n_times//2:R2+n_times//2+1]
+        else:
+            templates[k,(n_times//2)-R2:(n_times//2)+R2+1] = temp
+            templates[k,:(n_times//2)-R2] = 0
+            templates[k,(n_times//2)+R2+1:] = 0
+        
+    np.save(fname_template, templates)
+
+    return fname_template
