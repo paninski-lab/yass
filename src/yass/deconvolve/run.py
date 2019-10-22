@@ -486,8 +486,7 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
         if verbose:
             print ("searching for updated tempaltes fname: ", fname_updated_templates)
         
-    
-        
+            
         # BACKWARD PASS
         if os.path.exists(fname_updated_templates) and (d_gpu.update_templates):
             
@@ -548,6 +547,7 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
 
             if verbose:
                 print (" fname rpev templates ", fname_previous_templates)
+            
             if chunk_id == 0:
                 d_gpu.chunk_id = (previous_temp_time)//chunk_len
             else:
@@ -558,24 +558,35 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
 
             # loop over batch forward steps
             chunks = []
+            # loop over chunks in eatch batch; 
             for k in range(batch_len//chunk_len):
-                time_index = (updated_temp_time-batch_len+chunk_len+k*chunk_len)
-                fname_forward = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'_forward.npz')
                 
-                chunks.append(chunk_id)
+                # Note this entire wrapper assumes templates are bing updated; no need to check;
+                time_index = (updated_temp_time - batch_len + chunk_len + k*chunk_len)
+                fname_forward = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'_forward.npz')
                 
                 if os.path.exists(fname_forward):
                     if verbose:
                         print ("  time index: ", time_index, " already completed (TODO: make sure metadata is there")
+
+                    # exit when getting to last file
+                    if chunk_id>=d_gpu.reader.n_batches:
+                        break
+
+                    chunks.append(chunk_id)
+                    
                     chunk_id+=1
                     continue
-                    
-                if verbose:
-                    print (" Forward pass time ", time_index)
 
-                # print ("   using templates: ", d_gpu.fname_templates)
-                # print ("Forward pass - deconv chunk", time_index, " sec")
+                # exit when getting to last file
+                if chunk_id>=d_gpu.reader.n_batches:
+                    break
                 
+                chunks.append(chunk_id)
+                
+                #if verbose:
+                print (" Forward pass time ", time_index)
+               
                 # run deconv
                 d_gpu.run(chunk_id)
       
@@ -596,13 +607,15 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
                 chunk_id+=1
 
             # after batch is complete, run template update   
-            if d_gpu.update_templates:                                     
+            # Cat; TODO: is this flag redundant?  This entire wrapper is for updating templates
+            if d_gpu.update_templates:
                 templates_new = update_templates_forward_backward(d_gpu,
                                               CONFIG,
                                               chunks,
                                               time_index)
 
             # check if new neurons are found
+            # Cat; TODO: is this flag redundant?  This entire wrapper is for updating templates
             if d_gpu.update_templates:
                 if ((time_index%new_neuron_len==0) and (time_index>chunk_len) and
                     (neuron_discovery_flag)):
@@ -625,15 +638,26 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
                     neuron_discovery_flag = False
                 
             # finalize and reinitialize deconvolution with new templates
+            # Cat; TODO: is this flag redundant?  This entire wrapper is for updating templates
             if d_gpu.update_templates:
                 finish_templates(templates_new, d_gpu, CONFIG, time_index)
         
             # reset the chunk ID back to initialize the updated/backward template pass
+            # Cat; TODO: is this flag redundant?  This entire wrapper is for updating templates
             if d_gpu.update_templates:
-                chunk_id-= (batch_len//chunk_len)
+                print ("time index: ", time_index)
+                if (time_index-chunk_len)<= CONFIG.deconvolution.template_update_time:
+                    chunk_id= 0
+                else:
+                    chunk_id-= (batch_len//chunk_len)
+
                 if verbose:
                     print ("  tempaltes updated, resetting chunk_id to: ", chunk_id)
-        
+            
+        print (" chunk_id: ", chunk_id)
+        print (" d_gpu.reader.n_batche: ", d_gpu.reader.n_batches)
+        print (" time_index: ", time_index)
+                        
         # exit when finished reading;
         if chunk_id>=d_gpu.reader.n_batches:
             break
