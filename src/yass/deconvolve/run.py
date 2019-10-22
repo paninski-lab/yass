@@ -246,7 +246,8 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.update_templates = CONFIG.deconvolution.update_templates
     d_gpu.max_percent_update = 0.2
     if d_gpu.update_templates:
-        print ("   templates being updated ...")
+        print ("   templates being updated every ", 
+                CONFIG.deconvolution.template_update_time, " sec")
     else:
         print ("   templates NOT being updated ...")
 
@@ -272,7 +273,7 @@ def deconv_ONgpu2(fname_templates_in,
     # *********************** RUN DECONV **********************
     # *********************************************************
     begin=dt.datetime.now().timestamp()
-    if d_gpu.update_templates:
+    if update_templates:
         d_gpu, fname_templates_out = run_deconv_with_templates_update(
                                                 d_gpu, 
                                                 CONFIG, 
@@ -453,8 +454,7 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
     new_neuron_len = CONFIG.deconvolution.neuron_discover_time
     batch_len = CONFIG.deconvolution.template_update_time
     chunk_len = CONFIG.resources.n_sec_chunk_gpu
-    
-    
+        
     verbose = False
     while True:
         # keep track of chunk being deconved and time_index
@@ -516,8 +516,8 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
                     chunk_id+=1
                     continue
                 
-                if verbose:
-                    print (" Backward pass time ", time_index)
+                #if verbose:
+                print (" Backward pass time ", time_index)
 
                 
                 # run deconv
