@@ -200,8 +200,8 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.vis_chan_thresh = 1.0
 
     d_gpu.fit_height = False
-    d_gpu.height_penalty = 10000
-    d_gpu.max_diff = 0.1
+    d_gpu.ptp_height_fit = 20
+    d_gpu.max_height_diff = 0.1
 
     # debug/printout parameters
     # Cat: TODO: read all from CONFIG
@@ -423,7 +423,9 @@ def run_deconv_no_templates_update_parallel(d_gpu, chunk_ids, n_sec_chunk_gpu, d
                      spike_array = d_gpu.spike_array,
                      offset_array = d_gpu.offset_array,
                      neuron_array = d_gpu.neuron_array,
-                     shift_list = d_gpu.shift_list)
+                     shift_list = d_gpu.shift_list,
+                     height_list = d_gpu.height_list
+                    )
 
 
 def run_deconv_with_templates_update(d_gpu, CONFIG,
