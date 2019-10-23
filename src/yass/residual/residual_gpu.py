@@ -320,6 +320,9 @@ class RESIDUAL_GPU2(object):
             time_offsets_local = self.time_offsets[idx]
             time_offsets_local = torch.from_numpy(time_offsets_local).float().cuda()
 
+            # dummy values
+            self.tempScaling_array = time_offsets_local*0.0+1.0
+
             if verbose: 
                 print ("time offsets: ", time_offsets_local.shape, time_offsets_local)
             
@@ -348,9 +351,10 @@ class RESIDUAL_GPU2(object):
                                         time_offsets_local[chunk:chunk+chunk_size],
                                         template_ids[chunk:chunk+chunk_size][None],
                                         self.coefficients,
-                                        self.tempScaling)
-                                        
-                            
+                                        #self.tempScaling
+                                        self.tempScaling_array
+                                        )
+                                                                    
                 else:      
                     deconv.subtract_splines(
                                         objective,
@@ -358,8 +362,9 @@ class RESIDUAL_GPU2(object):
                                         time_offsets_local[chunk:chunk+chunk_size],
                                         template_ids[chunk:chunk+chunk_size],
                                         self.coefficients,
-                                        self.tempScaling)
-                                        
+                                        #self.tempScaling
+                                        self.tempScaling_array
+                                        )                                        
                                         
             torch.cuda.synchronize()
 

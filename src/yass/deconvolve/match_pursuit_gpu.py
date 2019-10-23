@@ -696,6 +696,9 @@ class deconvGPU(object):
                     #       - instead they are inserted back into the original lcoation see conditional below
                     self.save_spike_flag=False
 
+                    self.tempScaling_array = self.shift_list[self.add_iteration_counter]*0.0 + 2.0
+
+                    
                     # add spikes back in; then run forward deconv below
                     self.add_cpp_allspikes()                
 
@@ -715,6 +718,8 @@ class deconvGPU(object):
             # **********************************************
             shift_time = self.find_shifts()
             
+            # dummy placeholder
+            self.tempScaling_array = self.xshifts*0+2.0
                 
             # **********************************************
             # **************** SUBTRACTION STEP ************
@@ -767,6 +772,10 @@ class deconvGPU(object):
                     # neuron_array = self.neuron_array,
                     # shift_list = self.shift_list
                     # )
+            
+        
+        #rint ("# of iterations; ", k)
+        #quit()
         if self.verbose:
             print ("Total subtraction step: ", np.round(dt.datetime.now().timestamp()-start,3))
         
@@ -895,7 +904,9 @@ class deconvGPU(object):
                     self.xshifts,
                     spike_temps,
                     self.coefficients,
-                    self.tempScaling)
+                    #self.tempScaling
+                    self.tempScaling_array
+                    )
 
         torch.cuda.synchronize()
         
@@ -931,7 +942,6 @@ class deconvGPU(object):
             OPTION 3: pick 10% of spikes from first 10 iterations and preserve lockout
                       - advantage, more diverse 
                       - disadvantage: have to find fast algorithm to remove spikes too close together
-
             OPTION 4: pick 10% of spikes from any of the previous iterations and preserve lockout
                       - disadvantage: have to find fast algorithm to remove spikes too close together
         
@@ -978,52 +988,54 @@ class deconvGPU(object):
         return spike_times_list, spike_ids_list, spike_shifts_list
         
         
-    def add_cpp(self, idx_iter):
-        #start = dt.datetime.now().timestamp()
+    # def add_cpp(self, idx_iter):
+        # #start = dt.datetime.now().timestamp()
         
-        torch.cuda.synchronize()
+        # torch.cuda.synchronize()
                         
-        # select randomly 10% of spikes from previous deconv; 
-        spike_times, spike_temps, spike_shifts, flag = self.sample_spikes(idx_iter)
+        # # select randomly 10% of spikes from previous deconv; 
+        # spike_times, spike_temps, spike_shifts, flag = self.sample_spikes(idx_iter)
 
-        # Cat: TODO is this flag required still?
-        if flag == False:
-            return 
+        # # Cat: TODO is this flag required still?
+        # if flag == False:
+            # return 
             
-        # also fill in self-convolution traces with low energy so the
-        #   spikes cannot be detected again (i.e. enforcing refractoriness)
-        # Cat: TODO: investgiate whether putting the refractoriness back in is viable
-        if self.refractoriness:
-            deconv.refrac_fill(energy=self.obj_gpu,
-                              spike_times=spike_times,
-                              spike_ids=spike_temps,
-                              #fill_length=self.n_time,  # variable fill length here
-                              #fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
-                              fill_length=self.refractory*2+1,  # variable fill length here
-                              fill_offset=self.n_time//2+self.refractory//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
-                              fill_value=self.fill_value)
+        # # also fill in self-convolution traces with low energy so the
+        # #   spikes cannot be detected again (i.e. enforcing refractoriness)
+        # # Cat: TODO: investgiate whether putting the refractoriness back in is viable
+        # if self.refractoriness:
+            # deconv.refrac_fill(energy=self.obj_gpu,
+                              # spike_times=spike_times,
+                              # spike_ids=spike_temps,
+                              # #fill_length=self.n_time,  # variable fill length here
+                              # #fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
+                              # fill_length=self.refractory*2+1,  # variable fill length here
+                              # fill_offset=self.n_time//2+self.refractory//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
+                              # fill_value=self.fill_value)
                               
-            # deconv.subtract_spikes(data=self.obj_gpu,
-                                   # spike_times=spike_times,
-                                   # spike_temps=spike_temps,
-                                   # templates=self.templates_cpp_refractory_add,
-                                   # do_refrac_fill = False,
-                                   # refrac_fill_val = -1e10)
+            # # deconv.subtract_spikes(data=self.obj_gpu,
+                                   # # spike_times=spike_times,
+                                   # # spike_temps=spike_temps,
+                                   # # templates=self.templates_cpp_refractory_add,
+                                   # # do_refrac_fill = False,
+                                   # # refrac_fill_val = -1e10)
 
-        torch.cuda.synchronize()
+        # torch.cuda.synchronize()
         
-        # Add spikes back in;
-        deconv.subtract_splines(
-                            self.obj_gpu,
-                            spike_times,
-                            spike_shifts,
-                            spike_temps,
-                            self.coefficients,
-                            -self.tempScaling)
+        # # Add spikes back in;
+        # deconv.subtract_splines(
+                            # self.obj_gpu,
+                            # spike_times,
+                            # spike_shifts,
+                            # spike_temps,
+                            # self.coefficients,
+                            # #-self.tempScaling
+                            # -self.tempScaling_array
+                            # )
 
-        torch.cuda.synchronize()
+        # torch.cuda.synchronize()
         
-        return 
+        # return 
         
         
     def add_cpp_allspikes(self):
@@ -1072,7 +1084,9 @@ class deconvGPU(object):
                             spike_shifts,
                             spike_temps,
                             self.coefficients,
-                            -self.tempScaling)
+                            -self.tempScaling_array
+                            #-self.tempScaling
+                            )
 
         torch.cuda.synchronize()
         
