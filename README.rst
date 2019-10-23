@@ -120,7 +120,7 @@ https://www.anaconda.com/distribution/
 
 .. code-block:: shell
 
-   pip install torch
+   conda install pytorch
 
    
 6.  Change directory to CUDA code directory:

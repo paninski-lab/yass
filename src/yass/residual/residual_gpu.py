@@ -131,7 +131,7 @@ class RESIDUAL_GPU2(object):
         print ("  loading templates...", self.fname_templates)
         # load templates
         self.temps = np.load(self.fname_templates).transpose(2,1,0).astype('float32')
-        print ("loaded temps:", self.temps.shape)
+        #print ("loaded temps:", self.temps.shape)
         self.temps_gpu = torch.from_numpy(self.temps.transpose(2,0,1)).float().cuda()
         #self.temps_gpu = torch.from_numpy(self.temps).long().cuda()
 
@@ -186,7 +186,7 @@ class RESIDUAL_GPU2(object):
     # TODO IMPLEMENT THIS!
     def make_bsplines_parallel(self):
         
-        print (self.temps_gpu.shape, len(self.template_inds), self.template_inds[0].shape)
+        #print (self.temps_gpu.shape, len(self.template_inds), self.template_inds[0].shape)
         self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temps_gpu, self.template_inds)])
 
         #print ("  making template bsplines")

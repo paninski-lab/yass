@@ -143,7 +143,7 @@ deconvolution:
     drift_model: 0
     
     # time batches to update templates (sec)
-    template_update_time: 120
+    template_update_time: 60
     
     # determine whether new neurons are searched for
     neuron_discover: False
