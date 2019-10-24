@@ -20,6 +20,7 @@ Yass is undergoing some fixes and improvements this month. If you have already i
 please note that the CUDA code needs to be recompiled (see instructions below).  This can be achieved using:
 
 .. code-block:: shell
+
    /src/gpu_deconv4/python setup.py install --force
 
 [UPDATE Sep 2019] 
