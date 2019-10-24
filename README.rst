@@ -14,6 +14,14 @@ YASS: Yet Another Spike Sorter
     :target: https://gitter.im/paninski-lab/yass?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge
 
 
+[UPDATE Oct 2019] 
+------------------
+Yass is undergoing some fixes and improvements this month. If you have already installed yass and are pulling updates,
+please note that the CUDA code needs to be recompiled (see instructions below).  This can be achieved using:
+
+.. code-block:: shell
+   /src/gpu_deconv4/python setup.py install --force
+
 [UPDATE Sep 2019] 
 ------------------
 Yass ver. 1.0-Beta is now available in the master branch. We are actively looking for beta-testers so feel free to send
@@ -123,7 +131,7 @@ https://www.anaconda.com/distribution/
    conda install pytorch
 
    
-6.  Change directory to CUDA code directory [Note updated CUDA code]:
+6.  Change directory to CUDA code directory [Note updated CUDA code in Oct/2019]:
    
 .. code-block:: shell
 
