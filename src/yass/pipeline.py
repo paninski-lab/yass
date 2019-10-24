@@ -275,7 +275,8 @@ def iterative_block(TMP_FOLDER,
      fname_spike_train,
      fname_templates_up,
      fname_spike_train_up, 
-     fname_shifts) = deconvolve.run(
+     fname_shifts,
+     fname_scales) = deconvolve.run(
         fname_templates,
         os.path.join(TMP_FOLDER,
                      'deconv'),
@@ -287,6 +288,7 @@ def iterative_block(TMP_FOLDER,
     logger.info('RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
         fname_shifts,
+        fname_scales,
         fname_templates,
         fname_spike_train,
         os.path.join(TMP_FOLDER,
@@ -377,7 +379,8 @@ def pre_final_deconv(TMP_FOLDER,
      fname_spike_train,
      fname_templates_up,
      fname_spike_train_up,
-     fname_shifts) = deconvolve.run(
+     fname_shifts,
+     fname_scales) = deconvolve.run(
         fname_templates,
         os.path.join(TMP_FOLDER,
                      'deconv'),
@@ -389,6 +392,7 @@ def pre_final_deconv(TMP_FOLDER,
     logger.info('RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
         fname_shifts,
+        fname_scales,
         fname_templates,
         fname_spike_train,
         os.path.join(TMP_FOLDER,
@@ -460,7 +464,8 @@ def final_deconv(TMP_FOLDER,
      fname_spike_train,
      fname_templates_up,
      fname_spike_train_up,
-     fname_shifts) = deconvolve.run(
+     fname_shifts,
+     fname_scales) = deconvolve.run(
         fname_templates,
         os.path.join(TMP_FOLDER,
                      'deconv'),
@@ -473,6 +478,7 @@ def final_deconv(TMP_FOLDER,
     logger.info('RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
         fname_shifts,
+        fname_scales,
         fname_templates,
         fname_spike_train,
         os.path.join(TMP_FOLDER,

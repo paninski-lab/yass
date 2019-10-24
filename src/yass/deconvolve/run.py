@@ -90,8 +90,8 @@ def run(fname_templates_in,
         output_directory, 'spike_train_up.npy')
     fname_shifts = os.path.join(
         output_directory, 'shifts.npy')
-    fname_objs = os.path.join(
-        output_directory, 'obj_vals.npy')
+    fname_scales = os.path.join(
+        output_directory, 'scales.npy')
                                
     print ("Processing templates: ", fname_templates_in)
 
@@ -106,7 +106,7 @@ def run(fname_templates_in,
     if os.path.exists(fname_spike_train):
         return (fname_templates, fname_spike_train,
                 fname_templates_up, fname_spike_train_up,
-                fname_shifts)
+                fname_shifts, fname_scales)
     # parameters
     # TODO: read from CONFIG
     if threshold is None:
@@ -162,7 +162,7 @@ def run(fname_templates_in,
 
     return (fname_templates, fname_spike_train,
             fname_templates_up, fname_spike_train_up,
-            fname_shifts)
+            fname_shifts, fname_scales)
 
 
 
@@ -199,7 +199,7 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.RANK = 10
     d_gpu.vis_chan_thresh = 1.0
 
-    d_gpu.fit_height = False
+    d_gpu.fit_height = True
     d_gpu.ptp_height_fit = 20
     d_gpu.max_height_diff = 0.1
 
@@ -243,7 +243,7 @@ def deconv_ONgpu2(fname_templates_in,
     # parameter allows templates to be updated forward (i.e. templates
     #       are updated based on spikes in previous chunk)
     # Cat: TODO read from CONFIG
-    d_gpu.update_templates = CONFIG.deconvolution.update_templates
+    d_gpu.update_templates = update_templates
     d_gpu.max_percent_update = 0.2
     if d_gpu.update_templates:
         print ("   templates being updated every ", 
@@ -308,6 +308,7 @@ def deconv_ONgpu2(fname_templates_in,
     # loop over chunks and add spikes;
     spike_train = [np.zeros((0,2),'int32')]
     shifts = []
+    scales = []
     for chunk_id in tqdm(range(reader.n_batches)):
         #fname = os.path.join(d_gpu.seg_dir,str(chunk_id).zfill(5)+'.npz')
         time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
@@ -318,6 +319,7 @@ def deconv_ONgpu2(fname_templates_in,
         neuron_array = data['neuron_array']
         offset_array = data['offset_array']
         shift_list = data['shift_list']
+        scale_list = data['height_list']
         for p in range(len(spike_array)):
             spike_times = spike_array[p].cpu().data.numpy()
             idx_keep = np.logical_and(spike_times >= buffer_size,
@@ -331,11 +333,13 @@ def deconv_ONgpu2(fname_templates_in,
             #            or make array on the fly?
             spike_train.extend(temp)
             shifts.append(shift_list[p].cpu().data.numpy()[idx_keep])
+            scales.append(scale_list[p].cpu().data.numpy()[idx_keep])
 
     # Cat; TODO: sepped this up.
     print ("   vstacking spikes (TODO initalize large array and then try to fill it...): ")
     spike_train = np.vstack(spike_train)
     shifts = np.hstack(shifts)
+    scales = np.hstack(scales)
 
     # add half the spike time back in to get to centre of spike
     spike_train[:,0] = spike_train[:,0]-temporal_size//2
@@ -345,6 +349,7 @@ def deconv_ONgpu2(fname_templates_in,
     idx = spike_train[:,0].argsort(0)
     spike_train = spike_train[idx]
     shifts = shifts[idx]
+    scales = scales[idx]
 
     np.save(fname_spike_train[:-4]+"_prededuplication.npy", spike_train)
 
@@ -365,6 +370,7 @@ def deconv_ONgpu2(fname_templates_in,
     idx = np.where(spike_train[:,0]==-1E6)[0]
     spike_train = np.delete(spike_train, idx, 0)
     shifts = np.delete(shifts, idx, 0)
+    scales = np.delete(scales, idx, 0)
 
     # save spike train
     print ("  saving spike_train: ", spike_train.shape)
@@ -376,6 +382,10 @@ def deconv_ONgpu2(fname_templates_in,
     fname_shifts = os.path.join(d_gpu.out_dir, 'shifts.npy')
     np.save(fname_shifts, shifts)
 
+    # save scales
+    fname_scales = os.path.join(d_gpu.out_dir, 'scales.npy')
+    np.save(fname_scales, scales)
+    
     # save templates and upsampled templates
     templates_post_deconv = np.load(fname_templates_out)
     np.save(fname_templates, templates_post_deconv)

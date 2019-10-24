@@ -42,6 +42,7 @@ class RESIDUAL_GPU2(object):
                 recording_dtype,
                 CONFIG,
                 fname_shifts,
+                fname_scales,
                 fname_templates,
                 output_directory,
                 dtype_out,
@@ -65,6 +66,7 @@ class RESIDUAL_GPU2(object):
         self.fname_out = fname_out
         self.fname_templates = fname_templates
         self.fname_shifts = fname_shifts
+        self.fname_scales = fname_scales
         self.fname_residual = os.path.join(self.data_dir,'residual.bin')
         self.fname_spike_train = fname_spike_train
         
@@ -114,6 +116,9 @@ class RESIDUAL_GPU2(object):
 
         # time offset loading
         self.time_offsets = np.load(self.fname_shifts)
+        
+        # scale fit
+        self.scales = np.load(self.fname_scales)
                 
         # Cat: TODO is this being used anymore?
         self.waveform_len = (self.CONFIG.recordings.sampling_rate/1000*
@@ -319,6 +324,12 @@ class RESIDUAL_GPU2(object):
             # select superres alignment shifts
             time_offsets_local = self.time_offsets[idx]
             time_offsets_local = torch.from_numpy(time_offsets_local).float().cuda()
+            
+            # select superres alignment shifts
+            scales_local = self.scales[idx]
+            scales_local = torch.from_numpy(scales_local).float().cuda()
+
+
 
             if verbose: 
                 print ("time offsets: ", time_offsets_local.shape, time_offsets_local)
@@ -340,7 +351,6 @@ class RESIDUAL_GPU2(object):
             for chunk in range(0, time_indices.shape[0], chunk_size):
                 torch.cuda.synchronize()
                 if time_indices[chunk:chunk+chunk_size].shape[0]==0:
-                                                                                               
                     # Add spikes back in;
                     deconv.subtract_splines(
                                         objective,
@@ -351,15 +361,26 @@ class RESIDUAL_GPU2(object):
                                         self.tempScaling)
                                         
                             
-                else:      
-                    deconv.subtract_splines(
-                                        objective,
-                                        time_indices[chunk:chunk+chunk_size],
-                                        time_offsets_local[chunk:chunk+chunk_size],
-                                        template_ids[chunk:chunk+chunk_size],
-                                        self.coefficients,
-                                        self.tempScaling)
-                                        
+                else:
+                    if True:
+                        deconv.subtract_splines(
+                                            objective,
+                                            time_indices[chunk:chunk+chunk_size],
+                                            time_offsets_local[chunk:chunk+chunk_size],
+                                            template_ids[chunk:chunk+chunk_size],
+                                            self.coefficients,
+                                            self.tempScaling)
+                    else:
+                        end = min(chunk+chunk_size, len(time_indices))
+                        for j in range(chunk,end):
+                            deconv.subtract_splines(
+                                                objective,
+                                                time_indices[[j]],
+                                                time_offsets_local[[j]],
+                                                template_ids[[j]],
+                                                self.coefficients,
+                                                self.tempScaling*scales_local[j])
+
                                         
             torch.cuda.synchronize()
 
