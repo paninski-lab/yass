@@ -116,18 +116,18 @@ https://www.anaconda.com/distribution/
    pip install .
 
 
-5.  Pip install pytorch master
+5.  Pip install pytorch master [Note conda is now used instead of pip]:
 
 .. code-block:: shell
 
    conda install pytorch
 
    
-6.  Change directory to CUDA code directory:
+6.  Change directory to CUDA code directory [Note updated CUDA code]:
    
 .. code-block:: shell
 
-   cd src/gpu_deconv3
+   cd src/gpu_deconv4
    
    
 7.  Compile cuda code using default gcc:
