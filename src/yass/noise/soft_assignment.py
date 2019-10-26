@@ -24,12 +24,14 @@ def transform_template(template, knots=None, prepad=7, postpad=3, order=3):
 
 
 class SOFTNOISEASSIGNMENT(object):
-    def __init__(self, fname_spike_train, fname_templates, fname_shifts,
+    def __init__(self, fname_spike_train, fname_templates, fname_shifts, fname_scales,
                  reader_residual, detector, channel_index, large_unit_threshold):
         
         self.templates = np.load(fname_templates).astype('float32')
         self.spike_train = np.load(fname_spike_train)
         self.shifts = np.load(fname_shifts)
+        self.scales = np.load(fname_scales)
+
         self.reader_residual = reader_residual
         self.channel_index = channel_index
         
@@ -109,6 +111,7 @@ class SOFTNOISEASSIGNMENT(object):
         self.templates_aligned = torch.from_numpy(self.templates_aligned).float().cuda()
         self.spike_train = torch.from_numpy(self.spike_train).long().cuda()
         self.shifts = torch.from_numpy(self.shifts).float().cuda()
+        self.scales = torch.from_numpy(self.scales).float().cuda()
         
         self.mcs = torch.from_numpy(self.mcs)
         self.channel_index = torch.from_numpy(self.channel_index)
@@ -118,15 +121,16 @@ class SOFTNOISEASSIGNMENT(object):
         n_data, n_times, n_channels = self.templates_aligned.shape
 
         channels = torch.arange(n_channels).cuda()
-        temps_torch = torch.from_numpy(-(self.templates_aligned.transpose(0, 2, 1))/2).cuda()
+        temps_torch = torch.from_numpy(-(self.templates_aligned.transpose(0, 2, 1))).cuda()
 
         temp_cpp = deconv.BatchedTemplates([deconv.Template(temp, channels) for temp in temps_torch])
         self.coeffs = deconv.BatchedTemplates([transform_template(template) for template in temp_cpp])
 
-    def get_shifted_templates(self, temp_ids, shifts):
+    def get_shifted_templates(self, temp_ids, shifts, scales):
         
         temp_ids = torch.from_numpy(temp_ids.cpu().numpy()).long().cuda()
         shifts = torch.from_numpy(shifts.cpu().numpy()).float().cuda()
+        scales = torch.from_numpy(scales.cpu().numpy()).float().cuda()
 
         n_sample_run = 1000
         n_times = self.templates_aligned.shape[1]
@@ -144,7 +148,7 @@ class SOFTNOISEASSIGNMENT(object):
                                     shifts[ii_start:ii_end],
                                     temp_ids[ii_start:ii_end],
                                     self.coeffs, 
-                                    2.0)
+                                    scales[ii_start:ii_end])
             obj = obj.reshape((self.n_neigh_chans, (ii_end-ii_start), n_times))
             shifted_templates[ii_start:ii_end] = obj.transpose(0,1).transpose(1,2)
     
@@ -173,6 +177,7 @@ class SOFTNOISEASSIGNMENT(object):
                                             self.reader_residual.buffer)
 
                 shift_batch = self.shifts[idx_in]
+                scale_batch = self.scales[idx_in]
 
                 # get residual snippets
                 t_index = spike_train_batch[:, 0][:, None] + t_range
@@ -184,7 +189,7 @@ class SOFTNOISEASSIGNMENT(object):
 
                 # get shifted templates
                 shifted_templates = self.get_shifted_templates(
-                    spike_train_batch[:,1], shift_batch)
+                    spike_train_batch[:,1], shift_batch, scale_batch)
                 shifted_templates = shifted_templates[:, self.n_times_extra:-self.n_times_extra]
 
                 # get clean wfs

@@ -331,6 +331,9 @@ class RESIDUAL_GPU2(object):
 
 
 
+            # dummy values
+            self.tempScaling_array = time_offsets_local*0.0+1.0
+
             if verbose: 
                 print ("time offsets: ", time_offsets_local.shape, time_offsets_local)
             
@@ -358,29 +361,17 @@ class RESIDUAL_GPU2(object):
                                         time_offsets_local[chunk:chunk+chunk_size],
                                         template_ids[chunk:chunk+chunk_size][None],
                                         self.coefficients,
-                                        self.tempScaling)
+                                        self.tempScalingscales_local[chunk:chunk+chunk_size][None])
                                         
                             
                 else:
-                    if True:
-                        deconv.subtract_splines(
-                                            objective,
-                                            time_indices[chunk:chunk+chunk_size],
-                                            time_offsets_local[chunk:chunk+chunk_size],
-                                            template_ids[chunk:chunk+chunk_size],
-                                            self.coefficients,
-                                            self.tempScaling)
-                    else:
-                        end = min(chunk+chunk_size, len(time_indices))
-                        for j in range(chunk,end):
-                            deconv.subtract_splines(
-                                                objective,
-                                                time_indices[[j]],
-                                                time_offsets_local[[j]],
-                                                template_ids[[j]],
-                                                self.coefficients,
-                                                self.tempScaling*scales_local[j])
-
+                    deconv.subtract_splines(
+                                        objective,
+                                        time_indices[chunk:chunk+chunk_size],
+                                        time_offsets_local[chunk:chunk+chunk_size],
+                                        template_ids[chunk:chunk+chunk_size],
+                                        self.coefficients,
+                                        self.tempScaling*scales_local[chunk:chunk+chunk_size])
                                         
             torch.cuda.synchronize()
 

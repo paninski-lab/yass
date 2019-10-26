@@ -84,10 +84,6 @@ def run(fname_templates_in,
         output_directory, 'templates.npy')
     fname_spike_train = os.path.join(
         output_directory, 'spike_train.npy')
-    fname_templates_up = os.path.join(
-        output_directory, 'templates_up.npy')
-    fname_spike_train_up = os.path.join(
-        output_directory, 'spike_train_up.npy')
     fname_shifts = os.path.join(
         output_directory, 'shifts.npy')
     fname_scales = os.path.join(
@@ -103,9 +99,11 @@ def run(fname_templates_in,
         # return (fname_templates, fname_spike_train,
                 # fname_templates_up, fname_spike_train_up)
 
-    if os.path.exists(fname_spike_train):
+    if (os.path.exists(fname_templates) and
+        os.path.exists(fname_spike_train) and
+        os.path.exists(fname_shifts) and
+        os.path.exists(fname_scales)):
         return (fname_templates, fname_spike_train,
-                fname_templates_up, fname_spike_train_up,
                 fname_shifts, fname_scales)
     # parameters
     # TODO: read from CONFIG
@@ -139,11 +137,6 @@ def run(fname_templates_in,
                       reader,
                       threshold,
                       update_templates,
-                      fname_spike_train,
-                      fname_spike_train_up,
-                      fname_templates,
-                      fname_templates_up,
-                      fname_shifts,
                       CONFIG,
                       run_chunk_sec)
         
@@ -155,13 +148,10 @@ def run(fname_templates_in,
                      threshold,
                      save_up_data,
                      fname_spike_train,
-                     fname_spike_train_up,
                      fname_templates,
-                     fname_templates_up,
                      CONFIG)
 
     return (fname_templates, fname_spike_train,
-            fname_templates_up, fname_spike_train_up,
             fname_shifts, fname_scales)
 
 
@@ -171,11 +161,6 @@ def deconv_ONgpu2(fname_templates_in,
                  reader,
                  threshold,
                  update_templates,
-                 fname_spike_train,
-                 fname_spike_train_up,
-                 fname_templates,
-                 fname_templates_up,
-                 fname_shifts,
                  CONFIG,
                  run_chunk_sec):
 
@@ -199,9 +184,9 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.RANK = 10
     d_gpu.vis_chan_thresh = 1.0
 
-    d_gpu.fit_height = True
-    d_gpu.ptp_height_fit = 20
+    d_gpu.fit_height = False
     d_gpu.max_height_diff = 0.1
+    d_gpu.fit_height_ptp = 20
 
     # debug/printout parameters
     # Cat: TODO: read all from CONFIG
@@ -351,7 +336,9 @@ def deconv_ONgpu2(fname_templates_in,
     shifts = shifts[idx]
     scales = scales[idx]
 
-    np.save(fname_spike_train[:-4]+"_prededuplication.npy", spike_train)
+    np.save(os.path.join(d_gpu.out_dir,
+                         'spike_train_prededuplication.npy'),
+            spike_train)
 
     # remove duplicates
     # Cat: TODO: are there still duplicates in spike trains!?
@@ -376,7 +363,6 @@ def deconv_ONgpu2(fname_templates_in,
     print ("  saving spike_train: ", spike_train.shape)
     fname_spike_train = os.path.join(d_gpu.out_dir, 'spike_train.npy')
     np.save(fname_spike_train, spike_train)
-    np.save(fname_spike_train_up, spike_train)
 
     # save shifts
     fname_shifts = os.path.join(d_gpu.out_dir, 'shifts.npy')
@@ -387,9 +373,9 @@ def deconv_ONgpu2(fname_templates_in,
     np.save(fname_scales, scales)
     
     # save templates and upsampled templates
+    fname_templates = os.path.join(d_gpu.out_dir, 'templates.npy')
     templates_post_deconv = np.load(fname_templates_out)
     np.save(fname_templates, templates_post_deconv)
-    np.save(fname_templates_up, templates_post_deconv)
 
 
 def run_deconv_no_templates_update(d_gpu, CONFIG):

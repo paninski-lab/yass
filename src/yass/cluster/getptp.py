@@ -125,7 +125,8 @@ class GETPTP(object):
     
 class GETCLEANPTP(object):
     def __init__(self, fname_spike_index, fname_labels,
-                 fname_templates, reader_residual, denoiser=None):
+                 fname_templates, fname_shifts, fname_scales,
+                 reader_residual, denoiser=None):
 
         self.spike_index = np.load(fname_spike_index)
         self.spike_index = torch.from_numpy(self.spike_index).long().cuda()
@@ -139,6 +140,12 @@ class GETCLEANPTP(object):
         self.templates = np.zeros((n_units, n_times))
         for k in range(n_units):
             self.templates[k] = templates[k, :, mcs[k]]
+
+        self.shifts = np.load(fname_shifts)
+        self.shifts = torch.from_numpy(self.shifts).float().cuda()
+
+        self.scales = np.load(fname_scales)
+        self.scales = torch.from_numpy(self.scales).float().cuda()
 
         self.reader_residual = reader_residual
         self.denoiser = denoiser
@@ -189,8 +196,6 @@ class GETCLEANPTP(object):
                 spike_index_batch = self.spike_index[idx_in] 
                 spike_index_batch[:, 0] -= (self.reader_residual.idx_list[batch_id][0] - 
                                             self.reader_residual.buffer)
-                
-                labels_batch = self.labels[idx_in]
 
                 # get residual snippets
                 t_index = spike_index_batch[:, 0][:, None] + t_range
@@ -198,8 +203,14 @@ class GETCLEANPTP(object):
 
                 dat = torch.cat((dat, torch.zeros((dat.shape[0], 1)).cuda()), 1)
                 residuals = dat[t_index, c_index[:,None]]
-                wfs = residuals + self.templates[labels_batch]
                 
+                # TODO: align residuals
+                #shifts_batch = self.shifts[idx_in]
+                #residuals = shift_chans(residuals, -shifts_batch)
+
+                # make clean wfs
+                wfs = residuals + self.scales[idx_in][:, None]*self.templates[self.labels[idx_in]]
+
                 ptps_raw[idx_in] = (torch.max(wfs, 1)[0] - torch.min(wfs, 1)[0]).data
 
                 if self.denoiser is not None:
@@ -212,7 +223,7 @@ class GETCLEANPTP(object):
                         denoised_wfs[idx_list[j]:idx_list[j+1]] = self.denoiser(
                             wfs[idx_list[j]:idx_list[j+1]])[0]
                     ptps_denoised[idx_in] = (torch.max(denoised_wfs, 1)[0] - torch.min(denoised_wfs, 1)[0]).data
-                
+
                 pbar.update()
 
         ptps_raw = ptps_raw.cpu().numpy()

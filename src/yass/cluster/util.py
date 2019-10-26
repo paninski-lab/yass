@@ -468,9 +468,16 @@ def load_align_waveforms_parallel(labels_in,
 
     return fname_outs
 
-def load_waveforms(save_dir, raw_data, fname_splits,
-                   fname_spike_index, fname_labels_input,
-                   fname_templates_input, reader_raw, reader_resid,
+def load_waveforms(save_dir,
+                   raw_data,
+                   fname_splits,
+                   fname_spike_index,
+                   fname_labels_input,
+                   fname_templates_input,
+                   fname_shifts,
+                   fname_scales,
+                   reader_raw,
+                   reader_resid,
                    CONFIG):
     '''load and align waveforms first to run nn denoise
     '''
@@ -500,6 +507,8 @@ def load_waveforms(save_dir, raw_data, fname_splits,
             fname_spike_index,
             fname_labels_input,
             fname_templates_input,
+            fname_shifts,
+            fname_scales,
             reader_raw,
             reader_resid,
             CONFIG,
@@ -520,6 +529,8 @@ def load_waveforms(save_dir, raw_data, fname_splits,
             fname_spike_index,
             fname_labels_input,
             fname_templates_input,
+            fname_shifts,
+            fname_scales,
             reader_raw,
             reader_resid,
             CONFIG)
@@ -528,22 +539,24 @@ def load_waveforms(save_dir, raw_data, fname_splits,
 
 
 def load_waveforms_parallel(labels_in,
-                             save_dir,
-                             raw_data,
-                             fname_splits,
-                             fname_spike_index,
-                             fname_labels_input,
-                             fname_templates,
-                             reader_raw,
-                             reader_resid,
-                             CONFIG):
-    
+                            save_dir,
+                            raw_data,
+                            fname_splits,
+                            fname_spike_index,
+                            fname_labels_input,
+                            fname_templates,
+                            fname_shifts,
+                            fname_scales,
+                            reader_raw,
+                            reader_resid,
+                            CONFIG):
+
     spike_index = np.load(fname_spike_index)
     if fname_splits is None:
         split_labels = spike_index[:, 1]
     else:
         split_labels = np.load(fname_splits)
-    
+
     # minimum number of spikes per cluster
     rec_len_sec = np.ptp(spike_index[:,0])
     min_spikes = int(rec_len_sec*CONFIG.cluster.min_fr/CONFIG.recordings.sampling_rate)
@@ -559,11 +572,8 @@ def load_waveforms_parallel(labels_in,
     if not raw_data:
         labels_input = np.load(fname_labels_input)
         templates = np.load(fname_templates)
-
-        n_times_templates = templates.shape[1]
-        if n_times_templates > spike_size_read:
-            n_times_diff = (n_times_templates - spike_size_read)//2
-            templates = templates[:, n_times_diff:-n_times_diff]
+        shifts = np.load(fname_shifts)
+        scales = np.load(fname_scales)
 
     # get waveforms and align
     fname_outs = []
@@ -612,13 +622,32 @@ def load_waveforms_parallel(labels_in,
             template_ids_in = np.zeros_like(template_ids_)
             for ii, k in enumerate(unique_template_ids):
                 template_ids_in[template_ids_==k] = ii
+                
+            # get shifts and scales
+            shifts_ = shifts[idx_][idx_sampled]
+            scales_ = scales[idx_][idx_sampled]
  
             # get clean waveforms
-            wf, skipped_idx = reader_resid.read_clean_waveforms(
-                spike_times, template_ids_in, templates_in,
-                spike_size_read, neighbor_chans)
+            resid_, skipped_idx = reader_resid.read_waveforms(
+                spike_times, spike_size_read, neighbor_chans)
+            # delete edge spike data
             spike_times = np.delete(spike_times, skipped_idx)
             template_ids_in = np.delete(template_ids_in, skipped_idx)
+            shifts_ = np.delete(shifts_, skipped_idx)
+            scales_ = np.delete(scales_, skipped_idx)
+
+            # align residuals
+            #resid_ = shift_chans(resid_, -shifts_)
+
+            # make clean wfs
+            temp_ = templates_in[:,:,neighbor_chans]
+            n_times_templates = temp_.shape[1]
+            if n_times_templates > spike_size_read:
+                n_times_diff = (n_times_templates - spike_size_read)//2
+                temp_ = temp_[:, n_times_diff:-n_times_diff]
+
+            wf = resid_ + scales_[:, None, None]*temp_[template_ids_in]
+
 
         if raw_data:
             np.savez(fname_out,
@@ -631,8 +660,10 @@ def load_waveforms_parallel(labels_in,
             np.savez(fname_out,
                      spike_times=spike_times,
                      wf=wf,
-                     upsampled_ids=template_ids_in,
-                     up_templates=templates_in,
+                     template_ids_in=template_ids_in,
+                     templates_in=templates_in,
+                     #shifts=shifts_,
+                     scales=scales_,
                      channel=channel,
                      min_spikes=min_spikes
                     )

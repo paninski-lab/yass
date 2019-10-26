@@ -234,10 +234,10 @@ class Cluster(object):
             self.shifts = input_data['shifts']
             self.channel = input_data['channel']
             if not self.raw_data:
-                self.upsampled_templates = input_data['up_templates']
-                self.upsampled_ids = input_data['upsampled_ids']
-
-
+                self.template_ids_in = input_data['template_ids_in']
+                self.templates_in = input_data['templates_in']
+                self.shifts = input_data['shifts']
+                self.scales = input_data['scales']
 
         ''' ******************************************
             *********** FIXED PARAMETERS *************
@@ -315,10 +315,10 @@ class Cluster(object):
                         self.spike_times_original<(self.reader_raw.rec_len-self.spike_size)))[0]
         self.spike_times_original = self.spike_times_original[
             idx_inbounds].astype('int32')
-        
+
         # clean upsampled ids if available
         if not self.raw_data:
-            self.upsampled_ids = self.upsampled_ids[
+            self.template_ids_in = self.template_ids_in[
                 idx_sampled][idx_inbounds].astype('int32')
 
     def initialize(self, indices_in, local):
@@ -330,8 +330,6 @@ class Cluster(object):
         self.neighbor_chans = np.where(self.neighbors[self.channel])[0]
         if local:
             # initialize
-            #self.shifts = np.zeros(len(self.spike_times_original))
-            #self.find_main_channel()
             self.loaded_channels = self.neighbor_chans
         else:
             # load waveforms
@@ -341,30 +339,6 @@ class Cluster(object):
                 self.align_step(local)
                 # denoise waveforms on active channels
                 self.denoise_step(local)
-       
-    def find_main_channel(self):
-        if len(self.spike_times_original) > 500:
-            idx_sampled = np.random.choice(
-                a=np.arange(len(self.spike_times_original)),
-                size=500,
-                replace=False)
-        else:
-            idx_sampled = np.arange(len(self.spike_times_original))
-
-        sample_spike_times = self.spike_times_original[idx_sampled]
-
-        if self.raw_data:
-            wf, _ = self.reader_raw.read_waveforms(
-                sample_spike_times, self.spike_size)
-        # or from residual and add templates
-        else:
-            units_ids_sampled = self.upsampled_ids[idx_sampled]
-            wf, _ = self.reader_resid.read_clean_waveforms(
-                sample_spike_times, units_ids_sampled,
-                self.upsampled_templates, self.spike_size)
-
-        # find max channel
-        self.channel = np.mean(wf, axis=0).ptp(0).argmax()
 
     def load_waveforms(self, local):
         
@@ -387,11 +361,32 @@ class Cluster(object):
                 spike_times, self.spike_size, self.loaded_channels)
         # or from residual and add templates
         else:
-            unit_ids = self.upsampled_ids[self.indices_in]
-            self.wf_global, skipped_idx = self.reader_resid.read_clean_waveforms(
-                spike_times, unit_ids, self.upsampled_templates,
-                self.spike_size, self.loaded_channels)
-        
+            template_ids_in_ = self.template_ids_in[self.indices_in]
+            shifts_ = self.shifts[self.indices_in]
+            scales_ = self.scales[self.indices_in]
+
+            resid_, skipped_idx = self.reader_resid.read_waveforms(
+                spike_times, self.spike_size, self.loaded_channels)
+
+            template_ids_in_ = self.template_ids_in[self.indices_in]
+            shifts_ = self.shifts[self.indices_in]
+            scales_ = self.scales[self.indices_in]
+
+            template_ids_in_ = np.delete(template_ids_in_,
+                                         skipped_idx)
+            shifts_ = np.delete(shifts_,
+                                skipped_idx)
+            scales_ = np.delete(scales_,
+                                skipped_idx)
+
+            # align residuals
+            #resid_ = shift_chans(resid_, -shifts_)
+
+            # make clean wfs
+            temp_ = self.templates_in[:,:,self.loaded_channels]
+            self.wf_global = (resid_ + 
+                              scales_[:, None, None]*temp_[template_ids_in_])
+
         # Cat: TODO: we're cliping the waveforms at 1000 SU; need to check this
         # clip waveforms; seems necessary for neuropixel probe due to artifacts
         self.wf_global = self.wf_global.clip(min=-1000, max=1000)
