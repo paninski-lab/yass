@@ -34,7 +34,7 @@ def run(template_fname,
     outlier_fname = os.path.join(output_directory, 'outliers.npy')
     logprobs_fname = os.path.join(output_directory, 'logprobs_fname.npy')
     if os.path.exists(prob_fname):
-        return prob_fname, outlier_fname, 
+        return prob_fname, outlier_fname, logprobs_fname
 
     # output folder
     if not os.path.exists(output_directory):
