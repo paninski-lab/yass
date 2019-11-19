@@ -43,7 +43,7 @@ def run(template_fname,
     reader_resid = READER(residual_fname,
                           residual_dtype,
                           CONFIG,
-                          CONFIG.resources.n_sec_chunk_gpu_deconv/10)
+                          .1)
 
 
     # initialize soft assignment calculator
