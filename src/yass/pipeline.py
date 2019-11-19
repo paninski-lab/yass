@@ -30,7 +30,7 @@ import yass
 from yass import set_config
 from yass import read_config
 from yass import (preprocess, detect, cluster, postprocess,
-                  deconvolve, residual, noise, merge, rf, visual)
+                  deconvolve, residual, noise, merge, rf, visual, softassign)
 #from yass.template import update_templates
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
@@ -497,7 +497,22 @@ def final_deconv(TMP_FOLDER,
                      'soft_assignment'),
         fname_residual,
         residual_dtype)
-
+        
+    logger.info('TEMPLATE SOFT ASSIGNMENT')
+    fname_template_soft_assignment, fname_outliers = softassign.run(
+        template_fname = fname_templates,
+        spike_train_fname = fname_spike_train,
+        shifts_fname = fname_shifts,
+        output_directory = os.path.join(TMP_FOLDER,
+                     'soft_assignment') ,
+        residual_fname = fname_residual,
+        residual_dtype = residual_dtype, 
+        window_size = 51, 
+        similarity_threshold = 5, 
+        similar_units  = 3)
+    
     return (fname_templates,
             fname_spike_train,
-            fname_soft_assignment)
+            fname_soft_assignment, 
+            fname_template_soft_assignment,
+            fname_outliers)
