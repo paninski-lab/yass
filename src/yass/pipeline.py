@@ -163,7 +163,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     ### Final deconv: Deconvolve, Residual, soft assignment
     (fname_templates,
      fname_spike_train,
-     fname_soft_assignment)= final_deconv(
+     fname_soft_assignment, 
+     fname_template_soft_assignment, 
+     fname_outliers)= final_deconv(
         os.path.join(TMP_FOLDER, 'final_deconv'),
         standardized_path,
         standardized_dtype,
@@ -317,7 +319,7 @@ def iterative_block(TMP_FOLDER,
                          'soft_assignment'),
             fname_residual,
             residual_dtype)
-    
+        
         logger.info('BLOCK1 MERGE')
         _, _, _ = merge.run(
             os.path.join(TMP_FOLDER,
