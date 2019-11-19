@@ -70,7 +70,7 @@ def run(template_fname,
     #outlier spike times/units
     cpu_sps = TAO.spike_train.cpu().numpy()
     chi2_df = (2*(window_size //2) + 1)*10
-    cut_off = chi2(chi2_df).ppf(.9975)
+    cut_off = chi2(chi2_df).ppf(.999)
     outliers = cpu_sps[np.where(TAO.log_probs.min(1) > cut_off)[0], :]
     # compuate soft assignment
     np.save(prob_fname, replace_probs)
