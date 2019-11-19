@@ -47,7 +47,7 @@ def run(template_fname,
 
 
     # initialize soft assignment calculator
-    spatial_cov, temporal_cov = get_covariance(reader_resid)
+    spatial_cov, temporal_cov = get_covariance(reader_resid, CONFIG)
     
     TAO = TEMPLATE_ASSIGN_OBJECT(
      fname_spike_train = spike_train_fname, 
