@@ -32,8 +32,9 @@ def run(template_fname,
     #
     prob_fname = os.path.join(output_directory, 'template_soft_assignment.npy')
     outlier_fname = os.path.join(output_directory, 'outliers.npy')
+    logprobs_fname = os.path.join(output_directory, 'logprobs_fname.npy')
     if os.path.exists(prob_fname):
-        return prob_fname, outlier_fname
+        return prob_fname, outlier_fname, 
 
     # output folder
     if not os.path.exists(output_directory):
@@ -74,6 +75,6 @@ def run(template_fname,
     # compuate soft assignment
     np.save(prob_fname, replace_probs)
     np.save(outlier_fname, outliers)
-    np.save(TAO.log_probs)
-    return prob_fname, outlier_fname, TAO.log_probs
+    np.save(logprobs_fname, TAO.log_probs)
+    return prob_fname, outlier_fname, logprobs_fname
     
