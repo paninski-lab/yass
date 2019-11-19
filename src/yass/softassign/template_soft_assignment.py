@@ -30,9 +30,8 @@ def transform_template(template, knots=None, prepad=7, postpad=3, order=3):
     coefficients = np.array([spline[1][prepad-1:-1*(postpad+1)] for spline in splines], dtype='float32')
     return deconv.Template(torch.from_numpy(coefficients).cuda(), template.indices)
 
-def get_cov_matrix( template, spat_cov, geom):
-    vis_chans = np.where(template.ptp(0) > 0)[0]
-    posistion = geom[vis_chans]
+def get_cov_matrix(spat_cov, geom):
+    posistion = geom
     dist_matrix = dist.squareform(dist.pdist(geom ))
 
     cov_matrix = np.zeros((posistion.shape[0], posistion.shape[0]))
@@ -64,7 +63,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.units_in = set([])
         self.shifts = np.load(fname_shifts)
         self.reader_residual = reader_residual
-        self.spat_cov = spat_cov
+        self.spat_cov = get_cov_matrix(spat_cov, geom)
         self.temp_cov = temp_cov[:lik_window, :lik_window]
         self.channel_index = channel_idx
         self.n_neigh_chans = self.channel_index.shape[1]
