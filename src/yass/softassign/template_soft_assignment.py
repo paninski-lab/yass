@@ -30,8 +30,8 @@ def transform_template(template, knots=None, prepad=7, postpad=3, order=3):
     coefficients = np.array([spline[1][prepad-1:-1*(postpad+1)] for spline in splines], dtype='float32')
     return deconv.Template(torch.from_numpy(coefficients).cuda(), template.indices)
 
-def get_cov_matrix(spat_cov, geom):
-    posistion = geom
+def get_cov_matrix( spat_cov, geom):
+    posistion = geom[np.arange(geom.shape[0])]
     dist_matrix = dist.squareform(dist.pdist(geom ))
 
     cov_matrix = np.zeros((posistion.shape[0], posistion.shape[0]))
