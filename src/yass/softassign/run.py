@@ -13,6 +13,7 @@ from scipy.stats import chi2
 from yass import read_config
 from yass.reader import READER
 from yass.softassign.template_soft_assignment import TEMPLATE_ASSIGN_OBJECT
+from yass.merge.run import get_covariance
 
 def run(template_fname,
         spike_train_fname,
@@ -46,13 +47,17 @@ def run(template_fname,
 
 
     # initialize soft assignment calculator
+    spatial_cov, temporal_cov = get_covariance(reader_resid)
     
     TAO = TEMPLATE_ASSIGN_OBJECT(
      fname_spike_train = spike_train_fname, 
      fname_templates = template_fname, 
      fname_shifts = shifts_fname,
      reader_residual = reader_resid,
+     spat_cov = spatial_cov,
+     temp_cov = temporal_cov,
      channel_idx = CONFIG.channel_index, 
+     geom = CONFIG.geom,
      large_unit_threshold = np.inf,
      n_chans = 10,
      rec_chans = CONFIG.channel_index.shape[0], 

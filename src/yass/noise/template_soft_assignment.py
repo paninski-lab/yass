@@ -30,10 +30,9 @@ def transform_template(template, knots=None, prepad=7, postpad=3, order=3):
     coefficients = np.array([spline[1][prepad-1:-1*(postpad+1)] for spline in splines], dtype='float32')
     return deconv.Template(torch.from_numpy(coefficients).cuda(), template.indices)
 
-def get_cov_matrix( template, spat_cov, geom):
-    vis_chans = np.where(template.ptp(0) > 0)[0]
-    posistion = geom[vis_chans]
-    dist_matrix = dist.squareform(dist.pdist(geom ))
+def get_cov_matrix(spat_cov, geom):
+    posistion = geom
+    dist_matrix = dist.squareform(dist.pdist(geom))
 
     cov_matrix = np.zeros((posistion.shape[0], posistion.shape[0]))
 
@@ -50,7 +49,7 @@ def get_cov_matrix( template, spat_cov, geom):
 
 class TEMPLATE_ASSIGN_OBJECT(object):
     def __init__(self, fname_spike_train, fname_templates, fname_shifts,
-                 reader_residual, spat_cov, temp_cov, channel_idx, large_unit_threshold = 5, n_chans = 5, rec_chans = 512, sim_units = 3, temp_thresh= np.inf, lik_window = 50):
+                 reader_residual, spat_cov, temp_cov, channel_idx, geom, large_unit_threshold = 5, n_chans = 5, rec_chans = 512, sim_units = 3, temp_thresh= np.inf, lik_window = 50):
         #get the variance of the residual:        
         self.temp_thresh = temp_thresh
         self.rec_chans = rec_chans
@@ -64,12 +63,14 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.units_in = set([])
         self.shifts = np.load(fname_shifts)
         self.reader_residual = reader_residual
-        self.spat_cov = spat_cov
+        #get the covariance matrix from the spatial covariances
+        self.spat_cov = get_cov_matrix(self.spat_cov, geom)
         self.temp_cov = temp_cov[:lik_window, :lik_window]
         self.channel_index = channel_idx
         self.n_neigh_chans = self.channel_index.shape[1]
         self.n_chans = n_chans
         self.n_units, self.n_times, self.n_channels = self.templates.shape
+        
         
         self.n_total_spikes = self.spike_train.shape[0]
         
