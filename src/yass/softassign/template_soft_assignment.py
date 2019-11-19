@@ -390,7 +390,5 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         probs = self.get_assign_probs(log_probs)
         replace_probs = np.zeros((self.spike_train_og.shape[0], self.sim_units))
         replace_probs[:, 0] = 1
-        print(probs.shape)
-        print(replace_probs[np.asarray(list(self.idx_included)).astype("int16"), :].shape)
         replace_probs[self.idx_included, :] = probs
         return replace_probs, probs
