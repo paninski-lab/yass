@@ -30,20 +30,19 @@ def transform_template(template, knots=None, prepad=7, postpad=3, order=3):
     coefficients = np.array([spline[1][prepad-1:-1*(postpad+1)] for spline in splines], dtype='float32')
     return deconv.Template(torch.from_numpy(coefficients).cuda(), template.indices)
 
-def get_cov_matrix( spat_cov, geom):
-    posistion = geom[np.arange(geom.shape[0])]
+def get_cov_matrix(spat_cov, geom):
+    posistion = geom
     dist_matrix = dist.squareform(dist.pdist(geom ))
 
     cov_matrix = np.zeros((posistion.shape[0], posistion.shape[0]))
 
     for i in range(posistion.shape[0]):
         for j in range(posistion.shape[0]):
-            if dist_matrix[i, j] > 150:
+            if dist_matrix[i, j] > np.max(spat_cov[:, 1]):
                 cov_matrix[i, j] = 0
                 continue
-            cov_matrix[i, j] = spat_cov[np.where(spat_cov[:, 0]  == dist_matrix[i, j])[0], 1]
+            cov_matrix[i, j] = spat_cov[np.where(spat_cov[:, 1]  == dist_matrix[i, j])[0], 0]
     return cov_matrix
-
 
 #Soft assign object
 
