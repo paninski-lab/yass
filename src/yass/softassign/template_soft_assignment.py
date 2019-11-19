@@ -130,10 +130,10 @@ class TEMPLATE_ASSIGN_OBJECT(object):
     def get_similar(self):
         max_time = self.templates.argmax(1).astype("int16")
         padded_templates = np.concatenate((np.zeros((self.n_units, 5, self.rec_chans)), self.templates, np.zeros((self.n_units, 5, self.rec_chans))), axis = 1)
-        reduced = np.zeros((self.templates.shape[0], 5, 512))
+        reduced = np.zeros((self.templates.shape[0], 5, self.rec_chans))
         for unit in range(self.n_units):
             print(unit)
-            for chan in range(512):
+            for chan in range(self.rec_chans):
                 reduced[unit, :,  chan] = padded_templates[unit, (5 +max_time[unit, chan] - 2):(5 + max_time[unit, chan] + 3), chan]
 
         see = dist.squareform(dist.pdist(reduced.reshape(self.n_units, self.n_channels*5)))
