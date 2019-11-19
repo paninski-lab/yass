@@ -74,5 +74,6 @@ def run(template_fname,
     # compuate soft assignment
     np.save(prob_fname, replace_probs)
     np.save(outlier_fname, outliers)
+    np.save(TAO.log_probs)
     return prob_fname, outlier_fname, TAO.log_probs
     
