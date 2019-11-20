@@ -140,7 +140,7 @@ class SOFTNOISEASSIGNMENT(object):
         shifted_templates = torch.zeros((len(shifts), n_times, self.n_neigh_chans)).cuda()
         for j in range(len(idx_run)-1):
             ii_start = idx_run[j]
-            ii_end =idx_run[j+1]
+            ii_end = idx_run[j+1]
             obj = torch.zeros(self.n_neigh_chans, (ii_end-ii_start)*n_times).cuda()
             times = torch.arange(0, (ii_end-ii_start)*n_times, n_times).long().cuda()
             deconv.subtract_splines(obj,

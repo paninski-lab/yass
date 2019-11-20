@@ -30,7 +30,7 @@ import yass
 from yass import set_config
 from yass import read_config
 from yass import (preprocess, detect, cluster, postprocess,
-                  deconvolve, residual, noise, merge, rf, visual)
+                  deconvolve, residual, soft_assignment, merge, rf, visual)
 #from yass.template import update_templates
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
@@ -309,7 +309,7 @@ def iterative_block(TMP_FOLDER,
     if False:
         
         logger.info('SOFT NOISE ASSIGNMENT')
-        fname_soft_assignment = noise.run(
+        fname_soft_assignment = soft_assignment.run(
             fname_templates,
             fname_spike_train,
             fname_shifts,
@@ -401,7 +401,7 @@ def pre_final_deconv(TMP_FOLDER,
         run_chunk_sec=run_chunk_sec)
 
     logger.info('SOFT NOISE ASSIGNMENT')
-    fname_soft_assignment = noise.run(
+    fname_soft_assignment = soft_assignment.run(
         fname_templates,
         fname_spike_train,
         fname_shifts,
@@ -488,7 +488,7 @@ def final_deconv(TMP_FOLDER,
         run_chunk_sec=run_chunk_sec)
 
     logger.info('SOFT NOISE ASSIGNMENT')
-    fname_soft_assignment = noise.run(
+    fname_soft_assignment = soft_assignment.run(
         fname_templates,
         fname_spike_train,
         fname_shifts,

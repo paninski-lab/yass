@@ -5,7 +5,7 @@ import numpy as np
 from yass import read_config
 from yass.reader import READER
 from yass.neuralnetwork.model_detector import Detect
-from yass.noise.soft_assignment import SOFTNOISEASSIGNMENT
+from yass.soft_assignment.noise import SOFTNOISEASSIGNMENT
 
 def run(template_fname,
         spike_train_fname,
