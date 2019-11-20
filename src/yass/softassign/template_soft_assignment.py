@@ -384,9 +384,22 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         return probs
     
     def run(self):
+        
+        #construct array to identify soft assignment units
+        unit_assignment = np.zeros((self.spike_train_og.shape[0], self.sim_units))
+        for unit in self.spike_train_og.shape[0]:
+            row_idx= self.spike_train_og[:, 1] == unit
+            unit_assignment[row_idx, :] = self.similar_array[unit, :]
+        
+        
         log_probs = self.compute_soft_assignment()
         probs = self.get_assign_probs(log_probs)
         replace_probs = np.zeros((self.spike_train_og.shape[0], self.sim_units))
+        replace_log = np.zeros((self.spike_train_og.shape[0],self.sim_units))
+        
         replace_probs[:, 0] = 1
         replace_probs[self.idx_included, :] = probs
-        return replace_probs, probs
+        
+        replace_log[self.idx_included, :] = log_probs
+        
+        return replace_probs, probs, log_probs, unit_assignment
