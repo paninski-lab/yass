@@ -550,3 +550,49 @@ def shift_chans(wf, best_shifts):
         wfs_final[k] = temp
     
     return wfs_final
+
+
+def fix_template_edges(templates, w=None, config=None):
+    """zero pads around the template edges"""
+    if config is not None:
+        s_rate = config.recordings.sampling_rate // 1000
+        w = (config.deconvolution.padding_center_length * s_rate) // 2
+    print("hooshmand cutoff length:{}".format(w))
+    n_unit, n_chan, n_time = templates.shape
+    temps = np.pad(templates, ((0, 0), (0, 0), (w, w)), 'constant')
+    idx = np.ravel(temps.argmin(axis=2))
+    # Get a window outside of the minimum and set it to zero
+    idx_dim_1 = np.arange(n_unit).repeat(n_chan * n_time)
+    idx_dim_2 = np.tile(np.arange(n_chan), n_unit).repeat(n_time)
+    idx_dim_3 = (idx + np.arange(w, w + n_time)[:, None]).T.flatten() % (n_time + 2 * w)
+    temps[idx_dim_1, idx_dim_2, idx_dim_3] = 0
+
+    return temps[..., w:-w]
+
+
+def fix_template_edges_by_file(fname_templates, config, perm=[0, 2, 1]):
+    """
+    Given a template .npy file it fixes the edges.
+
+    input:
+    fname_template: str
+        Template .npy file name that has to be altered to fix the edges.
+    config: Config
+    perm: list of int size 3
+        How to numpy.ndarray.permute the template to get the order
+        #units, #channels, #timesteps. The default mode handles many of the
+        current formats.
+    """
+    if config.recordings.spike_size_ms <= config.deconvolution.padding_center_length:
+        # does nothing
+        return
+    templates = np.load(fname_templates)
+    print("hooshmand:{}".format(templates.shape))
+    if perm is not None:
+        templates = templates.transpose(perm)
+    temps = fix_template_edges(templates, config=config)
+    print("hooshmand:{}".format(templates.shape))
+    if perm is not None:
+        templates = templates.transpose(perm)
+    np.save(fname_templates, templates)
+    print("hooshmand:{}".format(templates.shape))
