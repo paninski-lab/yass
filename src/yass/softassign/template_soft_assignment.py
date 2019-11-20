@@ -387,7 +387,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         
         #construct array to identify soft assignment units
         unit_assignment = np.zeros((self.spike_train_og.shape[0], self.sim_units))
-        for unit in range(self.spike_train_og.shape[0]):
+        for unit in range(self.n_units):
             row_idx= self.spike_train_og[:, 1] == unit
             unit_assignment[row_idx, :] = self.similar_array[unit, :]
         
