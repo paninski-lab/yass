@@ -81,6 +81,6 @@ def run(template_fname,
     np.save(prob_fname, replace_probs)
     np.save(outlier_fname, outliers)
     np.save(logprobs_fname, logprobs)
-    
-    return prob_fname, outlier_fname, logprobs_fname, unit_assignment
+    np.save(unitsassign_fname, unit_assignment)
+    return prob_fname, outlier_fname, logprobs_fname, unitsassign_fname
     
