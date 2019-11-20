@@ -402,4 +402,4 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         
         replace_log[self.idx_included, :] = log_probs
         
-        return replace_probs, probs, log_probs, unit_assignment
+        return replace_probs, probs, replace_log, unit_assignment
