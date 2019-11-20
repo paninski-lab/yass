@@ -33,8 +33,10 @@ def run(template_fname,
     prob_fname = os.path.join(output_directory, 'template_soft_assignment.npy')
     outlier_fname = os.path.join(output_directory, 'outliers.npy')
     logprobs_fname = os.path.join(output_directory, 'logprobs_fname.npy')
+    unitsassign_fname = os.path.join(output_directory, 'unit_assignment.npy')
+
     if os.path.exists(prob_fname):
-        return prob_fname, outlier_fname, logprobs_fname
+        return prob_fname, outlier_fname, logprobs_fname, unit_assignment
 
     # output folder
     if not os.path.exists(output_directory):
@@ -66,7 +68,7 @@ def run(template_fname,
      temp_thresh= similarity_threshold, 
      lik_window = window_size)
     
-    replace_probs, probs = TAO.run()
+    replace_probs, probs, logprobs, unit_assignment = TAO.run()
     #outlier spike times/units
     cpu_sps = TAO.spike_train.cpu().numpy()
     chi2_df = (2*(window_size //2) + 1)*10
@@ -74,11 +76,11 @@ def run(template_fname,
     outliers = cpu_sps[np.where(TAO.log_probs.min(1) > cut_off)[0], :]
     
     #append log_probs to spike_times
-    logprobs = np.concatenate((cpu_sps,TAO.log_probs), axis = 1)
+    #logprobs = np.concatenate((cpu_sps,TAO.log_probs), axis = 1)
     # compuate soft assignment
     np.save(prob_fname, replace_probs)
     np.save(outlier_fname, outliers)
     np.save(logprobs_fname, logprobs)
     
-    return prob_fname, outlier_fname, logprobs_fname
+    return prob_fname, outlier_fname, logprobs_fname, unit_assignment
     
