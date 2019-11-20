@@ -89,7 +89,6 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.chan_list = []
         
         for i in range(0, self.sim_units):
-            print(i)
             diff_array = np.zeros((self.n_units, self.n_times, self.n_chans))
             for j in range(0, self.n_units):
                 diff_array[j] = self.subtract_template(j, self.similar_array[j, i])
@@ -132,7 +131,6 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         padded_templates = np.concatenate((np.zeros((self.n_units, 5, self.rec_chans)), self.templates, np.zeros((self.n_units, 5, self.rec_chans))), axis = 1)
         reduced = np.zeros((self.templates.shape[0], 5, self.rec_chans))
         for unit in range(self.n_units):
-            print(unit)
             for chan in range(self.rec_chans):
                 reduced[unit, :,  chan] = padded_templates[unit, (5 +max_time[unit, chan] - 2):(5 + max_time[unit, chan] + 3), chan]
 
