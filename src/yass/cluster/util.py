@@ -844,7 +844,8 @@ def connecting_points(min_times, min_channels, index, neighbors, t_diff = 5, kee
         return keep
 
 
-def denoise_then_estimate_template(fname_template,
+def denoise_then_estimate_template(save_dir,
+                                   fname_template,
                                    fname_spike_train,
                                    reader,
                                    denoiser,
@@ -872,12 +873,13 @@ def denoise_then_estimate_template(fname_template,
     r2 = CONFIG.spike_size_nn//2
     
     k_idx = np.where(n_spikes < n_max_spikes)[0]
+    #k_idx = np.arange(n_units)
     for k in k_idx:
         # step 1: get min points that are valid (can be connected from the max channel)
-        min_times, min_channels =argrelmin(templates[k], axis=0, order=5)
+        min_times, min_channels = argrelmin(templates[k], axis=0, order=5)
         min_val = templates[k][min_times, min_channels]
 
-        th = np.max((-1, np.min(templates[k])))
+        th = np.max((-0.5, np.min(templates[k])))
         min_times = min_times[min_val <= th]
         min_channels = min_channels[min_val <= th]
 
@@ -917,10 +919,11 @@ def denoise_then_estimate_template(fname_template,
         if R2*2+1 > n_times:
             templates[k] = temp[R2-n_times//2:R2+n_times//2+1]
         else:
-            templates[k,(n_times//2)-R2:(n_times//2)+R2+1] = temp
-            templates[k,:(n_times//2)-R2] = 0
-            templates[k,(n_times//2)+R2+1:] = 0
-        
-    np.save(fname_template, templates)
+            templates[k, (n_times//2)-R2:(n_times//2)+R2+1] = temp
+            templates[k, :(n_times//2)-R2] = 0
+            templates[k, (n_times//2)+R2+1:] = 0
 
-    return fname_template
+    fname_templates_denoised = os.path.join(save_dir, 'templates_denoised.npy')
+    np.save(fname_templates_denoised, templates)
+
+    return fname_templates_denoised

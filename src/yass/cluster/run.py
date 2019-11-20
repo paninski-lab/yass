@@ -231,13 +231,14 @@ def run(output_directory,
 
     # denoise wfs before computing templates for low fr units
     logger.info("re-estimate templates of low firing rate units")
-    fname_templates_out = denoise_then_estimate_template(
-        fname_templates_out,
-        fname_spike_train_out,
-        reader_raw,
-        denoiser,
-        CONFIG,
-        n_max_spikes=100)
+    #fname_templates_out = denoise_then_estimate_template(
+    #    output_directory,
+    #    fname_templates_out,
+    #    fname_spike_train_out,
+    #    reader_raw,
+    #    denoiser,
+    #    CONFIG,
+    #    n_max_spikes=100)
         
     fname_templates_out = sharpen_templates(fname_templates_out)
 
