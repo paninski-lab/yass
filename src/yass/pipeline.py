@@ -165,7 +165,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
      fname_spike_train,
      fname_soft_assignment, 
      fname_template_soft_assignment, 
-     fname_outliers, fname_log_probs)= final_deconv(
+     fname_outliers, fname_log_probs, fname_unitassign)= final_deconv(
         os.path.join(TMP_FOLDER, 'final_deconv'),
         standardized_path,
         standardized_dtype,
@@ -501,7 +501,7 @@ def final_deconv(TMP_FOLDER,
         residual_dtype)
         
     logger.info('TEMPLATE SOFT ASSIGNMENT')
-    fname_template_soft_assignment, fname_outliers, fname_log_probs = softassign.run(
+    fname_template_soft_assignment, fname_outliers, fname_log_probs,fname_unitassign = softassign.run(
         template_fname = fname_templates,
         spike_train_fname = fname_spike_train,
         shifts_fname = fname_shifts,
@@ -517,4 +517,4 @@ def final_deconv(TMP_FOLDER,
             fname_spike_train,
             fname_soft_assignment, 
             fname_template_soft_assignment,
-            fname_outliers, fname_log_probs)
+            fname_outliers, fname_log_probs, fname_unitassign)
