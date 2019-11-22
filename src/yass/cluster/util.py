@@ -54,6 +54,7 @@ def make_CONFIG2(CONFIG):
     CONFIG2.cluster.min_fr = CONFIG.cluster.min_fr
 
     CONFIG2.spike_size = CONFIG.spike_size
+    CONFIG2.center_spike_size = CONFIG.center_spike_size
     CONFIG2.spike_size_nn = CONFIG.spike_size_nn
 
     CONFIG2.neuralnetwork.apply_nn = CONFIG.neuralnetwork.apply_nn
@@ -844,8 +845,7 @@ def connecting_points(min_times, min_channels, index, neighbors, t_diff = 5, kee
         return keep
 
 
-def denoise_then_estimate_template(save_dir,
-                                   fname_template,
+def denoise_then_estimate_template(fname_template,
                                    fname_spike_train,
                                    reader,
                                    denoiser,
@@ -923,7 +923,9 @@ def denoise_then_estimate_template(save_dir,
             templates[k, :(n_times//2)-R2] = 0
             templates[k, (n_times//2)+R2+1:] = 0
 
-    fname_templates_denoised = os.path.join(save_dir, 'templates_denoised.npy')
-    np.save(fname_templates_denoised, templates)
+    #fname_templates_denoised = os.path.join(save_dir, 'templates_denoised.npy')
+    #np.save(fname_templates_denoised, templates)
 
-    return fname_templates_denoised
+    np.save(fname_template, templates)
+
+    return fname_template

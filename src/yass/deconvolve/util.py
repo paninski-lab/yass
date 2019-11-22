@@ -38,6 +38,7 @@ def make_CONFIG2(CONFIG):
     CONFIG2.neigh_channels = CONFIG.neigh_channels
 
     CONFIG2.spike_size = CONFIG.spike_size
+    CONFIG2.center_spike_size = CONFIG.center_spike_size
     CONFIG2.spike_size_nn = CONFIG.spike_size_nn
     
     CONFIG2.deconvolution.threshold = CONFIG.deconvolution.threshold
