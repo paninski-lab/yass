@@ -22,6 +22,7 @@ from yass.neuralnetwork import Denoise
 from yass import mfm
 from yass.merge.merge import (test_merge, run_ldatest, run_diptest)
 from yass.cluster.cluster import knn_triage
+from yass.residual.residual_gpu import RESIDUAL_DRIFT
 
 from yass.visual.util import binary_reader_waveforms
 
@@ -669,6 +670,12 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
     return d_gpu, fname_updated_templates
     
     
+def compute_residual_drift(d_gpu):
+
+    RESIDUAL_DRIFT(d_gpu)
+    
+        
+    
 def track_spikes_post_deconv(d_gpu, 
                              CONFIG, 
                              time_index, 
@@ -721,21 +728,47 @@ def track_spikes_post_deconv(d_gpu,
     except:
         pass
     
+
+
+    # *********************************************************
+    # **************** COMPUTE RESIDUALS **********************
+    # *********************************************************
+
+    # print ("Calling residual computation during drift: ") 
+    # res = compute_residual_drift(d_gpu)
+
+
+
+
+
+
+    # *********************************************************
+    # **************** SAVE SPIKE SHAPES **********************
+    # *********************************************************
+
     spike_train_array = []
 
     max_percent_update = d_gpu.max_percent_update
-    
-    unit_test = 53400
-    # Cat: TODO: read debug from CONFIG
-    #           - debug here saves ptp and other metadata for drift model;
-    #           - important for debugging
-            
+
+    # set to large value when not debugging    
+    unit_test = 53400  
+
     # GPU version of weighted computation
     d_gpu.temps_cuda = torch.from_numpy(d_gpu.temps).cuda()  #torch(d_gpu.temps).cuda
     data = d_gpu.data
     snipit = torch.arange(0,d_gpu.temps.shape[1],1).cuda() 
     wfs_empty = np.zeros((d_gpu.temps.shape[1],d_gpu.temps.shape[0]),'float32')
-    #total_spikes = 0
+    
+    # Cat: TODO read from config; 
+    multi_chan_rank1 = False
+    
+    # minimum amount in SU units that spike can be different at peak/trough before being
+    #   triaged/rejected for template update
+    max_diff_peaks = 1.0
+    
+    # minimum amount in SU units that spike ptp can be different at fixed peak/trough before
+    #   being rejected
+    max_diff_ptp = 3.0 
     
     for unit in units:
         # 
@@ -746,7 +779,7 @@ def track_spikes_post_deconv(d_gpu,
         shifts = shifts_array[idx]
         
         # get indexes of spikes that are not too close to end; 
-        #       note: spiketimes are relative to current chunk; i.e. start at 0
+        #     note: spiketimes are relative to current chunk; i.e. start at 0
         idx2 = torch.where(times<(data.shape[1]-d_gpu.temps.shape[1]), times*0+1, times*0)
         idx2 = torch.nonzero(idx2)[:,0]
         times = times[idx2]
@@ -766,16 +799,34 @@ def track_spikes_post_deconv(d_gpu,
                                     transpose(0,1).transpose(1,2)[:,None]
             
             # select max channel spikes only from 4D tensor
-            wf_torch = wfs_temp_original[:,0,:,d_gpu.max_chans[unit]]
-            wfs_temp_original_array.append(wf_torch.cpu().data.numpy())
+            if multi_chan_rank1:
+                # keep all channels
+                wf_torch = wfs_temp_original[:,0,:,:]
+            else:
+                wf_torch = wfs_temp_original[:,0,:,d_gpu.max_chans[unit]]
+
             
             # *********************************************************
             # **************** NN DENOISE STEP ************************
             # *********************************************************
-            # not used any longer
+            # not used at this time;
+            # convert data to cpu 
             denoised_wfs = wf_torch.cpu().data.numpy()
-            template_original_denoised = d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit].cpu().data.numpy()
 
+            # save data for post-run debugging; 
+            # Cat: TODO this is a large file, can eventually erase it;
+            # saving only max channel data -not whole file
+            print ("denoised_wfs: ", denoised_wfs.shape)
+            if multi_chan_rank1:
+                wfs_temp_original_array.append(denoised_wfs[:,:,d_gpu.max_chans[unit]])
+            else:
+                wfs_temp_original_array.append(denoised_wfs)
+            
+            if multi_chan_rank1:
+                template_original_denoised = d_gpu.temps_cuda[:,:,unit].cpu().data.numpy()
+            else:
+                template_original_denoised = d_gpu.temps_cuda[d_gpu.max_chans[unit],:,unit].cpu().data.numpy()
+                
 
             # *********************************************************
             # ************ USE DECONV SHIFTS TO ALIGN SPIKES **********
@@ -785,62 +836,113 @@ def track_spikes_post_deconv(d_gpu,
                 if shifts.shape[0]==1:
                     shifts = shifts[:,None]
                 wfs_temp_aligned = shift_chans(denoised_wfs, -shifts)
+
+                print ("wfs_temp_aligned: ", wfs_temp_aligned.shape)
                 wfs_temp_aligned_array.append(wfs_temp_aligned)
             else:
                 wfs_temp_aligned = denoised_wfs
                 wfs_temp_aligned_array.append(wfs_temp_aligned)
 
-
+            
             # *********************************************************
             # ************ COMPUTE THRESHOLDS FOR TRIAGE **************
             # *********************************************************
-
             # Grab ptps from wfs using previously computed ptp_max and ptp_min values in ptp_locs
             # exclude ptps that are > or < than 20% than the current template ptp
+            
+            # STEP 1: compute the boundaries on thresholds
+            # select +/- 10% of waveform or +/- 1SU whichever is larger
+            if multi_chan_rank1:
+                template_at_peak = d_gpu.max_temp_array[unit] 
+                template_at_trough = d_gpu.min_temp_array[unit] 
+                # print ("template_at_peak: ", template_at_peak.shape)
+                # print ("template_at_peak: ", template_at_peak)
 
-            # OPTION 1: exclude spikes that have PTP outside of threshold
-            start = dt.datetime.now().timestamp()
-            #if nn_denoise==True:
-            ptp_template_original_denoised = template_original_denoised.ptp(0)
+                # define the max_threshold based on peak locations
+                max_thresh_dynamic = [] # np.zeros(d_gpu.temps.shape[2])
+                min_thresh_dynamic = [] # np.zeros(d_gpu.temps.shape[2])
+                for c in range(d_gpu.temps.shape[0]):
+                    max_thresh_dynamic.append([max(template_at_peak[c]*(1+max_percent_update),
+                                                 template_at_peak[c]+max_diff_peaks),
+                                             min(template_at_peak[c]*(1-max_percent_update),
+                                                 template_at_peak[c]-max_diff_peaks)
+                                            ])
+
+                    min_thresh_dynamic.append([min(template_at_trough[c]*(1+max_percent_update),
+                                              template_at_trough[c]+max_diff_peaks),
+                                             max(template_at_trough[c]*(1-max_percent_update),
+                                               template_at_trough[c]-max_diff_peaks)
+                                            ])
+                    
+                # 
+                max_thresh_dynamic = np.vstack(max_thresh_dynamic)
+                min_thresh_dynamic = np.vstack(min_thresh_dynamic)
+                
+                #                 
+                
+                print ("template_original_denoised: ", template_original_denoised.shape)
+                
+                # this will give ptp on each of the channels
+                ptp_template_original_denoised = template_original_denoised.ptp(1)
             
-            # select +/- 10% of waveform or +/- - 1SU whichever is larger
-            template_at_peak = template_original_denoised[d_gpu.ptp_locs[unit][0]]
-            template_at_trough = template_original_denoised[d_gpu.ptp_locs[unit][1]]
+                # select +/- 10% of waveform or +/- 3SU whichever is larger
+                ptp_thresh_dynamic = []
+                for c in range(d_gpu.temps.shape[0]):
+                    ptp_thresh_dynamic.append([max(ptp_template_original_denoised[c]*(1+max_percent_update),
+                                                  ptp_template_original_denoised[c]+max_diff_ptp),
+                                              min(ptp_template_original_denoised[c]*(1-max_percent_update),
+                                                  ptp_template_original_denoised[c]-max_diff_ptp)
+                                             ])
+                ptp_thresh_dynamic = np.array(ptp_thresh_dynamic)
+                print ("ptp_thresh_dynamic: ", ptp_thresh_dynamic)
+                
+            else:
+                template_at_peak = template_original_denoised[d_gpu.ptp_locs[unit][0]]
+                template_at_trough = template_original_denoised[d_gpu.ptp_locs[unit][1]]
+                
+                max_thresh_dynamic = [max(template_at_peak*(1+max_percent_update),template_at_peak+max_diff_peaks),
+                                      min(template_at_peak*(1-max_percent_update),template_at_peak-max_diff_peaks)
+                                     ]
+                                            
+                min_thresh_dynamic = [min(template_at_trough*(1+max_percent_update),template_at_trough+max_diff_peaks),
+                                      max(template_at_trough*(1-max_percent_update),template_at_trough-max_diff_peaks)
+                                     ]
+                
+                # threshold also using ptp of template
+                # note this makes either a single channel template or multi-chan template;
+                ptp_template_original_denoised = template_original_denoised.ptp(0)
             
-            max_thresh_dynamic = [max(template_at_peak*(1+max_percent_update),template_at_peak+1.0),
-                                  min(template_at_peak*(1-max_percent_update),template_at_peak-1.0)
-                                 ]
-                                        
-            min_thresh_dynamic = [min(template_at_trough*(1+max_percent_update),template_at_trough+1.0),
-                                  max(template_at_trough*(1-max_percent_update),template_at_trough-1.0)
-                                 ]
-            
-            ptp_thresh_dynamic = [max(ptp_template_original_denoised*(1+max_percent_update),
-                                     ptp_template_original_denoised+3.0),
-                                  min(ptp_template_original_denoised*(1-max_percent_update),
-                                     ptp_template_original_denoised-3.0)
-                                  ]
+                # select +/- 10% of waveform or +/- 3SU whichever is larger
+                ptp_thresh_dynamic = [max(ptp_template_original_denoised*(1+max_percent_update),
+                                         ptp_template_original_denoised+max_diff_ptp),
+                                      min(ptp_template_original_denoised*(1-max_percent_update),
+                                         ptp_template_original_denoised-max_diff_ptp)
+                                      ]
                                      
-                                  
+
             # *************************************************************
             # **** OPTION #2: Maxes/Mins at fixed poitns + PTP LIMITS *****
             # *************************************************************
-            # if False:
-                # maxes = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]]
-                # mins = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]]
-            # else:
-            
             # search the immediate vicinity of the peaks: -1..+1 (not just exact peak)
             # this makes it more noisy - but helps avoid alignment/denoising steps
-            if False:
-                maxes = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]-1:d_gpu.ptp_locs[unit][0]+2].max(1)
-                mins = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]-1:d_gpu.ptp_locs[unit][1]+2].min(1)
+            # if False:
+                # maxes = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]-1:d_gpu.ptp_locs[unit][0]+2].max(1)
+                # mins = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]-1:d_gpu.ptp_locs[unit][1]+2].min(1)
             
             # search just specific peak
+            
+            if multi_chan_rank1:
+                maxes = []
+                mins = []
+                print ("d_gpu.max_temp_array: ", d_gpu.max_temp_array.shape)
+                for c in range(d_gpu.temps.shape[0]):
+                    maxes.append(wfs_temp_aligned[:,c,d_gpu.max_temp_array[unit,c]])
+                    mins.append(wfs_temp_aligned[:,c,d_gpu.min_temp_array[unit,c]])
             else:
                 maxes = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]]
                 mins = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]]
             
+            print ("maxes: ", maxes)
             
             # save ptps for all spike waveforms at selected time points                    
             ptp_all = (maxes-mins)
@@ -849,6 +951,7 @@ def track_spikes_post_deconv(d_gpu,
             # also compute ptps blindly over all waveforms at all locations
             #       - this could be improved by limiting to a window between through and peak...
             ptps_dumb = wfs_temp_aligned.ptp(1)
+
 
             # *************************************************************
             # ************** FIND POINTS WITHIN THRESHOLDS ****************
@@ -882,7 +985,7 @@ def track_spikes_post_deconv(d_gpu,
             
         
             # DEBUG PRINTOUT FOR DRIFT MODEL for a particular unit;
-            #  please leave here as we go forward
+            #  do not remove
             if unit==unit_test:
 
                 print ("UNIT: ", unit)
@@ -1432,7 +1535,7 @@ def update_templates_GPU(d_gpu,
         
         # exclude buffer; technically should exclude both start and ends
         #       note: spiketimes are relative to current chunk; i.e. start at 0
-        idx2 = torch.where(times<data.shape[1], times*0+1, times*0)
+        idx2 = torch.where(times < data.shape[1], times*0+1, times*0)
         idx2 = torch.nonzero(idx2)[:,0]
         
         # grab waveforms; need to add a time point to data
