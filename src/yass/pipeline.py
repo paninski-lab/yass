@@ -30,7 +30,7 @@ import yass
 from yass import set_config
 from yass import read_config
 from yass import (preprocess, detect, cluster, postprocess,
-                  deconvolve, residual, soft_assignment, merge, rf, visual)
+                  deconvolve, residual, soft_assignment, merge, rf, visual, phy)
 #from yass.template import update_templates
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
@@ -38,7 +38,9 @@ from yass.util import (load_yaml, save_metadata, load_logging_config_file,
 
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
-        complete=False, calculate_rf=False, visualize=False, set_zero_seed=False):
+        complete=False, calculate_rf=False, visualize=False, set_zero_seed=False,
+        generate_phy=True):
+            
     """Run YASS built-in pipeline
 
     Parameters
@@ -191,6 +193,15 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     total_time = time.time() - start
 
+    ''' **********************************************
+        ************** GENERATE PHY FILES ************
+        **********************************************
+    '''
+    
+    if generate_phy:
+        phy.run(CONFIG)
+    
+        
     ''' **********************************************
         ************** RF / VISUALIZE ****************
         **********************************************
