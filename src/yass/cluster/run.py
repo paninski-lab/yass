@@ -27,6 +27,8 @@ def run(output_directory,
         fname_spike_index=None,
         fname_templates=None,
         fname_spike_train=None,
+        fname_shifts=None,
+        fname_scales=None,
         raw_data=True,
         full_run=False):
 
@@ -137,10 +139,16 @@ def run(output_directory,
      fname_labels,
      fname_labels_input) = run_split_on_ptp(
         os.path.join(output_directory, 'ptp_split'),
-        fname_spike_index, CONFIG2,
-        raw_data, fname_labels_input,
-        fname_templates, reader_raw, 
-        reader_resid, denoiser)
+        fname_spike_index,
+        CONFIG2,
+        raw_data,
+        fname_labels_input,
+        fname_templates,
+        fname_shifts,
+        fname_scales,
+        reader_raw,
+        reader_resid,
+        denoiser)
 
     ############################################
     #### STAGE 2: LOCAL + DISTANT CLUSTERING ###
@@ -155,6 +163,8 @@ def run(output_directory,
         fname_spike_index,
         fname_labels_input,
         fname_templates,
+        fname_shifts,
+        fname_scales,
         reader_raw,
         reader_resid,
         CONFIG2)
@@ -167,6 +177,10 @@ def run(output_directory,
         logger.info("denoise")
         denoise_wf(fnames_input)
     
+    #if raw_data:
+    # align if raw data
+    # no need to align for clean waveforms
+    # because input shift is already used for alignment
     logger.info("align waveforms on local channels")
     align_waveforms(fnames_input, CONFIG2)
 

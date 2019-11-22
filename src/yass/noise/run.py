@@ -10,6 +10,7 @@ from yass.noise.soft_assignment import SOFTNOISEASSIGNMENT
 def run(template_fname,
         spike_train_fname,
         shifts_fname,
+        scales_fname,
         output_directory,
         residual_fname,
         residual_dtype):
@@ -42,7 +43,7 @@ def run(template_fname,
 
     # initialize soft assignment calculator
     threshold = CONFIG.deconvolution.threshold/0.1
-    sna = SOFTNOISEASSIGNMENT(spike_train_fname, template_fname, shifts_fname,
+    sna = SOFTNOISEASSIGNMENT(spike_train_fname, template_fname, shifts_fname, scales_fname,
                               reader_resid, detector, CONFIG.channel_index, threshold)
 
     # compuate soft assignment

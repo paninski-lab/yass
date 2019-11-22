@@ -199,7 +199,7 @@ class deconvGPU(object):
         # # Cat: TODO we should dissable all non-SVD options?!
         # else:
             # self.compute_temp_temp()
-   
+
         # move data to gpu
         self.data_to_gpu()
                 
@@ -208,7 +208,12 @@ class deconvGPU(object):
 
         # conver templates to bpslines
         self.templates_to_bsplines()
-            
+        
+        # large units for height fit
+        if self.fit_height:
+            self.large_units = np.where(self.ptps > self.fit_height_ptp)[0]
+            self.large_units = torch.from_numpy(self.large_units).cuda()
+
     def run(self, chunk_id):
         
         #
@@ -219,6 +224,7 @@ class deconvGPU(object):
         self.spike_array = []
         self.neuron_array = []
         self.shift_list = []
+        self.height_list = []
         self.add_spike_temps = []
         self.add_spike_times = []
         
@@ -621,22 +627,8 @@ class deconvGPU(object):
         torch.cuda.synchronize()
         
         # compute objective function = 2 x Convolution term - norms
-        if self.fit_height:
-            height_mu = torch.sqrt(self.norm)
-            height_est = (self.obj_gpu + self.height_penalty)*height_mu/(self.norm + self.height_penalty)
-            for k in range(self.K):
-                height_est[k,height_est[k] < height_mu[k]*(1-self.max_diff)] =  height_mu[k]*(1-self.max_diff)
-                height_est[k,height_est[k] > height_mu[k]*(1+self.max_diff)] =  height_mu[k]*(1+self.max_diff)
-            a = 1 + self.height_penalty/self.norm
-            b = (self.obj_gpu + self.height_penalty)/height_mu
-            self.obj_gpu = -a*(height_est**2) + 2*b*height_est - self.height_penalty
-            #height_est
-            #self.obj_gpu = np.square(
-            #    self.obj_gpu + self.height_penalty)/(
-            #    self.norm + self.height_penalty) - self.heigh_penalty
-        else:
-            self.obj_gpu *= 2.
-            self.obj_gpu -= self.norm
+        self.obj_gpu *= 2.
+        self.obj_gpu -= self.norm
 
         if self.verbose:
             print ("Total time obj func (run every chunk): ", np.round(dt.datetime.now().timestamp()-start,2),"sec")
@@ -658,14 +650,14 @@ class deconvGPU(object):
             idx = torch.nonzero(idx)[:,0]
             self.obj_gpu[k][idx]=-float("Inf")
         
-            
+
     def save_spikes(self):
         # # save offset of chunk time; spiketimes and neuron ids
         self.offset_array.append(self.offset)
         self.spike_array.append(self.spike_times[:,0])
         self.neuron_array.append(self.neuron_ids[:,0])
         self.shift_list.append(self.xshifts)
-        
+        self.height_list.append(self.heights)
                 
     def subtraction_step(self):
         
@@ -739,9 +731,11 @@ class deconvGPU(object):
             # **********************************************
             shift_time = self.find_shifts()
             
-            # dummy placeholder
-            self.tempScaling_array = self.xshifts*0+2.0
-                
+            # **********************************************
+            # **************** FIT HEIGHT *****************
+            # **********************************************
+            fit_height_time = self.compute_height()
+
             # **********************************************
             # **************** SUBTRACTION STEP ************
             # **********************************************
@@ -763,7 +757,7 @@ class deconvGPU(object):
                     self.spike_array[self.add_iteration_counter] = self.spike_times[:,0]
                     self.neuron_array[self.add_iteration_counter] = self.neuron_ids[:,0]
                     self.shift_list[self.add_iteration_counter] = self.xshifts
-                
+                    self.height_list[self.add_iteration_counter] = self.heights
                     self.add_iteration_counter+=1
 
             # reset regular spike save after finishing SCD (note: this should be done after final addition/subtraction
@@ -831,7 +825,39 @@ class deconvGPU(object):
         self.xshifts = ((((pts[1]-pts[2])*(-1)-(pts[0]-pts[1])*(-3))/2)/
                   (-2*((pts[0]-pts[1])-(((pts[1]-pts[2])*(-1)-(pts[0]-pts[1])*(-3))/(2)))))-1        
 
+    def compute_height(self):
+        '''  Function that fits quadratic to 3 points centred on each peak of obj_func 
+        '''
         
+        start1 = dt.datetime.now().timestamp()
+
+        if self.fit_height:
+            # get peak value
+            peak_vals = self.quad_interp_3pt(self.threePts.transpose(1,0), self.xshifts)
+
+            # height
+            height = 0.5*(peak_vals/self.norm[self.neuron_ids[:,0], 0] + 1)
+            height[height < 1 - self.max_height_diff] = 1 - self.max_height_diff
+            height[height > 1 + self.max_height_diff] = 1 + self.max_height_diff
+            
+            idx_small_ = ~torch.any(self.neuron_ids == self.large_units[None],1)
+            height[idx_small_] = 1
+            
+            self.heights = height
+            
+        else:
+            self.heights = torch.ones(len(self.xshifts)).cuda()
+
+        return (dt.datetime.now().timestamp()- start1)
+
+
+    def quad_interp_3pt(self, vals, shift):
+        a = 0.5*vals[0] + 0.5*vals[2] - vals[1]
+        b = -0.5*vals[0] + 0.5*vals[2]
+        c = vals[1]
+
+        return a*shift**2 + b*shift + c
+
     def find_peaks(self):
         ''' Function to use torch.max and an algorithm to find peaks
         '''
@@ -919,15 +945,14 @@ class deconvGPU(object):
             spike_times = spike_times[None]
             spike_temps = spike_temps[None]
 
+
         deconv.subtract_splines(
                     self.obj_gpu,
                     spike_times,
                     self.xshifts,
                     spike_temps,
                     self.coefficients,
-                    #self.tempScaling
-                    self.tempScaling_array
-                    )
+                    self.tempScaling*self.heights)
 
         torch.cuda.synchronize()
         
@@ -1005,8 +1030,9 @@ class deconvGPU(object):
         spike_times_list = self.spike_array[self.add_iteration_counter]-self.lockout_window
         spike_ids_list = self.neuron_array[self.add_iteration_counter]
         spike_shifts_list= self.shift_list[self.add_iteration_counter]
+        spike_height_list = self.height_list[self.add_iteration_counter]
 
-        return spike_times_list, spike_ids_list, spike_shifts_list
+        return spike_times_list, spike_ids_list, spike_shifts_list, spike_height_list
         
         
     # def add_cpp(self, idx_iter):
@@ -1068,7 +1094,7 @@ class deconvGPU(object):
         #spike_times, spike_temps, spike_shifts, flag = self.sample_spikes(idx_iter)
         
         # select all spikes from a previous iteration
-        spike_times, spike_temps, spike_shifts = self.sample_spikes_allspikes()
+        spike_times, spike_temps, spike_shifts, spike_heights = self.sample_spikes_allspikes()
 
         torch.cuda.synchronize()
 
@@ -1105,9 +1131,7 @@ class deconvGPU(object):
                             spike_shifts,
                             spike_temps,
                             self.coefficients,
-                            -self.tempScaling_array
-                            #-self.tempScaling
-                            )
+                            -self.tempScaling*spike_heights)
 
         torch.cuda.synchronize()
         

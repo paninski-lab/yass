@@ -7,10 +7,17 @@ import networkx as nx
 from yass.cluster.getptp import GETPTP, GETCLEANPTP
 from yass import mfm
 
-def run_split_on_ptp(savedir, fname_spike_index, CONFIG,
-                     raw_data=True, fname_labels=None,
-                     fname_templates=None, reader_raw=None, 
-                     reader_residual=None, denoiser=None):
+def run_split_on_ptp(savedir,
+                     fname_spike_index,
+                     CONFIG,
+                     raw_data=True,
+                     fname_labels=None,
+                     fname_templates=None,
+                     fname_shifts=None,
+                     fname_scales=None,
+                     reader_raw=None, 
+                     reader_residual=None,
+                     denoiser=None):
 
     logger = logging.getLogger(__name__)
 
@@ -39,6 +46,8 @@ def run_split_on_ptp(savedir, fname_spike_index, CONFIG,
         getcleanptp = GETCLEANPTP(fname_spike_index,
                                   fname_labels,
                                   fname_templates,
+                                  fname_shifts,
+                                  fname_scales,
                                   reader_residual,
                                   denoiser)
         ptp_raw, ptp_deno = getcleanptp.compute_ptps()

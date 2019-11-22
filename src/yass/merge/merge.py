@@ -24,6 +24,7 @@ class TemplateMerge(object):
                  fname_templates,
                  fname_spike_train,
                  fname_shifts,
+                 fname_scales,
                  fname_soft_assignment,
                  fname_spatial_cov,
                  fname_temporal_cov,
@@ -58,6 +59,7 @@ class TemplateMerge(object):
         # spike train, shift, soft assignment
         self.spike_train = np.load(fname_spike_train)
         self.shifts = np.load(fname_shifts)
+        self.scales = np.load(fname_scales)
         self.soft_assignment = np.load(fname_soft_assignment)
         
         # remove edge spikes
@@ -67,6 +69,7 @@ class TemplateMerge(object):
 
         self.spike_train = self.spike_train[idx_in]
         self.shifts = self.shifts[idx_in]
+        self.scales = self.scales[idx_in]
         self.soft_assignment = self.soft_assignment[idx_in]
 
         self.multi_processing = multi_processing
@@ -311,12 +314,14 @@ class TemplateMerge(object):
                 spt1 = self.spike_train[idx1, 0]
                 prob1 = self.soft_assignment[idx1]
                 shift1 = self.shifts[idx1]
+                scale1 = self.scales[idx1]
                 n_spikes1 = self.n_spikes_soft[unit1]
                 
                 idx2 = self.spike_train[:, 1] == unit2
                 spt2 = self.spike_train[idx2, 0]
                 prob2 = self.soft_assignment[idx2]
                 shift2 = self.shifts[idx2]
+                scale2 = self.scales[idx2]
                 n_spikes2 = self.n_spikes_soft[unit2]
                 
                 # randomly subsample
@@ -336,6 +341,8 @@ class TemplateMerge(object):
                 spt2 = spt2[idx2_]
                 shift1 = shift1[idx1_]
                 shift2 = shift2[idx2_]
+                scale1 = scale1[idx1_]
+                scale2 = scale2[idx2_]
 
                 ptp_max = self.ptps[[unit1, unit2]].max(0)
                 mc = ptp_max.argmax()
@@ -347,25 +354,32 @@ class TemplateMerge(object):
                 spt2 += shift_temp
                 
                 # load residuals
-                wfs1 = self.reader_residual.read_waveforms(
-                    spt1, self.spike_size, vis_chan)[0]
-                wfs2 = self.reader_residual.read_waveforms(
-                    spt2, self.spike_size, vis_chan)[0]
+                wfs1, skipped_idx1 = self.reader_residual.read_waveforms(
+                    spt1, self.spike_size, vis_chan)
+                spt1 = np.delete(spt1, skipped_idx1)
+                shift1 = np.delete(shift1, skipped_idx1)
+                scale1 = np.delete(scale1, skipped_idx1)
                 
-                # align clean waveforms
+                wfs2, skipped_idx2 = self.reader_residual.read_waveforms(
+                    spt2, self.spike_size, vis_chan)
+                spt2 = np.delete(spt2, skipped_idx1)
+                shift2 = np.delete(shift2, skipped_idx2)
+                scale2 = np.delete(scale2, skipped_idx2)
+                
+                # align residuals
                 wfs1 = shift_chans(wfs1, -shift1)
                 wfs2 = shift_chans(wfs2, -shift2)
 
                 # make clean waveforms
-                wfs1 += self.templates[unit1, :, vis_chan].T
+                wfs1 += scale1[:, None, None]*self.templates[[unit1], :, vis_chan].T
                 if shift_temp > 0:
-                    temp_2_shfted = self.templates[unit2, shift_temp:, vis_chan].T
-                    wfs2[:, :-shift_temp] += temp_2_shfted
+                    temp_2_shfted = self.templates[[unit2], shift_temp:, vis_chan].T
+                    wfs2[:, :-shift_temp] += scale2[:, None, None]*temp_2_shfted
                 elif shift_temp < 0:
-                    temp_2_shfted = self.templates[unit2, :shift_temp, vis_chan].T
-                    wfs2[:, -shift_temp:] += temp_2_shfted
+                    temp_2_shfted = self.templates[[unit2], :shift_temp, vis_chan].T
+                    wfs2[:, -shift_temp:] += scale2[:, None, None]*temp_2_shfted
                 else:
-                    wfs2 += self.templates[unit2,:,vis_chan].T
+                    wfs2 += scale2[:, None, None]*self.templates[[unit2],:,vis_chan].T
 
                 
                 # compute spatial covariance 
