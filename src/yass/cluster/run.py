@@ -18,6 +18,7 @@ from yass.cluster.util import (make_CONFIG2,
 from yass.cluster.ptp_split import run_split_on_ptp
 from yass.cluster.sharpen import sharpen_templates
 from yass.neuralnetwork import Denoise
+from yass.template import run_template_computation, fix_template_edges_by_file
 
 def run(output_directory,
         fname_recording,
@@ -83,12 +84,6 @@ def run(output_directory,
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
-    # if the output exists and want to skip, just finish
-    fname_templates_out = os.path.join(output_directory, 'templates.npy')
-    fname_spike_train_out = os.path.join(output_directory, 'spike_train.npy')
-    if os.path.exists(fname_templates_out):
-        return fname_templates_out, fname_spike_train_out
-
     # data reader
     reader_raw = READER(fname_recording,
                         recording_dtype,
@@ -116,129 +111,165 @@ def run(output_directory,
     else:
         denoiser = None
 
-    # if clustering on clean waveforms, spike train is given 
-    # => make spike index and labels
-    if fname_spike_index is None:
-        savedir = os.path.join(output_directory, 'spike_index')
-        if not os.path.exists(savedir):
-            os.makedirs(savedir)
+
+    # if the output exists and want to skip, just finish
+    fname_templates_out = os.path.join(output_directory, 'templates.npy')
+    fname_spike_train_out = os.path.join(output_directory, 'spike_train.npy')
+    if not os.path.exists(fname_templates_out):
+    
+        # if clustering on clean waveforms, spike train is given 
+        # => make spike index and labels
+        if fname_spike_index is None:
+            savedir = os.path.join(output_directory, 'spike_index')
+            if not os.path.exists(savedir):
+                os.makedirs(savedir)
+            (fname_spike_index,
+             fname_labels_input) = make_spike_index_from_spike_train(
+                fname_spike_train, fname_templates, savedir)
+
+        else:
+            # if we have spike_index, then we have no initial labels
+            fname_labels_input = None
+
+        #################################
+        #### STAGE 1: Cluster on PTP ####
+        #################################
+
+        logger.info("Split on PTP")
         (fname_spike_index,
-         fname_labels_input) = make_spike_index_from_spike_train(
-            fname_spike_train, fname_templates, savedir)
-    
-    else:
-        # if we have spike_index, then we have no initial labels
-        fname_labels_input = None
+         fname_labels,
+         fname_labels_input) = run_split_on_ptp(
+            os.path.join(output_directory, 'ptp_split'),
+            fname_spike_index,
+            CONFIG2,
+            raw_data,
+            fname_labels_input,
+            fname_templates,
+            fname_shifts,
+            fname_scales,
+            reader_raw,
+            reader_resid,
+            denoiser)
 
-    #################################
-    #### STAGE 1: Cluster on PTP ####
-    #################################
+        ############################################
+        #### STAGE 2: LOCAL + DISTANT CLUSTERING ###
+        ############################################
 
-    logger.info("Split on PTP")
-    (fname_spike_index,
-     fname_labels,
-     fname_labels_input) = run_split_on_ptp(
-        os.path.join(output_directory, 'ptp_split'),
-        fname_spike_index,
-        CONFIG2,
-        raw_data,
-        fname_labels_input,
-        fname_templates,
-        fname_shifts,
-        fname_scales,
-        reader_raw,
-        reader_resid,
-        denoiser)
+        # load and align waveforms
+        logger.info("load waveforms on local channels")
+        units, fnames_input = load_waveforms(
+            os.path.join(output_directory, 'input'),
+            raw_data,
+            fname_labels,
+            fname_spike_index,
+            fname_labels_input,
+            fname_templates,
+            fname_shifts,
+            fname_scales,
+            reader_raw,
+            reader_resid,
+            CONFIG2)
 
-    ############################################
-    #### STAGE 2: LOCAL + DISTANT CLUSTERING ###
-    ############################################
+        if CONFIG.neuralnetwork.apply_nn:
+            logger.info("NN denoise")
+            # denoise it
+            nn_denoise_wf(fnames_input, denoiser, CONFIG.torch_devices)
+        else:
+            logger.info("denoise")
+            denoise_wf(fnames_input)
 
-    # load and align waveforms
-    logger.info("load waveforms on local channels")
-    units, fnames_input = load_waveforms(
-        os.path.join(output_directory, 'input'),
-        raw_data,
-        fname_labels,
-        fname_spike_index,
-        fname_labels_input,
-        fname_templates,
-        fname_shifts,
-        fname_scales,
-        reader_raw,
-        reader_resid,
-        CONFIG2)
+        #if raw_data:
+        # align if raw data
+        # no need to align for clean waveforms
+        # because input shift is already used for alignment
+        logger.info("align waveforms on local channels")
+        align_waveforms(fnames_input, CONFIG2)
 
-    if CONFIG.neuralnetwork.apply_nn:
-        logger.info("NN denoise")
-        # denoise it
-        nn_denoise_wf(fnames_input, denoiser, CONFIG.torch_devices)
-    else:
-        logger.info("denoise")
-        denoise_wf(fnames_input)
-    
-    #if raw_data:
-    # align if raw data
-    # no need to align for clean waveforms
-    # because input shift is already used for alignment
-    logger.info("align waveforms on local channels")
-    align_waveforms(fnames_input, CONFIG2)
+        # save location for intermediate results
+        tmp_save_dir = os.path.join(output_directory, 'cluster_result')
+        if not os.path.exists(tmp_save_dir):
+            os.makedirs(tmp_save_dir)
 
-    # save location for intermediate results
-    tmp_save_dir = os.path.join(output_directory, 'cluster_result')
-    if not os.path.exists(tmp_save_dir):
-        os.makedirs(tmp_save_dir)
+        # Cat: TODO: this parallelization may not be optimally asynchronous
+        # make arg list first
+        args_in = []
+        for ctr, unit in enumerate(units):
 
-    # Cat: TODO: this parallelization may not be optimally asynchronous
-    # make arg list first
-    args_in = []
-    for ctr, unit in enumerate(units):
+            # check to see if chunk + channel already completed
+            filename_postclustering = os.path.join(
+                tmp_save_dir, "cluster_result_{}.npz".format(unit))
 
-        # check to see if chunk + channel already completed
-        filename_postclustering = os.path.join(
-            tmp_save_dir, "cluster_result_{}.npz".format(unit))
+            # skip 
+            if os.path.exists(filename_postclustering):
+                continue
+            args_in.append([raw_data,
+                            full_run,
+                            CONFIG2,
+                            reader_raw,
+                            reader_resid,
+                            filename_postclustering,
+                            fnames_input[ctr]])
 
-        # skip 
-        if os.path.exists(filename_postclustering):
-            continue
-        args_in.append([raw_data,
-                        full_run,
-                        CONFIG2,
-                        reader_raw,
-                        reader_resid,
-                        filename_postclustering,
-                        fnames_input[ctr]])
+        logger.info("starting clustering")
+        if CONFIG.resources.multi_processing:
+            parmap.map(Cluster, args_in, 
+                       processes=CONFIG.resources.n_processors,
+                       pm_pbar=True)
 
-    logger.info("starting clustering")
-    if CONFIG.resources.multi_processing:
-        parmap.map(Cluster, args_in, 
-                   processes=CONFIG.resources.n_processors,
-                   pm_pbar=True)
-
-    else:
-        with tqdm(total=len(args_in)) as pbar:
-            for arg_in in args_in:
-                Cluster(arg_in)
-                pbar.update()
+        else:
+            with tqdm(total=len(args_in)) as pbar:
+                for arg_in in args_in:
+                    Cluster(arg_in)
+                    pbar.update()
 
 
-    # first gather clustering result
-    fname_templates_out, fname_spike_train_out = gather_clustering_result(
-        tmp_save_dir, output_directory)
+        # first gather clustering result
+        fname_templates_out, fname_spike_train_out = gather_clustering_result(
+            tmp_save_dir, output_directory)
 
-    for fname in fnames_input:
-        os.remove(fname)
+        for fname in fnames_input:
+            os.remove(fname)
+        print(fname_templates_out)
 
-    # denoise wfs before computing templates for low fr units
-    logger.info("re-estimate templates of low firing rate units")
-    fname_templates_out = denoise_then_estimate_template(
-        fname_templates_out,
-        fname_spike_train_out,
-        reader_raw,
-        denoiser,
-        CONFIG,
-        n_max_spikes=100)
-        
-    fname_templates_out = sharpen_templates(fname_templates_out)
+    #check_long_temp = os.path.join(output_directory, 'long_template.npy')
+    #if not os.path.exists(check_long_temp):
+    #    logger.info("get longer templates")
+    #    fname_templates_out = run_template_computation(
+    #        output_directory,
+    #        fname_spike_train_out,
+    #        reader_raw,
+    #        spike_size=CONFIG.spike_size,
+    #        multi_processing=CONFIG.resources.multi_processing,
+    #        n_processors=CONFIG.resources.n_processors)
+    #    np.save(check_long_temp, None)
+
+    #check_low_fr_temp = os.path.join(output_directory, 'check_low_fr_template.npy')
+    #if not os.path.exists(check_low_fr_temp):
+    #    if CONFIG.neuralnetwork.apply_nn:
+    #        # denoise wfs before computing templates for low fr units
+    #        logger.info("re-estimate templates of low firing rate units")
+    #        fname_templates_out = denoise_then_estimate_template(
+    #            fname_templates_out,
+    #            fname_spike_train_out,
+    #            reader_raw,
+    #            denoiser,
+    #            CONFIG,
+    #            n_max_spikes=100)
+
+    #    np.save(check_low_fr_temp, None)
+
+    #check_sharpen = os.path.join(output_directory, 'check_sharpen.npy')
+    #if not os.path.exists(check_sharpen):
+    #    logger.info("subsample template alignment")
+    #    fname_templates_out = sharpen_templates(fname_templates_out)
+    #    np.save(check_sharpen, None)
+
+    # zero-out edges
+    #check_zero_out = os.path.join(output_directory, 'check_zero_out.npy')
+    #if not os.path.exists(check_zero_out):
+    #    logger.info("zero out unnecessary parts")
+    #    fix_template_edges_by_file(fname_templates_out,
+    #                               CONFIG.center_spike_size)
+    #    np.save(check_zero_out, None)
 
     return fname_templates_out, fname_spike_train_out

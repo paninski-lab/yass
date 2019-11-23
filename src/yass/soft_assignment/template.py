@@ -48,7 +48,10 @@ def get_cov_matrix(spat_cov, geom):
 
 class TEMPLATE_ASSIGN_OBJECT(object):
     def __init__(self, fname_spike_train, fname_templates, fname_shifts,
-                 reader_residual, spat_cov, temp_cov, channel_idx, geom, large_unit_threshold = 5, n_chans = 5, rec_chans = 512, sim_units = 3, temp_thresh= np.inf, lik_window = 50):
+                 reader_residual, spat_cov, temp_cov, channel_idx, geom,
+                 large_unit_threshold = 5, n_chans = 5, rec_chans = 512,
+                 sim_units = 3, temp_thresh= np.inf, lik_window = 50):
+
         #get the variance of the residual:        
         self.temp_thresh = temp_thresh
         self.rec_chans = rec_chans

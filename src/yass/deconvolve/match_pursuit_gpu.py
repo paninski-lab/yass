@@ -450,6 +450,17 @@ class deconvGPU(object):
             min_temp = self.temps[self.max_chans[k],:,k].argmin(0)
             self.ptp_locs.append([max_temp,min_temp])
         
+        # find max/min ptp arguments for all channels
+        max_temp = self.temps.argmax(1).T
+        min_temp = self.temps.argmin(1).T
+
+        self.max_temp_array = np.zeros((self.temps.shape[2],self.temps.shape[0]))
+        self.min_temp_array = np.zeros((self.temps.shape[2],self.temps.shape[0]))
+        for k in range(self.temps.shape[2]):
+            for c in range(self.temps.shape[0]):
+                self.max_temp_array[k,c] = self.temps[c,max_temp[k,c],k]
+                self.min_temp_array[k,c] = self.temps[c,min_temp[k,c],k]
+        
         
     def compress_templates(self):
         """Compresses the templates using SVD and upsample temporal compoents."""
@@ -589,16 +600,26 @@ class deconvGPU(object):
             # looping over ranks
 
             for r in range(self.RANK):
+                #print ("rank: ", self.RANK)
+                #print ("self.spatial_gpu[r::self.RANK]: ", self.spatial_gpu[r::self.RANK].shape)
+                #print ("self.singular_gpu[r::self.RANK]: ", self.singular_gpu[r::self.RANK].shape)
+                #print ("self.data: ", self.data.shape)
+                #start_mm = dt.datetime.now().timestamp()
                 mm = torch.mm(self.spatial_gpu[r::self.RANK]*self.singular_gpu[r::self.RANK], 
                               self.data)[None,None]
+                #print ("mm: ", mm.shape)
+                #print ("mm time; ", dt.datetime.now().timestamp()-start_mm)
+
 
                 #print (" self.obj_gpu: ", self.obj_gpu.shape, 
                 #        ", mm: ", mm.shape)
                 
+                start_conv = dt.datetime.now().timestamp()
                 for i in range(self.temps.shape[2]):
                     self.obj_gpu[i,:] += nn.functional.conv1d(mm[:,:,i,:], 
                                                          self.filters_gpu[:,:,i*self.RANK+r, :], 
                                                          padding=self.STIME-1)[0][0]
+                #print ("conmv time; ", dt.datetime.now().timestamp()-start_conv)
             
             del mm
             torch.cuda.empty_cache()
