@@ -30,7 +30,8 @@ import yass
 from yass import set_config
 from yass import read_config
 from yass import (preprocess, detect, cluster, postprocess,
-                  deconvolve, residual, soft_assignment, merge, rf, visual, phy)
+                  deconvolve, residual, soft_assignment,
+                  merge, rf, visual, phy)
 #from yass.template import update_templates
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
@@ -39,7 +40,7 @@ from yass.util import (load_yaml, save_metadata, load_logging_config_file,
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         complete=False, calculate_rf=False, visualize=False, set_zero_seed=False,
-        generate_phy=True):
+        generate_phy=False):
             
     """Run YASS built-in pipeline
 
@@ -165,7 +166,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     ### Final deconv: Deconvolve, Residual, soft assignment
     (fname_templates,
      fname_spike_train,
-     fname_soft_assignment)= final_deconv(
+     fname_noise_soft, 
+     fname_template_soft)= final_deconv(
         os.path.join(TMP_FOLDER, 'final_deconv'),
         standardized_path,
         standardized_dtype,
@@ -178,18 +180,19 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         TMP_FOLDER, 'templates.npy')
     fname_spike_train_final = os.path.join(
         TMP_FOLDER, 'spike_train.npy')
-    fname_soft_assignment_final = os.path.join(
-        TMP_FOLDER, 'soft_assignment.npy')
+    fname_noise_soft_assignment_final = os.path.join(
+        TMP_FOLDER, 'noise_soft_assignment.npy')
 
     # tranpose axes
     templates = np.load(fname_templates).transpose(1,2,0)
     # align spike time to the beginning
     spike_train = np.load(fname_spike_train)
     #spike_train[:,0] -= CONFIG.spike_size//2
-    soft_assignment = np.load(fname_soft_assignment)
+    soft_assignment = np.load(fname_noise_soft)
+
     np.save(fname_templates_final, templates)
     np.save(fname_spike_train_final, spike_train)
-    np.save(fname_soft_assignment_final, soft_assignment)
+    np.save(fname_noise_soft_assignment_final, soft_assignment)
 
     total_time = time.time() - start
 
@@ -328,7 +331,7 @@ def iterative_block(TMP_FOLDER,
                          'soft_assignment'),
             fname_residual,
             residual_dtype)
-    
+        
         logger.info('BLOCK1 MERGE')
         _, _, _ = merge.run(
             os.path.join(TMP_FOLDER,
@@ -411,8 +414,8 @@ def pre_final_deconv(TMP_FOLDER,
         dtype_out='float32',
         run_chunk_sec=run_chunk_sec)
 
-    logger.info('SOFT NOISE ASSIGNMENT')
-    fname_soft_assignment = soft_assignment.run(
+    logger.info('SOFT ASSIGNMENT')
+    (fname_noise_soft, _) = soft_assignment.run(
         fname_templates,
         fname_spike_train,
         fname_shifts,
@@ -420,22 +423,24 @@ def pre_final_deconv(TMP_FOLDER,
         os.path.join(TMP_FOLDER,
                      'soft_assignment'),
         fname_residual,
-        residual_dtype)
+        residual_dtype,
+        compute_noise_soft=True,
+        compute_template_soft=False)
 
     logger.info('POST DECONV MERGE')
     (fname_templates,
      fname_spike_train,
-     fname_soft_assignment) = merge.run(
+     fname_noise_soft) = merge.run(
         os.path.join(TMP_FOLDER,
                      'post_deconv_merge'),
         fname_spike_train,
         fname_shifts,
         fname_scales,
         fname_templates,
-        fname_soft_assignment,
+        fname_noise_soft,
         fname_residual,
         residual_dtype)
-    
+
     logger.info('Remove Low Firing Rate Units')
     methods = ['low_fr']
     fname_templates, fname_spike_train = postprocess.run(
@@ -446,7 +451,7 @@ def pre_final_deconv(TMP_FOLDER,
         standardized_dtype,
         fname_templates,
         fname_spike_train,
-        fname_soft_assignment)
+        fname_noise_soft)
 
     return (fname_templates,
             fname_spike_train)
@@ -498,8 +503,8 @@ def final_deconv(TMP_FOLDER,
         update_templates=update_templates,
         run_chunk_sec=run_chunk_sec)
 
-    logger.info('SOFT NOISE ASSIGNMENT')
-    fname_soft_assignment = soft_assignment.run(
+    logger.info('SOFT ASSIGNMENT')
+    fname_noise_soft, fname_template_soft = soft_assignment.run(
         fname_templates,
         fname_spike_train,
         fname_shifts,
@@ -508,7 +513,8 @@ def final_deconv(TMP_FOLDER,
                      'soft_assignment'),
         fname_residual,
         residual_dtype)
-
+    
     return (fname_templates,
             fname_spike_train,
-            fname_soft_assignment)
+            fname_noise_soft, 
+            fname_template_soft)

@@ -49,6 +49,9 @@ def run(output_directory,
         spatial_cov, temporal_cov = get_noise_covariance(reader_residual, CONFIG)
         np.save(fname_spatial_cov, spatial_cov)
         np.save(fname_temporal_cov, temporal_cov)
+    else:
+        spatial_cov = np.load(fname_spatial_cov)
+        temporal_cov = np.load(fname_temporal_cov)
 
     # initialize merge: find candidates
     logger.info("finding merge candidates")

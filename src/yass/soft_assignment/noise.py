@@ -106,6 +106,8 @@ class SOFTNOISEASSIGNMENT(object):
 
         self.idx_included = np.where(np.in1d(self.spike_train[:,1], units_in))[0]
         self.spike_train = self.spike_train[self.idx_included]
+        self.shifts = self.shifts[self.idx_included]
+        self.scales = self.scales[self.idx_included]
 
     def move_to_torch(self):
         self.templates_aligned = torch.from_numpy(self.templates_aligned).float().cuda()
