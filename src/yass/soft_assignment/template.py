@@ -41,7 +41,11 @@ def get_cov_matrix(spat_cov, geom):
             if dist_matrix[i, j] > np.max(spat_cov[:, 1]):
                 cov_matrix[i, j] = 0
                 continue
-            cov_matrix[i, j] = spat_cov[np.where(spat_cov[:, 1]  == dist_matrix[i, j])[0], 0]
+            idx = np.where(spat_cov[:, 1]  == dist_matrix[i, j])[0]
+            if len(idx) == 0:
+                cov_matrix[i, j] = 0
+                continue
+            cov_matrix[i, j] = spat_cov[idx, 0]
     return cov_matrix
 
 #Soft assign object
