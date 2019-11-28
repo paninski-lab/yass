@@ -12,7 +12,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 import numpy as np
 from yass import read_config
 from yass.reader import READER
-from yass.augment.noise import noise_cov
+from yass.noise import noise_whitener
 from yass.augment.util import (crop_and_align_templates, denoise_templates,
                                Detection_Training_Data, Denoising_Training_Data)
 from yass.template import run_template_computation
@@ -41,7 +41,7 @@ def run(fname_recording, recording_dtype, fname_spike_train,
     logger.info('Compute Noise Covaraince')
     save_dir = os.path.join(output_directory, 'noise_cov')
     chunk = [0, np.min((5*60*reader.sampling_rate, reader.end))]
-    fname_spatial_sig, fname_temporal_sig = get_noise_covariance(
+    fname_spatial_sig, fname_temporal_sig = get_noise_whitener(
         reader, save_dir, CONFIG, chunk)
     
     # get processed templates
@@ -69,7 +69,7 @@ def run(fname_recording, recording_dtype, fname_spike_train,
     return DetectTD, DenoTD
     
 
-def get_noise_covariance(reader, save_dir, CONFIG, chunk=None):
+def get_noise_whitener(reader, save_dir, CONFIG, chunk=None):
 
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
@@ -90,7 +90,7 @@ def get_noise_covariance(reader, save_dir, CONFIG, chunk=None):
     else:
         rec = reader.read_data(chunk[0], chunk[1], channels)
 
-    spatial_SIG, temporal_SIG = noise_cov(
+    spatial_SIG, temporal_SIG = noise_whitener(
         rec,
         temporal_size=reader.spike_size,
         window_size=reader.spike_size,

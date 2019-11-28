@@ -315,10 +315,10 @@ def align_templates(templates, ref_unit=None):
 
 
 def run_template_computation(
+    out_dir,
     fname_spike_train,
     reader,
-    out_dir,
-    max_channels=None,
+    spike_size=None,
     unit_ids=None,
     multi_processing=False,
     n_processors=1):
@@ -331,9 +331,9 @@ def run_template_computation(
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
         
-    fname_templates = os.path.join(out_dir, 'templates.npy')
-    if os.path.exists(fname_templates):
-        return fname_templates
+    #fname_templates = os.path.join(out_dir, 'templates.npy')
+    #if os.path.exists(fname_templates):
+    #    return fname_templates
 
     # make temp folder
     tmp_folder = os.path.join(out_dir, 'tmp_template')
@@ -356,42 +356,42 @@ def run_template_computation(
             tmp_folder,
             "template_unit_{}.npy".format(unit)))
 
-    # max channels in
-    if max_channels is not None:
-        max_channels = list(max_channels[unit_ids])
-    else:
-        max_channels = [None for j in range(len(unit_ids))]
+    #
+    if spike_size is None:
+        spike_size = reader.spike_size
     
     # run computing function
     if multi_processing:
         parmap.starmap(run_template_computation_parallel,
-                   list(zip(unit_ids, max_channels, fnames_out)),
-                   fname_spike_train,
-                   reader,
-                   processes=n_processors,
-                   pm_pbar=True)
+                       list(zip(unit_ids, fnames_out)),
+                       fname_spike_train,
+                       reader,
+                       spike_size,
+                       processes=n_processors,
+                       pm_pbar=True)
     else:
         for ctr in unit_ids:
             run_template_computation_parallel(
                 fname_spike_train,
-                max_channels[ctr],
                 fnames_out[ctr],
-                reader)
+                reader,
+                spike_size)
 
     # gather all info
-    templates_new = np.zeros((n_units, reader.spike_size, reader.n_channels),
+    templates_new = np.zeros((n_units, spike_size, reader.n_channels),
                              'float32')
     for ctr, unit in enumerate(unit_ids):
         if os.path.exists(fnames_out[ctr]):
             templates_new[unit] = np.load(fnames_out[ctr])
 
+    fname_templates = os.path.join(out_dir, 'templates.npy')
     np.save(fname_templates, templates_new)
 
     return fname_templates
 
 
 def run_template_computation_parallel(
-    unit_id, max_channel, fname_out, fname_spike_train, reader):
+    unit_id, fname_out, fname_spike_train, reader, spike_size):
 
     if os.path.exists(fname_out):
         return
@@ -402,17 +402,17 @@ def run_template_computation_parallel(
 
     if len(spike_times) > 0:
         template = compute_a_template(spike_times,
-                                      max_channel,
-                                      reader)
+                                      reader,
+                                      spike_size)
     else:
         template = np.zeros(
-            (reader.spike_size, reader.n_channels), 'float32')
+            (spike_size, reader.n_channels), 'float32')
 
     # save result
     np.save(fname_out, template)
 
 
-def compute_a_template(spike_times, max_channel, reader):
+def compute_a_template(spike_times, reader, spike_size):
 
     # subsample upto 1000
     max_spikes = 1000
@@ -422,18 +422,16 @@ def compute_a_template(spike_times, max_channel, reader):
                                        replace=False)
 
     # get waveforms
-    wf, _ = reader.read_waveforms(spike_times)
+    wf = reader.read_waveforms(spike_times, spike_size)[0]
 
-    # max channel
-    if max_channel is None:
-        max_channel = np.mean(wf, axis=0).ptp(0).argmax()
+    max_channel = np.mean(wf, axis=0).ptp(0).argmax()
 
     wf, _ = align_waveforms(wf=wf,
                             max_channel=max_channel,
-                            upsample_factor=3,
+                            upsample_factor=5,
                             nshifts=3)
 
-    return np.median(wf, axis=0).astype('float32')
+    return np.mean(wf, axis=0).astype('float32')
 
 def partition_spike_time(save_dir,
                          fname_spike_index):
@@ -552,47 +550,57 @@ def shift_chans(wf, best_shifts):
     return wfs_final
 
 
-def fix_template_edges(templates, w=None, config=None):
+def fix_template_edges(templates, w=None):
     """zero pads around the template edges"""
-    if config is not None:
-        s_rate = config.recordings.sampling_rate // 1000
-        w = (config.deconvolution.padding_center_length * s_rate) // 2
-    print("hooshmand cutoff length:{}".format(w))
+
     n_unit, n_chan, n_time = templates.shape
     temps = np.pad(templates, ((0, 0), (0, 0), (w, w)), 'constant')
-    idx = np.ravel(temps.argmin(axis=2))
+    idx = temps.argmin(axis=2)
+
+    # shift idx relative to the center of the original templates
+    ptps = templates.ptp(2)
+    mcs = ptps.argmax(1)
+    templates_mc = np.zeros((n_unit, n_time))
+    for j in range(n_unit):
+        templates_mc[j] = templates[j,mcs[j]]
+    min_time_all = int(np.median(np.argmin(templates_mc, 1)))
+    shift = n_time//2 - min_time_all
+    idx += shift
+
     # Get a window outside of the minimum and set it to zero
-    idx_dim_1 = np.arange(n_unit).repeat(n_chan * n_time)
-    idx_dim_2 = np.tile(np.arange(n_chan), n_unit).repeat(n_time)
-    idx_dim_3 = (idx + np.arange(w, w + n_time)[:, None]).T.flatten() % (n_time + 2 * w)
-    temps[idx_dim_1, idx_dim_2, idx_dim_3] = 0
+    idx_dim_2 = np.arange(n_chan).repeat(n_time)
+    for k in range(n_unit):
+        idx_dim_3 = (idx[k] + np.arange(w, w + n_time)[:, None]).T.flatten() % (n_time + 2 * w)
+        temps[k][idx_dim_2, idx_dim_3] = 0
 
     return temps[..., w:-w]
 
 
-def fix_template_edges_by_file(fname_templates, config, perm=[0, 2, 1]):
+def fix_template_edges_by_file(fname_templates, center_length, perm=[0, 2, 1]):
     """
     Given a template .npy file it fixes the edges.
 
     input:
     fname_template: str
         Template .npy file name that has to be altered to fix the edges.
-    config: Config
+    center_length: the size of template not to be zeroed-out
     perm: list of int size 3
         How to numpy.ndarray.permute the template to get the order
         #units, #channels, #timesteps. The default mode handles many of the
         current formats.
     """
-    if config.recordings.spike_size_ms <= config.deconvolution.padding_center_length:
+
+    templates = np.load(fname_templates)
+
+    if templates.shape[1] <= center_length:
         # does nothing
         return
-    templates = np.load(fname_templates)
-    print("hooshmand:{}".format(templates.shape))
+    
     if perm is not None:
         templates = templates.transpose(perm)
-    temps = fix_template_edges(templates, config=config)
-    print("hooshmand:{}".format(templates.shape))
+
+    templates = fix_template_edges(templates, w=center_length//2)
     if perm is not None:
         templates = templates.transpose(perm)
+
     np.save(fname_templates, templates)
-    print("hooshmand:{}".format(templates.shape))

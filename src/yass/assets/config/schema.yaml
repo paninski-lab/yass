@@ -78,10 +78,15 @@ recordings:
     spatial_radius:
       type: integer
       required: True
-    # temporal length of wavforms in ms
+    # full temporal length of waveforms in ms
+    # longer to cover axonal propagation
     spike_size_ms:
       type: float
       required: True
+    # center temporal length of waveeforms in ms
+    center_spike_size_ms:
+      type: float
+      default:
     # chunk for clustering
     clustering_chunk:
       default:

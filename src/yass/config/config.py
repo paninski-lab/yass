@@ -182,13 +182,26 @@ class Config:
             self.geom, self.recordings.spatial_radius)
         self._set_param('neigh_channels', neigh_channels)
 
+        # spike size long (to cover full axonal propagation)
         spike_size = int(
                 np.round(self.recordings.spike_size_ms*
                          self.recordings.sampling_rate/1000))
         if spike_size % 2 == 0:
             spike_size += 1
         self._set_param('spike_size', spike_size)
+        
+        # spike size center
+        if self.recordings.center_spike_size_ms is not None:
+            center_spike_size = int(
+                    np.round(self.recordings.center_spike_size_ms*
+                             self.recordings.sampling_rate/1000))
+            if center_spike_size % 2 == 0:
+                center_spike_size += 1
+        else:
+            center_spike_size = int(np.copy(spike_size))
+        self._set_param('center_spike_size', center_spike_size)        
 
+        # channel index for nn
         channel_index = geom.make_channel_index(self.neigh_channels,
                                                 self.geom, steps=1)
         self._set_param('channel_index', channel_index)

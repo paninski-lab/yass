@@ -382,20 +382,25 @@ def deconv_ONgpu2(fname_templates_in,
 def run_deconv_no_templates_update(d_gpu, CONFIG):
 
     chunk_ids = np.arange(d_gpu.reader.n_batches)
-    chunk_ids_split = np.split(chunk_ids,
-                               len(CONFIG.torch_devices))
-                               
     n_sec_chunk_gpu = CONFIG.resources.n_sec_chunk_gpu
 
     processes = []
-    for ii, device in enumerate(CONFIG.torch_devices):
-        p = mp.Process(target=run_deconv_no_templates_update_parallel,
-                       args=(d_gpu, chunk_ids_split[ii],
-                             n_sec_chunk_gpu, device))
-        p.start()
-        processes.append(p)
-    for p in processes:
-        p.join()
+    if len(CONFIG.torch_devices) == 1:
+        run_deconv_no_templates_update_parallel(d_gpu,
+                                                chunk_ids,
+                                                n_sec_chunk_gpu,
+                                                CONFIG.torch_devices[0])
+    else:
+        chunk_ids_split = np.split(chunk_ids,
+                               len(CONFIG.torch_devices))
+        for ii, device in enumerate(CONFIG.torch_devices):
+            p = mp.Process(target=run_deconv_no_templates_update_parallel,
+                           args=(d_gpu, chunk_ids_split[ii],
+                                 n_sec_chunk_gpu, device))
+            p.start()
+            processes.append(p)
+        for p in processes:
+            p.join()
 
     return d_gpu, 0
 

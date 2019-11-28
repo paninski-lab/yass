@@ -67,6 +67,7 @@ class Cluster(object):
         if self.full_run:
             if self.verbose:
                 print('START DISTANT')
+
             # distant channel clustering
             indices_train_local = np.copy(self.indices_train)
             indices_train_final = []
@@ -251,6 +252,7 @@ class Cluster(object):
         self.assignment_delete_threshold = 0.001
         # spike size
         self.spike_size = self.CONFIG.spike_size
+        self.center_spike_size = self.CONFIG.center_spike_size
         self.neighbors = self.CONFIG.neigh_channels
         self.triage_value = self.CONFIG.cluster.knn_triage
 
@@ -522,7 +524,10 @@ class Cluster(object):
 
     def denoise_step_distant3(self):
 
-        energy = np.median(self.wf_global, axis=0)
+        center_idx = slice(self.spike_size//2 - self.center_spike_size//2,
+                           self.spike_size//2 + self.center_spike_size//2 + 1)
+        wf_global_center = self.wf_global[:, center_idx]
+        energy = np.median(wf_global_center, axis=0)
         #max_energy = np.min(energy, axis=0)
 
         #main_channel_loc = np.where(self.loaded_channels == self.channel)[0][0]
@@ -540,7 +545,8 @@ class Cluster(object):
         max_energy_loc = np.vstack(np.where(np.abs(energy) > 2)).T
         
         # also high MAD points
-        mad_var = np.square(np.median(np.abs(self.wf_global - energy[None]), axis=0)/0.67449)
+        mad_var = np.square(np.median(np.abs(wf_global_center - energy[None]),
+                                      axis=0)/0.67449)
         high_mad_loc = np.vstack(np.where(mad_var > 1.5)).T
 
         if len(max_energy_loc) > 0 and len(high_mad_loc) > 0:
@@ -550,9 +556,9 @@ class Cluster(object):
 
         if len(max_energy_loc) < self.selected_PCA_rank:
             idx_in = np.argsort(np.abs(energy).reshape(-1))[::-1][:self.selected_PCA_rank]
-            self.denoised_wf = self.wf_global.reshape(self.wf_global.shape[0], -1)[:, idx_in]
+            self.denoised_wf = wf_global_center.reshape(wf_global_center.shape[0], -1)[:, idx_in]
         else:
-            self.denoised_wf = self.wf_global[:, max_energy_loc[:,0], max_energy_loc[:,1]]
+            self.denoised_wf = wf_global_center[:, max_energy_loc[:,0], max_energy_loc[:,1]]
 
         #if np.sum(keep) >= self.selected_PCA_rank:
         #    max_energy_loc = max_energy_loc[keep]
@@ -1003,32 +1009,39 @@ class Cluster(object):
         # fixes numpy bugs
 
         spike_train = [self.spike_times_original[indices] - self.shifts[indices] for indices in indices_train]
-        pca_post_triage_post_recovery = np.empty(
-            len(self.pca_post_triage_post_recovery), dtype=object)
-        pca_post_triage_post_recovery[:] = self.pca_post_triage_post_recovery
-
-        vbPar_rhat = np.empty(
-            len(self.vbPar_rhat), dtype=object)
-        vbPar_rhat[:] = self.vbPar_rhat
         
-        np.savez(self.filename_postclustering,
+        if True:
+            np.savez(self.filename_postclustering,
                  spiketime=spike_train,
-                 templates=templates,
-                 gen0_fullrank = self.data_to_fit,
-                 pca_wf_gen0=self.pca_wf_gen0,
-                 pca_wf_gen0_allchans=self.pca_wf_allchans,
-                 clustered_indices_local=self.clustered_indices_local,
-                 clustered_indices_distant=self.clustered_indices_distant,
-                 pca_post_triage_post_recovery = pca_post_triage_post_recovery,
-                 vbPar_rhat = vbPar_rhat,
-                 gen_label = self.gen_label,
-                 gen_local = self.gen_local,
-                 #vbPar_muhat = self.vbPar_muhat,
-                 hist = self.hist,
-                 indices_gen0=self.indices_gen0,
-                 #spike_index_prerecluster=self.original_indices,
-                 #templates_prerecluster=self.template_original
+                 templates=templates
                 )
+        else:
+            pca_post_triage_post_recovery = np.empty(
+                len(self.pca_post_triage_post_recovery), dtype=object)
+            pca_post_triage_post_recovery[:] = self.pca_post_triage_post_recovery
+
+            vbPar_rhat = np.empty(
+                len(self.vbPar_rhat), dtype=object)
+            vbPar_rhat[:] = self.vbPar_rhat
+
+            np.savez(self.filename_postclustering,
+                     spiketime=spike_train,
+                     templates=templates,
+                     gen0_fullrank = self.data_to_fit,
+                     pca_wf_gen0=self.pca_wf_gen0,
+                     pca_wf_gen0_allchans=self.pca_wf_allchans,
+                     clustered_indices_local=self.clustered_indices_local,
+                     clustered_indices_distant=self.clustered_indices_distant,
+                     pca_post_triage_post_recovery = pca_post_triage_post_recovery,
+                     vbPar_rhat = vbPar_rhat,
+                     gen_label = self.gen_label,
+                     gen_local = self.gen_local,
+                     #vbPar_muhat = self.vbPar_muhat,
+                     hist = self.hist,
+                     indices_gen0=self.indices_gen0,
+                     #spike_index_prerecluster=self.original_indices,
+                     #templates_prerecluster=self.template_original
+                    )
 
         if self.verbose:
             print(self.filename_postclustering)
