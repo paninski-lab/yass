@@ -48,7 +48,7 @@ def gather_result(fname_save, batch_files_dir):
     idx_sort = np.argsort(spike_index[:,0])
     spike_index = spike_index[idx_sort]
 
-    idx_sort = np.argsort(spike_index[:,0])
+    idx_sort = np.argsort(spike_index_prekill[:,0])
     spike_index_prekill = spike_index_prekill[idx_sort]
 
     np.save(fname_save, spike_index)
