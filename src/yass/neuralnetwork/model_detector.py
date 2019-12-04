@@ -8,9 +8,12 @@ from torch import distributions
 
 
 class Detect(nn.Module):
-    def __init__(self, n_filters, spike_size, channel_index):
+    def __init__(self, n_filters, spike_size, channel_index, CONFIG):
         super(Detect, self).__init__()
         
+        #os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
+        torch.cuda.set_device(CONFIG.resources.gpu_id)
+
         self.spike_size = spike_size
         self.channel_index = channel_index
         n_neigh = self.channel_index.shape[1]

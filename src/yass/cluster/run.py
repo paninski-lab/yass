@@ -79,6 +79,8 @@ def run(output_directory,
     # get CONFIG2 for clustering
     # Cat: TODO: Edu said the CONFIG file can be passed as a dictionary
     CONFIG2 = make_CONFIG2(CONFIG)
+    
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
 
     # output folder
     if not os.path.exists(output_directory):
@@ -105,7 +107,7 @@ def run(output_directory,
         # load NN denoiser
         denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
                            CONFIG.neuralnetwork.denoise.filter_sizes,
-                           CONFIG.spike_size_nn)
+                           CONFIG.spike_size_nn, CONFIG)
         denoiser.load(CONFIG.neuralnetwork.denoise.filename)
         denoiser = denoiser.cuda()
     else:
@@ -173,7 +175,7 @@ def run(output_directory,
         if CONFIG.neuralnetwork.apply_nn:
             logger.info("NN denoise")
             # denoise it
-            nn_denoise_wf(fnames_input, denoiser, CONFIG.torch_devices)
+            nn_denoise_wf(fnames_input, denoiser, CONFIG.torch_devices, CONFIG)
         else:
             logger.info("denoise")
             denoise_wf(fnames_input)

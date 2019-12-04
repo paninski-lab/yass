@@ -1,9 +1,19 @@
 import numpy as np
 import torch
+import os
 from tqdm import tqdm
-    
+
+# from yass import read_config, set_config
+# output_dir='tmp/'
+# set_config(config, output_dir)
+
+# CONFIG = read_config()
+# os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
+
 class GETPTP(object):
-    def __init__(self, fname_spike_index, reader, denoiser=None):
+    def __init__(self, fname_spike_index, reader, CONFIG, denoiser=None):
+        
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
         
         self.spike_index = np.load(fname_spike_index)
         self.spike_index = torch.from_numpy(self.spike_index).long().cuda()
@@ -60,7 +70,10 @@ class GETPTP(object):
                     idx_list = np.hstack((
                         np.arange(0, wfs.shape[0], n_sample_run), wfs.shape[0]))
                     denoised_wfs = torch.zeros_like(wfs).cuda()
+                    #print ("denoised_wfs; ", denoised_wfs.shape)
+                    #print ("wfs; ", wfs.shape)
                     for j in range(len(idx_list)-1):
+                        #print ("idx_list[j], j+1: ", idx_list[j], idx_list[j+1])
                         denoised_wfs[idx_list[j]:idx_list[j+1]] = self.denoiser(
                             wfs[idx_list[j]:idx_list[j+1]])[0]
                     ptps_denoised[idx_in] = (torch.max(denoised_wfs, 1)[0] - torch.min(denoised_wfs, 1)[0]).data

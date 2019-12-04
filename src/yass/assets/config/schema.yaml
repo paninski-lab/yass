@@ -57,6 +57,11 @@ resources:
     n_gpu_processors:
       type: integer
       default: 1
+    gpu_id:
+      type: integer
+      default: 0
+
+
 
 recordings:
   type: dict

@@ -77,6 +77,8 @@ def run(fname_templates_in,
     CONFIG = read_config()
     CONFIG = make_CONFIG2(CONFIG)
 
+    print("... deconv using GPU device: ", torch.cuda.current_device())
+    
     # output folder
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -90,8 +92,6 @@ def run(fname_templates_in,
     fname_scales = os.path.join(
         output_directory, 'scales.npy')
                                
-    print ("Processing templates: ", fname_templates_in)
-
     # Cat: TODO: use Peter's conditional (below) instead of single file check
     # if (os.path.exists(fname_templates) and
         # os.path.exists(fname_spike_train) and
@@ -483,9 +483,9 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
         updated_temp_time = ((chunk_id*chunk_len)//batch_len+1)*batch_len
         previous_temp_time = ((chunk_id*chunk_len)//batch_len)*batch_len
 
-        print ("")
-        print ("")
-        print ("")
+        # print ("")
+        # print ("")
+        # print ("")
         
         # check if the batch templates have already been updated;
         # if yes, then do backward step; if not finish the forward batch
@@ -520,6 +520,10 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
                     chunk_id+=1
                     continue
                 
+                # exit when getting to last file
+                if chunk_id>=d_gpu.reader.n_batches:
+                    break
+                
                 #if verbose:
                 print (" Backward pass time ", time_index)
 
@@ -536,8 +540,9 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
                          spike_array = d_gpu.spike_array,
                          offset_array = d_gpu.offset_array,
                          neuron_array = d_gpu.neuron_array,
-                         shift_list = d_gpu.shift_list)
-                
+                         shift_list = d_gpu.shift_list,
+                         height_list = d_gpu.height_list)
+
                 chunk_id+=1
             
             print ("  DONE BACKWARD PASS: ")
@@ -604,8 +609,9 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
                          spike_array = d_gpu.spike_array,
                          offset_array = d_gpu.offset_array,
                          neuron_array = d_gpu.neuron_array,
-                         shift_list = d_gpu.shift_list)
-            
+                         shift_list = d_gpu.shift_list,
+                         height_list = d_gpu.height_list)
+
                 track_spikes_post_deconv(d_gpu, 
                                         CONFIG,
                                         time_index, 
@@ -648,7 +654,8 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
             # finalize and reinitialize deconvolution with new templates
             # Cat; TODO: is this flag redundant?  This entire wrapper is for updating templates
             if d_gpu.update_templates:
-                finish_templates(templates_new, d_gpu, CONFIG, time_index)
+                finish_templates(templates_new, d_gpu, CONFIG, time_index, 
+                                 chunk_id, updated_temp_time)
         
             # reset the chunk ID back to initialize the updated/backward template pass
             # Cat; TODO: is this flag redundant?  This entire wrapper is for updating templates
@@ -773,6 +780,8 @@ def track_spikes_post_deconv(d_gpu,
     #   being rejected
     max_diff_ptp = 3.0 
     
+    print ("... processing template update...")
+    #for unit in tqdm(units):
     for unit in units:
         # 
         idx = torch.where(ids==unit, ids*0+1, ids*0)
@@ -819,7 +828,7 @@ def track_spikes_post_deconv(d_gpu,
             # save data for post-run debugging; 
             # Cat: TODO this is a large file, can eventually erase it;
             # saving only max channel data -not whole file
-            print ("denoised_wfs: ", denoised_wfs.shape)
+            #print ("denoised_wfs: ", denoised_wfs.shape)
             if multi_chan_rank1:
                 wfs_temp_original_array.append(denoised_wfs[:,:,d_gpu.max_chans[unit]])
             else:
@@ -840,7 +849,7 @@ def track_spikes_post_deconv(d_gpu,
                     shifts = shifts[:,None]
                 wfs_temp_aligned = shift_chans(denoised_wfs, -shifts)
 
-                print ("wfs_temp_aligned: ", wfs_temp_aligned.shape)
+                #print ("wfs_temp_aligned: ", wfs_temp_aligned.shape)
                 wfs_temp_aligned_array.append(wfs_temp_aligned)
             else:
                 wfs_temp_aligned = denoised_wfs
@@ -945,7 +954,7 @@ def track_spikes_post_deconv(d_gpu,
                 maxes = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]]
                 mins = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]]
             
-            print ("maxes: ", maxes)
+            #print ("maxes: ", maxes)
             
             # save ptps for all spike waveforms at selected time points                    
             ptp_all = (maxes-mins)
@@ -1296,7 +1305,8 @@ def split_neurons(templates_new, d_gpu, CONFIG, time_index):
     
     return templates_new
 
-def finish_templates(templates_new, d_gpu, CONFIG, time_index):
+def finish_templates(templates_new, d_gpu, CONFIG, time_index, chunk_id, 
+                     updated_temp_time):
     
     verbose = False
     if verbose:
@@ -1304,10 +1314,20 @@ def finish_templates(templates_new, d_gpu, CONFIG, time_index):
         print ("")
         print ("   FINISHING TEMPLATES   ")
 
+    # save updated templates
     out_file = os.path.join(d_gpu.out_dir,'template_updates',
                     'templates_'+
                     str(time_index)+
                     'sec.npy')
+    
+    # also save updated templates for end of file with name as a muitple of the update_template
+    # time so that the backward step can find this file;
+    # Cat: TODO: this can probably be done better/more elegantly
+    time_index_extended = str(updated_temp_time)
+    out_file = os.path.join(d_gpu.out_dir,'template_updates',
+                    'templates_'+
+                    str(time_index_extended)+
+                    'sec.npy')                                                
     
     if verbose:
         print (" TEMPS being saved: ", out_file)

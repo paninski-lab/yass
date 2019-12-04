@@ -52,7 +52,8 @@ def run(template_fname,
     # load NN detector
     detector = Detect(CONFIG.neuralnetwork.detect.n_filters,
                       CONFIG.spike_size_nn,
-                      CONFIG.channel_index)
+                      CONFIG.channel_index,
+                      CONFIG)
     detector.load(CONFIG.neuralnetwork.detect.filename)
     detector = detector.cuda()
 

@@ -80,7 +80,7 @@ def run(standardized_path, standardized_dtype,
     logger = logging.getLogger(__name__)
 
     CONFIG = read_config()
-
+    
     # make output directory if not exist
     if not os.path.exists(output_directory):
         os.mkdir(output_directory)
@@ -127,16 +127,18 @@ def run_neural_network(standardized_path, standardized_dtype,
 
     CONFIG = read_config()
 
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
+
     # load NN detector
     detector = Detect(CONFIG.neuralnetwork.detect.n_filters,
                       CONFIG.spike_size_nn,
-                      CONFIG.channel_index)
+                      CONFIG.channel_index, CONFIG)
     detector.load(CONFIG.neuralnetwork.detect.filename)
 
     # load NN denoiser
     denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
                        CONFIG.neuralnetwork.denoise.filter_sizes,
-                       CONFIG.spike_size_nn)
+                       CONFIG.spike_size_nn, CONFIG)
     denoiser.load(CONFIG.neuralnetwork.denoise.filename)
 
     # get data reader
@@ -168,17 +170,22 @@ def run_neural_network(standardized_path, standardized_dtype,
     # loop over each chunk
     batch_ids = np.arange(reader.n_batches)
     batch_ids_split = np.split(batch_ids, len(CONFIG.torch_devices))
-    processes = []
-    for ii, device in enumerate(CONFIG.torch_devices):
-        p = mp.Process(target=run_nn_detction_batch,
-                       args=(batch_ids_split[ii], output_directory, reader, n_sec_chunk,
-                             detector, denoiser, channel_index_dedup,
-                             detect_threshold, device))
-        p.start()
-        processes.append(p)
-    for p in processes:
-        p.join()
-
+    if False:
+        processes = []
+        for ii, device in enumerate(CONFIG.torch_devices):
+            p = mp.Process(target=run_nn_detction_batch,
+                           args=(batch_ids_split[ii], output_directory, reader, n_sec_chunk,
+                                 detector, denoiser, channel_index_dedup,
+                                 detect_threshold, device))
+            p.start()
+            processes.append(p)
+        for p in processes:
+            p.join()
+    else:
+        run_nn_detction_batch(batch_ids, output_directory, reader, n_sec_chunk,
+                                 detector, denoiser, channel_index_dedup,
+                                 detect_threshold, device=CONFIG.resources.gpu_id)
+        
 
 def run_nn_detction_batch(batch_ids, output_directory,
                           reader, n_sec_chunk,

@@ -108,6 +108,7 @@ def noise_whitener(recordings, temporal_size, window_size, sample_size=1000,
     spatial_whitener = np.matmul(np.matmul(v_spatial,
                                            np.diag(1/np.sqrt(w_spatial))),
                                  v_spatial.T)
+    #print ("rec: ", rec, ", spatial_whitener: ", spatial_whitener.shape)
     rec = np.matmul(rec, spatial_whitener)
 
     # search single noise channel snippets
@@ -155,6 +156,7 @@ def search_noise_snippets(recordings, is_noise_idx, sample_size,
     """
     logger = logging.getLogger(__name__)
 
+    print ("recordings: ", recordings.shape)
     T, C = recordings.shape
 
     if channel_choices is None:
@@ -224,12 +226,24 @@ def get_noise_covariance(reader, CONFIG):
     chunk_5sec = 5*CONFIG.recordings.sampling_rate
     if CONFIG.rec_len < chunk_5sec:
         chunk_5sec = CONFIG.rec_len
-    small_batch = reader.read_data(
-    data_start=CONFIG.rec_len//2 - chunk_5sec//2,
-    data_end=CONFIG.rec_len//2 + chunk_5sec//2)
+    #print (CONFIG.rec_len//2 - chunk_5sec//2, CONFIG.rec_len//2 + chunk_5sec//2)
+    
+    print ("Cat fix to reader for noise_covariance... (Peter to push permanent change)")
+    data_start = 300//2*CONFIG.recordings.sampling_rate -chunk_5sec//2
+    data_end = data_start + chunk_5sec//2
+
+    if True:
+        small_batch = reader.read_data(
+                    data_start=data_start,
+                    data_end=data_end)
+    else:
+        small_batch = reader.read_data(
+                    data_start=CONFIG.rec_len//2 - chunk_5sec//2,
+                    data_end=CONFIG.rec_len//2 + chunk_5sec//2)
     
     # get noise floor of recording
     noised_killed, is_noise_idx = kill_signal(small_batch, 3, CONFIG.spike_size)
+    #print ("small_batch: ", small_batch.shape, ", noised_killed: ", noised_killed.shape)
     
     # spatial covariance
     spatial_cov_all = np.divide(np.matmul(noised_killed.T, noised_killed),
@@ -248,12 +262,13 @@ def get_noise_covariance(reader, CONFIG):
     spatial_cov = np.vstack((cov_by_dist, chan_dist_unique)).T
 
     # get noise snippets
+    print ("noised_killed: ", noised_killed.shape)
     noise_wf = search_noise_snippets(
-    noised_killed, is_noise_idx, 1000,
-    CONFIG.spike_size,
-    channel_choices=None,
-    max_trials_per_sample=100,
-    allow_smaller_sample_size=True)
+                    noised_killed, is_noise_idx, 1000,
+                    CONFIG.spike_size,
+                    channel_choices=None,
+                    max_trials_per_sample=100,
+                    allow_smaller_sample_size=True)
 
     # get temporal covariance
     temp_cov = np.cov(noise_wf.T)
