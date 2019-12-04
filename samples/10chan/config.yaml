@@ -30,6 +30,10 @@ resources:
   n_sec_chunk_gpu_detect: 0.5
   # n_sec_chunk for gpu deconvolution
   n_sec_chunk_gpu_deconv: 5
+  # gpu_id; default is 0, i.e. first gpu;
+  gpu_id: 0
+  # generate phy visualization files; 0 - do not run; 1: generate phy files
+  generate_phy: 0
 
 recordings:
   # precision of the recording – must be a valid numpy dtype

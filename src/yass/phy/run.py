@@ -41,7 +41,8 @@ def run(CONFIG):
     n_components = 3
 
     # cluster id for each spike; [n_spikes]
-    spike_train = np.load(root_dir + '/tmp/spike_train.npy')
+    #spike_train = np.load(root_dir + '/tmp/spike_train.npy')
+    spike_train = np.load(root_dir + '/tmp/final_deconv/deconv/spike_train.npy')
     spike_clusters = spike_train[:,1]
     np.save(root_dir+'/phy/spike_clusters.npy', spike_clusters)
 
@@ -63,7 +64,8 @@ def run(CONFIG):
     # pick largest SU channels for each unit; [n_templates x n_channels_loc]; 
     # gives # of channels of the corresponding columns in pc_features, for each spike.
     n_idx_chans = 7
-    templates = np.load(root_dir+'/tmp/templates.npy')
+    #templates = np.load(root_dir+'/tmp/templates.npy')
+    templates = np.load(root_dir+'/tmp/final_deconv/deconv/templates.npy').transpose(1,2,0)
     ptps = templates.ptp(0)
     pc_feature_ind = ptps.argsort(0)[::-1][:n_idx_chans].T
     np.save(root_dir+'/phy/pc_feature_ind.npy',pc_feature_ind)
@@ -98,7 +100,7 @@ def run(CONFIG):
     fname_out = os.path.join(output_directory,'pc_objects.npy')
     if os.path.exists(fname_out)==False:
         pc_projections = get_pc_objects(root_dir, pc_feature_ind, n_channels,
-                            n_times, units, n_components, CONFIG)
+                            n_times, units, n_components, CONFIG, spike_train)
         np.save(fname_out, pc_projections)
     else:
         pc_projections = np.load(fname_out,allow_pickle=True)
@@ -212,7 +214,8 @@ def get_pc_objects_parallel(units, n_channels, pc_feature_ind, spike_train,
     return (wfs_array)
 
 
-def get_pc_objects(root_dir,pc_feature_ind, n_channels, n_times, units, n_components, CONFIG):
+def get_pc_objects(root_dir,pc_feature_ind, n_channels, n_times, units, n_components, CONFIG,
+                  spike_train):
     
     ''' First grab 10% of the spikes on each channel and makes PCA objects for each channel 
         Then generate PCA object for each channel using spikes
@@ -227,7 +230,8 @@ def get_pc_objects(root_dir,pc_feature_ind, n_channels, n_times, units, n_compon
                                 'preprocess'),'standardized.bin')
 
     # spike_train
-    spike_train = np.load(os.path.join(os.path.join(root_dir, 'tmp'),'spike_train.npy'))
+    #spike_train = np.load(os.path.join(os.path.join(root_dir, 'tmp'),'spike_train.npy'))
+    #spike_train = np.load(os.path.join(os.path.join(root_dir, 'tmp'),'spike_train.npy'))
 
 
     # ********************************************
