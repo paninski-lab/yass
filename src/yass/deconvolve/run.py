@@ -599,7 +599,7 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
                 chunks.append(chunk_id)
                 
                 #if verbose:
-                print (" Forward pass time ", time_index)
+                print (" Forward pass time ", time_index, ", chunk : ", chunk_id, " / ", d_gpu.reader.n_batches)
                
                 # run deconv
                 d_gpu.run(chunk_id)
@@ -781,7 +781,7 @@ def track_spikes_post_deconv(d_gpu,
     #   being rejected
     max_diff_ptp = 3.0 
     
-    print ("... processing template update...")
+    #print ("... processing template update...")
     #for unit in tqdm(units):
     for unit in units:
         # 

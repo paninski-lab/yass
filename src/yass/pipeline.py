@@ -40,7 +40,7 @@ from yass.util import (load_yaml, save_metadata, load_logging_config_file,
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         complete=False, calculate_rf=False, visualize=False, set_zero_seed=False,
-        generate_phy=False):
+        generate_phy=True):
             
     """Run YASS built-in pipeline
 
@@ -173,6 +173,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         standardized_path,
         standardized_dtype,
         fname_templates,
+        generate_phy,
+        CONFIG,
         update_templates = CONFIG.deconvolution.update_templates,
         run_chunk_sec = CONFIG.final_deconv_chunk)
 
@@ -197,14 +199,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     total_time = time.time() - start
 
-    ''' **********************************************
-        ************** GENERATE PHY FILES ************
-        **********************************************
-    '''
-    
-    if generate_phy:
-        phy.run(CONFIG)
-    
+
         
     ''' **********************************************
         ************** RF / VISUALIZE ****************
@@ -462,6 +457,8 @@ def final_deconv(TMP_FOLDER,
                  standardized_path,
                  standardized_dtype,
                  fname_templates,
+                 generate_phy,
+                 CONFIG,
                  update_templates,
                  run_chunk_sec):
 
@@ -504,6 +501,15 @@ def final_deconv(TMP_FOLDER,
         update_templates=update_templates,
         run_chunk_sec=run_chunk_sec)
 
+
+    ''' **********************************************
+        ************** GENERATE PHY FILES ************
+        **********************************************
+    '''
+    
+    if generate_phy:
+        phy.run(CONFIG)
+    
     logger.info('SOFT ASSIGNMENT')
     fname_noise_soft, fname_template_soft = soft_assignment.run(
         fname_templates,
@@ -514,7 +520,7 @@ def final_deconv(TMP_FOLDER,
                      'soft_assignment'),
         fname_residual,
         residual_dtype)
-    
+
     return (fname_templates,
             fname_spike_train,
             fname_noise_soft, 
