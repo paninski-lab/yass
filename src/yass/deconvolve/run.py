@@ -231,6 +231,8 @@ def deconv_ONgpu2(fname_templates_in,
     # Cat: TODO read from CONFIG
     d_gpu.update_templates = update_templates
     d_gpu.max_percent_update = 0.2
+    d_gpu.max_diff_update = 3
+
     if d_gpu.update_templates:
         print ("   templates being updated every ", 
                 CONFIG.deconvolution.template_update_time, " sec")
@@ -264,11 +266,10 @@ def deconv_ONgpu2(fname_templates_in,
                                                 d_gpu, 
                                                 CONFIG, 
                                                 output_directory)
-        setup_time = 0
         templates_post_deconv = np.load(fname_templates_out)
 
     else:
-        d_gpu, setup_time = run_deconv_no_templates_update(d_gpu, CONFIG)
+        d_gpu = run_deconv_no_templates_update(d_gpu, CONFIG)
         
         templates_post_deconv = d_gpu.temps.transpose(2, 1, 0)
 
@@ -279,7 +280,7 @@ def deconv_ONgpu2(fname_templates_in,
 
     print ("-------------------------------------------")
     total_length_sec = int((d_gpu.reader.end - d_gpu.reader.start)/d_gpu.reader.sampling_rate)
-    print ("Total Deconv Speed ", np.round(total_length_sec/(setup_time+subtract_time),2), " x Realtime")
+    print ("Total Deconv Speed ", np.round(total_length_sec/(subtract_time),2), " x Realtime")
 
     # ************* DEBUG MODE *****************
     if d_gpu.save_objective:
@@ -403,7 +404,7 @@ def run_deconv_no_templates_update(d_gpu, CONFIG):
         for p in processes:
             p.join()
 
-    return d_gpu, 0
+    return d_gpu
 
 
 def run_deconv_no_templates_update_parallel(d_gpu, chunk_ids, n_sec_chunk_gpu, device):
@@ -430,6 +431,137 @@ def run_deconv_no_templates_update_parallel(d_gpu, chunk_ids, n_sec_chunk_gpu, d
                      shift_list = d_gpu.shift_list,
                      height_list = d_gpu.height_list
                     )
+
+def run_deconv_with_templates_update2(d_gpu):
+
+    n_sec_chunk = d_gpu.reader.n_sec_chunk
+    n_chunks_update = int(d_gpu.template_update_time/n_sec_chunk)
+    update_chunk = np.hstack((np.arange(0, d_gpu.reader.n_batches,
+                             n_chunks_update), d_gpu.reader.n_batches))
+
+    d_gpu.initialize()
+
+    for batch_id in range(len(update_chunk)-1):
+
+        ##################
+        ## Forward pass ##
+        ##################
+
+        fnames_forward = []
+        for chunk_id in range(update_chunk[batch_id], update_chunk[batch_id+1]):
+
+            # output name
+            time_index = (chunk_id+1)*n_sec_chunk
+            fname = os.path.join(d_gpu.seg_dir,
+                                 str(time_index).zfill(6)+'_forward.npz')
+            fnames_forward.append(fname)
+
+            if os.path.exists(fname)==False:
+
+                print ("Forward deconv", time_index, " sec, ",
+                       chunk_id, "/", d_gpu.reader.n_batches)
+
+                # run deconv
+                d_gpu.run(chunk_id)
+
+                # get ptps
+                avg_ptps, n_spikes_triaged = d_gpu.compute_average_ptps()
+
+                # save deconv results
+                np.savez(fname,
+                         spike_array = d_gpu.spike_array,
+                         offset_array = d_gpu.offset_array,
+                         neuron_array = d_gpu.neuron_array,
+                         shift_list = d_gpu.shift_list,
+                         height_list = d_gpu.height_list,
+                         avg_ptps = avg_ptps.cpu(),
+                         n_spikes_triaged = n_spikes_triaged.cpu()
+                        )
+
+            else:
+                d_gpu.chunk_id = chunk_id
+
+        ######################
+        ## update templates ##
+        ######################
+
+        fname_templates_updated = os.path.join(
+            d_gpu.out_dir,
+            'template_updates',
+            'templates_{}sec.npy'.format(n_chunks_update*n_sec_chunk*(batch_id+1)))
+        update_templates(fnames_forward,
+                         d_gpu.fname_templates,
+                         fname_templates_updated,
+                         update_weight = 50)
+
+        # re initialize with updated templates
+        d_gpu.fname_templates = fname_templates_updated
+        d_gpu.initialize()
+
+        ###################
+        ## Backward pass ##
+        ###################
+        for chunk_id in range(update_chunk[batch_id], update_chunk[batch_id+1]):
+
+            # output name
+            time_index = (chunk_id+1)*n_sec_chunk
+            fname = os.path.join(d_gpu.seg_dir,
+                                 str(time_index).zfill(6)+'.npz')
+
+            if os.path.exists(fname)==False:
+
+                print ("Backward deconv", time_index, " sec, ",
+                       chunk_id, "/", d_gpu.reader.n_batches)
+
+                # run deconv
+                d_gpu.run(chunk_id)
+
+                # save deconv results
+                np.savez(fname,
+                         spike_array = d_gpu.spike_array,
+                         offset_array = d_gpu.offset_array,
+                         neuron_array = d_gpu.neuron_array,
+                         shift_list = d_gpu.shift_list,
+                         height_list = d_gpu.height_list)
+
+            else:
+                d_gpu.chunk_id = chunk_id
+
+    return fname_templates_updated
+
+
+def update_templates(fnames_forward,
+                     fname_templates,
+                     fname_templates_updated,
+                     update_weight = 50):
+
+    # get all ptps sufficent stats
+    avg_ptps_all = [None]*len(fnames_forward)
+    n_spikes_all = [None]*len(fnames_forward)
+
+    for ii, fname in enumerate(fnames_forward):
+        temp = np.load(fname, allow_pickle=True)
+        avg_ptps_all[ii] = temp['avg_ptps']
+        n_spikes_all[ii] = temp['n_spikes_triaged']
+
+    avg_ptps_all = np.stack(avg_ptps_all)
+    n_spikes_all = np.stack(n_spikes_all)
+    avg_ptps = np.average(avg_ptps_all, axis=0, weights=n_spikes_all)
+    n_spikes = np.sum(n_spikes_all, axis=0)
+
+    # laod templates
+    templates = np.load(fname_templates)
+
+    # get template ptp
+    temp_ptps = templates.ptp(1)
+    temp_ptps[temp_ptps==0] = 0.01
+
+    # do geometric update
+    weight_old = np.exp(-n_spikes/update_weight)
+    ptps_updated = temp_ptps*weight_old + (1-weight_old)*avg_ptps
+    scale = ptps_updated/temp_ptps
+    updated_templates = templates*scale[:, None]
+    np.save(fname_templates_updated, updated_templates)
 
 
 def run_deconv_with_templates_update(d_gpu, CONFIG,
