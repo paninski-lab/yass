@@ -223,24 +223,13 @@ def search_noise_snippets(recordings, is_noise_idx, sample_size,
 def get_noise_covariance(reader, CONFIG):
     
     # get data chunk
-    chunk_5sec = 5*CONFIG.recordings.sampling_rate
-    if CONFIG.rec_len < chunk_5sec:
-        chunk_5sec = CONFIG.rec_len
-    #print (CONFIG.rec_len//2 - chunk_5sec//2, CONFIG.rec_len//2 + chunk_5sec//2)
-    
-    print ("Cat fix to reader for noise_covariance... (Peter to push permanent change)")
-    data_start = 300//2*CONFIG.recordings.sampling_rate -chunk_5sec//2
-    data_end = data_start + chunk_5sec//2
+    chunk_5sec = 5*reader.sampling_rate
+    if reader.rec_len < chunk_5sec:
+        chunk_5sec = reader.rec_len
+    small_batch = reader.read_data(
+                data_start=reader.rec_len//2 - chunk_5sec//2,
+                data_end=reader.rec_len//2 + chunk_5sec//2)
 
-    if True:
-        small_batch = reader.read_data(
-                    data_start=data_start,
-                    data_end=data_end)
-    else:
-        small_batch = reader.read_data(
-                    data_start=CONFIG.rec_len//2 - chunk_5sec//2,
-                    data_end=CONFIG.rec_len//2 + chunk_5sec//2)
-    
     # get noise floor of recording
     noised_killed, is_noise_idx = kill_signal(small_batch, 3, CONFIG.spike_size)
     #print ("small_batch: ", small_batch.shape, ", noised_killed: ", noised_killed.shape)
@@ -262,7 +251,6 @@ def get_noise_covariance(reader, CONFIG):
     spatial_cov = np.vstack((cov_by_dist, chan_dist_unique)).T
 
     # get noise snippets
-    print ("noised_killed: ", noised_killed.shape)
     noise_wf = search_noise_snippets(
                     noised_killed, is_noise_idx, 1000,
                     CONFIG.spike_size,
