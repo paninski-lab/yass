@@ -39,8 +39,7 @@ from yass.util import (load_yaml, save_metadata, load_logging_config_file,
 
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
-        complete=False, calculate_rf=False, visualize=False, set_zero_seed=False,
-        generate_phy=True):
+        complete=False, calculate_rf=False, visualize=False, set_zero_seed=False):
             
     """Run YASS built-in pipeline
 
@@ -87,7 +86,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     set_config(config, output_dir)
     CONFIG = read_config()
     TMP_FOLDER = CONFIG.path_to_output_directory
-
+    generate_phy = CONFIG.resources.generate_phy
     # remove tmp folder if needed
     if os.path.exists(TMP_FOLDER) and clean:
         shutil.rmtree(TMP_FOLDER)

@@ -60,7 +60,9 @@ resources:
     gpu_id:
       type: integer
       default: 0
-
+    generate_phy:
+      type: integer
+      default: 0
 
 
 recordings:
