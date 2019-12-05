@@ -116,7 +116,6 @@ class deconvGPU(object):
             temps_temporary = np.load(fname_templates)
             np.save(fname_out_temporary, temps_temporary)
 
-
         # initalize parameters for 
         self.set_params(CONFIG, fname_templates, out_dir)
 
@@ -166,6 +165,9 @@ class deconvGPU(object):
         
         # make a 3 point array to be used in quadratic fit below
         #self.peak_pts = torch.arange(-1,+2).cuda()
+
+        # chunk id
+        self.chunk_id = -1
         
         
     def initialize(self):
@@ -187,7 +189,7 @@ class deconvGPU(object):
         
         # set all nonvisible channels to 0. to help with SVD
         self.spatially_mask_templates()
-           
+
         # compute template convolutions
         if self.svd_flag:
             self.compress_templates()
@@ -468,9 +470,12 @@ class deconvGPU(object):
 
             # also the threhold for triage
             # get a threshold for each unit and each channel
-            thresholds = self.ptps_all_chans*self.max_percent_update
-            thresholds[thresholds < self.max_diff_update] = self.max_diff_update
-            self.ptps_threshold = thresholds
+            self.min_bad_diff_templates = self.ptps_all_chans*self.min_bad_diff
+            self.min_bad_diff_templates[
+                self.min_bad_diff_templates < self.max_good_diff] = self.max_good_diff
+            #thresholds[thresholds < self.diff_range_update[0]] = self.diff_range_update[0]
+            #thresholds[thresholds > self.diff_range_update[1]] = self.diff_range_update[1]
+            #self.ptps_threshold = thresholds
 
         
         
@@ -548,7 +553,9 @@ class deconvGPU(object):
         if self.update_templates:
             self.ptps_all_chans = torch.from_numpy(self.ptps_all_chans).float().cuda()
             self.min_max_loc = torch.from_numpy(self.min_max_loc).long().cuda()
-            self.ptps_threshold = torch.from_numpy(self.ptps_threshold).float().cuda()
+            #self.ptps_threshold = torch.from_numpy(self.ptps_threshold).float().cuda()
+            self.min_bad_diff_templates = torch.from_numpy(
+                self.min_bad_diff_templates).float().cuda()
 
         # move svd items to gpu
         if self.svd_flag:
@@ -1140,7 +1147,7 @@ class deconvGPU(object):
                                    # refrac_fill_val = -1e10)
 
         torch.cuda.synchronize()
-        
+
         # Add spikes back in;
         deconv.subtract_splines(
                             self.obj_gpu,
@@ -1151,38 +1158,59 @@ class deconvGPU(object):
                             -self.tempScaling*spike_heights)
 
         torch.cuda.synchronize()
-        
+
         return 
 
 
     def compute_average_ptps(self):
+
+        # get all spike times and neuron ids
         spike_times = torch.cat(self.spike_array)
         neuron_ids = torch.cat(self.neuron_array)
 
+        # min max locations in recording for each spike
         min_max_loc_spikes = self.min_max_loc[neuron_ids] + spike_times[:, None, None] - self.STIME + 1
+        # find min/max values of each spikes per channel
         chan_loc_spikes = (torch.arange(self.N_CHAN).cuda()[None, None].repeat(min_max_loc_spikes.shape[0], 2, 1))
         min_max_vals_spikes = self.data[chan_loc_spikes, min_max_loc_spikes]
+        # ptp of each spikes / channel
         ptps_spikes = (min_max_vals_spikes[:, 1] - min_max_vals_spikes[:, 0]).transpose(0,1)
 
-        spike_chan_keep = (torch.abs(ptps_spikes - self.ptps_all_chans[:, neuron_ids]) <
-                           self.ptps_threshold[:, neuron_ids])
-        ptps_spikes[~spike_chan_keep] = 0
-        spike_chan_keep = spike_chan_keep.long()
+        # weights
+        diffs = torch.abs(ptps_spikes - self.ptps_all_chans[:, neuron_ids])
+        diffs[diffs < self.max_good_diff] = self.max_good_diff
+        weights = 1/torch.pow(diffs, 2)
+        weights[diffs > self.min_bad_diff_templates[:, neuron_ids]] = 0
+
+        # triage out using the threshold
+        #spike_chan_keep = (torch.abs(ptps_spikes - self.ptps_all_chans[:, neuron_ids]) <
+        #                   self.ptps_threshold[:, neuron_ids])
+        #ptps_spikes[~spike_chan_keep] = 0
+        #spike_chan_keep = spike_chan_keep.long()
+
+        #ptps_spikes = ptps_spikes.transpose(0,1)
+        #spike_chan_keep = spike_chan_keep.transpose(0,1)
 
         ptps_spikes = ptps_spikes.transpose(0,1)
-        spike_chan_keep = spike_chan_keep.transpose(0,1)
+        weights = weights.transpose(0,1)
+        weighted_ptps = ptps_spikes*weights
 
+        # average out
         ptps_average = torch.zeros((self.K, self.N_CHAN)).float().cuda()
-        n_spikes = torch.zeros((self.K, self.N_CHAN)).cuda()
+        weights_sum = torch.zeros((self.K, self.N_CHAN)).cuda()
         for k in range(self.K):
+            #idx_ = neuron_ids == k
+            #ptps_average[k] = torch.sum(ptps_spikes[idx_], 0)
+            #n_spikes[k] = torch.sum(spike_chan_keep[idx_], 0)
+
             idx_ = neuron_ids == k
-            ptps_average[k] += torch.sum(ptps_spikes[idx_], 0)
-            n_spikes[k] = torch.sum(spike_chan_keep[idx_], 0)
+            ptps_average[k] = torch.sum(weighted_ptps[idx_], 0)
+            weights_sum[k] = torch.sum(weights[idx_], 0)
 
-        n_spikes[n_spikes==0] = 1
-        ptps_average = ptps_average/n_spikes
+        weights_sum[weights_sum==0] = 0.00001
+        ptps_average = ptps_average/weights_sum
 
-        return ptps_average, n_spikes
+        return ptps_average, weights_sum
 
 
 # # ****************************************************************************
