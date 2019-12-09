@@ -185,6 +185,10 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     fname_noise_soft_assignment_final = os.path.join(
         TMP_FOLDER, 'noise_soft_assignment.npy')
 
+    if CONFIG.deconvolution.update_templates:
+        templates_dir = fname_templates
+        fname_templates = os.path.join(templates_dir, 'templates_init.npy')
+
     # tranpose axes
     templates = np.load(fname_templates).transpose(1,2,0)
     # align spike time to the beginning
@@ -518,7 +522,9 @@ def final_deconv(TMP_FOLDER,
         os.path.join(TMP_FOLDER,
                      'soft_assignment'),
         fname_residual,
-        residual_dtype)
+        residual_dtype,
+        update_templates=update_templates
+    )
 
     return (fname_templates,
             fname_spike_train,

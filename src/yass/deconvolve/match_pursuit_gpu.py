@@ -111,7 +111,7 @@ class deconvGPU(object):
             os.mkdir(self.temps_dir)
 
         # always copy the startng templates to initalize the process
-        fname_out_temporary = os.path.join(self.temps_dir,'templates_0sec.npy')
+        fname_out_temporary = os.path.join(self.temps_dir, 'templates_init.npy')
         if os.path.exists(fname_out_temporary)==False:
             temps_temporary = np.load(fname_templates)
             np.save(fname_out_temporary, temps_temporary)
@@ -861,8 +861,8 @@ class deconvGPU(object):
 
             # height
             height = 0.5*(peak_vals/self.norm[self.neuron_ids[:,0], 0] + 1)
-            height[height < 1 - self.max_height_diff] = 1 - self.max_height_diff
-            height[height > 1 + self.max_height_diff] = 1 + self.max_height_diff
+            height[height < 1 - self.max_height_diff] = 1
+            height[height > 1 + self.max_height_diff] = 1
             
             idx_small_ = ~torch.any(self.neuron_ids == self.large_units[None],1)
             height[idx_small_] = 1

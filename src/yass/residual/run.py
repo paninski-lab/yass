@@ -119,6 +119,7 @@ def residual_ONgpu(recordings_filename,
                     recording_dtype,
                     CONFIG,
                     CONFIG.resources.n_sec_chunk_gpu_deconv,
+                    buffer=(CONFIG.spike_size-1)*2,
                     chunk_sec=chunk_sec)
                     
     if False:
@@ -136,17 +137,15 @@ def residual_ONgpu(recordings_filename,
                   update_templates)
     else:
         RESIDUAL_GPU2(reader,
-                  recordings_filename,
-                  recording_dtype,
-                  CONFIG,
-                  fname_shifts,
-                  fname_scales,
-                  fname_templates,
-                  output_directory,
-                  dtype_out,
-                  fname_out,
-                  fname_spike_train,
-                  update_templates)
+                      CONFIG,
+                      fname_shifts,
+                      fname_scales,
+                      fname_templates,
+                      output_directory,
+                      dtype_out,
+                      fname_out,
+                      fname_spike_train,
+                      update_templates)
                   
     
 def residual_ONcpu(fname_templates,

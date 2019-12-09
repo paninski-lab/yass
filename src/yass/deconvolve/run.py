@@ -83,7 +83,11 @@ def run(fname_templates_in,
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
 
-    fname_templates = os.path.join(
+    if update_templates:
+        fname_templates = os.path.join(
+            output_directory, 'template_updates')
+    else:
+        fname_templates = os.path.join(
         output_directory, 'templates.npy')
     fname_spike_train = os.path.join(
         output_directory, 'spike_train.npy')
@@ -128,7 +132,6 @@ def run(fname_templates_in,
                     CONFIG,
                     n_sec_chunk,
                     chunk_sec=chunk_sec)
- 
          
     # deconv using GPU
     if CONFIG.deconvolution.deconv_gpu:
@@ -185,7 +188,7 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.RANK = 10
     d_gpu.vis_chan_thresh = 1.0
 
-    d_gpu.fit_height = False
+    d_gpu.fit_height = True
     d_gpu.max_height_diff = 0.1
     d_gpu.fit_height_ptp = 20
 
@@ -247,14 +250,14 @@ def deconv_ONgpu2(fname_templates_in,
     # set forgetting factor to 5Hz (i.e. 5 spikes per second of chunk)
     # Cat: TODO: read from CONFIG
     d_gpu.nu = 1 * d_gpu.template_update_time 
-        
+
     # time to try and split deconv-based spikes
     d_gpu.neuron_discover_time = CONFIG.deconvolution.neuron_discover_time
     print ("    d_gpu.neuron_discover_time: ", d_gpu.neuron_discover_time)
-        
+
     # add reader
     d_gpu.reader = reader
-    
+
     # enforce broad buffer
     d_gpu.reader.buffer=1000
 
@@ -263,16 +266,14 @@ def deconv_ONgpu2(fname_templates_in,
     # *********************************************************
     begin=dt.datetime.now().timestamp()
     if update_templates:
-        d_gpu, fname_templates_out = run_deconv_with_templates_update(
-                                                d_gpu, 
-                                                CONFIG, 
-                                                output_directory)
-        templates_post_deconv = np.load(fname_templates_out)
+        d_gpu = run_deconv_with_templates_update2(d_gpu)
 
     else:
         d_gpu = run_deconv_no_templates_update(d_gpu, CONFIG)
-        
-        templates_post_deconv = d_gpu.temps.transpose(2, 1, 0)
+
+        # save templates
+        fname_templates = os.path.join(d_gpu.out_dir, 'templates.npy')
+        np.save(fname_templates, d_gpu.temps.transpose(2, 1, 0))
 
     # ****************************************************************
     # *********************** GATHER SPIKE TRAINS ********************
@@ -376,10 +377,6 @@ def deconv_ONgpu2(fname_templates_in,
     # save scales
     fname_scales = os.path.join(d_gpu.out_dir, 'scales.npy')
     np.save(fname_scales, scales)
-    
-    # save templates
-    fname_templates = os.path.join(d_gpu.out_dir, 'templates.npy')
-    np.save(fname_templates, templates_post_deconv)
 
 
 def run_deconv_no_templates_update(d_gpu, CONFIG):
@@ -489,7 +486,7 @@ def run_deconv_with_templates_update2(d_gpu):
         fname_templates_updated = os.path.join(
             d_gpu.out_dir,
             'template_updates',
-            'templates_{}sec.npy'.format(n_chunks_update*n_sec_chunk*(batch_id+1)))
+            'templates_{}sec.npy'.format(n_chunks_update*n_sec_chunk*batch_id))
         update_templates(fnames_forward,
                          d_gpu.fname_templates,
                          fname_templates_updated,
@@ -500,6 +497,9 @@ def run_deconv_with_templates_update2(d_gpu):
         # make sure that it is at the right chunk location
         d_gpu.chunk_id = chunk_id
         d_gpu.initialize()
+        # resaving the templates that is processed 
+        # and will be actually used for deconv
+        np.save(fname_templates_updated, d_gpu.temps.transpose(2, 1, 0))
 
         ###################
         ## Backward pass ##
@@ -529,8 +529,8 @@ def run_deconv_with_templates_update2(d_gpu):
 
             else:
                 d_gpu.chunk_id = chunk_id
-
-    return fname_templates_updated
+                
+    return d_gpu
 
 
 def update_templates(fnames_forward,
