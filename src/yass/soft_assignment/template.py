@@ -295,6 +295,10 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         
         log_probs = torch.zeros((len(self.spike_train), self.sim_units)).half()#torch.zeros((len(self.spike_train),3)).cuda()
 
+        # batch offsets
+        offsets = torch.from_numpy(self.reader_residual.idx_list[:, 0]
+                                   - self.reader_residual.buffer).cuda().long()
+
         with tqdm(total=self.reader_residual.n_batches) as pbar:
             for batch_id in range(self.reader_residual.n_batches):
                 
@@ -306,7 +310,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                 idx_in = torch.nonzero((self.spike_train[:, 0] >= self.reader_residual.idx_list[batch_id][0]) & (self.spike_train[:, 0] < self.reader_residual.idx_list[batch_id][1]))[:,0]
 
                 spike_train_batch = self.spike_train[idx_in] 
-                spike_train_batch[:, 0] -= (self.reader_residual.idx_list[batch_id][0] - self.reader_residual.buffer)
+                spike_train_batch[:, 0] -= offsets[batch_id]
 
                 shift_batch = self.shifts[idx_in]
                 # get residual snippets
