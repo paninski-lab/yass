@@ -4,6 +4,7 @@ import datetime as dt
 import scipy, scipy.signal
 import parmap
 from scipy.interpolate import splrep, splev, make_interp_spline, splder, sproot
+from tqdm import tqdm
 
 # doing imports inside module until travis is fixed
 # Cat: TODO: move these to the top once Peter's workstation works
@@ -13,11 +14,208 @@ from torch import nn
 
 # cuda package to do GPU based spline interpolation and subtraction
 import cudaSpline as deconv
+import rowshift as rowshift
+
+from yass.deconvolve.util import WaveForms
 
 
 # # ****************************************************************************
 # # ****************************************************************************
 # # ****************************************************************************
+
+def continuous_visible_channels(
+    templates, geom, threshold=.5, neighb_threshold=1., spatial_neighbor_dist=70):
+    """
+    inputs:
+    -------
+    templates: np.ndarray with shape (#units, # channels, #time points)
+    geom: np.ndarray with shape (# channel, 2)
+    threshold: float
+        Weaker channels threshold
+    neighb_threshold: float
+        Strong channel threshold
+    spatial_neighbor_dist: float
+        neighboring channel threshold (70 for 512 channels retinal probe)
+    """
+    ptps_ = templates.ptp(2)
+    pdist = scipy.spatial.distance.squareform(
+        scipy.spatial.distance.pdist(geom))
+    vis_chan = (ptps_ >= neighb_threshold).astype(np.int32)
+    neighbs = np.logical_and(
+        pdist > 0,
+        pdist < spatial_neighbor_dist).astype(np.int32)
+    return np.logical_or(
+        np.logical_and(
+            np.matmul(vis_chan, neighbs) > 0,
+            ptps_ >= threshold),
+        ptps_ >= neighb_threshold)
+
+def reverse_shifts(shifts):
+    """Reverse the shifts so that all shifts are positive.
+
+    params:
+    -------
+    shifts: np.ndarray of int
+        All values should be non-negative
+
+    returns:
+    --------
+    np.ndarray of non-negative integers.
+    """
+    return shifts.max() - shifts
+
+def shift_channels(signal, shifts):
+    """Shifts each channel of the signal according to given shifts.
+
+    params:
+    -------
+    signal: np.ndarray with shape (#channels, #time)
+    shifts: np.array with size #channels
+
+    returns:
+    --------
+    a copy of the shifted signal according to the given shifts.
+    """
+    n_chan, size = signal.shape
+    max_shift = shifts.max()
+    shifted_signal_size = size + max_shift
+    shifted_signal = np.zeros([n_chan, shifted_signal_size])
+    # Getting shifted indices.
+    ix1 = np.tile(np.arange(n_chan)[:, None], size)
+    ix2 = np.arange(size) + shifts[:, None]
+    shifted_signal[ix1, ix2] = signal
+    return shifted_signal
+
+
+def in_place_roll_shift(signal, shifts):
+    """Shifts each channel of the signal according to given shifts.
+
+    (IMPORTANT): This function is the equivalent of Ian's.
+    params:
+    -------
+    signal: np.ndarray with shape (#channels, #time)
+    shifts: np.array with size #channels
+
+    returns:
+    --------
+    a copy of the shifted signal according to the given shifts.
+    """
+    idx = np.logical_not(shifts == 0)
+    for i, s in zip(np.where(idx)[0], shifts[idx]):
+        signal[i] = np.roll(signal[i], s)
+               
+        
+# def continuous_visible_channels(
+    # temp, geom, threshold=.5, neighb_threshold=1., spatial_neighbor_dist=70):
+    # """
+    # inputs:
+    # -------
+    # templates: np.ndarray with shape (# time points, # channels, #units)
+    # geom: np.ndarray with shape (# channel, 2)
+    # threshold: float
+        # Weaker channels threshold
+    # neighb_threshold: float
+        # Strong channel threshold
+    # spatial_neighbor_dist: float
+        # neighboring channel threshold (70 for 512 channels retinal probe)
+    # """
+    # ptps_ = temp.ptp(0)
+    # pdist = scipy.spatial.distance.squareform(
+        # scipy.spatial.distance.pdist(geom))
+    # vis_chan = (ptps_ >= neighb_threshold).astype(np.int32)
+    # neighbs = np.logical_and(
+        # pdist > 0,
+        # pdist < spatial_neighbor_dist).astype(np.int32)
+    # return np.logical_or(
+        # np.logical_and(
+            # np.matmul(neighbs, vis_chan) > 0,
+            # ptps_ >= threshold),
+        # ptps_ >= neighb_threshold)
+
+
+def compute_temp_temp_svd_shifted2(rank, spike_size, n_unit, viscs, 
+                                  align_shifts, aligned_temp, spat_comp,
+                                  temp_comp, unit_unit_overlap):    
+    
+    temp_temp = [[0. for i in range(n_unit)] for j in range(n_unit)]
+
+    for unit in tqdm(range(n_unit)):
+        # Full temp is the unshifted reconstructed
+        # templates for a unit that acts as the data
+        # that other units get convolved by
+        unshifted_temp = shift_channels(aligned_temp[unit], align_shifts[unit])
+        for ounit in np.where(unit_unit_overlap[unit])[0]:
+            # For all spatially overlapping templates, convolve them with
+            # the outer loop template using the SVD trick
+            shifts = reverse_shifts(align_shifts[ounit])
+            shifted_data = shift_channels(unshifted_temp, shifts)
+            transformed_data = np.matmul(spat_comp[ounit][:, :rank].T, shifted_data)
+            temp_temp.append(0.)
+            for r in range(rank):
+                temp_temp[unit][ounit] += np.convolve(
+                    transformed_data[r], temp_comp[ounit][r, ::-1])
+                    
+    return (temp_temp)
+
+# def compute_temp_temp_svd_shifted(rank, spike_size, n_unit, viscs, 
+                                  # align_shifts, aligned_temp, spat_comp,
+                                  # temp_comp):
+
+    # temp_temp = []
+    # comb_shift_min = []
+    # for i in range(n_unit):
+        # temp_temp.append([])
+        # comb_shift_min.append([])
+        # for j in range(n_unit):
+            # temp_temp[i].append(0.)
+            # comb_shift_min[i].append(0.)
+    # #temp_temp = [[0. for i in range(n_unit)] for j in range(n_unit)]
+    # #comb_shift_min = [[0 for i in range(n_unit)] for j in range(n_unit)]
+    
+    # #spike_size = 61
+
+    # for unit_i in tqdm(range(n_unit)):
+        # for unit_j in range(n_unit):
+            # # Check overlaps
+            # overlap, intersect_ix_i, intersect_ix_j = np.intersect1d(
+                # np.where(viscs[:, unit_i])[0],
+                # np.where(viscs[:, unit_j])[0],
+                # assume_unique=True, return_indices=True)
+            # overlap_size = len(overlap)
+            # if overlap_size == 0:
+                # # No overlap between two units, therefore convolution is zero
+                # continue
+            # elif unit_i > unit_j:
+                # # temp temp of pairs of units are symmetric
+                # # If one is computed, the other is readily available
+                # temp_temp[unit_i][unit_j] = temp_temp[unit_j][unit_i][::-1]
+                # # Go to next
+                # continue
+
+            # # Negate shifts from template j and apply shifts from template i
+            # combined_shifts = align_shifts[unit_i][intersect_ix_i].max() - align_shifts[unit_i][intersect_ix_i]
+            # combined_shifts += align_shifts[unit_j][intersect_ix_j]
+            # comb_shift_min[unit_i][unit_j] = [combined_shifts.min(), align_shifts[unit_i][intersect_ix_i].max(), align_shifts[unit_j][intersect_ix_j].max()]
+            # combined_shifts -= combined_shifts.min()
+
+            # temp_adj = np.zeros([overlap_size, spike_size + combined_shifts.max()])
+            # ix1 = np.tile(np.arange(overlap_size)[:, None], spike_size)
+            # ix2 = np.arange(spike_size) + combined_shifts[:, None]
+            # temp_adj[ix1, ix2] = aligned_temp[unit_j][intersect_ix_j]
+
+            # if overlap_size < rank + 1:
+                # for i in range(overlap_size):
+                    # temp_temp[unit_i][unit_j] += np.convolve(
+                        # temp_adj[i], aligned_temp[unit_i][intersect_ix_i[i], ::-1])
+            # else:
+                # data_trans = np.matmul(
+                    # spat_comp[unit_i][intersect_ix_i, :rank].T, temp_adj)
+                # for r in range(rank):
+                    # temp_temp[unit_i][unit_j] += np.convolve(
+                        # data_trans[r], temp_comp[unit_i][r, ::-1])
+                        
+    # return (temp_temp, comb_shift_min, combined_shifts)
+
 
 def parallel_conv_filter2(units, 
                           n_time,
@@ -134,6 +332,9 @@ class deconvGPU(object):
         #
         self.fname_templates = fname_templates
 
+        # load geometry
+        self.geom = np.loadtxt(os.path.join(CONFIG.data.root_folder, CONFIG.data.geometry))
+        
         # Cat: TODO: Load sample rate from disk
         self.sample_rate = self.CONFIG.recordings.sampling_rate
         
@@ -178,27 +379,41 @@ class deconvGPU(object):
         
         # load templates and svd componenets
         self.load_temps()
+                
+        # align templates
+        self.align_templates2()
         
+        # compute svd on shifted templates:
+        self.temp_temp_shifted()
+
+        # compute norms and move data to GPU
+        self.data_to_gpu_shifted_svd()
+
+        # OLDER FUNCTIONS
         # find vis-chans
-        self.visible_chans()
+        #self.visible_chans()
         
         # find vis-units
-        self.template_overlaps()
+        #self.template_overlaps()
         
         # set all nonvisible channels to 0. to help with SVD
-        self.spatially_mask_templates()
+        #self.spatially_mask_templates()
            
         # compute template convolutions
-        if self.svd_flag:
-            self.compress_templates()
-            self.compute_temp_temp_svd()
+        #if self.svd_flag:
+        #    self.compress_templates()
+        #    self.compute_temp_temp_svd()
 
         # # Cat: TODO we should dissable all non-SVD options?!
         # else:
             # self.compute_temp_temp()
 
         # move data to gpu
-        self.data_to_gpu()
+        #self.data_to_gpu()
+         
+         
+        
+        # BSPLINE COMPUTATIONS
                 
         # initialize Ian's objects
         self.initialize_cpp()
@@ -235,7 +450,8 @@ class deconvGPU(object):
         self.load_data(chunk_id)
         
         # make objective function
-        self.make_objective()
+        #self.make_objective()
+        self.make_objective_shifted_svd()
                
         # run 
         self.subtraction_step()
@@ -252,6 +468,7 @@ class deconvGPU(object):
         #              self.temp_temp_cpp.indices - is self.vis_units
         #              
         self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temp_temp, self.vis_units)])
+        #self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temp_temp, self.unit_unit_overlap)])
       
         
     def templates_to_bsplines(self):
@@ -472,7 +689,181 @@ class deconvGPU(object):
             thresholds[thresholds < self.max_diff_update] = self.max_diff_update
             self.ptps_threshold = thresholds
 
+    def align_templates2(self):
+
+        #rank = 5
+        #n_unit, n_channel = temp.shape[:2]
         
+        temp = self.temps.transpose(2,0,1)
+        print ("temp shape: ", temp.shape)
+        #spike_size = 61
+        rank  = self.RANK
+        geom = self.geom
+        n_unit, n_channel, spike_size = temp.shape#[:2]
+
+        temp_pad = np.zeros((temp.shape[0],temp.shape[1],20),'float32')
+        temp = np.concatenate((temp_pad, temp),2)
+        temp = np.concatenate((temp, temp_pad),2)
+
+        print ("templates shape: ", temp.shape, "[n_units, n_chan, n_time]")
+        print ("   Padding 3ms temps with zeros: (TODO: reload 5ms templates)")
+        print ("   Using 20 timestep jitter: (TODO: increase to 50 once 5ms templates are being loaded)")
+        
+        # Maked and aligned and reconstructed templates.
+        aligned_temp = np.zeros([n_unit, n_channel, spike_size], dtype=np.float32)
+        align_shifts = np.zeros([n_unit, n_channel], dtype=np.int32)
+        spat_comp = np.zeros([n_unit, n_channel, rank], dtype=np.float32)
+        temp_comp = np.zeros([n_unit, rank, spike_size], dtype=np.float32)
+
+        viscs = continuous_visible_channels(temp, geom)
+        # Computes if units are spatially overlapping
+        unit_unit_overlap = np.logical_and(viscs[None], viscs[:, None]).sum(-1) > 0
+        print ("raw unit_unit_overlap: ", unit_unit_overlap.shape)
+        
+        for unit in tqdm(range(n_unit)):
+            # get vis channels only
+            t = temp[unit, viscs[unit], :]
+            # Instead of having 1 template with c channels
+            # treat it as c teplates with 1 channels
+            tobj = WaveForms(t[:, None])
+            main_c = t.ptp(1).argmax()
+            align, shifts_ = tobj.align(
+                ref_wave_form=t[main_c][None], jitter=20, return_shifts=True)
+            align = align[:, 0]
+            # remove offset from shifts so that minimum is 0
+            vis_chans = np.where(viscs[unit])[0]
+            align_shifts[unit, vis_chans] = shifts_ - shifts_.min()
+            # use reconstructed version of temp lates
+            if len(align) <= rank:
+                # The matrix rank is lower. Just pass
+                # identity spatial component and the signal itself
+                mat_rank = len(align)
+                spat_comp[unit, vis_chans, :mat_rank] = np.eye(mat_rank)
+                temp_comp[unit, :mat_rank] = align
+                aligned_temp[unit, vis_chans] = align
+                continue
+            u, h, v = np.linalg.svd(align)
+            spat_comp[unit, vis_chans] = u[:, :rank] * h[:rank]
+            temp_comp[unit] = v[:rank]
+            # Reconstructed version of the unit
+            aligned_temp[unit, vis_chans] = np.matmul(u[:, :rank] * h[:rank], v[:rank])
+    
+        # data saved in object
+        self.spat_comp = spat_comp
+        self.temp_comp = temp_comp
+        self.aligned_temp = aligned_temp
+        self.viscs = viscs
+        self.align_shifts = align_shifts
+        self.aligned_temp = aligned_temp
+        self.unit_unit_overlap = unit_unit_overlap
+
+    
+    # def align_templates(self):
+
+        # align_shifts = []  # list of shifts of visible chans of unit
+        # aligned_temp = []  # aligned templates
+        # spat_comp, temp_comp = [], []
+
+        # temp = self.temps.transpose(1,0,2)
+        # geom = self.geom
+
+        # print ("templates shape: ", temp.shape, "[n_time,n_chan, n_units]")
+        # print ("   Padding 3ms temps with zeros: (TODO: reload 5ms templates)")
+        # print ("   Using 20 timestep jitter: (TODO: increase to 50 once 5ms templates are being loaded)")
+
+        # temp_pad = np.zeros((20, temp.shape[1],temp.shape[2]),'float32')
+        # temp = np.concatenate((temp_pad, temp),0)
+        # temp = np.concatenate((temp, temp_pad),0)
+        
+        
+        # ptps = temp.ptp(0).max(0)
+        # viscs = continuous_visible_channels(temp, geom)
+        # #print (viscs)
+        # maincs = temp.ptp(0).argmax(0)
+
+        # for unit in tqdm(range(temp.shape[2])):
+        # #for unit in tqdm(range(temp.shape[2])):
+            # # get vis channels only
+            # t = temp[:, viscs[:, unit], unit]
+            
+            # tobj = WaveForms(t.T[:, None])
+            # #tobj = WaveForms(t[None])
+            # #print ("tobj: ", tobj.shape)
+            # main_c = t.ptp(0).argmax()
+            # align, shifts_ = tobj.align(
+                # ref_wave_form=t.T[main_c][None], jitter=20, return_shifts=True)
+            # align = align[:, 0]
+            # # remove offset from shifts so that minimum is 0
+            # align_shifts.append(shifts_ - shifts_.min())
+            # # use reconstructed version of temp lates
+            # if len(align) <= self.RANK:
+                # spat_comp.append(None)
+                # temp_comp.append(None)
+                # aligned_temp.append(align)
+                # continue
+            # u, h, v = np.linalg.svd(align)
+            # spat_comp.append(u[:, :self.RANK] * h[:self.RANK])
+            # temp_comp.append(v[:self.RANK])
+            # aligned_temp.append(np.matmul(u[:, :self.RANK] * h[:self.RANK], v[:self.RANK]))
+
+        # #return (spat_comp, temp_comp, aligned_temp)
+        # self.spat_comp = spat_comp
+        # self.temp_comp = temp_comp
+        # self.aligned_temp = aligned_temp
+        # self.viscs = viscs
+        # self.align_shifts = align_shifts
+        # self.aligned_temp = aligned_temp
+    
+    
+    def temp_temp_shifted(self):
+        print ("   computing temp_temp shifted (TODO: parallelize)")
+        temp_temp = compute_temp_temp_svd_shifted2(
+                                            self.RANK, self.STIME, self.K, self.viscs, 
+                                            self.align_shifts, self.aligned_temp,
+                                            self.spat_comp, self.temp_comp,
+                                            self.unit_unit_overlap)
+        print ("   computing zero padding...")
+        # Zero padding and aligning temp temp
+        n_unit = self.K
+        
+        temp_temp_len = np.zeros([n_unit, n_unit], dtype=np.int32)
+        temp_temp_argmax = np.zeros(n_unit, dtype=np.int32)
+        for i in range(n_unit):
+            temp_temp_argmax[i] = temp_temp[i][i].argmax()
+            for j in range(n_unit):
+                if isinstance(temp_temp[i][j], np.ndarray):
+                    temp_temp_len[i, j] = len(temp_temp[i][j])
+
+        max_len = temp_temp_len.max()
+        # (IMPORTANT): this variable is very important, later when you find
+        # peaks, the time of each peak has to be subtracted by this value
+        global_argmax = temp_temp_argmax.max()
+        # Shift all temp_temps so that the peaks are aligned
+        shifts_ = global_argmax - temp_temp_argmax
+        zero_padded_temp_temp = np.zeros([n_unit, n_unit, max_len])
+        for i in range(n_unit):
+            u_shift = shifts_[i]
+            for j in range(n_unit):
+                if isinstance(temp_temp[i][j], np.ndarray):
+                    #temp temp exists
+                    zero_padded_temp_temp[i, j, u_shift:u_shift+temp_temp_len[i, j]] = temp_temp[i][j]
+
+        #self.temp_temp = zero_padded_temp_temp
+
+        # transfer list to GPU
+        self.temp_temp = []
+        for k in range(len(zero_padded_temp_temp)):
+            self.temp_temp.append(torch.from_numpy(zero_padded_temp_temp[k]).float().cuda())
+
+        print ("len: self.temptemp gpu: ", len(self.temp_temp))
+        # save GPU list as numpy object
+        #np.save(fname, self.temp_temp)
+                                 
+                                 
+                                 
+        #self.comb_shift_min = comb_shift_min
+        #self.combined_shifts = combined_shifts
+    
         
     def compress_templates(self):
         """Compresses the templates using SVD and upsample temporal compoents."""
@@ -516,49 +907,36 @@ class deconvGPU(object):
             self.singular = data['singular']
             self.spatial = data['spatial']                                     
             
-      
-    def data_to_gpu(self):
     
-        # compute norm
-        norm = np.zeros((self.vis_chan.shape[1],1),'float32')
-        for i in range(self.vis_chan.shape[1]):
-            norm[i] = np.sum(np.square(self.temps.transpose(1,0,2)[:, self.vis_chan[:,i], i]))
+    def data_to_gpu_shifted_svd(self):
         
+        # hoosh' new norms.
+        norm = np.square(self.aligned_temp).sum(-1).sum(-1)
+
         #move data to gpu
         self.norm = torch.from_numpy(norm).float().cuda()
         
-        # load vis chans on gpu
-        self.vis_chan_gpu=[]
-        for k in range(self.vis_chan.shape[1]):
-            self.vis_chan_gpu.append(torch.from_numpy(np.where(self.vis_chan[:,k])[0]).long().cuda())
-        self.vis_chan = self.vis_chan_gpu
+        self.vis_units = torch.FloatTensor(self.unit_unit_overlap).long().cuda()
+        
+        print ("self.vis_units: ", self.vis_units.shape)
+
+        # Old method to track drift + svd compression
+        # Cat: TODO: delete/remove
+        if False:
+            if self.update_templates:
+                self.ptps_all_chans = torch.from_numpy(self.ptps_all_chans).float().cuda()
+                self.min_max_loc = torch.from_numpy(self.min_max_loc).long().cuda()
+                self.ptps_threshold = torch.from_numpy(self.ptps_threshold).float().cuda()
+
+            # move svd items to gpu
+            if self.svd_flag:
+                self.n_rows = self.temps.shape[2] * self.RANK
+                self.spatial_gpu = torch.from_numpy(self.spatial.reshape([self.n_rows, -1])).float().cuda()
+                self.singular_gpu = torch.from_numpy(self.singular.reshape([-1, 1])).float().cuda()
+                self.temporal_gpu = np.flip(self.temporal,1)
+                self.filters_gpu = torch.from_numpy(self.temporal_gpu.transpose([0, 2, 1]).reshape([self.n_rows, -1])).float().cuda()[None,None]
+          
             
-        # load vis_units onto gpu
-        # Cat: TODO: check this lop index, pretty sure it's correct, but 1D vs 2Dimension unclear
-        self.vis_units_gpu=[]
-        for k in range(self.vis_units.shape[0]):
-            self.vis_units_gpu.append(torch.FloatTensor(np.where(self.vis_units[k])[0]).long().cuda())
-        self.vis_units = self.vis_units_gpu
-        
-        # save vis_units for residual recomputation and other steps
-        # fname = os.path.join(self.svd_dir,'vis_units_'+
-                      # str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '_1.npy')
-        # np.save(fname, self.vis_units)
-        
-        if self.update_templates:
-            self.ptps_all_chans = torch.from_numpy(self.ptps_all_chans).float().cuda()
-            self.min_max_loc = torch.from_numpy(self.min_max_loc).long().cuda()
-            self.ptps_threshold = torch.from_numpy(self.ptps_threshold).float().cuda()
-
-        # move svd items to gpu
-        if self.svd_flag:
-            self.n_rows = self.temps.shape[2] * self.RANK
-            self.spatial_gpu = torch.from_numpy(self.spatial.reshape([self.n_rows, -1])).float().cuda()
-            self.singular_gpu = torch.from_numpy(self.singular.reshape([-1, 1])).float().cuda()
-            self.temporal_gpu = np.flip(self.temporal,1)
-            self.filters_gpu = torch.from_numpy(self.temporal_gpu.transpose([0, 2, 1]).reshape([self.n_rows, -1])).float().cuda()[None,None]
-
-  
     def load_data(self, chunk_id):
         '''  Function to load raw data 
         '''
@@ -586,86 +964,158 @@ class deconvGPU(object):
             print ("Load raw data (run every chunk): ", np.round(dt.datetime.now().timestamp()-start,2),"sec")
             print ("---------------------------------------")
             print ('')
-                       
+                
 
-    def make_objective(self):
+    def make_objective_shifted_svd(self):
         start = dt.datetime.now().timestamp()
         if self.verbose:
-            print ("Computing objective ")
-        
-        #print (" COMPUTING OBJECTIVE: ")
-        #print (" slef temps: ", self.temps.shape)
-        
-        self.obj_gpu = torch.zeros((self.temps.shape[2], self.data.shape[1]+self.STIME-1),
-                                   dtype=torch.float).cuda()
-        
-        #print (" self.obj_gpu: ", self.obj_gpu.shape, ", size: ", sys.getsizeof(self.obj_gpu.storage()))
-        # make objective using full rank (i.e. no SVD)
-        if self.svd_flag==False:
+            print ("Computing objective ")       
+       
+        #obj_function = np.zeros([NUNIT, data.shape[1] + 61 - 1])
+        obj_function = torch.zeros((self.K, self.data.shape[1]+self.STIME-1),
+                                    dtype=torch.float).cuda()
+                                    
+        for unit in tqdm(range(self.temps.shape[2])):
+            # Do the shifts that was required for aligning template
+            shifts = reverse_shifts(self.align_shifts[unit])
+            print ("shifts: ", shifts.shape)
             
-            #traces = torch.from_numpy(self.data).to(device) 
-            traces = self.data
-            temps = torch.from_numpy(self.temps).cuda()
-            for i in range(self.K):
-                self.obj_gpu[i,:] = nn.functional.conv1d(traces[None, self.vis_chan[i],:], 
-                                                         temps[None,self.vis_chan[i],:,i],
-                                                         padding=self.STIME-1)[0][0]
+            # this needs to be taken out of this loop and done single time
+            shifts_gpu = torch.from_numpy(shifts).long().cuda()
+            
+            # CUDA code
+            #in_place_roll_shift(data, shifts)
+            print ('data pre shift: ', self.data[0][-15:])
+            rowshift.forward(self.data, shifts_gpu)
+            print ('data post shift: ', self.data[0][-15:])
+
+            # multiplication step
+            transformed_data = np.matmul(spat_comp[unit, :, :rank].T, data)
+            mm = torch.mm(self.spatial_gpu[r::self.RANK]*self.singular_gpu[r::self.RANK], 
+                          self.data)[None,None]
+                          
+            for r in range(rank):
+                obj_function[unit] += np.convolve(
+                    transformed_data[r], temp_comp[unit, r, ::-1])
+
+            # Undo the shifts that we did earlier
+            in_place_roll_shift(data, -shifts)
+
+        obj_function = 2 * obj_function - temp_norms[:NUNIT][:, None]  #drop NUNIT;  # drop additional dimensions;
+
+
+
+        # # OLD METHODS
+        # self.obj_gpu = torch.zeros((self.temps.shape[2], self.data.shape[1]+self.STIME-1),
+                                   # dtype=torch.float).cuda()
+    
+        # print ("self.obj_gpu.shape: ", self.obj_gpu.shape)
+        # # U_ x H_ (spatial * vals)
+        # # looping over ranks
+        # for r in range(self.RANK):
+            # mm = torch.mm(self.spatial_gpu[r::self.RANK]*self.singular_gpu[r::self.RANK], 
+                          # self.data)[None,None]
+            
+            # start_conv = dt.datetime.now().timestamp()
+            # for i in range(self.temps.shape[2]):
+                # self.obj_gpu[i,:] += nn.functional.conv1d(mm[:,:,i,:], 
+                                                     # self.filters_gpu[:,:,i*self.RANK+r, :], 
+                                                     # padding=self.STIME-1)[0][0]
+            # #print ("conmv time; ", dt.datetime.now().timestamp()-start_conv)
+        
+        # del mm
+        # torch.cuda.empty_cache()
+            
+        # torch.cuda.synchronize()
+        
+        # # compute objective function = 2 x Convolution term - norms
+        # self.obj_gpu *= 2.
+        # self.obj_gpu -= self.norm
+
+        # if self.verbose:
+            # print ("Total time obj func (run every chunk): ", np.round(dt.datetime.now().timestamp()-start,2),"sec")
+            # print ("---------------------------------------")
+            # print ('')
+             
+
+    # def make_objective(self):
+        # start = dt.datetime.now().timestamp()
+        # if self.verbose:
+            # print ("Computing objective ")
+        
+        # #print (" COMPUTING OBJECTIVE: ")
+        # #print (" slef temps: ", self.temps.shape)
+        
+        # self.obj_gpu = torch.zeros((self.temps.shape[2], self.data.shape[1]+self.STIME-1),
+                                   # dtype=torch.float).cuda()
+        
+        # #print (" self.obj_gpu: ", self.obj_gpu.shape, ", size: ", sys.getsizeof(self.obj_gpu.storage()))
+        # # make objective using full rank (i.e. no SVD)
+        # if self.svd_flag==False:
+            
+            # #traces = torch.from_numpy(self.data).to(device) 
+            # traces = self.data
+            # temps = torch.from_numpy(self.temps).cuda()
+            # for i in range(self.K):
+                # self.obj_gpu[i,:] = nn.functional.conv1d(traces[None, self.vis_chan[i],:], 
+                                                         # temps[None,self.vis_chan[i],:,i],
+                                                         # padding=self.STIME-1)[0][0]
                 
-        # use SVD to make objective:
-        else:         
-            # U_ x H_ (spatial * vals)
-            # looping over ranks
+        # # use SVD to make objective:
+        # else:         
+            # # U_ x H_ (spatial * vals)
+            # # looping over ranks
 
-            for r in range(self.RANK):
-                #print ("rank: ", self.RANK)
-                #print ("self.spatial_gpu[r::self.RANK]: ", self.spatial_gpu[r::self.RANK].shape)
-                #print ("self.singular_gpu[r::self.RANK]: ", self.singular_gpu[r::self.RANK].shape)
-                #print ("self.data: ", self.data.shape)
-                #start_mm = dt.datetime.now().timestamp()
-                mm = torch.mm(self.spatial_gpu[r::self.RANK]*self.singular_gpu[r::self.RANK], 
-                              self.data)[None,None]
-                #print ("mm: ", mm.shape)
-                #print ("mm time; ", dt.datetime.now().timestamp()-start_mm)
+            # for r in range(self.RANK):
+                # #print ("rank: ", self.RANK)
+                # #print ("self.spatial_gpu[r::self.RANK]: ", self.spatial_gpu[r::self.RANK].shape)
+                # #print ("self.singular_gpu[r::self.RANK]: ", self.singular_gpu[r::self.RANK].shape)
+                # #print ("self.data: ", self.data.shape)
+                # #start_mm = dt.datetime.now().timestamp()
+                # mm = torch.mm(self.spatial_gpu[r::self.RANK]*self.singular_gpu[r::self.RANK], 
+                              # self.data)[None,None]
+                # #print ("mm: ", mm.shape)
+                # #print ("mm time; ", dt.datetime.now().timestamp()-start_mm)
 
 
-                #print (" self.obj_gpu: ", self.obj_gpu.shape, 
-                #        ", mm: ", mm.shape)
+                # #print (" self.obj_gpu: ", self.obj_gpu.shape, 
+                # #        ", mm: ", mm.shape)
                 
-                start_conv = dt.datetime.now().timestamp()
-                for i in range(self.temps.shape[2]):
-                    self.obj_gpu[i,:] += nn.functional.conv1d(mm[:,:,i,:], 
-                                                         self.filters_gpu[:,:,i*self.RANK+r, :], 
-                                                         padding=self.STIME-1)[0][0]
-                #print ("conmv time; ", dt.datetime.now().timestamp()-start_conv)
+                # start_conv = dt.datetime.now().timestamp()
+                # for i in range(self.temps.shape[2]):
+                    # self.obj_gpu[i,:] += nn.functional.conv1d(mm[:,:,i,:], 
+                                                         # self.filters_gpu[:,:,i*self.RANK+r, :], 
+                                                         # padding=self.STIME-1)[0][0]
+                # #print ("conmv time; ", dt.datetime.now().timestamp()-start_conv)
             
-            del mm
-            torch.cuda.empty_cache()
+            # del mm
+            # torch.cuda.empty_cache()
             
-        torch.cuda.synchronize()
+        # torch.cuda.synchronize()
         
-        # compute objective function = 2 x Convolution term - norms
-        self.obj_gpu *= 2.
-        self.obj_gpu -= self.norm
+        # # compute objective function = 2 x Convolution term - norms
+        # self.obj_gpu *= 2.
+        # self.obj_gpu -= self.norm
 
-        if self.verbose:
-            print ("Total time obj func (run every chunk): ", np.round(dt.datetime.now().timestamp()-start,2),"sec")
-            print ("---------------------------------------")
-            print ('')
+        # if self.verbose:
+            # print ("Total time obj func (run every chunk): ", np.round(dt.datetime.now().timestamp()-start,2),"sec")
+            # print ("---------------------------------------")
+            # print ('')
              
     
-    # Cat: TODO Is this function used any longer?
-    def set_objective_infinities(self):
+    # # Cat: TODO Is this function used any longer?
+    # def set_objective_infinities(self):
         
-        self.inf_thresh = -1E10
-        zero_trace = torch.zeros(self.obj_gpu.shape[1],dtype=torch.float).cuda()
+        # self.inf_thresh = -1E10
+        # zero_trace = torch.zeros(self.obj_gpu.shape[1],dtype=torch.float).cuda()
         
-        # loop over all templates and set to -Inf
-        for k in range(self.obj_gpu.shape[0]):
-            idx = torch.where(self.obj_gpu[k]<self.inf_thresh,
-                          zero_trace+1,
-                          zero_trace)
-            idx = torch.nonzero(idx)[:,0]
-            self.obj_gpu[k][idx]=-float("Inf")
+        # # loop over all templates and set to -Inf
+        # for k in range(self.obj_gpu.shape[0]):
+            # idx = torch.where(self.obj_gpu[k]<self.inf_thresh,
+                          # zero_trace+1,
+                          # zero_trace)
+            # idx = torch.nonzero(idx)[:,0]
+            # self.obj_gpu[k][idx]=-float("Inf")
         
 
     def save_spikes(self):
