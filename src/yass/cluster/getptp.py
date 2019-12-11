@@ -34,6 +34,9 @@ class GETPTP(object):
             ptps_denoised = torch.zeros(self.spike_index.shape[0]).float().cuda()
         else:
             ptps_denoised = None
+        
+        # batch offsets
+        offsets = torch.from_numpy(self.reader.idx_list[:, 0] - self.reader.buffer).cuda().long()
 
         with tqdm(total=self.reader.n_batches) as pbar:
 
@@ -48,9 +51,8 @@ class GETPTP(object):
                     (self.spike_index[:, 0] > self.reader.idx_list[batch_id][0]) & 
                     (self.spike_index[:, 0] < self.reader.idx_list[batch_id][1]))[:,0]
 
-                spike_index_batch = self.spike_index[idx_in] 
-                spike_index_batch[:, 0] -= (self.reader.idx_list[batch_id][0] - 
-                                            self.reader.buffer)
+                spike_index_batch = self.spike_index[idx_in]
+                spike_index_batch[:, 0] -= offsets[batch_id]
 
                 # skip if no spikes
                 if len(spike_index_batch) == 0:
@@ -193,6 +195,10 @@ class GETCLEANPTP(object):
         else:
             ptps_denoised = None
 
+        # batch offsets
+        offsets = torch.from_numpy(self.reader_residual.idx_list[:, 0]
+                                   - self.reader_residual.buffer).cuda().long()
+
         with tqdm(total=self.reader_residual.n_batches) as pbar:
 
             for batch_id in range(self.reader_residual.n_batches):
@@ -207,8 +213,7 @@ class GETCLEANPTP(object):
                     (self.spike_index[:, 0] < self.reader_residual.idx_list[batch_id][1]))[:,0]
 
                 spike_index_batch = self.spike_index[idx_in] 
-                spike_index_batch[:, 0] -= (self.reader_residual.idx_list[batch_id][0] - 
-                                            self.reader_residual.buffer)
+                spike_index_batch[:, 0] -= offsets[batch_id]
 
                 # get residual snippets
                 t_index = spike_index_batch[:, 0][:, None] + t_range

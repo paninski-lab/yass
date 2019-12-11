@@ -160,6 +160,10 @@ class SOFTNOISEASSIGNMENT(object):
         
         probs = torch.zeros(len(self.spike_train)).cuda()
 
+        # batch offsets
+        offsets = torch.from_numpy(self.reader_residual.idx_list[:, 0]
+                                   - self.reader_residual.buffer).cuda().long()
+
         t_range = torch.arange(-(self.n_times_nn//2), self.n_times_nn//2+1).cuda()
         with tqdm(total=self.reader_residual.n_batches) as pbar:
 
@@ -175,8 +179,7 @@ class SOFTNOISEASSIGNMENT(object):
                     (self.spike_train[:, 0] < self.reader_residual.idx_list[batch_id][1]))[:,0]
 
                 spike_train_batch = self.spike_train[idx_in] 
-                spike_train_batch[:, 0] -= (self.reader_residual.idx_list[batch_id][0] - 
-                                            self.reader_residual.buffer)
+                spike_train_batch[:, 0] -= offsets[batch_id]
 
                 shift_batch = self.shifts[idx_in]
                 scale_batch = self.scales[idx_in]

@@ -116,7 +116,9 @@ class TemplateMerge(object):
         spat_cov = np.zeros((len(vis_chan), len(vis_chan)))
         for ii, c in enumerate(self.spatial_cov[:,1]):
             spat_cov[chan_dist == c] = self.spatial_cov[ii, 0]
+
         w, v = np.linalg.eig(spat_cov)
+        w[w<=0] = 1E-10
         inv_half_spat_cov = np.matmul(np.matmul(v, np.diag(1/np.sqrt(w))), v.T)
 
         return inv_half_spat_cov
@@ -382,7 +384,7 @@ class TemplateMerge(object):
                     wfs2 += scale2[:, None, None]*self.templates[[unit2],:,vis_chan].T
 
                 
-                # compute spatial covariance 
+                # compute spatial covariance
                 spatial_whitener = self.get_spatial_whitener(vis_chan)
                 # whiten
                 wfs1_w = np.matmul(wfs1, spatial_whitener)
