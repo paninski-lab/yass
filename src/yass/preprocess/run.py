@@ -117,9 +117,10 @@ def run(output_directory):
 
     fname_mean_sd = os.path.join(
         output_directory, 'mean_and_standard_dev_value.npz')
-    get_std(small_batch, sampling_rate,
-            fname_mean_sd, CONFIG.preprocess.apply_filter,
-            low_frequency, high_factor, order)
+    if not os.path.exists(fname_mean_sd):
+        get_std(small_batch, sampling_rate,
+                fname_mean_sd, CONFIG.preprocess.apply_filter,
+                low_frequency, high_factor, order)
     # turn it off
     small_batch = None
 
