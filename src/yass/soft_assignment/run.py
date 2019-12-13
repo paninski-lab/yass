@@ -117,7 +117,7 @@ def run(template_fname,
         cut_off = chi2(chi2_df).ppf(.999)
         outliers = cpu_sps[np.where(TAO.log_probs.min(1) > cut_off)[0], :]
 
-        logprobs_outlers = logprobs_outliers/chi2_df
+        logprobs_outliers = logprobs_outliers/chi2_df
         #append log_probs to spike_times
         #logprobs = np.concatenate((cpu_sps,TAO.log_probs), axis = 1)
         # compuate soft assignment
