@@ -303,10 +303,10 @@ class TEMPLATE_ASSIGN_OBJECT(object):
 
                 # relevant idx
                 idx_in = torch.nonzero((self.spike_train[:, 0] >= self.reader_residual.idx_list[batch_id][0]) & (self.spike_train[:, 0] < self.reader_residual.idx_list[batch_id][1]))[:,0]
-                print(idx_in)
+                
                 spike_train_batch = self.spike_train[idx_in]
-                print(spike_train_batch)
-                print(spike_train_batch[:, 1])
+                
+                
 
                 spike_train_batch[:, 0] -= (self.reader_residual.idx_list[batch_id][0] - self.reader_residual.buffer)
                 shift_batch = self.shifts[idx_in]
@@ -317,7 +317,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                 resid_dat = torch.cat((resid_dat, torch.zeros((resid_dat.shape[0], 1)).cuda()), 1)
                 resid_snippets = resid_dat[t_index[:,:,None], c_index[:,None]]
                 # get shifted templates
-                print("-------")
+                
                 shifted_templates = [self.get_shifted_templates(spike_train_batch[:,1], shift_batch, i) for i in range(self.sim_units)]
                 shifted_templates = [element for element in shifted_templates]
 
