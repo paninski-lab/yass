@@ -7,7 +7,12 @@ from torch.nn import functional as F
 from torch import distributions
 
 class Denoise(nn.Module):
-    def __init__(self, n_filters, filter_sizes, spike_size):
+    def __init__(self, n_filters, filter_sizes, spike_size, CONFIG):
+        
+        #os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
+        torch.cuda.set_device(CONFIG.resources.gpu_id)
+        self.CONFIG = CONFIG
+
         super(Denoise, self).__init__()
         
         feat1, feat2, feat3 = n_filters
@@ -37,15 +42,20 @@ class Denoise(nn.Module):
         #n_input_feat = feat3*(61-size1-size2-size3+3)
         n_input_feat = feat2*(spike_size-size1-size2+2)
         self.out = nn.Linear(n_input_feat, spike_size)
-
+        
+        #self.counter=0
+        
     def forward(self, x):
         x = x[:, None]
         x = self.conv1(x)
         x = self.conv2(x)
         #x = self.conv3(x)
         x = x.view(x.shape[0], -1)
+        #print (x.shape)
+        #print (self.out(x).shape)
+        #np.save('/home/cat/temp/'+str(self.counter)+'.npy', x.cpu().data.numpy())
         output = self.out(x)
-
+        #self.counter+=1
         return output, x   # return x for visualization
 
     def train(self, fname_save, DenoTD, n_train=50000, n_test=500, EPOCH=2000, BATCH_SIZE=512, LR=0.0001):

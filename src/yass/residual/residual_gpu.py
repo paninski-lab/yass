@@ -133,7 +133,7 @@ class RESIDUAL_GPU2(object):
 
 
     def load_templates(self):
-        print ("  loading templates...", self.fname_templates)
+        #print ("  loading templates...", self.fname_templates)
         # load templates
         self.temps = np.load(self.fname_templates).transpose(2,1,0).astype('float32')
         #print ("loaded temps:", self.temps.shape)
@@ -161,7 +161,7 @@ class RESIDUAL_GPU2(object):
     
     
     def make_bsplines(self):
-        print ("  making bsplines... (TODO Parallelize)")
+        #print ("  making bsplines... (TODO Parallelize)")
         # make template objects
         self.templates = deconv.BatchedTemplates(
                         [deconv.Template(vals, inds) for vals, inds in 
@@ -224,7 +224,7 @@ class RESIDUAL_GPU2(object):
          #   print ("  ... loading coefficients from disk")
         #    coefficients = np.load(fname)
         
-        print ("  ... moving coefficients to cuda objects")
+        #print ("  ... moving coefficients to cuda objects")
         coefficients_cuda = []
         for p in range(len(coefficients)):
             coefficients_cuda.append(deconv.Template(torch.from_numpy(coefficients[p]).cuda(), self.temp_temp_cpp[p].indices))

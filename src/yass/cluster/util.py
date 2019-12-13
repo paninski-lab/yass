@@ -37,6 +37,7 @@ def make_CONFIG2(CONFIG):
     CONFIG2.resources.n_processors = CONFIG.resources.n_processors
     CONFIG2.resources.multi_processing = CONFIG.resources.multi_processing
     CONFIG2.resources.n_sec_chunk = CONFIG.resources.n_sec_chunk
+    CONFIG2.resources.gpu_id = CONFIG.resources.gpu_id
 
     CONFIG2.data.root_folder = CONFIG.data.root_folder
     CONFIG2.data.geometry = CONFIG.data.geometry
@@ -690,20 +691,24 @@ def split(a, n):
     k, m = divmod(len(a), n)
     return [a[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
 
-def nn_denoise_wf(fnames_input_data, denoiser, devices):
+def nn_denoise_wf(fnames_input_data, denoiser, devices, CONFIG):
 
     fnames_input_split = split(fnames_input_data, len(devices))
     processes = []
-    for ii, device in enumerate(devices):
-        p = mp.Process(target=nn_denoise_wf_parallel,
-                       args=(fnames_input_split[ii],
-                             denoiser, device))
-        p.start()
-        processes.append(p)
 
-    for p in processes:
-        p.join()
+    if False:
+        for ii, device in enumerate(devices):
+            p = mp.Process(target=nn_denoise_wf_parallel,
+                           args=(fnames_input_split[ii],
+                                 denoiser, device))
+            p.start()
+            processes.append(p)
 
+        for p in processes:
+            p.join()
+    else:
+        nn_denoise_wf_parallel(fnames_input_data,
+                                 denoiser, CONFIG.resources.gpu_id)
 
 def nn_denoise_wf_parallel(fnames, denoiser, device):
 

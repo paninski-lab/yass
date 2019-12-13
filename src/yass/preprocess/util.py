@@ -50,7 +50,7 @@ def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
         return output
 
 
-def _standard_deviation(rec, centered=False):
+def _mean_standard_deviation(rec, centered=False):
     """Determine standard deviation of noise in each channel
 
     Parameters
@@ -68,11 +68,15 @@ def _standard_deviation(rec, centered=False):
 
     # find standard deviation using robust method
     if not centered:
-        rec = rec - np.mean(rec, axis=0, keepdims=True)
-    return np.median(np.abs(rec), 0)/0.6745
+        centers = np.mean(rec, axis=0)
+        rec = rec - centers[None]
+    else:
+        centers = np.zeros(rec.shape[1], 'float32')
+
+    return np.median(np.abs(rec), 0)/0.6745, centers
 
 
-def _standardize(rec, sd=None, centered=False):
+def _standardize(rec, sd=None, centers=None):
     """Determine standard deviation of noise in each channel
 
     Parameters
@@ -93,16 +97,13 @@ def _standardize(rec, sd=None, centered=False):
     """
 
     # find standard deviation using robust method
-    if not centered:
-        rec = rec - np.mean(rec, axis=0, keepdims=True)
-    
-    if sd is None:
-        sd = _standard_deviation(rec, centered=True)
+    if (sd is None) or (centers is None):
+        sd, centers = _mean_standard_deviation(rec, centered=False)
 
     # standardize all channels with SD> 0.1 (Voltage?) units
     # Cat: TODO: ensure that this is actually correct for all types of channels
     idx1 = np.where(sd>=0.1)[0]
-    rec[:,idx1] = np.divide(rec[:,idx1],sd[idx1])
+    rec[:,idx1] = np.divide(rec[:,idx1] - centers[idx1][None], sd[idx1])
     
     # zero out bad channels
     idx2 = np.where(sd<0.1)[0]
@@ -112,9 +113,10 @@ def _standardize(rec, sd=None, centered=False):
     #return np.divide(rec, sd)
 
 
-def filter_standardize_batch(batch_id, reader, low_frequency, high_factor, order,
-                             sampling_frequency, fname_sd, out_dtype,
-                             output_directory):
+def filter_standardize_batch(batch_id, reader, fname_mean_sd,
+                             apply_filter, out_dtype, output_directory,
+                             low_frequency=None, high_factor=None,
+                             order=None, sampling_frequency=None):
     """Butterworth filter for a one dimensional time series
 
     Parameters
@@ -142,17 +144,22 @@ def filter_standardize_batch(batch_id, reader, low_frequency, high_factor, order
     """
     logger = logging.getLogger(__name__)
 
-    # read a batch
-    ts = reader.read_data_batch(batch_id, add_buffer=True)
-
+    
     # filter
-    ts = _butterworth(ts, low_frequency, high_factor,
-                          order, sampling_frequency)
-    ts = ts[reader.buffer:-reader.buffer]
+    if apply_filter:
+        # read a batch
+        ts = reader.read_data_batch(batch_id, add_buffer=True)
+        ts = _butterworth(ts, low_frequency, high_factor,
+                              order, sampling_frequency)
+        ts = ts[reader.buffer:-reader.buffer]
+    else:
+        ts = reader.read_data_batch(batch_id, add_buffer=False)
 
     # standardize
-    sd = np.load(fname_sd)
-    ts = _standardize(ts, sd)
+    temp = np.load(fname_mean_sd)
+    sd = temp['sd']
+    centers = temp['centers']
+    ts = _standardize(ts, sd, centers)
     
     # save
     fname = os.path.join(
@@ -162,8 +169,13 @@ def filter_standardize_batch(batch_id, reader, low_frequency, high_factor, order
     np.save(fname, ts.astype(out_dtype))
 
 
-def get_std(ts, low_frequency, high_factor, order,
-            sampling_frequency, fname):
+def get_std(ts,
+            sampling_frequency,
+            fname,
+            apply_filter=False, 
+            low_frequency=None,
+            high_factor=None,
+            order=None):
     """Butterworth filter for a one dimensional time series
 
     Parameters
@@ -191,14 +203,17 @@ def get_std(ts, low_frequency, high_factor, order,
     """
 
     # filter
-    ts = _butterworth(ts, low_frequency, high_factor,
-                      order, sampling_frequency)
+    if apply_filter:
+        ts = _butterworth(ts, low_frequency, high_factor,
+                          order, sampling_frequency)
 
     # standardize
-    sd = _standard_deviation(ts)
+    sd, centers = _mean_standard_deviation(ts)
     
     # save
-    np.save(fname, sd)
+    np.savez(fname,
+             centers=centers,
+             sd=sd)
 
 
 def merge_filtered_files(filtered_location, output_directory):

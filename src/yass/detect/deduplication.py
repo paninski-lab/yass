@@ -5,6 +5,8 @@ def deduplicate_gpu(spike_index_torch, energy_torch,
                     recording_shape, channel_index,
                     max_window=5):
 
+    #os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
+
     # find device
     device = spike_index_torch.device
     # initialize energy train

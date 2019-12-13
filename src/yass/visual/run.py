@@ -89,6 +89,8 @@ class Visualizer(object):
 
         # load templates
         self.templates = np.load(fname_templates)
+        if len(self.geom) == self.templates.shape[2]:
+            self.templates = self.templates.transpose(1, 2, 0)
         self.n_times_templates, self.n_channels, self.n_units = self.templates.shape
         # compute neighbors for each unit
         self.compute_neighbours()
@@ -97,7 +99,10 @@ class Visualizer(object):
         # load spike train and templates
         self.spike_train = np.load(fname_spike_train)
         self.unique_ids = np.unique(self.spike_train[:,1])
-        self.soft_assignment = np.load(fname_soft_assignment)
+        if fname_soft_assignment is not None:
+            self.soft_assignment = np.load(fname_soft_assignment)
+        else:
+            self.soft_assignment = np.ones(self.spike_train.shape[0], 'float32')
 
         # compute firing rates
         self.compute_firing_rates()
@@ -302,7 +307,7 @@ class Visualizer(object):
             self.add_raw_resid_snippets()
 
     def individiual_level_plot(self, units_full_analysis=None, sample=False,
-                               plot_all=True, plot_summary=True):
+                               plot_all=True, plot_summary=True, divide_by_cell_types=True):
 
         # saving directory location
         self.save_dir_ind = os.path.join(
@@ -310,11 +315,12 @@ class Visualizer(object):
         if not os.path.exists(self.save_dir_ind):
             os.makedirs(self.save_dir_ind)
 
-        for cell_type in self.cell_types:
-            dir_tmp = os.path.join(
-                self.save_dir_ind, cell_type)
-            if not os.path.exists(dir_tmp):
-                os.makedirs(dir_tmp)
+        if divide_by_cell_types:
+            for cell_type in self.cell_types:
+                dir_tmp = os.path.join(
+                    self.save_dir_ind, cell_type)
+                if not os.path.exists(dir_tmp):
+                    os.makedirs(dir_tmp)
 
         if plot_summary:
             self.make_all_rf_templates_plots()
@@ -324,6 +330,7 @@ class Visualizer(object):
             units_full_analysis = np.arange(self.n_units)
         else:
             units_full_analysis = np.array(units_full_analysis)
+
         # random sample if requested
         n_sample = 100
         if sample and (len(units_full_analysis) > n_sample):
@@ -364,15 +371,25 @@ class Visualizer(object):
             for ii in tqdm(range(len(units_in))):
                 self.make_individiual_level_plot(units_in[ii],
                                                  names[ii],
-                                                 full_analysis[units_in[ii]])
+                                                 full_analysis[units_in[ii]],
+                                                 divide_by_cell_types
+                                                )
 
-    def make_individiual_level_plot(self, unit, name, full_analysis=True):
+    def make_individiual_level_plot(self,
+                                    unit,
+                                    name,
+                                    full_analysis=True,
+                                    divide_by_cell_types=True
+                                   ):
 
         # cell type
         cell_type = self.cell_types[self.rf_labels[unit]]
 
-        # save directory
-        save_dir = os.path.join(self.save_dir_ind, cell_type)
+        if divide_by_cell_types:
+            # save directory
+            save_dir = os.path.join(self.save_dir_ind, cell_type)
+        else:
+            save_dir = self.save_dir_ind
 
         # template
         fname = os.path.join(save_dir, name+'_p0_template.png')
@@ -1145,7 +1162,8 @@ class Visualizer(object):
         first_point = np.min((min_point, max_point))
         second_point = np.max((min_point, max_point))
 
-        window = np.arange(first_point-2, second_point+3)
+        window = np.arange(np.max((first_point-2, 0)),
+                           np.min((second_point+3, len(temp))))
 
         ptp_spikes = wf[:, :, mc][:, window].ptp(1)
 
@@ -1234,7 +1252,7 @@ class Visualizer(object):
         # dp_val) = test_merge(l2_features, spike_ids)
 
         #l2_1d_features = np.diff(l2_features, axis=0)[0]
-        n_bins = int(len(feat)/20)
+        n_bins = np.max((int(len(feat)/20), 1))
         steps = (np.max(feat) - np.min(feat))/n_bins
         bins = np.arange(np.min(feat), np.max(feat)+steps, steps)
 

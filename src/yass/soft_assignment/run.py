@@ -47,12 +47,13 @@ def run(template_fname,
     reader_resid = READER(residual_fname,
                           residual_dtype,
                           CONFIG,
-                          CONFIG.resources.n_sec_chunk_gpu_deconv/20)
+                          CONFIG.resources.n_sec_chunk_gpu_deconv/40)
 
     # load NN detector
     detector = Detect(CONFIG.neuralnetwork.detect.n_filters,
                       CONFIG.spike_size_nn,
-                      CONFIG.channel_index)
+                      CONFIG.channel_index,
+                      CONFIG)
     detector.load(CONFIG.neuralnetwork.detect.filename)
     detector = detector.cuda()
 
@@ -91,7 +92,7 @@ def run(template_fname,
         reader_resid = READER(residual_fname,
                       residual_dtype,
                       CONFIG,
-                      CONFIG.resources.n_sec_chunk_gpu_deconv/500)
+                      CONFIG.resources.n_sec_chunk_gpu_deconv/100)
 
         TAO = TEMPLATE_ASSIGN_OBJECT(
             fname_spike_train = spike_train_fname, 
@@ -102,7 +103,7 @@ def run(template_fname,
             temp_cov = temporal_cov,
             channel_idx = CONFIG.channel_index, 
             geom = CONFIG.geom,
-            large_unit_threshold = 20,
+            large_unit_threshold = 100000,
             n_chans = n_chans,
             rec_chans = CONFIG.channel_index.shape[0], 
             sim_units = 3, 

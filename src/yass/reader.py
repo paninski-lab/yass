@@ -8,11 +8,18 @@ class READER(object):
         # frequently used parameters
         self.n_channels = CONFIG.recordings.n_channels
         self.sampling_rate = CONFIG.recordings.sampling_rate
-        self.rec_len = CONFIG.rec_len
 
         # save bin_file
         self.bin_file = bin_file
         self.dtype = np.dtype(dtype)
+        
+        # compute the length of recording
+        filesize = os.path.getsize(self.bin_file)
+        dtype = np.dtype(self.dtype)
+        self.rec_len = int(filesize / 
+                           dtype.itemsize / 
+                           self.n_channels)
+        
 
         # define a size of buffer if not defined
         if buffer is None:

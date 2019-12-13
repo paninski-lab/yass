@@ -57,6 +57,13 @@ resources:
     n_gpu_processors:
       type: integer
       default: 1
+    gpu_id:
+      type: integer
+      default: 0
+    generate_phy:
+      type: integer
+      default: 0
+
 
 recordings:
   type: dict
@@ -209,10 +216,10 @@ deconvolution:
       type: boolean
       default: False
     template_update_time:
-      type: float
+      type: integer
       default: 120
     neuron_discover_time:
-      type: float
+      type: integer
       default: 100000
     min_split_spikes:
       type: integer

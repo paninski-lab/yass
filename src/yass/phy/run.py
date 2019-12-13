@@ -41,7 +41,8 @@ def run(CONFIG):
     n_components = 3
 
     # cluster id for each spike; [n_spikes]
-    spike_train = np.load(root_dir + '/tmp/spike_train.npy')
+    #spike_train = np.load(root_dir + '/tmp/spike_train.npy')
+    spike_train = np.load(root_dir + '/tmp/final_deconv/deconv/spike_train.npy')
     spike_clusters = spike_train[:,1]
     np.save(root_dir+'/phy/spike_clusters.npy', spike_clusters)
 
@@ -53,7 +54,7 @@ def run(CONFIG):
     np.save(root_dir+'/phy/spike_templates.npy', spike_clusters)
 
     # save geometry
-    chan_pos = np.loadtxt(root_dir+"geom.txt")
+    chan_pos = np.loadtxt(root_dir+CONFIG.data.geometry)
     np.save(root_dir+'/phy/channel_positions.npy', chan_pos)
 
     # sequential channel order
@@ -63,7 +64,8 @@ def run(CONFIG):
     # pick largest SU channels for each unit; [n_templates x n_channels_loc]; 
     # gives # of channels of the corresponding columns in pc_features, for each spike.
     n_idx_chans = 7
-    templates = np.load(root_dir+'/tmp/templates.npy')
+    #templates = np.load(root_dir+'/tmp/templates.npy')
+    templates = np.load(root_dir+'/tmp/final_deconv/deconv/templates.npy').transpose(1,2,0)
     ptps = templates.ptp(0)
     pc_feature_ind = ptps.argsort(0)[::-1][:n_idx_chans].T
     np.save(root_dir+'/phy/pc_feature_ind.npy',pc_feature_ind)
@@ -98,7 +100,7 @@ def run(CONFIG):
     fname_out = os.path.join(output_directory,'pc_objects.npy')
     if os.path.exists(fname_out)==False:
         pc_projections = get_pc_objects(root_dir, pc_feature_ind, n_channels,
-                            n_times, units, n_components, CONFIG)
+                            n_times, units, n_components, CONFIG, spike_train)
         np.save(fname_out, pc_projections)
     else:
         pc_projections = np.load(fname_out,allow_pickle=True)
@@ -114,25 +116,61 @@ def run(CONFIG):
                            n_times, units, pc_projections, n_idx_chans,
                            n_components, CONFIG) 
   
+  
     # *********************************************
     # ******** GENERATE SIMILARITY MATRIX *********
     # *********************************************
+    print ("... making similarity matrix")
+    # Cat: TODO: better similarity algorithms/metrics available in YASS
 
-    def cos_sim(a, b):
-        # Takes 2 vectors a, b and returns the cosine similarity according 
-        # to the definition of the dot product
-        dot_product = np.dot(a, b)
-        norm_a = np.linalg.norm(a)
-        norm_b = np.linalg.norm(b)
-        return dot_product / (norm_a * norm_b)
+
+    similar_templates = np.zeros((temps.shape[0],temps.shape[0]),'float32')
+    
+    fname_out = os.path.join(os.path.join(root_dir,'phy'),'similar_templates.npy')
+    if os.path.exists(fname_out)==False:
+
+        if CONFIG.resources.multi_processing==False:
+            for k in tqdm(range(temps.shape[0])):
+                for p in range(k,temps.shape[0]):
+                    temp1 = temps[k].T.ravel()
+                    results=[]
+                    for z in range(-1,2,1):
+                        temp_temp = np.roll(temps[p].T,z,axis=0).ravel()
+                        results.append(cos_sim(temps[k].T.ravel(),temp_temp))
+
+                    similar_templates[k,p] = np.max(results)
+        else:
+            units_split = np.array_split(np.arange(temps.shape[0]), CONFIG.resources.n_processors)
+            res = parmap.map(similarity_matrix_parallel, units_split, temps, similar_templates,
+                                processes=CONFIG.resources.n_processors,
+                                pm_pbar=True)
+            
+            print (res[0].shape)
+            similar_templates = res[0]
+            for k in range(1, len(res),1):
+                similar_templates+=res[k]
+            
+    similar_templates = symmetrize(similar_templates)
+    np.save(fname_out,similar_templates)
+
+    return 
+    
+def cos_sim(a, b):
+    # Takes 2 vectors a, b and returns the cosine similarity according 
+    # to the definition of the dot product
+    dot_product = np.dot(a, b)
+    norm_a = np.linalg.norm(a)
+    norm_b = np.linalg.norm(b)
+    return dot_product / (norm_a * norm_b)
 
     #temps = np.load(os.path.join(root_dir, 'tmp'),'templates.npy').transpose(2,0,1)
 
-    def symmetrize(a):
-        return a + a.T - np.diag(a.diagonal())
+def symmetrize(a):
+    return a + a.T - np.diag(a.diagonal())
 
-    similar_templates = np.zeros((temps.shape[0],temps.shape[0]),'float32')
-    for k in range(temps.shape[0]):
+def similarity_matrix_parallel(units, temps, similar_templates):
+    
+    for k in units:
         for p in range(k,temps.shape[0]):
             temp1 = temps[k].T.ravel()
             results=[]
@@ -142,15 +180,17 @@ def run(CONFIG):
 
             similar_templates[k,p] = np.max(results)
 
-    similar_templates = symmetrize(similar_templates)
-    np.save(root_dir + '/phy/similar_templates.npy',similar_templates)
-
-    return 
-
+    return similar_templates
+    
 
 def get_pc_objects_parallel(units, n_channels, pc_feature_ind, spike_train,
                 fname_standardized, n_times):
-    # grab 10k spikes from each neuron and populate some larger array n_events x n_channels
+    
+    ''' Function that reads 10% of spikes on top 7 channels
+        Data is then used to make PCA objects/rot matrices for each channel
+    ''' 
+    
+    # grab 10% spikes from each neuron and populate some larger array n_events x n_channels
     wfs_array = [[] for x in range(n_channels)]
     
     for unit in units:
@@ -174,10 +214,11 @@ def get_pc_objects_parallel(units, n_channels, pc_feature_ind, spike_train,
     return (wfs_array)
 
 
-def get_pc_objects(root_dir,pc_feature_ind, n_channels, n_times, units, n_components, CONFIG):
+def get_pc_objects(root_dir,pc_feature_ind, n_channels, n_times, units, n_components, CONFIG,
+                  spike_train):
     
     ''' First grab 10% of the spikes on each channel and makes PCA objects for each channel 
-        The PCA object is used in another function to project all spikes
+        Then generate PCA object for each channel using spikes
     ''' 
 
     # load templates from spike trains
@@ -185,43 +226,61 @@ def get_pc_objects(root_dir,pc_feature_ind, n_channels, n_times, units, n_compon
     # print (templates.shape)
 
     # standardized filename
-    fname_standardized = root_dir+'/tmp/preprocess/standardized.bin'
+    fname_standardized = os.path.join(os.path.join(os.path.join(root_dir,'tmp'),
+                                'preprocess'),'standardized.bin')
 
     # spike_train
-    spike_train = np.load(root_dir + '/tmp/spike_train.npy')
+    #spike_train = np.load(os.path.join(os.path.join(root_dir, 'tmp'),'spike_train.npy'))
+    #spike_train = np.load(os.path.join(os.path.join(root_dir, 'tmp'),'spike_train.npy'))
 
 
     # ********************************************
     # ***** APPROXIMATE PROJ MATRIX EACH CHAN ****
     # ********************************************
-    print ("...making projection objects for each chan...")
-    if CONFIG.resources.multi_processing==False:
-        wfs_array = get_pc_objects_parallel(units, n_channels, pc_feature_ind, 
-                                  spike_train, fname_standardized, n_times)
+    print ("...reading sample waveforms for each channel")
+    fname_out = os.path.join(os.path.join(root_dir, 'phy'),'wfs_array.npy')
+    if os.path.exists(fname_out)==False:
+        if CONFIG.resources.multi_processing==False:
+            wfs_array = get_pc_objects_parallel(units, n_channels, pc_feature_ind, 
+                                      spike_train, fname_standardized, n_times)
+        else:
+            unit_list = np.array_split(units, CONFIG.resources.n_processors)
+            res = parmap.map(get_pc_objects_parallel, unit_list, n_channels, pc_feature_ind, 
+                                spike_train, fname_standardized, n_times,
+                                processes=CONFIG.resources.n_processors,
+                                pm_pbar=True)
+                       
+            # make the waveform array 
+            wfs_array = [[] for x in range(n_channels)]
+            for k in range(len(res)):
+                for c in range(n_channels):
+                    #print ("res[k][c]: ", res[k][c].shape)
+                    wfs_array[c].extend(res[k][c])
+            
+            #for k in range(len(wfs_array)):
+            #    wfs_array[c] = np.vstack(wfs_array[c])
+        wfs_array = np.array(wfs_array)
+        np.save(fname_out, wfs_array)
     else:
-        unit_list = np.array_split(units, CONFIG.resources.n_processors)
-        res = parmap.map(get_pc_objects_parallel, unit_list, n_channels, pc_feature_ind, 
-                            spike_train, fname_standardized, n_times,
-                            processes=CONFIG.resources.n_processors,
-                            pm_pbar=True)
-                   
-        # make the waveform array 
-        wfs_array = [[] for x in range(n_channels)]
-        for k in range(len(res)):
-            for c in range(n_channels):
-                #print ("res[k][c]: ", res[k][c].shape)
-                wfs_array[c].extend(res[k][c])
-        
-        #for k in range(len(wfs_array)):
-        #    wfs_array[c] = np.vstack(wfs_array[c])
-    wfs_array = np.array(wfs_array)
-    
+        #print ("loading from disk")
+        wfs_array = np.load(fname_out,allow_pickle=True)
+
     # compute PCA object on each channel using every 10th spike on that channel
+    print ("...making projection objects for each chan...")
     pc_projections = []
-    for c in range(len(wfs_array)):
-        _,_,pca = PCA(np.array(wfs_array[c]), n_components)
-        pc_projections.append(pca)
-    
+    for c in tqdm(range(len(wfs_array))):
+        #print ("chan: ", c, " wfs_array: ", np.array(wfs_array[c]).shape)
+        if (len(wfs_array[c])>2):
+            _,_,pca = PCA(np.array(wfs_array[c]), n_components)
+            pc_projections.append(pca)
+        else:
+            # add noise waveforms; should eventually fix to just turn these channesl off
+            wfs_noise = np.random.rand(100, CONFIG.recordings.spike_size_ms* 
+                                            CONFIG.recordings.sampling_rate//1000+1)
+            #print ("inserting noise: ", wfs_noise.shape)
+            _,_,pca = PCA(wfs_noise, n_components)
+            pc_projections.append(pca)
+            
     return (pc_projections)
     
     
@@ -264,11 +323,11 @@ def compute_pc_projections(root_dir, templates, spike_train, pc_feature_ind,
             pc_features_final+= res[k][1]
 
     # transpose last 2 dimensions of pc_features
-    np.save(root_dir + '/phy/amplitudes.npy', amplitudes_final)
+    np.save(os.path.join(os.path.join(root_dir, 'phy'),'amplitudes.npy'), amplitudes_final)
 
     # transpose features to correct format expected by phy
     pc_features_final = pc_features_final.transpose(0,2,1)
-    np.save(root_dir + '/phy/pc_features.npy', pc_features_final)
+    np.save(os.path.join(os.path.join(root_dir,'phy'),'pc_features.npy'), pc_features_final)
 
 def get_final_features_amplitudes(units, pc_feature_ind, spike_train, 
                     fname_standardized, n_channels, n_times, locs, 

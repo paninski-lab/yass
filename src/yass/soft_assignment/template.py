@@ -289,10 +289,13 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         chans = chans < self.rec_chans
         log_prob = np.ravel(snip[:, chans].T) @ self.cov_list[unit] @ np.ravel(snip[:, chans].T) 
         return log_prob
-
     def compute_soft_assignment(self):
         
         log_probs = torch.zeros((len(self.spike_train), self.sim_units)).half()#torch.zeros((len(self.spike_train),3)).cuda()
+
+        # batch offsets
+        offsets = torch.from_numpy(self.reader_residual.idx_list[:, 0]
+                                   - self.reader_residual.buffer).cuda().long()
 
         with tqdm(total=self.reader_residual.n_batches) as pbar:
             for batch_id in range(self.reader_residual.n_batches):
@@ -309,6 +312,8 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                 
 
                 spike_train_batch[:, 0] -= (self.reader_residual.idx_list[batch_id][0] - self.reader_residual.buffer)
+                spike_train_batch = self.spike_train[idx_in] 
+                spike_train_batch[:, 0] -= offsets[batch_id]
                 shift_batch = self.shifts[idx_in]
                 # get residual snippets
 

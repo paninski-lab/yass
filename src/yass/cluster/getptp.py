@@ -1,9 +1,19 @@
 import numpy as np
 import torch
+import os
 from tqdm import tqdm
-    
+
+# from yass import read_config, set_config
+# output_dir='tmp/'
+# set_config(config, output_dir)
+
+# CONFIG = read_config()
+# os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
+
 class GETPTP(object):
-    def __init__(self, fname_spike_index, reader, denoiser=None):
+    def __init__(self, fname_spike_index, reader, CONFIG, denoiser=None):
+        
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
         
         self.spike_index = np.load(fname_spike_index)
         self.spike_index = torch.from_numpy(self.spike_index).long().cuda()
@@ -24,6 +34,9 @@ class GETPTP(object):
             ptps_denoised = torch.zeros(self.spike_index.shape[0]).float().cuda()
         else:
             ptps_denoised = None
+        
+        # batch offsets
+        offsets = torch.from_numpy(self.reader.idx_list[:, 0] - self.reader.buffer).cuda().long()
 
         with tqdm(total=self.reader.n_batches) as pbar:
 
@@ -38,9 +51,8 @@ class GETPTP(object):
                     (self.spike_index[:, 0] > self.reader.idx_list[batch_id][0]) & 
                     (self.spike_index[:, 0] < self.reader.idx_list[batch_id][1]))[:,0]
 
-                spike_index_batch = self.spike_index[idx_in] 
-                spike_index_batch[:, 0] -= (self.reader.idx_list[batch_id][0] - 
-                                            self.reader.buffer)
+                spike_index_batch = self.spike_index[idx_in]
+                spike_index_batch[:, 0] -= offsets[batch_id]
 
                 # skip if no spikes
                 if len(spike_index_batch) == 0:
@@ -60,7 +72,10 @@ class GETPTP(object):
                     idx_list = np.hstack((
                         np.arange(0, wfs.shape[0], n_sample_run), wfs.shape[0]))
                     denoised_wfs = torch.zeros_like(wfs).cuda()
+                    #print ("denoised_wfs; ", denoised_wfs.shape)
+                    #print ("wfs; ", wfs.shape)
                     for j in range(len(idx_list)-1):
+                        #print ("idx_list[j], j+1: ", idx_list[j], idx_list[j+1])
                         denoised_wfs[idx_list[j]:idx_list[j+1]] = self.denoiser(
                             wfs[idx_list[j]:idx_list[j+1]])[0]
                     ptps_denoised[idx_in] = (torch.max(denoised_wfs, 1)[0] - torch.min(denoised_wfs, 1)[0]).data
@@ -180,6 +195,10 @@ class GETCLEANPTP(object):
         else:
             ptps_denoised = None
 
+        # batch offsets
+        offsets = torch.from_numpy(self.reader_residual.idx_list[:, 0]
+                                   - self.reader_residual.buffer).cuda().long()
+
         with tqdm(total=self.reader_residual.n_batches) as pbar:
 
             for batch_id in range(self.reader_residual.n_batches):
@@ -194,8 +213,7 @@ class GETCLEANPTP(object):
                     (self.spike_index[:, 0] < self.reader_residual.idx_list[batch_id][1]))[:,0]
 
                 spike_index_batch = self.spike_index[idx_in] 
-                spike_index_batch[:, 0] -= (self.reader_residual.idx_list[batch_id][0] - 
-                                            self.reader_residual.buffer)
+                spike_index_batch[:, 0] -= offsets[batch_id]
 
                 # get residual snippets
                 t_index = spike_index_batch[:, 0][:, None] + t_range

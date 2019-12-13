@@ -424,14 +424,151 @@ def compute_a_template(spike_times, reader, spike_size):
     # get waveforms
     wf = reader.read_waveforms(spike_times, spike_size)[0]
 
-    max_channel = np.mean(wf, axis=0).ptp(0).argmax()
+    #max_channel = np.mean(wf, axis=0).ptp(0).argmax()
 
-    wf, _ = align_waveforms(wf=wf,
-                            max_channel=max_channel,
-                            upsample_factor=5,
-                            nshifts=3)
+    #wf, _ = align_waveforms(wf=wf,
+    #                        max_channel=max_channel,
+    #                        upsample_factor=5,
+    #                        nshifts=3)
 
     return np.mean(wf, axis=0).astype('float32')
+
+def run_cleaned_template_computation(
+    out_dir,
+    fname_spike_train,
+    fname_templates,
+    fname_shifts,
+    fname_scales,
+    fname_residual_recording,
+    dtype_residual_recording,
+    CONFIG,
+    unit_ids=None):
+
+    logger = logging.getLogger(__name__)
+
+    logger.info("computing templates from cleaned spikes")
+
+    # make output folder
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
+    #fname_templates = os.path.join(out_dir, 'templates.npy')
+    #if os.path.exists(fname_templates):
+    #    return fname_templates
+
+    # make temp folder
+    tmp_folder = os.path.join(out_dir, 'tmp_template')
+    if not os.path.exists(tmp_folder):
+        os.makedirs(tmp_folder)
+
+    # get number of units
+    n_units, n_times, n_channels = np.load(fname_templates).shape
+    if unit_ids is None:
+        unit_ids = np.arange(n_units)
+
+    reader_residual = READER(fname_residual_recording,
+                             dtype_residual_recording,
+                             CONFIG)
+
+    # run computing function
+    if CONFIG.resources.multi_processing:
+        n_processors = CONFIG.resources.n_processors
+        unit_ids_partition = []
+        for j in range(n_processors):
+            unit_ids_partition.append(
+                unit_ids[slice(j, len(unit_ids), n_processors)])
+
+        parmap.map(
+            run_cleaned_template_computation_parallel,
+            unit_ids_partition,
+            tmp_folder,
+            fname_spike_train,
+            fname_templates,
+            fname_shifts,
+            fname_scales,
+            reader_residual,
+            pm_processes=n_processors,
+            pm_pbar=True)
+
+    else:
+        run_cleaned_template_computation_parallel(
+            unit_ids,
+            tmp_folder,
+            fname_spike_train,
+            fname_templates,
+            fname_shifts,
+            fname_scales,
+            reader_residual)
+
+    # gather all info
+    templates_new = np.zeros((n_units, n_times, n_channels), 'float32')
+    for unit in unit_ids:
+        fname_out = os.path.join(tmp_folder, 'unit_{}.npy'.format(unit))
+        templates_new[unit] = np.load(fname_out)
+
+    fname_templates = os.path.join(out_dir, 'templates.npy')
+    np.save(fname_templates, templates_new)
+
+    return fname_templates
+
+def run_cleaned_template_computation_parallel(
+    unit_ids,
+    tmp_folder,
+    fname_spike_train,
+    fname_templates,
+    fname_shifts,
+    fname_scales,
+    reader_residual):
+
+    spike_train = np.load(fname_spike_train)
+    templates = np.load(fname_templates)
+    shifts = np.load(fname_shifts)
+    scales = np.load(fname_scales)
+
+    # get the spike size
+    _, spike_size, n_channels = templates.shape
+
+    for unit in unit_ids:
+
+        # skip if the unit is already computed
+        fname_out = os.path.join(tmp_folder, 'unit_{}.npy'.format(unit))
+        if os.path.exists(fname_out):
+            continue
+
+        # get necessary data
+        idx_ = np.where(spike_train[:, 1] == unit)[0]
+        spt_ = spike_train[idx_, 0]
+        shift_ = shifts[idx_]
+        scale_ = scales[idx_]
+
+        if len(spt_) == 0:
+            # save
+            np.save(fname_out,
+                    np.zeros((spike_size, n_channels)))
+            continue
+
+        max_spikes = 1000
+        if len(spt_) > max_spikes:
+            idx_subsample_ = np.random.choice(
+                a=len(spt_), size=max_spikes, replace=False)
+            spt_ = spt_[idx_subsample_]
+            shift_ = shift_[idx_subsample_]
+            scale_ = scale_[idx_subsample_]
+
+        # get residuals
+        resids_, skipped_idx = reader_residual.read_waveforms(spt_, spike_size)
+        shift_ = np.delete(shift_, skipped_idx)
+        scale_ = np.delete(scale_, skipped_idx)
+
+        # shift in the opposite way to get residuals aligned to the template
+        resids_ = shift_chans(resids_, -shift_)
+
+        # get cleaned template
+        temp_cleaned = resids_.mean(0) + templates[unit]*np.mean(scale_)
+
+        # save
+        np.save(fname_out, temp_cleaned)
+
 
 def partition_spike_time(save_dir,
                          fname_spike_index):

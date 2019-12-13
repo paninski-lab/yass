@@ -32,6 +32,10 @@ def kill_signal(recordings, threshold, window_size):
         # get obserations where observation is above threshold
         idx_temp = np.where(np.abs(recordings[:, c]) > threshold)[0]
 
+        if len(idx_temp) == 0:
+            is_noise_idx[:, c] = 1
+            continue
+
         # shift every index found
         for j in range(-R, R+1):
 
@@ -108,6 +112,7 @@ def noise_whitener(recordings, temporal_size, window_size, sample_size=1000,
     spatial_whitener = np.matmul(np.matmul(v_spatial,
                                            np.diag(1/np.sqrt(w_spatial))),
                                  v_spatial.T)
+    #print ("rec: ", rec, ", spatial_whitener: ", spatial_whitener.shape)
     rec = np.matmul(rec, spatial_whitener)
 
     # search single noise channel snippets
@@ -155,6 +160,7 @@ def search_noise_snippets(recordings, is_noise_idx, sample_size,
     """
     logger = logging.getLogger(__name__)
 
+    print ("recordings: ", recordings.shape)
     T, C = recordings.shape
 
     if channel_choices is None:
@@ -221,20 +227,22 @@ def search_noise_snippets(recordings, is_noise_idx, sample_size,
 def get_noise_covariance(reader, CONFIG):
     
     # get data chunk
-    chunk_5sec = 5*CONFIG.recordings.sampling_rate
-    if CONFIG.rec_len < chunk_5sec:
-        chunk_5sec = CONFIG.rec_len
+    chunk_5sec = 5*reader.sampling_rate
+    if reader.rec_len < chunk_5sec:
+        chunk_5sec = reader.rec_len
     small_batch = reader.read_data(
-    data_start=CONFIG.rec_len//2 - chunk_5sec//2,
-    data_end=CONFIG.rec_len//2 + chunk_5sec//2)
-    
+                data_start=reader.rec_len//2 - chunk_5sec//2,
+                data_end=reader.rec_len//2 + chunk_5sec//2)
+
     # get noise floor of recording
     noised_killed, is_noise_idx = kill_signal(small_batch, 3, CONFIG.spike_size)
+    #print ("small_batch: ", small_batch.shape, ", noised_killed: ", noised_killed.shape)
     
     # spatial covariance
     spatial_cov_all = np.divide(np.matmul(noised_killed.T, noised_killed),
                         np.matmul(is_noise_idx.T, is_noise_idx))
     sig = np.sqrt(np.diag(spatial_cov_all))
+    sig[sig == 0] = 1
     spatial_cov_all = spatial_cov_all/(sig[:,None]*sig[None])
 
     chan_dist = squareform(pdist(CONFIG.geom))
@@ -249,11 +257,11 @@ def get_noise_covariance(reader, CONFIG):
 
     # get noise snippets
     noise_wf = search_noise_snippets(
-    noised_killed, is_noise_idx, 1000,
-    CONFIG.spike_size,
-    channel_choices=None,
-    max_trials_per_sample=100,
-    allow_smaller_sample_size=True)
+                    noised_killed, is_noise_idx, 1000,
+                    CONFIG.spike_size,
+                    channel_choices=None,
+                    max_trials_per_sample=100,
+                    allow_smaller_sample_size=True)
 
     # get temporal covariance
     temp_cov = np.cov(noise_wf.T)

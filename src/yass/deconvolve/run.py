@@ -77,6 +77,8 @@ def run(fname_templates_in,
     CONFIG = read_config()
     CONFIG = make_CONFIG2(CONFIG)
 
+    print("... deconv using GPU device: ", torch.cuda.current_device())
+    
     # output folder
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -90,8 +92,6 @@ def run(fname_templates_in,
     fname_scales = os.path.join(
         output_directory, 'scales.npy')
                                
-    print ("Processing templates: ", fname_templates_in)
-
     # Cat: TODO: use Peter's conditional (below) instead of single file check
     # if (os.path.exists(fname_templates) and
         # os.path.exists(fname_spike_train) and
@@ -194,7 +194,6 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.save_objective = False
     d_gpu.verbose = False
     d_gpu.print_iteration_counter = 1
-    d_gpu.chunk_id = 0
     
     # Turn on refactoriness
     d_gpu.refractoriness = True
@@ -230,7 +229,11 @@ def deconv_ONgpu2(fname_templates_in,
     #       are updated based on spikes in previous chunk)
     # Cat: TODO read from CONFIG
     d_gpu.update_templates = update_templates
-    d_gpu.max_percent_update = 0.2
+    # min difference allowed (in terms of ptp of templates)
+    d_gpu.min_bad_diff = 0.3
+    # max difference with the max weights 
+    d_gpu.max_good_diff = 3
+
     if d_gpu.update_templates:
         print ("   templates being updated every ", 
                 CONFIG.deconvolution.template_update_time, " sec")
@@ -264,11 +267,12 @@ def deconv_ONgpu2(fname_templates_in,
                                                 d_gpu, 
                                                 CONFIG, 
                                                 output_directory)
-        setup_time = 0
+        templates_post_deconv = np.load(fname_templates_out)
+
     else:
-        d_gpu, setup_time = run_deconv_no_templates_update(d_gpu, CONFIG)
+        d_gpu = run_deconv_no_templates_update(d_gpu, CONFIG)
         
-        fname_templates_out = fname_templates_in
+        templates_post_deconv = d_gpu.temps.transpose(2, 1, 0)
 
     # ****************************************************************
     # *********************** GATHER SPIKE TRAINS ********************
@@ -277,7 +281,7 @@ def deconv_ONgpu2(fname_templates_in,
 
     print ("-------------------------------------------")
     total_length_sec = int((d_gpu.reader.end - d_gpu.reader.start)/d_gpu.reader.sampling_rate)
-    print ("Total Deconv Speed ", np.round(total_length_sec/(setup_time+subtract_time),2), " x Realtime")
+    print ("Total Deconv Speed ", np.round(total_length_sec/(subtract_time),2), " x Realtime")
 
     # ************* DEBUG MODE *****************
     if d_gpu.save_objective:
@@ -297,7 +301,7 @@ def deconv_ONgpu2(fname_templates_in,
     scales = []
     for chunk_id in tqdm(range(reader.n_batches)):
         #fname = os.path.join(d_gpu.seg_dir,str(chunk_id).zfill(5)+'.npz')
-        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
+        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv
         fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
         data = np.load(fname, allow_pickle=True)
 
@@ -373,31 +377,35 @@ def deconv_ONgpu2(fname_templates_in,
     fname_scales = os.path.join(d_gpu.out_dir, 'scales.npy')
     np.save(fname_scales, scales)
     
-    # save templates and upsampled templates
+    # save templates
     fname_templates = os.path.join(d_gpu.out_dir, 'templates.npy')
-    templates_post_deconv = np.load(fname_templates_out)
     np.save(fname_templates, templates_post_deconv)
 
 
 def run_deconv_no_templates_update(d_gpu, CONFIG):
 
     chunk_ids = np.arange(d_gpu.reader.n_batches)
-    chunk_ids_split = np.split(chunk_ids,
-                               len(CONFIG.torch_devices))
-                               
     n_sec_chunk_gpu = CONFIG.resources.n_sec_chunk_gpu
 
     processes = []
-    for ii, device in enumerate(CONFIG.torch_devices):
-        p = mp.Process(target=run_deconv_no_templates_update_parallel,
-                       args=(d_gpu, chunk_ids_split[ii],
-                             n_sec_chunk_gpu, device))
-        p.start()
-        processes.append(p)
-    for p in processes:
-        p.join()
+    if len(CONFIG.torch_devices) == 1:
+        run_deconv_no_templates_update_parallel(d_gpu,
+                                                chunk_ids,
+                                                n_sec_chunk_gpu,
+                                                CONFIG.torch_devices[0])
+    else:
+        chunk_ids_split = np.split(chunk_ids,
+                               len(CONFIG.torch_devices))
+        for ii, device in enumerate(CONFIG.torch_devices):
+            p = mp.Process(target=run_deconv_no_templates_update_parallel,
+                           args=(d_gpu, chunk_ids_split[ii],
+                                 n_sec_chunk_gpu, device))
+            p.start()
+            processes.append(p)
+        for p in processes:
+            p.join()
 
-    return d_gpu, 0
+    return d_gpu
 
 
 def run_deconv_no_templates_update_parallel(d_gpu, chunk_ids, n_sec_chunk_gpu, device):
@@ -424,6 +432,139 @@ def run_deconv_no_templates_update_parallel(d_gpu, chunk_ids, n_sec_chunk_gpu, d
                      shift_list = d_gpu.shift_list,
                      height_list = d_gpu.height_list
                     )
+
+def run_deconv_with_templates_update2(d_gpu):
+
+    n_sec_chunk = d_gpu.reader.n_sec_chunk
+    n_chunks_update = int(d_gpu.template_update_time/n_sec_chunk)
+    update_chunk = np.hstack((np.arange(0, d_gpu.reader.n_batches,
+                             n_chunks_update), d_gpu.reader.n_batches))
+
+    d_gpu.initialize()
+
+    for batch_id in range(len(update_chunk)-1):
+
+        ##################
+        ## Forward pass ##
+        ##################
+
+        fnames_forward = []
+        for chunk_id in range(update_chunk[batch_id], update_chunk[batch_id+1]):
+
+            # output name
+            time_index = (chunk_id+1)*n_sec_chunk
+            fname = os.path.join(d_gpu.seg_dir,
+                                 str(time_index).zfill(6)+'_forward.npz')
+            fnames_forward.append(fname)
+
+            if os.path.exists(fname)==False:
+
+                print ("Forward deconv", time_index, " sec, ",
+                       chunk_id, "/", d_gpu.reader.n_batches)
+
+                # run deconv
+                d_gpu.run(chunk_id)
+
+                # get ptps
+                avg_ptps, weights = d_gpu.compute_average_ptps()
+
+                # save deconv results
+                np.savez(fname,
+                         spike_array = d_gpu.spike_array,
+                         offset_array = d_gpu.offset_array,
+                         neuron_array = d_gpu.neuron_array,
+                         shift_list = d_gpu.shift_list,
+                         height_list = d_gpu.height_list,
+                         avg_ptps = avg_ptps.cpu(),
+                         weights = weights.cpu()
+                        )
+
+            else:
+                d_gpu.chunk_id = chunk_id
+
+        ######################
+        ## update templates ##
+        ######################
+
+        fname_templates_updated = os.path.join(
+            d_gpu.out_dir,
+            'template_updates',
+            'templates_{}sec.npy'.format(n_chunks_update*n_sec_chunk*(batch_id+1)))
+        update_templates(fnames_forward,
+                         d_gpu.fname_templates,
+                         fname_templates_updated,
+                         update_weight = 50)
+
+        # re initialize with updated templates
+        d_gpu.fname_templates = fname_templates_updated
+        # make sure that it is at the right chunk location
+        d_gpu.chunk_id = chunk_id
+        d_gpu.initialize()
+
+        ###################
+        ## Backward pass ##
+        ###################
+        for chunk_id in range(update_chunk[batch_id], update_chunk[batch_id+1]):
+
+            # output name
+            time_index = (chunk_id+1)*n_sec_chunk
+            fname = os.path.join(d_gpu.seg_dir,
+                                 str(time_index).zfill(6)+'.npz')
+
+            if os.path.exists(fname)==False:
+
+                print ("Backward deconv", time_index, " sec, ",
+                       chunk_id, "/", d_gpu.reader.n_batches)
+
+                # run deconv
+                d_gpu.run(chunk_id)
+
+                # save deconv results
+                np.savez(fname,
+                         spike_array = d_gpu.spike_array,
+                         offset_array = d_gpu.offset_array,
+                         neuron_array = d_gpu.neuron_array,
+                         shift_list = d_gpu.shift_list,
+                         height_list = d_gpu.height_list)
+
+            else:
+                d_gpu.chunk_id = chunk_id
+
+    return fname_templates_updated
+
+
+def update_templates(fnames_forward,
+                     fname_templates,
+                     fname_templates_updated,
+                     update_weight = 30):
+
+    # get all ptps sufficent stats
+    avg_ptps_all = [None]*len(fnames_forward)
+    weights_all = [None]*len(fnames_forward)
+
+    for ii, fname in enumerate(fnames_forward):
+        temp = np.load(fname, allow_pickle=True)
+        avg_ptps_all[ii] = temp['avg_ptps']
+        weights_all[ii] = temp['weights']
+
+    avg_ptps_all = np.stack(avg_ptps_all)
+    weights_all = np.stack(weights_all)
+    avg_ptps = np.average(avg_ptps_all, axis=0, weights=weights_all)
+    n_spikes = np.sum(weights_all, axis=0)
+
+    # laod templates
+    templates = np.load(fname_templates)
+
+    # get template ptp
+    temp_ptps = templates.ptp(1)
+    temp_ptps[temp_ptps==0] = 0.01
+
+    # do geometric update
+    weight_old = np.exp(-n_spikes/update_weight)
+    ptps_updated = temp_ptps*weight_old + (1-weight_old)*avg_ptps
+    scale = ptps_updated/temp_ptps
+    updated_templates = templates*scale[:, None]
+    np.save(fname_templates_updated, updated_templates)
 
 
 def run_deconv_with_templates_update(d_gpu, CONFIG,
@@ -478,9 +619,9 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
         updated_temp_time = ((chunk_id*chunk_len)//batch_len+1)*batch_len
         previous_temp_time = ((chunk_id*chunk_len)//batch_len)*batch_len
 
-        print ("")
-        print ("")
-        print ("")
+        # print ("")
+        # print ("")
+        # print ("")
         
         # check if the batch templates have already been updated;
         # if yes, then do backward step; if not finish the forward batch
@@ -515,6 +656,10 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
                     chunk_id+=1
                     continue
                 
+                # exit when getting to last file
+                if chunk_id>=d_gpu.reader.n_batches:
+                    break
+                
                 #if verbose:
                 print (" Backward pass time ", time_index)
 
@@ -531,8 +676,9 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
                          spike_array = d_gpu.spike_array,
                          offset_array = d_gpu.offset_array,
                          neuron_array = d_gpu.neuron_array,
-                         shift_list = d_gpu.shift_list)
-                
+                         shift_list = d_gpu.shift_list,
+                         height_list = d_gpu.height_list)
+
                 chunk_id+=1
             
             print ("  DONE BACKWARD PASS: ")
@@ -588,7 +734,7 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
                 chunks.append(chunk_id)
                 
                 #if verbose:
-                print (" Forward pass time ", time_index)
+                print (" Forward pass time ", time_index, ", chunk : ", chunk_id, " / ", d_gpu.reader.n_batches)
                
                 # run deconv
                 d_gpu.run(chunk_id)
@@ -599,8 +745,9 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
                          spike_array = d_gpu.spike_array,
                          offset_array = d_gpu.offset_array,
                          neuron_array = d_gpu.neuron_array,
-                         shift_list = d_gpu.shift_list)
-            
+                         shift_list = d_gpu.shift_list,
+                         height_list = d_gpu.height_list)
+
                 track_spikes_post_deconv(d_gpu, 
                                         CONFIG,
                                         time_index, 
@@ -643,7 +790,8 @@ def run_deconv_with_templates_update(d_gpu, CONFIG,
             # finalize and reinitialize deconvolution with new templates
             # Cat; TODO: is this flag redundant?  This entire wrapper is for updating templates
             if d_gpu.update_templates:
-                finish_templates(templates_new, d_gpu, CONFIG, time_index)
+                finish_templates(templates_new, d_gpu, CONFIG, time_index, 
+                                 chunk_id, updated_temp_time)
         
             # reset the chunk ID back to initialize the updated/backward template pass
             # Cat; TODO: is this flag redundant?  This entire wrapper is for updating templates
@@ -768,6 +916,8 @@ def track_spikes_post_deconv(d_gpu,
     #   being rejected
     max_diff_ptp = 3.0 
     
+    #print ("... processing template update...")
+    #for unit in tqdm(units):
     for unit in units:
         # 
         idx = torch.where(ids==unit, ids*0+1, ids*0)
@@ -814,7 +964,7 @@ def track_spikes_post_deconv(d_gpu,
             # save data for post-run debugging; 
             # Cat: TODO this is a large file, can eventually erase it;
             # saving only max channel data -not whole file
-            print ("denoised_wfs: ", denoised_wfs.shape)
+            #print ("denoised_wfs: ", denoised_wfs.shape)
             if multi_chan_rank1:
                 wfs_temp_original_array.append(denoised_wfs[:,:,d_gpu.max_chans[unit]])
             else:
@@ -835,7 +985,7 @@ def track_spikes_post_deconv(d_gpu,
                     shifts = shifts[:,None]
                 wfs_temp_aligned = shift_chans(denoised_wfs, -shifts)
 
-                print ("wfs_temp_aligned: ", wfs_temp_aligned.shape)
+                #print ("wfs_temp_aligned: ", wfs_temp_aligned.shape)
                 wfs_temp_aligned_array.append(wfs_temp_aligned)
             else:
                 wfs_temp_aligned = denoised_wfs
@@ -940,7 +1090,7 @@ def track_spikes_post_deconv(d_gpu,
                 maxes = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][0]]
                 mins = wfs_temp_aligned[:,d_gpu.ptp_locs[unit][1]]
             
-            print ("maxes: ", maxes)
+            #print ("maxes: ", maxes)
             
             # save ptps for all spike waveforms at selected time points                    
             ptp_all = (maxes-mins)
@@ -1291,7 +1441,8 @@ def split_neurons(templates_new, d_gpu, CONFIG, time_index):
     
     return templates_new
 
-def finish_templates(templates_new, d_gpu, CONFIG, time_index):
+def finish_templates(templates_new, d_gpu, CONFIG, time_index, chunk_id, 
+                     updated_temp_time):
     
     verbose = False
     if verbose:
@@ -1299,10 +1450,20 @@ def finish_templates(templates_new, d_gpu, CONFIG, time_index):
         print ("")
         print ("   FINISHING TEMPLATES   ")
 
+    # save updated templates
     out_file = os.path.join(d_gpu.out_dir,'template_updates',
                     'templates_'+
                     str(time_index)+
                     'sec.npy')
+    
+    # also save updated templates for end of file with name as a muitple of the update_template
+    # time so that the backward step can find this file;
+    # Cat: TODO: this can probably be done better/more elegantly
+    time_index_extended = str(updated_temp_time)
+    out_file = os.path.join(d_gpu.out_dir,'template_updates',
+                    'templates_'+
+                    str(time_index_extended)+
+                    'sec.npy')                                                
     
     if verbose:
         print (" TEMPS being saved: ", out_file)

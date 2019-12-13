@@ -71,17 +71,11 @@ def run(output_directory):
                                 CONFIG.data.recordings)
     dtype_raw = CONFIG.recordings.dtype
     n_channels = CONFIG.recordings.n_channels
-    if CONFIG.preprocess.apply_filter:
-        # if apply filter, get recording reader
-        n_sec_chunk = CONFIG.resources.n_sec_chunk
-        reader = READER(filename_raw, dtype_raw, CONFIG, n_sec_chunk)
-        logger.info("# of chunks: {}".format(reader.n_batches))
-    else:
-        # if not, just return raw recording info
-        raw_params = dict(
-            dtype=dtype_raw,
-            n_channels=n_channels)
-        return filename_raw, raw_params['dtype']
+
+    # if apply filter, get recording reader
+    n_sec_chunk = CONFIG.resources.n_sec_chunk
+    reader = READER(filename_raw, dtype_raw, CONFIG, n_sec_chunk)
+    logger.info("# of chunks: {}".format(reader.n_batches))
 
     # make output directory
     if not os.path.exists(output_directory):
@@ -113,8 +107,7 @@ def run(output_directory):
     order = CONFIG.preprocess.filter.order
     sampling_rate = CONFIG.recordings.sampling_rate
 
-    # Cat: TODO: Is this still relevant/used?
-    #get standard deviation using a small chunk of data
+    # estimate std from a small chunk
     chunk_5sec = 5*CONFIG.recordings.sampling_rate
     if CONFIG.rec_len < chunk_5sec:
         chunk_5sec = CONFIG.rec_len
@@ -122,10 +115,11 @@ def run(output_directory):
         data_start=CONFIG.rec_len//2 - chunk_5sec//2,
         data_end=CONFIG.rec_len//2 + chunk_5sec//2)
 
-    fname_sd = os.path.join(
-        output_directory, 'standard_dev_value.npy')
-    get_std(small_batch, low_frequency, high_factor, order,
-            sampling_rate, fname_sd)
+    fname_mean_sd = os.path.join(
+        output_directory, 'mean_and_standard_dev_value.npz')
+    get_std(small_batch, sampling_rate,
+            fname_mean_sd, CONFIG.preprocess.apply_filter,
+            low_frequency, high_factor, order)
     # turn it off
     small_batch = None
 
@@ -136,29 +130,34 @@ def run(output_directory):
 
     # read config params
     multi_processing = CONFIG.resources.multi_processing
-
     if CONFIG.resources.multi_processing:
         n_processors = CONFIG.resources.n_processors
         parmap.map(
             filter_standardize_batch,
             [i for i in range(reader.n_batches)],
             reader,
+            fname_mean_sd,
+            CONFIG.preprocess.apply_filter,
+            CONFIG.preprocess.dtype,
+            filtered_location,
             low_frequency,
             high_factor,
             order,
             sampling_rate,
-            fname_sd,
-            CONFIG.preprocess.dtype,
-            filtered_location,
             processes=n_processors,
             pm_pbar=True)
     else:
         for batch_id in range(reader.n_batches):
             filter_standardize_batch(
-                batch_id, reader, low_frequency,
-                high_factor, order, sampling_rate,
-                fname_sd, CONFIG.preprocess.dtype,
-                filtered_location)
+                batch_id, reader, fname_mean_sd,
+                CONFIG.preprocess.apply_filter,
+                CONFIG.preprocess.dtype,
+                filtered_location,
+                low_frequency,
+                high_factor,
+                order,
+                sampling_rate,
+                )
 
     # Merge the chunk filtered files and delete the individual chunks
     merge_filtered_files(filtered_location, output_directory)

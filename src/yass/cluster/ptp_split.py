@@ -7,6 +7,9 @@ import networkx as nx
 from yass.cluster.getptp import GETPTP, GETCLEANPTP
 from yass import mfm
 
+# from yass import read_config
+# CONFIG = read_config()
+
 def run_split_on_ptp(savedir,
                      fname_spike_index,
                      CONFIG,
@@ -21,10 +24,13 @@ def run_split_on_ptp(savedir,
 
     logger = logging.getLogger(__name__)
 
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
+
     # save results
     fname_spike_index_new = os.path.join(savedir, 'spike_index.npy')
     fname_labels_new = os.path.join(savedir, 'labels.npy')
     fname_ptp = os.path.join(savedir, 'ptp.npy')
+
 
     if os.path.exists(fname_labels_new):
         if fname_labels is None:
@@ -40,7 +46,7 @@ def run_split_on_ptp(savedir,
     # get ptp
     logger.info("Get Spike PTP")
     if raw_data:
-        getptp = GETPTP(fname_spike_index, reader_raw, denoiser)
+        getptp = GETPTP(fname_spike_index, reader_raw, CONFIG, denoiser)
         ptp_raw, ptp_deno = getptp.compute_ptps()
     else:
         getcleanptp = GETCLEANPTP(fname_spike_index,
