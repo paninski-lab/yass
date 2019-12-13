@@ -85,7 +85,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.exclude_large_units(large_unit_threshold)
         #self.spike_train = self.spike_train[np.asarray(list(self.idx_included)).astype("int16"), :]
         self.test = np.in1d(self.spike_train_og[:, 1], np.asarray(list(self.units_in)))
-        self.idx_included = np.logical_and(self.spike_train_og[:, 0] > 40, np.in1d(self.spike_train_og[:, 1], np.asarray(list(self.units_in))))
+        self.idx_included = np.logical_and(np.logical_and(self.spike_train_og[:, 0] < reader_residual.rec_len -  self.n_times//2, self.spike_train_og[:, 0] > self.n_times//2), np.in1d(self.spike_train_og[:, 1], np.asarray(list(self.units_in))))
         self.spike_train = self.spike_train_og[self.idx_included]
         self.shifts = self.shifts[self.idx_included]
         self.chans = np.asarray([np.argsort(self.templates[unit].ptp(0))[::-1][:self.n_chans] for unit in range(self.n_units)])
@@ -259,7 +259,6 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         coeffs = deconv.BatchedTemplates([transform_template(template) for template in temp_cpp])
         return coeffs
     def get_shifted_templates(self, temp_ids, shifts, iteration):
-        
         temp_ids = torch.from_numpy(temp_ids.cpu().numpy()).long().cuda()
         shifts = torch.from_numpy(shifts.cpu().numpy()).float().cuda()
 
@@ -304,10 +303,12 @@ class TEMPLATE_ASSIGN_OBJECT(object):
 
                 # relevant idx
                 idx_in = torch.nonzero((self.spike_train[:, 0] >= self.reader_residual.idx_list[batch_id][0]) & (self.spike_train[:, 0] < self.reader_residual.idx_list[batch_id][1]))[:,0]
+                print(idx_in)
+                spike_train_batch = self.spike_train[idx_in]
+                print(spike_train_batch)
+                print(spike_train_batch[:, 1])
 
-                spike_train_batch = self.spike_train[idx_in] 
                 spike_train_batch[:, 0] -= (self.reader_residual.idx_list[batch_id][0] - self.reader_residual.buffer)
-
                 shift_batch = self.shifts[idx_in]
                 # get residual snippets
 
@@ -316,6 +317,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                 resid_dat = torch.cat((resid_dat, torch.zeros((resid_dat.shape[0], 1)).cuda()), 1)
                 resid_snippets = resid_dat[t_index[:,:,None], c_index[:,None]]
                 # get shifted templates
+                print("-------")
                 shifted_templates = [self.get_shifted_templates(spike_train_batch[:,1], shift_batch, i) for i in range(self.sim_units)]
                 shifted_templates = [element for element in shifted_templates]
 
@@ -349,7 +351,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.log_probs = log_probs.cpu().numpy()
         return log_probs.cpu().numpy()
     def clean_wave_forms(self, spike_idx, unit):
-        return_wfs = torch.zeros((spike_idx.shape[0], 81, 5))
+        return_wfs = torch.zeros((spike_idx.shape[0],self.templates.shape[1], self.n_chans))
         with tqdm(total=self.reader_residual.n_batches) as pbar:
             for batch_id in range(self.reader_residual.n_batches):
 
@@ -400,6 +402,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         
         
         log_probs = self.compute_soft_assignment()
+        self.log_probs = log_probs
         probs = self.get_assign_probs(log_probs)
         replace_probs = np.zeros((self.spike_train_og.shape[0], self.sim_units))
         replace_log = np.zeros((self.spike_train_og.shape[0],self.sim_units))
