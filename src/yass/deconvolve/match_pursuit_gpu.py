@@ -1294,9 +1294,11 @@ class deconvGPU(object):
             spike_temps = spike_temps[None]
 
         np.save(self.out_dir+'/objectives/spike_times_inside_'+
-                           str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', self.spike_times.squeeze().cpu().data.numpy())
+                           str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
+                           self.spike_times.squeeze().cpu().data.numpy())
         np.save(self.out_dir+'/objectives/spike_ids_inside_'+
-                           str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', self.neuron_ids.squeeze().cpu().data.numpy())
+                           str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
+                           self.neuron_ids.squeeze().cpu().data.numpy())
         # np.save(self.out_dir+'/objectives/coefficients_inside_'+
                             # str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', self.coefficients.cpu().data.numpy())
         #spike_times = spike_times -99
