@@ -25,6 +25,7 @@ from yass.deconvolve.util import WaveForms
 
 def continuous_visible_channels(
     templates, geom, threshold=.5, neighb_threshold=1., spatial_neighbor_dist=70):
+    #templates, geom, threshold=2.0, neighb_threshold=2., spatial_neighbor_dist=70):
     """
     inputs:
     -------
@@ -139,6 +140,7 @@ def compute_temp_temp_svd_shifted2(rank, spike_size, n_unit, viscs,
     
     temp_temp = [[0. for i in range(n_unit)] for j in range(n_unit)]
 
+    #for unit in tqdm(range(n_unit)):
     for unit in tqdm(range(n_unit)):
         # Full temp is the unshifted reconstructed
         # templates for a unit that acts as the data
@@ -720,7 +722,7 @@ class deconvGPU(object):
         # Computes if units are spatially overlapping
         unit_unit_overlap = np.logical_and(viscs[None], viscs[:, None]).sum(-1) > 0
         print ("raw unit_unit_overlap: ", unit_unit_overlap.shape)
-        print ("   Note: inverting the temporal filters in place at computation time...")
+        #print ("   Note: inverting the temporal filters in place at computation time...")
         for unit in tqdm(range(n_unit)):
             # get vis channels only
             t = temp[unit, viscs[unit], :]
@@ -774,7 +776,7 @@ class deconvGPU(object):
                                                 self.spat_comp, self.temp_comp,
                                                 self.unit_unit_overlap)
                                                 
-            print ("   computing zero padding...")
+            #print ("   computing zero padding...")
             # Zero padding and aligning temp temp
             n_unit = self.K
             
@@ -802,13 +804,21 @@ class deconvGPU(object):
 
             #self.temp_temp = zero_padded_temp_temp
         
-            print ("... reversing temp_temp function...")
+            #print ("... reversing temp_temp function...")
             #print ("   zero_padded_temp_temp: ", zero_padded_temp_temp.shape)
-            zero_padded_temp_temp = zero_padded_temp_temp.transpose([1, 0, 2])
+            #zero_padded_temp_temp = zero_padded_temp_temp.transpose([1, 0, 2])
+
+            # sparsify temp_temp
+            temp_var = []
+            for k in range(zero_padded_temp_temp.shape[0]):
+                temp_var.append(zero_padded_temp_temp[k][np.where(self.unit_unit_overlap[k])[0]])
+            
+            zero_padded_temp_temp = temp_var
 
             # transfer list to GPU
             self.temp_temp = []
             for k in range(len(zero_padded_temp_temp)):
+                #print ('zero_padded_temp_temp[k]: ', zero_padded_temp_temp[k].shape)
                 self.temp_temp.append(torch.from_numpy(zero_padded_temp_temp[k]).float().cuda())
                 #self.temp_temp.append(torch.from_numpy(zero_padded_temp_temp[k][:, 45:-44]).float().cuda())
             
@@ -819,7 +829,7 @@ class deconvGPU(object):
             print (".... loading temp-temp from disk")
             self.temp_temp = np.load(fname, allow_pickle=True)
             
-        print ("len: self.temptemp gpu: ", len(self.temp_temp))
+        #print ("len: self.temptemp gpu: ", len(self.temp_temp))
 
         
         # save GPU list as numpy object
@@ -880,11 +890,27 @@ class deconvGPU(object):
         #move data to gpu
         self.norms = torch.from_numpy(norm).float().cuda()
         
-        self.vis_units = torch.FloatTensor(self.unit_unit_overlap).long().cuda()
+        #self.vis_units_gpu=[]
+        #for k in range(self.vis_units.shape[0]):
+        #    self.vis_units_gpu.append(torch.FloatTensor(np.where(self.vis_units[k])[0]).long().cuda())
+        #self.vis_units = self.vis_units_gpu
+        
+        self.vis_units = [] 
+        for k in range(self.unit_unit_overlap.shape[0]):
+            # print (self.unit_unit_overlap[k])
+            # print (np.where(self.unit_unit_overlap[k])[0])
+            # print ("temp_temp: ", self.temp_temp[k].shape)
+
+            self.vis_units.append(torch.FloatTensor(np.where(self.unit_unit_overlap[k])[0]).long().cuda())
+        #self.vis_units = self.vis_units_gpu
+        
+       # = torch.FloatTensor(self.unit_unit_overlap).long().cuda()
         #self.vis_units = torch.LongTensor(self.unit_unit_overlap).long().cuda()
         #self.vis_units = torch.BoolTensor(self.unit_unit_overlap).long().cuda()
         
-        print ("self.vis_units: ", self.vis_units.shape)
+        #np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/vis_units.npy',
+        #        self.vis_units.cpu().data.numpy())
+        #print ("self.vis_units: ", self.vis_units.shape)
 
         # Old method to track drift + svd compression
         # Cat: TODO: delete/remove
@@ -944,7 +970,7 @@ class deconvGPU(object):
         spat_comp_gpu = torch.from_numpy(self.spat_comp.transpose([0,2,1])).float().cuda()
         #print ("self.temp_comp: ", self.temp_comp.shape)
         # transfer temp_comp and reverse the time 
-        print (" check if need to inverse (NOTE: Already inverted at computation time")
+        #print (" check if need to inverse (NOTE: Already inverted at computation time")
         #temp_comp_gpu = torch.from_numpy(self.temp_comp[:,:,::-1]).float().cuda()        
         temp_comp_gpu = torch.from_numpy(self.temp_comp).float().cuda()        
         
@@ -955,7 +981,8 @@ class deconvGPU(object):
             np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/temp_comp.npy',self.temp_comp)
             np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/norms.npy', self.norms.cpu().data.numpy())
         
-        for unit in tqdm(range(self.temps.shape[2])):
+        #for unit in tqdm(range(self.temps.shape[2])):
+        for unit in range(self.temps.shape[2]):
             # Do the shifts that was required for aligning template
             shifts = reverse_shifts(self.align_shifts[unit])
             #print ("shifts: ", shifts.shape)
@@ -971,23 +998,22 @@ class deconvGPU(object):
                     
             # Sum over Rank
             for i in range(self.temp_comp.shape[1]):
-                temp_out = nn.functional.conv1d(mm[i][None,None,:],
+                self.obj_gpu[unit,:]+= nn.functional.conv1d(mm[i][None,None,:],
                                                temp_comp_gpu[unit,i][None,None,:], 
                                                padding = self.STIME-1)[0][0]
                 #print ("Convolution result: ", temp_out.shape)
-                self.obj_gpu[unit,:]+=temp_out
-                                        
+                  
             # Undo the shifts that we did earlier
             #in_place_roll_shift(data, -shifts)
             rowshift.backward(self.data, shifts_gpu)
 
         #obj_function = 2 * obj_function - temp_norms[:NUNIT][:, None]  #drop NUNIT;  # drop additional dimensions;
-        print ("obj_function: ", self.obj_gpu.shape)
-        print ("self.norms: ", self.norms.shape)
+        #print ("obj_function: ", self.obj_gpu.shape)
+        #print ("self.norms: ", self.norms.shape)
         self.obj_gpu = 2 * self.obj_gpu - self.norms[:,None]  #drop NUNIT;  # drop additional dimensions;
 
         del mm
-        del temp_out
+        #del temp_out
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
         
@@ -1138,9 +1164,7 @@ class deconvGPU(object):
         #quit()
         if self.verbose:
             print ("Total subtraction step: ", np.round(dt.datetime.now().timestamp()-start,3))
-        
-        #quit()
-        #np.save('/home/cat/saved_array.npy', self.saved_gpu_array)
+
         
     def find_shifts(self):
         '''  Function that fits quadratic to 3 points centred on each peak of obj_func 
@@ -1258,11 +1282,12 @@ class deconvGPU(object):
                            self.spike_times*0+1, 
                            self.spike_times*0)
         else:
-            idx1 = torch.where((self.spike_times>self.lockout_window) &
-                                (self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
+            #idx1 = torch.where((self.spike_times>self.lockout_window) &
+            idx1 = torch.where((self.spike_times>(self.coefficients[0].data.shape[1]//2+2)) &
+                                #(self.spike_times<(self.obj_gpu.shape[1]-self.lockout_window)),
+                                (self.spike_times<(self.obj_gpu.shape[1]-(self.coefficients[0].data.shape[1]//2+2))),
                                 self.spike_times*0+1, 
                                 self.spike_times*0)
-
 
         idx2 = torch.nonzero(idx1)[:,0]
         #self.spike_times = self.spike_times[idx2]
@@ -1291,7 +1316,8 @@ class deconvGPU(object):
             self.heights = self.heights[:1]
             self.obj_gpu *=0.
 
-        spike_times = self.spike_times.squeeze()-self.lockout_window
+        #spike_times = self.spike_times.squeeze()-self.lockout_window
+        spike_times = self.spike_times.squeeze()-self.coefficients[0].data.shape[1]//2+2
         spike_temps = self.neuron_ids.squeeze()
         
         # zero out shifts if superres shift turned off
@@ -1307,52 +1333,57 @@ class deconvGPU(object):
             spike_times = spike_times[None]
             spike_temps = spike_temps[None]
 
+        #print ("spke_times: ", spike_times, spike_times)
+        #print ("spke_times: ", spike_times[:20], spike_times[-20:])
+        
         # save metadata
-        if self.n_iter<2:
-            self.objectives_dir = os.path.join(self.out_dir,'objectives')
-            if not os.path.isdir(self.objectives_dir):
-                os.mkdir(self.objectives_dir)
-                
-            np.save(self.out_dir+'/objectives/spike_times_inside_'+ 
-                               str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
-                               spike_times.squeeze().cpu().data.numpy())
-            np.save(self.out_dir+'/objectives/spike_ids_inside_'+
-                               str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
-                               spike_temps.squeeze().cpu().data.numpy())
-            np.save(self.out_dir+'/objectives/obj_gpu_'+
-                               str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
-                               self.obj_gpu.cpu().data.numpy())
-            np.save(self.out_dir+'/objectives/shifts_'+
-                               str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
-                               self.xshifts.cpu().data.numpy())
-            np.save(self.out_dir+'/objectives/tempScaling_'+
-                               str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
-                               self.tempScaling)
-            np.save(self.out_dir+'/objectives/heights_'+
-                               str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
-                               self.heights.cpu().data.numpy())
-            for k in range(len(self.coefficients)):
-                np.save(self.out_dir+'/objectives/coefficients_'+str(k)+"_"+
-                               str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
-                               self.coefficients[k].data.cpu().numpy())
-        
-        
-            print ("spike_times: ", spike_times.shape)
-            print ("spike_times: ", type(spike_times.data[0].item()))
-            print ("spike_temps: ", spike_temps.shape)
-            print ("spike_temps: ", type(spike_temps.data[0].item()))
-            print ("self.obj_gpu: ", self.obj_gpu.shape)
-            print ("self.obj_gpu: ", type(self.obj_gpu.data[0][0].item()))
-            print ("self.xshifts: ", self.xshifts.shape)
-            print ("self.xshifts: ", type(self.xshifts.data[0].item()))
-            print ("self.tempScaling: ", self.tempScaling)
-            print ("self.heights: ", self.heights.shape)
-            print ("self.heights: ", type(self.heights.data[0].item()))
-            print ("self.coefficients[k]: ", self.coefficients[k].data.shape)
-            print ("self.coefficients[k]: ", type(self.coefficients[k].data[0].item()))
-        else:
-            quit()
+        if False:
+            if self.n_iter<500:
+                self.objectives_dir = os.path.join(self.out_dir,'objectives')
+                if not os.path.isdir(self.objectives_dir):
+                    os.mkdir(self.objectives_dir)
+                    
+                np.save(self.out_dir+'/objectives/spike_times_inside_'+ 
+                                   str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
+                                   spike_times.squeeze().cpu().data.numpy())
+                np.save(self.out_dir+'/objectives/spike_ids_inside_'+
+                                   str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
+                                   spike_temps.squeeze().cpu().data.numpy())
+                np.save(self.out_dir+'/objectives/obj_gpu_'+
+                                   str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
+                                   self.obj_gpu.cpu().data.numpy())
+                np.save(self.out_dir+'/objectives/shifts_'+
+                                   str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
+                                   self.xshifts.cpu().data.numpy())
+                np.save(self.out_dir+'/objectives/tempScaling_'+
+                                   str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
+                                   self.tempScaling)
+                np.save(self.out_dir+'/objectives/heights_'+
+                                   str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
+                                   self.heights.cpu().data.numpy())
             
+                if False:
+                    for k in range(len(self.coefficients)):
+                        np.save(self.out_dir+'/objectives/coefficients_'+str(k)+"_"+
+                                       str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
+                                       self.coefficients[k].data.cpu().numpy())
+                    print ("spike_times: ", spike_times.shape)
+                    print ("spike_times: ", type(spike_times.data[0].item()))
+                    print ("spike_temps: ", spike_temps.shape)
+                    print ("spike_temps: ", type(spike_temps.data[0].item()))
+                    print ("self.obj_gpu: ", self.obj_gpu.shape)
+                    print ("self.obj_gpu: ", type(self.obj_gpu.data[0][0].item()))
+                    print ("self.xshifts: ", self.xshifts.shape)
+                    print ("self.xshifts: ", type(self.xshifts.data[0].item()))
+                    print ("self.tempScaling: ", self.tempScaling)
+                    print ("self.heights: ", self.heights.shape)
+                    print ("self.heights: ", type(self.heights.data[0].item()))
+                    print ("self.coefficients[k]: ", self.coefficients[k].data.shape)
+                    print ("self.coefficients[k]: ", type(self.coefficients[k].data[0][0].item()))
+            else:
+                quit()
+        
+        #self.obj_gpu = self.obj_gpu*0.
         #spike_times = spike_times -99
         deconv.subtract_splines(
                     self.obj_gpu,
@@ -1362,10 +1393,10 @@ class deconvGPU(object):
                     self.coefficients,
                     self.tempScaling*self.heights)
         
-        if self.n_iter<2: 
-            np.save(self.out_dir+'/objectives/obj_gpu_post_subtract_'+
-                               str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
-                               self.obj_gpu.cpu().data.numpy())
+        # if self.n_iter<2: 
+            # np.save(self.out_dir+'/objectives/obj_gpu_post_subtract_'+
+                               # str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
+                               # self.obj_gpu.cpu().data.numpy())
                                
         torch.cuda.synchronize()
         
@@ -1381,7 +1412,9 @@ class deconvGPU(object):
                                   #fill_length=self.n_time,  # variable fill length here
                                   #fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
                                   fill_length=self.refractory*2+1,  # variable fill length here
-                                  fill_offset=self.n_time//2+self.refractory//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
+                                  #fill_offset=self.n_time//2+self.refractory//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
+                                  fill_offset = self.coefficients[0].data.shape[1]//2-self.refractory,
+                                  #fill_offset = self.refractory//2,
                                   fill_value=-self.fill_value)
 
         torch.cuda.synchronize()
@@ -1440,7 +1473,8 @@ class deconvGPU(object):
             Same as sample_spikes() but picking all spikes from a previous iteration,
         """
 
-        spike_times_list = self.spike_array[self.add_iteration_counter]-self.lockout_window
+        #spike_times_list = self.spike_array[self.add_iteration_counter]-self.lockout_window
+        spike_times_list = self.spike_array[self.add_iteration_counter]-self.coefficients[0].data.shape[1]//2+2
         spike_ids_list = self.neuron_array[self.add_iteration_counter]
         spike_shifts_list= self.shift_list[self.add_iteration_counter]
         spike_height_list = self.height_list[self.add_iteration_counter]
@@ -1524,7 +1558,8 @@ class deconvGPU(object):
                               #fill_length=self.n_time,  # variable fill length here
                               #fill_offset=self.n_time//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
                               fill_length=self.refractory*2+1,  # variable fill length here
-                              fill_offset=self.n_time//2+self.refractory//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
+                              #fill_offset=self.n_time//2+self.refractory//2,       # again giving flexibility as to where you want the fill to start/end (when combined with preceeding arg
+                              fill_offset = self.coefficients[0].data.shape[1]//2-self.refractory,
                               fill_value=self.fill_value)
                               
                               
