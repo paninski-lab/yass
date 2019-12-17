@@ -880,9 +880,9 @@ class deconvGPU(object):
         #move data to gpu
         self.norms = torch.from_numpy(norm).float().cuda()
         
-        #self.vis_units = torch.FloatTensor(self.unit_unit_overlap).long().cuda()
+        self.vis_units = torch.FloatTensor(self.unit_unit_overlap).long().cuda()
         #self.vis_units = torch.LongTensor(self.unit_unit_overlap).long().cuda()
-        self.vis_units = torch.BoolTensor(self.unit_unit_overlap).long().cuda()
+        #self.vis_units = torch.BoolTensor(self.unit_unit_overlap).long().cuda()
         
         print ("self.vis_units: ", self.vis_units.shape)
 
@@ -1271,9 +1271,9 @@ class deconvGPU(object):
 
         # save only neuron ids for spikes to be deconvolved
         self.neuron_ids = self.neuron_ids[self.spike_times]
-        np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/neuron_ids_'+str(self.n_iter)+
-                 '_postpeak.npy', 
-                 self.neuron_ids.cpu().data.numpy())
+        #np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/neuron_ids_'+str(self.n_iter)+
+        #         '_postpeak.npy', 
+        #         self.neuron_ids.cpu().data.numpy())
         
         return (dt.datetime.now().timestamp()-start)         
     
@@ -1338,12 +1338,18 @@ class deconvGPU(object):
         
         
             print ("spike_times: ", spike_times.shape)
+            print ("spike_times: ", type(spike_times.data[0].item()))
             print ("spike_temps: ", spike_temps.shape)
+            print ("spike_temps: ", type(spike_temps.data[0].item()))
             print ("self.obj_gpu: ", self.obj_gpu.shape)
+            print ("self.obj_gpu: ", type(self.obj_gpu.data[0][0].item()))
             print ("self.xshifts: ", self.xshifts.shape)
+            print ("self.xshifts: ", type(self.xshifts.data[0].item()))
             print ("self.tempScaling: ", self.tempScaling)
             print ("self.heights: ", self.heights.shape)
+            print ("self.heights: ", type(self.heights.data[0].item()))
             print ("self.coefficients[k]: ", self.coefficients[k].data.shape)
+            print ("self.coefficients[k]: ", type(self.coefficients[k].data[0].item()))
         else:
             quit()
             
