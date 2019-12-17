@@ -1220,9 +1220,9 @@ class deconvGPU(object):
         torch.cuda.synchronize()
         end_max = dt.datetime.now().timestamp()-start
 
-        np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/neuron_ids_'+
-                 str(self.n_iter)+'.npy', 
-                 self.neuron_ids.cpu().data.numpy())
+        #np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/neuron_ids_'+
+        #         str(self.n_iter)+'.npy', 
+        #         self.neuron_ids.cpu().data.numpy())
 
         # Second step: find relative peaks across max function above for some lockout window
         #       input: n_times (i.e. values of energy at each point in time)
@@ -1335,6 +1335,15 @@ class deconvGPU(object):
                 np.save(self.out_dir+'/objectives/coefficients_'+str(k)+"_"+
                                str(self.chunk_id)+"_iter_"+str(self.n_iter)+'.npy', 
                                self.coefficients[k].data.cpu().numpy())
+        
+        
+            print ("spike_times: ", spike_times.shape)
+            print ("spike_temps: ", spike_temps.shape)
+            print ("self.obj_gpu: ", self.obj_gpu.shape)
+            print ("self.xshifts: ", self.xshifts.shape)
+            print ("self.tempScaling: ", self.tempScaling)
+            print ("self.heights: ", self.heights.shape)
+            print ("self.coefficients[k]: ", self.coefficients[k].data.shape)
         else:
             quit()
             
