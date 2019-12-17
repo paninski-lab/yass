@@ -809,7 +809,8 @@ class deconvGPU(object):
             # transfer list to GPU
             self.temp_temp = []
             for k in range(len(zero_padded_temp_temp)):
-                self.temp_temp.append(torch.from_numpy(zero_padded_temp_temp[k][:, 45:-44]).float().cuda())
+                self.temp_temp.append(torch.from_numpy(zero_padded_temp_temp[k]).float().cuda())
+                #self.temp_temp.append(torch.from_numpy(zero_padded_temp_temp[k][:, 45:-44]).float().cuda())
             
             # save GPU list as numpy object
             np.save(fname, self.temp_temp)
@@ -947,7 +948,7 @@ class deconvGPU(object):
         #temp_comp_gpu = torch.from_numpy(self.temp_comp[:,:,::-1]).float().cuda()        
         temp_comp_gpu = torch.from_numpy(self.temp_comp).float().cuda()        
         
-        if True:
+        if False:
             np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/data.npy', self.data.cpu().data.numpy())
             np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/align_shifts.npy', self.align_shifts)
             np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/spat_comp.npy', self.spat_comp)
@@ -985,10 +986,8 @@ class deconvGPU(object):
         print ("self.norms: ", self.norms.shape)
         self.obj_gpu = 2 * self.obj_gpu - self.norms[:,None]  #drop NUNIT;  # drop additional dimensions;
 
-        #print (" saving obj function: ")
-        np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/obj_gpu.npy', self.obj_gpu.cpu().data.numpy())
-
         del mm
+        del temp_out
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
         
