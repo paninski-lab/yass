@@ -295,11 +295,22 @@ def deconv_ONgpu2(fname_templates_in,
     buffer_size = d_gpu.reader.buffer
     temporal_size = (CONFIG.recordings.sampling_rate/1000*
                      CONFIG.recordings.spike_size_ms)
-    
+
+    # get number of max spikes first
+    n_spikes = 0
+    for chunk_id in tqdm(range(reader.n_batches)):
+        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv
+        fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
+        spike_array = np.load(fname, allow_pickle=True)['spike_array']
+        for tmp in spike_array:
+            n_spikes += len(tmp)
+
     # loop over chunks and add spikes;
-    spike_train = [np.zeros((0,2),'int32')]
-    shifts = []
-    scales = []
+    spike_train = np.zeros((n_spikes, 2),'int32')
+    shifts = np.zeros(n_spikes, 'float32')
+    scales = np.zeros(n_spikes, 'float32')
+
+    counter = 0
     for chunk_id in tqdm(range(reader.n_batches)):
         #fname = os.path.join(d_gpu.seg_dir,str(chunk_id).zfill(5)+'.npz')
         time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv
@@ -322,15 +333,25 @@ def deconv_ONgpu2(fname_templates_in,
 
             # Cat: TODO: is it faster to make list and then array?
             #            or make array on the fly?
-            spike_train.extend(temp)
-            shifts.append(shift_list[p].cpu().data.numpy()[idx_keep])
-            scales.append(scale_list[p].cpu().data.numpy()[idx_keep])
+            #spike_train.extend(temp)
+            #shifts.append(shift_list[p].cpu().data.numpy()[idx_keep])
+            #scales.append(scale_list[p].cpu().data.numpy()[idx_keep])
+            idx = slice(counter, counter+len(idx_keep))
+            spike_train[idx] = temp
+            shifts[idx] = shift_list[p].cpu().data.numpy()[idx_keep]
+            scales[idx] = scale_list[p].cpu().data.numpy()[idx_keep]
+
+            counter += len(idx_keep)
+
+    spike_train = spike_train[:counter]
+    shifts = shifts[:counter]
+    scales = scales[:counter]
 
     # Cat; TODO: sepped this up.
     print ("   vstacking spikes (TODO initalize large array and then try to fill it...): ")
-    spike_train = np.vstack(spike_train)
-    shifts = np.hstack(shifts)
-    scales = np.hstack(scales)
+    #spike_train = np.vstack(spike_train)
+    #shifts = np.hstack(shifts)
+    #scales = np.hstack(scales)
 
     # add half the spike time back in to get to centre of spike
     spike_train[:,0] = spike_train[:,0]-temporal_size//2
@@ -479,31 +500,11 @@ def run_deconv_with_templates_update2(d_gpu):
             else:
                 d_gpu.chunk_id = chunk_id
 
-        ######################
-        ## update templates ##
-        ######################
-
-        fname_templates_updated = os.path.join(
-            d_gpu.out_dir,
-            'template_updates',
-            'templates_{}sec.npy'.format(n_chunks_update*n_sec_chunk*batch_id))
-        update_templates(fnames_forward,
-                         d_gpu.fname_templates,
-                         fname_templates_updated,
-                         update_weight = 50)
-
-        # re initialize with updated templates
-        d_gpu.fname_templates = fname_templates_updated
-        # make sure that it is at the right chunk location
-        d_gpu.chunk_id = chunk_id
-        d_gpu.initialize()
-        # resaving the templates that is processed 
-        # and will be actually used for deconv
-        np.save(fname_templates_updated, d_gpu.temps.transpose(2, 1, 0))
-
         ###################
         ## Backward pass ##
         ###################
+
+        templates_reinitialized = False
         for chunk_id in range(update_chunk[batch_id], update_chunk[batch_id+1]):
 
             # output name
@@ -512,6 +513,30 @@ def run_deconv_with_templates_update2(d_gpu):
                                  str(time_index).zfill(6)+'.npz')
 
             if os.path.exists(fname)==False:
+
+                ######################
+                ## update templates ##
+                ######################
+                if not templates_reinitialized:
+                    fname_templates_updated = os.path.join(
+                        d_gpu.out_dir,
+                        'template_updates',
+                        'templates_{}sec.npy'.format(n_chunks_update*n_sec_chunk*batch_id))
+                    update_templates(fnames_forward,
+                                     d_gpu.fname_templates,
+                                     fname_templates_updated,
+                                     update_weight = 50)
+
+                    # re initialize with updated templates
+                    d_gpu.fname_templates = fname_templates_updated
+                    # make sure that it is at the right chunk location
+                    d_gpu.chunk_id = chunk_id
+                    d_gpu.initialize()
+                    # resaving the templates that is processed 
+                    # and actually used for deconv
+                    np.save(fname_templates_updated, d_gpu.temps.transpose(2, 1, 0))
+
+                    templates_reinitialized = True
 
                 print ("Backward deconv", time_index, " sec, ",
                        chunk_id, "/", d_gpu.reader.n_batches)
@@ -529,7 +554,7 @@ def run_deconv_with_templates_update2(d_gpu):
 
             else:
                 d_gpu.chunk_id = chunk_id
-                
+
     return d_gpu
 
 
