@@ -151,7 +151,7 @@ def find_high_mad_unit(
 
         channels_checked[neigh_channels[channel]] = True
 
-    if violation_per_channel.sum() > max_mad_violation:
+    if violation_per_channel.sum() > threshold:
         kill = True
     else:
         kill = False
