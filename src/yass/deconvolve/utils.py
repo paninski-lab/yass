@@ -853,7 +853,6 @@ class TempTempConv(object):
         self.n_unit = n_unit
         spike_size = temp.shape[2] + 2 * pad_len - 2 * jitter_len
         # We will need this information down the line when compute residual templates
-        print("HOOSHMAND: {}".format(temp.shape))
         max_ptp_unit = temp.ptp(2).max(1).argmax()
         max_ptp_unit_main_chan = temp[max_ptp_unit].ptp(1).argmax()
         min_loc_orig = temp[max_ptp_unit, max_ptp_unit_main_chan].argmin()
