@@ -332,6 +332,9 @@ def deconv_ONgpu2(fname_templates_in,
 
     # add half the spike time back in to get to centre of spike
     spike_train[:,0] = spike_train[:,0]-temporal_size//2
+    print("HOOSHMAND: {}".format(spike_train))
+    #spike_train = d_gpu.ttc.adjust_peak_times_for_residual_computation(spike_train)
+    np.save('/ssd/hooshmand/yass/yass_spike_train.npy', spike_train)
 
     # sort spike train by time
     print ("   ordering spikes: ")

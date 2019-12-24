@@ -17,6 +17,7 @@ import cudaSpline as deconv
 import rowshift as rowshift
 
 from yass.deconvolve.util import WaveForms
+from yass.deconvolve.utils import TempTempConv, reverse_shifts
 
 
 # # ****************************************************************************
@@ -383,12 +384,23 @@ class deconvGPU(object):
         
         # load templates and svd componenets
         self.load_temps()
-                
+
+        temp_temp_fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+\
+                str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
+        self.ttc = TempTempConv(
+                templates=self.temps.transpose(2,0,1), geom=self.geom, rank=self.RANK,
+                temp_temp_fname=temp_temp_fname,
+                pad_len=30, jitter_len=30, sparse=True)
+        # Move sparse temp_temp to GPU
+        self.temp_temp = []
+        for k in range(len(self.ttc.temp_temp)):
+            self.temp_temp.append(torch.from_numpy(self.ttc.temp_temp[k]).float().cuda())
+
         # align templates
-        self.align_templates2()
+        #self.align_templates2()
         
         # compute svd on shifted templates:
-        self.temp_temp_shifted()
+        #self.temp_temp_shifted()
 
         # compute norms and move data to GPU
         self.data_to_gpu_shifted_svd()
@@ -454,12 +466,18 @@ class deconvGPU(object):
         # make objective function
         #self.make_objective()
         self.make_objective_shifted_svd()
-               
+        # HOOSHMAND
+        if not os.path.exists('/ssd/hooshmand/yass/yass_obj.npy'):
+            np.save('/ssd/hooshmand/yass/yass_obj.npy', self.obj_gpu.data.cpu().numpy())
+       
         # run 
         self.subtraction_step()
                 
         # empty cache
         torch.cuda.empty_cache()
+        # HOOSHMAND
+        if not os.path.exists('/ssd/hooshmand/yass/yass_obj_aft.npy'):
+            np.save('/ssd/hooshmand/yass/yass_obj_aft.npy', self.obj_gpu.data.cpu().numpy())
 
 
     def initialize_cpp(self):
@@ -885,7 +903,7 @@ class deconvGPU(object):
     def data_to_gpu_shifted_svd(self):
         
         # hoosh' new norms.
-        norm = np.square(self.aligned_temp).sum(-1).sum(-1)
+        norm = self.ttc.temp_norms
 
         #move data to gpu
         self.norms = torch.from_numpy(norm).float().cuda()
@@ -896,12 +914,12 @@ class deconvGPU(object):
         #self.vis_units = self.vis_units_gpu
         
         self.vis_units = [] 
-        for k in range(self.unit_unit_overlap.shape[0]):
+        for k in range(len(self.ttc.unit_overlap)):
             # print (self.unit_unit_overlap[k])
             # print (np.where(self.unit_unit_overlap[k])[0])
             # print ("temp_temp: ", self.temp_temp[k].shape)
 
-            self.vis_units.append(torch.FloatTensor(np.where(self.unit_unit_overlap[k])[0]).long().cuda())
+            self.vis_units.append(torch.FloatTensor(self.ttc.unit_overlap[k]).long().cuda())
         #self.vis_units = self.vis_units_gpu
         
        # = torch.FloatTensor(self.unit_unit_overlap).long().cuda()
@@ -967,12 +985,12 @@ class deconvGPU(object):
         self.obj_gpu = torch.zeros((self.K, self.data.shape[1]+self.STIME-1),
                                     dtype=torch.float).cuda()
                                     
-        spat_comp_gpu = torch.from_numpy(self.spat_comp.transpose([0,2,1])).float().cuda()
+        spat_comp_gpu = torch.from_numpy(self.ttc.spat_comp.transpose([0,2,1])).float().cuda()
         #print ("self.temp_comp: ", self.temp_comp.shape)
         # transfer temp_comp and reverse the time 
         #print (" check if need to inverse (NOTE: Already inverted at computation time")
         #temp_comp_gpu = torch.from_numpy(self.temp_comp[:,:,::-1]).float().cuda()        
-        temp_comp_gpu = torch.from_numpy(self.temp_comp).float().cuda()        
+        temp_comp_gpu = torch.from_numpy(self.ttc.temp_comp).float().cuda()        
         
         if False:
             np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/data.npy', self.data.cpu().data.numpy())
@@ -982,9 +1000,9 @@ class deconvGPU(object):
             np.save('/media/cat/2TB/liam/49channels/data1_allset_shifted_svd/tmp/block_2/deconv/norms.npy', self.norms.cpu().data.numpy())
         
         #for unit in tqdm(range(self.temps.shape[2])):
-        for unit in range(self.temps.shape[2]):
+        for unit in range(self.K):
             # Do the shifts that was required for aligning template
-            shifts = reverse_shifts(self.align_shifts[unit])
+            shifts = reverse_shifts(self.ttc.align_shifts[unit])
             #print ("shifts: ", shifts.shape)
             
             # this needs to be taken out of this loop and done single time
@@ -997,7 +1015,7 @@ class deconvGPU(object):
             mm = torch.mm(spat_comp_gpu[unit], self.data)
                     
             # Sum over Rank
-            for i in range(self.temp_comp.shape[1]):
+            for i in range(self.RANK):
                 self.obj_gpu[unit,:]+= nn.functional.conv1d(mm[i][None,None,:],
                                                temp_comp_gpu[unit,i][None,None,:], 
                                                padding = self.STIME-1)[0][0]
@@ -1317,6 +1335,8 @@ class deconvGPU(object):
             self.obj_gpu *=0.
 
         #spike_times = self.spike_times.squeeze()-self.lockout_window
+        #print("HOOSHMAND: {}".format(self.coefficients[0].data.shape[1]//2+2))
+        #print("HOOSHMAND: {}".format(self.ttc.peak_time_temp_temp_offset))
         spike_times = self.spike_times.squeeze()-self.coefficients[0].data.shape[1]//2+2
         spike_temps = self.neuron_ids.squeeze()
         
@@ -1403,7 +1423,7 @@ class deconvGPU(object):
         # also fill in self-convolution traces with low energy so the
         #   spikes cannot be detected again (i.e. enforcing refractoriness)
         # Cat: TODO: read from CONFIG
-        
+
         if self.refractoriness:
             #print ("filling in timesteps: ", self.n_time)
             deconv.refrac_fill(energy=self.obj_gpu,
