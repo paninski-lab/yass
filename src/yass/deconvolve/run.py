@@ -331,8 +331,8 @@ def deconv_ONgpu2(fname_templates_in,
     scales = np.hstack(scales)
 
     # add half the spike time back in to get to centre of spike
-    spike_train[:,0] = spike_train[:,0]-temporal_size//2
-    #spike_train = d_gpu.ttc.adjust_peak_times_for_residual_computation(spike_train)
+    spike_train[:,0] = spike_train[:,0]+temporal_size//2
+    spike_train = d_gpu.ttc.adjust_peak_times_for_residual_computation(spike_train)
 
 
     # sort spike train by time
@@ -379,6 +379,9 @@ def deconv_ONgpu2(fname_templates_in,
     np.save(fname_scales, scales)
     
     # save templates
+    USE_RECON_TEMPLATE = True
+    if USE_RECON_TEMPLATE:
+        templates = d_gpu.ttc.residual_temps.transpose(0, 2, 1)
     fname_templates = os.path.join(d_gpu.out_dir, 'templates.npy')
     np.save(fname_templates, templates_post_deconv)
 
