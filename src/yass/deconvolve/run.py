@@ -4,6 +4,7 @@ import numpy as np
 import parmap
 from sklearn import mixture
 import scipy
+from scipy.interpolate import interp1d
 
 import datetime as dt
 from tqdm import tqdm
@@ -484,7 +485,7 @@ def run_deconv_with_templates_update2(d_gpu):
                 d_gpu.run(chunk_id)
 
                 # get ptps
-                avg_ptps, weights = d_gpu.compute_average_ptps()
+                min_max_vals_average, weights = d_gpu.compute_min_max_vals()
 
                 # save deconv results
                 np.savez(fname,
@@ -493,7 +494,7 @@ def run_deconv_with_templates_update2(d_gpu):
                          neuron_array = d_gpu.neuron_array,
                          shift_list = d_gpu.shift_list,
                          height_list = d_gpu.height_list,
-                         avg_ptps = avg_ptps.cpu(),
+                         min_max_vals_average = min_max_vals_average.cpu(),
                          weights = weights.cpu()
                         )
 
@@ -522,9 +523,11 @@ def run_deconv_with_templates_update2(d_gpu):
                         d_gpu.out_dir,
                         'template_updates',
                         'templates_{}sec.npy'.format(n_chunks_update*n_sec_chunk*batch_id))
+                    fname_temp_min_loc = os.path.join(d_gpu.out_dir, 'templates_min_locs.npy')
                     update_templates(fnames_forward,
                                      d_gpu.fname_templates,
                                      fname_templates_updated,
+                                     fname_temp_min_loc,
                                      update_weight = 50)
 
                     # re initialize with updated templates
@@ -558,7 +561,7 @@ def run_deconv_with_templates_update2(d_gpu):
     return d_gpu
 
 
-def update_templates(fnames_forward,
+def update_templates_old(fnames_forward,
                      fname_templates,
                      fname_templates_updated,
                      update_weight = 30):
@@ -566,15 +569,20 @@ def update_templates(fnames_forward,
     # get all ptps sufficent stats
     avg_ptps_all = [None]*len(fnames_forward)
     weights_all = [None]*len(fnames_forward)
+    templates_shifts_all = [None]*len(fnames_forward)
 
     for ii, fname in enumerate(fnames_forward):
         temp = np.load(fname, allow_pickle=True)
         avg_ptps_all[ii] = temp['avg_ptps']
         weights_all[ii] = temp['weights']
+        templates_shifts_all[ii] = temp['templates_shifts']
 
     avg_ptps_all = np.stack(avg_ptps_all)
     weights_all = np.stack(weights_all)
+    templates_shifts_all = np.stack(templates_shifts_all)
+    
     avg_ptps = np.average(avg_ptps_all, axis=0, weights=weights_all)
+    avg_shifts = np.average(templates_shifts_all, axis=0, weights=weights_all)
     n_spikes = np.sum(weights_all, axis=0)
 
     # laod templates
@@ -589,9 +597,318 @@ def update_templates(fnames_forward,
     ptps_updated = temp_ptps*weight_old + (1-weight_old)*avg_ptps
     scale = ptps_updated/temp_ptps
     updated_templates = templates*scale[:, None]
+    
+    shifts_updated = (1-weight_old)*avg_shifts
+
     np.save(fname_templates_updated, updated_templates)
 
+    
+def quad_interp_loc(pts):
+    ''' find x-shift after fitting quadratic to 3 points
+        Input: [n_peaks, 3] which are values of three points centred on obj_func peak
+        Assumes: equidistant spacing between sample times (i.e. the x-values are hardcoded below)
+    '''
 
+    num = ((pts[1]-pts[2])*(-1)-(pts[0]-pts[1])*(-3))/2
+    denom = -2*((pts[0]-pts[1])-(((pts[1]-pts[2])*(-1)-(pts[0]-pts[1])*(-3))/(2)))
+    num[denom==0] = 1
+    denom[denom==0] = 1
+    return (num/denom)-1    
+
+
+def quad_interp_val(vals, shift):
+    a = 0.5*vals[0] + 0.5*vals[2] - vals[1]
+    b = -0.5*vals[0] + 0.5*vals[2]
+    c = vals[1]
+    
+    return a*shift**2 + b*shift + c    
+
+
+def update_templates(fnames_forward,
+                     fname_templates,
+                     fname_templates_updated,
+                     fname_temp_min_loc,
+                     update_weight = 50):
+
+    n_chunks = len(fnames_forward)
+
+    # get all ptps sufficent stats
+    min_max_vals_all = [None]*n_chunks
+    weights_all = [None]*n_chunks
+
+    for ii, fname in enumerate(fnames_forward):
+        temp = np.load(fname, allow_pickle=True)
+        min_max_vals_all[ii] = temp['min_max_vals_average']
+        weights_all[ii] = temp['weights']
+
+    # size of min_max_vals_all: n_chunks x n_units x 2 x n_chans x 5
+    # size of weights_all: n_chunks x n_units x n_chans
+    min_max_vals_all = np.stack(min_max_vals_all)
+    weights_all = np.stack(weights_all)
+
+    # ptp per chunk
+    # size of ptp_all: n_chunks x n_units x n_chans
+    ptp_all = np.max(min_max_vals_all[:, :, 1], 3) - np.min(min_max_vals_all[:, :, 0], 3)
+
+    # average them
+    ptp_avg = np.average(ptp_all, axis=0, weights=weights_all)
+    n_spikes = np.sum(weights_all, axis=0)
+
+    # get geometric update weights
+    weight_new = 1 - np.exp(-n_spikes/update_weight)
+
+    # load templates
+    templates = np.load(fname_templates)
+    temp_ptps = templates.ptp(1)
+    n_units, n_times, n_channels = templates.shape
+
+    # minimum peak location
+    min_vals_all_reshaped = min_max_vals_all[:, :, 0].reshape(-1, 5)
+    # peak_loc_integer size: (n_chunks x n_units x n_chans)
+    peak_loc_integer = np.argmin(min_vals_all_reshaped, 1)
+    peak_loc = np.copy(peak_loc_integer).astype('float32')
+    for j in range(5):
+        idx_ = peak_loc_integer == j
+        if j == 0:
+            subsample_shift = quad_interp_loc(
+                min_vals_all_reshaped[idx_, j:j+3].transpose())
+            subsample_shift[subsample_shift < -1] = -1
+            subsample_shift[subsample_shift > -0.5] = -1
+            subsample_shift += 1
+        elif j > 0 and j < 4:
+            subsample_shift = quad_interp_loc(
+                min_vals_all_reshaped[idx_, j-1:j+2].transpose())
+        elif j == 4:
+            subsample_shift = quad_interp_loc(
+                min_vals_all_reshaped[idx_, j-2:j+1].transpose())
+            subsample_shift[subsample_shift > 1] = 1
+            subsample_shift[subsample_shift < 0.5] = 1
+            subsample_shift -= 1
+        peak_loc[idx_] += subsample_shift
+    peak_loc = peak_loc.reshape(n_chunks, n_units, n_channels)
+    peak_loc = peak_loc - 2
+    peak_loc_avg = np.average(peak_loc, axis=0, weights=weights_all)
+
+    # get subsample peak location of templates
+    min_max_loc_temp = np.stack((templates.argmin(1), templates.argmax(1)), 1)
+    loc_3pts = min_max_loc_temp[None] + np.arange(-1, 2)[:, None, None, None]
+    loc_3pts[loc_3pts < 0] = 0
+    loc_3pts[loc_3pts > n_times-1] = n_times - 1
+    val_3pts = np.zeros(loc_3pts.shape, 'float32')
+
+    chan_idx = np.tile(np.arange(n_channels)[None,None], (3, 2, 1))
+    for k in range(n_units):
+        val_3pts[:,k] = templates[k, loc_3pts[:,k], chan_idx]
+
+    temp_peak_loc = quad_interp_loc(val_3pts)
+    temp_peak_loc[np.isnan(temp_peak_loc)] = 0
+    temp_peak_vals = quad_interp_val(val_3pts, temp_peak_loc)
+
+    # update peak location
+    peak_loc_updated = temp_peak_loc[:, 0]*(1-weight_new)+ weight_new*peak_loc_avg
+    ptps_updated = (temp_peak_vals[:,1] - temp_peak_vals[:,0])*(1-weight_new) + weight_new*ptp_avg
+
+    # min_loc_current shape: n_units x n_channels
+    min_loc_current = min_max_loc_temp[:, 0] + peak_loc_updated
+    
+    # do rank 1 denoising. estimate time component using high ptp channels only
+    ptp_threshold = 3
+    if os.path.exists(fname_temp_min_loc):
+        # min_loc_matrix size : n_chunks x n_units x n_chans
+        min_loc_matrix = np.load(fname_temp_min_loc)
+        min_loc_matrix = np.concatenate((min_loc_matrix, min_loc_current[None]), axis=0)
+        np.save(fname_temp_min_loc, min_loc_matrix)
+
+        for k in range(n_units):
+            vis_chan = np.where(temp_ptps[k] > ptp_threshold)[0]
+            if len(vis_chan) == 0:
+                vis_chan = np.where(temp_ptps[k] > 0.8*temp_ptps[k].max())[0]
+            # min_loc_k : n_chunks x n_chans
+            min_loc_k = min_loc_matrix[:, k]
+
+            a, b, c = np.linalg.svd(min_loc_k[:, vis_chan] - min_loc_k[[0], vis_chan])
+            # temporal_component: n_chunks x 1
+            temporal_component = a[:,0]*b[0]
+            channel_components = np.sum(
+                min_loc_k*temporal_component[:, None], 0)/np.square(
+                temporal_component).sum()
+
+            # denoised location
+            min_loc_current[k] = temporal_component[-1]*channel_components + min_loc_k[0]
+
+    else:
+        np.save(fname_temp_min_loc, min_loc_current[None])
+
+    # denoised location relative to the templates from the previous batch
+    peak_loc_denoised =  min_loc_current - min_max_loc_temp[:, 0]
+    peak_loc_denoised = peak_loc_updated
+
+    # and determine how much has shifted
+    shifts = peak_loc_denoised - temp_peak_loc[:,0]
+
+    # scale templates
+    ptps_updated[temp_ptps==0] = 0
+    shifts[temp_ptps==0] = 0
+    temp_ptps[temp_ptps==0] = 0.01
+
+    scale = ptps_updated/temp_ptps
+    templates_scaled = templates*scale[:, None]
+
+    # shift templates
+    templates_updated = np.zeros_like(templates_scaled)
+
+    t_range = np.arange(n_times)
+    for unit in range(n_units):
+        vis_chan = np.where(templates_scaled[unit].ptp(0) > 0)[0]
+        for c in vis_chan:
+            t_range_new = t_range - shifts[unit, c]
+            #f = interp1d(t_range, templates_scaled[unit,:,c], 'cubic', fill_value='extrapolate')
+            f = interp1d(t_range, templates_scaled[unit,:,c],
+                         'cubic', bounds_error=False, fill_value=0.0)
+            templates_updated[unit, :, c] = f(t_range_new)
+            
+    np.save(fname_templates_updated, templates_updated)            
+
+
+def update_templates2(fnames_forward,
+                      fname_templates,
+                      fname_templates_updated,
+                      update_weight = 50):
+
+    # get all ptps sufficent stats
+    min_max_vals_all = [None]*len(fnames_forward)
+    weights_all = [None]*len(fnames_forward)
+
+    for ii, fname in enumerate(fnames_forward):
+        temp = np.load(fname, allow_pickle=True)
+        min_max_vals_all[ii] = temp['min_max_vals_average']
+        weights_all[ii] = temp['weights']
+
+    min_max_vals_all = np.stack(min_max_vals_all)
+    weights_all = np.stack(weights_all)
+
+    # average them
+    min_max_vals_avg = np.average(
+        min_max_vals_all, axis=0, 
+        weights=np.tile(weights_all[:, :, None, :, None], (1, 1, 2, 1, 5)))
+    n_spikes = np.sum(weights_all, axis=0)
+
+    # load templates
+    templates = np.load(fname_templates)
+    temp_ptps = templates.ptp(1)
+    n_units, n_times, n_channels = templates.shape
+
+    # get geometric update weights
+    weight_new = 1 - np.exp(-n_spikes/update_weight)
+    weight_new = weight_new
+
+    # get subsample peak location of current batch (relative to integer peak location of templates)
+    # min_max_vals_avg: n units x 2 x n_chans x 5
+    # peak_loc: n_units x n_chans
+    peak_loc = np.zeros((n_units, n_channels), 'float32')
+    min_val_reshaped = min_max_vals_avg[:, 0].reshape(-1, 5)
+    peak_loc = min_val_reshaped.argmin(1).astype('float32')
+    for j in range(5):
+        idx_ = peak_loc == j
+        if j == 0:
+            subsample_shift = quad_interp_loc(
+                min_val_reshaped[idx_, j:j+3].transpose())
+            subsample_shift[subsample_shift < -1] = -1
+            subsample_shift[subsample_shift > -0.5] = -1
+            subsample_shift += 1
+        elif j > 0 and j < 4:
+            subsample_shift = quad_interp_loc(
+                min_val_reshaped[idx_, j-1:j+2].transpose())
+        elif j == 4:
+            subsample_shift = quad_interp_loc(
+                min_val_reshaped[idx_, j-2:j+1].transpose())
+            subsample_shift[subsample_shift > 1] = 1
+            subsample_shift[subsample_shift < 0.5] = 1
+            subsample_shift -= 1
+        peak_loc[idx_] += subsample_shift
+    peak_loc = peak_loc.reshape(n_units, n_channels)
+    peak_loc = peak_loc - 2
+    #peak_loc = quad_interp_loc(min_max_vals_avg[:, 0].transpose(2, 0, 1))
+    #peak_loc[peak_loc > 1] = 1
+    #peak_loc[peak_loc < -1] = -1
+
+    # get subsample peak location of templates
+    min_max_loc_temp = np.stack((templates.argmin(1), templates.argmax(1)), 1)
+    loc_3pts = min_max_loc_temp[None] + np.arange(-1, 2)[:, None, None, None]
+    loc_3pts[loc_3pts < 0] = 0
+    loc_3pts[loc_3pts > n_times-1] = n_times - 1
+    val_3pts = np.zeros(loc_3pts.shape, 'float32')
+
+    chan_idx = np.tile(np.arange(n_channels)[None,None], (3, 2, 1))
+    for k in range(n_units):
+        val_3pts[:,k] = templates[k, loc_3pts[:,k], chan_idx]
+
+    temp_peak_loc = quad_interp_loc(val_3pts)
+    temp_peak_loc[np.isnan(temp_peak_loc)] = 0    
+
+    # update peak location
+    peak_loc = temp_peak_loc[:, 0]*(1-weight_new)+ weight_new*peak_loc
+    # and determine how much has shifted
+    shifts = peak_loc - temp_peak_loc[:,0]
+    #shifts[shifts < -5] = -5
+    #shifts[shifts > 5] = 5
+
+    # get ptp at the subsample shift location
+    temp_peak_loc_updated = temp_peak_loc + shifts[:, None]
+    temp_peak_loc_updated[temp_peak_loc_updated > 2] = 2
+    temp_peak_loc_updated[temp_peak_loc_updated < -2] = 2
+
+
+    # shift templates
+    temp_peak_loc_updated = temp_peak_loc_updated.reshape(-1) + 2
+    min_max_vals_avg = min_max_vals_avg.transpose(3, 0, 1, 2).reshape(5, -1)
+    min_max_vals_shifted = np.zeros(len(temp_peak_loc_updated), 'float32')
+    for j in range(5):
+        if j == 0:
+            idx_ = temp_peak_loc_updated <= 0.5
+            min_max_vals_shifted[idx_] = quad_interp_val(
+                min_max_vals_avg[j:j+3, idx_],
+                temp_peak_loc_updated[idx_]-1)
+        elif j == 4:
+            idx_ = temp_peak_loc_updated > 3.5
+            min_max_vals_shifted[idx_] = quad_interp_val(
+                min_max_vals_avg[j-2:j+1, idx_],
+                temp_peak_loc_updated[idx_]-3)
+        else:
+            idx_ = np.logical_and(temp_peak_loc_updated>j-0.5,
+                                  temp_peak_loc_updated<=j+0.5)
+            min_max_vals_shifted[idx_] = quad_interp_val(
+                min_max_vals_avg[j-1:j+2, idx_],
+                temp_peak_loc_updated[idx_]-j)
+
+    min_max_vals_shifted = min_max_vals_shifted.reshape((n_units, 2, n_channels))
+    ptps = min_max_vals_shifted[:,1] - min_max_vals_shifted[:,0]
+    ptps_updated = temp_ptps*(1-weight_new) + weight_new*ptps
+
+    # scale templates
+    ptps_updated[temp_ptps==0] = 0
+    shifts[temp_ptps==0] = 0
+    temp_ptps[temp_ptps==0] = 0.01
+
+    scale = ptps_updated/temp_ptps
+    templates_scaled = templates*scale[:, None]
+
+    # shift templates
+    templates_updated = np.zeros_like(templates_scaled)
+
+    t_range = np.arange(n_times)
+    for unit in range(n_units):
+        vis_chan = np.where(templates_scaled[unit].ptp(0) > 0)[0]
+        for c in vis_chan:
+            t_range_new = t_range - shifts[unit, c]
+            #f = interp1d(t_range, templates_scaled[unit,:,c], 'cubic', fill_value='extrapolate')
+            f = interp1d(t_range, templates_scaled[unit,:,c],
+                         'cubic', bounds_error=False, fill_value=0.0)
+            templates_updated[unit, :, c] = f(t_range_new)
+            
+    np.save(fname_templates_updated, templates_updated)            
+
+    
 def run_deconv_with_templates_update(d_gpu, CONFIG,
                                     output_directory):
 
