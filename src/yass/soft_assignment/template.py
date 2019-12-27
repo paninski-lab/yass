@@ -305,18 +305,14 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                 resid_dat = torch.from_numpy(resid_dat).cuda()
 
                 # relevant idx
-                idx_in = torch.nonzero((self.spike_train[:, 0] >= self.reader_residual.idx_list[batch_id][0]) & (self.spike_train[:, 0] < self.reader_residual.idx_list[batch_id][1]))[:,0]
-                
-                spike_train_batch = self.spike_train[idx_in]
-                
-                
-
-                spike_train_batch[:, 0] -= (self.reader_residual.idx_list[batch_id][0] - self.reader_residual.buffer)
+                idx_in = torch.nonzero(
+                    (self.spike_train[:, 0] >= self.reader_residual.idx_list[batch_id][0]) & 
+                    (self.spike_train[:, 0] < self.reader_residual.idx_list[batch_id][1]))[:,0]
                 spike_train_batch = self.spike_train[idx_in] 
                 spike_train_batch[:, 0] -= offsets[batch_id]
                 shift_batch = self.shifts[idx_in]
-                # get residual snippets
 
+                # get residual snippets
                 t_index = spike_train_batch[:, 0][:, None] + torch.arange(-(self.n_times//2), self.n_times//2+1).cuda()
                 c_index = self.chans[spike_train_batch[:, 1]].long()
                 resid_dat = torch.cat((resid_dat, torch.zeros((resid_dat.shape[0], 1)).cuda()), 1)
