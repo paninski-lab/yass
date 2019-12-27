@@ -194,7 +194,6 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.save_objective = False
     d_gpu.verbose = False
     d_gpu.print_iteration_counter = 1
-    d_gpu.chunk_id = 0
     
     # Turn on refactoriness
     d_gpu.refractoriness = True
@@ -230,8 +229,10 @@ def deconv_ONgpu2(fname_templates_in,
     #       are updated based on spikes in previous chunk)
     # Cat: TODO read from CONFIG
     d_gpu.update_templates = update_templates
-    d_gpu.max_percent_update = 0.2
-    d_gpu.max_diff_update = 3
+    # min difference allowed (in terms of ptp of templates)
+    d_gpu.min_bad_diff = 0.3
+    # max difference with the max weights 
+    d_gpu.max_good_diff = 3
 
     if d_gpu.update_templates:
         print ("   templates being updated every ", 
@@ -300,7 +301,7 @@ def deconv_ONgpu2(fname_templates_in,
     scales = []
     for chunk_id in tqdm(range(reader.n_batches)):
         #fname = os.path.join(d_gpu.seg_dir,str(chunk_id).zfill(5)+'.npz')
-        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu
+        time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv
         fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
         data = np.load(fname, allow_pickle=True)
 
@@ -470,7 +471,7 @@ def run_deconv_with_templates_update2(d_gpu):
                 d_gpu.run(chunk_id)
 
                 # get ptps
-                avg_ptps, n_spikes_triaged = d_gpu.compute_average_ptps()
+                avg_ptps, weights = d_gpu.compute_average_ptps()
 
                 # save deconv results
                 np.savez(fname,
@@ -480,7 +481,7 @@ def run_deconv_with_templates_update2(d_gpu):
                          shift_list = d_gpu.shift_list,
                          height_list = d_gpu.height_list,
                          avg_ptps = avg_ptps.cpu(),
-                         n_spikes_triaged = n_spikes_triaged.cpu()
+                         weights = weights.cpu()
                         )
 
             else:
@@ -501,6 +502,8 @@ def run_deconv_with_templates_update2(d_gpu):
 
         # re initialize with updated templates
         d_gpu.fname_templates = fname_templates_updated
+        # make sure that it is at the right chunk location
+        d_gpu.chunk_id = chunk_id
         d_gpu.initialize()
 
         ###################
@@ -538,21 +541,21 @@ def run_deconv_with_templates_update2(d_gpu):
 def update_templates(fnames_forward,
                      fname_templates,
                      fname_templates_updated,
-                     update_weight = 50):
+                     update_weight = 30):
 
     # get all ptps sufficent stats
     avg_ptps_all = [None]*len(fnames_forward)
-    n_spikes_all = [None]*len(fnames_forward)
+    weights_all = [None]*len(fnames_forward)
 
     for ii, fname in enumerate(fnames_forward):
         temp = np.load(fname, allow_pickle=True)
         avg_ptps_all[ii] = temp['avg_ptps']
-        n_spikes_all[ii] = temp['n_spikes_triaged']
+        weights_all[ii] = temp['weights']
 
     avg_ptps_all = np.stack(avg_ptps_all)
-    n_spikes_all = np.stack(n_spikes_all)
-    avg_ptps = np.average(avg_ptps_all, axis=0, weights=n_spikes_all)
-    n_spikes = np.sum(n_spikes_all, axis=0)
+    weights_all = np.stack(weights_all)
+    avg_ptps = np.average(avg_ptps_all, axis=0, weights=weights_all)
+    n_spikes = np.sum(weights_all, axis=0)
 
     # laod templates
     templates = np.load(fname_templates)

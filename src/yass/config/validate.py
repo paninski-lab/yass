@@ -4,6 +4,7 @@ Custom rules to validate specific files
 import pkg_resources
 import yaml
 import os
+import numpy as np
 from cerberus import Validator
 from pkg_resources import resource_filename
 
@@ -38,6 +39,14 @@ def expand_to_root(mapping, section, subsection, field):
 
     mapping[section][subsection][field] = new_value
 
+def validate_deconv_template_update_time(mapping):
+
+    update_time = mapping['deconvolution']['template_update_time']
+    n_sec_deconv = mapping['resources']['n_sec_chunk_gpu_deconv']
+
+    new_update_time = int(np.round(
+        float(update_time)/float(n_sec_deconv))*float(n_sec_deconv))
+    mapping['deconvolution']['template_update_time'] = new_update_time
 
 def validate(mapping, silent=True):
     """Validate values in the input dictionary using a reference schema
@@ -66,5 +75,7 @@ def validate(mapping, silent=True):
     if document['neuralnetwork']['training']['input_spike_train_filname'] is not None:
         expand_to_root(document, 'neuralnetwork', 'training',
                        'input_spike_train_filname')
+
+    validate_deconv_template_update_time(document)
 
     return document

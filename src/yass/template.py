@@ -424,12 +424,12 @@ def compute_a_template(spike_times, reader, spike_size):
     # get waveforms
     wf = reader.read_waveforms(spike_times, spike_size)[0]
 
-    max_channel = np.mean(wf, axis=0).ptp(0).argmax()
+    #max_channel = np.mean(wf, axis=0).ptp(0).argmax()
 
-    wf, _ = align_waveforms(wf=wf,
-                            max_channel=max_channel,
-                            upsample_factor=5,
-                            nshifts=3)
+    #wf, _ = align_waveforms(wf=wf,
+    #                        max_channel=max_channel,
+    #                        upsample_factor=5,
+    #                        nshifts=3)
 
     return np.mean(wf, axis=0).astype('float32')
 

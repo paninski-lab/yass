@@ -112,6 +112,9 @@ def find_high_mad_unit(
     ptps = ptps[visch]
     neigh_channels = neigh_channels[visch][:, visch]
 
+    # threshold
+    threshold = max_mad_violation*min_var_gap
+
     # upsample
     wf_up = scipy.signal.resample(wf, n_times*up_factor,
                                   axis=1)
@@ -119,15 +122,18 @@ def find_high_mad_unit(
     # max channel within visible channels
     e_var, t_var, active_area = get_mad(wf_up, up_factor, ptps.argmax())
     e_var[~active_area] = 0
-    violation_per_channel = np.sum(e_var > (t_var + min_var_gap), axis=0)
+    violation = e_var - (t_var + min_var_gap)
+    violation[violation < 0] = 0
+    violation[np.logical_and(violation > 0, violation < 1)] = 1
+    violation_per_channel = np.sum(violation, axis=0)
 
     channels_checked = np.zeros(len(visch), 'bool')
     mc = ptps.argmax()
     channels_checked[neigh_channels[mc]] = True
     
-    while ((violation_per_channel.sum() > max_mad_violation) and 
-           (not np.all(channels_checked)) and 
-           (violation_per_channel[channels_checked].sum() <= max_mad_violation)
+    while ((violation_per_channel.sum() > threshold) and 
+           (not np.all(channels_checked)) and
+           (violation_per_channel[channels_checked].sum() <= threshold)
           ):
         
         cands = np.where(~channels_checked)[0]
@@ -135,14 +141,17 @@ def find_high_mad_unit(
         e_var, t_var, active_area = get_mad(wf_up, up_factor, channel)
         e_var[~active_area] = 0
 
-        violation_temp = np.sum(e_var > (t_var + min_var_gap), axis=0)
+        violation_ = e_var - (t_var + min_var_gap)
+        violation_[violation_ < 0] = 0
+        violation[np.logical_and(violation > 0, violation < 1)] = 1
+        violation_temp = np.sum(violation_, axis=0)
         violation_per_channel = np.vstack((
             violation_per_channel,
             violation_temp)).min(0)
-        
+
         channels_checked[neigh_channels[channel]] = True
 
-    if violation_per_channel.sum() > max_mad_violation:
+    if violation_per_channel.sum() > threshold:
         kill = True
     else:
         kill = False

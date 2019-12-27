@@ -32,6 +32,10 @@ def kill_signal(recordings, threshold, window_size):
         # get obserations where observation is above threshold
         idx_temp = np.where(np.abs(recordings[:, c]) > threshold)[0]
 
+        if len(idx_temp) == 0:
+            is_noise_idx[:, c] = 1
+            continue
+
         # shift every index found
         for j in range(-R, R+1):
 
@@ -238,6 +242,7 @@ def get_noise_covariance(reader, CONFIG):
     spatial_cov_all = np.divide(np.matmul(noised_killed.T, noised_killed),
                         np.matmul(is_noise_idx.T, is_noise_idx))
     sig = np.sqrt(np.diag(spatial_cov_all))
+    sig[sig == 0] = 1
     spatial_cov_all = spatial_cov_all/(sig[:,None]*sig[None])
 
     chan_dist = squareform(pdist(CONFIG.geom))

@@ -143,7 +143,7 @@ deconvolution:
     deconv_gpu: True
     
     # update templates periodically based on drift model
-    update_templates: True
+    update_templates: False
     
     # drift models: 0-ptp scaling; 1-full template update
     drift_model: 0

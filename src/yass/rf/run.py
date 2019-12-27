@@ -532,6 +532,7 @@ def weighted_histogram(data, weights, bin_range):
     bin_counts = np.zeros(len(bin_range)-1)
     j = 0
     ii = 0
+    data = data[data < bin_range.max()]
     while ii < len(data):
         if data[ii] < bin_range[j+1]:
             bin_counts[j] += weights[ii]  

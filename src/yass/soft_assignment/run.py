@@ -87,9 +87,13 @@ def run(template_fname,
         else:
             spatial_cov = np.load(fname_spatial_cov)
             temporal_cov = np.load(fname_temporal_cov)
-
         window_size = 51
         n_chans = 10
+        reader_resid = READER(residual_fname,
+                      residual_dtype,
+                      CONFIG,
+                      CONFIG.resources.n_sec_chunk_gpu_deconv/100)
+
         TAO = TEMPLATE_ASSIGN_OBJECT(
             fname_spike_train = spike_train_fname, 
             fname_templates = template_fname, 
@@ -113,6 +117,7 @@ def run(template_fname,
         cut_off = chi2(chi2_df).ppf(.999)
         outliers = cpu_sps[np.where(TAO.log_probs.min(1) > cut_off)[0], :]
 
+        logprobs_outliers = logprobs_outliers/chi2_df
         #append log_probs to spike_times
         #logprobs = np.concatenate((cpu_sps,TAO.log_probs), axis = 1)
         # compuate soft assignment

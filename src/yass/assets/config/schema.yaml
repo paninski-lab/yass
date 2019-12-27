@@ -216,10 +216,10 @@ deconvolution:
       type: boolean
       default: False
     template_update_time:
-      type: float
+      type: integer
       default: 120
     neuron_discover_time:
-      type: float
+      type: integer
       default: 100000
     min_split_spikes:
       type: integer
