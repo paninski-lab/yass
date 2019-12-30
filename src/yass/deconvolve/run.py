@@ -382,7 +382,7 @@ def deconv_ONgpu2(fname_templates_in,
     # save templates
     USE_RECON_TEMPLATE = True
     if USE_RECON_TEMPLATE:
-        templates = d_gpu.ttc.residual_temps.transpose(0, 2, 1)
+        templates_post_deconv = d_gpu.ttc.residual_temps.transpose(0, 2, 1)
     fname_templates = os.path.join(d_gpu.out_dir, 'templates.npy')
     np.save(fname_templates, templates_post_deconv)
 

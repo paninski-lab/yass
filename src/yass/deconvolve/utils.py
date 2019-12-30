@@ -821,7 +821,7 @@ def align_template_channels(temp, geom, zero_pad_len=30, jitter_len=50):
 class TempTempConv(object):
 
     def __init__(self, templates, geom, rank=5, sparse=True, temp_temp_fname="",
-                 vis_threshold_strong=1., vis_threshold_weak=.5, pad_len=30, jitter_len=50):
+                 vis_threshold_strong=2., vis_threshold_weak=1., pad_len=30, jitter_len=50):
         """
 
         params:
