@@ -195,6 +195,7 @@ class deconvGPU(object):
         temp_temp_fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+\
                 str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
         self.ttc = TempTempConv(
+                self.CONFIG, 
                 templates=self.temps.transpose(2,0,1), geom=self.geom, rank=self.RANK,
                 temp_temp_fname=temp_temp_fname,
                 pad_len=30, jitter_len=30, sparse=True)

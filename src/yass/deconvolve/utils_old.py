@@ -3,11 +3,22 @@
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-import parmap
 
+from matplotlib.lines import Line2D
 from scipy.spatial.transform import Rotation
 from scipy.spatial.distance import cdist, pdist, squareform
 from tqdm import tqdm
+
+
+
+class Geometry(object):
+    """Geometry Object for finidng closest channels."""
+    def __init__(self, geometry):
+        self.geom = geometry
+        self.pdist = squareform(pdist(geometry))
+
+    def neighbors(self, channel, size):
+        return np.argsort(self.pdist[channel, :])[:size]
 
 
 class WaveForms(object):
@@ -247,6 +258,437 @@ class WaveForms(object):
         return np.array(background_noise)
 
 
+class SpikeTrain(object):
+
+    def __init__(self, spike_train, num_unit=None, sort=False):
+        """
+
+        params:
+        -------
+        spike_train: np.ndarray (N, 2)
+        """
+        self.spt = spike_train + 0
+        if sort:
+            self.spt = self.spt[np.argsort(self.spt[:, 0])]
+        # Holds spike counts per unit.
+        self.count = []
+        # Holds spike times lists per unit.
+        self.times = []
+        # Holds indices of spikes from unit.
+        self.indices = []
+
+        self.n_unit = num_unit
+        if num_unit is None:
+            # Based on spike train maximum id.
+            self.n_unit = self.spt[:, 1].max() + 1
+        self.n_spike = len(self.spt)
+
+    def remove(self, idx, keep_idx=False):
+        """Removes spikes given by indices from the spike train raster.
+
+        params:
+        -------
+        keep: bool
+        If True, instead of removing spikes with given indices, it will remove
+        all spikes except the given indices.
+        """
+        bool_idx = idx
+        if not idx.dtype == np.bool:
+            # Change the idx to bool idx of the complenet set of spikes.
+            bool_idx = np.ones(self.n_spike, dtype=np.bool)
+            bool_idx[idx] = False
+            if keep_idx:
+                bool_idx = np.logical_not(bool_idx)
+        else:
+            # Complement the complement spikes idx.
+            if not keep_idx:
+                bool_idx = np.logical_not(bool_idx)
+        self.spt = self.spt[bool_idx]
+        # Reset saved attributes.
+        self.times = []
+        self.count = []
+        self.indices = []
+        self.n_spike = len(self.spt)
+
+    def spike_times(self, unit):
+        """A list of spike times for a given unit."""
+        if len(self.times) > 0:
+            return self.times[unit]
+        for u in range(self.n_unit):
+            self.times.append(
+                self.spt[self.spike_indices(unit=u), 0])
+        return self.spike_times(unit=unit)
+
+    def spike_count(self, unit=None):
+        """Number of total spikes for a given unit."""
+        if len(self.count) > 0:
+            if unit is None:
+                return self.count
+            return self.count[unit]
+        for u in range(self.n_unit):
+            t = self.spike_times(unit=u)
+            self.count.append(len(t))
+        self.count = np.array(self.count)
+        return self.spike_count(unit=unit)
+
+    def spike_indices(self, unit=None):
+        """Number of total spikes for a given unit."""
+        if len(self.indices) > 0:
+            if unit is None:
+                return self.indices
+            return self.indices[unit]
+        for u in range(self.n_unit):
+            idx = np.where(self.spt[:, 1] == u)[0]
+            self.indices.append(idx)
+        return self.spike_indices(unit=unit)
+
+    def match(self, sp, window=3):
+        """Matches unit i to unit i of given SpikeTrain object."""
+        mat = []
+        for unit in tqdm(range(self.n_unit)):
+            gt = self.spike_times(unit=unit)
+            t = sp.spike_times(unit=unit)
+            mat.append(
+                    SpikeTrain.match_sorted_spike_times(gt, t, window=window))
+        return np.array(mat)
+
+    @staticmethod
+    def match_sorted_spike_times(l1, l2, window=3, return_idx=True):
+        """Matches spikes from first to second list that are sorted."""
+        l1_match = np.zeros_like(l1) + np.nan
+        l2_match = np.zeros_like(l2) + np.nan
+
+        for i in np.arange(-window, window + 1):
+            _, l1_idx, l2_idx = np.intersect1d(
+                l1, l2 + i, return_indices=True)
+            l1_match[l1_idx] = i
+            l2_match[l2_idx] = i
+        return l1_match, l2_match
+
+class WaveFormVisualizer(object):
+
+    def __init__(self, geom):
+        """
+
+        params:
+        -------
+        geom: numpy.ndarray of shape (C, 2) where C is total number of
+        channels.
+        """
+        self.geom = geom
+        self.n_chan = geom.shape[0]
+
+    def vis_chan(self, wave_forms, threshold=2.):
+        return np.where(
+                np.max(wave_forms.ptp(axis=-1), axis=0) > threshold)[0]
+
+    def plot_spatial(self, wave_forms, scale=10., squeeze=2., legends=[],
+            vis_chan_only=0., jitter=0, ax=None, normalize=False,
+            plot_chan_num=True, plot_zero_trace=True, **kwargs):
+        """Spatial plot of the wave_forms."""
+        fig = None
+        if ax is None:
+            fig, ax = plt.subplots()
+        n_times = wave_forms.shape[-1]
+        if not wave_forms.shape[-2] == self.n_chan:
+            raise ValueError('Number of channels does not match geometry.')
+        vis_chan = range(self.n_chan)
+        if vis_chan_only > 0.:
+            vis_chan = self.vis_chan(wave_forms, threshold=vis_chan_only)
+        # Plot channel numbers.
+        offset = 10
+        if plot_chan_num:
+            for c in vis_chan:
+                plt.text(self.geom[c, 0] + offset, self.geom[c, 1], str(c),
+                        size='large')
+        # Plot Standard Unit for scale.
+        # normalize if necessary
+        wfvis = wave_forms[0, vis_chan]
+        ptprank = (wfvis.ptp(1).argsort().argsort() + 1.) / wfvis.shape[0] + 1.
+        norm_scale = ptprank / wfvis.ptp(1)
+        if not normalize:
+            norm_scale = norm_scale * 0 + 1.
+        for i_, c in enumerate(vis_chan):
+            ax.fill_between(
+                np.arange(n_times) / squeeze + self.geom[c, 0],
+                np.zeros(n_times) - (scale * norm_scale[i_]) + self.geom[c, 1],
+                np.zeros(n_times) + (scale * norm_scale[i_]) + self.geom[c, 1],
+                color='0', alpha=0.1)
+            if plot_zero_trace:
+                ax.plot(
+                        np.arange(n_times) / squeeze + self.geom[c, 0],
+                        np.zeros(n_times) + self.geom[c, 1], color='0')
+        # Setting Legends
+        legend_elements = [Line2D([0], [0], lw=15, color='0',
+            alpha=0.2, label='2 Standard Unit')]
+        for i, label in enumerate(legends):
+            color = "C{}".format(i % 10)
+            legend_elements.append(
+                    Line2D([0], [0], color=color, label=label)) 
+        # Plot channels per waveforms.
+        if len(wave_forms.shape) == 2:
+            wave_forms = [wave_forms]
+
+        pass_color = False
+        if "color" not in kwargs:
+            pass_color = True
+
+        for i, wf in enumerate(wave_forms):
+            wf = wf + 0.
+            wf[vis_chan] *= norm_scale[:, None]
+            if pass_color:
+                color = "C{}".format(i % 10)
+                kwargs["color"] = color
+            for c in vis_chan:
+                ax.plot(
+                    (np.arange(n_times) + i * jitter) / squeeze + self.geom[c, 0],
+                    wf[c, :] * scale + self.geom[c, 1],
+                    **kwargs)
+        ax.legend(handles=legend_elements)
+        if fig is not None:
+            fig.set_size_inches(20, 10)
+
+    def plot_examples(self, examples, ax=None, plus_raw=False, binary=True):
+        time_length = examples.shape[1] - 1
+        if plus_raw:
+            time_length = time_length // 3
+        else:
+            time_length = time_length // 2
+        def get_color(i):
+            colors = ['C2', 'y', 'C1', 'C3']
+            label = examples[i, -1, 0]
+            if binary:
+                if label == 1:
+                    color = 'C2'
+                else:
+                    color = 'C3'
+            else:
+                if np.isnan(label):
+                    color = '0'
+                else:
+                    color = colors[int(abs(label))]
+            return color
+
+        def plot_traces(i, ax=None):
+            color = get_color(i)
+            self.plot_spatial(examples[i, :time_length, :].T, ax=ax)
+            if ax is None:
+                ax = plt.gca()
+            if plus_raw:
+                self.plot_spatial(
+                        examples[i, time_length:2*time_length, :].T,
+                        ax=ax, color='C1')
+            self.plot_spatial(
+                    examples[i, -time_length-1:-1, :].T, ax=ax, color=color)
+
+        if ax is None:
+            for i in range(len(examples)):
+                plot_traces(i)
+                plt.gcf().set_size_inches(10, 6)
+        else:
+            ax = ax.flatten()
+            for i, ax_ in enumerate(ax):
+                plot_traces(i, ax=ax_)
+                if not binary:
+                    ax_.set_title('Shift {}'.format(label))
+
+
+class SyntheticData(object):
+
+    def __init__(self, templates, spike_train, time):
+        """
+
+        params:
+        -------
+        templates: np.ndarray (# units, # channels, # times)
+        spike_train: np.ndarray (# spikes, 2)
+        """
+        self.temps = WaveForms(templates)
+        self.spt = SpikeTrain(spike_train)
+        self.time = time
+        self.n_unit = min(self.temps.n_unit, self.spt.n_unit)
+        self.orig_data = None
+        self.data = None
+
+    def generate(self, noise=True, dtype=np.float32):
+        """Generates the synthetic data given the templates and spike_train."""
+        if noise:
+            self.data = self.temps.generate_correlated_noise(time=self.time, dtype=np.float32)
+        else:
+            self.data = np.zeros([self.temps.n_channel, self.time])
+        for unit in tqdm(range(self.n_unit), "Generating Data."):
+            idx = np.arange(self.temps.n_time)[:, None] + self.spt.spike_times(unit=unit)
+            self.data[:, idx] += self.temps[unit][..., None].astype(dtype)
+        # Keep a copy of the original data.
+        self.orig_data = self.data + 0.
+        return self.data
+
+    def match_spike_train(self, spt, window=3):
+        """Constructs examples for neural network deconvolution calssifer."""
+        given_spt = SpikeTrain(spt, num_unit=self.n_unit, sort=True)
+        match_res = self.spt.match(given_spt, window)
+        return match_res
+
+    def get_examples(self, spt, plus_raw=False, time_length=None, binary=True):
+        """Constructs examples for neural network deconvolution calssifer."""
+        given_spt = SpikeTrain(spt, num_unit=self.n_unit, sort=True)
+        match_res = self.spt.match(given_spt)
+        # Where around spikes should the algorithm grab spikes
+        time_window = np.arange(0, self.temps.n_time) 
+        if time_length is None:
+            # Use full time sample size of the template
+            time_length = self.temps.n_time
+        # Left out of time window
+        n_time_outside = self.temps.n_time - time_length
+        time_window = np.arange(0, time_length) + n_time_outside // 2
+        example_size = 2 * time_length + 1
+        if plus_raw:
+            example_size = 3 * time_length + 1
+        examples = np.zeros(
+            [given_spt.n_spike, example_size, 7])
+        # Set labels to one by default
+        if binary:
+            examples[:, -1, :] =  1
+
+        main_7_c = self.temps.wave_forms.ptp(2).argsort(
+            axis=1)[:, -7:]
+
+        for unit in tqdm(range(self.n_unit)):
+            #grab_channels = chanidx[mainc[unit]
+            grab_channels = main_7_c[unit]
+            ex_idx = given_spt.spike_indices(unit)
+            idx = time_window + given_spt.spike_times(unit)[:, None]
+            examples[ex_idx, :time_length] = self.data.T[:, grab_channels][idx]
+            broadcast_templates = self.temps.wave_forms[unit, grab_channels][..., time_window].T[None]
+            # Add input templates
+            if plus_raw:
+                examples[ex_idx, time_length:2*time_length] = self.orig_data.T[:, grab_channels][idx]
+                examples[ex_idx, 2*time_length:-1] += broadcast_templates
+            else:
+                examples[ex_idx, time_length:-1] += broadcast_templates
+            # Set unmatched spikes' labels to zero
+            # Unmatched spike indices from the given spike train
+            if binary:
+                unmatched_idx = np.where(np.isnan(match_res[unit, 1]))[0]
+                examples[ex_idx[unmatched_idx], -1, :] = 0.
+            else:
+                examples[ex_idx, -1, 0] = match_res[unit, 1]
+ 
+        return examples
+
+    def remove_spike_train(self, spt):
+        """Removes spikes given by indices from the data and the spike train.
+
+        params:
+        -------
+        spt: np.ndarray (N, 2)
+        """
+        given_spt = SpikeTrain(spt, num_unit=self.n_unit)
+        match_res = self.spt.match(given_spt)
+
+        unmatched_idx = []
+        for unit in range(self.n_unit):
+            un_idx_ = np.where(np.isnan(match_res[unit, 0]))[0]
+            unmatched_idx.append(self.spt.spike_indices(unit=unit)[un_idx_])
+        unmatched_idx = np.concatenate(unmatched_idx)
+        self.spt.remove(unmatched_idx, keep_idx=True)
+        # Spikes that have been matched should be removed from synthetic data
+        for unit in range(self.n_unit):
+            idx = np.arange(self.temps.n_time)[:, None] + given_spt.spike_times(unit=unit)
+            self.data[:, idx] -= self.temps[unit][..., None]
+        return self.data
+
+    def qqplot(self, subsample_size=1000):
+        """Computes qqplot values.
+
+        params:
+        -------
+        data: np.ndarray shape (# channel, # time)
+        subsample_size: int
+            Number of subsamples to be taken from data.
+        """
+        data = self.data
+        n_chan, n_time = data.shape
+        qq = np.zeros([n_chan, 2, subsample_size])
+        for chan in tqdm(range(n_chan), "computing qqplot"):
+            time_subset = np.random.choice(
+                range(n_time), subsample_size, replace=False)
+            qq_y = np.sort(data[chan, time_subset])
+            qq_x = np.sort(np.random.normal(0, 1, subsample_size))
+            qq[chan, 0] = qq_x
+            qq[chan, 1] = qq_y
+        return qq
+
+####################################
+
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+def metrics(labels, pred, logits=True, threshold=0.5):
+    n_ex = len(labels)
+    if logits:
+        pred = sigmoid(pred)
+        pred[pred >= threshold] = 1.
+        pred[pred < threshold] = 0.
+    metrics = {}
+    idxs = [labels < 2, labels == 0, labels == 1]
+    idxtype = ["Accuracy", "True Negative", "True Positive"]
+    for idx, typ in zip(idxs, idxtype):
+        metrics[typ] = (pred[idx] == labels[idx]).sum() * 1. / idx.sum()
+    metrics["False Positive"] = 1 - metrics["True Negative"]
+    metrics["False Negative"] = 1 - metrics["True Positive"]
+    return metrics
+
+def plot_loss(elbo, skip=10, epoch=None, offset=0, **kwargs):
+    # Truncate pre offset
+    elbo_ = np.array(elbo)[offset:]
+    # Truncate a bit from the beginning so that average
+    offset_2 = len(elbo_) % skip
+    elbo_ = elbo_[offset_2:]
+    elbo_avg = np.mean(np.reshape(elbo_, [-1, skip]), axis=-1)
+    x = np.arange(offset + offset_2, len(elbo), skip)
+    if epoch is not None:
+        x = x / (epoch * 1.)
+        plt.xlabel("Epochs")
+    else:
+        plt.xlabel("Iterations")
+
+    plt.plot(x, elbo_avg, **kwargs)
+    plt.ylabel("Cross Entropy")
+
+
+def generate_spike_train(
+        n_unit, time, rate_range, refractory_period):
+    """
+
+    params:
+    -------
+    n_unit: int
+    time: int
+    rate_range: tuple of int
+    refractory_period: int
+
+    returns:
+    --------
+    np.ndarray of shape (N, 2).
+    """
+    def generate_spt(time, rate):
+        x = np.random.poisson(rate, time // rate)
+        x[x < refractory_period] = refractory_period
+        x = np.cumsum(x)
+        x = x[np.logical_and(x > 100, x < time - 100)]
+        return x
+    spt = []
+    min_rate, max_rate = rate_range
+    for i in range(n_unit):
+        rate = np.random.randint(min_rate, max_rate)
+        spike_times = generate_spt(time=time, rate=rate)
+        spt.append(
+            np.array([spike_times, spike_times * 0 + i]))
+    spt = np.concatenate(spt, axis=1).T
+    spt = spt[spt[:, 0].argsort()]
+    return spt
+
 ###################################################
 
 
@@ -378,9 +820,8 @@ def align_template_channels(temp, geom, zero_pad_len=30, jitter_len=50):
 
 class TempTempConv(object):
 
-    def __init__(self, CONFIG, templates, geom, pad_len, jitter_len, rank=5,
-                 sparse=True, temp_temp_fname="",
-                 vis_threshold_strong=2., vis_threshold_weak=.1, parallel=True):
+    def __init__(self, templates, geom, rank=5, sparse=True, temp_temp_fname="",
+                 vis_threshold_strong=1., vis_threshold_weak=.5, pad_len=30, jitter_len=50):
         """
 
         params:
@@ -432,7 +873,7 @@ class TempTempConv(object):
         # Computes if units are spatially overlapping
         unit_unit_overlap = np.logical_and(viscs[None], viscs[:, None]).sum(-1) > 0
 
-        for unit in tqdm(range(n_unit), "....aligning templates and computing SVD."):
+        for unit in tqdm(range(n_unit), "Aligning templates and computing SVD."):
             # get vis channels only
             t = temp[unit, viscs[unit], :]
             # Instead of having 1 template with c channels
@@ -464,44 +905,27 @@ class TempTempConv(object):
         # computing template_norms
         self.temp_norms = np.square(aligned_temp).sum(-1).sum(-1)
 
-        #temp_temp = [[0. for i in range(n_unit)] for j in range(n_unit)]
-        temp_temp = None
+        temp_temp = [[0. for i in range(n_unit)] for j in range(n_unit)]
 
         zero_padded_temp_temp = None
         global_argmax = None
         if not os.path.exists(temp_temp_fname):
-            print (".... computing temp_temp ...")
-            if parallel:
-                # partition the units into 12 sub problems
-                sub_size = n_unit // 12
-                if sub_size == 0:
-                    sub_size = 1
-                sub_tasks = []
-                i = 0
-                while i < n_unit:
-                    till = i + sub_size
-                    if till > n_unit:
-                        till = n_unit
-                    sub_tasks.append(range(i, till))
-                    i = i + sub_size
+            for unit in tqdm(range(n_unit), "Computing pairwise convolution of templates."):
+                # Full temp is the unshifted reconstructed
+                # templates for a unit that acts as the data
+                # that other units get convolved by
+                unshifted_temp = shift_channels(aligned_temp[unit], align_shifts[unit])
+                for ounit in np.where(unit_unit_overlap[unit])[0]:
+                    # For all spatially overlapping templates, convolve them with
+                    # the outer loop template using the SVD trick
+                    shifts = reverse_shifts(align_shifts[ounit])
+                    shifted_data = shift_channels(unshifted_temp, shifts)
+                    transformed_data = np.matmul(spat_comp[ounit][:, :rank].T, shifted_data)
+                    temp_temp.append(0.)
+                    for r in range(rank):
+                        temp_temp[unit][ounit] += np.convolve(
+                            transformed_data[r], temp_comp[ounit][r, ::-1])
 
-                temp_temp_list = parmap.map(
-                    temp_temp_partial, sub_tasks,
-                    aligned_temp_=aligned_temp, align_shifts_=align_shifts,
-                    unit_unit_overlap_=unit_unit_overlap,
-                    spat_comp_=spat_comp, temp_comp_=temp_comp,
-                    rank_=rank, n_unit_=n_unit,
-                    processes=CONFIG.resources.n_processors,
-                    pm_pbar=True)
-                temp_temp = []
-                # Gather and combine all solutions
-                for res in temp_temp_list:
-                    temp_temp += res
-            else:
-                temp_temp = temp_temp_partial(
-                    units=range(n_unit), aligned_temp_=aligned_temp, align_shifts_=align_shifts,
-                    unit_unit_overlap_=unit_unit_overlap,
-                    spat_comp_=spat_comp, temp_comp_=temp_comp, rank_=rank, n_unit_=n_unit)
             # zero pad and shift the temp temps so that everything all temp_temp[i][i] have
             # peak at the same time and they have the same size
 
@@ -623,28 +1047,3 @@ class TempTempConv(object):
         for unit in range(self.n_unit):
             new_spike_train[new_spike_train[:, 1] == unit, 0] += self.peak_time_residual_offset[unit]
         return new_spike_train
-
-
-def temp_temp_partial(
-    units, aligned_temp_, align_shifts_, unit_unit_overlap_,
-    spat_comp_, temp_comp_, rank_, n_unit_):
-    # Helper class for computing temp temp that is used in parmap parallelization
-    temp_temp = [[0. for i in range(n_unit_)] for j in range(len(units))]
-    i_unit = 0
-    #for unit in tqdm(units, "Computing pairwise convolution of templates."):
-    for unit in units:
-        # Full temp is the unshifted reconstructed
-        # templates for a unit that acts as the data
-        # that other units get convolved by
-        unshifted_temp = shift_channels(aligned_temp_[unit], align_shifts_[unit])
-        for ounit in np.where(unit_unit_overlap_[unit])[0]:
-            # For all spatially overlapping templates, convolve them with
-            # the outer loop template using the SVD trick
-            shifts = reverse_shifts(align_shifts_[ounit])
-            shifted_data = shift_channels(unshifted_temp, shifts)
-            transformed_data = np.matmul(spat_comp_[ounit][:, :rank_].T, shifted_data)
-            for r in range(rank_):
-                temp_temp[i_unit][ounit] += np.convolve(
-                    transformed_data[r], temp_comp_[ounit][r, ::-1])
-        i_unit += 1
-    return temp_temp
