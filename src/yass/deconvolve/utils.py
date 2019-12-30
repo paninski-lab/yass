@@ -375,6 +375,60 @@ def align_template_channels(temp, geom, zero_pad_len=30, jitter_len=50):
     return aligned_temp
 
 ######################################################
+class TempAlign(object):
+
+    def __init__(self, templates, geom, pad_len, jitter_len,
+                 vis_threshold_strong=2., vis_threshold_weak=1.)
+        """
+
+        params:
+        -------
+        templates: np.ndarray
+            shape (n_unit, n_channel, n_time)
+        geom: np.ndarray
+            shape (n_channel, 2)
+        vis_threshold_strong: flaot
+            Any channel with ptp > vis_threshold_strong will be visible
+        vis_threshold_weak: float
+            Any channel with ptp > vis_threshold_weak that has AT LEAST ONE neighbor
+            with ptp > vis_threshold_strong, is visible
+        pad_len: int
+            Each channel will be zero-padded by pad_len on both size to allow
+            for more jitter
+        jitter_len: int
+            Each channel will be jitter by a total of 2 * jitter_len to find
+            best alignment
+        """
+        temp = templates
+        n_unit, n_channel, n_time = temp.shape
+        self.n_unit = n_unit
+        spike_size = temp.shape[2] + 2 * pad_len - 2 * jitter_len
+
+        # Zero padding is done to allow a lot of jitter for alignment purposes
+        temp = np.pad(temp, ((0, 0), (0, 0), (pad_len, pad_len)), 'constant')    
+
+        viscs = continuous_visible_channels(
+            temp, geom,
+            threshold=vis_threshold_weak, neighb_threshold=vis_threshold_strong)
+        flatten = np.where(viscs.flatten())[0]
+        # unit number of the signal
+        signal_unit = flatten // n_channel
+        # channel number of the signal
+        signal_channel = flatten % n_channel
+
+        # stack signals from all templates on their visible channels
+        t = temp.reshape([-1, temp.shape[2]])[viscs.flatten()]
+        tobj = WaveForms(t[:, None])
+        main_c = t.ptp(1).argmax()
+        align, shifts_ = tobj.align(
+            ref_wave_form=t[main_c][None], jitter=jitter_len, return_shifts=True)
+        
+        self.align_shifts = shifts_ - shifts_.min()
+        self.stacked_aligned_signals = align[:, 0]
+        self.signal_unit = signal_unit
+        self.signal_channel = signal_channel
+
+
 
 class TempTempConv(object):
 
