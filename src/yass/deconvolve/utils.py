@@ -380,7 +380,7 @@ class TempTempConv(object):
 
     def __init__(self, CONFIG, templates, geom, pad_len, jitter_len, rank=5,
                  sparse=True, temp_temp_fname="",
-                 vis_threshold_strong=2., vis_threshold_weak=.1, parallel=True):
+                 vis_threshold_strong=2., vis_threshold_weak=1., parallel=True):
         """
 
         params:
@@ -473,7 +473,7 @@ class TempTempConv(object):
             print (".... computing temp_temp ...")
             if parallel:
                 # partition the units into 12 sub problems
-                sub_size = n_unit // 12
+                sub_size = n_unit // CONFIG.resources.n_processors
                 if sub_size == 0:
                     sub_size = 1
                 sub_tasks = []
