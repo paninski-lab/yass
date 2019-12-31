@@ -378,7 +378,7 @@ def align_template_channels(temp, geom, zero_pad_len=30, jitter_len=50):
 class TempAlign(object):
 
     def __init__(self, templates, geom, pad_len, jitter_len,
-                 vis_threshold_strong=2., vis_threshold_weak=1.)
+            vis_threshold_strong=2., vis_threshold_weak=1.):
         """
 
         params:
