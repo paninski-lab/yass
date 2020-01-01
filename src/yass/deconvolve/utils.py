@@ -483,6 +483,7 @@ class TempTempConv(object):
         viscs = continuous_visible_channels(
             temp, geom,
             threshold=vis_threshold_weak, neighb_threshold=vis_threshold_strong)
+        num_vis_chan = viscs.sum(1)
         # Computes if units are spatially overlapping
         unit_unit_overlap = np.logical_and(viscs[None], viscs[:, None]).sum(-1) > 0
 
@@ -491,9 +492,8 @@ class TempTempConv(object):
             t = temp[unit, viscs[unit], :]
             # Instead of having 1 template with c channels
             # treat it as c teplates with 1 channels
-            if t.shape[0] == 0:
-                # There is no visible channels
-                continue
+            if num_vis_chan[unit] == 0:
+                    continue
             tobj = WaveForms(t[:, None])
             main_c = t.ptp(1).argmax()
             align, shifts_ = tobj.align(
@@ -565,6 +565,8 @@ class TempTempConv(object):
             temp_temp_len = np.zeros([n_unit, n_unit], dtype=np.int32)
             temp_temp_argmax = np.zeros(n_unit, dtype=np.int32)
             for i in range(n_unit):
+                if num_vis_chan[i] == 0:
+                        continue
                 temp_temp_argmax[i] = temp_temp[i][i].argmax()
                 for j in range(n_unit):
                     if isinstance(temp_temp[i][j], np.ndarray):
@@ -578,6 +580,8 @@ class TempTempConv(object):
             shifts_ = global_argmax - temp_temp_argmax
             zero_padded_temp_temp = np.zeros([n_unit, n_unit, max_len])
             for i in range(n_unit):
+                if num_vis_chan[i] == 0:
+                    continue
                 u_shift = shifts_[i]
                 for j in range(n_unit):
                     if isinstance(temp_temp[i][j], np.ndarray):
