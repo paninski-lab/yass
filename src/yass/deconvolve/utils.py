@@ -491,10 +491,9 @@ class TempTempConv(object):
             t = temp[unit, viscs[unit], :]
             # Instead of having 1 template with c channels
             # treat it as c teplates with 1 channels
-            if len(t.shape) == 1:
-                # if there is only one visible channel the 2d array
-                # will be squeezed to 1d, so expand it back to 2d
-                t = t[None]
+            if t.shape[0] == 0:
+                # There is no visible channels
+                continue
             tobj = WaveForms(t[:, None])
             main_c = t.ptp(1).argmax()
             align, shifts_ = tobj.align(
