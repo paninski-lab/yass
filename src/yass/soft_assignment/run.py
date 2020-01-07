@@ -27,7 +27,9 @@ def run(template_fname,
         residual_fname,
         residual_dtype,
         compute_noise_soft=True,
-        compute_template_soft=True):
+        compute_template_soft=True,
+        update_templates=False
+       ):
 
     logger = logging.getLogger(__name__)
 
@@ -38,6 +40,10 @@ def run(template_fname,
         output_directory, 'noise_soft_assignment.npy')
     fname_template_soft = os.path.join(
         output_directory, 'template_soft_assignment.npz')
+    
+    # HACK now.. it needs a proper fix later
+    if update_templates:
+        template_fname = os.path.join(template_fname, 'templates_init.npy')
     
     # output folder
     if not os.path.exists(output_directory):

@@ -117,7 +117,7 @@ class deconvGPU(object):
             os.mkdir(self.temps_dir)
 
         # always copy the startng templates to initalize the process
-        fname_out_temporary = os.path.join(self.temps_dir,'templates_0sec.npy')
+        fname_out_temporary = os.path.join(self.temps_dir, 'templates_init.npy')
         if os.path.exists(fname_out_temporary)==False:
             temps_temporary = np.load(fname_templates)
             np.save(fname_out_temporary, temps_temporary)
@@ -877,8 +877,8 @@ class deconvGPU(object):
         '''
 
         self.xshifts = ((((pts[1]-pts[2])*(-1)-(pts[0]-pts[1])*(-3))/2)/
-                  (-2*((pts[0]-pts[1])-(((pts[1]-pts[2])*(-1)-(pts[0]-pts[1])*(-3))/(2)))))-1        
-
+                  (-2*((pts[0]-pts[1])-(((pts[1]-pts[2])*(-1)-(pts[0]-pts[1])*(-3))/(2)))))-1
+        
     def compute_height(self):
         '''  Function that fits quadratic to 3 points centred on each peak of obj_func 
         '''
@@ -891,8 +891,8 @@ class deconvGPU(object):
 
             # height
             height = 0.5*(peak_vals/self.norm[self.neuron_ids[:,0], 0] + 1)
-            height[height < 1 - self.max_height_diff] = 1 - self.max_height_diff
-            height[height > 1 + self.max_height_diff] = 1 + self.max_height_diff
+            height[height < 1 - self.max_height_diff] = 1
+            height[height > 1 + self.max_height_diff] = 1
             
             idx_small_ = ~torch.any(self.neuron_ids == self.large_units[None],1)
             height[idx_small_] = 1
@@ -904,6 +904,17 @@ class deconvGPU(object):
 
         return (dt.datetime.now().timestamp()- start1)
 
+    def quad_interp_peak(self, pts):
+        ''' find x-shift after fitting quadratic to 3 points
+            Input: [n_peaks, 3] which are values of three points centred on obj_func peak
+            Assumes: equidistant spacing between sample times (i.e. the x-values are hardcoded below)
+        '''
+
+        num = ((pts[1]-pts[2])*(-1)-(pts[0]-pts[1])*(-3))/2
+        denom = -2*((pts[0]-pts[1])-(((pts[1]-pts[2])*(-1)-(pts[0]-pts[1])*(-3))/(2)))
+        num[denom==0] = 1
+        denom[denom==0] = 1
+        return (num/denom)-1    
 
     def quad_interp_3pt(self, vals, shift):
         a = 0.5*vals[0] + 0.5*vals[2] - vals[1]
@@ -1321,7 +1332,53 @@ class deconvGPU(object):
 
         return ptps_average, weights_sum
 
+    def compute_min_max_vals(self):
 
+        # get all spike times and neuron ids
+        spike_times = torch.cat(self.spike_array)
+        neuron_ids = torch.cat(self.neuron_array)
+
+        # get min/max values
+        max_spikes = 10000
+        counter = torch.cat((torch.arange(0, len(spike_times), max_spikes), torch.tensor([len(spike_times)]))).cuda()
+
+        min_max_vals_spikes = torch.zeros((len(spike_times), 2, self.N_CHAN, 5)).float().cuda()
+        for j in range(len(counter)-1):
+            ii_start = counter[j]
+            ii_end = counter[j+1]
+            tt = spike_times[ii_start:ii_end, None] + torch.arange(-2, 3).cuda()
+            min_max_loc_spikes = (self.min_max_loc[neuron_ids[ii_start:ii_end]][:, :, :, None] + 
+                                  tt[:, None, None] - self.STIME + 1)
+            chan_loc_spikes = (torch.arange(self.N_CHAN).cuda()[None, None, :, None].repeat(
+                min_max_loc_spikes.shape[0], 2, 1, 5))
+            min_max_vals_spikes[ii_start:ii_end] = self.data[chan_loc_spikes, min_max_loc_spikes]
+        tt = None
+        min_max_loc_spikes = None
+        chan_loc_spikes = None
+
+        # weights
+        ptps_spikes = torch.max(min_max_vals_spikes[:, 1], 2)[0] - torch.min(min_max_vals_spikes[:, 0], 2)[0]
+        diffs = torch.abs(ptps_spikes.transpose(0, 1) - self.ptps_all_chans[:, neuron_ids])
+        diffs[diffs < self.max_good_diff] = self.max_good_diff
+        weights = (self.max_good_diff**2)/torch.pow(diffs, 2)
+        weights[diffs > self.min_bad_diff_templates[:, neuron_ids]] = 0
+        weights = weights.transpose(0,1)
+
+        # average out
+        weighted_min_max_vals = min_max_vals_spikes*weights[:,None,:,None]
+        min_max_vals_average = torch.zeros((self.K, 2, self.N_CHAN, 5)).float().cuda()
+        weights_sum = torch.zeros((self.K, self.N_CHAN)).cuda()
+        for k in range(self.K):
+            idx_ = neuron_ids == k
+            min_max_vals_average[k] = torch.sum(weighted_min_max_vals[idx_], 0)
+            weights_sum[k] = torch.sum(weights[idx_], 0)
+
+        weights_sum[weights_sum==0] = 0.00001
+        min_max_vals_average = min_max_vals_average/weights_sum[:,None, :,None]
+
+        return min_max_vals_average, weights_sum    
+
+    
 # # ****************************************************************************
 # # ****************************************************************************
 # # ****************************************************************************

@@ -32,6 +32,8 @@ from yass import read_config
 from yass import (preprocess, detect, cluster, postprocess,
                   deconvolve, residual, soft_assignment,
                   merge, rf, visual, phy)
+from yass.reader import READER
+from yass.template import run_cleaned_template_computation, run_template_computation
 #from yass.template import update_templates
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
@@ -184,6 +186,10 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         TMP_FOLDER, 'spike_train.npy')
     fname_noise_soft_assignment_final = os.path.join(
         TMP_FOLDER, 'noise_soft_assignment.npy')
+
+    if CONFIG.deconvolution.update_templates:
+        templates_dir = fname_templates
+        fname_templates = os.path.join(templates_dir, 'templates_init.npy')
 
     # tranpose axes
     templates = np.load(fname_templates).transpose(1,2,0)
@@ -394,6 +400,17 @@ def pre_final_deconv(TMP_FOLDER,
         standardized_path,
         standardized_dtype,
         run_chunk_sec=run_chunk_sec)
+    
+    fname_templates = get_partially_cleaned_templates(
+        os.path.join(TMP_FOLDER,
+                     'clean_templates'),
+        fname_templates,
+        fname_spike_train,
+        fname_shifts,
+        fname_scales,
+        standardized_path,
+        standardized_dtype,
+        run_chunk_sec) 
 
     # compute residual
     logger.info('RESIDUAL COMPUTATION')
@@ -450,6 +467,98 @@ def pre_final_deconv(TMP_FOLDER,
 
     return (fname_templates,
             fname_spike_train)
+
+
+def get_partially_cleaned_templates(TMP_FOLDER,
+                                    fname_templates,
+                                    fname_spike_train,
+                                    fname_shifts,
+                                    fname_scales,
+                                    standardized_path,
+                                    standardized_dtype,
+                                    run_chunk_sec):
+
+    logger = logging.getLogger(__name__)
+
+    if not os.path.exists(TMP_FOLDER):
+        os.makedirs(TMP_FOLDER)
+        
+    CONFIG = read_config()
+
+    fname_templates_out = os.path.join(TMP_FOLDER, 'templates.npy')
+    if os.path.exists(fname_templates_out):
+        return fname_templates_out
+
+    big_unit_ptp = 10
+    vis_chan_ptp = 3
+    
+    # compute residual
+    logger.info('PARTIAL RESIDUAL COMPUTATION')
+    fname_residual, residual_dtype = residual.run(
+        fname_shifts,
+        fname_scales,
+        fname_templates,
+        fname_spike_train,
+        os.path.join(TMP_FOLDER,
+                     'partial_residual'),
+        standardized_path,
+        standardized_dtype,
+        dtype_out='float32',
+        run_chunk_sec=run_chunk_sec,
+        min_ptp_units=big_unit_ptp,
+        min_ptp_vis_chan=vis_chan_ptp)
+    
+    templates = np.load(fname_templates)
+    n_units, n_times, n_channels = templates.shape
+    ptps_mc = templates.ptp(1).max(1)
+
+    unit_ids_big = np.where(ptps_mc > big_unit_ptp)[0]
+    unit_ids_small = np.where(ptps_mc <= big_unit_ptp)[0]
+
+    templates_input_masked = np.copy(templates)
+    templates_input_masked[unit_ids_small] = 0
+    for k in unit_ids_big:
+        idx_noise_chan = templates_input_masked[k].ptp(0) < vis_chan_ptp
+        templates_input_masked[k, :, idx_noise_chan] = 0
+    fname_templates_input_masked = os.path.join(TMP_FOLDER, 'templates_input_masked.npy')
+    np.save(fname_templates_input_masked, templates_input_masked)
+
+    fname_templates_big = run_cleaned_template_computation(
+        os.path.join(TMP_FOLDER,
+                     'large_units_templates'),
+        fname_spike_train,
+        fname_templates_input_masked,
+        fname_shifts,
+        fname_scales,
+        fname_residual,
+        residual_dtype,
+        CONFIG,
+        unit_ids=unit_ids_big)
+
+    reader = READER(fname_residual, residual_dtype, CONFIG)
+    fname_templates_small = run_template_computation(
+        os.path.join(TMP_FOLDER,
+                     'small_units_templates'),
+        fname_spike_train,
+        reader,
+        spike_size=None,
+        unit_ids=unit_ids_small,
+        multi_processing=CONFIG.resources.multi_processing,
+        n_processors=CONFIG.resources.n_processors)
+    
+    
+    templates_big = np.load(fname_templates_big)
+    templates_small = np.load(fname_templates_small)
+    templates_new = np.zeros((n_units, n_times, n_channels), 'float32')    
+    templates_new[unit_ids_big] = templates_big[unit_ids_big]
+    templates_new[unit_ids_small] = templates_small[unit_ids_small]
+    
+    for unit in range(n_units):
+        templates_new[unit,:, templates[unit].ptp(0) == 0] = 0
+    
+    np.save(fname_templates_out, templates_new)
+    
+    return fname_templates_out
 
 
 def final_deconv(TMP_FOLDER,
@@ -518,7 +627,9 @@ def final_deconv(TMP_FOLDER,
         os.path.join(TMP_FOLDER,
                      'soft_assignment'),
         fname_residual,
-        residual_dtype)
+        residual_dtype,
+        update_templates=update_templates
+    )
 
     return (fname_templates,
             fname_spike_train,

@@ -38,8 +38,6 @@ class RESIDUAL_GPU2(object):
     
     def __init__(self,
                 reader,
-                recordings_filename,
-                recording_dtype,
                 CONFIG,
                 fname_shifts,
                 fname_scales,
@@ -57,36 +55,22 @@ class RESIDUAL_GPU2(object):
         self.logger = logging.getLogger(__name__)
 
         self.reader = reader
-        self.recordings_filename = recordings_filename
-        self.recording_dtype = recording_dtype
         self.CONFIG = CONFIG
         #self.output_directory = output_directory
         self.data_dir = output_directory
         self.dtype_out = dtype_out
         self.fname_out = fname_out
-        self.fname_templates = fname_templates
         self.fname_shifts = fname_shifts
         self.fname_scales = fname_scales
+        self.fname_templates = fname_templates
         self.fname_residual = os.path.join(self.data_dir,'residual.bin')
         self.fname_spike_train = fname_spike_train
-        
-        
+
         # updated templates options
-        # Cat: TODO read from CONFIG
-        #self.update_templates = update_templates
         self.update_templates = update_templates
         
-        # grab the starting templates
         if self.update_templates:
-            #print ("loading
-            self.fname_templates = os.path.join(os.path.split(self.data_dir)[0],
-                                    'deconv','template_updates',
-                                    'templates_'+
-                                    str(CONFIG.deconvolution.template_update_time)+
-                                    'sec.npy')
-
-        # Cat: TODO read from CONFIG File
-        self.template_update_time = CONFIG.deconvolution.template_update_time
+            self.template_update_time = CONFIG.deconvolution.template_update_time
 
         # fixed value for CUDA code; do not change
         self.tempScaling = 1.0
@@ -94,11 +78,17 @@ class RESIDUAL_GPU2(object):
         # load parameters and data
         self.load_data()
 
-        # load templates
-        self.load_templates()
+        if self.update_templates:
+            # the input fname templates are actually directory if
+            # template update is turned on
+            self.templates_dir = self.fname_templates
         
-        # make bsplines
-        self.make_bsplines_parallel()
+        else:
+            # load templates
+            self.load_templates(fname_templates)
+
+            # make bsplines
+            self.make_bsplines_parallel()
         
         # run residual computation
         self.subtract_step()
@@ -107,22 +97,18 @@ class RESIDUAL_GPU2(object):
        
         # 
         self.n_chan = self.CONFIG.recordings.n_channels
-                                
-        # Cat: TODO: read buffer from CONFIG
-        self.reader.buffer = 200
-            
+
         # load spike train
         self.spike_train = np.load(self.fname_spike_train)
 
         # time offset loading
         self.time_offsets = np.load(self.fname_shifts)
-        
+
         # scale fit
         self.scales = np.load(self.fname_scales)
-                
+
         # Cat: TODO is this being used anymore?
-        self.waveform_len = (self.CONFIG.recordings.sampling_rate/1000*
-                             self.CONFIG.recordings.spike_size_ms)
+        self.waveform_len = self.CONFIG.spike_size
 
         # compute chunks of data to be processed
         # self.n_sec = self.CONFIG.resources.n_sec_chunk_gpu
@@ -132,10 +118,10 @@ class RESIDUAL_GPU2(object):
         print ("# of chunks: ", self.reader.n_batches)
 
 
-    def load_templates(self):
+    def load_templates(self, fname_templates):
         #print ("  loading templates...", self.fname_templates)
         # load templates
-        self.temps = np.load(self.fname_templates).transpose(2,1,0).astype('float32')
+        self.temps = np.load(fname_templates).transpose(2,1,0).astype('float32')
         #print ("loaded temps:", self.temps.shape)
         self.temps_gpu = torch.from_numpy(self.temps.transpose(2,0,1)).float().cuda()
         #self.temps_gpu = torch.from_numpy(self.temps).long().cuda()
@@ -247,41 +233,27 @@ class RESIDUAL_GPU2(object):
         verbose = False
         debug = False
         
-        residual_array = []
-        self.reader.buffer = 200
+        #
+        if self.update_templates:
+            # at which chunk templates need to be updated
+            n_chunks_update = int(self.template_update_time/self.reader.n_sec_chunk)
+            update_chunk = np.arange(0, self.reader.n_batches, n_chunks_update)
+
 
         # open residual file for appending on the fly
-        f = open(self.fname_residual,'wb')
+        f = open(self.fname_residual, 'wb')
+        for batch_id, chunk in tqdm(enumerate(self.reader.idx_list)):
 
-        batch_id=0
-        #for chunk in tqdm(self.reader.idx_list):
-        for chunk in tqdm(self.reader.idx_list):
-            
-            time_sec = (batch_id*self.CONFIG.resources.n_sec_chunk_gpu_deconv)
-                          
-           # print ((self.update_templates), 
-           #     (((time_sec)%self.template_update_time)==0),
-           #     (batch_id!=0))
             # updated templates options
-            if ((self.update_templates) and 
-                (((time_sec)%self.template_update_time)==0) and
-                (batch_id!=0)):
-                
+            if self.update_templates and np.any(update_chunk == batch_id):
+
                 # Cat: TODO: note this function reads the average templates forward to
                 #       correctly match what was computed during current window
                 #       May wish to try other options
-                
-                self.fname_templates = os.path.join(os.path.split(self.data_dir)[0],
-                                    'deconv','template_updates',
-                                    'templates_'+
-                                     str(self.CONFIG.deconvolution.template_update_time+
-                                            batch_id*self.CONFIG.resources.n_sec_chunk_gpu_deconv)+
-                                    'sec.npy')
-                                    
-                #print ("NEW TEMPLATES...")
-                #print ("   reloading: ", self.fname_templates)
-                # reload templates
-                self.load_templates()
+                time_sec = batch_id*self.reader.n_sec_chunk
+                fname_templates = os.path.join(self.templates_dir,
+                                               'templates_{}sec.npy'.format(time_sec))
+                self.load_templates(fname_templates)
                 self.make_bsplines_parallel()
            
             # load chunk starts and ends for indexing below
@@ -301,8 +273,10 @@ class RESIDUAL_GPU2(object):
             #            because this constant search is expensive;
             # index into spike train at chunks:
             # Cat: TODO: this may miss spikes that land exactly at time 61.
-            idx = np.where(np.logical_and(self.spike_train[:,0]>=(chunk_start-self.waveform_len), 
-                            self.spike_train[:,0]<=(chunk_end+self.waveform_len)))[0]
+            idx = np.where(np.logical_and(
+                self.spike_train[:,0]>=(chunk_start-self.waveform_len),
+                self.spike_train[:,0]<=(chunk_end+self.waveform_len)))[0]
+
             if verbose: 
                 print (" # idx of spikes in chunk ", idx.shape, idx)
             
@@ -329,17 +303,12 @@ class RESIDUAL_GPU2(object):
             scales_local = self.scales[idx]
             scales_local = torch.from_numpy(scales_local).float().cuda()
 
-
-
-            # dummy values
-            self.tempScaling_array = time_offsets_local*0.0+1.0
-
             if verbose: 
                 print ("time offsets: ", time_offsets_local.shape, time_offsets_local)
-            
+
             if verbose:
                 t5 = time.time()
-                
+
             if False:
                 np.save('/home/cat/times.npy', time_indices.cpu().data.numpy())
                 np.save('/home/cat/objective.npy', objective.cpu().data.numpy())

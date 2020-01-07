@@ -434,7 +434,7 @@ class TempTempConv(object):
 
     def __init__(self, CONFIG, templates, geom, pad_len, jitter_len, rank=5,
                  sparse=True, temp_temp_fname="",
-                 vis_threshold_strong=2., vis_threshold_weak=1., parallel=True):
+                 vis_threshold_strong=1., vis_threshold_weak=0.5, parallel=True):
         """
 
         params:
