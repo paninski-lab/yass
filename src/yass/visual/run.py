@@ -272,10 +272,14 @@ class Visualizer(object):
         xcorrs = xcorrs[self.unique_ids != unit]
         idx_others = self.unique_ids[self.unique_ids != unit]
 
-        xcorrs = xcorrs - np.median(xcorrs, 1, keepdims=True)
-        std = np.median(np.abs(xcorrs), 1)/0.6745
-        std[std==0] = 10000
-        xcorrs = xcorrs/std[:,None]
+        sig_xcorrs = np.where(xcorrs.sum(1) > 10/(self.rec_len*self.bin_width*self.f_rates[unit]))[0]
+        xcorrs = xcorrs[sig_xcorrs]
+        idx_others = idx_others[sig_xcorrs]
+
+        means_ = xcorrs.mean(1)
+        stds_ = np.std(xcorrs, 1)
+        stds_[stds_==0] = 1
+        xcorrs = (xcorrs - means_[:,None])/stds_[:,None]
 
         idx_max = np.argsort(xcorrs.max(1))[::-1][:self.n_neighbours]
         max_vals = xcorrs.max(1)[idx_max]
