@@ -531,7 +531,7 @@ class TempTempConv(object):
             print (".... computing temp_temp ...")
             if parallel:
                 # partition the units into 12 sub problems
-                sub_size = n_unit // CONFIG.resources.n_processors
+                sub_size = int(np.ceil(n_unit / CONFIG.resources.n_processors))
                 if sub_size == 0:
                     sub_size = 1
                 sub_tasks = []
