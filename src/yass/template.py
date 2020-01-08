@@ -424,6 +424,8 @@ def compute_a_template(spike_times, reader, spike_size):
     # get waveforms
     wf = reader.read_waveforms(spike_times, spike_size)[0]
 
+    if wf.shape[0] == 0:
+        return np.zeros((spike_size, reader.n_channels), 'float32')
     #max_channel = np.mean(wf, axis=0).ptp(0).argmax()
 
     #wf, _ = align_waveforms(wf=wf,
