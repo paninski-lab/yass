@@ -13,6 +13,7 @@ from yass.postprocess.duplicate import remove_duplicates
 from yass.postprocess.collision import remove_collision
 from yass.postprocess.mad import remove_high_mad
 from yass.postprocess.duplicate_l2 import duplicate_l2
+from yass.postprocess.xcorr_peaks import remove_high_xcorr_peaks
 from yass.postprocess.util import get_weights
 
 def run(methods = [],
@@ -282,6 +283,19 @@ def post_process(output_directory,
             weights, rec_len_sec, threshold, units_in)
 
         logger.info("{} units after removing high fr units".format(
+            len(units_out)))
+
+    elif method == 'high_xcorr':
+
+        threshold=5
+        units_out = remove_high_xcorr_peaks(
+            fname_spike_train,
+            fname_templates,
+            CONFIG.recordings.sampling_rate,
+            threshold,
+            units_in)
+
+        logger.info("{} units after removing high xcorr units".format(
             len(units_out)))
 
     else:

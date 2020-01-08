@@ -400,7 +400,7 @@ def pre_final_deconv(TMP_FOLDER,
         standardized_path,
         standardized_dtype,
         run_chunk_sec=run_chunk_sec)
-    
+
     fname_templates = get_partially_cleaned_templates(
         os.path.join(TMP_FOLDER,
                      'clean_templates'),
@@ -437,7 +437,7 @@ def pre_final_deconv(TMP_FOLDER,
         fname_residual,
         residual_dtype,
         compute_noise_soft=True,
-        compute_template_soft=False)
+        compute_template_soft=True)
 
     logger.info('POST DECONV MERGE')
     (fname_templates,
@@ -452,9 +452,9 @@ def pre_final_deconv(TMP_FOLDER,
         fname_noise_soft,
         fname_residual,
         residual_dtype)
-
-    logger.info('Remove Low Firing Rate Units')
-    methods = ['low_fr']
+    
+    logger.info('Remove Bad units')
+    methods = ['low_fr', 'high_xcorr']
     fname_templates, fname_spike_train = postprocess.run(
         methods,
         os.path.join(TMP_FOLDER,
