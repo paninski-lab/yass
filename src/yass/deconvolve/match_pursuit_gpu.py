@@ -290,8 +290,7 @@ class deconvGPU(object):
         #              
         self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temp_temp, self.vis_units)])
         #self.temp_temp_cpp = deconv.BatchedTemplates([deconv.Template(nzData, nzInd) for nzData, nzInd in zip(self.temp_temp, self.unit_unit_overlap)])
-      
-        
+
     def templates_to_bsplines(self):
 
         print ("  making template bsplines")
@@ -331,15 +330,20 @@ class deconvGPU(object):
         # print (" loaded coefficients: ", coefficients[0].shape)
         # print (" loaded coefficients: ", coefficients[0])
         
+        del self.temp_temp
+        del self.temp_temp_cpp
+        torch.cuda.empty_cache()
         
         print ("  ... moving coefficients to cuda objects")
         coefficients_cuda = []
         for p in range(len(coefficients)):
-            coefficients_cuda.append(deconv.Template(torch.from_numpy(coefficients[p]).cuda(), self.temp_temp_cpp[p].indices))
+            coefficients_cuda.append(deconv.Template(
+                torch.from_numpy(coefficients[p]).float().cuda(),
+                self.vis_units[p]))
             # print ('self.temp_temp_cpp[p].indices: ', self.temp_temp_cpp[p].indices)
             # print ("self.vis_units: ", self.vis_units[p])
             # coefficients_cuda.append(deconv.Template(torch.from_numpy(coefficients[p]).cuda(), self.vis_units[p]))
-        
+
         
         self.coefficients = deconv.BatchedTemplates(coefficients_cuda)
         # Peak times minus this value are where temp_temp should be subtracted from
@@ -347,8 +351,6 @@ class deconvGPU(object):
         #self.subtraction_offset = self.coefficients[0].data.shape[1]//2+2
         self.subtraction_offset = self.ttc.peak_time_temp_temp_offset
 
-        del self.temp_temp
-        del self.temp_temp_cpp
         del coefficients_cuda
         del coefficients
         torch.cuda.empty_cache()
@@ -890,7 +892,7 @@ class deconvGPU(object):
             peak_vals = self.quad_interp_3pt(self.threePts.transpose(1,0), self.xshifts)
 
             # height
-            height = 0.5*(peak_vals/self.norm[self.neuron_ids[:,0], 0] + 1)
+            height = 0.5*(peak_vals/self.norms[self.neuron_ids[:,0]] + 1)
             height[height < 1 - self.max_height_diff] = 1
             height[height > 1 + self.max_height_diff] = 1
             
