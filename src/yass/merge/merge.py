@@ -13,7 +13,7 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.cluster import AgglomerativeClustering
 
 from yass.template import shift_chans, align_get_shifts_with_ref
-from yass.merge.correlograms_phy import compute_correlogram_v2
+from yass.correlograms_phy import compute_correlogram_v2
 from yass.merge.notch import notch_finder
 
 class TemplateMerge(object):
