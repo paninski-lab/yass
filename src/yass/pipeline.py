@@ -32,6 +32,7 @@ from yass import read_config
 from yass import (preprocess, detect, cluster, postprocess,
                   deconvolve, residual, soft_assignment,
                   merge, rf, visual, phy)
+from yass.cluster.sharpen import sharpen_templates
 from yass.reader import READER
 from yass.template import run_cleaned_template_computation, run_template_computation
 #from yass.template import update_templates
@@ -156,15 +157,16 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
             fname_templates,
             run_chunk_sec = CONFIG.clustering_chunk)
 
-    ### Pre-final deconv: Deconvolve, Residual, Merge, kill low fr units
-    (fname_templates,
-     fname_spike_train)= pre_final_deconv(
-        os.path.join(TMP_FOLDER, 'pre_final_deconv'),
-        standardized_path,
-        standardized_dtype,
-        fname_templates,
-        run_chunk_sec = CONFIG.clustering_chunk)
-    
+    for j in range(2):
+        ### Pre-final deconv: Deconvolve, Residual, Merge, kill low fr units
+        (fname_templates,
+         fname_spike_train)= pre_final_deconv(
+            os.path.join(TMP_FOLDER, 'pre_final_deconv_{}'.format(j)),
+            standardized_path,
+            standardized_dtype,
+            fname_templates,
+            run_chunk_sec = CONFIG.clustering_chunk)
+
     ### Final deconv: Deconvolve, Residual, soft assignment
     (fname_templates,
      fname_spike_train,
@@ -261,7 +263,7 @@ def initial_block(TMP_FOLDER,
     #methods = ['off_center', 'high_mad', 'duplicate']
     methods = ['off_center', 'high_mad', 'duplicate']
     #methods = ['off_center', 'high_mad', 'duplicate']
-    fname_templates, fname_spike_train = postprocess.run(
+    (fname_templates, fname_spike_train, _, _, _) = postprocess.run(
         methods,
         os.path.join(TMP_FOLDER,
                      'cluster_post_process'),
@@ -360,7 +362,7 @@ def iterative_block(TMP_FOLDER,
         full_run=True)
 
     methods = ['off_center', 'high_mad', 'duplicate']
-    fname_templates, fname_spike_train = postprocess.run(
+    fname_templates, fname_spike_train, _, _, _ = postprocess.run(
         methods,
         os.path.join(TMP_FOLDER,
                      'cluster_post_process'),
@@ -373,10 +375,10 @@ def iterative_block(TMP_FOLDER,
 
 
 def pre_final_deconv(TMP_FOLDER,
-                 standardized_path,
-                 standardized_dtype,
-                 fname_templates,
-                 run_chunk_sec):
+                     standardized_path,
+                     standardized_dtype,
+                     fname_templates,
+                     run_chunk_sec):
 
     logger = logging.getLogger(__name__)
 
@@ -427,7 +429,7 @@ def pre_final_deconv(TMP_FOLDER,
         run_chunk_sec=run_chunk_sec)
 
     logger.info('SOFT ASSIGNMENT')
-    (fname_noise_soft, _) = soft_assignment.run(
+    fname_noise_soft, fname_template_soft = soft_assignment.run(
         fname_templates,
         fname_spike_train,
         fname_shifts,
@@ -438,6 +440,22 @@ def pre_final_deconv(TMP_FOLDER,
         residual_dtype,
         compute_noise_soft=True,
         compute_template_soft=True)
+    
+    logger.info('Remove Bad units')
+    methods = ['low_fr', 'low_ptp', 'duplicate_soft_assignment']
+    (fname_templates, fname_spike_train, 
+     fname_noise_soft, fname_shifts, fname_scales)  = postprocess.run(
+        methods,
+        os.path.join(TMP_FOLDER,
+                     'post_deconv_post_process'),
+        standardized_path,
+        standardized_dtype,
+        fname_templates,
+        fname_spike_train,
+        fname_template_soft,
+        fname_noise_soft,
+        fname_shifts,
+        fname_scales)
 
     logger.info('POST DECONV MERGE')
     (fname_templates,
@@ -451,19 +469,7 @@ def pre_final_deconv(TMP_FOLDER,
         fname_templates,
         fname_noise_soft,
         fname_residual,
-        residual_dtype)
-    
-    logger.info('Remove Bad units')
-    methods = ['low_fr', 'high_xcorr']
-    fname_templates, fname_spike_train = postprocess.run(
-        methods,
-        os.path.join(TMP_FOLDER,
-                     'post_deconv_post_process'),
-        standardized_path,
-        standardized_dtype,
-        fname_templates,
-        fname_spike_train,
-        fname_noise_soft)
+        residual_dtype)    
 
     return (fname_templates,
             fname_spike_train)
@@ -485,7 +491,7 @@ def get_partially_cleaned_templates(TMP_FOLDER,
         
     CONFIG = read_config()
 
-    fname_templates_out = os.path.join(TMP_FOLDER, 'templates.npy')
+    fname_templates_out = os.path.join(TMP_FOLDER, 'templates_aligned.npy')
     if os.path.exists(fname_templates_out):
         return fname_templates_out
 
@@ -552,11 +558,16 @@ def get_partially_cleaned_templates(TMP_FOLDER,
     templates_new = np.zeros((n_units, n_times, n_channels), 'float32')    
     templates_new[unit_ids_big] = templates_big[unit_ids_big]
     templates_new[unit_ids_small] = templates_small[unit_ids_small]
+
+    #for unit in range(n_units):
+    #    templates_new[unit,:, templates[unit].ptp(0) == 0] = 0
+
+    fname_templates = os.path.join(TMP_FOLDER, 'templates.npy')
+    np.save(fname_templates, templates_new)
     
-    for unit in range(n_units):
-        templates_new[unit,:, templates[unit].ptp(0) == 0] = 0
-    
-    np.save(fname_templates_out, templates_new)
+    logger.info("subsample template alignment")
+    fname_templates_out = sharpen_templates(fname_templates,
+                                            fname_templates_out)
     
     return fname_templates_out
 
