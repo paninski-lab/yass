@@ -133,6 +133,20 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.cov_list = np.asarray(self.cov_list)
         self.cov_list = torch.from_numpy(self.cov_list).half().cuda()
     
+    
+    def get_similar(self):
+
+        ptps = self.templates.ptp(1)
+        ptps[ptps<0.5] = 0
+        see = dist.squareform(dist.pdist(ptps))
+        self.similar_array = np.zeros((self.n_units, self.sim_units)).astype("int16")
+        for i in range(self.n_units):
+            if ptps[i].max() > 0:
+                self.similar_array[i] = np.argsort(see[i])[:self.sim_units]
+                norm = np.sqrt(np.sum(np.square(ptps[i])))
+                if np.sort(see[i])[:self.sim_units][1]/norm < self.temp_thresh:
+                    self.units_in.add(i)
+    '''
     def get_similar(self):
         max_time = self.templates.argmax(1).astype("int16")
         padded_templates = np.concatenate((np.zeros((self.n_units, 5, self.rec_chans)), self.templates, np.zeros((self.n_units, 5, self.rec_chans))), axis = 1)
@@ -152,7 +166,6 @@ class TEMPLATE_ASSIGN_OBJECT(object):
             if sorted_see[1]/norm < self.temp_thresh:
                 self.units_in.add(i)
 
-    '''
     def get_similar(self):
         see = dist.squareform(dist.pdist(self.templates.reshape(self.n_units, self.n_channels*self.n_times)))
         self.similar_array = np.zeros((self.n_units, self.sim_units)).astype("int16")
@@ -397,7 +410,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
     def run(self):
         
         #construct array to identify soft assignment units
-        unit_assignment = np.zeros((self.spike_train_og.shape[0], self.sim_units))
+        unit_assignment = np.zeros((self.spike_train_og.shape[0], self.sim_units), 'int32')
         for unit in range(self.n_units):
             row_idx= self.spike_train_og[:, 1] == unit
             unit_assignment[row_idx, :] = self.similar_array[unit, :]

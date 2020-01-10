@@ -1,12 +1,18 @@
 import numpy as np
+import os
+
 from yass.correlograms_phy import compute_correlogram
 
-def remove_high_xcorr_peaks(fname_spike_train,
+def remove_high_xcorr_peaks(save_dir,
+                            fname_spike_train,
                             fname_templates,
                             sampling_rate,
                             threshold=5,
                             units_in=None):
     
+    if not os.path.exists(save_dir):
+        os.makedir(save_dir)
+
     window_size = 0.04
     bin_width = 0.001
         
@@ -33,6 +39,7 @@ def remove_high_xcorr_peaks(fname_spike_train,
         sample_rate=sampling_rate,
         bin_width=bin_width,
         window_size=window_size)
+    np.save(os.path.join(save_dir, 'xcorrs.npy'), xcorrs)
 
     means_ = xcorrs.mean(2)
     stds_ = np.std(xcorrs, 2)

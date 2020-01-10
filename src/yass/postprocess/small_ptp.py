@@ -1,7 +1,7 @@
 import numpy as np
 import os
 
-def remove_small_units(templates, threshold=3, units_in=None):
+def remove_small_units(templates, threshold=2.5, units_in=None):
 
     if units_in is None:
         n_units = templates.shape[0]

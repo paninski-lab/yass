@@ -146,16 +146,16 @@ class TemplateMerge(object):
         # units need to be close to each other
         idx1 = dist_norm_ratio < 0.5
 
-        # ptp of both units need to be bigger than 4
+        # ptp of both units need to be bigger than 3
         ptp_max = self.ptps.max(1)
         smaller_ptps = np.minimum(ptp_max[np.newaxis],
                                   ptp_max[:, np.newaxis])
-        idx2 = smaller_ptps > 1
+        idx2 = smaller_ptps > 3
 
         # expect to have at least 10 spikes
         smaller_n_spikes = np.minimum(self.n_spikes_soft[None],
                                       self.n_spikes_soft[:, None])
-        idx3 = smaller_n_spikes > 50
+        idx3 = smaller_n_spikes > 10
 
         units_1, units_2 = np.where(np.logical_and(
             np.logical_and(idx1, idx2), idx3))
@@ -167,7 +167,8 @@ class TemplateMerge(object):
                 ratio = self.n_spikes_soft[x]/self.n_spikes_soft[y]
                 # if the ratio is too bad, ignore it because it will
                 # always try to merge
-                if (ratio > 1/20) and (ratio < 20):
+                if ((ratio > 1/20 and ratio < 20) or 
+                    (ptp_max[x] > 10 and ptp_max[y] > 10)):
                     unique_pairs.append([x, y])
 
         self.merge_candidates = unique_pairs
