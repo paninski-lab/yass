@@ -761,11 +761,14 @@ def denoise_wf(fnames_input_data):
                 idx = np.where(energy > 0.5)[0]
                 if len(idx) == 0:
                     idx = [energy.argmax()]
+                    
+                #print (wf_reshaped.shape)
                 wf_reshaped = wf_reshaped[:, idx]
 
                 if len(idx) > 5:
                     # denoise using pca
-                    pca = PCA(n_components=5)
+                    pca = PCA(n_components=min(min(wf_reshaped.shape),5))
+                    #print (wf_reshaped.shape)
                     score = pca.fit_transform(wf_reshaped)
                     denoised_wf = pca.inverse_transform(score)
                 else:

@@ -248,7 +248,7 @@ class RESIDUAL_GPU2(object):
         debug = False
         
         residual_array = []
-        self.reader.buffer = 200
+        self.reader.buffer = 1000
 
         # open residual file for appending on the fly
         f = open(self.fname_residual,'wb')
@@ -352,6 +352,8 @@ class RESIDUAL_GPU2(object):
             #       needs to be wrapped in a list
             chunk_size = 10000
             for chunk in range(0, time_indices.shape[0], chunk_size):
+                print (time_indices[chunk:chunk+chunk_size])
+
                 torch.cuda.synchronize()
                 if time_indices[chunk:chunk+chunk_size].shape[0]==0:
                     # Add spikes back in;

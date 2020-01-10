@@ -31,6 +31,13 @@ def make_CONFIG2(CONFIG):
         CONFIG2.resources.n_sec_chunk_gpu = CONFIG.resources.n_sec_chunk_gpu
         print ("older config")
 
+    try:
+        CONFIG2.resources.gpu_id = CONFIG.resources.gpu_id
+    except:
+        CONFIG2.resources.gpu_id = 0
+        print ("older config")
+
+
 
     CONFIG2.data.root_folder = CONFIG.data.root_folder
     CONFIG2.data.geometry = CONFIG.data.geometry

@@ -99,6 +99,9 @@ def fit_spline_cpu(curve, knots=None, prepad=0, postpad=0, order=3):
 class deconvGPU(object):
 
     def __init__(self, CONFIG, fname_templates, out_dir):
+    
+        os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
+        print("... deconv using GPU device: ", torch.cuda.current_device())
         
         #
         self.out_dir = out_dir
@@ -187,8 +190,10 @@ class deconvGPU(object):
         #self.n_times = torch.arange(-self.lockout_window,self.n_time,1).long().cuda()
         
         # make a 3 point array to be used in quadratic fit below
+        print("... deconv using GPU device: ", torch.cuda.current_device())
+
         self.peak_pts = torch.arange(-1,+2).cuda()
-        
+
         # load templates and svd componenets
         self.load_temps()
 
