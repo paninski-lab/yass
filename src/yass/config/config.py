@@ -260,14 +260,14 @@ class Config:
         #
         if self.recordings.final_deconv_chunk is None:
             self._set_param('final_deconv_chunk',
-                            [0, self.rec_len])
+                            [0, self.rec_len/self.recordings.sampling_rate])
         else:
             self._set_param('final_deconv_chunk',
                             self.recordings.final_deconv_chunk)
         #
         if self.recordings.clustering_chunk is None:
             self._set_param('clustering_chunk',
-                            [0, self.rec_len])
+                            [0, self.rec_len/self.recordings.sampling_rate])
         else:
             self._set_param('clustering_chunk',
                             self.recordings.clustering_chunk)            
