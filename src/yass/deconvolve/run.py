@@ -185,7 +185,7 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.RANK = 10
     d_gpu.vis_chan_thresh = 1.0
 
-    d_gpu.fit_height = False
+    d_gpu.fit_height = True
     d_gpu.max_height_diff = 0.1
     d_gpu.fit_height_ptp = 20
 
