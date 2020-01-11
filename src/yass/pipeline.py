@@ -157,7 +157,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
             fname_templates,
             run_chunk_sec = CONFIG.clustering_chunk)
 
-    for j in range(2):
+    for j in range(3):
         ### Pre-final deconv: Deconvolve, Residual, Merge, kill low fr units
         (fname_templates,
          fname_spike_train)= pre_final_deconv(
@@ -312,38 +312,6 @@ def iterative_block(TMP_FOLDER,
         standardized_dtype,
         dtype_out='float32',
         run_chunk_sec=run_chunk_sec)
-
-    #logger.info('KILL NOISE')
-    #fname_spike_train2 = noise.run(
-    #    fname_templates,
-    #    fname_spike_train,
-    #    fname_shifts,
-    #    os.path.join(TMP_FOLDER,
-    #                 'noise_kill'),
-    #    fname_residual,
-    #    residual_dtype)
-
-    if False:
-        
-        logger.info('SOFT NOISE ASSIGNMENT')
-        fname_soft_assignment = soft_assignment.run(
-            fname_templates,
-            fname_spike_train,
-            fname_shifts,
-            os.path.join(TMP_FOLDER,
-                         'soft_assignment'),
-            fname_residual,
-            residual_dtype)
-        
-        logger.info('BLOCK1 MERGE')
-        _, _, _ = merge.run(
-            os.path.join(TMP_FOLDER,
-                         'post_deconv_merge'),
-            fname_spike_train,
-            fname_templates,
-            fname_soft_assignment,
-            fname_residual,
-            residual_dtype)
 
     # cluster
     logger.info('RECLUSTERING')

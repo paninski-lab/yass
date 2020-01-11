@@ -199,6 +199,10 @@ class deconvGPU(object):
                 templates=self.temps.transpose(2,0,1), geom=self.geom, rank=self.RANK,
                 temp_temp_fname=temp_temp_fname,
                 pad_len=30, jitter_len=30, sparse=True)
+
+        #np.save(os.path.join(self.svd_dir, 'temp_norms.npy'), self.ttc.temp_norms)
+        #np.save(os.path.join(self.svd_dir, 'unit_overlap.npy'), self.ttc.unit_overlap)
+
         # Move sparse temp_temp to GPU
         self.temp_temp = []
         for k in range(len(self.ttc.temp_temp)):
@@ -238,7 +242,7 @@ class deconvGPU(object):
         # BSPLINE COMPUTATIONS
                 
         # initialize Ian's objects
-        self.initialize_cpp()
+        #self.initialize_cpp()
 
         # conver templates to bpslines
         self.templates_to_bsplines()
@@ -304,19 +308,21 @@ class deconvGPU(object):
             # multi-core bsplines
             if self.CONFIG.resources.multi_processing:
                 templates_cpu = []
-                for template in self.temp_temp_cpp:
+                for template in self.temp_temp:
                     templates_cpu.append(template.data.cpu().numpy())
 
                 coefficients = parmap.map(transform_template_parallel, templates_cpu, 
-                                            processes=self.CONFIG.resources.n_processors,
-                                            pm_pbar=False)
+                                          processes=self.CONFIG.resources.n_processors//2,
+                                          pm_pbar=False)
             # single core
             else:
                 coefficients = []
-                for template in self.temp_temp_cpp:
+                #for template in self.temp_temp_cpp:
+                #    template_cpu = template.data.cpu().numpy()
+                #    coefficients.append(transform_template_parallel(template_cpu))
+                for template in self.temp_temp:
                     template_cpu = template.data.cpu().numpy()
-                    coefficients.append(transform_template_parallel(template_cpu))
-            
+                    coefficients.append(transform_template_parallel(template))
             np.save(fname, coefficients)
         else:
             print ("  ... loading coefficients from disk")
@@ -331,7 +337,7 @@ class deconvGPU(object):
         # print (" loaded coefficients: ", coefficients[0])
         
         del self.temp_temp
-        del self.temp_temp_cpp
+        #del self.temp_temp_cpp
         torch.cuda.empty_cache()
         
         print ("  ... moving coefficients to cuda objects")

@@ -480,6 +480,11 @@ class TempTempConv(object):
         spat_comp = np.zeros([n_unit, n_channel, rank], dtype=np.float32)
         temp_comp = np.zeros([n_unit, rank, spike_size], dtype=np.float32)
 
+        # visible channels for the purpose of finiding overlapping units
+        viscs = temp.ptp(2) > vis_threshold_strong
+        unit_unit_overlap = np.logical_and(viscs[None], viscs[:, None]).sum(-1) > 0
+
+        # real visible channels using both strong and weak threshold
         viscs = continuous_visible_channels(
             temp, geom,
             threshold=vis_threshold_weak, neighb_threshold=vis_threshold_strong)
@@ -488,7 +493,6 @@ class TempTempConv(object):
         invis_units = np.where(num_vis_chan == 0)[0]
         viscs[invis_units, temp.ptp(2).argmax(1)[invis_units]] = True
         # Computes if units are spatially overlapping
-        unit_unit_overlap = np.logical_and(viscs[None], viscs[:, None]).sum(-1) > 0
 
         for unit in tqdm(range(n_unit), "....aligning templates and computing SVD."):
             # get vis channels only
@@ -590,6 +594,14 @@ class TempTempConv(object):
             print (".... loading temp-temp from disk")
             zero_padded_temp_temp = np.load(temp_temp_fname, allow_pickle=True)
             global_argmax = zero_padded_temp_temp[0][0].argmax()
+
+
+        # reduce the amount of overlapping units
+        less_overlapping_units = True
+        if less_overlapping_units:
+            threshold = 0.05*self.temp_norms
+            threshold[threshold > 50] = 50
+            unit_unit_overlap = np.abs(zero_padded_temp_temp).max(2) > threshold
 
         # Important step that gives the templates have the same length and shifted in a way
         # that spike trains for subtraction are synchronized

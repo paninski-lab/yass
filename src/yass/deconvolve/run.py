@@ -720,37 +720,39 @@ def update_templates(fnames_forward,
     # min_loc_current shape: n_units x n_channels
     min_loc_current = min_max_loc_temp[:, 0] + peak_loc_updated
     
-    # do rank 1 denoising. estimate time component using high ptp channels only
-    ptp_threshold = 3
-    if os.path.exists(fname_temp_min_loc):
-        # min_loc_matrix size : n_chunks x n_units x n_chans
-        min_loc_matrix = np.load(fname_temp_min_loc)
-        min_loc_matrix = np.concatenate((min_loc_matrix, min_loc_current[None]), axis=0)
-        np.save(fname_temp_min_loc, min_loc_matrix)
+    if False:
+        # do rank 1 denoising. estimate time component using high ptp channels only
+        ptp_threshold = 3
+        if os.path.exists(fname_temp_min_loc):
+            # min_loc_matrix size : n_chunks x n_units x n_chans
+            min_loc_matrix = np.load(fname_temp_min_loc)
+            min_loc_matrix = np.concatenate((min_loc_matrix, min_loc_current[None]), axis=0)
+            np.save(fname_temp_min_loc, min_loc_matrix)
 
-        for k in range(n_units):
-            vis_chan = np.where(temp_ptps[k] > ptp_threshold)[0]
-            if len(vis_chan) == 0:
-                vis_chan = np.where(temp_ptps[k] > 0.8*temp_ptps[k].max())[0]
-            # min_loc_k : n_chunks x n_chans
-            min_loc_k = min_loc_matrix[:, k]
+            for k in range(n_units):
+                vis_chan = np.where(temp_ptps[k] > ptp_threshold)[0]
+                if len(vis_chan) == 0:
+                    vis_chan = np.where(temp_ptps[k] > 0.8*temp_ptps[k].max())[0]
+                # min_loc_k : n_chunks x n_chans
+                min_loc_k = min_loc_matrix[:, k]
 
-            a, b, c = np.linalg.svd(min_loc_k[:, vis_chan] - min_loc_k[[0], vis_chan])
-            # temporal_component: n_chunks x 1
-            temporal_component = a[:,0]*b[0]
-            channel_components = np.sum(
-                min_loc_k*temporal_component[:, None], 0)/np.square(
-                temporal_component).sum()
+                a, b, c = np.linalg.svd(min_loc_k[:, vis_chan] - min_loc_k[[0], vis_chan])
+                # temporal_component: n_chunks x 1
+                temporal_component = a[:,0]*b[0]
+                channel_components = np.sum(
+                    min_loc_k*temporal_component[:, None], 0)/np.square(
+                    temporal_component).sum()
 
-            # denoised location
-            min_loc_current[k] = temporal_component[-1]*channel_components + min_loc_k[0]
+                # denoised location
+                min_loc_current[k] = temporal_component[-1]*channel_components + min_loc_k[0]
 
+        else:
+            np.save(fname_temp_min_loc, min_loc_current[None])
+
+        # denoised location relative to the templates from the previous batch
+        peak_loc_denoised =  min_loc_current - min_max_loc_temp[:, 0]
     else:
-        np.save(fname_temp_min_loc, min_loc_current[None])
-
-    # denoised location relative to the templates from the previous batch
-    peak_loc_denoised =  min_loc_current - min_max_loc_temp[:, 0]
-    peak_loc_denoised = peak_loc_updated
+        peak_loc_denoised = peak_loc_updated
 
     # and determine how much has shifted
     shifts = peak_loc_denoised - temp_peak_loc[:,0]
@@ -2594,3 +2596,4 @@ def update_templates_CPU(d_gpu, templates_in, CONFIG, ref_template,
             str(time_index)+'.npy', templates_new)
 
     return templates_new, []
+
