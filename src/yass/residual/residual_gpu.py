@@ -239,7 +239,6 @@ class RESIDUAL_GPU2(object):
             n_chunks_update = int(self.template_update_time/self.reader.n_sec_chunk)
             update_chunk = np.arange(0, self.reader.n_batches, n_chunks_update)
 
-
         # open residual file for appending on the fly
         f = open(self.fname_residual, 'wb')
         for batch_id, chunk in tqdm(enumerate(self.reader.idx_list)):
@@ -321,6 +320,8 @@ class RESIDUAL_GPU2(object):
             #       needs to be wrapped in a list
             chunk_size = 10000
             for chunk in range(0, time_indices.shape[0], chunk_size):
+                print (time_indices[chunk:chunk+chunk_size])
+
                 torch.cuda.synchronize()
                 if time_indices[chunk:chunk+chunk_size].shape[0]==0:
                     # Add spikes back in;

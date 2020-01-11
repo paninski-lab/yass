@@ -190,11 +190,14 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     # Train Detector
     detector = Detect(CONFIG.neuralnetwork.detect.n_filters,
                       CONFIG.spike_size_nn,
-                      CONFIG.channel_index).cuda()
+                      CONFIG.channel_index,
+                      CONFIG).cuda()
+                      
     detector.train(os.path.join(TMP_FOLDER, 'detect.pt'), DetectTD)
     
     # Train Denoiser
     denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
                        CONFIG.neuralnetwork.denoise.filter_sizes,
-                       CONFIG.spike_size_nn).cuda()
+                       CONFIG.spike_size_nn,
+                       CONFIG).cuda()
     denoiser.train(os.path.join(TMP_FOLDER, 'denoise.pt'), DenoTD)
