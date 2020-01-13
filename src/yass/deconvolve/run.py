@@ -355,7 +355,7 @@ def deconv_ONgpu2(fname_templates_in,
     #scales = np.hstack(scales)
 
     # add half the spike time back in to get to centre of spike
-    spike_train[:,0] = spike_train[:,0]+temporal_size//2
+    spike_train[:,0] = spike_train[:,0]+temporal_size//2 - (2 * d_gpu.jitter_diff)
     spike_train = d_gpu.ttc.adjust_peak_times_for_residual_computation(spike_train)
 
 

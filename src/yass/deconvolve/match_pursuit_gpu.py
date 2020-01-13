@@ -199,11 +199,20 @@ class deconvGPU(object):
 
         temp_temp_fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+\
                 str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
+        # pad len is constant and is 1.5 ms on each side, i.e. a total of 3 ms
+        pad_len = int(1.5 * self.CONFIG.recordings.sampling_rate / 1000.)
+        # jitter_len is selected in a way that deconv works with 3 ms signals
+        jitter_len = pad_len
+        self.jitter_diff = 0
+        if self.CONFIG.recordings.spike_size_ms > 3:
+            self.jitter_diff = (self.CONFIG.recordings.spike_size_ms - 3)
+            self.jitter_diff = int(self.jitter_diff * self.CONFIG.recordings.sampling_rate / 1000. / 2.)
+            jitter_len = pad_len + self.jitter_diff
         self.ttc = TempTempConv(
                 self.CONFIG, 
                 templates=self.temps.transpose(2,0,1), geom=self.geom, rank=self.RANK,
                 temp_temp_fname=temp_temp_fname,
-                pad_len=30, jitter_len=30, sparse=True)
+                pad_len=pad_len, jitter_len=jitter_len, sparse=True)
 
         #np.save(os.path.join(self.svd_dir, 'temp_norms.npy'), self.ttc.temp_norms)
         #np.save(os.path.join(self.svd_dir, 'unit_overlap.npy'), self.ttc.unit_overlap)
@@ -662,7 +671,7 @@ class deconvGPU(object):
             print ("Computing objective ")       
        
         #obj_function = np.zeros([NUNIT, data.shape[1] + 61 - 1])
-        self.obj_gpu = torch.zeros((self.K, self.data.shape[1]+self.STIME-1),
+        self.obj_gpu = torch.zeros((self.K, self.data.shape[1]+self.STIME-1 + 2 * self.jitter_diff),
                                     dtype=torch.float).cuda()
                                     
         spat_comp_gpu = torch.from_numpy(self.ttc.spat_comp.transpose([0,2,1])).float().cuda()
