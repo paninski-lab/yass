@@ -120,10 +120,11 @@ class deconvGPU(object):
             os.mkdir(self.temps_dir)
 
         # always copy the startng templates to initalize the process
-        fname_out_temporary = os.path.join(self.temps_dir, 'templates_init.npy')
+        fname_out_temporary = os.path.join(self.temps_dir, 'templates_in.npy')
         if os.path.exists(fname_out_temporary)==False:
             temps_temporary = np.load(fname_templates)
             np.save(fname_out_temporary, temps_temporary)
+        self.fname_templates = fname_out_temporary
 
         # initalize parameters for 
         self.set_params(CONFIG, fname_templates, out_dir)
@@ -140,7 +141,7 @@ class deconvGPU(object):
         self.out_dir = out_dir
 
         #
-        self.fname_templates = fname_templates
+        self.fname_templates_in = fname_templates
 
         # load geometry
         self.geom = np.loadtxt(os.path.join(CONFIG.data.root_folder, CONFIG.data.geometry))
@@ -204,9 +205,15 @@ class deconvGPU(object):
                 templates=self.temps.transpose(2,0,1), geom=self.geom, rank=self.RANK,
                 temp_temp_fname=temp_temp_fname,
                 pad_len=30, jitter_len=30, sparse=True)
+        np.save(os.path.join(self.svd_dir, 'temp_norms.npy'), self.ttc.temp_norms)
+        np.save(os.path.join(self.svd_dir, 'unit_overlap.npy'), self.ttc.unit_overlap)
 
-        #np.save(os.path.join(self.svd_dir, 'temp_norms.npy'), self.ttc.temp_norms)
-        #np.save(os.path.join(self.svd_dir, 'unit_overlap.npy'), self.ttc.unit_overlap)
+        # save updated templates
+        self.temps = self.ttc.residual_temps.transpose(1, 2, 0)
+        np.save(self.fname_templates, self.temps.transpose(2, 1, 0))
+
+        if self.update_templates:
+            self.get_parameters_for_template_update()
 
         # Move sparse temp_temp to GPU
         self.temp_temp = []
@@ -254,6 +261,7 @@ class deconvGPU(object):
         
         # large units for height fit
         if self.fit_height:
+            self.ptps = self.temps.ptp(1).max(0)
             self.large_units = np.where(self.ptps > self.fit_height_ptp)[0]
             self.large_units = torch.from_numpy(self.large_units).cuda()
 
@@ -488,49 +496,50 @@ class deconvGPU(object):
         #print ("   LOADED TEMPS: ", self.temps.shape)
         # this transfer to GPU is not required any longer
         # self.temps_gpu = torch.from_numpy(self.temps).float().cuda()
-        
-        # compute max chans for data
-        #print ("Making max chans, ptps, etc. for iteration 0: ", self.temps.shape)
-        self.max_chans = self.temps.ptp(1).argmax(0)
+
+
+    def get_parameters_for_template_update(self):
 
         # compute ptps for data
         # ptps for each template
         self.ptps_all_chans = self.temps.ptp(1)
-        self.ptps = self.ptps_all_chans.max(0)
 
-        if self.update_templates:
-            # Robust PTP location computation; find argmax and argmin of
-            self.ptp_locs = []
-            for k in range(self.temps.shape[2]):
-                max_temp = self.temps[self.max_chans[k],:,k].argmax(0)
-                min_temp = self.temps[self.max_chans[k],:,k].argmin(0)
-                self.ptp_locs.append([max_temp,min_temp])
+        # compute max chans for data
+        #print ("Making max chans, ptps, etc. for iteration 0: ", self.temps.shape)
+        #self.max_chans = self.temps.ptp(1).argmax(0)
 
-            # find max/min ptp arguments for all channels
-            max_temp = self.temps.argmax(1).T
-            min_temp = self.temps.argmin(1).T
+        # Robust PTP location computation; find argmax and argmin of
+        #self.ptp_locs = []
+        #for k in range(self.temps.shape[2]):
+        #    max_temp = self.temps[self.max_chans[k],:,k].argmax(0)
+        #    min_temp = self.temps[self.max_chans[k],:,k].argmin(0)
+        #    self.ptp_locs.append([max_temp,min_temp])
 
-            # get relative minimum and maximum locations for each unit and each channel
-            self.min_max_loc = np.concatenate(
-                (min_temp[:, None], max_temp[:, None]),
-                axis=1).astype('int32')
+        # find max/min ptp arguments for all channels
+        max_temp = self.temps.argmax(1).T
+        min_temp = self.temps.argmin(1).T
 
-            self.max_temp_array = np.zeros((self.temps.shape[2],self.temps.shape[0]))
-            self.min_temp_array = np.zeros((self.temps.shape[2],self.temps.shape[0]))
-            for k in range(self.temps.shape[2]):
-                for c in range(self.temps.shape[0]):
-                    self.max_temp_array[k,c] = self.temps[c,max_temp[k,c],k]
-                    self.min_temp_array[k,c] = self.temps[c,min_temp[k,c],k]
+        # get relative minimum and maximum locations for each unit and each channel
+        self.min_max_loc = np.concatenate(
+            (min_temp[:, None], max_temp[:, None]),
+            axis=1).astype('int32')
 
-            # also the threhold for triage
-            # get a threshold for each unit and each channel
-            self.min_bad_diff_templates = self.ptps_all_chans*self.min_bad_diff
-            self.min_bad_diff_templates[
-                self.min_bad_diff_templates < self.max_good_diff] = self.max_good_diff
-            #thresholds[thresholds < self.diff_range_update[0]] = self.diff_range_update[0]
-            #thresholds[thresholds > self.diff_range_update[1]] = self.diff_range_update[1]
-            #self.ptps_threshold = thresholds
-        
+        #self.max_temp_array = np.zeros((self.temps.shape[2],self.temps.shape[0]))
+        #self.min_temp_array = np.zeros((self.temps.shape[2],self.temps.shape[0]))
+        #for k in range(self.temps.shape[2]):
+        #    for c in range(self.temps.shape[0]):
+        #        self.max_temp_array[k,c] = self.temps[c,max_temp[k,c],k]
+        #        self.min_temp_array[k,c] = self.temps[c,min_temp[k,c],k]
+
+        # also the threhold for triage
+        # get a threshold for each unit and each channel
+        self.min_bad_diff_templates = self.ptps_all_chans*self.min_bad_diff
+        self.min_bad_diff_templates[
+            self.min_bad_diff_templates < self.max_good_diff] = self.max_good_diff
+        #thresholds[thresholds < self.diff_range_update[0]] = self.diff_range_update[0]
+        #thresholds[thresholds > self.diff_range_update[1]] = self.diff_range_update[1]
+        #self.ptps_threshold = thresholds
+
     def compress_templates(self):
         """Compresses the templates using SVD and upsample temporal compoents."""
 
