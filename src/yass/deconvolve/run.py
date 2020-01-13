@@ -273,8 +273,9 @@ def deconv_ONgpu2(fname_templates_in,
         d_gpu = run_deconv_no_templates_update(d_gpu, CONFIG)
 
         # save templates
+        templates_post_deconv = d_gpu.temps.transpose(2, 1, 0)
         fname_templates = os.path.join(d_gpu.out_dir, 'templates.npy')
-        np.save(fname_templates, d_gpu.temps.transpose(2, 1, 0))
+        np.save(fname_templates, templates_post_deconv)
 
     # ****************************************************************
     # *********************** GATHER SPIKE TRAINS ********************
@@ -401,13 +402,6 @@ def deconv_ONgpu2(fname_templates_in,
     # save scales
     fname_scales = os.path.join(d_gpu.out_dir, 'scales.npy')
     np.save(fname_scales, scales)
-    
-    # save templates
-    USE_RECON_TEMPLATE = True
-    if USE_RECON_TEMPLATE:
-        templates_post_deconv = d_gpu.ttc.residual_temps.transpose(0, 2, 1)
-    fname_templates = os.path.join(d_gpu.out_dir, 'templates.npy')
-    np.save(fname_templates, templates_post_deconv)
 
 
 def run_deconv_no_templates_update(d_gpu, CONFIG):

@@ -595,14 +595,6 @@ class TempTempConv(object):
             zero_padded_temp_temp = np.load(temp_temp_fname, allow_pickle=True)
             global_argmax = zero_padded_temp_temp[0][0].argmax()
 
-
-        # reduce the amount of overlapping units
-        less_overlapping_units = True
-        if less_overlapping_units:
-            threshold = 0.05*self.temp_norms
-            threshold[threshold > 50] = 50
-            unit_unit_overlap = np.abs(zero_padded_temp_temp).max(2) > threshold
-
         # Important step that gives the templates have the same length and shifted in a way
         # that spike trains for subtraction are synchronized
 
@@ -628,6 +620,14 @@ class TempTempConv(object):
         # This needs to be applied to every peak time
         self.peak_time_residual_offset = - temp_size + 1 - main_chan_shift
         self.peak_time_residual_offset += cut_off_begin
+
+        # reduce the amount of overlapping units
+        less_overlapping_units = True
+        self.temp_norms = np.sum(np.square(self.residual_temps), (1,2))
+        if less_overlapping_units:
+            threshold = 0.05*self.temp_norms
+            threshold[threshold > 50] = 50
+            unit_unit_overlap = np.abs(zero_padded_temp_temp).max(2) > threshold
 
         # What the user needs from this class
 
