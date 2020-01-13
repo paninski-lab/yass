@@ -279,7 +279,8 @@ class TemplateMerge(object):
                 for pp in merge_pairs_:
                     if len(pp) > 0:
                         merge_pairs.append(pp)
-                merge_pairs = np.concatenate(np.array(merge_pairs))
+                if len(merge_pairs) > 0:
+                    merge_pairs = np.concatenate(np.array(merge_pairs))
             # single core version
             else:
                 merge_pairs = self.merge_templates_parallel(
