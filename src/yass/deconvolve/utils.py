@@ -616,6 +616,12 @@ class TempTempConv(object):
         # let's make the templates the same size as the input templates.
         min_loc = residual_computation_templates[max_ptp_unit, max_ptp_unit_main_chan].argmin()
         cut_off_begin = min_loc - min_loc_orig
+        if residual_computation_templates.shape[2] < n_time:
+            left_ = - min(cut_off_begin, 0)
+            cut_off_begin = 0
+            right_ = max(0, cut_off_begin + n_time - residual_computation_templates.shape[2] + 1)
+            residual_computation_templates = np.pad(
+                residual_computation_templates, ((0, 0), (0, 0), (left_, right_)), 'constant')
         self.residual_temps = residual_computation_templates[:, :, cut_off_begin:cut_off_begin+n_time] + 0.
         # This needs to be applied to every peak time
         self.peak_time_residual_offset = - temp_size + 1 - main_chan_shift
