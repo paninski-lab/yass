@@ -303,12 +303,10 @@ def deconv_ONgpu2(fname_templates_in,
     for chunk_id in tqdm(range(reader.n_batches)):
         time_index = (chunk_id+1)*CONFIG.resources.n_sec_chunk_gpu_deconv
         fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
-        spike_array = np.load(fname, allow_pickle=True)['spike_array']
-        for tmp in spike_array:
-            n_spikes += len(tmp)
+        n_spikes += len(np.load(fname, allow_pickle=True)['spike_train'])
 
     # loop over chunks and add spikes;
-    spike_train = np.zeros((n_spikes, 2),'int32')
+    spike_train = np.zeros((n_spikes, 2), 'int32')
     shifts = np.zeros(n_spikes, 'float32')
     scales = np.zeros(n_spikes, 'float32')
 
@@ -319,46 +317,30 @@ def deconv_ONgpu2(fname_templates_in,
         fname = os.path.join(d_gpu.seg_dir,str(time_index).zfill(6)+'.npz')
         data = np.load(fname, allow_pickle=True)
 
-        spike_array = data['spike_array']
-        neuron_array = data['neuron_array']
-        offset_array = data['offset_array']
-        shift_list = data['shift_list']
-        scale_list = data['height_list']
-        for p in range(len(spike_array)):
-            spike_times = spike_array[p].cpu().data.numpy()
-            idx_keep = np.logical_and(spike_times >= buffer_size,
-                                      spike_times < batch_size+buffer_size)
-            idx_keep = np.where(idx_keep)[0]
-            temp=np.zeros((len(idx_keep),2), 'int32')
-            temp[:,0]=spike_times[idx_keep]+offset_array[p]
-            temp[:,1]=neuron_array[p].cpu().data.numpy()[idx_keep]
+        offset = data['offset']
+        spike_train_chunk = data['spike_train']
+        shifts_chunk = data['shifts']
+        scales_chunk = data['heights']
 
-            # Cat: TODO: is it faster to make list and then array?
-            #            or make array on the fly?
-            #spike_train.extend(temp)
-            #shifts.append(shift_list[p].cpu().data.numpy()[idx_keep])
-            #scales.append(scale_list[p].cpu().data.numpy()[idx_keep])
-            idx = slice(counter, counter+len(idx_keep))
-            spike_train[idx] = temp
-            shifts[idx] = shift_list[p].cpu().data.numpy()[idx_keep]
-            scales[idx] = scale_list[p].cpu().data.numpy()[idx_keep]
+        idx_keep = np.logical_and(
+            spike_train_chunk[:, 0] >= buffer_size,
+            spike_train_chunk[:, 0] < batch_size + buffer_size)
+        idx_keep = np.where(idx_keep)[0]
 
-            counter += len(idx_keep)
+        # add offset
+        spike_train_chunk[:, 0] += offset
+
+        # stack data
+        idx = slice(counter, counter+len(idx_keep))
+        spike_train[idx] = spike_train_chunk[idx_keep]
+        shifts[idx] = shifts_chunk[idx_keep]
+        scales[idx] = scales_chunk[idx_keep]
+
+        counter += len(idx_keep)
 
     spike_train = spike_train[:counter]
     shifts = shifts[:counter]
     scales = scales[:counter]
-
-    # Cat; TODO: sepped this up.
-    print ("   vstacking spikes (TODO initalize large array and then try to fill it...): ")
-    #spike_train = np.vstack(spike_train)
-    #shifts = np.hstack(shifts)
-    #scales = np.hstack(scales)
-
-    # add half the spike time back in to get to centre of spike
-    spike_train[:,0] = spike_train[:,0]+temporal_size//2 - (2 * d_gpu.jitter_diff)
-    spike_train = d_gpu.ttc.adjust_peak_times_for_residual_computation(spike_train)
-
 
     # sort spike train by time
     print ("   ordering spikes: ")
@@ -367,14 +349,14 @@ def deconv_ONgpu2(fname_templates_in,
     shifts = shifts[idx]
     scales = scales[idx]
 
-    np.save(os.path.join(d_gpu.out_dir,
+    # remove duplicates
+    # Cat: TODO: are there still duplicates in spike trains!?
+    #print ("  skipping spike deduplication step ")
+    if False:
+        np.save(os.path.join(d_gpu.out_dir,
                          'spike_train_prededuplication.npy'),
             spike_train)
 
-    # remove duplicates
-    # Cat: TODO: are there still duplicates in spike trains!?
-    print ("  skipping spike deduplication step ")
-    if False:
         print ("removing duplicates... (TODO: remove this requirement eventually...)")
         for k in np.unique(spike_train[:,1]):
             idx = np.where(spike_train[:,1]==k)[0]
@@ -384,11 +366,11 @@ def deconv_ONgpu2(fname_templates_in,
                 print ("unit: ", k, " has duplicates: ", idx3.shape[0])
                 spike_train[idx[idx3],0]=-1E6
         
-    # quit()
-    idx = np.where(spike_train[:,0]==-1E6)[0]
-    spike_train = np.delete(spike_train, idx, 0)
-    shifts = np.delete(shifts, idx, 0)
-    scales = np.delete(scales, idx, 0)
+        # quit()
+        idx = np.where(spike_train[:,0]==-1E6)[0]
+        spike_train = np.delete(spike_train, idx, 0)
+        shifts = np.delete(shifts, idx, 0)
+        scales = np.delete(scales, idx, 0)
 
     # save spike train
     print ("  saving spike_train: ", spike_train.shape)
@@ -449,11 +431,10 @@ def run_deconv_no_templates_update_parallel(d_gpu, chunk_ids, n_sec_chunk_gpu, d
 
             # save deconv results
             np.savez(fname,
-                     spike_array = d_gpu.spike_array,
-                     offset_array = d_gpu.offset_array,
-                     neuron_array = d_gpu.neuron_array,
-                     shift_list = d_gpu.shift_list,
-                     height_list = d_gpu.height_list
+                     spike_train = d_gpu.spike_train,
+                     offset = d_gpu.offset,
+                     shifts = d_gpu.shifts,
+                     heights = d_gpu.heights
                     )
 
 def run_deconv_with_templates_update2(d_gpu):
@@ -464,6 +445,11 @@ def run_deconv_with_templates_update2(d_gpu):
                              n_chunks_update), d_gpu.reader.n_batches))
 
     d_gpu.initialize()
+    fname_templates_denoised = os.path.join(
+        d_gpu.out_dir,
+        'template_updates',
+        'templates_init.npy')
+    np.save(fname_templates_denoised, d_gpu.temps.transpose(2, 1, 0))
 
     for batch_id in range(len(update_chunk)-1):
 
@@ -493,14 +479,12 @@ def run_deconv_with_templates_update2(d_gpu):
 
                 # save deconv results
                 np.savez(fname,
-                         spike_array = d_gpu.spike_array,
-                         offset_array = d_gpu.offset_array,
-                         neuron_array = d_gpu.neuron_array,
-                         shift_list = d_gpu.shift_list,
-                         height_list = d_gpu.height_list,
-                         min_max_vals_average = min_max_vals_average.cpu(),
-                         weights = weights.cpu()
-                        )
+                         spike_train = d_gpu.spike_train,
+                         offset = d_gpu.offset,
+                         shifts = d_gpu.shifts,
+                         heights = d_gpu.heights,
+                         min_max_vals_average = min_max_vals_average.cpu().numpy(),
+                         weights = weights.cpu().numpy())
 
             else:
                 d_gpu.chunk_id = chunk_id
@@ -526,22 +510,28 @@ def run_deconv_with_templates_update2(d_gpu):
                     fname_templates_updated = os.path.join(
                         d_gpu.out_dir,
                         'template_updates',
-                        'templates_{}sec.npy'.format(n_chunks_update*n_sec_chunk*batch_id))
+                        'templates_in_{}sec.npy'.format(n_chunks_update*n_sec_chunk*batch_id))
                     fname_temp_min_loc = os.path.join(d_gpu.out_dir, 'templates_min_locs.npy')
                     update_templates(fnames_forward,
-                                     d_gpu.fname_templates,
+                                     fname_templates_denoised,
                                      fname_templates_updated,
                                      fname_temp_min_loc,
                                      update_weight = 50)
 
                     # re initialize with updated templates
                     d_gpu.fname_templates = fname_templates_updated
+
                     # make sure that it is at the right chunk location
                     d_gpu.chunk_id = chunk_id
                     d_gpu.initialize()
+
                     # resaving the templates that is processed 
                     # and actually used for deconv
-                    np.save(fname_templates_updated, d_gpu.temps.transpose(2, 1, 0))
+                    fname_templates_denoised = os.path.join(
+                        d_gpu.out_dir,
+                        'template_updates',
+                        'templates_{}sec.npy'.format(n_chunks_update*n_sec_chunk*batch_id))
+                    np.save(fname_templates_denoised, d_gpu.temps.transpose(2, 1, 0))
 
                     templates_reinitialized = True
 
@@ -553,11 +543,10 @@ def run_deconv_with_templates_update2(d_gpu):
 
                 # save deconv results
                 np.savez(fname,
-                         spike_array = d_gpu.spike_array,
-                         offset_array = d_gpu.offset_array,
-                         neuron_array = d_gpu.neuron_array,
-                         shift_list = d_gpu.shift_list,
-                         height_list = d_gpu.height_list)
+                         spike_train = d_gpu.spike_train,
+                         offset = d_gpu.offset,
+                         shifts = d_gpu.shifts,
+                         heights = d_gpu.heights)
 
             else:
                 d_gpu.chunk_id = chunk_id
@@ -633,6 +622,9 @@ def update_templates(fnames_forward,
                      fname_templates_updated,
                      fname_temp_min_loc,
                      update_weight = 50):
+
+    if os.path.exists(fname_templates_updated):
+        return
 
     n_chunks = len(fnames_forward)
 

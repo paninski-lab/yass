@@ -120,7 +120,7 @@ class deconvGPU(object):
             os.mkdir(self.temps_dir)
 
         # always copy the startng templates to initalize the process
-        fname_out_temporary = os.path.join(self.temps_dir, 'templates_in.npy')
+        fname_out_temporary = os.path.join(self.temps_dir, 'templates_init_in.npy')
         if os.path.exists(fname_out_temporary)==False:
             temps_temporary = np.load(fname_templates)
             np.save(fname_out_temporary, temps_temporary)
@@ -141,7 +141,7 @@ class deconvGPU(object):
         self.out_dir = out_dir
 
         #
-        self.fname_templates_in = fname_templates
+        #self.fname_templates_in = fname_templates
 
         # load geometry
         self.geom = np.loadtxt(os.path.join(CONFIG.data.root_folder, CONFIG.data.geometry))
@@ -200,6 +200,7 @@ class deconvGPU(object):
 
         temp_temp_fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+\
                 str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
+
         # pad len is constant and is 1.5 ms on each side, i.e. a total of 3 ms
         pad_len = int(1.5 * self.CONFIG.recordings.sampling_rate / 1000.)
         # jitter_len is selected in a way that deconv works with 3 ms signals
@@ -217,9 +218,9 @@ class deconvGPU(object):
         #np.save(os.path.join(self.svd_dir, 'temp_norms.npy'), self.ttc.temp_norms)
         #np.save(os.path.join(self.svd_dir, 'unit_overlap.npy'), self.ttc.unit_overlap)
 
-        # save updated templates
+        # update self.temps to the denoised templates
         self.temps = self.ttc.residual_temps.transpose(1, 2, 0)
-        np.save(self.fname_templates, self.temps.transpose(2, 1, 0))
+        #np.save(self.fname_templates, self.temps.transpose(2, 1, 0))
 
         if self.update_templates:
             self.get_parameters_for_template_update()
@@ -280,7 +281,7 @@ class deconvGPU(object):
         #self.fname_templates = fname_templates
 
         # rest lists for each segment of time
-        self.offset_array = []
+        #self.offset_array = []
         self.spike_array = []
         self.neuron_array = []
         self.shift_list = []
@@ -306,6 +307,31 @@ class deconvGPU(object):
 
         # empty cache
         torch.cuda.empty_cache()
+
+        # gather results (and move to cpu)
+        self.gather_results()
+
+    def gather_results(self):
+
+        # make spike train
+        # get all spike times and neuron ids
+        spike_times = torch.cat(self.spike_array)
+        neuron_ids = torch.cat(self.neuron_array)
+        spike_train = torch.stack((spike_times, neuron_ids), axis=1).cpu().numpy()
+
+        # fix spike times
+        spike_train[:,0] = spike_train[:,0] + self.STIME//2 - (2 * self.jitter_diff)
+        self.spike_train = self.ttc.adjust_peak_times_for_residual_computation(spike_train)
+
+        # make shifts and heights
+        self.shifts = torch.cat(self.shift_list).cpu().numpy()
+        self.heights = torch.cat(self.height_list).cpu().numpy()
+
+        self.spike_array = None
+        self.neuron_array = None
+        self.shift_list = None
+        self.height_list = None
+
 
     def initialize_cpp(self):
 
@@ -682,7 +708,7 @@ class deconvGPU(object):
         #obj_function = np.zeros([NUNIT, data.shape[1] + 61 - 1])
         self.obj_gpu = torch.zeros((self.K, self.data.shape[1]+self.STIME-1 + 2 * self.jitter_diff),
                                     dtype=torch.float).cuda()
-                                    
+
         spat_comp_gpu = torch.from_numpy(self.ttc.spat_comp.transpose([0,2,1])).float().cuda()
         #print ("self.temp_comp: ", self.temp_comp.shape)
         # transfer temp_comp and reverse the time 
@@ -736,7 +762,7 @@ class deconvGPU(object):
 
     def save_spikes(self):
         # # save offset of chunk time; spiketimes and neuron ids
-        self.offset_array.append(self.offset)
+        #self.offset_array.append(self.offset)
         self.spike_array.append(self.spike_times[:,0])
         self.neuron_array.append(self.neuron_ids[:,0])
         self.shift_list.append(self.xshifts)
@@ -1366,8 +1392,8 @@ class deconvGPU(object):
     def compute_min_max_vals(self):
 
         # get all spike times and neuron ids
-        spike_times = torch.cat(self.spike_array)
-        neuron_ids = torch.cat(self.neuron_array)
+        spike_times = torch.from_numpy(self.spike_train[:, 0]).long().cuda()
+        neuron_ids = torch.from_numpy(self.spike_train[:, 1]).long().cuda()
 
         # get min/max values
         max_spikes = 10000
@@ -1379,7 +1405,7 @@ class deconvGPU(object):
             ii_end = counter[j+1]
             tt = spike_times[ii_start:ii_end, None] + torch.arange(-2, 3).cuda()
             min_max_loc_spikes = (self.min_max_loc[neuron_ids[ii_start:ii_end]][:, :, :, None] + 
-                                  tt[:, None, None] - self.STIME + 1)
+                                  tt[:, None, None] - self.STIME//2)
             chan_loc_spikes = (torch.arange(self.N_CHAN).cuda()[None, None, :, None].repeat(
                 min_max_loc_spikes.shape[0], 2, 1, 5))
             min_max_vals_spikes[ii_start:ii_end] = self.data[chan_loc_spikes, min_max_loc_spikes]

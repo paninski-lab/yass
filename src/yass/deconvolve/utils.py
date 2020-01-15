@@ -482,6 +482,10 @@ class TempTempConv(object):
 
         # visible channels for the purpose of finiding overlapping units
         viscs = temp.ptp(2) > vis_threshold_strong
+        num_vis_chan = viscs.sum(1)
+        # If a unit has no visible channel, make its main channel visible
+        invis_units = np.where(num_vis_chan == 0)[0]
+        viscs[invis_units, temp.ptp(2).argmax(1)[invis_units]] = True
         unit_unit_overlap = np.logical_and(viscs[None], viscs[:, None]).sum(-1) > 0
 
         # real visible channels using both strong and weak threshold
@@ -616,16 +620,16 @@ class TempTempConv(object):
         # let's make the templates the same size as the input templates.
         min_loc = residual_computation_templates[max_ptp_unit, max_ptp_unit_main_chan].argmin()
         cut_off_begin = min_loc - min_loc_orig
-        if residual_computation_templates.shape[2] < n_time:
-            left_ = - min(cut_off_begin, 0)
-            cut_off_begin = 0
-            right_ = max(0, cut_off_begin + n_time - residual_computation_templates.shape[2] + 1)
+        if cut_off_begin < 0:
+            left_ = -np.copy(cut_off_begin)
+            right_ = max(0, n_time - left_ - residual_computation_templates.shape[2])
             residual_computation_templates = np.pad(
                 residual_computation_templates, ((0, 0), (0, 0), (left_, right_)), 'constant')
+            cut_off_begin = 0
         self.residual_temps = residual_computation_templates[:, :, cut_off_begin:cut_off_begin+n_time] + 0.
         # This needs to be applied to every peak time
         self.peak_time_residual_offset = - temp_size + 1 - main_chan_shift
-        self.peak_time_residual_offset += cut_off_begin
+        self.peak_time_residual_offset += (min_loc - min_loc_orig)
 
         # reduce the amount of overlapping units
         less_overlapping_units = True
@@ -633,7 +637,7 @@ class TempTempConv(object):
         if less_overlapping_units:
             threshold = 0.05*self.temp_norms
             threshold[threshold > 50] = 50
-            unit_unit_overlap = np.abs(zero_padded_temp_temp).max(2) > threshold
+            unit_unit_overlap = np.abs(zero_padded_temp_temp).max(2) > threshold[None]
 
         # What the user needs from this class
 
