@@ -47,7 +47,7 @@ recordings:
   spatial_radius: 70
   # temporal length of waveforms in ms. It must capture
   # the full shape of waveforms but longer means slower
-  spike_size_ms: 3
+  spike_size_ms: 5
   # chunks to run clustering on (in seconds)
   # leave blank to run it on full
   clustering_chunk: [0, 60]
