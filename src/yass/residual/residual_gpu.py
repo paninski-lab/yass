@@ -320,7 +320,6 @@ class RESIDUAL_GPU2(object):
             #       needs to be wrapped in a list
             chunk_size = 10000
             for chunk in range(0, time_indices.shape[0], chunk_size):
-                print (time_indices[chunk:chunk+chunk_size])
 
                 torch.cuda.synchronize()
                 if time_indices[chunk:chunk+chunk_size].shape[0]==0:
