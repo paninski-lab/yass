@@ -157,7 +157,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
             fname_templates,
             run_chunk_sec = CONFIG.clustering_chunk)
 
-    for j in range(3):
+    for j in range(2):
         ### Pre-final deconv: Deconvolve, Residual, Merge, kill low fr units
         (fname_templates,
          fname_spike_train)= pre_final_deconv(
@@ -371,17 +371,6 @@ def pre_final_deconv(TMP_FOLDER,
         standardized_dtype,
         run_chunk_sec=run_chunk_sec)
 
-    fname_templates = get_partially_cleaned_templates(
-        os.path.join(TMP_FOLDER,
-                     'clean_templates'),
-        fname_templates,
-        fname_spike_train,
-        fname_shifts,
-        fname_scales,
-        standardized_path,
-        standardized_dtype,
-        run_chunk_sec) 
-
     # compute residual
     logger.info('RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
@@ -428,6 +417,8 @@ def pre_final_deconv(TMP_FOLDER,
     logger.info('POST DECONV MERGE')
     (fname_templates,
      fname_spike_train,
+     fname_shifts,
+     fname_scales,
      fname_noise_soft) = merge.run(
         os.path.join(TMP_FOLDER,
                      'post_deconv_merge'),
@@ -438,6 +429,18 @@ def pre_final_deconv(TMP_FOLDER,
         fname_noise_soft,
         fname_residual,
         residual_dtype)    
+
+    logger.info('Get (partially) Cleaned Templates')
+    fname_templates = get_partially_cleaned_templates(
+        os.path.join(TMP_FOLDER,
+                     'clean_templates'),
+        fname_templates,
+        fname_spike_train,
+        fname_shifts,
+        fname_scales,
+        standardized_path,
+        standardized_dtype,
+        run_chunk_sec)
 
     return (fname_templates,
             fname_spike_train)

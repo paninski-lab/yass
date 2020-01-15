@@ -32,10 +32,15 @@ def run(output_directory,
                                        'templates.npy')
     fname_soft_assignment_out = os.path.join(output_directory,
                                        'soft_assignment.npy')
-
+    fname_shifts_out = os.path.join(output_directory,
+                                    'shifts.npy')
+    fname_scales_out = os.path.join(output_directory,
+                                    'scales.npy')
     if os.path.exists(fname_spike_train_out) and os.path.exists(fname_templates_out):
         return (fname_templates_out,
                 fname_spike_train_out,
+                fname_shifts_out,
+                fname_scales_out,
                 fname_soft_assignment_out)
 
     reader_residual = READER(fname_residual,
@@ -77,6 +82,8 @@ def run(output_directory,
     logger.info("udpating templates and spike train")
     (templates_new,
      spike_train_new,
+     shifts_new,
+     scales_new,
      soft_assignment_new,
      merge_array) = tm.merge_units()
 
@@ -86,10 +93,14 @@ def run(output_directory,
     np.save(fname_merge_array, merge_array)    
     np.save(fname_spike_train_out, spike_train_new)
     np.save(fname_templates_out, templates_new)
+    np.save(fname_shifts_out, shifts_new)
+    np.save(fname_scales_out, scales_new)
     np.save(fname_soft_assignment_out, soft_assignment_new)
 
     logger.info('Number of units after merge: {}'.format(templates_new.shape[0]))
 
     return (fname_templates_out,
             fname_spike_train_out,
+            fname_shifts_out,
+            fname_scales_out,
             fname_soft_assignment_out)

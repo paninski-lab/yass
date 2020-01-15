@@ -612,8 +612,11 @@ class TemplateMerge(object):
         idx_sort = np.argsort(spike_train_new[:, 0])
         spike_train_new = spike_train_new[idx_sort]
         soft_assignment_new = self.soft_assignment[idx_sort]
+        shifts_new = self.shifts[idx_sort]
+        scales_new = self.scales[idx_sort]
 
         return (templates_new, spike_train_new,
+                shifts_new, scales_new,
                 soft_assignment_new, merge_array)
     
     
