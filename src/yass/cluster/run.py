@@ -231,7 +231,6 @@ def run(output_directory,
 
         for fname in fnames_input:
             os.remove(fname)
-        print(fname_templates_out)
 
     #check_long_temp = os.path.join(output_directory, 'long_template.npy')
     #if not os.path.exists(check_long_temp):
