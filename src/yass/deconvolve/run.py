@@ -744,11 +744,17 @@ def update_templates(fnames_forward,
     # and determine how much has shifted
     shifts = peak_loc_denoised - temp_peak_loc[:,0]
 
-    # scale templates
+    # max chan stay fixed
+    max_chans = templates.ptp(1).argmax(1)
+    for k in range(n_units):
+        shifts[k, max_chans[k]] = 0
+
+    # not updating non visible channels
     ptps_updated[temp_ptps==0] = 0
     shifts[temp_ptps==0] = 0
     temp_ptps[temp_ptps==0] = 0.01
 
+    # scale templates
     scale = ptps_updated/temp_ptps
     templates_scaled = templates*scale[:, None]
 
