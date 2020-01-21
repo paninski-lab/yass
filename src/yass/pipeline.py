@@ -462,7 +462,7 @@ def get_partially_cleaned_templates(TMP_FOLDER,
         
     CONFIG = read_config()
 
-    fname_templates_out = os.path.join(TMP_FOLDER, 'templates_aligned.npy')
+    fname_templates_out = os.path.join(TMP_FOLDER, 'templates.npy')
     if os.path.exists(fname_templates_out):
         return fname_templates_out
 
@@ -533,12 +533,12 @@ def get_partially_cleaned_templates(TMP_FOLDER,
     #for unit in range(n_units):
     #    templates_new[unit,:, templates[unit].ptp(0) == 0] = 0
 
-    fname_templates = os.path.join(TMP_FOLDER, 'templates.npy')
-    np.save(fname_templates, templates_new)
+    #fname_templates = os.path.join(TMP_FOLDER, 'templates.npy')
+    np.save(fname_templates_out, templates_new)
     
-    logger.info("subsample template alignment")
-    fname_templates_out = sharpen_templates(fname_templates,
-                                            fname_templates_out)
+    #logger.info("subsample template alignment")
+    #fname_templates_out = sharpen_templates(fname_templates,
+    #                                        fname_templates_out)
     
     return fname_templates_out
 

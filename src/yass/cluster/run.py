@@ -261,11 +261,11 @@ def run(output_directory,
 
     #check_sharpen = os.path.join(output_directory, 'check_sharpen.npy')
     #if not os.path.exists(check_sharpen):
-    fname_templates_aligned = os.path.join(output_directory, 'templates_aligned.npy')
-    if not os.path.exists(fname_templates_aligned):
-        logger.info("subsample template alignment")
-        fname_templates_out = sharpen_templates(fname_templates_out,
-                                                fname_templates_aligned)
+    #fname_templates_aligned = os.path.join(output_directory, 'templates_aligned.npy')
+    #if not os.path.exists(fname_templates_aligned):
+    #    logger.info("subsample template alignment")
+    #    fname_templates_out = sharpen_templates(fname_templates_out,
+    #                                            fname_templates_aligned)
 
     # zero-out edges
     #check_zero_out = os.path.join(output_directory, 'check_zero_out.npy')
