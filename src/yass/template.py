@@ -414,6 +414,10 @@ def run_template_computation_parallel(
 
 def compute_a_template(spike_times, reader, spike_size):
 
+    min_spikes=300
+    spike_times = get_isolated_spikes(
+        spike_times, spike_size, min_spikes)[0]
+
     # subsample upto 1000
     max_spikes = 1000
     if len(spike_times) > max_spikes:
@@ -549,6 +553,12 @@ def run_cleaned_template_computation_parallel(
                     np.zeros((spike_size, n_channels)))
             continue
 
+        min_spikes=300
+        spt_, idx_isolated = get_isolated_spikes(
+            spt_, spike_size, min_spikes)
+        shift_ = shift_[idx_isolated]
+        scale_ = scale_[idx_isolated]
+
         max_spikes = 1000
         if len(spt_) > max_spikes:
             idx_subsample_ = np.random.choice(
@@ -570,6 +580,21 @@ def run_cleaned_template_computation_parallel(
 
         # save
         np.save(fname_out, temp_cleaned)
+
+def get_isolated_spikes(spt, spike_size, min_spikes=300):
+
+    if len(spt) < min_spikes:
+        return spt, np.arange(len(spt))
+
+    isi = np.diff(spt)
+    isi = np.hstack((spike_size + 1, isi, spike_size + 1))
+    idx_isolated = np.where(np.logical_and(isi[1:] > spike_size, isi[:-1] > spike_size))[0]
+
+    if len(idx_isolated) < min_spikes:
+        isi_avg = np.vstack((isi[1:], isi[:-1])).mean(0)
+        idx_isolated = np.argsort(isi_avg)[::-1][:min_spikes]
+
+    return spt[idx_isolated], idx_isolated
 
 
 def partition_spike_time(save_dir,
