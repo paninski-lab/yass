@@ -649,6 +649,7 @@ def update_templates(fnames_forward,
     # average them
     ptp_avg = np.average(ptp_all, axis=0, weights=weights_all)
     n_spikes = np.sum(weights_all, axis=0)
+    n_spikes[n_spikes < 0.01] = 0
 
     # get geometric update weights
     weight_new = 1 - np.exp(-n_spikes/update_weight)
@@ -698,11 +699,11 @@ def update_templates(fnames_forward,
 
     temp_peak_loc = quad_interp_loc(val_3pts)
     temp_peak_loc[np.isnan(temp_peak_loc)] = 0
-    temp_peak_vals = quad_interp_val(val_3pts, temp_peak_loc)
+    #temp_peak_vals = quad_interp_val(val_3pts, temp_peak_loc)
 
     # update peak location
     peak_loc_updated = temp_peak_loc[:, 0]*(1-weight_new)+ weight_new*peak_loc_avg
-    ptps_updated = (temp_peak_vals[:,1] - temp_peak_vals[:,0])*(1-weight_new) + weight_new*ptp_avg
+    #ptps_updated = (temp_peak_vals[:,1] - temp_peak_vals[:,0])*(1-weight_new) + weight_new*ptp_avg
 
     # min_loc_current shape: n_units x n_channels
     min_loc_current = min_max_loc_temp[:, 0] + peak_loc_updated
@@ -748,6 +749,9 @@ def update_templates(fnames_forward,
     max_chans = templates.ptp(1).argmax(1)
     for k in range(n_units):
         shifts[k, max_chans[k]] = 0
+
+    # update ptp
+    ptps_updated = temp_ptps*(1-weight_new) + weight_new*ptp_avg
 
     # not updating non visible channels
     ptps_updated[temp_ptps==0] = 0
@@ -804,7 +808,6 @@ def update_templates2(fnames_forward,
 
     # get geometric update weights
     weight_new = 1 - np.exp(-n_spikes/update_weight)
-    weight_new = weight_new
 
     # get subsample peak location of current batch (relative to integer peak location of templates)
     # min_max_vals_avg: n units x 2 x n_chans x 5
@@ -896,6 +899,11 @@ def update_templates2(fnames_forward,
 
     scale = ptps_updated/temp_ptps
     templates_scaled = templates*scale[:, None]
+
+    # max chan stay fixed
+    max_chans = templates.ptp(1).argmax(1)
+    for k in range(n_units):
+        shifts[k, max_chans[k]] = 0
 
     # shift templates
     templates_updated = np.zeros_like(templates_scaled)
