@@ -206,10 +206,10 @@ class deconvGPU(object):
         # jitter_len is selected in a way that deconv works with 3 ms signals
         jitter_len = pad_len
         self.jitter_diff = 0
-        if self.CONFIG.recordings.spike_size_ms > 3:
-            self.jitter_diff = (self.CONFIG.recordings.spike_size_ms - 3)
-            self.jitter_diff = int(self.jitter_diff * self.CONFIG.recordings.sampling_rate / 1000. / 2.)
-            jitter_len = pad_len + self.jitter_diff
+        #if self.CONFIG.recordings.spike_size_ms > 3:
+        #    self.jitter_diff = (self.CONFIG.recordings.spike_size_ms - 3)
+        #    self.jitter_diff = int(self.jitter_diff * self.CONFIG.recordings.sampling_rate / 1000. / 2.)
+        jitter_len = pad_len + self.jitter_diff
         self.ttc = TempTempConv(
                 self.CONFIG, 
                 templates=self.temps.transpose(2,0,1), geom=self.geom, rank=self.RANK,
@@ -1430,7 +1430,7 @@ class deconvGPU(object):
             min_max_vals_average[k] = torch.sum(weighted_min_max_vals[idx_], 0)
             weights_sum[k] = torch.sum(weights[idx_], 0)
 
-        weights_sum[weights_sum==0] = 0.00001
+        weights_sum[weights_sum==0] = 0.0000001
         min_max_vals_average = min_max_vals_average/weights_sum[:,None, :,None]
 
         return min_max_vals_average, weights_sum    
