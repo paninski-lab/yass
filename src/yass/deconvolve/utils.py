@@ -7,6 +7,7 @@ import parmap
 
 from scipy.spatial.transform import Rotation
 from scipy.spatial.distance import cdist, pdist, squareform
+from scipy.signal import argrelmin
 from tqdm import tqdm
 
 
@@ -498,20 +499,29 @@ class TempTempConv(object):
         viscs[invis_units, temp.ptp(2).argmax(1)[invis_units]] = True
         # Computes if units are spatially overlapping
 
+        # align and denoise
         for unit in tqdm(range(n_unit), "....aligning templates and computing SVD."):
             # get vis channels only
-            t = temp[unit, viscs[unit], :]
+            #t = temp[unit, viscs[unit], :]
             # Instead of having 1 template with c channels
             # treat it as c teplates with 1 channels
-            tobj = WaveForms(t[:, None])
-            main_c = t.ptp(1).argmax()
-            align, shifts_ = tobj.align(
-                ref_wave_form=t[main_c][None], jitter=jitter_len, return_shifts=True)
-            align = align[:, 0]
-            # remove offset from shifts so that minimum is 0
+            #tobj = WaveForms(t[:, None])
+            #main_c = t.ptp(1).argmax()
+            #align, shifts_ = tobj.align(
+            #    ref_wave_form=t[main_c][None], jitter=jitter_len, return_shifts=True)
+            #align = align[:, 0]
+
             vis_chans = np.where(viscs[unit])[0]
+            neigh_chans = CONFIG.neigh_channels[vis_chans][:, vis_chans]
+            align, shifts_ = align_templates(temp[unit, viscs[unit]], jitter_len, neigh_chans)
+
+            # remove offset from shifts so that minimum is 0
             align_shifts_min[unit] = shifts_.min()
             align_shifts[unit, vis_chans] = shifts_ - shifts_.min()
+
+            center_spike_size = int(2 * CONFIG.recordings.sampling_rate / 1000.)
+            align = monotonic_edge(align, center_spike_size)
+
             # use reconstructed version of temp lates
             if len(align) <= rank:
                 # The matrix rank is lower. Just pass
@@ -521,6 +531,7 @@ class TempTempConv(object):
                 temp_comp[unit, :mat_rank] = align
                 aligned_temp[unit, vis_chans] = align
                 continue
+
             u, h, v = np.linalg.svd(align)
             spat_comp[unit, vis_chans] = u[:, :rank] * h[:rank]
             temp_comp[unit] = v[:rank]
@@ -728,3 +739,112 @@ def temp_temp_partial(
                     transformed_data[r], temp_comp_[ounit][r, ::-1])
         i_unit += 1
     return temp_temp
+
+
+def align_templates(temp_, jitter, neigh_chans, ref=None):
+
+    n_chans, n_time = temp_.shape
+    if ref is None:
+        main_c = temp_.ptp(1).argmax()
+        ref = temp_[main_c][jitter:-jitter]
+
+    n_time_small = n_time - 2 * jitter
+
+    idx = np.arange(n_time_small) + np.arange(2 * jitter)[:, None]
+    all_shifts = temp_[:, idx]
+    all_dist = np.square(all_shifts - ref).sum(axis=-1)
+    all_inv_dist = np.square(-all_shifts - ref).sum(axis=-1)
+    dist_ = np.min(np.stack((all_inv_dist, all_dist)), 0)
+
+    # find argrelmin
+    cc, tt = argrelmin(dist_, axis=1, order=15)
+    val = dist_[cc,tt]
+
+    # keep only small enough ones
+    idx_keep = np.zeros(len(cc), 'bool')
+    for c in range(dist_.shape[0]):
+        th = np.median(dist_[c])
+        idx_ = np.where(cc == c)[0]
+        idx_keep[idx_[val[idx_] < th]] = True
+    cc = cc[idx_keep]
+    tt = tt[idx_keep]
+    val = val[idx_keep]
+
+    # do connecting
+    index_start = val.argmin()
+    t_diff=10
+    keep = connecting_points(
+        np.vstack((tt, cc)).T,
+        index_start,
+        neigh_chans,
+        t_diff)
+    cc = cc[keep]
+    tt = tt[keep]
+    val = val[keep]
+
+    # choose best among survived ones
+    best_shifts = np.zeros(n_chans, 'int32')
+    for c in range(n_chans):
+        idx_ = np.where(cc == c)[0]
+        if len(idx_) > 0:
+            best_shifts[c] = tt[idx_][val[idx_].argmin()]
+        else:
+            best_shifts[c] = dist_[c].argmin()
+
+    aligned_temp = np.zeros((n_chans, n_time_small), 'float32')
+    for c in range(n_chans):
+        aligned_temp[c] = temp_[c][best_shifts[c]:best_shifts[c]+n_time_small]
+
+    return aligned_temp, best_shifts
+
+
+def connecting_points(points, index, neighbors, t_diff, keep=None):
+
+    if keep is None:
+        keep = np.zeros(len(points), 'bool')
+
+    if keep[index] == 1:
+        return keep
+    else:
+        keep[index] = 1
+        spatially_close = np.where(neighbors[points[index, 1]][points[:, 1]])[0]
+        close_index = spatially_close[np.abs(points[spatially_close, 0] - points[index, 0]) <= t_diff]
+
+        for j in close_index:
+            keep = connecting_points(points, j, neighbors, t_diff, keep)
+
+        return keep
+
+
+def make_it_monotonic(data):
+    negs = data[:, 0] < 0
+
+    data[negs] *= -1
+    data[data < 0] = 0
+
+    for j in range(data.shape[1]-1):
+        idx = np.where(np.less(data[:, j], data[:, j+1]))[0]
+        data[idx, j+1] = data[idx, j]
+
+    data[negs] *= -1
+
+    return data
+
+
+def monotonic_edge(align, center_spike_size):
+
+    n_chans, n_times = align.shape
+
+    align_ = np.copy(align)
+
+    edge_size = (n_times - center_spike_size)//2
+
+    right_edge = align_[:, -edge_size-1:]
+    right_edge = make_it_monotonic(right_edge)
+    align_[:, -edge_size-1:] = right_edge
+
+    left_edge = align_[:, :edge_size+1]
+    left_edge = make_it_monotonic(left_edge[:, ::-1])
+    align_[:, :edge_size+1] = left_edge[:, ::-1]
+
+    return align_
