@@ -10,7 +10,7 @@ import yaml
 from yass import read_config
 from yass.preprocess.util import *
 from yass.reader import READER
-
+from yass.reordering import reorder
 
 def run(output_directory):
     """Preprocess pipeline: filtering, standarization and whitening filter
@@ -92,10 +92,19 @@ def run(output_directory):
         n_channels=n_channels)
     logger.info('Output dtype for transformed data will be {}'
             .format(CONFIG.preprocess.dtype))
-
+    reorder_fname = os.path.join(output_directory, "reorder.npy")
     # Check if data already saved to disk and skip:
     if os.path.exists(standardized_path):
-        return standardized_path, standardized_params['dtype']
+        if os.path.exists(reorder_fname):
+           return standardized_path, standardized_params['dtype'], reorder_fname
+        reorder.run(save_fname = reorder_fname, 
+                               standardized_fname = standardized_path, 
+                               CONFIG = CONFIG, 
+                               n_sec_chunk = 5, 
+                               dtype = CONFIG.preprocess.dtype)
+        return standardized_path, standardized_params['dtype'], reorder_fname
+
+
 
     # **********************************************
     # *********** run filter & stdarize  ***********
@@ -168,5 +177,10 @@ def run(output_directory):
     with open(path_to_yaml, 'w') as f:
         logger.info('Saving params...')
         yaml.dump(standardized_params, f)
+    reorder.run(save_fname = reorder_fname, 
+                               standardized_fname = standardized_path, 
+                               CONFIG = CONFIG, 
+                               n_sec_chunk = 5, 
+                               dtype = CONFIG.preprocess.dtype)
 
-    return standardized_path, standardized_params['dtype']
+    return standardized_path, standardized_params['dtype'], reorder_fname

@@ -106,8 +106,8 @@ def _standardize(rec, sd=None, centers=None):
     rec[:,idx1] = np.divide(rec[:,idx1] - centers[idx1][None], sd[idx1])
     
     # zero out bad channels
-    idx2 = np.where(sd<0.1)[0]
-    rec[:,idx2]=0.
+    #idx2 = np.where(sd<0.1)[0]
+    #rec[:,idx2]=0.
     
     return rec
     #return np.divide(rec, sd)

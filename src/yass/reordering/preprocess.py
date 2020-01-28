@@ -418,8 +418,12 @@ def preprocess(ctx):
 
             # apply filters and median subtraction
             buff = cp.asarray(buff, dtype=np.float32)
+            print("weeeeeee")
+            print(buff.shape)
 
             datr = gpufilter(buff, chanMap=probe.chanMap, fs=fs, fshigh=fshigh, fslow=fslow)
+            print("weeeee filtered")
+            print(datr.shape)
 
             datr = datr[ioffset:ioffset + NT, :]  # remove timepoints used as buffers
             datr = cp.dot(datr, Wrot)  # whiten the data and scale by 200 for int16 range
@@ -431,3 +435,4 @@ def preprocess(ctx):
 
             # write this batch to binary file
             datcpu.tofile(fw)
+            print(datcpu.shape)

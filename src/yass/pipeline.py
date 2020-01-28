@@ -127,7 +127,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # preprocess
     start = time.time()
     (standardized_path,
-     standardized_dtype) = preprocess.run(
+     standardized_dtype, reorder_path) = preprocess.run(
         os.path.join(TMP_FOLDER, 'preprocess'))
 
     #### Block 1: Detection, Clustering, Postprocess

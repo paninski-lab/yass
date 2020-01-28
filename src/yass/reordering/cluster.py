@@ -100,20 +100,20 @@ def get_SpikeSample(dataRAW, row, col, params):
 
     # believe it or not, these indices grab just the right timesamples forour spikes
     ix = indsT + indsC * nT
-
     # grab the data and reshape it appropriately (time samples  by channels by num spikes)
+
     clips = dataRAW.T.ravel()[ix[:, 0, :]].reshape((dt.size, row.size), order='F')  # HERE
     return clips
 
 
-def extractPCfromSnippets(proc, probe=None, params=None, Nbatch=None):
+def extractPCfromSnippets(proc, yass_batch,NT,  probe=None, params=None, Nbatch=None):
     # extracts principal components for 1D snippets of spikes from all channels
     # loads a subset of batches to find these snippets
 
-    NT = params.NT
+    #NT = params.NT
     nPCs = params.nPCs
     Nchan = probe.Nchan
-
+    Nbatch = yass_batch
     batchstart = np.arange(0, NT * Nbatch + 1, NT)
 
     # extract the PCA projections
@@ -121,14 +121,14 @@ def extractPCfromSnippets(proc, probe=None, params=None, Nbatch=None):
     CC = cp.zeros(params.nt0, dtype=np.float32)
 
     # from every 100th batch
-    for ibatch in range(0, Nbatch, 100):
+    for ibatch in range(0, yass_batch, 100):
         offset = Nchan * batchstart[ibatch]
-        dat = proc.flat[offset:offset + NT * Nchan].reshape((-1, Nchan), order='F')
+        dat = proc.flat[offset:offset + NT * Nchan].reshape((-1, Nchan), order='C')
         if dat.shape[0] == 0:
             continue
 
         # move data to GPU and scale it back to unit variance
-        dataRAW = cp.asarray(dat, dtype=np.float32) / params.scaleproc
+        dataRAW = cp.asarray(dat, dtype=np.float32)#/params.scaleproc
 
         # find isolated spikes from each batch
         row, col, mu = isolated_peaks_new(dataRAW, params)
@@ -279,6 +279,7 @@ def mexThSpkPC(Params, dataRAW, wPCA, iC):
 
     # move d_x to the CPU
     minSize = 1
+
     minSize = min(maxFR, int(d_counter[0]))
 
     d_featPC = cp.zeros((NrankPC * NchanNear, minSize), dtype=np.float32, order='F')
@@ -300,18 +301,19 @@ def mexThSpkPC(Params, dataRAW, wPCA, iC):
     return d_featPC, d_id2
 
 
-def extractPCbatch2(proc, params, probe, wPCA, ibatch, iC, Nbatch):
+def extractPCbatch2(proc, params, probe, wPCA, ibatch, iC, yass_batch, NT):
     # this function finds threshold crossings in the data using
     # projections onto the pre-determined principal components
     # wPCA is number of time samples by number of PCs
     # ibatch is a scalar indicating which batch to analyze
     # iC is NchanNear by Nchan, indicating for each channel the nearest
     # channels to it
-
+    Nbatch = yass_batch
     nt0min = params.nt0min
     spkTh = params.ThPre
+
     nt0, NrankPC = wPCA.shape
-    NT, Nchan = params.NT, probe.Nchan
+    Nchan = probe.Nchan
 
     # starts with predefined PCA waveforms
     wPCA = wPCA[:, :3]
@@ -321,8 +323,8 @@ def extractPCbatch2(proc, params, probe, wPCA, ibatch, iC, Nbatch):
     batchstart = np.arange(0, NT * Nbatch + 1, NT)  # batches start at these timepoints
 
     offset = Nchan * batchstart[ibatch]
-    dat = proc.flat[offset:offset + NT * Nchan].reshape((-1, Nchan), order='F')
-    dataRAW = cp.asarray(dat, dtype=np.float32) / params.scaleproc
+    dat = proc.flat[offset:offset + NT * Nchan].reshape((-1, Nchan), order='C')
+    dataRAW = cp.asarray(dat, dtype=np.float32)#/params.scaleproc
 
     # another Params variable to take all our parameters into the C++ code
     Params = [NT, Nchan, NchanNear, nt0, nt0min, spkTh, NrankPC]
@@ -415,7 +417,7 @@ def mexDistances2(Params, Ws, W, iMatch, iC, Wh, mus, mu):
     return d_id, d_x
 
 
-def clusterSingleBatches(ctx):
+def clusterSingleBatches(proc, params, probe, yass_batch, n_chunk_sec, nt0):
     """
     outputs an ordering of the batches according to drift
     for each batch, it extracts spikes as threshold crossings and clusters them with kmeans
@@ -424,12 +426,14 @@ def clusterSingleBatches(ctx):
     the matrix of similarity scores is then re-ordered so that low dissimilaity is along
     the diagonal
     """
-    Nbatch = ctx.intermediate.Nbatch
-    params = ctx.params
-    probe = ctx.probe
-    raw_data = ctx.raw_data
-    ir = ctx.intermediate
-    proc = ir.proc
+    
+    #Nbatch = ctx.intermediate.Nbatch
+    #params = ctx.paramsƒextr
+    #probe = ctx.probe
+    #raw_data = ctx.raw_data
+    #ir = ctx.intermediate
+    #proc = ir.proc
+    params.nt0 = nt0
 
     if not params.reorder:
         # if reordering is turned off, return consecutive order
@@ -440,12 +444,12 @@ def clusterSingleBatches(ctx):
     Nfilt = ceil(probe.Nchan / 2)
 
     # extract PCA waveforms pooled over channels
-    wPCA = extractPCfromSnippets(proc, probe=probe, params=params, Nbatch=Nbatch)
+    wPCA = extractPCfromSnippets(proc,yass_batch, n_chunk_sec, probe=probe, params=params)
 
     Nchan = probe.Nchan
     niter = 10  # iterations for k-means. we won't run it to convergence to save time
 
-    nBatches = Nbatch
+    nBatches = yass_batch#Nbatch
     NchanNear = min(Nchan, 2 * 8 + 1)
 
     # initialize big arrays on the GPU to hold the results from each batch
@@ -468,11 +472,9 @@ def clusterSingleBatches(ctx):
 
         # extract spikes using PCA waveforms
         uproj, call = extractPCbatch2(
-            proc, params, probe, wPCA, min(nBatches - 2, ibatch), iC, Nbatch)
-        print("Number of PCS is: " + str(wPCA.shape))
+            proc, params, probe, wPCA, min(nBatches - 2, ibatch), iC, yass_batch, n_chunk_sec)
         if cp.sum(cp.isnan(uproj)) > 0:
             break  # I am not sure what case this safeguards against....
-        print(uproj.shape[1])
         if uproj.shape[1] > Nfilt:
 
             # this initialize the k-means
