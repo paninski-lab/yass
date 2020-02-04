@@ -577,43 +577,57 @@ class TemplateMerge(object):
         
         weights = self.n_spikes_soft
 
-        spike_train_new = np.copy(self.spike_train)
-        templates_new = np.zeros((len(merge_array), self.spike_size, self.n_channels),
+        templates_new = np.zeros((len(merge_array),
+                                  self.spike_size,
+                                  self.n_channels),
                                  'float32')
+        spike_train_new = np.copy(self.spike_train)
+        shifts_new = np.copy(self.shifts)
+        scales_new = np.copy(self.scales)
+        soft_assignment_new = np.copy(self.soft_assignment)
 
-        new_ids = np.zeros(self.n_units, 'int32')
-        shifts = np.zeros(self.n_units, 'int32')
-
+        new_ids = np.ones(self.n_units, 'int32')*-1
+        #shifts = np.zeros(self.n_units, 'int32')
         for new_id, units in enumerate(merge_array):
             if len(units) > 1:
 
                 # save only a unit with the highest weight
-                id_keep = weights[units].argmax()
-                templates_new[new_id] = self.templates[units[id_keep]]
+                unit_id_old = units[weights[units].argmax()]
+                #templates_new[new_id] = self.templates[unit_id_old]
 
                 # update spike train
                 # determine shifts
-                mc = self.templates[units[id_keep]].ptp(0).argmax()
-                min_points = self.templates[units,:,mc].argmin(1)
-                shifts_ = min_points - min_points[id_keep]
-
-                new_ids[units] = new_id
-                shifts[units] = shifts_
+                #mc = self.templates[units[id_keep]].ptp(0).argmax()
+                #min_points = self.templates[units,:,mc].argmin(1)
+                #shifts_ = min_points - min_points[id_keep]
+                #new_ids[unit_id_old] = new_id
+                #shifts[units] = shifts_
 
             elif len(units) == 1:
-                templates_new[new_id] = self.templates[units[0]]
 
-                new_ids[units[0]] = new_id
+                unit_id_old = units[0]
+                #new_ids[units[0]] = new_id
 
-        spike_train_new[:, 1] = new_ids[self.spike_train[:,1]]
-        spike_train_new[:, 0] += shifts[self.spike_train[:, 1]]
+            templates_new[new_id] = self.templates[unit_id_old]
+            new_ids[unit_id_old] = new_id
+
+        # kill removed units
+        killed_old_ids = np.where(new_ids == -1)[0]
+        idx_keep = np.where(~np.in1d(self.spike_train[:, 1], killed_old_ids))[0]
+        spike_train_new = spike_train_new[idx_keep]
+        shifts_new = shifts_new[idx_keep]
+        scales_new = scales_new[idx_keep]
+        soft_assignment_new = soft_assignment_new[idx_keep]
+
+        spike_train_new[:, 1] = new_ids[spike_train_new[:, 1]]
+        #spike_train_new[:, 0] += shifts[self.spike_train[:, 1]]
 
         # sort them by spike times
         idx_sort = np.argsort(spike_train_new[:, 0])
         spike_train_new = spike_train_new[idx_sort]
-        soft_assignment_new = self.soft_assignment[idx_sort]
-        shifts_new = self.shifts[idx_sort]
-        scales_new = self.scales[idx_sort]
+        soft_assignment_new = soft_assignment_new[idx_sort]
+        shifts_new = shifts_new[idx_sort]
+        scales_new = scales_new[idx_sort]
 
         return (templates_new, spike_train_new,
                 shifts_new, scales_new,
