@@ -753,7 +753,7 @@ def final_deconv_with_template_updates(output_directory,
                 templates_current_batch = np.concatenate(
                     (templates_current_batch, templates_next_batch[templates_current_batch.shape[0]:]),
                     axis=0)
-                np.save(fname_templates_in, templates_current_batch)
+                np.save(fname_templates_batch, templates_current_batch)
 
         # runr deconv
         output_directory_batch = os.path.join(
@@ -762,7 +762,7 @@ def final_deconv_with_template_updates(output_directory,
          fname_spike_train_,
          fname_shifts_,
          fname_scales_) = deconvolve.run(
-            fname_templates_in,
+            fname_templates_batch,
             output_directory_batch,
             recording_dir,
             recording_dtype,
