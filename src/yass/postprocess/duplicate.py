@@ -4,7 +4,7 @@ import parmap
 import scipy
 
 def remove_duplicates(fname_templates, fname_weights,
-                      save_dir, CONFIG, units_in=None,
+                      save_dir, CONFIG, units_in=None, units_to_process=None,
                       multi_processing=False, n_processors=1):
 
     # output folder
@@ -17,6 +17,14 @@ def remove_duplicates(fname_templates, fname_weights,
     # units_in is all units if none
     if units_in is None:
         units_in = np.arange(len(weights))
+    if units_to_process is None:
+        units_to_process = np.copy(units_in)
+
+    # this allows units not in units_to_prcoess not get killed
+    units_to_not_process = np.arange(len(weights))
+    units_to_not_process = units_to_not_process[
+        ~np.in1d(units_to_not_process, units_to_process)]
+    weights[units_to_not_process] = np.max(weights) + 10
 
     # compute overlapping units
     fname_units_to_compare = os.path.join(save_dir, 'units_to_compare.npy')
@@ -24,7 +32,7 @@ def remove_duplicates(fname_templates, fname_weights,
         units_to_compare = np.load(fname_units_to_compare)[()]
     else:
         units_to_compare = compute_units_to_compare(
-            fname_templates, units_in, CONFIG)
+            fname_templates, units_in, units_to_process, CONFIG)
         # save it
         np.save(fname_units_to_compare,
                 units_to_compare)
@@ -94,7 +102,8 @@ def remove_duplicates(fname_templates, fname_weights,
     return np.setdiff1d(units_in, units_killed)
 
 
-def compute_units_to_compare(fname_templates, units_in, CONFIG):
+def compute_units_to_compare(fname_templates, units_in,
+                             units_to_process, CONFIG):
 
     # threshold on ptp diff
     diff_threshold = CONFIG.clean_up.abs_max_diff
@@ -102,8 +111,8 @@ def compute_units_to_compare(fname_templates, units_in, CONFIG):
 
     # load templates
     templates = np.load(fname_templates)
-    templates = templates[units_in]
-    n_units = templates.shape[0]
+    #templates = templates[units_in]
+    #n_units = templates.shape[0]
 
     # get ptps
     max_val = templates.max(1)
@@ -112,20 +121,32 @@ def compute_units_to_compare(fname_templates, units_in, CONFIG):
     ptps_higher = np.maximum(ptps[:, None], ptps[None])
 
     units_to_compare = {}
-    for j in range(n_units):
+    idx_process = np.in1d(units_in, units_to_process)
+    units_in_process = units_in[idx_process]
+    units_in_dont_process = units_in[~idx_process]
+    for ii, j in enumerate(units_in_process):
+
+        if ii < len(units_in_process) - 1:
+            # add within units_in_:
+            max_val_diff = np.max(np.abs(max_val[units_in_process[ii+1:]] - max_val[[j]]), axis=1)
+            min_val_diff = np.max(np.abs(min_val[units_in_process[ii+1:]] - min_val[[j]]), axis=1)
+            abs_diff = np.maximum(max_val_diff, min_val_diff)
+            abs_diff_rel = abs_diff/ptps_higher[j, units_in_process[ii+1:]]
+            units_to_compare_1 = units_in_process[ii+1:][np.logical_or(
+                abs_diff < diff_threshold, abs_diff_rel < diff_rel_threshold)]
+        else:
+            units_to_compare_1 = np.array(0, 'int32')
 
         # 
-        max_val_diff = np.max(np.abs(max_val[(j+1):] - max_val[[j]]), axis=1)
-        min_val_diff = np.max(np.abs(min_val[(j+1):] - min_val[[j]]), axis=1)
+        max_val_diff = np.max(np.abs(max_val[units_in_dont_process] - max_val[[j]]), axis=1)
+        min_val_diff = np.max(np.abs(min_val[units_in_dont_process] - min_val[[j]]), axis=1)
         abs_diff = np.maximum(max_val_diff, min_val_diff)
-        abs_diff_rel = abs_diff/ptps_higher[j, (j+1):]
+        abs_diff_rel = abs_diff/ptps_higher[j, units_in_dont_process]
+        units_to_compare_2 = units_in_dont_process[np.logical_or(
+                abs_diff < diff_threshold, abs_diff_rel < diff_rel_threshold)]
 
-        units_to_compare_ = np.where(
-            np.logical_or(
-                abs_diff < diff_threshold,
-                abs_diff_rel < diff_rel_threshold))[0] + j + 1
         # nearby units
-        units_to_compare[units_in[j]] = units_in[units_to_compare_]
+        units_to_compare[j] = np.hstack((units_to_compare_1, units_to_compare_2))
 
     return units_to_compare
 

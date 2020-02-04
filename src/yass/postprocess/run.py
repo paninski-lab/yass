@@ -26,7 +26,8 @@ def run(methods = [],
         fname_template_soft_assignment=None,
         fname_noise_soft_assignment=None,
         fname_shifts=None,
-        fname_scales=None):
+        fname_scales=None,
+        units_to_process=None):
 
     ''' Run a sequence of post processes
     
@@ -60,6 +61,9 @@ def run(methods = [],
 
     # run each method
     units_survived = np.arange(n_units)
+    if units_to_process is None:
+        units_to_process = np.copy(units_survived)
+
     logger.info("{} units are in".format(n_units))
     for ctr, method in enumerate(methods):
 
@@ -84,6 +88,7 @@ def run(methods = [],
             fname_recording,
             recording_dtype,
             units_survived,
+            units_to_process,
             method,
             ctr)
 
@@ -123,9 +128,12 @@ def run(methods = [],
 
     else:
         spike_train_new = np.copy(spike_train)
-        np.save(fname_noise_soft_assignment_out, np.load(fname_noise_soft_assignment))
-        np.save(fname_scales_out, np.load(fname_scales))
-        np.save(fname_shifts_out, np.load(fname_shifts))
+        if fname_noise_soft_assignment is not None:
+            np.save(fname_noise_soft_assignment_out, np.load(fname_noise_soft_assignment))
+        if fname_scales is not None:
+            np.save(fname_scales_out, np.load(fname_scales))
+        if fname_shifts is not None:
+            np.save(fname_shifts_out, np.load(fname_shifts))
 
     np.save(fname_templates_out, templates)
     np.save(fname_spike_train_out, spike_train_new)
@@ -141,6 +149,7 @@ def post_process(output_directory,
                  fname_recording,
                  recording_dtype,
                  units_in,
+                 units_to_process,
                  method,
                  ctr):
 
@@ -165,8 +174,12 @@ def post_process(output_directory,
         templates = np.load(fname_templates)
 
         # remove low ptp
-        units_out = remove_small_units(
-            templates, threshold, units_in)
+        idx_process = np.in1d(units_in, units_to_process)
+        units_in_ = units_in[idx_process]
+        units_not_in_ = units_in[~idx_process]
+        units_out_ = remove_small_units(
+            templates, threshold, units_in_)
+        units_out = np.sort(np.hstack((units_not_in_, units_out_)))
 
         logger.info("{} units after removing low ptp units".format(
             len(units_out)))
@@ -179,8 +192,12 @@ def post_process(output_directory,
         templates = np.load(fname_templates)
 
         # remove off centered units
-        units_out = remove_off_centered_units(
-            templates, threshold, units_in)
+        idx_process = np.in1d(units_in, units_to_process)
+        units_in_ = units_in[idx_process]
+        units_not_in_ = units_in[~idx_process]
+        units_out_ = remove_off_centered_units(
+            templates, threshold, units_in_)
+        units_out = np.sort(np.hstack((units_not_in_, units_out_)))
 
         logger.info("{} units after removing off centered units".format(
             len(units_out)))
@@ -198,6 +215,7 @@ def post_process(output_directory,
             save_dir,
             CONFIG,
             units_in,
+            units_to_process,
             CONFIG.resources.multi_processing,
             CONFIG.resources.n_processors)
 
@@ -289,8 +307,12 @@ def post_process(output_directory,
         weights = np.load(fname_weights)
 
         # remove low ptp
-        units_out = remove_low_fr_units(
-            weights, rec_len_sec, threshold, units_in)
+        idx_process = np.in1d(units_in, units_to_process)
+        units_in_ = units_in[idx_process]
+        units_not_in_ = units_in[~idx_process]
+        units_out_ = remove_low_fr_units(
+            weights, rec_len_sec, threshold, units_in_)
+        units_out = np.sort(np.hstack((units_not_in_, units_out_)))
 
         logger.info("{} units after removing low fr units".format(
             len(units_out)))
@@ -334,10 +356,16 @@ def post_process(output_directory,
     elif method == 'duplicate_soft_assignment':
 
         threshold = 0.8
-        units_out = duplicate_soft_assignment(
+
+        # remove low ptp
+        idx_process = np.in1d(units_in, units_to_process)
+        units_in_ = units_in[idx_process]
+        units_not_in_ = units_in[~idx_process]
+        units_out_ = duplicate_soft_assignment(
             fname_template_soft_assignment,
             threshold,
-            units_in)
+            units_in_)
+        units_out = np.sort(np.hstack((units_not_in_, units_out_)))
 
         logger.info("{} units after removing duplicates using soft assignment".format(
             len(units_out)))
