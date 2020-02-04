@@ -434,7 +434,7 @@ class TempAlign(object):
 class TempTempConv(object):
 
     def __init__(self, CONFIG, templates, geom, pad_len, jitter_len, rank=5,
-                 sparse=True, temp_temp_fname="",
+                 sparse=True, #temp_temp_fname="",
                  vis_threshold_strong=1., vis_threshold_weak=0.5, parallel=True):
         """
 
@@ -477,7 +477,7 @@ class TempTempConv(object):
         # Maked and aligned and reconstructed templates.
         aligned_temp = np.zeros([n_unit, n_channel, spike_size], dtype=np.float32)
         align_shifts = np.zeros([n_unit, n_channel], dtype=np.int32)
-        align_shifts_min = np.zeros(n_unit, dtype=np.int32)
+        #align_shifts_min = np.zeros(n_unit, dtype=np.int32)
         spat_comp = np.zeros([n_unit, n_channel, rank], dtype=np.float32)
         temp_comp = np.zeros([n_unit, rank, spike_size], dtype=np.float32)
 
@@ -511,12 +511,20 @@ class TempTempConv(object):
             #    ref_wave_form=t[main_c][None], jitter=jitter_len, return_shifts=True)
             #align = align[:, 0]
 
+            if np.sum(np.abs(temp[unit])) == 0:
+                continue
+
             vis_chans = np.where(viscs[unit])[0]
             neigh_chans = CONFIG.neigh_channels[vis_chans][:, vis_chans]
-            align, shifts_ = align_templates(temp[unit, viscs[unit]], jitter_len, neigh_chans)
+            align, shifts_, vis_chan_keep = align_templates(temp[unit, viscs[unit]], jitter_len, neigh_chans)
+
+            # kill any unconnected vis chans
+            align = align[vis_chan_keep]
+            shifts_ = shifts_[vis_chan_keep]
+            vis_chans = vis_chans[vis_chan_keep]
 
             # remove offset from shifts so that minimum is 0
-            align_shifts_min[unit] = shifts_.min()
+            #align_shifts_min[unit] = shifts_.min()
             align_shifts[unit, vis_chans] = shifts_ - shifts_.min()
 
             center_spike_size = int(2 * CONFIG.recordings.sampling_rate / 1000.)
@@ -546,7 +554,8 @@ class TempTempConv(object):
 
         zero_padded_temp_temp = None
         global_argmax = None
-        if not os.path.exists(temp_temp_fname):
+        #if not os.path.exists(temp_temp_fname):
+        if True:
             print (".... computing temp_temp ...")
             if parallel:
                 # partition the units into 12 sub problems
@@ -603,12 +612,12 @@ class TempTempConv(object):
                     if isinstance(temp_temp[i][j], np.ndarray):
                         #temp temp exists
                         zero_padded_temp_temp[i, j, u_shift:u_shift+temp_temp_len[i, j]] = temp_temp[i][j]
-            if len(temp_temp_fname) > 0:
-                np.save(temp_temp_fname, zero_padded_temp_temp)
-        else:
-            print (".... loading temp-temp from disk")
-            zero_padded_temp_temp = np.load(temp_temp_fname, allow_pickle=True)
-            global_argmax = zero_padded_temp_temp[0][0].argmax()
+            #if len(temp_temp_fname) > 0:
+            #    np.save(temp_temp_fname, zero_padded_temp_temp)
+        #else:
+        #    print (".... loading temp-temp from disk")
+        #    zero_padded_temp_temp = np.load(temp_temp_fname, allow_pickle=True)
+        #    global_argmax = zero_padded_temp_temp[0][0].argmax()
 
         # Important step that gives the templates have the same length and shifted in a way
         # that spike trains for subtraction are synchronized
@@ -782,9 +791,11 @@ def align_templates(temp_, jitter, neigh_chans, ref=None):
     tt = tt[keep]
     val = val[keep]
 
+    vis_chan_keep = np.unique(cc)
+
     # choose best among survived ones
     best_shifts = np.zeros(n_chans, 'int32')
-    for c in range(n_chans):
+    for c in vis_chan_keep:
         idx_ = np.where(cc == c)[0]
         if len(idx_) > 0:
             best_shifts[c] = tt[idx_][val[idx_].argmin()]
@@ -792,10 +803,10 @@ def align_templates(temp_, jitter, neigh_chans, ref=None):
             best_shifts[c] = dist_[c].argmin()
 
     aligned_temp = np.zeros((n_chans, n_time_small), 'float32')
-    for c in range(n_chans):
+    for c in vis_chan_keep:
         aligned_temp[c] = temp_[c][best_shifts[c]:best_shifts[c]+n_time_small]
 
-    return aligned_temp, best_shifts
+    return aligned_temp, best_shifts, vis_chan_keep
 
 
 def connecting_points(points, index, neighbors, t_diff, keep=None):
@@ -848,3 +859,88 @@ def monotonic_edge(align, center_spike_size):
     align_[:, :edge_size+1] = left_edge[:, ::-1]
 
     return align_
+
+def shift_svd_denoise(temp, CONFIG,
+                      vis_threshold_weak, vis_threshold_strong,
+                      rank, pad_len, jitter_len):
+
+    temp = temp.transpose(0, 2, 1)
+
+    n_unit, n_channel, n_time = temp.shape
+    spike_size = temp.shape[2] + 2 * pad_len - 2 * jitter_len
+    max_ptp_unit = temp.ptp(2).max(1).argmax()
+    max_ptp_unit_main_chan = temp[max_ptp_unit].ptp(1).argmax()
+    min_loc_orig = temp[max_ptp_unit, max_ptp_unit_main_chan].argmin()
+
+    # Zero padding is done to allow a lot of jitter for alignment purposes
+    temp = np.pad(temp, ((0, 0), (0, 0), (pad_len, pad_len)), 'constant')
+
+    viscs = continuous_visible_channels(
+        temp, CONFIG.geom,
+        threshold=vis_threshold_weak, neighb_threshold=vis_threshold_strong)
+    num_vis_chan = viscs.sum(1)
+    # If a unit has no visible channel, make its main channel visible
+    invis_units = np.where(num_vis_chan == 0)[0]
+    viscs[invis_units, temp.ptp(2).argmax(1)[invis_units]] = True
+
+    aligned_temp = np.zeros([n_unit, n_channel, spike_size], dtype=np.float32)
+    align_shifts = np.zeros([n_unit, n_channel], dtype=np.int32)
+
+    # align and denoise
+    for unit in range(n_unit):
+        vis_chans = np.where(viscs[unit])[0]
+        neigh_chans = CONFIG.neigh_channels[vis_chans][:, vis_chans]
+        align, shifts_, vis_chan_keep = align_templates(temp[unit, viscs[unit]], jitter_len, neigh_chans)
+
+        # kill any unconnected vis chans
+        align = align[vis_chan_keep]
+        shifts_ = shifts_[vis_chan_keep]
+        vis_chans = vis_chans[vis_chan_keep]
+
+        # remove offset from shifts so that minimum is 0
+        align_shifts[unit, vis_chans] = shifts_ - shifts_.min()
+
+        center_spike_size = int(2 * CONFIG.recordings.sampling_rate / 1000.)
+        align = monotonic_edge(align, center_spike_size)
+
+        # use reconstructed version of temp lates
+        if len(align) <= rank:
+            # The matrix rank is lower. Just pass
+            # identity spatial component and the signal itself
+            mat_rank = len(align)
+            aligned_temp[unit, vis_chans] = align
+            continue
+
+        u, h, v = np.linalg.svd(align)
+        # Reconstructed version of the unit
+        aligned_temp[unit, vis_chans] = np.matmul(u[:, :rank] * h[:rank], v[:rank])
+
+    temp_size = align_shifts.max(1) + spike_size
+    new_temp_size = temp_size.max()
+
+    # Shifts that were done do the main channel of each unit
+    main_chan_shift = align_shifts[np.arange(n_unit), temp.ptp(-1).argmax(-1)]
+    main_chan_shift = reverse_shifts(main_chan_shift)
+    main_chan_shift = main_chan_shift - main_chan_shift.min()
+    new_temp_size += (temp_size - temp_size.max() + main_chan_shift.max()).max()
+    # These are the templates that have to be used for residual computation
+    residual_computation_templates = np.zeros([n_unit, n_channel, new_temp_size], dtype=np.float32)
+    for unit in range(n_unit):
+        sh_ = main_chan_shift[unit]
+        residual_computation_templates[unit, :, sh_:sh_+temp_size[unit]] = \
+        shift_channels(aligned_temp[unit], align_shifts[unit])
+
+    # let's make the templates the same size as the input templates.
+    min_loc = residual_computation_templates[max_ptp_unit, max_ptp_unit_main_chan].argmin()
+    cut_off_begin = min_loc - min_loc_orig
+    if cut_off_begin < 0:
+        left_ = -np.copy(cut_off_begin)
+        right_ = max(0, n_time - left_ - residual_computation_templates.shape[2])
+        residual_computation_templates = np.pad(
+            residual_computation_templates, ((0, 0), (0, 0), (left_, right_)), 'constant')
+        cut_off_begin = 0
+
+    residual_computation_templates = residual_computation_templates[
+        :, :, cut_off_begin:cut_off_begin+n_time] + 0.
+
+    return residual_computation_templates.transpose(0, 2, 1)

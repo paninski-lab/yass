@@ -35,6 +35,8 @@ from yass import (preprocess, detect, cluster, postprocess,
 from yass.cluster.sharpen import sharpen_templates
 from yass.reader import READER
 from yass.template import run_cleaned_template_computation, run_template_computation
+from yass.pd_split import run_post_deconv_split
+from yass.template_update import run_template_update
 #from yass.template import update_templates
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
@@ -121,7 +123,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     os.environ["MKL_NUM_THREADS"] = "1"
     os.environ["GIO_EXTRA_MODULES"] = "/usr/lib/x86_64-linux-gnu/gio/modules/"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
-
     ''' **********************************************
         ************** PREPROCESS ********************
         **********************************************
@@ -157,7 +158,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
             fname_templates,
             run_chunk_sec = CONFIG.clustering_chunk)
 
-    for j in range(2):
+    for j in range(1):
         ### Pre-final deconv: Deconvolve, Residual, Merge, kill low fr units
         (fname_templates,
          fname_spike_train)= pre_final_deconv(
@@ -399,7 +400,7 @@ def pre_final_deconv(TMP_FOLDER,
         compute_template_soft=True)
     
     logger.info('Remove Bad units')
-    methods = ['low_fr', 'low_ptp', 'duplicate_soft_assignment']
+    methods = ['low_fr', 'low_ptp', 'duplicate', 'duplicate_soft_assignment']
     (fname_templates, fname_spike_train, 
      fname_noise_soft, fname_shifts, fname_scales)  = postprocess.run(
         methods,
@@ -430,17 +431,17 @@ def pre_final_deconv(TMP_FOLDER,
         fname_residual,
         residual_dtype)    
 
-    logger.info('Get (partially) Cleaned Templates')
-    fname_templates = get_partially_cleaned_templates(
-        os.path.join(TMP_FOLDER,
-                     'clean_templates'),
-        fname_templates,
-        fname_spike_train,
-        fname_shifts,
-        fname_scales,
-        standardized_path,
-        standardized_dtype,
-        run_chunk_sec)
+    #logger.info('Get (partially) Cleaned Templates')
+    #fname_templates = get_partially_cleaned_templates(
+    #    os.path.join(TMP_FOLDER,
+    #                 'clean_templates'),
+    #    fname_templates,
+    #    fname_spike_train,
+    #    fname_shifts,
+    #    fname_scales,
+    #    standardized_path,
+    #    standardized_dtype,
+    #    run_chunk_sec)
 
     return (fname_templates,
             fname_spike_train)
@@ -564,17 +565,29 @@ def final_deconv(TMP_FOLDER,
 
     # run deconvolution
     logger.info('FINAL DECONV')
-    (fname_templates,
-     fname_spike_train,
-     fname_shifts,
-     fname_scales) = deconvolve.run(
-        fname_templates,
-        os.path.join(TMP_FOLDER,
-                     'deconv'),
-        standardized_path,
-        standardized_dtype,
-        update_templates=update_templates,
-        run_chunk_sec=run_chunk_sec)
+    if update_templates:
+        (fname_templates,
+         fname_spike_train,
+         fname_shifts,
+         fname_scales) = final_deconv_with_template_updates(
+            os.path.join(TMP_FOLDER,
+                         'deconv_with_updates'),
+            standardized_path,
+            standardized_dtype,
+            fname_templates,
+            run_chunk_sec,
+            remove_meta_data=True)
+    else:
+        (fname_templates,
+         fname_spike_train,
+         fname_shifts,
+         fname_scales) = deconvolve.run(
+            fname_templates,
+            os.path.join(TMP_FOLDER,
+                         'deconv'),
+            standardized_path,
+            standardized_dtype,
+            run_chunk_sec=run_chunk_sec)
 
     # compute residual
     logger.info('RESIDUAL COMPUTATION')
@@ -610,10 +623,332 @@ def final_deconv(TMP_FOLDER,
                      'soft_assignment'),
         fname_residual,
         residual_dtype,
-        update_templates=update_templates
-    )
+        update_templates=update_templates)
 
     return (fname_templates,
             fname_spike_train,
             fname_noise_soft, 
             fname_template_soft)
+
+def final_deconv_with_template_updates(output_directory,
+                                       recording_dir,
+                                       recording_dtype,
+                                       fname_templates_in,
+                                       run_chunk_sec,
+                                       remove_meta_data=True):
+    
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+      
+    temp_directory = os.path.join(output_directory, 'templates')
+    if not os.path.exists(temp_directory):
+        os.makedirs(temp_directory)
+
+    fname_spike_train_out = os.path.join(
+        output_directory, 'spike_train.npy')
+    fname_shifts_out = os.path.join(
+        output_directory, 'shifts.npy')
+    fname_scales_out = os.path.join(
+        output_directory, 'scales.npy')
+
+    if (os.path.exists(fname_spike_train_out) and
+        os.path.exists(fname_shifts_out) and
+        os.path.exists(fname_scales_out)):            
+        return temp_directory, fname_spike_train_out, fname_shifts_out, fname_scales_out
+            
+    forward_directory = os.path.join(output_directory, 'forward_results')
+    if not os.path.exists(forward_directory):
+        os.makedirs(forward_directory)
+
+    CONFIG = read_config()
+    
+    template_update_freq = CONFIG.deconvolution.template_update_time
+    update_time = np.arange(run_chunk_sec[0], run_chunk_sec[1], template_update_freq)
+    update_time = np.hstack((update_time, run_chunk_sec[1]))
+
+    # forward deconv
+    for j in range(len(update_time)-1):
+
+        if j == 0:
+            first_batch = True
+        else:
+            first_batch = False
+        
+        # batch time in seconds
+        batch_time = [update_time[j], update_time[j+1]]
+
+        # templates name out
+        fname_templates_out = os.path.join(
+            forward_directory, 'templates_{}_{}_forward.npy'.format(
+                batch_time[0], batch_time[1]))
+
+        output_directory_batch = os.path.join(
+            forward_directory, 'batch_{}_{}'.format(batch_time[0], batch_time[1]))
+        if not os.path.exists(fname_templates_out):
+        
+            # run post deconv split merge
+            fname_templates_ = post_deconv_split_merge(
+                output_directory_batch,
+                recording_dir,
+                recording_dtype,
+                fname_templates_in,
+                batch_time,
+                first_batch)
+
+            # save templates and remove all metadata
+            np.save(fname_templates_out, np.load(fname_templates_))
+
+        if os.path.exists(output_directory_batch) and remove_meta_data:
+            shutil.rmtree(output_directory_batch)
+
+        # the new templates will go into the next batch as input
+        fname_templates_in = fname_templates_out
+
+
+    backward_directory = os.path.join(output_directory, 'backward_results')
+    if not os.path.exists(backward_directory):
+        os.makedirs(backward_directory)
+
+    # backward deconv
+    for j in range(len(update_time)-2, -1, -1):
+        
+        batch_time = [update_time[j], update_time[j+1]]
+        
+        # all required outputs
+        fname_templates_batch = os.path.join(
+            temp_directory,
+            'templates_{}_{}.npy'.format(batch_time[0], batch_time[1]))
+        fname_spike_train_batch = os.path.join(
+            backward_directory,
+            'spike_train_{}_{}.npy'.format(batch_time[0], batch_time[1]))
+        fname_shifts_batch = os.path.join(
+            backward_directory,
+            'shifts_{}_{}.npy'.format(batch_time[0], batch_time[1]))
+        fname_scales_batch = os.path.join(
+            backward_directory,
+            'scales_{}_{}.npy'.format(batch_time[0], batch_time[1]))
+        
+        # if one of them is missing run deconv on this batch
+        if (os.path.exists(fname_templates_batch) and
+            os.path.exists(fname_spike_train_batch) and
+            os.path.exists(fname_shifts_batch) and
+            os.path.exists(fname_scales_batch)):            
+            continue
+
+        # input templates
+        fname_templates_in = os.path.join(
+            forward_directory, 'templates_{}_{}_forward.npy'.format(
+                batch_time[0], batch_time[1]))
+        #if False:
+        if j < len(update_time)-2:
+            
+            # load current templates and templates in the next batch
+            templates_current_batch = np.load(fname_templates_in)
+            templates_next_batch = np.load(os.path.join(
+                forward_directory, 'templates_{}_{}_forward.npy'.format(
+                    update_time[j+1], update_time[j+2])))
+            
+            # add any new templates in the next batch
+            if templates_current_batch.shape[0] < templates_next_batch.shape[0]:
+                templates_current_batch = np.concatenate(
+                    (templates_current_batch, templates_next_batch[templates_current_batch.shape[0]:]),
+                    axis=0)
+                np.save(fname_templates_in, templates_current_batch)
+
+        # runr deconv
+        output_directory_batch = os.path.join(
+            backward_directory, 'deconv_{}_{}'.format(batch_time[0], batch_time[1]))
+        (fname_templates_,
+         fname_spike_train_,
+         fname_shifts_,
+         fname_scales_) = deconvolve.run(
+            fname_templates_in,
+            output_directory_batch,
+            recording_dir,
+            recording_dtype,
+            run_chunk_sec=batch_time)
+        
+        np.save(fname_templates_batch, np.load(fname_templates_))
+        np.save(fname_spike_train_batch, np.load(fname_spike_train_))
+        np.save(fname_shifts_batch, np.load(fname_shifts_))
+        np.save(fname_scales_batch, np.load(fname_scales_))
+
+        # hack for now..
+        if j == 0:
+            fname_templates_init = os.path.join(
+                temp_directory,
+                'templates_init.npy')
+            np.save(fname_templates_init, np.load(fname_templates_))
+
+        if remove_meta_data:
+            shutil.rmtree(output_directory_batch)
+
+
+    # gather all results
+    spike_train = [None]*(len(update_time)-1)
+    shifts = [None]*(len(update_time)-1)
+    scales = [None]*(len(update_time)-1)
+    for j in range(len(update_time)-1):
+        
+        batch_time = [update_time[j], update_time[j+1]]
+        
+        # all outputs
+        fname_spike_train_batch = os.path.join(
+            backward_directory,
+            'spike_train_{}_{}.npy'.format(batch_time[0], batch_time[1]))
+        fname_shifts_batch = os.path.join(
+            backward_directory,
+            'shifts_{}_{}.npy'.format(batch_time[0], batch_time[1]))
+        fname_scales_batch = os.path.join(
+            backward_directory,
+            'scales_{}_{}.npy'.format(batch_time[0], batch_time[1]))
+        
+        spike_train[j] = np.load(fname_spike_train_batch)
+        shifts[j] = np.load(fname_shifts_batch)
+        scales[j] = np.load(fname_scales_batch)
+    
+    spike_train = np.vstack(spike_train)
+    shifts = np.hstack(shifts)
+    scales = np.hstack(scales)
+    
+    idx_sort = np.argsort(spike_train[:,0])
+    spike_train = spike_train[idx_sort]
+    shifts = shifts[idx_sort]
+    scales = scales[idx_sort]
+    
+    np.save(fname_spike_train_out, spike_train)
+    np.save(fname_shifts_out, shifts)
+    np.save(fname_scales_out, scales)
+
+    return (temp_directory, fname_spike_train_out,
+            fname_shifts_out, fname_scales_out)
+
+
+def post_deconv_split_merge(output_directory,
+                            recording_dir,
+                            recording_dtype,
+                            fname_templates,
+                            run_chunk_sec,
+                            first_batch=False):
+
+    # keep track of # of units in
+    n_units_in = np.load(fname_templates).shape[0]
+
+    # deconv 0
+    (fname_templates,
+     fname_spike_train,
+     fname_shifts,
+     fname_scales) = deconvolve.run(
+        fname_templates,
+        os.path.join(output_directory, 'deconv_0'),
+        recording_dir,
+        recording_dtype,
+        run_chunk_sec=run_chunk_sec)
+    
+    # residual 0
+    (fname_residual,
+     residual_dtype) = residual.run(
+        fname_shifts,
+        fname_scales,
+        fname_templates,
+        fname_spike_train,
+        os.path.join(output_directory, 'residual_0'),
+        recording_dir,
+        recording_dtype,
+        dtype_out='float32',
+        run_chunk_sec=run_chunk_sec)
+    
+    # post deconv split
+    if first_batch:
+        update_original_templates = True
+    else:
+        update_original_templates = False
+    (fname_templates, 
+     fname_spike_train,
+     fname_shifts,
+     fname_scales) = run_post_deconv_split(
+        os.path.join(output_directory, 'pd_split_0'),
+        fname_templates,
+        fname_spike_train,
+        fname_shifts,
+        fname_scales,
+        recording_dir,
+        recording_dtype,
+        fname_residual,
+        residual_dtype,
+        run_chunk_sec[0],
+        update_original_templates)
+
+    if first_batch:
+
+        # deconv 1
+        (fname_templates,
+         fname_spike_train,
+         fname_shifts,
+         fname_scales) = deconvolve.run(
+            fname_templates,
+            os.path.join(output_directory, 'deconv_1'),
+            recording_dir,
+            recording_dtype,
+            run_chunk_sec=run_chunk_sec)
+
+        # residual 1
+        (fname_residual,
+         residual_dtype) = residual.run(
+            fname_shifts,
+            fname_scales,
+            fname_templates,
+            fname_spike_train,
+            os.path.join(output_directory, 'residual_1'),
+            recording_dir,
+            recording_dtype,
+            dtype_out='float32',
+            run_chunk_sec=run_chunk_sec)
+
+        #logger.info('Get (partially) Cleaned Templates')
+        fname_templates = get_partially_cleaned_templates(
+            os.path.join(output_directory, 'clean_templates_1'),
+            fname_templates,
+            fname_spike_train,
+            fname_shifts,
+            fname_scales,
+            recording_dir,
+            recording_dtype,
+            run_chunk_sec)
+
+    else:
+        update_weight = 100
+        units_to_update = np.arange(n_units_in)
+        fname_templates = run_template_update(
+            os.path.join(output_directory, 'template_update_1'),
+            fname_templates, fname_spike_train,
+            fname_shifts, fname_scales,
+            fname_residual, residual_dtype, run_chunk_sec[0],
+            update_weight, units_to_update)
+
+    # post process kill
+    n_units_after_split = np.load(fname_templates).shape[0]
+    if first_batch:
+        units_to_process = np.arange(n_units_after_split)
+    else:
+        units_to_process = np.arange(n_units_in, n_units_after_split)
+    methods = ['low_fr', 'low_ptp',
+               'duplicate']
+    (fname_templates, fname_spike_train, 
+     fname_noise_soft, fname_shifts, fname_scales)  = postprocess.run(
+        methods,
+        os.path.join(output_directory, 'post_process_1'),
+        None,
+        None,
+        fname_templates,
+        fname_spike_train,
+        None,#fname_template_soft,
+        None,#fname_noise_soft,
+        fname_shifts,
+        fname_scales,
+        units_to_process)
+    
+    n_units_out = np.load(fname_templates).shape[0]
+    print('{} new units'.format(n_units_out - n_units_in))
+    
+    return fname_templates
