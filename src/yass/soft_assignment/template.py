@@ -85,7 +85,13 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.exclude_large_units(large_unit_threshold)
         #self.spike_train = self.spike_train[np.asarray(list(self.idx_included)).astype("int16"), :]
         self.test = np.in1d(self.spike_train_og[:, 1], np.asarray(list(self.units_in)))
-        self.idx_included = np.logical_and(np.logical_and(self.spike_train_og[:, 0] < reader_residual.rec_len -  self.n_times//2, self.spike_train_og[:, 0] > self.n_times//2), np.in1d(self.spike_train_og[:, 1], np.asarray(list(self.units_in))))
+
+        t_start_include = self.n_times//2 + reader_residual.offset
+        t_end_include = reader_residual.rec_len -  self.n_times//2 + reader_residual.offset
+        self.idx_included = np.logical_and(
+            np.logical_and(self.spike_train_og[:, 0] < t_end_include,
+                           self.spike_train_og[:, 0] > t_start_include),
+            np.in1d(self.spike_train_og[:, 1], np.asarray(list(self.units_in))))
         self.spike_train = self.spike_train_og[self.idx_included]
         self.shifts = self.shifts[self.idx_included]
         self.chans = np.asarray([np.argsort(self.templates[unit].ptp(0))[::-1][:self.n_chans] for unit in range(self.n_units)])
@@ -280,11 +286,11 @@ class TEMPLATE_ASSIGN_OBJECT(object):
 
         idx_run = np.hstack((np.arange(0, len(shifts), n_sample_run), len(shifts)))
 
-        shifted_templates = torch.zeros((len(shifts), n_times, self.n_chans)).cuda()
+        shifted_templates = torch.cuda.FloatTensor(len(shifts), n_times, self.n_chans).fill_(0)
         for j in range(len(idx_run)-1):
             ii_start = idx_run[j]
             ii_end =idx_run[j+1]
-            obj = torch.zeros(self.n_chans, (ii_end-ii_start)*n_times).cuda()
+            obj = torch.cuda.FloatTensor(self.n_chans, (ii_end-ii_start)*n_times).fill_(0)
             times = torch.arange(0, (ii_end-ii_start)*n_times, n_times).long().cuda()
             deconv.subtract_splines(obj,
                                     times,
@@ -309,7 +315,6 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         # batch offsets
         offsets = torch.from_numpy(self.reader_residual.idx_list[:, 0]
                                    - self.reader_residual.buffer).cuda().long()
-
         with tqdm(total=self.reader_residual.n_batches) as pbar:
             for batch_id in range(self.reader_residual.n_batches):
                 
@@ -322,6 +327,8 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                     (self.spike_train[:, 0] >= self.reader_residual.idx_list[batch_id][0]) & 
                     (self.spike_train[:, 0] < self.reader_residual.idx_list[batch_id][1]))[:,0]
 
+                if len(idx_in) == 0:
+                    continue
                 spike_train_batch = self.spike_train[idx_in] 
                 spike_train_batch[:, 0] -= offsets[batch_id]
                 shift_batch = self.shifts[idx_in]

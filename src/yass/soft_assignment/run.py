@@ -26,6 +26,7 @@ def run(template_fname,
         output_directory,
         residual_fname,
         residual_dtype,
+        residual_offset=0,
         compute_noise_soft=True,
         compute_template_soft=True,
         update_templates=False
@@ -44,7 +45,7 @@ def run(template_fname,
     # HACK now.. it needs a proper fix later
     if update_templates:
         template_fname = os.path.join(template_fname, 'templates_init.npy')
-    
+
     # output folder
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -53,7 +54,8 @@ def run(template_fname,
     reader_resid = READER(residual_fname,
                           residual_dtype,
                           CONFIG,
-                          CONFIG.resources.n_sec_chunk_gpu_deconv/40)
+                          CONFIG.resources.n_sec_chunk_gpu_deconv/40,
+                          offset=residual_offset)
 
     # load NN detector
     detector = Detect(CONFIG.neuralnetwork.detect.n_filters,
@@ -96,9 +98,10 @@ def run(template_fname,
         window_size = 51
         n_chans = 10
         reader_resid = READER(residual_fname,
-                      residual_dtype,
-                      CONFIG,
-                      CONFIG.resources.n_sec_chunk_gpu_deconv/100)
+                              residual_dtype,
+                              CONFIG,
+                              CONFIG.resources.n_sec_chunk_gpu_deconv/100,
+                              offset=residual_offset)
 
         TAO = TEMPLATE_ASSIGN_OBJECT(
             fname_spike_train = spike_train_fname, 
