@@ -18,8 +18,7 @@ import rowshift as rowshift
 
 from yass.postprocess.duplicate import abs_max_dist
 from yass.deconvolve.util import WaveForms
-from yass.deconvolve.utils import (TempTempConv, reverse_shifts,
-                                   pca_gmm_and_dip, shift_svd_denoise)
+from yass.deconvolve.utils import TempTempConv, reverse_shifts
 
 
 # # ****************************************************************************
