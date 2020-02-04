@@ -3,7 +3,8 @@ import numpy as np
 
 class READER(object):
 
-    def __init__(self, bin_file, dtype, CONFIG, n_sec_chunk=None, buffer=None, chunk_sec=None):
+    def __init__(self, bin_file, dtype, CONFIG,
+                 n_sec_chunk=None, buffer=None, chunk_sec=None, offset=0):
 
         # frequently used parameters
         self.n_channels = CONFIG.recordings.n_channels
@@ -21,6 +22,11 @@ class READER(object):
                            self.n_channels)
         
 
+        # offset (in seconds): relative to the original recording,
+        #where does it start?
+        offset = offset*self.sampling_rate
+        self.offset = offset
+
         # define a size of buffer if not defined
         if buffer is None:
             self.buffer = int(max(self.sampling_rate/100, 200))
@@ -30,15 +36,16 @@ class READER(object):
         # batch sizes
         #print ("   making batches in Reader class")
         if chunk_sec is None:
-            self.start, self.end = 0, self.rec_len
+            self.start, self.end = offset, self.rec_len + offset
+
         else:
             self.start = chunk_sec[0]*self.sampling_rate
             self.end = chunk_sec[1]*self.sampling_rate
 
-            if self.start < 0:
-                self.start = 0
-            if self.end > self.rec_len:
-                self.end = self.rec_len
+            if self.start < offset:
+                self.start = offset
+            if self.end > self.rec_len + offset:
+                self.end = self.rec_le + offset
 
         if n_sec_chunk is not None:
             self.n_sec_chunk = n_sec_chunk
@@ -60,7 +67,7 @@ class READER(object):
     def read_data(self, data_start, data_end, channels=None):
         with open(self.bin_file, "rb") as fin:
             # Seek position and read N bytes
-            fin.seek(data_start*self.dtype.itemsize*self.n_channels, os.SEEK_SET)
+            fin.seek((data_start-self.offset)*self.dtype.itemsize*self.n_channels, os.SEEK_SET)
             data = np.fromfile(
                 fin, dtype=self.dtype,
                 count=(data_end - data_start)*self.n_channels)
@@ -82,16 +89,16 @@ class READER(object):
             data_end += self.buffer
 
             # if start is below zero, put it back to 0 and and zeros buffer
-            if data_start < 0:
-                left_buffer_size = 0 - data_start
-                data_start = 0
+            if data_start < self.offset:
+                left_buffer_size = self.offset - data_start
+                data_start = self.offset
             else:
                 left_buffer_size = 0
 
             # if end is above rec_len, put it back to rec_len and and zeros buffer
-            if data_end > self.rec_len:
-                right_buffer_size = data_end - self.rec_len
-                data_end = self.rec_len
+            if data_end > self.rec_len + self.offset:
+                right_buffer_size = data_end - self.rec_len - self.offset
+                data_end = self.rec_len + self.offset
             else:
                 right_buffer_size = 0
 
