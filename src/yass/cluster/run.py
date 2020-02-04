@@ -137,6 +137,8 @@ def run(output_directory,
         #### STAGE 1: Cluster on PTP ####
         #################################
 
+        # keep track of input label because this is the deconv label
+        # and it is necessary when making cleaned spikes
         logger.info("Split on PTP")
         (fname_spike_index,
          fname_labels,
