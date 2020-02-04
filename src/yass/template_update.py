@@ -150,18 +150,17 @@ def get_avg_min_max_vals(fname_templates, fname_spike_train,
                 1,
                 min_max_loc_spikes.reshape(-1, 10, n_channels)
             ).reshape(-1, 2, 5, n_channels)
-        min_max_loc_spikes = None
-        shifted_templates = None
+        del min_max_loc_spikes
+        del shifted_templates
+        del residual
 
         ptps_spikes = torch.max(min_max_vals_spikes[:,1], 1)[0] - torch.min(min_max_vals_spikes[:,0], 1)[0]
         diffs = torch.abs(ptps_spikes - ptp_temps[neuron_ids_batch])
-        #weights_batch = 3/diffs
-        #weights_batch[diffs > ptp_temps[neuron_ids_batch]*0.3] = 0
-        #weights_batch[diffs < 3] = 1
         weights_batch = diffs < ptp_temps[neuron_ids_batch]*0.2
         weights_batch[diffs < 3] = 1
-        ptps_spikes = None
-        diffs = None
+
+        del ptps_spikes
+        del diffs
 
         for k in units_to_update:
             idx_ = neuron_ids_batch == k
@@ -174,13 +173,27 @@ def get_avg_min_max_vals(fname_templates, fname_spike_train,
                     min_max_vals_spikes[idx_]*weights_batch[idx_][:, None, None], 0)[:,:,vis_chans[k]]
                 weights[k] = torch.sum(weights_batch[idx_], 0)[vis_chans[k]]
 
+        del min_max_vals_spikes
+        del weights_batch
+        del spike_times_batch
+        del neuron_ids_batch
+        del shifts_batch
+        del scales_batch
+        torch.cuda.empty_cache()
+
+    min_max_vals_avg_cpu = [None]*n_units
+    weights_cpu = [None]*n_units
     for k in units_to_update:
-        weights_ = weights[k].float()
+        weights_ = weights[k].cpu().data.numpy().astype('float32')
         weights_[weights_==0] = 0.0000001
-        min_max_vals_avg[k] = (min_max_vals_avg[k]/weights_).cpu().numpy()
-        weights[k] = weights[k].float().cpu().numpy()
-        
-    return min_max_vals_avg, weights
+        min_max_vals_avg_ = min_max_vals_avg[k].cpu().data.numpy()
+        min_max_vals_avg_cpu[k] = min_max_vals_avg_/weights_
+        weights_cpu[k] = weights_
+
+    del residual_comp
+    torch.cuda.empty_cache()
+
+    return min_max_vals_avg_cpu, weights_cpu
 
 
 def quad_interp_loc(pts):

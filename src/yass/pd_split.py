@@ -78,7 +78,7 @@ def run_post_deconv_split(output_directory,
         np.save(fname_vis_chans, vis_chans, allow_pickle=True)
         np.save(fname_cleaned_ptp, cleaned_ptp, allow_pickle=True)
         np.save(fname_spike_times, spike_times_list, allow_pickle=True)
-        
+
     # split units
     fname_templates_updated = os.path.join(
         output_directory, 'templated_updated.npy')
@@ -112,6 +112,19 @@ def run_post_deconv_split(output_directory,
         np.save(fname_spike_train_updated, spike_train_updated)
         np.save(fname_shifts_updated, shifts_updated)
         np.save(fname_scales_updated, scales_updated)
+
+        # can be used to find gpu memory not freed
+        # import gc
+        #n_objects = 0
+        #for obj in gc.get_objects():
+        #    try:
+        #        if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+        #            print(obj, type(obj), obj.size())
+        #
+        #            n_objects += 1
+        #    except:
+        #        pass
+        #print(n_objects)
 
         #units_to_process = np.arange(templates.shape[0], templates_updated.shape[0])
 
@@ -152,7 +165,8 @@ def get_cleaned_ptp(templates, spike_train, shifts, scales,
     for k in range(n_units):
         vis_chans[k] = np.where(ptp[k] > 0)[0]
 
-    min_max_loc = np.stack((templates.argmin(1), templates.argmax(1))).transpose(1, 0, 2)
+    min_max_loc = np.stack((templates.argmin(1),
+                            templates.argmax(1))).transpose(1, 0, 2)
     
     # move to gpu
     templates = torch.from_numpy(templates).float().cuda()
@@ -217,9 +231,11 @@ def get_cleaned_ptp(templates, spike_train, shifts, scales,
                 shifted_templates, 1, min_max_loc[neuron_ids_batch[ii_start:ii_end]])
         ptp_batch = min_max_vals_spikes[:,1] - min_max_vals_spikes[:,0]
 
-        min_max_loc_spikes = None
-        min_max_vals_spikes = None
-        shifted_templates = None
+        del min_max_loc_spikes
+        del min_max_vals_spikes
+        del shifted_templates
+        del residual
+        torch.cuda.empty_cache()
 
         for k in range(n_units):
             idx_ = neuron_ids_batch == k
@@ -230,14 +246,28 @@ def get_cleaned_ptp(templates, spike_train, shifts, scales,
                 spike_times_list[k] = np.hstack((spike_times_list[k],
                                                  spike_times_batch[idx_].cpu().numpy() + batch_offset))
                 shifts_list[k] = np.hstack((shifts_list[k],
-                                            shifts_batch[idx_].cpu()))
+                                            shifts_batch[idx_].cpu().numpy()))
                 scales_list[k] = np.hstack((scales_list[k],
-                                            scales_batch[idx_].cpu()))
+                                            scales_batch[idx_].cpu().numpy()))
             else:
                 cleaned_ptp[k] = ptp_batch[idx_].cpu().numpy()[:, vis_chans[k]]
                 spike_times_list[k] = spike_times_batch[idx_].cpu().numpy() + batch_offset
                 shifts_list[k] = shifts_batch[idx_].cpu().numpy()
                 scales_list[k] = scales_batch[idx_].cpu().numpy()
+
+        del ptp_batch
+        del spike_times_batch
+        del shifts_batch
+        del scales_batch
+        torch.cuda.empty_cache()
+
+    del templates
+    del spike_train
+    del shifts
+    del scales
+    del min_max_loc
+    del residual_comp
+    torch.cuda.empty_cache()
 
     return cleaned_ptp, spike_times_list, shifts_list, scales_list, vis_chans
 

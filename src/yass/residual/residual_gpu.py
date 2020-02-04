@@ -221,6 +221,8 @@ class RESIDUAL_GPU2(object):
         
         self.coefficients = deconv.BatchedTemplates(coefficients_cuda)
 
+        del self.template_inds
+        del self.temps_gpu
         del self.temp_temp_cpp
         del coefficients_cuda
         del coefficients
@@ -429,6 +431,12 @@ class RESIDUAL_GPU2(object):
                                 self.coefficients, 
                                 self.tempScaling*scales)
         obj = -obj.reshape((self.n_chan, len(template_ids), self.waveform_len))
+
+        del template_ids
+        del time_offsets
+        del times
+        del scales
+        torch.cuda.empty_cache()
 
         return obj.transpose(0,1).transpose(1,2)
 
