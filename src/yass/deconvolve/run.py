@@ -185,7 +185,7 @@ def deconv_ONgpu2(fname_templates_in,
     d_gpu.RANK = 10
     d_gpu.vis_chan_thresh = 1.0
 
-    d_gpu.fit_height = False
+    d_gpu.fit_height = True
     d_gpu.max_height_diff = 0.1
     d_gpu.fit_height_ptp = 20
 
@@ -392,7 +392,7 @@ def run_deconv_no_templates_update(d_gpu, CONFIG):
         run_deconv_no_templates_update_parallel(d_gpu,
                                                 chunk_ids,
                                                 n_sec_chunk_gpu,
-                                                CONFIG.torch_devices[0])
+                                                CONFIG.resources.gpu_id)
     else:
         chunk_ids_split = np.split(chunk_ids,
                                len(CONFIG.torch_devices))
