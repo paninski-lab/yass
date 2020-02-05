@@ -309,7 +309,8 @@ class TEMPLATE_ASSIGN_OBJECT(object):
 
                 # relevant idx
                 idx_in = torch.nonzero((self.spike_train[:, 0] >= self.reader_residual.idx_list[batch_id][0]) & (self.spike_train[:, 0] < self.reader_residual.idx_list[batch_id][1]))[:,0]
-                
+                if idx_in.shape[0] == 0:
+                   continue
                 spike_train_batch = self.spike_train[idx_in] 
                 spike_train_batch[:, 0] -= offsets[batch_id]
                 shift_batch = self.shifts[idx_in]

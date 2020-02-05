@@ -136,8 +136,8 @@ def run(template_fname,
         np.savez(fname_template_soft,
                  probs_templates=probs_templates,
                  units_assignment=units_assignment,
-                 logprobs = _
-                 sihoulette_score = s_table
+                 logprobs = _,
+                 sihoulette_score = s_table, 
                  logprobs_outliers=logprobs_outliers,
                  outliers=outliers
                 )
