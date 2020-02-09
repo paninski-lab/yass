@@ -40,7 +40,7 @@ class Detect(nn.Module):
         #    nn.Conv1d(feat2, feat3, [1, n_neigh], 1, 0),     # output shape (32, 14, 14)
         #    nn.ReLU(),                      # activation
         #)
-        self.out = nn.Linear(feat3*n_neigh, 1)
+        self.out = nn.Linear(feat2*n_neigh, 1)
 
     def forward(self, x):
 

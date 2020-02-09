@@ -169,8 +169,8 @@ def run_neural_network(standardized_path, standardized_dtype,
 
     # loop over each chunk
     batch_ids = np.arange(reader.n_batches)
-    batch_ids_split = np.split(batch_ids, len(CONFIG.torch_devices))
     if False:
+        batch_ids_split = np.split_array(batch_ids, len(CONFIG.torch_devices))
         processes = []
         for ii, device in enumerate(CONFIG.torch_devices):
             p = mp.Process(target=run_nn_detction_batch,

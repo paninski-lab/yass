@@ -24,7 +24,7 @@ class READER(object):
 
         # offset (in seconds): relative to the original recording,
         #where does it start?
-        offset = offset*self.sampling_rate
+        offset = int(offset*self.sampling_rate)
         self.offset = offset
 
         # define a size of buffer if not defined
@@ -39,8 +39,8 @@ class READER(object):
             self.start, self.end = offset, self.rec_len + offset
 
         else:
-            self.start = chunk_sec[0]*self.sampling_rate
-            self.end = chunk_sec[1]*self.sampling_rate
+            self.start = int(chunk_sec[0]*self.sampling_rate)
+            self.end = int(chunk_sec[1]*self.sampling_rate)
 
             if self.start < offset:
                 self.start = offset

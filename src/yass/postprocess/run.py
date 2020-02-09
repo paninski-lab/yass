@@ -355,7 +355,7 @@ def post_process(output_directory,
 
     elif method == 'duplicate_soft_assignment':
 
-        threshold = 0.8
+        threshold = 0.7
 
         # remove low ptp
         idx_process = np.in1d(units_in, units_to_process)

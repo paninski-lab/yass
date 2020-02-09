@@ -267,6 +267,9 @@ def run_core_deconv(d_gpu, CONFIG):
     chunk_ids = np.arange(d_gpu.reader.n_batches)
     d_gpu.initialize(move_data_to_gpu=False)
 
+    start_sec = int(d_gpu.reader.start/d_gpu.reader.sampling_rate)
+    end_sec = int(start_sec + d_gpu.reader.n_sec_chunk*d_gpu.reader.n_batches)
+    print ("running deconv from {} to {} seconds".format(start_sec, end_sec))
     processes = []
     if len(CONFIG.torch_devices) == 1:
         run_core_deconv_parallel(d_gpu, chunk_ids, CONFIG.torch_devices[0].index)
@@ -295,7 +298,7 @@ def run_core_deconv_parallel(d_gpu, chunk_ids, device):
 
         if not os.path.exists(fname):
 
-            print ("deconv: ", time_index, " sec, ", chunk_id, "/", d_gpu.reader.n_batches)
+            #print ("deconv: ", time_index, " sec, ", chunk_id, "/", d_gpu.reader.n_batches)
 
             # run deconv
             d_gpu.run(chunk_id)

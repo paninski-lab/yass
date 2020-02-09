@@ -1,7 +1,7 @@
 import numpy as np
 
 def duplicate_soft_assignment(fname_template_soft_assignment,
-                              threshold=0.8, units_in=None):
+                              threshold=0.7, units_in=None):
 
     # load soft assignment
     tmp = np.load(fname_template_soft_assignment)
