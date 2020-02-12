@@ -12,6 +12,7 @@ import yass
 from yass import read_config
 from yass.reader import READER
 from yass.residual.residual_gpu import RESIDUAL_GPU2
+from yass.deconvolve.utils import shift_svd_denoise
 from yass import postprocess
 
 def run_post_deconv_split(output_directory,
@@ -24,7 +25,7 @@ def run_post_deconv_split(output_directory,
                           fname_residual,
                           residual_dtype,
                           residual_offset=0,
-                          update_original_templates=False):
+                          initial_batch=False):
 
     CONFIG = read_config()
     
@@ -92,12 +93,39 @@ def run_post_deconv_split(output_directory,
            os.path.exists(fname_spike_train_updated)):
 
         print('run split')
+        if initial_batch:
+            update_original_templates = True
+            min_fr_accept = 0
+            min_ptp_accept = 0
+            min_fraction_accept = 0
+        else:
+            update_original_templates = False
+            min_fr_accept = 1
+            min_ptp_accept = 10000
+            min_fraction_accept = 0.15
         (templates_updated, spike_train_updated,
          shifts_updated, scales_updated) = run_split(
             cleaned_ptp, spike_times_list,
             shifts_list, scales_list, vis_chans,
             templates, spike_train, reader_raw,
-            CONFIG, update_original_templates)
+            CONFIG,
+            update_original_templates=update_original_templates,
+            min_fr_accept=min_fr_accept,
+            min_ptp_accept=min_ptp_accept,
+            min_fraction_accept=min_fraction_accept)
+
+        # denoise split units
+        n_splits = templates_updated.shape[0] - templates.shape[0]
+        vis_threshold_strong = 1.
+        vis_threshold_weak = 0.5
+        rank = 5
+        pad_len = int(1.5 * CONFIG.recordings.sampling_rate / 1000.)
+        jitter_len = pad_len
+        split_templates_denoised = shift_svd_denoise(
+            templates_updated[-n_splits:], CONFIG,
+            vis_threshold_strong, vis_threshold_weak,
+            rank, pad_len, jitter_len)
+        templates_updated[-n_splits:] = split_templates_denoised
 
         ## add new templates and spike train to the existing one
         #templates_updated = np.concatenate((templates, new_temps), axis=0)
@@ -167,7 +195,9 @@ def get_cleaned_ptp(templates, spike_train, shifts, scales,
 
     min_max_loc = np.stack((templates.argmin(1),
                             templates.argmax(1))).transpose(1, 0, 2)
-    
+    min_max_loc[min_max_loc < 2] = 2
+    min_max_loc[min_max_loc > n_times -3] = n_times - 3
+
     # move to gpu
     templates = torch.from_numpy(templates).float().cuda()
     spike_train = torch.from_numpy(spike_train).long().cuda()
@@ -211,25 +241,49 @@ def get_cleaned_ptp(templates, spike_train, shifts, scales,
         # min_max_vals_spikes: # spikes x 2 (min/max) x # channels x 5 (-2 to 2 of argmin/argmax)
         # this will get min/max values of cleaned spikes.
         # it will first get residual values and then add templates
-        #min_max_vals_spikes = torch.zeros((len(spike_times), 2, self.N_CHAN, 5)).float().cuda()
-        min_max_vals_spikes = torch.cuda.FloatTensor(len(spike_times_batch), 2, n_channels).fill_(0)
+        #min_max_vals_spikes = torch.cuda.FloatTensor(len(spike_times_batch), 2, n_channels).fill_(0)
+        #for j in range(len(counter)-1):
+        #    ii_start = counter[j]
+        #    ii_end = counter[j+1]
+
+        #    min_max_loc_spikes = (min_max_loc[neuron_ids_batch[ii_start:ii_end]] + 
+        #                          spike_times_batch[ii_start:ii_end, None, None] - n_times//2)
+        #    min_max_vals_spikes[ii_start:ii_end] = torch.gather(
+        #        residual, 0, min_max_loc_spikes.reshape(-1, n_channels)).reshape(
+        #        -1, 2, n_channels)
+
+        #    shifted_templates = residual_comp.get_shifted_templates(
+        #            neuron_ids_batch[ii_start:ii_end], 
+        #            shifts_batch[ii_start:ii_end], 
+        #            scales_batch[ii_start:ii_end])
+        #    min_max_vals_spikes[ii_start:ii_end] += torch.gather(
+        #        shifted_templates, 1, min_max_loc[neuron_ids_batch[ii_start:ii_end]])
+        #ptp_batch = min_max_vals_spikes[:,1] - min_max_vals_spikes[:,0]
+        min_max_vals_spikes = torch.cuda.FloatTensor(len(spike_times_batch), 2, 5, n_channels).fill_(0)
         for j in range(len(counter)-1):
             ii_start = counter[j]
             ii_end = counter[j+1]
 
             min_max_loc_spikes = (min_max_loc[neuron_ids_batch[ii_start:ii_end]] + 
                                   spike_times_batch[ii_start:ii_end, None, None] - n_times//2)
+            min_max_loc_spikes = min_max_loc_spikes[:, :, None] + torch.arange(-2, 3).cuda()[None, None, :, None]
             min_max_vals_spikes[ii_start:ii_end] = torch.gather(
                 residual, 0, min_max_loc_spikes.reshape(-1, n_channels)).reshape(
-                -1, 2, n_channels)
+                -1, 2, 5, n_channels)
 
             shifted_templates = residual_comp.get_shifted_templates(
                     neuron_ids_batch[ii_start:ii_end], 
                     shifts_batch[ii_start:ii_end], 
                     scales_batch[ii_start:ii_end])
+            min_max_loc_spikes = min_max_loc[
+                neuron_ids_batch[ii_start:ii_end]][
+                :, :, None] + torch.arange(-2, 3).cuda()[None, None, :, None]
             min_max_vals_spikes[ii_start:ii_end] += torch.gather(
-                shifted_templates, 1, min_max_loc[neuron_ids_batch[ii_start:ii_end]])
-        ptp_batch = min_max_vals_spikes[:,1] - min_max_vals_spikes[:,0]
+                shifted_templates,
+                1,
+                min_max_loc_spikes.reshape(-1, 10, n_channels)
+            ).reshape(-1, 2, 5, n_channels)
+        ptp_batch = torch.max(min_max_vals_spikes[:,1], 1)[0] - torch.min(min_max_vals_spikes[:,0], 1)[0]
 
         del min_max_loc_spikes
         del min_max_vals_spikes
@@ -305,8 +359,9 @@ def run_split(cleaned_ptp, spike_times_list,
               shifts_list, scales_list, vis_chans,
               templates, spike_train, reader_raw, CONFIG,
               update_original_templates=False,
-              min_ptp_split=5, min_fr_accept=2, min_ptp_accept=100):
-    
+              min_ptp_split=5, min_fr_accept=1,
+              min_ptp_accept=1000, min_fraction_accept=0.2):
+
     n_units, n_times, n_channels = templates.shape
     
     ptp_max = templates.ptp(1).max(1)
@@ -314,7 +369,12 @@ def run_split(cleaned_ptp, spike_times_list,
     min_fr = CONFIG.cluster.min_fr
     len_rec = spike_train[:,0].ptp()/CONFIG.recordings.sampling_rate
     min_data = int(min_fr*len_rec)
-    
+
+    # minimum location of max channel. it is used to align new split templates
+    max_k = templates.ptp(1).max(1).argmax()
+    max_k_mc = templates[max_k].ptp(0).argmax()
+    max_chan_min_loc = templates[max_k, :, max_k_mc].argmin()
+
     new_temps = np.zeros((0, n_times, n_channels), 'float32')
     new_spts = []
     new_shifts = []
@@ -356,9 +416,20 @@ def run_split(cleaned_ptp, spike_times_list,
                     spt_temp = spt_[label == unique_label[ii]]
                     new_temps_k[ii] = reader_raw.read_waveforms(spt_temp)[0].mean(0)
 
+                mcs = new_temps_k.ptp(1).argmax(1)
+                for ii in range(len(unique_label)):
+                    max_chan_min_loc
+                    min_loc_k = new_temps_k[ii, :, mcs[ii]].argmin()
+                    if  min_loc_k != max_chan_min_loc:
+                        spt_temp = spt_[label == unique_label[ii]]
+                        spt_temp -= (max_chan_min_loc - min_loc_k)
+                        new_temps_k[ii] = reader_raw.read_waveforms(spt_temp)[0].mean(0)
+
                 ptp_new = new_temps_k.ptp(1).max(1)
                 idx_keep = np.logical_or(ptp_new > min_ptp_accept,
-                                         n_counts > min_fr_accept*len_rec)
+                                         n_counts > min_fr_accept*len_rec,
+                                         n_counts/np.sum(n_counts) > min_fraction_accept)
+
                 unique_label = unique_label[idx_keep]
 
                 if len(unique_label) <= 1:

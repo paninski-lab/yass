@@ -37,6 +37,7 @@ from yass.reader import READER
 from yass.template import run_cleaned_template_computation, run_template_computation
 from yass.pd_split import run_post_deconv_split
 from yass.template_update import run_template_update
+from yass.deconvolve.utils import shift_svd_denoise
 #from yass.template import update_templates
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
@@ -661,7 +662,6 @@ def final_deconv_with_template_updates(output_directory,
         os.makedirs(forward_directory)
 
     CONFIG = read_config()
-    
     template_update_freq = CONFIG.deconvolution.template_update_time
     update_time = np.arange(run_chunk_sec[0], run_chunk_sec[1], template_update_freq)
     update_time = np.hstack((update_time, run_chunk_sec[1]))
@@ -673,7 +673,7 @@ def final_deconv_with_template_updates(output_directory,
             first_batch = True
         else:
             first_batch = False
-        
+
         # batch time in seconds
         batch_time = [update_time[j], update_time[j+1]]
 
@@ -693,6 +693,7 @@ def final_deconv_with_template_updates(output_directory,
                 recording_dtype,
                 fname_templates_in,
                 batch_time,
+                CONFIG,
                 first_batch)
 
             # save templates and remove all metadata
@@ -709,6 +710,39 @@ def final_deconv_with_template_updates(output_directory,
     if not os.path.exists(backward_directory):
         os.makedirs(backward_directory)
 
+    # adding all split units
+    for j in range(len(update_time)-2, -1, -1):
+        
+        batch_time = [update_time[j], update_time[j+1]]
+        
+        # all required outputs
+        fname_templates_batch = os.path.join(
+            temp_directory,
+            'templates_{}sec.npy'.format(batch_time[0]))
+
+        # input templates
+        fname_templates_in = os.path.join(
+            forward_directory, 'templates_{}_{}_forward.npy'.format(
+                batch_time[0], batch_time[1]))
+        #if False:
+        if j < len(update_time)-2:
+
+            # load current templates and templates in the next batch
+            templates_current_batch = np.load(fname_templates_in)
+            templates_next_batch = np.load(os.path.join(
+                temp_directory, 'templates_{}sec.npy'.format(
+                    update_time[j+1])))
+            
+            # add any new templates in the next batch
+            if templates_current_batch.shape[0] < templates_next_batch.shape[0]:
+                templates_current_batch = np.concatenate(
+                    (templates_current_batch, templates_next_batch[templates_current_batch.shape[0]:]),
+                    axis=0)
+                np.save(fname_templates_batch, templates_current_batch)
+                
+        else:
+            np.save(fname_templates_batch, np.load(fname_templates_in))
+
     # backward deconv
     for j in range(len(update_time)-2, -1, -1):
         
@@ -717,7 +751,7 @@ def final_deconv_with_template_updates(output_directory,
         # all required outputs
         fname_templates_batch = os.path.join(
             temp_directory,
-            'templates_{}_{}.npy'.format(batch_time[0], batch_time[1]))
+            'templates_{}sec.npy'.format(batch_time[0]))
         fname_spike_train_batch = os.path.join(
             backward_directory,
             'spike_train_{}_{}.npy'.format(batch_time[0], batch_time[1]))
@@ -735,27 +769,7 @@ def final_deconv_with_template_updates(output_directory,
             os.path.exists(fname_scales_batch)):            
             continue
 
-        # input templates
-        fname_templates_in = os.path.join(
-            forward_directory, 'templates_{}_{}_forward.npy'.format(
-                batch_time[0], batch_time[1]))
-        #if False:
-        if j < len(update_time)-2:
-            
-            # load current templates and templates in the next batch
-            templates_current_batch = np.load(fname_templates_in)
-            templates_next_batch = np.load(os.path.join(
-                forward_directory, 'templates_{}_{}_forward.npy'.format(
-                    update_time[j+1], update_time[j+2])))
-            
-            # add any new templates in the next batch
-            if templates_current_batch.shape[0] < templates_next_batch.shape[0]:
-                templates_current_batch = np.concatenate(
-                    (templates_current_batch, templates_next_batch[templates_current_batch.shape[0]:]),
-                    axis=0)
-                np.save(fname_templates_batch, templates_current_batch)
-
-        # runr deconv
+        # run deconv
         output_directory_batch = os.path.join(
             backward_directory, 'deconv_{}_{}'.format(batch_time[0], batch_time[1]))
         (fname_templates_,
@@ -829,6 +843,7 @@ def post_deconv_split_merge(output_directory,
                             recording_dtype,
                             fname_templates,
                             run_chunk_sec,
+                            CONFIG,
                             first_batch=False):
 
     # keep track of # of units in
@@ -857,12 +872,8 @@ def post_deconv_split_merge(output_directory,
         recording_dtype,
         dtype_out='float32',
         run_chunk_sec=run_chunk_sec)
-    
+
     # post deconv split
-    if first_batch:
-        update_original_templates = True
-    else:
-        update_original_templates = False
     (fname_templates, 
      fname_spike_train,
      fname_shifts,
@@ -877,33 +888,44 @@ def post_deconv_split_merge(output_directory,
         fname_residual,
         residual_dtype,
         run_chunk_sec[0],
-        update_original_templates)
+        first_batch)
+
+    # deconv 1
+    (fname_templates,
+     fname_spike_train,
+     fname_shifts,
+     fname_scales) = deconvolve.run(
+        fname_templates,
+        os.path.join(output_directory, 'deconv_1'),
+        recording_dir,
+        recording_dtype,
+        run_chunk_sec=run_chunk_sec)
+
+    # residual 1
+    (fname_residual,
+     residual_dtype) = residual.run(
+        fname_shifts,
+        fname_scales,
+        fname_templates,
+        fname_spike_train,
+        os.path.join(output_directory, 'residual_1'),
+        recording_dir,
+        recording_dtype,
+        dtype_out='float32',
+        run_chunk_sec=run_chunk_sec)
 
     if first_batch:
-
-        # deconv 1
-        (fname_templates,
-         fname_spike_train,
-         fname_shifts,
-         fname_scales) = deconvolve.run(
-            fname_templates,
-            os.path.join(output_directory, 'deconv_1'),
-            recording_dir,
-            recording_dtype,
-            run_chunk_sec=run_chunk_sec)
-
-        # residual 1
-        (fname_residual,
-         residual_dtype) = residual.run(
-            fname_shifts,
-            fname_scales,
+        
+        # soft assignment 1
+        fname_noise_soft, fname_template_soft = soft_assignment.run(
             fname_templates,
             fname_spike_train,
-            os.path.join(output_directory, 'residual_1'),
-            recording_dir,
-            recording_dtype,
-            dtype_out='float32',
-            run_chunk_sec=run_chunk_sec)
+            fname_shifts,
+            fname_scales,
+            os.path.join(output_directory,
+                         'soft_assignment_1'),
+            fname_residual,
+            residual_dtype)
 
         #logger.info('Get (partially) Cleaned Templates')
         fname_templates = get_partially_cleaned_templates(
@@ -915,7 +937,21 @@ def post_deconv_split_merge(output_directory,
             recording_dir,
             recording_dtype,
             run_chunk_sec)
-
+        
+        # denoise split units
+        vis_threshold_strong = 1.
+        vis_threshold_weak = 0.5
+        rank = 5
+        pad_len = int(1.5 * CONFIG.recordings.sampling_rate / 1000.)
+        jitter_len = pad_len
+        templates = np.load(fname_templates)
+        templates = shift_svd_denoise(
+            templates, CONFIG,
+            vis_threshold_strong, vis_threshold_weak,
+            rank, pad_len, jitter_len)
+        np.save(fname_templates, templates)
+        templates = None
+        
     else:
         update_weight = 100
         units_to_update = np.arange(n_units_in)
@@ -925,15 +961,20 @@ def post_deconv_split_merge(output_directory,
             fname_shifts, fname_scales,
             fname_residual, residual_dtype, run_chunk_sec[0],
             update_weight, units_to_update)
+        
+        fname_noise_soft = None
+        fname_template_soft = None
 
     # post process kill
     n_units_after_split = np.load(fname_templates).shape[0]
     if first_batch:
         units_to_process = np.arange(n_units_after_split)
+        methods = ['low_fr', 'low_ptp',
+                   'duplicate', 'duplicate_soft_assignment']
     else:
         units_to_process = np.arange(n_units_in, n_units_after_split)
-    methods = ['low_fr', 'low_ptp',
-               'duplicate']
+        methods = ['low_fr', 'low_ptp', 'duplicate']
+    
     (fname_templates, fname_spike_train, 
      fname_noise_soft, fname_shifts, fname_scales)  = postprocess.run(
         methods,
@@ -942,8 +983,8 @@ def post_deconv_split_merge(output_directory,
         None,
         fname_templates,
         fname_spike_train,
-        None,#fname_template_soft,
-        None,#fname_noise_soft,
+        fname_template_soft,
+        fname_noise_soft,
         fname_shifts,
         fname_scales,
         units_to_process)
