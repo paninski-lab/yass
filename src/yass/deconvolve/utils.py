@@ -10,6 +10,7 @@ from scipy.spatial.distance import cdist, pdist, squareform
 from scipy.signal import argrelmin
 from tqdm import tqdm
 
+from yass.geometry import n_steps_neigh_channels
 
 class WaveForms(object):
 
@@ -500,6 +501,7 @@ class TempTempConv(object):
         # Computes if units are spatially overlapping
 
         # align and denoise
+        #neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
         for unit in tqdm(range(n_unit), "....aligning templates and computing SVD."):
             # get vis channels only
             #t = temp[unit, viscs[unit], :]
@@ -780,8 +782,20 @@ def align_templates(temp_, jitter, neigh_chans, ref=None):
     val = val[idx_keep]
 
     # do connecting
-    index_start = val.argmin()
+    #t_diff=10
+    #keep = np.zeros(len(tt), 'bool')
+    #while not np.all(np.in1d(chans_must_in, np.unique(cc[keep]))):
+    #    not_keep_where = np.where(~keep)[0]
+    #    index_start = not_keep_where[val[not_keep_where].argmin()]
+    #    keep = connecting_points(
+    #        np.vstack((tt, cc)).T,
+    #        index_start,
+    #        neigh_chans,
+    #        t_diff,
+    #        keep)
+
     t_diff=10
+    index_start = val.argmin()
     keep = connecting_points(
         np.vstack((tt, cc)).T,
         index_start,
@@ -790,8 +804,11 @@ def align_templates(temp_, jitter, neigh_chans, ref=None):
     cc = cc[keep]
     tt = tt[keep]
     val = val[keep]
-
     vis_chan_keep = np.unique(cc)
+
+    # include all channels with sufficiently large ptps
+    chans_must_in = np.where(np.abs(temp_).max(1) > 1)[0]
+    vis_chan_keep = np.unique(np.hstack((vis_chan_keep, chans_must_in)))
 
     # choose best among survived ones
     best_shifts = np.zeros(n_chans, 'int32')
@@ -861,7 +878,7 @@ def monotonic_edge(align, center_spike_size):
     return align_
 
 def shift_svd_denoise(temp, CONFIG,
-                      vis_threshold_weak, vis_threshold_strong,
+                      vis_threshold_strong, vis_threshold_weak,
                       rank, pad_len, jitter_len):
 
     temp = temp.transpose(0, 2, 1)
@@ -886,11 +903,17 @@ def shift_svd_denoise(temp, CONFIG,
     aligned_temp = np.zeros([n_unit, n_channel, spike_size], dtype=np.float32)
     align_shifts = np.zeros([n_unit, n_channel], dtype=np.int32)
 
+    # allowing two-step difference
+    #neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
     # align and denoise
     for unit in range(n_unit):
         vis_chans = np.where(viscs[unit])[0]
         neigh_chans = CONFIG.neigh_channels[vis_chans][:, vis_chans]
-        align, shifts_, vis_chan_keep = align_templates(temp[unit, viscs[unit]], jitter_len, neigh_chans)
+
+        if np.sum(np.abs(temp[unit, vis_chans])) == 0:
+            continue
+
+        align, shifts_, vis_chan_keep = align_templates(temp[unit, vis_chans], jitter_len, neigh_chans)
 
         # kill any unconnected vis chans
         align = align[vis_chan_keep]
