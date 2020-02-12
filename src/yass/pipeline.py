@@ -890,32 +890,33 @@ def post_deconv_split_merge(output_directory,
         run_chunk_sec[0],
         first_batch)
 
-    # deconv 1
-    (fname_templates,
-     fname_spike_train,
-     fname_shifts,
-     fname_scales) = deconvolve.run(
-        fname_templates,
-        os.path.join(output_directory, 'deconv_1'),
-        recording_dir,
-        recording_dtype,
-        run_chunk_sec=run_chunk_sec)
-
-    # residual 1
-    (fname_residual,
-     residual_dtype) = residual.run(
-        fname_shifts,
-        fname_scales,
-        fname_templates,
-        fname_spike_train,
-        os.path.join(output_directory, 'residual_1'),
-        recording_dir,
-        recording_dtype,
-        dtype_out='float32',
-        run_chunk_sec=run_chunk_sec)
 
     if first_batch:
         
+        # deconv 1
+        (fname_templates,
+         fname_spike_train,
+         fname_shifts,
+         fname_scales) = deconvolve.run(
+            fname_templates,
+            os.path.join(output_directory, 'deconv_1'),
+            recording_dir,
+            recording_dtype,
+            run_chunk_sec=run_chunk_sec)
+
+        # residual 1
+        (fname_residual,
+         residual_dtype) = residual.run(
+            fname_shifts,
+            fname_scales,
+            fname_templates,
+            fname_spike_train,
+            os.path.join(output_directory, 'residual_1'),
+            recording_dir,
+            recording_dtype,
+            dtype_out='float32',
+            run_chunk_sec=run_chunk_sec)
+
         # soft assignment 1
         fname_noise_soft, fname_template_soft = soft_assignment.run(
             fname_templates,
