@@ -50,7 +50,7 @@ recordings:
   spike_size_ms: 5
   # chunks to run clustering on (in seconds)
   # leave blank to run it on full
-  clustering_chunk: [0, 60]
+  clustering_chunk: [0, 300]
   # chunks to run final deconv on (in seconds)
   # leave blank to run it on full
   final_deconv_chunk: #[0, 120]
@@ -107,9 +107,9 @@ cluster:
   # it randomly subsample
   max_n_spikes: 10000
   # knn_triage percentage (0.05 means triage 5%)
-  knn_triage: 0.01
+  knn_triage: 0.05
   # minimum firing rate
-  min_fr: 0.1
+  min_fr: 0.2
   # cluster prior information
   prior:
     beta: 1
@@ -121,13 +121,13 @@ cluster:
 clean_up:
   # absolute maximum difference between two templates
   # to be considered as distinct
-  abs_max_diff: 1.2
+  abs_max_diff: 1.5
   # relative maximum difference (to ptp of larger template)
-  rel_max_diff: 0.12
+  rel_max_diff: 0.1
   # minimum ptp allowed (in standardized unit)
   min_ptp: 2.5
   # minimum firing rates (in Hz)
-  min_fr: 0.1
+  min_fr: 0.2
   # if a template is off centered, it is a gabarage template
   off_center: 5
   mad:
@@ -145,19 +145,19 @@ deconvolution:
     # update templates periodically based on drift model
     update_templates: False
     
-    # drift models: 0-ptp scaling; 1-full template update
-    drift_model: 0
+    ## drift models: 0-ptp scaling; 1-full template update
+    #drift_model: 0
     
     # time batches to update templates (sec)
-    template_update_time: 60
+    template_update_time: 300
     
-    # determine whether new neurons are searched for
-    neuron_discover: False
+    ## determine whether new neurons are searched for
+    #neuron_discover: False
 
-    # time batches to check for new neurons (sec); 
-    # recommend multiple of template_udpate_time
-    neuron_discover_time: 360
+    ## time batches to check for new neurons (sec); 
+    ## recommend multiple of template_udpate_time
+    #neuron_discover_time: 360
     
-    # minimum # of spikes required to split 
-    min_split_spikes: 50
+    ## minimum # of spikes required to split 
+    #min_split_spikes: 50
     
