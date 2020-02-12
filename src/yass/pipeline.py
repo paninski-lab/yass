@@ -724,6 +724,7 @@ def final_deconv_with_template_updates(output_directory,
         fname_templates_in = os.path.join(
             forward_directory, 'templates_{}_{}_forward.npy'.format(
                 batch_time[0], batch_time[1]))
+
         #if False:
         if j < len(update_time)-2:
 
@@ -738,7 +739,7 @@ def final_deconv_with_template_updates(output_directory,
                 templates_current_batch = np.concatenate(
                     (templates_current_batch, templates_next_batch[templates_current_batch.shape[0]:]),
                     axis=0)
-                np.save(fname_templates_batch, templates_current_batch)
+            np.save(fname_templates_batch, templates_current_batch)
                 
         else:
             np.save(fname_templates_batch, np.load(fname_templates_in))
