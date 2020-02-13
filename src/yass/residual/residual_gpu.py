@@ -420,17 +420,16 @@ class RESIDUAL_GPU2(object):
             time_offsets = torch.from_numpy(time_offsets).float().cuda()
             scales = torch.from_numpy(scales).float().cuda()
 
-        obj = torch.cuda.FloatTensor(self.n_chan, len(template_ids)*self.waveform_len).fill_(0)
-        #obj = torch.zeros(self.n_chan, len(template_ids)*self.waveform_len).float().cuda()
-        times = torch.arange(0, len(template_ids)*self.waveform_len, self.waveform_len).long().cuda()
+        obj = torch.cuda.FloatTensor(self.n_chan, len(template_ids)*self.waveform_len+10).fill_(0)
+        times = torch.arange(0, len(template_ids)*self.waveform_len, self.waveform_len).long().cuda() + 5
         deconv.subtract_splines(obj,
                                 times,
                                 time_offsets,
                                 template_ids,
                                 self.coefficients, 
                                 self.tempScaling*scales)
-        obj = -obj.reshape((self.n_chan, len(template_ids), self.waveform_len))
-
+        obj = -obj[:,5:-5].reshape((self.n_chan, len(template_ids), self.waveform_len))
+        
         del template_ids
         del time_offsets
         del times

@@ -143,15 +143,15 @@ class SOFTNOISEASSIGNMENT(object):
         for j in range(len(idx_run)-1):
             ii_start = idx_run[j]
             ii_end = idx_run[j+1]
-            obj = torch.zeros(self.n_neigh_chans, (ii_end-ii_start)*n_times).cuda()
-            times = torch.arange(0, (ii_end-ii_start)*n_times, n_times).long().cuda()
+            obj = torch.zeros(self.n_neigh_chans, (ii_end-ii_start)*n_times + 10).cuda()
+            times = torch.arange(0, (ii_end-ii_start)*n_times, n_times).long().cuda() + 5
             deconv.subtract_splines(obj,
                                     times,
                                     shifts[ii_start:ii_end],
                                     temp_ids[ii_start:ii_end],
                                     self.coeffs, 
                                     scales[ii_start:ii_end])
-            obj = obj.reshape((self.n_neigh_chans, (ii_end-ii_start), n_times))
+            obj = obj[:, 5:-5].reshape((self.n_neigh_chans, (ii_end-ii_start), n_times))
             shifted_templates[ii_start:ii_end] = obj.transpose(0,1).transpose(1,2)
     
         return shifted_templates
