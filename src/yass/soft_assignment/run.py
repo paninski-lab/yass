@@ -49,10 +49,6 @@ def run(template_fname,
     fname_template_soft = os.path.join(
         output_directory, 'template_soft_assignment.npz')
     
-    # HACK now.. it needs a proper fix later
-    if update_templates:
-        template_fname = os.path.join(template_fname, 'templates_init.npy')
-
     # output folder
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -61,7 +57,7 @@ def run(template_fname,
     reader_resid = READER(residual_fname,
                           residual_dtype,
                           CONFIG,
-                          CONFIG.resources.n_sec_chunk_gpu_deconv/40,
+                          CONFIG.resources.n_sec_chunk_gpu_deconv,
                           offset=residual_offset)
 
     # load NN detector
@@ -79,7 +75,11 @@ def run(template_fname,
     if compute_noise_soft and (not os.path.exists(fname_noise_soft)):
         # initialize soft assignment calculator
         threshold = CONFIG.deconvolution.threshold/0.1
-        sna = SOFTNOISEASSIGNMENT(spike_train_fname, template_fname, shifts_fname, scales_fname,
+
+        # HACK now.. it needs a proper fix later
+        if update_templates:
+            template_fname_ = os.path.join(template_fname, 'templates_init.npy')
+        sna = SOFTNOISEASSIGNMENT(spike_train_fname, template_fname_, shifts_fname, scales_fname,
                                   reader_resid, detector, CONFIG.channel_index, threshold)
 
         # compuate soft assignment
@@ -107,7 +107,7 @@ def run(template_fname,
         reader_resid = READER(residual_fname,
                               residual_dtype,
                               CONFIG,
-                              CONFIG.resources.n_sec_chunk_gpu_deconv/100,
+                              CONFIG.resources.n_sec_chunk_gpu_deconv,
                               offset=residual_offset)
 
         TAO = TEMPLATE_ASSIGN_OBJECT(
@@ -124,16 +124,22 @@ def run(template_fname,
             rec_chans = CONFIG.channel_index.shape[0], 
             sim_units = 3, 
             temp_thresh = 5, 
-            lik_window = window_size)
+            lik_window = window_size,
+            update_templates=update_templates,
+            template_update_time=CONFIG.deconvolution.template_update_time)
 
         probs_templates, _, logprobs_outliers, units_assignment = TAO.run()
         #outlier spike times/units
-        cpu_sps = TAO.spike_train.cpu().numpy()
         chi2_df = (2*(window_size //2) + 1)*n_chans
         cut_off = chi2(chi2_df).ppf(.999)
-        outliers = cpu_sps[np.where(TAO.log_probs.min(1) > cut_off)[0], :]
-        s_table = s_score(_)
+
+        #s_table = s_score(_)
+        s_table = s_score(probs_templates)
         logprobs_outliers = logprobs_outliers/chi2_df
+
+        cpu_sps = TAO.spike_train_og
+        outliers = cpu_sps[np.where(logprobs_outliers.min(1) > cut_off)[0], :]
+
         #append log_probs to spike_times
         #logprobs = np.concatenate((cpu_sps,TAO.log_probs), axis = 1)
         # compuate soft assignment

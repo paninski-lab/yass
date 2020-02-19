@@ -139,7 +139,7 @@ class SOFTNOISEASSIGNMENT(object):
 
         idx_run = np.hstack((np.arange(0, len(shifts), n_sample_run), len(shifts)))
 
-        shifted_templates = torch.zeros((len(shifts), n_times, self.n_neigh_chans)).cuda()
+        shifted_templates = torch.cuda.FloatTensor(len(shifts), n_times, self.n_neigh_chans).fill_(0)
         for j in range(len(idx_run)-1):
             ii_start = idx_run[j]
             ii_end = idx_run[j+1]
