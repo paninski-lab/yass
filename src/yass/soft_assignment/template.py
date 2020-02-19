@@ -84,7 +84,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.get_similar()
         self.exclude_large_units(large_unit_threshold)
         #self.spike_train = self.spike_train[np.asarray(list(self.idx_included)).astype("int16"), :]
-        self.test = np.in1d(self.spike_train_og[:, 1], np.asarray(list(self.units_in)))
+        #self.test = np.in1d(self.spike_train_og[:, 1], np.asarray(list(self.units_in)))
 
         t_start_include = self.n_times//2 + reader_residual.offset
         t_end_include = reader_residual.rec_len -  self.n_times//2 + reader_residual.offset
@@ -113,13 +113,10 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.aligned_template_list.append(self.templates_aligned)
         self.coeff_list.append(self.get_bspline_coeffs(self.templates_aligned))
 
-        #get aligned templates
-        
-        
+        #get aligned templatess
         self.move_to_torch()
-        self.chans = np.asarray([np.argsort(self.templates[unit].ptp(0))[::-1][:self.n_chans] for unit in range(self.n_units)])
-        self.chans = torch.from_numpy(self.chans)
         self.get_kronecker()
+
     def get_residual_variance(self):
         num = int(60/self.reader_residual.n_sec_chunk)
         var_array = np.zeros(num)
@@ -264,7 +261,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.templates_aligned = [torch.from_numpy(element).float().cuda() for element in self.aligned_template_list]
         self.spike_train = torch.from_numpy(self.spike_train).long().cuda()
         self.shifts = torch.from_numpy(self.shifts).float().cuda()
-        
+        self.chans = torch.from_numpy(self.chans)
         self.mcs = torch.from_numpy(self.mcs)
         
     def get_bspline_coeffs(self,  template_aligned):
@@ -329,6 +326,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
 
                 if len(idx_in) == 0:
                     continue
+
                 spike_train_batch = self.spike_train[idx_in] 
                 spike_train_batch[:, 0] -= offsets[batch_id]
                 shift_batch = self.shifts[idx_in]
