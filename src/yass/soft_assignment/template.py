@@ -242,6 +242,9 @@ class TEMPLATE_ASSIGN_OBJECT(object):
     def subtract_template(self, primary_unit, neighbor_unit):
         primary_unit_shift = self.temp_shifts[primary_unit]
         shifted = self.shift_template(self.templates[neighbor_unit], primary_unit_shift)
+        add_shift = np.argmin(self.templates_aligned[primary_unit,:, 0]) - np.argmin(shifted[ :, self.chans[primary_unit][0]])
+        shifted = self.shift_template(shifted, -add_shift)
+
         return self.templates_aligned[primary_unit] - shifted[:, self.chans[primary_unit]]
             
     def exclude_large_units(self, threshold):
