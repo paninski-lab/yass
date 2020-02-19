@@ -110,8 +110,8 @@ def run_post_deconv_split(output_directory,
             templates, spike_train, reader_raw,
             CONFIG,
             update_original_templates=update_original_templates,
-            min_fr_accept=min_fr_accept,
             min_ptp_accept=min_ptp_accept,
+            min_fr_accept=min_fr_accept,
             min_fraction_accept=min_fraction_accept)
 
         # denoise split units
@@ -359,8 +359,9 @@ def run_split(cleaned_ptp, spike_times_list,
               shifts_list, scales_list, vis_chans,
               templates, spike_train, reader_raw, CONFIG,
               update_original_templates=False,
-              min_ptp_split=5, min_fr_accept=1,
-              min_ptp_accept=1000, min_fraction_accept=0.2):
+              min_ptp_split=5, min_fr_split=1,
+              min_ptp_accept=1000, min_fr_accept=1,
+              min_fraction_accept=0.2):
 
     n_units, n_times, n_channels = templates.shape
     
@@ -381,9 +382,10 @@ def run_split(cleaned_ptp, spike_times_list,
     new_scales = []
     for k in tqdm(range(len(cleaned_ptp))):
 
-        if ptp_max[k] > min_ptp_split:
+        spt_ = spike_times_list[k]
 
-            spt_ = spike_times_list[k]
+        if (ptp_max[k] > min_ptp_split) and (len(spt_) > len_rec*min_fr_split):
+
             shifts_ = shifts_list[k]
             scales_ = scales_list[k]
 
