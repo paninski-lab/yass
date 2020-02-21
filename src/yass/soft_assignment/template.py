@@ -55,7 +55,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
     def __init__(self, fname_spike_train, fname_templates, fname_shifts,
                  reader_residual, spat_cov, temp_cov, channel_idx, geom,
                  large_unit_threshold = 5, n_chans = 5, rec_chans = 512,
-                 sim_units = 3, temp_thresh= np.inf, lik_window = 50,
+                 sim_units = 3, similar_array = None, temp_thresh= np.inf, lik_window = 50,
                  update_templates=False, template_update_time=None):
 
         #get the variance of the residual:        
@@ -92,7 +92,12 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         #get residual variance 
         #self.get_residual_variance()
 
-        self.get_similar()
+        if similar_array is None:
+            self.similar_array = get_similar_array(self.templates,
+                                                   self.sim_units)
+        else:
+            self.similar_array = similar_array
+        self.compute_units_in()
         self.exclude_large_units(large_unit_threshold)
         #self.spike_train = self.spike_train[np.asarray(list(self.idx_included)).astype("int16"), :]
         #self.test = np.in1d(self.spike_train_og[:, 1], np.asarray(list(self.units_in)))
@@ -105,10 +110,11 @@ class TEMPLATE_ASSIGN_OBJECT(object):
             np.in1d(self.spike_train_og[:, 1], np.asarray(list(self.units_in))))
         self.spike_train = self.spike_train_og[self.idx_included]
         self.shifts = self.shifts[self.idx_included]
-        self.chans = np.asarray(
-            [np.argsort(self.templates[unit].ptp(0))[::-1][:self.n_chans]
-             for unit in range(self.n_units)])
 
+        # get channels for each comparisons
+        self.get_chans()
+
+        #
         self.preprocess_spike_times()
 
         #get aligned templatess
@@ -116,6 +122,25 @@ class TEMPLATE_ASSIGN_OBJECT(object):
 
         self.get_kronecker()
         
+        if not self.update_templates:
+            self.get_template_data()
+
+    def get_chans(self):
+
+        ptps = self.templates.ptp(1)
+        mcs = ptps.argmax(1)
+
+        #
+        self.chans = np.zeros((self.n_units, self.n_chans), 'int32')
+        # first channel is always the max channel of the ref unit
+        self.chans[:, 0] = mcs
+
+        # for the rest, pick the largest
+        for unit in range(self.n_units):
+            chans_sorted = np.argsort(ptps[self.similar_array[unit]].max(0))[::-1]
+            chans_sorted = chans_sorted[chans_sorted != mcs[unit]]
+            self.chans[unit, 1:] = chans_sorted[:(self.n_chans-1)]
+
     def get_template_data(self):
         
         self.aligned_template_list = []
@@ -159,18 +184,18 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.cov_list = np.asarray(self.cov_list)
         self.cov_list = torch.from_numpy(self.cov_list).half().cuda()
     
-    def get_similar(self):
+    def compute_units_in(self):
 
         ptps = self.templates.ptp(1)
         ptps[ptps<0.5] = 0
-        see = dist.squareform(dist.pdist(ptps))
-        self.similar_array = np.zeros((self.n_units, self.sim_units)).astype("int16")
+        # only compare when similar units are similar enough
         for i in range(self.n_units):
             if ptps[i].max() > 0:
-                self.similar_array[i] = np.argsort(see[i])[:self.sim_units]
                 norm = np.sqrt(np.sum(np.square(ptps[i])))
-                if np.sort(see[i])[:self.sim_units][1]/norm < self.temp_thresh:
+                dist = np.sqrt(np.sum(np.square(ptps[self.similar_array[i]] - ptps[i]), 1))
+                if np.sort(dist)[1]/norm < self.temp_thresh:
                     self.units_in.add(i)
+
     '''
     def get_similar(self):
         max_time = self.templates.argmax(1).astype("int16")
@@ -244,7 +269,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
             return_templates[k, :, :len(self.chans[k])] = self.templates[k,:,self.chans[k]].T
         
         # add buffer for alignment
-        buffer_size  = np.max(self.temp_shifts)
+        buffer_size  = np.max(np.abs(self.temp_shifts))
         
         if buffer_size > 0:
             buffer = np.zeros((self.n_units, buffer_size, self.n_chans))
@@ -459,3 +484,23 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         replace_log[self.idx_included, :] = log_probs
         
         return replace_probs, probs, replace_log, unit_assignment
+
+def get_similar_array(templates, sim_units):
+
+    n_units = templates.shape[0]
+    ptps = templates.ptp(1)
+    ptps[ptps<0.5] = 0
+    see = dist.squareform(dist.pdist(ptps))
+
+    similar_array = np.zeros((n_units, sim_units)).astype("int16")
+    for i in range(n_units):
+        mc = ptps[i].argmax()
+        if ptps[i, mc] > 0:
+            candidates = np.where(ptps[:, mc] > 0)[0]
+            if len(candidates) >= sim_units:
+                similar_array[i] = candidates[
+                    np.argsort(see[i, candidates])][:sim_units]
+            elif len(candidates) > 0:
+                similar_array[i, :len(candidates)] = candidates
+
+    return similar_array

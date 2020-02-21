@@ -36,8 +36,8 @@ def run(template_fname,
         residual_offset=0,
         compute_noise_soft=True,
         compute_template_soft=True,
-        update_templates=False
-       ):
+        update_templates=False,
+        similar_array=None):
 
     logger = logging.getLogger(__name__)
 
@@ -79,6 +79,8 @@ def run(template_fname,
         # HACK now.. it needs a proper fix later
         if update_templates:
             template_fname_ = os.path.join(template_fname, 'templates_init.npy')
+        else:
+            template_fname_ = template_fname
         sna = SOFTNOISEASSIGNMENT(spike_train_fname, template_fname_, shifts_fname, scales_fname,
                                   reader_resid, detector, CONFIG.channel_index, threshold)
 
@@ -111,20 +113,21 @@ def run(template_fname,
                               offset=residual_offset)
 
         TAO = TEMPLATE_ASSIGN_OBJECT(
-            fname_spike_train = spike_train_fname, 
-            fname_templates = template_fname, 
-            fname_shifts = shifts_fname,
-            reader_residual = reader_resid,
-            spat_cov = spatial_cov,
-            temp_cov = temporal_cov,
-            channel_idx = CONFIG.channel_index, 
-            geom = CONFIG.geom,
-            large_unit_threshold = 100000,
-            n_chans = n_chans,
-            rec_chans = CONFIG.channel_index.shape[0], 
-            sim_units = 3, 
-            temp_thresh = 5, 
-            lik_window = window_size,
+            fname_spike_train=spike_train_fname, 
+            fname_templates=template_fname, 
+            fname_shifts=shifts_fname,
+            reader_residual=reader_resid,
+            spat_cov=spatial_cov,
+            temp_cov=temporal_cov,
+            channel_idx=CONFIG.channel_index, 
+            geom=CONFIG.geom,
+            large_unit_threshold=100000,
+            n_chans=n_chans,
+            rec_chans=CONFIG.channel_index.shape[0], 
+            sim_units=3, 
+            temp_thresh=5, 
+            lik_window=window_size,
+            similar_array=similar_array,
             update_templates=update_templates,
             template_update_time=CONFIG.deconvolution.template_update_time)
 
@@ -134,8 +137,8 @@ def run(template_fname,
         cut_off = chi2(chi2_df).ppf(.999)
 
         #s_table = s_score(_)
-        s_table = s_score(probs_templates)
-        logprobs_outliers = logprobs_outliers/chi2_df
+        #s_table = s_score(probs_templates)
+        #logprobs_outliers = logprobs_outliers/chi2_df
 
         cpu_sps = TAO.spike_train_og
         outliers = cpu_sps[np.where(logprobs_outliers.min(1) > cut_off)[0], :]
@@ -151,8 +154,8 @@ def run(template_fname,
         np.savez(fname_template_soft,
                  probs_templates=probs_templates,
                  units_assignment=units_assignment,
-                 logprobs = _,
-                 sihoulette_score = s_table, 
+                 #logprobs = _,
+                 #sihoulette_score = s_table, 
                  logprobs_outliers=logprobs_outliers,
                  outliers=outliers
                 )
