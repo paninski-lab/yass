@@ -560,7 +560,7 @@ def final_deconv(TMP_FOLDER,
         **********************************************
     '''
 
-    update_templates = CONFIG.deconvolution.update_templates,
+    update_templates = CONFIG.deconvolution.update_templates
     run_chunk_sec = CONFIG.final_deconv_chunk
     generate_phy = CONFIG.resources.generate_phy
         
