@@ -24,11 +24,15 @@ data:
     stimulus:
       type: string
       required: False
-      default: None
+      default:
     triggers:
       type: string
       required: False
-      default: None
+      default:
+    initial_templates:
+      type: string
+      required: False
+      default:
 
 resources:
   type: dict

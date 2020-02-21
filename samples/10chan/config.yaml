@@ -13,7 +13,15 @@ data:
   # separated by spaces) or a npy file with shape (n_channels, 2),
   # where every row contains a x, y pair. see yass.geometry.parse for details
   geometry: geom.txt
-
+  # if you have an initial templates, then yass will skip clustering stage and
+  # run the final deconvolution step.
+  # make sure that it is a .npy file 
+  # with shape (# neurons x # temporal length x # channels)
+  # temporal length should be the same as recordings.spike_size_ms*recordings.sampling_rate: 20000
+  # channels equals to recordings.n_channels
+  # Also make sure the scale (or the unit) of the voltage trace is 
+  # the same as yass-preprocessed voltage units. (recommend using yass output templates)
+  initial_templates:
 
 resources:
   # CPU multi-processing flag: 1 = use multiple cores
