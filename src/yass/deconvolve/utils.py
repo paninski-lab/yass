@@ -467,6 +467,7 @@ class TempTempConv(object):
         n_unit, n_channel, n_time = temp.shape
         self.n_unit = n_unit
         spike_size = temp.shape[2] + 2 * pad_len - 2 * jitter_len
+
         # We will need this information down the line when compute residual templates
         max_ptp_unit = temp.ptp(2).max(1).argmax()
         max_ptp_unit_main_chan = temp[max_ptp_unit].ptp(1).argmax()
@@ -518,7 +519,9 @@ class TempTempConv(object):
 
             vis_chans = np.where(viscs[unit])[0]
             neigh_chans = CONFIG.neigh_channels[vis_chans][:, vis_chans]
-            align, shifts_, vis_chan_keep = align_templates(temp[unit, viscs[unit]], jitter_len, neigh_chans)
+            align, shifts_, vis_chan_keep = align_templates(
+                temp[unit, viscs[unit]], jitter_len,
+                neigh_chans, min_loc_ref=min_loc_orig+pad_len)
 
             # kill any unconnected vis chans
             align = align[vis_chan_keep]
@@ -752,12 +755,16 @@ def temp_temp_partial(
     return temp_temp
 
 
-def align_templates(temp_, jitter, neigh_chans, ref=None):
+def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
 
     n_chans, n_time = temp_.shape
     if ref is None:
         main_c = temp_.ptp(1).argmax()
-        ref = temp_[main_c][jitter:-jitter]
+        ref = temp_[main_c]
+        if min_loc_ref is not None:
+            min_loc = ref.argmin()
+            ref = np.roll(ref, min_loc_ref-min_loc)
+        ref = ref[jitter:-jitter]
 
     n_time_small = n_time - 2 * jitter
 
@@ -903,6 +910,7 @@ def shift_svd_denoise(temp, CONFIG,
     aligned_temp = np.zeros([n_unit, n_channel, spike_size], dtype=np.float32)
     align_shifts = np.zeros([n_unit, n_channel], dtype=np.int32)
 
+    # get the min location of the largest unit and align all to that.
     # allowing two-step difference
     #neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
     # align and denoise
@@ -913,7 +921,9 @@ def shift_svd_denoise(temp, CONFIG,
         if np.sum(np.abs(temp[unit, vis_chans])) == 0:
             continue
 
-        align, shifts_, vis_chan_keep = align_templates(temp[unit, vis_chans], jitter_len, neigh_chans)
+        align, shifts_, vis_chan_keep = align_templates(
+            temp[unit, vis_chans], jitter_len,
+            neigh_chans, min_loc_ref=min_loc_orig+pad_len)
 
         # kill any unconnected vis chans
         align = align[vis_chan_keep]
