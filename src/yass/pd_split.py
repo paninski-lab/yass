@@ -100,7 +100,7 @@ def run_post_deconv_split(output_directory,
             min_fraction_accept = 0
         else:
             update_original_templates = False
-            min_fr_accept = 1
+            min_fr_accept = 0.5
             min_ptp_accept = 10000
             min_fraction_accept = 0.15
         (templates_updated, spike_train_updated,
