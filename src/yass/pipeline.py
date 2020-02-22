@@ -747,6 +747,15 @@ def final_deconv_with_template_updates_v2(output_directory,
             np.save(fname_templates_batch, np.load(fname_templates_in))
 
     # backward deconv
+
+    # this makes sure that it computes the soft assignment
+    # using the same units across different batches
+    fname_temp = os.path.join(
+        backward_directory, 'templates_{}sec.npy'.format(
+            update_time[0]))
+    sim_array_soft_assignment = get_similar_array(
+        np.load(fname_temp), 3)
+
     for j in range(len(update_time)-2, -1, -1):
 
         batch_time = [update_time[j], update_time[j+1]]
@@ -778,12 +787,6 @@ def final_deconv_with_template_updates_v2(output_directory,
         fname_templates_in = os.path.join(
             backward_directory, 'templates_{}sec.npy'.format(
                 batch_time[0]))
-
-        # this makes sure that across different batches, it computes the soft assignment
-        # using the same units
-        if j == len(update_time)-2:
-            sim_array_soft_assignment = get_similar_array(
-                np.load(fname_templates_in), 3)
 
         output_directory_batch = os.path.join(
             backward_directory, 'deconv_{}_{}'.format(
