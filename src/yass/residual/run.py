@@ -145,7 +145,7 @@ def residual_ONgpu(recordings_filename,
                    fname_spike_train,
                    update_templates,
                    run_chunk_sec):
-        
+    print(np.load(fname_templates).shape)
     # get data reader
     if run_chunk_sec == 'full':
         chunk_sec = None

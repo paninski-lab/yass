@@ -240,7 +240,9 @@ def get_noise_covariance(reader, CONFIG):
     # spatial covariance
     spatial_cov_all = np.divide(np.matmul(noised_killed.T, noised_killed),
                         np.matmul(is_noise_idx.T, is_noise_idx))
+    print(spatial_cov_all)
     sig = np.sqrt(np.diag(spatial_cov_all))
+    print(sig)
     sig[sig == 0] = 1
     spatial_cov_all = spatial_cov_all/(sig[:,None]*sig[None])
 
@@ -249,7 +251,7 @@ def get_noise_covariance(reader, CONFIG):
     cov_by_dist = np.zeros(len(chan_dist_unique))
     for ii, d in enumerate(chan_dist_unique):
         cov_by_dist[ii] = np.mean(spatial_cov_all[chan_dist == d])
-    dist_in = cov_by_dist > 0.1
+    dist_in = cov_by_dist > 0
     chan_dist_unique = chan_dist_unique[dist_in]
     cov_by_dist = cov_by_dist[dist_in]
     spatial_cov = np.vstack((cov_by_dist, chan_dist_unique)).T

@@ -5,6 +5,8 @@ import scipy, scipy.signal
 import parmap
 from scipy.interpolate import splrep, splev, make_interp_spline, splder, sproot, interp1d
 from tqdm import tqdm
+import warnings
+warnings.filterwarnings("ignore")
 
 # doing imports inside module until travis is fixed
 # Cat: TODO: move these to the top once Peter's workstation works
@@ -342,7 +344,7 @@ class deconvGPU(object):
         # get all spike times and neuron ids
         spike_times = torch.cat(self.spike_array)
         neuron_ids = torch.cat(self.neuron_array)
-        spike_train = torch.stack((spike_times, neuron_ids), axis=1).cpu().numpy()
+        spike_train = torch.stack((spike_times, neuron_ids), dim=1).cpu().numpy()
 
         # fix spike times
         spike_train[:, 0] = spike_train[:,0] + self.STIME//2 - (2 * self.jitter_diff)

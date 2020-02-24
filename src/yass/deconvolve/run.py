@@ -3,7 +3,8 @@ import logging
 import numpy as np
 import parmap
 import scipy
-
+import warnings
+warnings.filterwarnings("ignore")
 import datetime as dt
 from tqdm import tqdm
 import torch

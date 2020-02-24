@@ -13,7 +13,8 @@ from scipy import signal
 from yass import read_config
 from yass.reader import READER
 from yass.util import absolute_path_to_asset
-
+import warnings
+warnings.filterwarnings("ignore")
 class Geometry(object):
     """Geometry Object for finidng closest channels."""
     def __init__(self, geometry):
@@ -356,7 +357,6 @@ def run_template_computation(
             tmp_folder,
             "template_unit_{}.npy".format(unit)))
 
-    #
     if spike_size is None:
         spike_size = reader.spike_size
     
@@ -370,13 +370,14 @@ def run_template_computation(
                        processes=n_processors,
                        pm_pbar=True)
     else:
-        for ctr in unit_ids:
+        for i, ctr in enumerate(unit_ids):
             run_template_computation_parallel(
+                ctr,
+                fnames_out[i],
                 fname_spike_train,
-                fnames_out[ctr],
                 reader,
                 spike_size)
-
+    print("YAYYYYYY DONE ")
     # gather all info
     templates_new = np.zeros((n_units, spike_size, reader.n_channels),
                              'float32')

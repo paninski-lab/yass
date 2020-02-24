@@ -9,7 +9,8 @@ from scipy.spatial.transform import Rotation
 from scipy.spatial.distance import cdist, pdist, squareform
 from scipy.signal import argrelmin
 from tqdm import tqdm
-
+import warnings
+warnings.filterwarnings("ignore")
 from yass.geometry import n_steps_neigh_channels
 
 class WaveForms(object):
@@ -613,7 +614,9 @@ class TempTempConv(object):
                 for j in range(n_unit):
                     if isinstance(temp_temp[i][j], np.ndarray):
                         #temp temp exists
-                        zero_padded_temp_temp[i, j, u_shift:u_shift+temp_temp_len[i, j]] = temp_temp[i][j]
+                        if np.sum(temp_temp[i][j] == 0):
+                            u_shift = 0
+                        zero_padded_temp_temp[i, j, u_shift:(u_shift+len(temp_temp[i][j]))] = temp_temp[i][j]
             #if len(temp_temp_fname) > 0:
             #    np.save(temp_temp_fname, zero_padded_temp_temp)
         #else:
@@ -880,7 +883,7 @@ def monotonic_edge(align, center_spike_size):
 def shift_svd_denoise(temp, CONFIG,
                       vis_threshold_strong, vis_threshold_weak,
                       rank, pad_len, jitter_len):
-
+    print("problem starts here")
     temp = temp.transpose(0, 2, 1)
 
     n_unit, n_channel, n_time = temp.shape
@@ -891,7 +894,7 @@ def shift_svd_denoise(temp, CONFIG,
 
     # Zero padding is done to allow a lot of jitter for alignment purposes
     temp = np.pad(temp, ((0, 0), (0, 0), (pad_len, pad_len)), 'constant')
-
+    print("we're still good")
     viscs = continuous_visible_channels(
         temp, CONFIG.geom,
         threshold=vis_threshold_weak, neighb_threshold=vis_threshold_strong)

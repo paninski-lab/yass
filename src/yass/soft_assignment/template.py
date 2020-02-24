@@ -35,7 +35,7 @@ def get_cov_matrix(spat_cov, geom):
     dist_matrix = dist.squareform(dist.pdist(geom ))
 
     cov_matrix = np.zeros((posistion.shape[0], posistion.shape[0]))
-
+    print(spat_cov)
     for i in range(posistion.shape[0]):
         for j in range(posistion.shape[0]):
             if dist_matrix[i, j] > np.max(spat_cov[:, 1]):
@@ -355,15 +355,6 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                     temp = torch.matmul(unraveled[:, None, :].half(), cov_array.half())
                     result = torch.matmul( temp, unraveled[:, :, None].half())
                     logs[:, i] = result.reshape(-1)
-                    '''
-                    log_vec = parmap.map(get_liklihood, zip(unit_idx, clean_wfs[i]) , pm_processes=6)
-                    logs[:, i] = np.asarray(log_vec)
-                    '''
-                    '''
-                    for j, spike in enumerate(clean_wfs[i]):
-                        rel_unit = self.similar_array[unit_idx[j]][i]
-                        logs[j, i]= self.get_liklihood(rel_unit, spike)
-                    '''
                 log_probs[idx_in] = logs
 
                 pbar.update()
