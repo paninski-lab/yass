@@ -39,6 +39,7 @@ from yass.pd_split import run_post_deconv_split
 from yass.template_update import run_template_update
 from yass.deconvolve.utils import shift_svd_denoise
 #from yass.template import update_templates
+from yass.deconvolve.full_template_track import full_rank_update
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
                        human_readable_time)
@@ -636,7 +637,8 @@ def final_deconv_with_template_updates(output_directory,
                                        recording_dtype,
                                        fname_templates_in,
                                        run_chunk_sec,
-                                       remove_meta_data=True):
+                                       remove_meta_data=True, 
+                                       full_rank = True):
     
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -666,6 +668,16 @@ def final_deconv_with_template_updates(output_directory,
     update_time = np.arange(run_chunk_sec[0], run_chunk_sec[1], template_update_freq)
     update_time = np.hstack((update_time, run_chunk_sec[1]))
 
+    if full_rank:
+        reader = READER(recording_dir,
+                              recording_dtype,
+                              CONFIG,
+                              CONFIG.resources.n_sec_chunk_gpu_deconv)
+
+        full_rank_track = deconvolve.full_template_track.RegressionTemplates(reader, CONFIG, forward_directory)
+    else:
+        full_rank_track = None
+
     # forward deconv
     for j in range(len(update_time)-1):
 
@@ -694,7 +706,8 @@ def final_deconv_with_template_updates(output_directory,
                 fname_templates_in,
                 batch_time,
                 CONFIG,
-                first_batch)
+                first_batch, 
+                full_rank_track)
 
             # save templates and remove all metadata
             np.save(fname_templates_out, np.load(fname_templates_))
@@ -845,7 +858,8 @@ def post_deconv_split_merge(output_directory,
                             fname_templates,
                             run_chunk_sec,
                             CONFIG,
-                            first_batch=False):
+                            first_batch=False, 
+                            full_rank = None):
 
     # keep track of # of units in
     n_units_in = np.load(fname_templates).shape[0]
@@ -893,7 +907,7 @@ def post_deconv_split_merge(output_directory,
 
 
     if first_batch:
-        
+        print("got here")
         # deconv 1
         (fname_templates,
          fname_spike_train,
@@ -904,7 +918,7 @@ def post_deconv_split_merge(output_directory,
             recording_dir,
             recording_dtype,
             run_chunk_sec=run_chunk_sec)
-
+        print("got the residual")
         # residual 1
         (fname_residual,
          residual_dtype) = residual.run(
@@ -917,7 +931,7 @@ def post_deconv_split_merge(output_directory,
             recording_dtype,
             dtype_out='float32',
             run_chunk_sec=run_chunk_sec)
-
+        print("got soft assignment")
         # soft assignment 1
         fname_noise_soft, fname_template_soft = soft_assignment.run(
             fname_templates,
@@ -928,7 +942,9 @@ def post_deconv_split_merge(output_directory,
                          'soft_assignment_1'),
             fname_residual,
             residual_dtype)
-
+        
+        #if not (full_rank is None):
+        #    fname_templates = full_rank_update(os.path.join(output_directory, 'clean_templates_1'), full_rank, run_chunk_sec, fname_spike_train, fname_templates)
         #logger.info('Get (partially) Cleaned Templates')
         fname_templates = get_partially_cleaned_templates(
             os.path.join(output_directory, 'clean_templates_1'),
@@ -939,7 +955,8 @@ def post_deconv_split_merge(output_directory,
             recording_dir,
             recording_dtype,
             run_chunk_sec)
-        
+        print("partially cleaned")
+        '''
         # denoise split units
         vis_threshold_strong = 1.
         vis_threshold_weak = 0.5
@@ -947,23 +964,29 @@ def post_deconv_split_merge(output_directory,
         pad_len = int(1.5 * CONFIG.recordings.sampling_rate / 1000.)
         jitter_len = pad_len
         templates = np.load(fname_templates)
+        print(templates.shape)
         templates = shift_svd_denoise(
             templates, CONFIG,
             vis_threshold_strong, vis_threshold_weak,
             rank, pad_len, jitter_len)
         np.save(fname_templates, templates)
         templates = None
-        
+        print("Denoised the templates yayyyy")
+        '''
     else:
-        update_weight = 100
-        units_to_update = np.arange(n_units_in)
-        fname_templates = run_template_update(
-            os.path.join(output_directory, 'template_update_1'),
-            fname_templates, fname_spike_train,
-            fname_shifts, fname_scales,
-            fname_residual, residual_dtype, run_chunk_sec[0],
-            update_weight, units_to_update)
-        
+        print("passed first batch")
+        if full_rank is None:
+            update_weight = 100
+            units_to_update = np.arange(n_units_in)
+            fname_templates = run_template_update(
+                os.path.join(output_directory, 'template_update_1'),
+                fname_templates, fname_spike_train,
+                fname_shifts, fname_scales,
+                fname_residual, residual_dtype, run_chunk_sec[0],
+                update_weight, units_to_update)
+            
+        else:
+            fname_templates = full_rank_update(os.path.join(output_directory, 'template_update_1'), full_rank, run_chunk_sec, fname_spike_train, fname_templates)
         fname_noise_soft = None
         fname_template_soft = None
 
