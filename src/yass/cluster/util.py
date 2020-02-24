@@ -710,6 +710,8 @@ def nn_denoise_wf(fnames_input_data, denoiser, devices, CONFIG):
         nn_denoise_wf_parallel(fnames_input_data,
                                  denoiser, CONFIG.resources.gpu_id)
 
+    torch.cuda.empty_cache()
+
 def nn_denoise_wf_parallel(fnames, denoiser, device):
 
     denoiser = denoiser.to(device)
@@ -725,7 +727,7 @@ def nn_denoise_wf_parallel(fnames, denoiser, device):
         if wf.shape[0]>0:
             wf_reshaped = wf.transpose(0, 2, 1).reshape(-1, n_times)
             wf_torch = torch.FloatTensor(wf_reshaped).to(device)
-            denoised_wf = denoiser(wf_torch)[0]
+            denoised_wf = denoiser(wf_torch)[0].data
             denoised_wf = denoised_wf.reshape(
                 n_data, n_chans, n_times)
             denoised_wf = denoised_wf.cpu().data.numpy().transpose(0, 2, 1)
@@ -734,6 +736,8 @@ def nn_denoise_wf_parallel(fnames, denoiser, device):
             #window = np.arange(15, 40)
             #denoised_wf = denoised_wf[:, window]
             denoised_wf = denoised_wf.reshape(n_data, -1)
+            
+            del wf_torch
         else:
             denoised_wf = np.zeros((wf.shape[0],
                                     wf.shape[1]*wf.shape[2]),'float32')
@@ -741,6 +745,9 @@ def nn_denoise_wf_parallel(fnames, denoiser, device):
         temp = dict(temp)
         temp['denoised_wf'] = denoised_wf
         np.savez(fname, **temp)
+
+        del denoised_wf
+
 
 def denoise_wf(fnames_input_data):
 
