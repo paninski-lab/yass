@@ -436,7 +436,7 @@ class TempTempConv(object):
 
     def __init__(self, CONFIG, templates, geom, pad_len, jitter_len, rank=5,
                  sparse=True, #temp_temp_fname="",
-                 vis_threshold_strong=1., vis_threshold_weak=0.5, parallel=True):
+                 vis_threshold_strong=1., vis_threshold_weak=0.5, parallel=False):
         """
 
         params:
@@ -513,7 +513,7 @@ class TempTempConv(object):
             #align, shifts_ = tobj.align(
             #    ref_wave_form=t[main_c][None], jitter=jitter_len, return_shifts=True)
             #align = align[:, 0]
-
+                
             if np.sum(np.abs(temp[unit])) == 0:
                 continue
 
@@ -522,7 +522,7 @@ class TempTempConv(object):
             align, shifts_, vis_chan_keep = align_templates(
                 temp[unit, viscs[unit]], jitter_len,
                 neigh_chans, min_loc_ref=min_loc_orig+pad_len)
-
+            
             # kill any unconnected vis chans
             align = align[vis_chan_keep]
             shifts_ = shifts_[vis_chan_keep]
