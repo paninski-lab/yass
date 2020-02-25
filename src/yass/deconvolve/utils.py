@@ -801,6 +801,12 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
     #        t_diff,
     #        keep)
 
+    high_recursion_limit = False
+    if len(val) > 1000:
+        import sys
+        sys.setrecursionlimit(100000)
+        high_recursion_limit = True
+
     t_diff=10
     index_start = val.argmin()
     keep = connecting_points(
@@ -812,6 +818,9 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
     tt = tt[keep]
     val = val[keep]
     vis_chan_keep = np.unique(cc)
+
+    if high_recursion_limit:
+        sys.setrecursionlimit(1000)
 
     # include all channels with sufficiently large ptps
     chans_must_in = np.where(np.abs(temp_).max(1) > 1)[0]
