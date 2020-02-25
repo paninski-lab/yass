@@ -171,8 +171,9 @@ def deconv_ONgpu(fname_templates_in,
     # *********************** RUN DECONV **********************
     # *********************************************************
     begin=dt.datetime.now().timestamp()
-
+    print("woot")
     d_gpu = run_core_deconv(d_gpu, CONFIG)
+    print("aloud")
     # save templates
     templates_post_deconv = d_gpu.temps.transpose(2, 1, 0)
     fname_templates = os.path.join(d_gpu.out_dir, 'templates.npy')
@@ -266,8 +267,9 @@ def run_core_deconv(d_gpu, CONFIG):
     os.environ["CUDA_VISIBLE_DEVICES"] = ','.join(
         [str(i) for i in range(torch.cuda.device_count())])
     chunk_ids = np.arange(d_gpu.reader.n_batches)
+    print("still here")
     d_gpu.initialize(move_data_to_gpu=False)
-
+    print("not here")
     start_sec = int(d_gpu.reader.start/d_gpu.reader.sampling_rate)
     end_sec = int(start_sec + d_gpu.reader.n_sec_chunk*d_gpu.reader.n_batches)
     print ("running deconv from {} to {} seconds".format(start_sec, end_sec))

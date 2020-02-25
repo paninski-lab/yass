@@ -153,9 +153,9 @@ class deconvGPU(object):
 
         # load templates and svd componenets
         self.load_temps()
-
+        print("heres the problem")
         self.initialize_shift_svd()
-
+        print("nope")
         # convert templates to bpslines
         self.templates_to_bsplines()
 

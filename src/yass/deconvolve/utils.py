@@ -617,8 +617,8 @@ class TempTempConv(object):
                 for j in range(n_unit):
                     if isinstance(temp_temp[i][j], np.ndarray):
                         #temp temp exists
-                        if np.sum(temp_temp[i][j] == 0):
-                            u_shift = 0
+                        #if np.sum(temp_temp[i][j] == 0):
+                        #    u_shift = 0
                         zero_padded_temp_temp[i, j, u_shift:(u_shift+len(temp_temp[i][j]))] = temp_temp[i][j]
             #if len(temp_temp_fname) > 0:
             #    np.save(temp_temp_fname, zero_padded_temp_temp)

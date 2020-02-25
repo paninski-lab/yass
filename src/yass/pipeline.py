@@ -637,7 +637,8 @@ def final_deconv_with_template_updates_v2(output_directory,
                                           recording_dtype,
                                           fname_templates_in,
                                           run_chunk_sec,
-                                          remove_meta_data=True):
+                                          remove_meta_data=True, 
+                                          full_rank = None):
     
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -1251,7 +1252,6 @@ def post_deconv_split_merge(output_directory,
             os.path.join(output_directory,
                          'soft_assignment_1'),
             fname_residual,
-            residual_dtype
             residual_dtype,
             run_chunk_sec[0])
 
@@ -1282,6 +1282,170 @@ def post_deconv_split_merge(output_directory,
         np.save(fname_templates, templates)
         templates = None
         print("Denoised the templates yayyyy")
+        '''
+    else:
+        print("passed first batch")
+        if full_rank is None:
+            update_weight = 100
+            units_to_update = np.arange(n_units_in)
+            fname_templates = run_template_update(
+                os.path.join(output_directory, 'template_update_1'),
+                fname_templates, fname_spike_train,
+                fname_shifts, fname_scales,
+                fname_residual, residual_dtype, run_chunk_sec[0],
+                update_weight, units_to_update)
+            
+        else:
+            fname_templates = full_rank_update(os.path.join(output_directory, 'template_update_1'), full_rank, run_chunk_sec, fname_spike_train, fname_templates)
+        fname_noise_soft = None
+        fname_template_soft = None
+
+    # post process kill
+    n_units_after_split = np.load(fname_templates).shape[0]
+    if first_batch:
+        units_to_process = np.arange(n_units_after_split)
+        methods = ['low_fr', 'low_ptp',
+                   'duplicate', 'duplicate_soft_assignment']
+    else:
+        units_to_process = np.arange(n_units_in, n_units_after_split)
+        methods = ['low_fr', 'low_ptp', 'duplicate']
+    
+    (fname_templates, fname_spike_train, 
+     fname_noise_soft, fname_shifts, fname_scales)  = postprocess.run(
+        methods,
+        os.path.join(output_directory, 'post_process_1'),
+        None,
+        None,
+        fname_templates,
+        fname_spike_train,
+        fname_template_soft,
+        fname_noise_soft,
+        fname_shifts,
+        fname_scales,
+        units_to_process)
+    
+    n_units_out = np.load(fname_templates).shape[0]
+    print('{} new units'.format(n_units_out - n_units_in))
+    
+    return fname_templates
+
+def deconv_pass1(output_directory,
+                 recording_dir,
+                 recording_dtype,
+                 fname_templates,
+                 run_chunk_sec,
+                 CONFIG,
+                 first_batch=False, 
+                 full_rank = None):
+
+    # keep track of # of units in
+    n_units_in = np.load(fname_templates).shape[0]
+    print("first deconv")
+    # deconv 0
+    (fname_templates,
+     fname_spike_train,
+     fname_shifts,
+     fname_scales) = deconvolve.run(
+        fname_templates,
+        os.path.join(output_directory, 'deconv_0'),
+        recording_dir,
+        recording_dtype,
+        run_chunk_sec=run_chunk_sec)
+    
+    # residual 0
+    (fname_residual,
+     residual_dtype) = residual.run(
+        fname_shifts,
+        fname_scales,
+        fname_templates,
+        fname_spike_train,
+        os.path.join(output_directory, 'residual_0'),
+        recording_dir,
+        recording_dtype,
+        dtype_out='float32',
+        run_chunk_sec=run_chunk_sec)
+    
+    # post deconv split
+    (fname_templates, 
+     fname_spike_train,
+     fname_shifts,
+     fname_scales) = run_post_deconv_split(
+        os.path.join(output_directory, 'pd_split_0'),
+        fname_templates,
+        fname_spike_train,
+        fname_shifts,
+        fname_scales,
+        recording_dir,
+        recording_dtype,
+        fname_residual,
+        residual_dtype,
+        run_chunk_sec[0],
+        first_batch)
+
+    if first_batch:
+        
+        # deconv 1
+        (fname_templates,
+         fname_spike_train,
+         fname_shifts,
+         fname_scales) = deconvolve.run(
+            fname_templates,
+            os.path.join(output_directory, 'deconv_1'),
+            recording_dir,
+            recording_dtype,
+            run_chunk_sec=run_chunk_sec)
+
+        # residual 1
+        (fname_residual,
+         residual_dtype) = residual.run(
+            fname_shifts,
+            fname_scales,
+            fname_templates,
+            fname_spike_train,
+            os.path.join(output_directory, 'residual_1'),
+            recording_dir,
+            recording_dtype,
+            dtype_out='float32',
+            run_chunk_sec=run_chunk_sec)
+
+        # soft assignment 1
+        fname_noise_soft, fname_template_soft = soft_assignment.run(
+            fname_templates,
+            fname_spike_train,
+            fname_shifts,
+            fname_scales,
+            os.path.join(output_directory,
+                         'soft_assignment_1'),
+            fname_residual,
+            residual_dtype,
+            run_chunk_sec[0])
+        print("yay")
+        #logger.info('Get (partially) Cleaned Templates')
+        fname_templates = get_partially_cleaned_templates(
+            os.path.join(output_directory, 'clean_templates_1'),
+            fname_templates,
+            fname_spike_train,
+            fname_shifts,
+            fname_scales,
+            recording_dir,
+            recording_dtype,
+            run_chunk_sec)
+        print("denoised")
+        # denoise split units
+        vis_threshold_strong = 1.
+        vis_threshold_weak = 0.5
+        rank = 5
+        pad_len = int(1.5 * CONFIG.recordings.sampling_rate / 1000.)
+        jitter_len = pad_len
+        templates = np.load(fname_templates)
+        '''
+        templates = shift_svd_denoise(
+            templates, CONFIG,
+            vis_threshold_strong, vis_threshold_weak,
+            rank, pad_len, jitter_len)
+        np.save(fname_templates, templates)
+        templates = None
+        print("finished")
         '''
     else:
         print("passed first batch")
