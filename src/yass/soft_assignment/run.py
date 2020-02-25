@@ -9,6 +9,7 @@ Created on Mon Nov 18 21:44:54 2019
 import os
 import logging
 import numpy as np
+import torch
 from scipy.stats import chi2
 
 from yass import read_config
@@ -87,6 +88,11 @@ def run(template_fname,
         # compuate soft assignment
         probs_noise = sna.compute_soft_assignment()
         np.save(fname_noise_soft, probs_noise)
+        
+        del sna
+        del detector
+
+        torch.cuda.empty_cache()
 
     ###########################
     # Template soft assignment#
@@ -159,5 +165,8 @@ def run(template_fname,
                  logprobs_outliers=logprobs_outliers,
                  outliers=outliers
                 )
+        
+        del TAO
+        torch.cuda.empty_cache()
 
     return fname_noise_soft, fname_template_soft

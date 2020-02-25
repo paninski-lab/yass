@@ -115,8 +115,8 @@ class SOFTNOISEASSIGNMENT(object):
         self.shifts = torch.from_numpy(self.shifts).float().cuda()
         self.scales = torch.from_numpy(self.scales).float().cuda()
         
-        self.mcs = torch.from_numpy(self.mcs)
-        self.channel_index = torch.from_numpy(self.channel_index)
+        self.mcs = torch.from_numpy(self.mcs).cuda()
+        self.channel_index = torch.from_numpy(self.channel_index).cuda()
         
     def get_bspline_coeffs(self):
 
@@ -212,6 +212,8 @@ class SOFTNOISEASSIGNMENT(object):
                 probs[idx_in] = probs_batch.data
                 
                 pbar.update()
+                
+            del probs_batch
 
         probs_included = probs.cpu().numpy()
 
