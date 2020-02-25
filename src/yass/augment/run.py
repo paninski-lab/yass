@@ -111,11 +111,9 @@ def get_templates_on_local_channels(reader, save_dir,
 
     # first compute templates
     fname_templates = run_template_computation(
+        save_dir,
         fname_spike_train,
         reader,
-        save_dir,
-        max_channels=None,
-        unit_ids=None,
         multi_processing=CONFIG.resources.multi_processing,
         n_processors=CONFIG.resources.n_processors)
 
