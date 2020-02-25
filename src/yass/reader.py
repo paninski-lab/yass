@@ -45,7 +45,7 @@ class READER(object):
             if self.start < offset:
                 self.start = offset
             if self.end > self.rec_len + offset:
-                self.end = self.rec_le + offset
+                self.end = self.rec_len + offset
 
         if n_sec_chunk is not None:
             self.n_sec_chunk = n_sec_chunk

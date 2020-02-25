@@ -24,10 +24,13 @@ def expand_asset_model(mapping, section, subsection, field):
 
     mapping[section][subsection][field] = new_value
 
-def expand_to_root(mapping, section, subsection, field):
+def expand_to_root(mapping, section, subsection, field=None):
     """Expand filenames
     """
-    value = mapping[section][subsection][field]
+    if field is None:
+        value = mapping[section][subsection]
+    else:
+        value = mapping[section][subsection][field]
 
     # if root_folder, expand and return
     if value.startswith('/'):
@@ -37,7 +40,10 @@ def expand_to_root(mapping, section, subsection, field):
         root = mapping['data']['root_folder']
         new_value = os.path.join(root, value)
 
-    mapping[section][subsection][field] = new_value
+    if field is None:
+        mapping[section][subsection] = new_value
+    else:
+        mapping[section][subsection][field] = new_value
 
 def validate_deconv_template_update_time(mapping):
 
@@ -75,6 +81,9 @@ def validate(mapping, silent=True):
     if document['neuralnetwork']['training']['input_spike_train_filname'] is not None:
         expand_to_root(document, 'neuralnetwork', 'training',
                        'input_spike_train_filname')
+        
+    if document['data']['initial_templates'] is not None:
+        expand_to_root(document, 'data', 'initial_templates')
 
     validate_deconv_template_update_time(document)
 
