@@ -43,8 +43,7 @@ from yass.soft_assignment.template import get_similar_array
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
                        human_readable_time)
-
-
+from yass.deconvolve.full_template_track import full_rank_update
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         complete=False, calculate_rf=False, visualize=False, set_zero_seed=False):
             
@@ -636,7 +635,8 @@ def final_deconv_with_template_updates_v2(output_directory,
                                           recording_dtype,
                                           fname_templates_in,
                                           run_chunk_sec,
-                                          remove_meta_data=True):
+                                          remove_meta_data=True, 
+                                          full_rank = True):
     
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -665,8 +665,16 @@ def final_deconv_with_template_updates_v2(output_directory,
     template_update_freq = CONFIG.deconvolution.template_update_time
     update_time = np.arange(run_chunk_sec[0], run_chunk_sec[1], template_update_freq)
     update_time = np.hstack((update_time, run_chunk_sec[1]))
+    
+    if full_rank:
+        reader = READER(recording_dir,
+                              recording_dtype,
+                              CONFIG,
+                              CONFIG.resources.n_sec_chunk_gpu_deconv)
 
-    # forward deconv
+        full_rank_track = deconvolve.full_template_track.RegressionTemplates(reader, CONFIG, forward_directory)
+    else:
+        full_rank_track = None
     for j in range(len(update_time)-1):
 
         if j == 0:
@@ -694,7 +702,8 @@ def final_deconv_with_template_updates_v2(output_directory,
                 fname_templates_in,
                 batch_time,
                 CONFIG,
-                first_batch)
+                first_batch, 
+                full_rank_track)
 
             # save templates and remove all metadata
             np.save(fname_templates_out, np.load(fname_templates_))
@@ -1156,7 +1165,8 @@ def deconv_pass1(output_directory,
                  fname_templates,
                  run_chunk_sec,
                  CONFIG,
-                 first_batch=False):
+                 first_batch=False,
+                 full_rank = None):
 
     # keep track of # of units in
     n_units_in = np.load(fname_templates).shape[0]
@@ -1266,19 +1276,22 @@ def deconv_pass1(output_directory,
         templates = None
         
     else:
-        update_weight = 100
-        units_to_update = np.arange(n_units_in)
-        fname_templates = run_template_update(
-            os.path.join(output_directory, 'template_update_1'),
-            fname_templates, fname_spike_train,
-            fname_shifts, fname_scales,
-            fname_residual, residual_dtype, run_chunk_sec[0],
-            update_weight, units_to_update)
-        
+        print("passed first batch")
+        if full_rank is None:
+            update_weight = 100
+            units_to_update = np.arange(n_units_in)
+            fname_templates = run_template_update(
+                os.path.join(output_directory, 'template_update_1'),
+                fname_templates, fname_spike_train,
+                fname_shifts, fname_scales,
+                fname_residual, residual_dtype, run_chunk_sec[0],
+                update_weight, units_to_update)
+            
+        else:
+            fname_templates = full_rank_update(os.path.join(output_directory, 'template_update_1'), full_rank, run_chunk_sec, fname_spike_train, fname_templates)
         fname_noise_soft = None
-        fname_template_soft = None
-
-    # post process kill
+        fname_template_soft = None    # post process kill
+    
     n_units_after_split = np.load(fname_templates).shape[0]
     if first_batch:
         units_to_process = np.arange(n_units_after_split)
