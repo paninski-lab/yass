@@ -183,28 +183,38 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         CONFIG)
 
     ## save the final templates and spike train
-    fname_templates_final = os.path.join(
-        TMP_FOLDER, 'templates.npy')
-    fname_spike_train_final = os.path.join(
-        TMP_FOLDER, 'spike_train.npy')
-    fname_noise_soft_assignment_final = os.path.join(
-        TMP_FOLDER, 'noise_soft_assignment.npy')
+    #fname_templates_final = os.path.join(
+    #    TMP_FOLDER, 'templates.npy')
+    #fname_spike_train_final = os.path.join(
+    #    TMP_FOLDER, 'spike_train.npy')
+    #fname_noise_soft_assignment_final = os.path.join(
+    #    TMP_FOLDER, 'noise_soft_assignment.npy')
 
+    #if CONFIG.deconvolution.update_templates:
+    #    templates_dir = fname_templates
+    #    fname_templates = os.path.join(templates_dir, 'templates_init.npy')
+
+    ## tranpose axes
+    #templates = np.load(fname_templates).transpose(1,2,0)
+    ## align spike time to the beginning
+    #spike_train = np.load(fname_spike_train)
+    ##spike_train[:,0] -= CONFIG.spike_size//2
+    #soft_assignment = np.load(fname_noise_soft)
+
+    #np.save(fname_templates_final, templates)
+    #np.save(fname_spike_train_final, spike_train)
+    #np.save(fname_noise_soft_assignment_final, soft_assignment)
+
+    # save the final output
     if CONFIG.deconvolution.update_templates:
-        templates_dir = fname_templates
-        fname_templates = os.path.join(templates_dir, 'templates_init.npy')
-
-    # tranpose axes
-    templates = np.load(fname_templates).transpose(1,2,0)
-    # align spike time to the beginning
-    spike_train = np.load(fname_spike_train)
-    #spike_train[:,0] -= CONFIG.spike_size//2
-    soft_assignment = np.load(fname_noise_soft)
-
-    np.save(fname_templates_final, templates)
-    np.save(fname_spike_train_final, spike_train)
-    np.save(fname_noise_soft_assignment_final, soft_assignment)
-
+        fname_templates_final = os.path.join(TMP_FOLDER, 'templates')
+        shutil.copytree(fname_templates, fname_templates_final)
+    else:
+        fname_templates_final = os.path.join(TMP_FOLDER, 'templates.npy')
+        shutil.copyfile(fname_templates, fname_templates_final)
+    fname_spike_train_final = os.path.join(TMP_FOLDER, 'spike_train.npy')
+    shutil.copyfile(fname_spike_train, fname_spike_train_final)
+    
     total_time = time.time() - start
 
 
