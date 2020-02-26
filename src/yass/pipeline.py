@@ -830,10 +830,9 @@ def final_deconv_with_template_updates_v2(output_directory,
     # gather all results and
     # kill based on soft assignment and firing rates
     units_survived = post_backward_process(backward_directory,
-                                           run_chunk_sec,
                                            update_time,
-                                           recording_dir,
-                                           recording_dtype)
+                                           sim_array_soft_assignment,
+                                           CONFIG)
     
     # final forward pass
     final_directory = os.path.join(output_directory, 'final_pass')
@@ -1381,15 +1380,9 @@ def deconv_pass_2(output_directory,
 
 
 def post_backward_process(backward_directory,
-                          run_chunk_sec,
                           update_time,
-                          recording_dir,
-                          recording_dtype):
-    
-    fname_units_out = os.path.join(backward_directory, 'units_survived.npy')
-    
-    if os.path.exists(fname_units_out):
-        return np.load(fname_units_out)
+                          sim_array_soft_assignment,
+                          CONFIG):
 
     # gather all results
     fname_spike_train = os.path.join(
@@ -1402,16 +1395,24 @@ def post_backward_process(backward_directory,
             backward_directory, 'scales.npy')
     fname_template_soft = os.path.join(
             backward_directory, 'template_soft.npz')
-    if not (os.path.exists(fname_spike_train) and
-            os.path.exists(fname_shifts) and
-            os.path.exists(fname_scales) and
-            os.path.exists(fname_template_soft)):
+    
+    # final survived units
+    fname_units_out = os.path.join(backward_directory, 'units_survived.npy')
+    if os.path.exists(fname_units_out):
+        return np.load(fname_units_out)
 
+    else:
+        # combine all data
         spike_train = [None]*(len(update_time)-1)
         shifts = [None]*(len(update_time)-1)
         scales = [None]*(len(update_time)-1)
         probs_templates = [None]*(len(update_time)-1)
         units_assignment = [None]*(len(update_time)-1)
+
+        # ptps and firing rates to kill bad units
+        ptps = [None]*(len(update_time)-1)
+        firing_rates = [None]*(len(update_time)-1)
+        pairwise_soft_assignment = [None]*(len(update_time)-1)
         for j in range(len(update_time)-1):
 
             batch_time = [update_time[j], update_time[j+1]]
@@ -1438,6 +1439,38 @@ def post_backward_process(backward_directory,
             probs_templates[j] = temp_['probs_templates']
             units_assignment[j] = temp_['units_assignment']
 
+            # get templates ptp
+            fname_templates_batch = os.path.join(
+                backward_directory,
+                'templates_{}_{}_post_update.npy'.format(batch_time[0], batch_time[1]))
+            templates_batch = np.load(fname_templates_batch)
+            ptps[j] = templates_batch.ptp(1).max(1)
+
+            # firing rates
+            n_units = ptps[j].shape[0]
+            a, b = np.unique(spike_train[j][:, 1], return_counts=True)
+            n_spikes = np.zeros(n_units, 'float32')
+            n_spikes[a] = b
+            firing_rates[j] = n_spikes/(batch_time[1]-batch_time[0])
+
+            # get pairwise softassignment
+            unit_soft_assignment_batch = np.zeros(
+                (n_units, sim_array_soft_assignment.shape[1]), 'float32')
+            unit_idx_ = units_assignment[j][:, 0]
+            for ii in range(probs_templates[j].shape[0]):
+                unit_soft_assignment_batch[unit_idx_[ii]] += probs_templates[j][ii]
+            unit_soft_assignment_batch[n_spikes>0] /= n_spikes[n_spikes>0][:, None]
+            unit_soft_assignment_batch[n_spikes==0] = 0
+
+            pairwise_soft_assignment_batch = np.zeros((n_units, sim_array_soft_assignment.shape[1]-1), 'float32')
+            temp_ = unit_soft_assignment_batch[:, 1:] + unit_soft_assignment_batch[:, [0]]
+            for ii in range(sim_array_soft_assignment.shape[1]-1):
+                idx_non_zero = temp_[:,ii] > 0
+                pairwise_soft_assignment_batch[idx_non_zero, ii] = (
+                    unit_soft_assignment_batch[idx_non_zero,0]/temp_[idx_non_zero,ii])
+            pairwise_soft_assignment[j] = pairwise_soft_assignment_batch
+
+        # save backward deconv results
         spike_train = np.vstack(spike_train)
         shifts = np.hstack(shifts)
         scales = np.hstack(scales)
@@ -1458,64 +1491,41 @@ def post_backward_process(backward_directory,
             fname_template_soft,
             probs_templates=probs_templates,
             units_assignment=units_assignment)
-        
-    ## residual
-    #fname_residual, residual_dtype = residual.run(
-    #    fname_shifts,
-    #    fname_scales,
-    #    backward_directory,
-    #    fname_spike_train,
-    #    os.path.join(backward_directory,
-    #                 'post_backward_residual'),
-    #    recording_dir,
-    #    recording_dtype,
-    #    dtype_out='float32',
-    #    update_templates=True,
-    #    run_chunk_sec=run_chunk_sec)
 
-    ## soft assignment
-    #_, fname_template_soft = soft_assignment.run(
-    #    backward_directory,
-    #    fname_spike_train,
-    #    fname_shifts,
-    #    fname_scales,
-    #    os.path.join(backward_directory,
-    #                 'post_backward_soft_assignment'),
-    #    fname_residual,
-    #    residual_dtype,
-    #    run_chunk_sec[0],
-    #    compute_noise_soft=False,
-    #    compute_template_soft=True,
-    #    update_templates=True)
-    
-    # kill units
-    spike_train = np.load(fname_spike_train)
-    n_units = int(np.max(spike_train[:,1]) + 1)
+        # get max of per batch result
+        ptps_max = np.stack(ptps).max(0)
+        firing_rates_max = np.stack(firing_rates).max(0)
+        pairwise_soft_assignment_max = np.stack(pairwise_soft_assignment).max(0)
 
-    units_in = np.arange(n_units)
+        # kill low firing rates and small ptps
+        units_in = np.where(np.logical_and(
+            ptps_max > CONFIG.clean_up.min_ptp,
+            firing_rates_max > CONFIG.clean_up.min_fr))[0]
+        np.save(os.path.join(backward_directory,
+                             'units_survived_ptp_fr.npy'),
+                units_in)
 
-    # kill low firing rates units
-    n_spikes = np.zeros((len(update_time)-1, n_units), 'int32')
-    for j in range(len(update_time)-1):
+        # kill based on soft assignment proximity
+        min_paired_probs = np.min(pairwise_soft_assignment_max, 1)
+        threshold = 0.7
+        # do the comparison
+        pairs = []
+        kill = np.zeros(n_units, 'bool')
+        for k in units_in:
+            # if the avg soft assignment is less than the threshold, do the comparison
+            if np.any(pairwise_soft_assignment_max[k] < threshold):
+                candidate_pairs = sim_array_soft_assignment[k, 1:][
+                    pairwise_soft_assignment_max[k] < threshold]
+                for k2 in candidate_pairs:
+                    if min_paired_probs[k] < min_paired_probs[k2]:
+                        pairs.append([k ,k2])
+                        kill[k] = True
 
-        batch_time = [update_time[j], update_time[j+1]]
-        fname_spike_train_batch = os.path.join(
-            backward_directory,
-            'spike_train_{}_{}.npy'.format(batch_time[0], batch_time[1]))
-        spike_train = np.load(fname_spike_train_batch)
+        # units not killed
+        kill = np.where(kill)[0]
+        units_out = units_in[~np.in1d(units_in, kill)]
+        np.save(fname_units_out, units_out)
+        np.save(os.path.join(backward_directory,
+                             'soft_assign_kill_pairs.npy'), pairs)
 
-        unique_units, n_counts = np.unique(spike_train[:, 1], return_counts=True)
-        n_spikes[j, unique_units] = n_counts
-    max_n_spikes = np.max(n_spikes, 0)
-    units_in = units_in[max_n_spikes/(update_time[1] - update_time[0]) > 0.2]
-
-    # post process kill
-    units_out = duplicate_soft_assignment(fname_template_soft,
-                                          units_in=units_in)
-
-    np.save(fname_units_out, units_out)
-
-    return units_out
-
-
-    
+        return units_out
