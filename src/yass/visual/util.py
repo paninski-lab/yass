@@ -3,6 +3,9 @@ import scipy
 import os
 from scipy.stats import t
 from yass.template import align_get_shifts_with_ref, shift_chans
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+from sklearn.decomposition import PCA
 
 
 def connected_components(img, x, y, cc):
@@ -371,3 +374,275 @@ def read_spikes(filename, spikes, n_channels, spike_size, units=None, templates=
         spike_waveforms[:,offset//2:offset//2+templates.shape[1]]+=templates[:,:,channels][units]
 
     return spike_waveforms, skipped_idx
+
+# get candidates from template space
+def get_candidates(templates1, templates2, spike_train1, spike_train2):
+    
+    ptps1 = templates1.ptp(1)
+    ptps2 = templates2.ptp(1)
+    
+    n_spikes1 = np.zeros(templates1.shape[0])
+    a, b = np.unique(spike_train1[:, 1], return_counts=True)
+    n_spikes1[a] = b
+    n_spikes2 = np.zeros(templates2.shape[0])
+    a, b = np.unique(spike_train2[:, 1], return_counts=True)
+    n_spikes2[a] = b
+    
+    # mask out small ptp
+    ptps1[ptps1 < 1] = 0
+    ptps2[ptps2 < 1] = 0
+    # distances of ptps
+    dist_mat = np.sum(np.square(ptps1[:, None] - ptps2[None]), 2)
+    
+    # compute distance relative to the norm of ptps
+    norms1 = np.square(np.linalg.norm(ptps1, axis=1))
+    norms2 = np.square(np.linalg.norm(ptps2, axis=1))
+    dist_norm_ratio = dist_mat / np.maximum(
+        norms1[:, None], norms2[None])
+    
+    # units need to be close to each other
+    idx1 = dist_norm_ratio < 0.5
+    
+    # ptp of both units need to be bigger than 1
+    ptp_max1 = ptps1.max(1)
+    ptp_max2 = ptps2.max(1)
+    smaller_ptps = np.minimum(ptp_max1[:, None],
+                              ptp_max2[None])
+    idx2 = smaller_ptps > 1
+    
+    # expect to have at least 30 spikes
+    smaller_n_spikes = np.minimum(n_spikes1[:, None],
+                                  n_spikes2[None])
+    idx3 = smaller_n_spikes > 30
+    units_1, units_2 = np.where(np.logical_and(
+        np.logical_and(idx1, idx2), idx3))
+    
+    pairs = np.vstack((units_1, units_2)).T
+    
+    return pairs
+
+# match each spike from spt1 to spikes in spt2 (one to one matching)
+def matching(spt1, spt2, threshold=5):
+    match1 = np.zeros(len(spt1), 'bool')
+    match2 = np.zeros(len(spt2), 'bool')
+    for ii, s in enumerate(spt1):
+        j = np.argmin(np.abs(spt2 - s))
+        if np.abs(spt2 - s).min() <= threshold:
+            match1[ii] = True
+            match2[j]  = True
+            
+    return match1, match2
+
+# Find best cos similarity between the two templates (from unit1 and unit2, rolling one of the templates until you find best alignment)
+def best_match_(unit1, unit2, templates1, templates2, max_shift):
+    
+    data1 = templates1[unit1].T.ravel()
+    data2 = templates2[unit2]
+    best_result = -2
+    for k in range(-max_shift, max_shift, 1):
+        data2_unrolled = np.roll(data2, k, axis = 0).T.ravel()
+        result = 1 - scipy.spatial.distance.cosine(data1, data2_unrolled)
+        if result > best_result:
+            best_result = result
+    return best_result
+
+# Find candidate pairs using the above two routines
+def match_two_sorts(templates1, templates2, spike_train1, spike_train2, overlap_threshold=0.5):
+    
+    print('Template 1 Shape:', templates1.shape)
+    print('Template 2 Shape:', templates2.shape)
+    
+    pairs = get_candidates(templates1,templates2, spike_train1, spike_train2)
+    best_matches = np.zeros(pairs.shape[0])
+        
+    print('{} candidate pairs'.format(len(pairs)))
+    
+    
+    
+    with tqdm(total=len(pairs)) as pbar:
+        for i, (unit1, unit2) in enumerate(pairs):
+            best_matches[i] = best_match_(unit1, unit2, templates1, templates2, 12)
+            pbar.update()
+            
+    for i, k1 in enumerate(np.unique(pairs[:,0])):
+        idx = pairs[:, 0] == k1
+        pairs[idx, 1] = pairs[idx][np.argsort(best_matches[idx])[::-1], 1]
+        best_matches[idx] = np.sort(best_matches[idx])[::-1]
+
+    pairs = pairs[best_matches > 0.80]
+    matched = np.zeros(len(pairs), 'bool')
+    best_matches = best_matches[best_matches > 0.80]
+    matched_spikes = []
+    missed_spikes1 = []
+    missed_spikes2 = []
+    
+    
+    with tqdm(total=np.unique(pairs[:,0]).size) as pbar:
+        
+        for i, k1 in enumerate(np.unique(pairs[:,0])):
+            idx = np.where(pairs[:, 0] == k1)[0]
+            spt1 = spike_train1[spike_train1[:, 1]==k1, 0]
+            temp1 = templates1[k1]
+            
+            for j, k2 in enumerate(pairs[idx,1]):
+                
+                temp2 = templates2[k2]
+                spt2 = spike_train2[spike_train2[:, 1]==k2, 0]
+                max_ptp = np.vstack((temp1.ptp(0), temp2.ptp(0))).max(0)
+                mc = max_ptp.argmax()
+                min_point1 = temp1[:, mc].argmin()
+                min_point2 = temp2[:, mc].argmin()
+                shift = min_point1 - min_point2 - templates1.shape[1]//2 + templates2.shape[1]//2
+                spt1 += shift
+                match1, match2 = matching(spt1, spt2)
+                if np.mean(match1) > 0.90:
+                    matched[idx[j]] = True
+                    if j == 0:
+                        matched_spikes.append(spt1[match1])
+                        missed_spikes1.append(spt1[~match1])
+                        missed_spikes2.append(spt2[~match2])
+                    else:
+                        matched_spikes[-1] = np.concatenate([matched_spikes[-1], spt1[match1]], axis = 0)
+                        missed_spikes1[-1] = np.concatenate([missed_spikes1[-1], spt1[match1]], axis = 0)
+                        missed_spikes2[-1] = np.concatenate([missed_spikes2[-1], spt2[match2]], axis = 0)
+                    break
+                elif np.mean(match1) > overlap_threshold or match1.sum()/ spt2.size > overlap_threshold:
+                    matched[idx[j]] = True
+                    if j == 0:
+                        matched_spikes.append(spt1[match1])
+                        missed_spikes1.append(spt1[~match1])
+                        missed_spikes2.append(spt2[~match2])
+                    else:
+                        matched_spikes[-1] = np.concatenate([matched_spikes[-1], spt1[match1]], axis = 0)
+                        missed_spikes1[-1] = np.concatenate([missed_spikes1[-1], spt1[match1]], axis = 0)
+                        missed_spikes2[-1] = np.concatenate([missed_spikes2[-1], spt2[match2]], axis = 0)
+                    spt1 = spt1[~match1]
+                spt1 -= shift
+            pbar.update()
+    matched_pairs = pairs[matched]
+
+    sort1_matched = np.unique(pairs[matched, 0])
+    sort2_matched = np.unique(pairs[matched, 1])
+
+    sort1_only = np.arange(templates1.shape[0])
+    sort1_only = sort1_only[~np.in1d(sort1_only, sort1_matched)]
+
+    sort2_only = np.arange(templates2.shape[0])
+    sort2_only = sort2_only[~np.in1d(sort2_only, sort2_matched)]
+
+
+    return sort1_only, sort2_only, sort1_matched, sort2_matched, matched_pairs, matched_spikes, missed_spikes1, missed_spikes2
+
+def plot_waveforms(misses1, misses2, matched, ax, mc, reader):
+    
+    idx = np.random.choice(matched.size, min(200, matched.size))
+    wfs = reader.read_waveforms(matched)[0]
+    ax.plot(wfs[:,:, mc].T, c = 'goldenrod', alpha = 0.05)
+    ax.plot(wfs[:,:,mc].mean(0), c = 'goldenrod')
+    temp = wfs.mean(0) 
+    
+    
+    idx1 = np.random.choice(misses1.size, min(200, misses1.size))
+    wfs1 = reader.read_waveforms(misses1 + 20)[0]
+    
+    if idx1.shape[0] > 20:
+        
+        ax.plot(wfs1[:,:, mc].T, c = 'r', alpha = 0.05)
+        ax.plot(wfs1[:,:,mc].mean(0), c = 'r')
+        temp1 = wfs1.mean(0)
+    else:
+        temp1 = np.roll(temp, -20, axis = 0)
+        
+    idx2 = np.random.choice(misses2.size, min(200, misses2.size))
+    wfs2 = reader.read_waveforms(misses2 - 20)[0]
+    
+    if idx2.shape[0] > 20:
+        ax.plot(wfs2[:,:, mc].T, c = 'b', alpha = 0.05)
+        ax.plot(wfs2[:,:,mc].mean(0), c = 'b')
+        temp2 = wfs2.mean(0)
+    else:
+        temp2 = np.roll(temp, 20, axis = 0)
+    
+    
+    
+    return temp1, temp2, temp
+
+def plot_templates(temp, chunk, color, channels, ax, CONFIG, unit = None, mc = None, alpha = 1.0):
+    if temp is not None:
+        scale = 5
+        for i in channels:
+            ax.plot(CONFIG.geom[i, 0]*50 + np.arange(temp.shape[0]) * 10 + chunk * 100, 
+                    CONFIG.geom[i,1]*2.5 + temp[:, i]*scale, c = color,lw = 1, alpha = alpha)
+    ax.scatter(CONFIG.geom[channels,0]*50, CONFIG.geom[channels,1]*2.5, c = 'k', s = 50)
+
+def isi(spt, template, ax, reader_resid, alpha):
+    mc = template.ptp(0).argmax(0)
+    spt = spt[np.logical_and(spt>61, spt< 18000000-61)]
+    
+    spt = np.unique(spt)
+    isi = spt[1:]/30 - spt[:-1]/30
+    min_loc = template[:,mc].argmin()
+    max_loc = template[:,mc].argmax()
+    wf, skipped_idx = reader_resid.read_waveforms(spt[1:])
+    spt = np.delete(spt[1:], skipped_idx)
+    isi = np.delete(isi, skipped_idx)
+    wf = wf+template
+    ptps = np.absolute(wf[:,max_loc, mc]-wf[:, min_loc,mc])
+    ax.scatter(isi, ptps, alpha = alpha, c = 'b')
+    ax.set_xlim([1.5, 250])
+    ax.set_xscale('log')
+    ax.plot([1.5, 250],[template.ptp(0).max(0), template.ptp(0).max(0)])
+    ax.set_xlim([0,250])
+    ax.set_xlabel('log ISI (ms)')
+    ax.set_ylabel('PTP (SU)')
+    
+    
+def ptp_all_chans(spt, wfs, template, unit, other_templates, other_units, mc, channels, grid, row_orig, col_orig, CONFIG, alpha = 0.5):
+    
+    chan_argsort = np.argsort(template[:,channels].ptp(0))[::-1]
+    min_loc = template.argmin(0)
+    max_loc = template.argmax(0)
+    wfs = wfs + template
+    col = col_orig
+    row = row_orig
+    ctr = 0
+    max_ptp = -1
+    spt = np.sort(spt)
+    for chan in channels[chan_argsort]:
+        ax = plt.subplot(grid[row, col])
+        ptps = np.absolute(wfs[:,max_loc[chan], chan]-wfs[:, min_loc[chan], chan])
+        ax.scatter(spt//30000/60, ptps, alpha = alpha, c = 'k')
+        
+        ax.plot(spt//30000/60, ptps.cumsum()/(np.arange(ptps.size)+1), 'red', lw = 2)
+        if other_units is not None:
+            for i, unit2 in enumerate(other_units):
+                ax.plot([0, 10], [other_templates[:, chan, unit2].ptp(0), other_templates[:, chan, unit2].ptp(0)], colors[i+3], lw = 2)
+        if max_ptp < ptps.mean(0):
+            max_ptp = ptps.mean(0)
+        ax.set_ylim([0, max_ptp +5])
+        ax.set_xlim([0, 10])
+        ax.set_xlabel('time')
+        ax.set_ylabel('PTP (SU)')
+        ax.set_title(str(unit) + ' ' + str(chan)) 
+        ctr += 1
+        col = col_orig + ctr % 2
+        row = row_orig + ctr // 2
+        if ctr == 10:
+            break
+            
+def featurize(wfs, mc, CONFIG):
+    n_data, n_times, n_chans = wfs.shape
+    channels = np.where(CONFIG.neigh_channels[mc])[0]
+#     denoiser = denoiser.to(CONFIG.torch_devices[0])
+    wfs_copy = wfs.copy()
+    best_shifts = align_get_shifts_with_ref(
+            wfs_copy[:, :, mc])
+    wfs_copy = shift_chans(wfs_copy, best_shifts)
+    pca = PCA(n_components= 5)
+    try:
+        feat = pca.fit_transform(wfs_copy[:,:,channels].reshape([n_data, -1]))
+    except:
+        feat = None
+    return feat
+            
+
