@@ -43,7 +43,7 @@ from yass.soft_assignment.template import get_similar_array
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
                        human_readable_time)
-from yass.deconvolve.full_template_track import full_rank_update
+from yass.deconvolve.template_track import full_rank_update
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         complete=False, calculate_rf=False, visualize=False, set_zero_seed=False):
             
@@ -682,7 +682,7 @@ def final_deconv_with_template_updates_v2(output_directory,
                               CONFIG,
                               CONFIG.resources.n_sec_chunk_gpu_deconv)
 
-        full_rank_track = deconvolve.full_template_track.RegressionTemplates(reader, CONFIG, forward_directory)
+        full_rank_track = deconvolve.template_track.RegressionTemplates(reader, CONFIG, forward_directory)
     else:
         full_rank_track = None
     for j in range(len(update_time)-1):
@@ -810,6 +810,17 @@ def final_deconv_with_template_updates_v2(output_directory,
         output_directory_batch = os.path.join(
             backward_directory, 'deconv_{}_{}'.format(
                 batch_time[0], batch_time[1]))
+        if full_rank:
+            reader = READER(recording_dir,
+                                  recording_dtype,
+                                  CONFIG,
+                                  CONFIG.resources.n_sec_chunk_gpu_deconv)
+
+            full_rank_track = deconvolve.template_track.RegressionTemplates(reader, CONFIG, backward_directory)
+            full_rank_track.max_time = run_chunk_sec[1]
+        else:
+            full_rank_track = None
+
         (fname_templates_,
          fname_spike_train_,
          fname_shifts_,
@@ -820,7 +831,8 @@ def final_deconv_with_template_updates_v2(output_directory,
                                                fname_templates_in,
                                                batch_time,
                                                CONFIG,
-                                               sim_array_soft_assignment)
+                                               sim_array_soft_assignment,
+                                               full_rank_track)
         np.save(fname_templates_batch, np.load(fname_templates_))
         np.save(fname_spike_train_batch, np.load(fname_spike_train_))
         np.save(fname_shifts_batch, np.load(fname_shifts_))
@@ -1336,7 +1348,8 @@ def deconv_pass_2(output_directory,
                   fname_templates_in,
                   run_chunk_sec,
                   CONFIG,
-                  similar_array=None):
+                  similar_array=None, 
+                  full_rank = None):
 
     # deconv 0
     (fname_templates,
@@ -1381,14 +1394,17 @@ def deconv_pass_2(output_directory,
         similar_array=similar_array)
 
      # run template update
-    update_weight = 100
-    fname_templates = run_template_update(
-        os.path.join(output_directory, 'template_update_3'),
-        fname_templates, fname_spike_train,
-        fname_shifts, fname_scales,
-        fname_residual, residual_dtype, run_chunk_sec[0],
-        update_weight)
-    
+    if full_rank is None:
+        update_weight = 100
+        fname_templates = run_template_update(
+            os.path.join(output_directory, 'template_update_3'),
+            fname_templates, fname_spike_train,
+            fname_shifts, fname_scales,
+            fname_residual, residual_dtype, run_chunk_sec[0],
+            update_weight)
+    else:
+        fname_templates = full_rank_update(os.path.join(output_directory, 'template_update_3'), full_rank, run_chunk_sec, fname_spike_train, fname_templates, backwards = True)
+
     return (fname_templates, fname_spike_train,
             fname_shifts, fname_scales, fname_template_soft)
 

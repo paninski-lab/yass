@@ -516,7 +516,7 @@ class TempTempConv(object):
                 
             if np.sum(np.abs(temp[unit])) == 0:
                 continue
-
+            print(unit)
             vis_chans = np.where(viscs[unit])[0]
             neigh_chans = CONFIG.neigh_channels[vis_chans][:, vis_chans]
             align, shifts_, vis_chan_keep = align_templates(
@@ -756,7 +756,6 @@ def temp_temp_partial(
 
 
 def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
-
     n_chans, n_time = temp_.shape
     if ref is None:
         main_c = temp_.ptp(1).argmax()
@@ -784,10 +783,11 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
         th = np.median(dist_[c])
         idx_ = np.where(cc == c)[0]
         idx_keep[idx_[val[idx_] < th]] = True
+    
     cc = cc[idx_keep]
     tt = tt[idx_keep]
     val = val[idx_keep]
-
+    print(val)
     # do connecting
     #t_diff=10
     #keep = np.zeros(len(tt), 'bool')
