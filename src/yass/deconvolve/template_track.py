@@ -14,6 +14,46 @@ from numpy.linalg import inv as inv
 import os 
 from pathlib import Path
 import pickle
+import parmap
+from tqdm import tqdm
+def shift_template(template, shift_chan, n_channels):
+    for chan in np.arange(n_channels):
+        shift = shift_chan[chan]
+        if shift == 0:
+            continue
+        if shift > 0:
+            template[:, chan] = np.concatenate((template[:, chan], np.zeros(shift)), axis = 0)[shift:]
+        else:
+            template[:, chan] =  np.concatenate((np.zeros(-shift), template[:, chan]), axis = 0)[:(template.shape[0])]
+    return template
+
+def get_wf(unit,dat, sps, shift_chan, len_wf, min_time, max_time, n_channels,offset, end, reader):
+    #dat = np.load(dat)
+    #dat = np.memmap(dat, dtype = np.float32, shape = (end -offset, n_channels))
+    shift_chan = shift_chan[unit]
+    spike_times = sps[:, 0]
+    unit_bool = sps[:, 1] == unit
+    time_bool = np.logical_and(spike_times + len_wf <= max_time, spike_times - len_wf > min_time)
+    size = np.sum(np.logical_and(unit_bool, time_bool))
+    idx4 = np.where(np.logical_and(unit_bool, time_bool))[0]
+    spikes = spike_times[idx4] #- len_wf//2                    
+    wfs = np.zeros((size, len_wf, n_channels))
+    
+    '''
+    for i in range(size):
+        time = int(spikes[i])
+        wf = np.zeros((len_wf, n_channels))
+        for c in range(n_channels):
+            wf[:, c] = dat[(-offset + time+shift_chan[c]):(-offset +time+ len_wf +shift_chan[c]), c]
+            #wf[:, c]= reader.read_waveforms(np.asarray([time + shift_chan[c]]))[0][0, :, c]
+        wfs[i, :, :] = wf
+    '''
+    
+    wfs = reader.read_waveforms(spikes)[0]
+    return shift_template(wfs.mean(0), shift_chan, n_channels), spikes
+
+
+
 
 def full_rank_update(save_dir, update_object, batch_list, sps, tmps, backwards = False):
     if not os.path.exists(save_dir):
@@ -23,8 +63,6 @@ def full_rank_update(save_dir, update_object, batch_list, sps, tmps, backwards =
         updated_templates, batch = update_object.get_updated_templates(batch_list, sps , tmps)
     else:
         updated_templates, batch = update_object.get_updated_templates_backwards(batch_list, sps , tmps)
-    print("yay")
-    print(update_object.dir)
     np.save(os.path.join(save_dir, "templates.npy"), updated_templates)
     np.save(os.path.join(update_object.dir, "templates_{}.npy".format(str(batch))), updated_templates)
     return os.path.join(save_dir, "templates.npy")
@@ -71,7 +109,7 @@ class RegressionTemplates:
         #self.coeff = self.get_bspline_coeffs(self.templates)
         self.first = True
     
-    def continuous_visible_channels(self, templates, threshold=.5, neighb_threshold=1., spatial_neighbor_dist=70):
+    def continuous_visible_channels(self, templates, threshold=.1, neighb_threshold=.5, spatial_neighbor_dist=70):
     ## Should be in the pipeline already
         """
         inputs:
@@ -247,7 +285,7 @@ class RegressionTemplates:
             V[:num_basis_functions, :, j]  = (vh[:num_basis_functions, :].T * s[:num_basis_functions]).T
         return V, F
 
-    def batch_regression(self, unit, batch_times):
+    def batch_regression(self, unit, batch_times, templates_aligned):
         batch = int(batch_times[0]/self.CONFIG.deconvolution.template_update_time)
         vis_chans = self.visible_chans_dict[unit]
         visible_chans_unit = np.where(vis_chans)[0]
@@ -255,7 +293,6 @@ class RegressionTemplates:
         if os.path.exists(os.path.join(self.dir, "F_{}.npy".format(str(unit)))):
             U = np.load(os.path.join(self.dir, "U_{}.npy".format(str(unit))))
             if np.sum(U[:, batch] - 1) != 0:               
-                print("skip {}".format(unit))
                 V = np.load(os.path.join(self.dir, "V_{}.npy".format(str(unit))))
                 F = np.load(os.path.join(self.dir, "F_{}.npy".format(str(unit))))
                 self.templates_approx[unit, :, visible_chans_unit] = (np.matmul(F, V[:, :, batch])* U[:, batch]).T[:len(visible_chans_unit), :]
@@ -269,10 +306,15 @@ class RegressionTemplates:
         
         #get visible channels 
         #small visible channels we just don't do tracking for
-        if visible_chans_unit.shape[0] < 5:
-            print("too small")
-            return self.templates[unit]
         
+        '''
+        if visible_chans_unit.shape[0] < self.num_basis_functions:
+            print("too small")
+            vis_chans = np.zeros(self.n_channels, dtype = np.bool_)
+            vis_chans[self.templates[unit].ptp(0).argsort()[::-1][:6]] = True
+            self.visible_chans_dict[unit] = vis_chans
+            visible_chans_unit = np.where(vis_chans)[0]
+        '''
         #set mininum and maximum limits
         min_time_chunk = batch_times[0]*self.sampling_rate
         max_time_chunk = batch_times[1]*self.sampling_rate
@@ -283,17 +325,21 @@ class RegressionTemplates:
         idx4 = np.where(np.logical_and(unit_bool, time_bool))[0]
         #if not enough spikes we use the previous batches spikes
         if idx4.shape[0] < 6:
-            print("Not enough Spikes")
             return self.templates[unit]
         
         idx_chan_vis = self.templates[unit, :, vis_chans].ptp(1).argsort()[::-1] #Needed to get top 5 channels
+        
+        '''
         templates_aligned = self.shift_templates_batch(unit, batch_times) #Not needed in the pipeline / faster if unit per unit
+        '''
+        
         self.vis = visible_chans_unit
-        templates_unit = templates_aligned[:, visible_chans_unit]
+        templates_unit, self.u_spikes = templates_aligned[0][:, visible_chans_unit],templates_aligned[1]
         self.templates_unit = templates_unit
         
         ## NUM SPIKE FOR EACH CHUNK 
         num_chan_vis = len(visible_chans_unit)
+        
         
         '''
         if num_chan_vis < num_basis_functions:
@@ -342,14 +388,34 @@ class RegressionTemplates:
         self.spike_times = self.spike_trains[:, 0]
         #load new template information 
         self.templates = np.load(tmps)
-        print(tmps)
         self.n_unit = self.templates.shape[0]
         self.len_wf = self.templates.shape[1]
         self.find_shift()
         batch = int(batch_times[0]/self.CONFIG.deconvolution.template_update_time)
+        
+        
+ 
+        min_time = batch_times[0]*self.sampling_rate
+        max_time = batch_times[1]*self.sampling_rate
+        data_start = min_time - self.len_wf*2
+        data_end = max_time  + 4*self.len_wf
+        #dat = self.reader.read_data(np.max([data_start,0]), data_end)
+        #dat.astype(np.float32).tofile(os.path.join(self.dir, "seg.dat"))
+        #np.save(os.path.join(self.dir, "seg.npy"), dat)
+        offset = np.max([0, data_start])
+        
+        wf_list = parmap.map(get_wf, range(self.templates.shape[0]),os.path.join(self.dir, "seg.dat"),  self.spike_trains, self.unit_shifts, self.len_wf, min_time, max_time, self.n_channels,offset, data_end, self.reader, pm_pbar=True, pm_processes = 5)
+        
         if not os.path.exists(os.path.join(self.dir, "vis_chan.npy")):
             visible_chans = self.visible_channels()
-            self.visible_chans_dict = {unit : visible_chans[:, unit] for unit in range(self.n_unit)}
+            self.visible_chans_dict = {}# {unit : visible_chans[:, unit] for unit in range(self.n_unit)}
+            for unit in range(self.templates.shape[0]):
+                if np.sum(visible_chans[:, unit]) > (self.num_basis_functions -1):
+                    self.visible_chans_dict[unit]  =  visible_chans[:, unit]
+                else:
+                    vis_chans = np.zeros(self.n_channels, dtype = np.bool_)
+                    vis_chans[self.templates[unit].ptp(0).argsort()[::-1][:7]] = True
+                    self.visible_chans_dict[unit] = vis_chans
             np.save(os.path.join(self.dir, "vis_chan.npy"), self.visible_chans_dict)
         
         if batch > 1:
@@ -359,16 +425,20 @@ class RegressionTemplates:
             self.visible_chans_dict = np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True).item()
             visible_chans = self.visible_channels()
             for new_unit in range(self.prev_templates.shape[0], self.templates.shape[0]):
-                self.visible_chans_dict[new_unit]  =  visible_chans[:, new_unit]
+                if np.sum(visible_chans[:, new_unit]) > (self.num_basis_functions -1):
+                    self.visible_chans_dict[new_unit]  =  visible_chans[:, new_unit]
+                else:
+                    vis_chans = np.zeros(self.n_channels, dtype = np.bool_)
+                    vis_chans[self.templates[new_unit].ptp(0).argsort()[::-1][:7]] = True
+                    self.visible_chans_dict[new_unit] = vis_chans
             np.save(os.path.join(self.dir, "vis_chan.npy"), self.visible_chans_dict)
         else:
             self.visible_chans_dict = np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True).item()
         
         self.templates_approx = np.zeros_like(self.templates)
         tmps = np.zeros((self.n_unit, self.len_wf, self.n_channels))
-        for unit in range(self.n_unit):
-            print(unit)
-            tmps[unit, :, :] = self.batch_regression(unit, batch_times)
+        for unit in tqdm(range(self.n_unit)):
+            tmps[unit, :, :] = self.batch_regression(unit, batch_times, wf_list[unit])
         np.save(os.path.join(self.dir, "templates_{}".format(str(int(batch)))), tmps)
         return tmps, batch
     
@@ -380,15 +450,32 @@ class RegressionTemplates:
         self.spike_times = self.spike_trains[:, 0]
         #load new template information 
         self.templates = np.load(tmps)
-        print(tmps)
         self.n_unit = self.templates.shape[0]
         self.len_wf = self.templates.shape[1]
         self.find_shift()
         batch = int((self.max_time - batch_times[1])/self.CONFIG.deconvolution.template_update_time -1)
         
+        min_time = batch_times[0]*self.sampling_rate
+        max_time = batch_times[1]*self.sampling_rate
+        data_start = min_time - self.len_wf*2
+        data_end = max_time  + 4*self.len_wf
+        #dat = self.reader.read_data(np.max([data_start,0]), data_end)
+        #dat.astype(np.float32).tofile(os.path.join(self.dir, "seg.dat"))
+        #np.save(os.path.join(self.dir, "seg.npy"), dat)
+        offset = np.max([0, data_start])
+
+        wf_list = parmap.map(get_wf, range(self.templates.shape[0]),os.path.join(self.dir, "seg.dat"),  self.spike_trains, self.unit_shifts, self.len_wf, min_time, max_time, self.n_channels,offset, data_end, self.reader, pm_pbar=True, pm_processes = 5)
+        
         if not os.path.exists(os.path.join(self.dir, "vis_chan.npy")):
             visible_chans = self.visible_channels()
-            self.visible_chans_dict = {unit : visible_chans[:, unit] for unit in range(self.n_unit)}
+            self.visible_chans_dict = {}# {unit : visible_chans[:, unit] for unit in range(self.n_unit)}
+            for unit in range(self.templates.shape[0]):
+                if np.sum(visible_chans[:, unit]) > (self.num_basis_functions -1):
+                    self.visible_chans_dict[unit]  =  visible_chans[:, unit]
+                else:
+                    vis_chans = np.zeros(self.n_channels, dtype = np.bool_)
+                    vis_chans[self.templates[unit].ptp(0).argsort()[::-1][:7]] = True
+                    self.visible_chans_dict[unit] = vis_chans
             np.save(os.path.join(self.dir, "vis_chan.npy"), self.visible_chans_dict)
         
         if batch > 0:
@@ -398,17 +485,19 @@ class RegressionTemplates:
             self.visible_chans_dict = np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True).item()
             visible_chans = self.visible_channels()
             for new_unit in range(self.prev_templates.shape[0], self.templates.shape[0]):
-                self.visible_chans_dict[new_unit]  =  visible_chans[:, new_unit]
+                if np.sum(visible_chans[:, new_unit]) > (self.num_basis_functions -1):
+                    self.visible_chans_dict[new_unit]  =  visible_chans[:, new_unit]
+                else:
+                    vis_chans = np.zeros(self.n_channels, dtype = np.bool_)
+                    vis_chans[self.templates[new_unit].ptp(0).argsort()[::-1][:7]] = True
+                    self.visible_chans_dict[new_unit] = vis_chans
             np.save(os.path.join(self.dir, "vis_chan.npy"), self.visible_chans_dict)
         else:
             self.visible_chans_dict = np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True).item()
         
         self.templates_approx = np.zeros_like(self.templates)
         tmps = np.zeros((self.n_unit, self.len_wf, self.n_channels))
-        for unit in range(self.n_unit):
-            print(unit)
-            tmps[unit, :, :] = self.batch_regression(unit, batch_times)
+        for unit in tqdm(range(self.n_unit)):
+            tmps[unit, :, :] = self.batch_regression(unit, batch_times, wf_list[unit])
         np.save(os.path.join(self.dir, "templates_{}".format(str(int(batch)))), tmps)
         return tmps, batch
-    
-

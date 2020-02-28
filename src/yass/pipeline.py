@@ -774,6 +774,7 @@ def final_deconv_with_template_updates_v2(output_directory,
             update_time[0]))
     sim_array_soft_assignment = get_similar_array(
         np.load(fname_temp), 3)
+    shutil.rmtree(full_rank_track.dir)
 
     for j in range(len(update_time)-2, -1, -1):
 
@@ -846,7 +847,6 @@ def final_deconv_with_template_updates_v2(output_directory,
 
         if remove_meta_data:
             shutil.rmtree(output_directory_batch)
-    
     # post backward process
     # gather all results and
     # kill based on soft assignment and firing rates
@@ -860,6 +860,7 @@ def final_deconv_with_template_updates_v2(output_directory,
     final_directory = os.path.join(output_directory, 'final_pass')
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
+    shutil.rmtree(full_rank_track.dir)
 
     # add the final templates
     for j in range(len(update_time)-1):
