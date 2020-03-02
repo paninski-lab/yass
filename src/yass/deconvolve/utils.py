@@ -610,7 +610,7 @@ class TempTempConv(object):
             global_argmax = temp_temp_argmax.max()
             # Shift all temp_temps so that the peaks are aligned
             shifts_ = global_argmax - temp_temp_argmax
-            zero_padded_temp_temp = np.zeros([n_unit, n_unit, max_len])
+            zero_padded_temp_temp = np.zeros([n_unit, n_unit, max_len], 'float32')
             for i in range(n_unit):
                 u_shift = shifts_[i]
                 for j in range(n_unit):
