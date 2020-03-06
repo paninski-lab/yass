@@ -3,7 +3,7 @@ import os
 from yass.template import run_template_computation
 import numpy as np
 from yass import residual, soft_assignment
-from yass.merge.correlograms_phy import compute_correlogram
+from yass.correlograms_phy import compute_correlogram
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from matplotlib.lines import Line2D
@@ -20,8 +20,10 @@ class superclass(object):
                         save_dir,
                         fname_spike_train,
                         fname_templates,
-                        fname_shifts=None,
-                        fname_scales=None):
+                        fname_residual = None,
+                        residual_dtype = None,
+                        fname_shifts = None,
+                        fname_scales = None):
                     
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
@@ -37,9 +39,9 @@ class superclass(object):
             scales = np.ones(n_spikes, 'float32')
             fname_scales = os.path.join(save_dir, 'scales.npy')
             np.save(fname_scales, scales)
-            
-        if self.fname_residual is None:            
-            self.fname_residual, self.residual_dtype = residual.run(
+        
+        if fname_residual is None:            
+            fname_residual, residual_dtype = residual.run(
                 fname_shifts,
                 fname_scales,
                 fname_templates,
@@ -57,12 +59,12 @@ class superclass(object):
             fname_scales,
             os.path.join(save_dir,
                          'soft_assignment'),
-            self.fname_residual,
-            self.residual_dtype,
+            fname_residual,
+            self.recording_dtype,
             compute_noise_soft=False,
             compute_template_soft=True)
         
-        return fname_template_soft
+        return fname_template_soft, fname_residual, residual_dtype
     
 class CompareTwoSorts(superclass):
     def __init__(self,
@@ -80,12 +82,10 @@ class CompareTwoSorts(superclass):
         
         
         self.fname_spike_train2 = fname_spike_train2
-        self.fname_shifts1 = fname_shifts1
         self.fname_shifts2 = fname_shifts2
-        self.fname_scales1 = fname_scales1
         self.fname_scales2 = fname_scales2
         self.fname_templates2 = fname_templates2
-        self.fname_softassignment1 = fname_softassignment1
+#         self.fname_softassignment1 = fname_softassignment1
         self.fname_softassignment2 = fname_softassignment2
         self.run1_name = run1_name
         self.run2_name = run2_name
@@ -106,27 +106,27 @@ class CompareTwoSorts(superclass):
     
         self.run_save_matching()
     
-        if self.fname_softassignment1 is None:
-            print('compute soft assignment 1')
-            save_dir_softassignment = os.path.join(
-                self.save_dir, 'softassignment1')
-            self.fname_softassignment1 = self.get_soft_assignment(
-                save_dir_softassignment,
-                self.fname_spike_train,
-                self.fname_templates,
-                self.fname_shifts1,
-                self.fname_scales1)
+#         if self.fname_softassignment1 is None:
+#             print('compute soft assignment 1')
+#             save_dir_softassignment = os.path.join(
+#                 self.save_dir, 'softassignment1')
+#             self.fname_softassignment1 = self.get_soft_assignment(
+#                 save_dir_softassignment,
+#                 self.fname_spike_train,
+#                 self.fname_templates,
+#                 self.fname_shifts,
+#                 self.fname_scales)
         
         if self.fname_softassignment2 is None:
             print('compute soft assignment 2')
             save_dir_softassignment = os.path.join(
                 self.save_dir, 'softassignment2')
-            self.fname_softassignment2 = self.get_soft_assignment(
+            self.fname_softassignment2, _, _ = self.get_soft_assignment(
                 save_dir_softassignment,
                 self.fname_spike_train2,
                 self.fname_templates2,
-                self.fname_shifts2,
-                self.fname_scales2)
+                fname_shifts = self.fname_shifts2,
+                fname_scales = self.fname_scales2)
             
         (self.avg_outlier1,
          self.avg_temp_soft1) = self.compute_soft_assignment_summary(
@@ -170,24 +170,24 @@ class CompareTwoSorts(superclass):
         
         
         fname_cossim = os.path.join(self.save_dir, 'cossim.npz')
-        if not (os.path.exists(fname_cos1) and os.path.exists(fname_cos2)):
+        if not (os.path.exists(fname_cossim)):
             self.compute_cossim_summary()
             
             
             np.savez(fname_cossim, cos1= self.cos1, 
                                     cos2 = self.cos2, 
-                                    ptp1 = self.ptp1, 
-                                    ptp2 = self.ptp2, 
-                                    fr1 = self.fr1, 
-                                    fr2 = self.fr2)
+                                    ptp1 = self.ptps, 
+                                    ptp2 = self.ptps2, 
+                                    fr1 = self.f_rates, 
+                                    fr2 = self.f_rates2)
         else:
             temp = np.load(fname_cossim)
             self.cos1 = temp['cos1']
             self.cos2 = temp['cos2']
-            self.ptp1 = temp['ptp1']
-            self.ptp2 = temp['ptp2']
-            self.fr1 = temp['fr1']
-            self.fr2 = temp['fr2']
+            self.ptps = temp['ptp1']
+            self.ptps2 = temp['ptp2']
+            self.f_rates = temp['fr1']
+            self.f_rates2 = temp['fr2']
         
         
             
@@ -418,12 +418,6 @@ class CompareTwoSorts(superclass):
             else:
                 temp1 = templates_con
             
-            self.fr1[i] = (self.matched_events[i].size + self.run1_miss[i].size)/recording_length
-            self.fr2[i] = (self.matched_events[i].size + self.run2_miss[i].size)/recording_length
-    
-    
-            self.ptp1[i] = temp1.ptp(0).max(0)
-            self.ptp2[i] = temp2.ptp(0).max(0)
             self.cos1[i] = 1 - scipy.spatial.distance.cosine(temp1.flatten(),templates_con.flatten())
             self.cos2[i] = 1 - scipy.spatial.distance.cosine(temp2.flatten(),templates_con.flatten())
 
@@ -441,25 +435,25 @@ class CompareTwoSorts(superclass):
 
         gs = outer[0].subgridspec(5, 3, hspace=0.2, wspace=0.3)
 
-        unit_keep1 = np.where(self.f_rates1 > min_fr)[0]
+        unit_keep1 = np.where(self.f_rates > min_fr)[0]
         unit_keep2 = np.where(self.f_rates2 > min_fr)[0]
         
-        run1_only = self.run1_only[self.f_rates1[self.run1_only] > min_fr]
+        run1_only = self.run1_only[self.f_rates[self.run1_only] > min_fr]
         run2_only = self.run2_only[self.f_rates2[self.run2_only] > min_fr]
-        run1_matched = self.run1_matched[self.f_rates1[self.run1_matched] > min_fr]
+        run1_matched = self.run1_matched[self.f_rates[self.run1_matched] > min_fr]
         run2_matched = self.run2_matched[self.f_rates2[self.run2_matched] > min_fr]
         
-        fr_max = np.max((self.f_rates1.max(), self.f_rates2.max()))
+        fr_max = np.max((self.f_rates.max(), self.f_rates2.max()))
         fr_max = int(np.ceil(np.log(fr_max)))
         fr_min = np.log(min_fr)
         fr_ticks = np.round(np.exp(np.arange(fr_min, fr_max, 1)), 1)
         
         
-        ptp_max = np.max((self.ptps1[unit_keep1].max(),
+        ptp_max = np.max((self.ptps[unit_keep1].max(),
                           self.ptps2[unit_keep2].max())) + 5
         ptp_max = int(np.ceil(np.log(ptp_max)))
 
-        ptp_min = np.min((self.ptps1[unit_keep1].min(),
+        ptp_min = np.min((self.ptps[unit_keep1].min(),
                           self.ptps2[unit_keep2].min())) - 1
         ptp_min = np.max((ptp_min, 1))
         ptp_min = np.log(ptp_min)
@@ -507,16 +501,16 @@ class CompareTwoSorts(superclass):
         ax = plt.subplot(gs[0, 0])
 
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[run1_only]),
-                        np.log(self.f_rates1[run1_only]),
+            plt.scatter(np.log(self.ptps[run1_only]),
+                        np.log(self.f_rates[run1_only]),
                         s=ss, color='r')
             plt.scatter(np.log(self.ptps2[run2_only]), 
                         np.log(self.f_rates2[run2_only]),
                         s=ss, color='b')
             plt.yticks(np.arange(fr_min, fr_max, 1), fr_ticks)
         else:
-            plt.scatter(np.log(self.f_rates1[run1_only]),
-                        np.log(self.ptps1[run1_only]), s=ss, color='r')
+            plt.scatter(np.log(self.f_rates[run1_only]),
+                        np.log(self.ptps[run1_only]), s=ss, color='r')
             plt.scatter(np.log(self.f_rates2[run2_only]),
                         np.log(self.ptps2[run2_only]), s=ss, color='b')
             plt.yticks(np.arange(ptp_min, ptp_max, 1), ptp_ticks)
@@ -541,12 +535,12 @@ class CompareTwoSorts(superclass):
         ax = plt.subplot(gs[0, 1])
 
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[run1_only]),
+            plt.scatter(np.log(self.ptps[run1_only]),
                         self.mad_avg1[run1_only], s=ss, color='r')
             plt.scatter(np.log(self.ptps2[run2_only]),
                         self.mad_avg2[run2_only], s=ss, color='b')
         else:
-            plt.scatter(np.log(self.f_rates1[run1_only]),
+            plt.scatter(np.log(self.f_rates[run1_only]),
                         self.mad_avg1[run1_only], s=ss, color='r')
             plt.scatter(np.log(self.f_rates2[run2_only]),
                         self.mad_avg2[run2_only], s=ss, color='b')
@@ -567,12 +561,12 @@ class CompareTwoSorts(superclass):
         ax = plt.subplot(gs[0, 2])
 
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[run1_only]),
+            plt.scatter(np.log(self.ptps[run1_only]),
                         self.avg_temp_soft1[run1_only], s=ss, color='r')
             plt.scatter(np.log(self.ptps2[run2_only]),
                         self.avg_temp_soft2[run2_only], s=ss, color='b')
         else:
-            plt.scatter(np.log(self.f_rates1[run1_only]),
+            plt.scatter(np.log(self.f_rates[run1_only]),
                         self.avg_temp_soft1[run1_only], s=ss, color='r')
             plt.scatter(np.log(self.f_rates2[run2_only]),
                         self.avg_temp_soft2[run2_only], s=ss, color='b')
@@ -592,12 +586,12 @@ class CompareTwoSorts(superclass):
         ax = plt.subplot(gs[1, 0])
 
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[run1_only]),
+            plt.scatter(np.log(self.ptps[run1_only]),
                         self.avg_outlier1[run1_only], s=ss, color='r')
             plt.scatter(np.log(self.ptps2[run2_only]),
                         self.avg_outlier2[run2_only], s=ss, color='b')
         else:
-            plt.scatter(np.log(self.f_rates1[run1_only]),
+            plt.scatter(np.log(self.f_rates[run1_only]),
                         self.avg_outlier1[run1_only], s=ss, color='r')
             plt.scatter(np.log(self.f_rates2[run2_only]),
                         self.avg_outlier2[run2_only], s=ss, color='b')
@@ -620,12 +614,12 @@ class CompareTwoSorts(superclass):
         ax = plt.subplot(gs[1, 1])
 
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[run1_only]),
+            plt.scatter(np.log(self.ptps[run1_only]),
                         self.peak_xcorr1[run1_only], s=ss, color='r')
             plt.scatter(np.log(self.ptps2[run2_only]),
                         self.peak_xcorr2[run2_only], s=ss, color='b')
         else:
-            plt.scatter(np.log(self.f_rates1[run1_only]),
+            plt.scatter(np.log(self.f_rates[run1_only]),
                         self.peak_xcorr1[run1_only], s=ss, color='r')
             plt.scatter(np.log(self.f_rates2[run2_only]),
                         self.peak_xcorr2[run2_only], s=ss, color='b')
@@ -646,12 +640,12 @@ class CompareTwoSorts(superclass):
         ax = plt.subplot(gs[1, 2])
 
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[run1_only]),
+            plt.scatter(np.log(self.ptps[run1_only]),
                         self.notch_xcorr1[run1_only], s=ss, color='r')
             plt.scatter(np.log(self.ptps2[run2_only]),
                         self.notch_xcorr2[run2_only], s=ss, color='b')
         else:
-            plt.scatter(np.log(self.f_rates1[run1_only]),
+            plt.scatter(np.log(self.f_rates[run1_only]),
                         self.notch_xcorr1[run1_only], s=ss, color='r')
             plt.scatter(np.log(self.f_rates2[run2_only]),
                         self.notch_xcorr2[run2_only], s=ss, color='b')
@@ -672,16 +666,16 @@ class CompareTwoSorts(superclass):
         ax = plt.subplot(gs[2, 0])
 
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[run1_matched]),
-                        np.log(self.f_rates1[run1_matched]),
+            plt.scatter(np.log(self.ptps[run1_matched]),
+                        np.log(self.f_rates[run1_matched]),
                         s=ss, color='g')
             plt.scatter(np.log(self.ptps2[run2_matched]), 
                         np.log(self.f_rates2[run2_matched]),
                         s=ss, color='purple')
             plt.yticks(np.arange(fr_min, fr_max, 1), fr_ticks)
         else:
-            plt.scatter(np.log(self.f_rates1[run1_matched]),
-                        np.log(self.ptps1[run1_matched]), s=ss, color='g')
+            plt.scatter(np.log(self.f_rates[run1_matched]),
+                        np.log(self.ptps[run1_matched]), s=ss, color='g')
             plt.scatter(np.log(self.f_rates2[run2_matched]),
                         np.log(self.ptps2[run2_matched]), s=ss, color='purple')
             plt.yticks(np.arange(ptp_min, ptp_max, 1), ptp_ticks)
@@ -707,12 +701,12 @@ class CompareTwoSorts(superclass):
         ax = plt.subplot(gs[2, 1])
 
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[run1_matched]),
+            plt.scatter(np.log(self.ptps[run1_matched]),
                         self.mad_avg1[run1_matched], s=ss, color='g')
             plt.scatter(np.log(self.ptps2[run2_matched]),
                         self.mad_avg2[run2_matched], s=ss, color='purple')
         else:
-            plt.scatter(np.log(self.f_rates1[run1_matched]),
+            plt.scatter(np.log(self.f_rates[run1_matched]),
                         self.mad_avg1[run1_matched], s=ss, color='g')
             plt.scatter(np.log(self.f_rates2[run2_matched]),
                         self.mad_avg2[run2_matched], s=ss, color='purple')
@@ -733,12 +727,12 @@ class CompareTwoSorts(superclass):
         ax = plt.subplot(gs[2, 2])
 
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[run1_matched]),
+            plt.scatter(np.log(self.ptps[run1_matched]),
                         self.avg_temp_soft1[run1_matched], s=ss, color='g')
             plt.scatter(np.log(self.ptps2[run2_matched]),
                         self.avg_temp_soft2[run2_matched], s=ss, color='purple')
         else:
-            plt.scatter(np.log(self.f_rates1[run1_matched]),
+            plt.scatter(np.log(self.f_rates[run1_matched]),
                         self.avg_temp_soft1[run1_matched], s=ss, color='g')
             plt.scatter(np.log(self.f_rates2[run2_matched]),
                         self.avg_temp_soft2[run2_matched], s=ss, color='purple')
@@ -759,12 +753,12 @@ class CompareTwoSorts(superclass):
         ax = plt.subplot(gs[3, 0])
         
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[run1_matched]),
+            plt.scatter(np.log(self.ptps[run1_matched]),
                         self.avg_outlier1[run1_matched], s=ss, color='g')
             plt.scatter(np.log(self.ptps2[run2_matched]),
                         self.avg_outlier2[run2_matched], s=ss, color='purple')
         else:
-            plt.scatter(np.log(self.f_rates1[run1_matched]),
+            plt.scatter(np.log(self.f_rates[run1_matched]),
                         self.avg_outlier1[run1_matched], s=ss, color='g')
             plt.scatter(np.log(self.f_rates2[run2_matched]),
                         self.avg_outlier2[run2_matched], s=ss, color='purple')
@@ -781,12 +775,12 @@ class CompareTwoSorts(superclass):
         ax = plt.subplot(gs[3, 1])
 
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[run1_matched]),
+            plt.scatter(np.log(self.ptps[run1_matched]),
                         self.peak_xcorr1[run1_matched], s=ss, color='g')
             plt.scatter(np.log(self.ptps2[run2_matched]),
                         self.peak_xcorr2[run2_matched], s=ss, color='purple')
         else:
-            plt.scatter(np.log(self.f_rates1[run1_matched]),
+            plt.scatter(np.log(self.f_rates[run1_matched]),
                         self.peak_xcorr1[run1_matched], s=ss, color='g')
             plt.scatter(np.log(self.f_rates2[run2_matched]),
                         self.peak_xcorr2[run2_matched], s=ss, color='purple')
@@ -806,12 +800,12 @@ class CompareTwoSorts(superclass):
         
         ax = plt.subplot(gs[3, 2])
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[run1_matched]),
+            plt.scatter(np.log(self.ptps[run1_matched]),
                         self.notch_xcorr1[run1_matched], s=ss, color='g')
             plt.scatter(np.log(self.ptps2[run2_matched]),
                         self.notch_xcorr2[run2_matched], s=ss, color='purple')
         else:
-            plt.scatter(np.log(self.f_rates1[run1_matched]),
+            plt.scatter(np.log(self.f_rates[run1_matched]),
                         self.notch_xcorr1[run1_matched], s=ss, color='g')
             plt.scatter(np.log(self.f_rates2[run2_matched]),
                         self.notch_xcorr2[run2_matched], s=ss, color='purple')
@@ -835,18 +829,17 @@ class CompareTwoSorts(superclass):
         name2_matched = self.run2_name + ' matched'
         
         
-        print(run2_matched.size, self.cos2.size)
         ax = plt.subplot(gs[4,0])
         if use_ptp:
-            plt.scatter(np.log(self.ptps1[self.matched_pairs[:,0]]), self.cos1, c='g', s = ss)
+            plt.scatter(np.log(self.ptps[self.matched_pairs[:,0]]), self.cos1, c='g', s = ss)
             plt.scatter(np.log(self.ptps2[self.matched_pairs[:,1]]), self.cos2, c='purple', s = ss)
             plt.xlabel('PTP', fontsize = fs)
         else:
-            plt.scatter(np.log(self.f_rates1[self.matched_pairs[:,0]]), self.cos1, c = 'g', s = ss)
+            plt.scatter(np.log(self.f_rates[self.matched_pairs[:,0]]), self.cos1, c = 'g', s = ss)
             plt.scatter(np.log(self.f_rates2[self.matched_pairs[:,1]]), self.cos2, c = 'purple', s = ss)
             plt.xlabel('Firing rate (Hz)', fontsize = fs)
         
-        plt.ylabel("Cos Similarity")
+        plt.ylabel("Cos Similarity", fontsize = fs)
         plt.xticks(np.arange(x_min, x_max, 2), x_ticks)
         ax.tick_params(axis='both', which='both', labelsize=fs)
         plt.xlim([x_min-0.5, x_max+0.5])

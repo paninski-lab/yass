@@ -612,7 +612,7 @@ def isi(spt, template, ax, reader_resid, alpha):
     ax.set_xlim([1.5, 250])
     ax.set_xscale('log')
     ax.plot([1.5, 250],[template.ptp(0).max(0), template.ptp(0).max(0)])
-    ax.set_xlim([0,250])
+    ax.set_xlim([1.5,250])
     ax.set_xlabel('log ISI (ms)')
     ax.set_ylabel('PTP (SU)')
     

@@ -80,24 +80,30 @@ def run():
                      fname_residual = fname_residual, residual_dtype = recording_dtype)
 
     vis.population_level_plot()
-    vis.individiual_cell_plot()
+    vis.individual_cell_plot()
 
 class Visualizer(superclass):
 
-    def __init__(self, fname_templates, fname_spike_train,
+    def __init__(self, fname_spike_train,
                  fname_recording, recording_dtype,
-                 CONFIG, save_dir, rf_dir=None,
+                 CONFIG, save_dir, fname_templates = None, 
+                 fname_shifts = None, fname_scales = None, rf_dir=None,
                  fname_residual=None, residual_dtype=None,
-                 fname_soft_assignment=None):
+                 fname_softassignment1=None):
 
         # saving directory location
         self.save_dir = save_dir
         self.save_dir_ind = os.path.join(
             self.save_dir, 'individual')
+        self.tmp_folder = os.path.join(self.save_dir, 'tmp')
+        
+        
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
+        
+        if not os.path.exists(self.save_dir_ind):
+            os.makedirs(self.save_dir_ind)
 
-        self.tmp_folder = os.path.join(self.save_dir, 'tmp')
         if not os.path.exists(self.tmp_folder):
             os.makedirs(self.tmp_folder)
         
@@ -114,7 +120,10 @@ class Visualizer(superclass):
         self.reader = READER(fname_recording, recording_dtype, CONFIG, 1)
         self.fname_residual = fname_residual
         self.residual_dtype = residual_dtype
-
+        
+        self.fname_shifts = fname_shifts
+        self.fname_scales = fname_scales
+        
         if fname_templates is None:
             fname_templates = save_dir + '/template1_computation/templates.npy'
             
@@ -147,15 +156,17 @@ class Visualizer(superclass):
         self.unique_ids = np.unique(self.spike_train[:,1])
         self.rec_len = np.ptp(self.spike_train[:, 0])/self.sampling_rate
         
-        fname_soft_assignment = self.get_soft_assignment(os.path.join(self.save_dir, 
+        self.fname_softassignment1, self.fname_residual, _ = self.get_soft_assignment(os.path.join(self.save_dir, 
                                                                       'softassignment1'),
-                                                         self.fname_spike_train, self.fname_templates)
-        self.soft_assignment = np.load(fname_soft_assignment)['probs_templates'][:,0]
-        self.reader_resid = READER(self.fname_residual, self.residual_dtype, CONFIG, 1)
+                                                         self.fname_spike_train, self.fname_templates, 
+                                                       self.fname_residual, self.fname_shifts, self.fname_scales)
+        
+        self.soft_assignment = np.load(self.fname_softassignment1)['probs_templates'][:,0]
+        self.reader_resid = READER(self.fname_residual, self.recording_dtype, CONFIG, 1)
         self.reader_resid.spike_size = self.n_times_templates
     
         # compute firing rates
-        self.f_rates, self.ptps = get_ptp_firing_rates(self.fname_templates, self.fname_spike_train, self.reader)
+        self.ptps, self.f_rates = get_ptp_firing_rates(self.fname_templates, self.fname_spike_train, self.reader)
         self.compute_xcorrs()
 
         # rf files
@@ -189,9 +200,9 @@ class Visualizer(superclass):
             # also compute rf
             self.compute_neighbours_rf()
             
-#         else:
-#             self.cell_types = ['??']
-#             self.rf_labels = np.zeros(self.n_units, dtype = int)
+        else:
+            self.cell_types = ['??']
+            self.rf_labels = np.zeros(self.n_units, dtype = int)
 
         # get colors
         self.colors = colors = [
@@ -353,8 +364,8 @@ class Visualizer(superclass):
             self.add_residual_qq_plot()
             self.add_raw_resid_snippets()
 
-    def individiual_level_plot(self, units_full_analysis=None, sample=False,
-                               plot_all=True, plot_summary=True, divide_by_cell_types=True):
+    def individual_level_plot(self, units_full_analysis=None, sample=False,
+                               plot_all=True, plot_summary=True, divide_by_cell_types=False):
 
         # saving directory location
         
@@ -407,7 +418,7 @@ class Visualizer(superclass):
             names.append(name)
         
         if False:
-            parmap.map(self.make_individiual_level_plot,
+            parmap.map(self.make_individual_level_plot,
                        list(units_in),
                        names,
                        full_analysis[units_in],
@@ -415,13 +426,13 @@ class Visualizer(superclass):
                        pm_pbar=True)
         else:
             for ii in tqdm(range(len(units_in))):
-                self.make_individiual_level_plot(units_in[ii],
+                self.make_individual_level_plot(units_in[ii],
                                                  names[ii],
                                                  full_analysis[units_in[ii]],
                                                  divide_by_cell_types
                                                 )
 
-    def make_individiual_level_plot(self,
+    def make_individual_level_plot(self,
                                     unit,
                                     name,
                                     full_analysis=True,
@@ -1894,26 +1905,45 @@ class Visualizer(superclass):
 class VisualizerOG(Visualizer, CompareTwoSorts):
     def __init__(self, fname_spike_train, 
                  fname_recording, 
-                 recording_dtype, 
+                 recording_dtype,
                  CONFIG, 
-                 save_dir, 
-                 fname_templates = None, 
-                 fname_spiketrain2 = None, fname_templates2 = None, 
-                 fname_residual = None):
+                 save_dir,
+                 fname_templates = None,
+                 fname_residual = None,
+                 fname_shifts = None,
+                 fname_scales = None):
         
                
-        Visualizer.__init__(self, fname_templates, fname_spike_train,
+        Visualizer.__init__(self,  fname_spike_train,
                  fname_recording, recording_dtype,
-                 CONFIG, save_dir, fname_residual = fname_residual, residual_dtype = recording_dtype)
+                 CONFIG, save_dir, fname_templates = fname_templates, 
+                            fname_shifts = fname_shifts, 
+                            fname_scales = fname_scales, 
+                            fname_residual = fname_residual, 
+                            residual_dtype = recording_dtype)
         
-        if fname_spiketrain2 is not None:
-            self.fname_templates2 = fname_templates2
-            CompareTwoSorts.__init__(self, 
-                                     fname_spiketrain2, 
-                                     fname_templates2 = self.fname_templates2)
         
-    def venn_plots(self):
+        
+    def compare(self, fname_spiketrain2, 
+                fname_shifts = None,
+                fname_scales = None,
+                fname_templates2 = None,
+                fname_shifts2 = None,
+                fname_scales2 = None,
+                fname_residual = None):
+        
+        self.fname_templates2 = fname_templates2
+        CompareTwoSorts.__init__(self, 
+                                 fname_spiketrain2,
+                                 fname_shifts1 = fname_shifts,
+                                 fname_scales1 = fname_scales,
+                                 fname_shifts2 = fname_shifts2,
+                                 fname_scales2 = fname_scales2,
+                                 fname_templates2 = self.fname_templates2)
+        
+    def venn_plots(self, find_other_units = True):
         if self.fname_templates2 is not None:
+            
             self.templates2 = np.load(self.fname_templates2)
             with tqdm(total = np.unique(self.matched_pairs[:,0]).size) as pbar:
                 for i, unit1 in enumerate(np.unique(self.matched_pairs[:,0])):
@@ -1922,6 +1952,31 @@ class VisualizerOG(Visualizer, CompareTwoSorts):
                     self.make_venn_plot(unit1, unit2, self.run1_miss[i], 
                                          self.run2_miss[i], self.matched_events[i])
                     pbar.update()
+                    
+    
+#     def get_sort(self, temp_templates1, temp_templates2, templates1, templates2):
+#         other_units = []
+#         comp_=np.zeros([temp_templates1.shape[0], temp_templates1.shape[0]]) + 1000
+#         for unit1 in tqdm(range(temp_templates1.shape[0])):
+#             channels = np.where(CONFIG.neigh_channels[mc1[unit1]])[0]
+#             unit2s = np.where(np.logical_and(np.in1d(mc2, channels), mc2 != mc1[unit1]))[0]
+#             channels_to_compare = np.where(templates1[unit1].ptp(0) > 5.0)[0]
+#             mc = mc1[unit1]
+#             for k in range(chunks):
+#                 best_shifts = align_get_shifts_with_ref(
+#                         np.concatenate([temp_templates2[unit2s,:,mc,k], temp_templates1[unit1,:,mc,k][np.newaxis]], axis = 0))
+#                 temp_templates2[unit2s,:,:,k] = shift_chans(temp_templates2[unit2s,:,:,k], best_shifts[:-1])
+#                 temp_templates1[unit1, :, :, k] = shift_chans(temp_templates1[unit1:unit1+1,:,:,k], best_shifts[-1:])[0]
+#             try:
+#                 comp = np.abs(temp_templates2[unit2s][:, :, channels_to_compare] - temp_templates1[unit1][:, channels_to_compare]).max(1).max(1).min(-1)
+#             except:
+#                 continue
+#             comp_[unit2s, unit1] = comp/np.abs(templates1[unit1]).max(0).max(0)
+
+#         other_units = np.where(comp_.T < 0.2)
+#         return other_units
+    
+        
 
     def make_venn_plot(self, unit1, unit2, misses1, misses2, matched, other_units = None):
         
@@ -1949,6 +2004,15 @@ class VisualizerOG(Visualizer, CompareTwoSorts):
         v.get_patch_by_id('01').set_color('blue')
         v.get_patch_by_id('11').set_color('goldenrod')
         ax1.set_title('Venn plots')
+        sets = ['10','11','01']
+        setnames = [self.run1_name + ' only', 'consensus', self.run2_name + ' only']
+        
+        h, l = [], []
+        for i, s in enumerate(sets):
+            h.append(v.get_patch_by_id(s))
+            l.append(setnames[i])
+            
+        ax1.legend(handles = h, labels = l, loc = 'upper right')
 
         ax2 = plt.subplot(grid[rowscale*row  + 2: rowscale*row  + 4 , colscale * col : colscale * col + 2])
         temp10, temp01, temp11 = plot_waveforms(misses1, misses2, matched, ax2, mc, self.reader)
@@ -2001,10 +2065,10 @@ class VisualizerOG(Visualizer, CompareTwoSorts):
                       mc, channels,
                       grid,  rowscale* (row)+12, colscale * col, self.CONFIG)
         
-        ax6 = plt.subplot(grid[rowscale* (row)+17:rowscale* (row)+19, colscale * col : colscale * col + 2])
-        ax6.set_title('Templates of other units of interest')
-        plot_templates(temp10, 0, 'r', channels, ax6, self.CONFIG)
         if other_units is not None:
+            ax6 = plt.subplot(grid[rowscale* (row)+17:rowscale* (row)+19, colscale * col : colscale * col + 2])
+            ax6.set_title('Templates of other units of interest')
+            plot_templates(temp10, 0, 'r', channels, ax6, self.CONFIG)
             for i, unit in enumerate(other_units):
                 plot_templates(self.templates2[unit], i+1, colors[i], channels, ax6, self.CONFIG)
 
