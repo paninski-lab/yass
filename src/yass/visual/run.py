@@ -39,6 +39,7 @@ def run():
 
     fname_templates = os.path.join(CONFIG.path_to_output_directory,
                                      'templates.npy')
+    
     fname_spike_train = os.path.join(CONFIG.path_to_output_directory,
                                      'spike_train.npy')
     
@@ -49,6 +50,7 @@ def run():
     fname_recording = os.path.join(CONFIG.path_to_output_directory,
                                    'preprocess',
                                    'standardized.bin')
+    
     fname_recording_yaml = os.path.join(CONFIG.path_to_output_directory,
                                         'preprocess',
                                         'standardized.yaml')
@@ -58,6 +60,9 @@ def run():
                                   'final_deconv',
                                   'residual',
                                   'residual.bin')
+    fname_shifts = os.path.join(CONFIG.path_to_output_directory, 'final_deconv','deconv','shifts.npy')
+    fname_scales = os.path.join(CONFIG.path_to_output_directory, 'final_deconv','deconv','scales.npy')
+    
     if not os.path.exists(fname_residual):
         fname_residual = None
         
@@ -74,10 +79,15 @@ def run():
     deconv_dir = os.path.join(CONFIG.path_to_output_directory,
                               'deconv', 'final')
 
-    vis = Visualizer(fname_templates, fname_spike_train,
-                     fname_recording, recording_dtype, 
-                     CONFIG, save_dir, rf_dir = rf_dir,
-                     fname_residual = fname_residual, residual_dtype = recording_dtype)
+    vis = VisualizerOG(fname_spike_train, 
+                 fname_recording, 
+                 recording_dtype,
+                 CONFIG, 
+                 save_dir,
+                 fname_templates = fname_templates,
+                 fname_residual = fname_residual,
+                 fname_shifts = fname_shifts,
+                 fname_scales = fname_scales) 
 
     vis.population_level_plot()
     vis.individual_cell_plot()
