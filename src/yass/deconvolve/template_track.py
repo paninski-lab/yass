@@ -38,7 +38,7 @@ def get_wf(unit,dat, sps, shift_chan, len_wf, min_time, max_time, n_channels,off
     idx4 = np.where(np.logical_and(unit_bool, time_bool))[0]
     spikes = spike_times[idx4] #- len_wf//2                    
     wfs = np.zeros((size, len_wf, n_channels))
-    
+    #last_chunk = self.max_time/self.CONFIG.deconvolution.template_update_time - 1
     '''
     for i in range(size):
         time = int(spikes[i])
@@ -102,13 +102,10 @@ class RegressionTemplates:
         # Only need one?
         
         self.lambda_pen = lambda_pen
-        # Probably no need for this in the pipeline
-        #self.max_time = max_time
-        #self.min_time = min_time
-        #self.templates_approx = np.zeros((self.n_unit,self.len_wf, self.n_channels, self.num_chunks))
-        #self.coeff = self.get_bspline_coeffs(self.templates)
         self.first = True
-    
+        self.max_time = int(reader.rec_len/self.sampling_rate)
+        self.last_chunk = self.max_time/self.CONFIG.deconvolution.template_update_time - 1
+
     def continuous_visible_channels(self, templates, threshold=.1, neighb_threshold=.5, spatial_neighbor_dist=70):
     ## Should be in the pipeline already
         """
@@ -213,7 +210,7 @@ class RegressionTemplates:
         np.save(os.path.join(self.dir, "wf_{}.npy".format(unit)), templates_reshifted)
         return(templates_reshifted)
 
-    def update_U(self, templates_unit_chunk, U, F, V, idx_chan_vis, num_chan_visible, num_spike_chunk, chunk):
+    def update_U(self, templates_unit_chunk, U, F, V, idx_chan_vis, num_chan_visible, num_spike_chunk, chunk, backwards):
         """
         The two update() functions might be faster with reshape/product instead of loops
         """
@@ -224,14 +221,16 @@ class RegressionTemplates:
             for i in idx_chan_vis[self.model_rank:]: # U = 1 for the channels of higher rank
                 if (np.dot(X[:, i], X[:, i])>0):
                     if (chunk == 0):
-                        U[i, chunk] = np.dot(X[:, i], Y[:, i])/np.dot(X[:, i], X[:, i])
+                        U[i, chunk] = (np.dot(X[:, i], Y[:, i])+int(backwards)*lambda_pen*U[i, chunk+1])/ (np.dot(X[:, i], X[:, i])+ lambda_pen)
+                    elif chunk == self.last_chunk:
+                        U[i, chunk] = (np.dot(X[:, i], Y[:, i])/np.dot(X[:, i], X[:, i])  + lambda_pen*U[i, chunk-1])/ (np.dot(X[:, i], X[:, i])+ lambda_pen)
                     else:
-                        U[i, chunk] = (np.dot(X[:, i], Y[:, i])+lambda_pen*U[i, chunk-1])/ (np.dot(X[:, i], X[:, i])+ lambda_pen)
+                        U[i, chunk] = (np.dot(X[:, i], Y[:, i])+lambda_pen*U[i, chunk-1] + int(backwards)*lambda_pen*U[i, chunk+1])/ (np.dot(X[:, i], X[:, i])+ lambda_pen)
         return(U)
     
 
 
-    def update_V(self, templates_unit_chunk, U, F, V, idx_chan_vis, num_spike_chunk, chunk):
+    def update_V(self, templates_unit_chunk, U, F, V, idx_chan_vis, num_spike_chunk, chunk, backwards):
         """
         TODO : Add penalized regression
         V = (lambda+XtX)^-1*XtY + lambda*(lambda+XtX)^-1 V_prev
@@ -262,11 +261,13 @@ class RegressionTemplates:
             Y = templates_unit_chunk[:, i]
             if (chunk == 0):
                 V[:, i, chunk] = LinearRegression(fit_intercept=False).fit(X, Y, sample_weight=W).coef_ 
+            elif chunk == self.last_chunk:
+                V[:, i, chunk] + 1*lambda_pen*np.matmul(mat, V[:, i, chunk-1])
             else:
                 V[:, i, chunk] = Ridge(alpha = lambda_pen, fit_intercept=False).fit(X, Y, sample_weight=W).coef_ 
                 mat_xx = np.matmul(X.transpose(), X)
                 mat = np.linalg.pinv(lambda_pen * (np.eye(mat_xx.shape[0])) + mat_xx)
-                V[:, i, chunk] = V[:, i, chunk] + 1*lambda_pen*np.matmul(mat, V[:, i, chunk-1])
+                V[:, i, chunk] = V[:, i, chunk] + 1*lambda_pen*np.matmul(mat, V[:, i, chunk-1]) + 1*lambda_pen*np.matmul(mat, V[:, i, chunk+1])
         return(V)
     
     def initialize_regression_params(self, templates_unit, num_chan_vis):
@@ -285,7 +286,7 @@ class RegressionTemplates:
             V[:num_basis_functions, :, j]  = (vh[:num_basis_functions, :].T * s[:num_basis_functions]).T
         return V, F
 
-    def batch_regression(self, unit, batch_times, templates_aligned):
+    def batch_regression(self, unit, batch_times, templates_aligned, backwards = False):
         batch = int(batch_times[0]/self.CONFIG.deconvolution.template_update_time)
         vis_chans = self.visible_chans_dict[unit]
         visible_chans_unit = np.where(vis_chans)[0]
@@ -358,8 +359,8 @@ class RegressionTemplates:
         
         # Online Regression 
         for j in range(num_iter):
-            U = self.update_U(templates_unit, U, F, V, idx_chan_vis, num_chan_vis, self.u_spikes.shape[0], batch)
-            V = self.update_V(templates_unit, U, F, V, idx_chan_vis, self.u_spikes.shape[0], batch)
+            U = self.update_U(templates_unit, U, F, V, idx_chan_vis, num_chan_vis, self.u_spikes.shape[0], batch, backwards)
+            V = self.update_V(templates_unit, U, F, V, idx_chan_vis, self.u_spikes.shape[0], batch, backwards)
         
         self.templates_approx[unit, :, visible_chans_unit] = (np.matmul(F, V[:, :, batch])* U[:, batch]).T[:len(visible_chans_unit), :]
         
@@ -403,7 +404,7 @@ class RegressionTemplates:
         #dat.astype(np.float32).tofile(os.path.join(self.dir, "seg.dat"))
         #np.save(os.path.join(self.dir, "seg.npy"), dat)
         offset = np.max([0, data_start])
-        
+        #get_wf(0, os.path.join(self.dir, "seg.dat"),  self.spike_trains, self.unit_shifts, self.len_wf, min_time, max_time, #self.n_channels,offset, data_end, self.reader)
         wf_list = parmap.map(get_wf, range(self.templates.shape[0]),os.path.join(self.dir, "seg.dat"),  self.spike_trains, self.unit_shifts, self.len_wf, min_time, max_time, self.n_channels,offset, data_end, self.reader, pm_pbar=True, pm_processes = 5)
         
         if not os.path.exists(os.path.join(self.dir, "vis_chan.npy")):
@@ -453,7 +454,7 @@ class RegressionTemplates:
         self.n_unit = self.templates.shape[0]
         self.len_wf = self.templates.shape[1]
         self.find_shift()
-        batch = int((self.max_time - batch_times[1])/self.CONFIG.deconvolution.template_update_time -1)
+        batch = int((batch_times[1]/self.CONFIG.deconvolution.template_update_time) -1)  #int((self.max_time - batch_times[1])/self.CONFIG.deconvolution.template_update_time -1)
         
         min_time = batch_times[0]*self.sampling_rate
         max_time = batch_times[1]*self.sampling_rate
@@ -478,10 +479,10 @@ class RegressionTemplates:
                     self.visible_chans_dict[unit] = vis_chans
             np.save(os.path.join(self.dir, "vis_chan.npy"), self.visible_chans_dict)
         
-        if batch > 0:
-            self.prev_templates = np.load(os.path.join(self.dir, "templates_{}.npy".format(str(int(batch -1)))))
+        if batch < self.max_time/self.CONFIG.deconvolution.template_update_time - 1:
+            self.prev_templates = np.load(os.path.join(self.dir, "templates_{}.npy".format(str(int(batch +1)))))
 
-        if batch > 0 and not self.prev_templates.shape[0] == self.templates.shape[0] :
+        if batch > self.max_time/self.CONFIG.deconvolution.template_update_time - 1 and not self.prev_templates.shape[0] == self.templates.shape[0] :
             self.visible_chans_dict = np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True).item()
             visible_chans = self.visible_channels()
             for new_unit in range(self.prev_templates.shape[0], self.templates.shape[0]):
@@ -498,6 +499,6 @@ class RegressionTemplates:
         self.templates_approx = np.zeros_like(self.templates)
         tmps = np.zeros((self.n_unit, self.len_wf, self.n_channels))
         for unit in tqdm(range(self.n_unit)):
-            tmps[unit, :, :] = self.batch_regression(unit, batch_times, wf_list[unit])
+            tmps[unit, :, :] = self.batch_regression(unit, batch_times, wf_list[unit], True)
         np.save(os.path.join(self.dir, "templates_{}".format(str(int(batch)))), tmps)
         return tmps, batch
