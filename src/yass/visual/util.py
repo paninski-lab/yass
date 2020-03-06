@@ -483,8 +483,9 @@ def match_two_sorts(templates1, templates2, spike_train1, spike_train2, overlap_
             idx = np.where(pairs[:, 0] == k1)[0]
             spt1 = spike_train1[spike_train1[:, 1]==k1, 0]
             temp1 = templates1[k1]
+            flag = False
             
-            for j, k2 in enumerate(pairs[idx,1]):
+            for j, k2 in enumerate(pairs[idx,1][:1]):
                 
                 temp2 = templates2[k2]
                 spt2 = spike_train2[spike_train2[:, 1]==k2, 0]
@@ -495,28 +496,29 @@ def match_two_sorts(templates1, templates2, spike_train1, spike_train2, overlap_
                 shift = min_point1 - min_point2 - templates1.shape[1]//2 + templates2.shape[1]//2
                 spt1 += shift
                 match1, match2 = matching(spt1, spt2)
+                
                 if np.mean(match1) > 0.90:
                     matched[idx[j]] = True
-                    if j == 0:
-                        matched_spikes.append(spt1[match1])
-                        missed_spikes1.append(spt1[~match1])
-                        missed_spikes2.append(spt2[~match2])
-                    else:
-                        matched_spikes[-1] = np.concatenate([matched_spikes[-1], spt1[match1]], axis = 0)
-                        missed_spikes1[-1] = np.concatenate([missed_spikes1[-1], spt1[match1]], axis = 0)
-                        missed_spikes2[-1] = np.concatenate([missed_spikes2[-1], spt2[match2]], axis = 0)
+                    missed_spikes1, matched_spikes, missed_spikes2, flag = do_something(missed_spikes1, 
+                                                                                  matched_spikes, 
+                                                                                  missed_spikes2, 
+                                                                                  spt1, 
+                                                                                  spt2, 
+                                                                                  match1, 
+                                                                                  match2, flag)
                     break
                 elif np.mean(match1) > overlap_threshold or match1.sum()/ spt2.size > overlap_threshold:
                     matched[idx[j]] = True
-                    if j == 0:
-                        matched_spikes.append(spt1[match1])
-                        missed_spikes1.append(spt1[~match1])
-                        missed_spikes2.append(spt2[~match2])
-                    else:
-                        matched_spikes[-1] = np.concatenate([matched_spikes[-1], spt1[match1]], axis = 0)
-                        missed_spikes1[-1] = np.concatenate([missed_spikes1[-1], spt1[match1]], axis = 0)
-                        missed_spikes2[-1] = np.concatenate([missed_spikes2[-1], spt2[match2]], axis = 0)
+                    missed_spikes1, matched_spikes, missed_spikes2, flag = do_something(missed_spikes1, 
+                                                                                  matched_spikes, 
+                                                                                  missed_spikes2, 
+                                                                                  spt1, 
+                                                                                  spt2, 
+                                                                                  match1, 
+                                                                                  match2, flag)
+                    
                     spt1 = spt1[~match1]
+                
                 spt1 -= shift
             pbar.update()
     matched_pairs = pairs[matched]
@@ -532,6 +534,24 @@ def match_two_sorts(templates1, templates2, spike_train1, spike_train2, overlap_
 
 
     return sort1_only, sort2_only, sort1_matched, sort2_matched, matched_pairs, matched_spikes, missed_spikes1, missed_spikes2
+
+
+def do_something(ls10, ls11, ls01, spt1, spt2, match1, match2, flag):
+    
+    
+    if not flag:
+        ls11.append(spt1[match1])
+        ls10.append(spt1[~match1])
+        ls01.append(spt2[~match2])
+    else:
+        ls11[-1] = np.concatenate([ls11[-1], spt1[match1]], axis = 0)
+        ls10[-1] = np.concatenate([ls10[-1], spt1[~match1]], axis = 0)
+        ls01[-1] = np.concatenate([ls01[-1], spt2[~match2]], axis = 0)
+    
+    flag = True
+    return ls10, ls11, ls01, flag
+
+
 
 def plot_waveforms(misses1, misses2, matched, ax, mc, reader):
     
@@ -644,5 +664,46 @@ def featurize(wfs, mc, CONFIG):
     except:
         feat = None
     return feat
+
+
+def get_sort(mc1, mc2, temp_templates1, temp_templates2, templates1, templates2):
+    other_units = []
+    comp_=np.zeros([temp_templates1.shape[0], temp_templates1.shape[0]]) + 1000
+    for unit1 in tqdm(range(temp_templates1.shape[0])):
+        channels = np.where(CONFIG.neigh_channels[mc1[unit1]])[0]
+        unit2s = np.where(np.logical_and(np.in1d(mc2, channels), mc2 != mc1[unit1]))[0]
+        channels_to_compare = np.where(templates1[unit1].ptp(0) > 5.0)[0]
+        mc = mc1[unit1]
+        for k in range(chunks):
+            best_shifts = align_get_shifts_with_ref(
+                    np.concatenate([temp_templates2[unit2s,:,mc,k], temp_templates1[unit1,:,mc,k][np.newaxis]], axis = 0))
+            temp_templates2[unit2s,:,:,k] = shift_chans(temp_templates2[unit2s,:,:,k], best_shifts[:-1])
+            temp_templates1[unit1, :, :, k] = shift_chans(temp_templates1[unit1:unit1+1,:,:,k], best_shifts[-1:])[0]
+        try:
+            comp = np.abs(temp_templates2[unit2s][:, :, channels_to_compare] - 
+                          temp_templates1[unit1][:, channels_to_compare]).max(1).max(1).min(-1)
+        except:
+            continue
+        comp_[unit2s, unit1] = comp/np.abs(templates1[unit1]).max(0).max(0)
+
+    other_units = np.where(comp_.T < 0.2)
+    return other_units
+
+def get_ptp_firing_rates(fname_templates, fname_spike_train, reader):
+    
+    templates = np.load(fname_templates)
+    spike_train = np.load(fname_spike_train)
+
+    ptps = templates.ptp(1).max(1)
+    n_spikes = np.zeros(templates.shape[0])
+
+    a, b = np.unique(spike_train[:, 1], return_counts=True)
+    n_spikes[a] = b
+
+    recording_length = reader.rec_len/reader.sampling_rate
+    f_rates = n_spikes/recording_length
+
+    return ptps, f_rates
+        
             
 

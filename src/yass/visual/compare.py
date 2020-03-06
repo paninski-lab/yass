@@ -8,11 +8,63 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from matplotlib.lines import Line2D
 import scipy
+from yass.visual.util import get_ptp_firing_rates
 
 
 
+class superclass(object):
+    def __init__(self):
+        pass
 
-class CompareTwoSorts(object):
+    def get_soft_assignment(self,
+                        save_dir,
+                        fname_spike_train,
+                        fname_templates,
+                        fname_shifts=None,
+                        fname_scales=None):
+                    
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+
+        if fname_shifts is None:
+            n_spikes = np.load(fname_spike_train).shape[0]
+            shifts = np.zeros(n_spikes, 'float32')
+            fname_shifts = os.path.join(save_dir, 'shifts.npy')
+            np.save(fname_shifts, shifts)
+
+        if fname_scales is None:
+            n_spikes = np.load(fname_spike_train).shape[0]
+            scales = np.ones(n_spikes, 'float32')
+            fname_scales = os.path.join(save_dir, 'scales.npy')
+            np.save(fname_scales, scales)
+            
+        if self.fname_residual is None:            
+            self.fname_residual, self.residual_dtype = residual.run(
+                fname_shifts,
+                fname_scales,
+                fname_templates,
+                fname_spike_train,
+                os.path.join(save_dir,
+                             'residual'),
+                self.recording_path,
+                self.recording_dtype,
+                dtype_out='float32')
+        
+        fname_noise_soft, fname_template_soft = soft_assignment.run(
+            fname_templates,
+            fname_spike_train,
+            fname_shifts,
+            fname_scales,
+            os.path.join(save_dir,
+                         'soft_assignment'),
+            self.fname_residual,
+            self.residual_dtype,
+            compute_noise_soft=False,
+            compute_template_soft=True)
+        
+        return fname_template_soft
+    
+class CompareTwoSorts(superclass):
     def __init__(self,
                  fname_spike_train2,
                  run1_name='run1',
@@ -50,7 +102,7 @@ class CompareTwoSorts(object):
             self.fname_templates2 = self.compute_templates(save_dir_template2,
                               self.fname_spike_train2)
             
-        self.get_ptp_firing_rates()
+        self.f_rates2, self.ptps2 = get_ptp_firing_rates(self.fname_templates2, self.fname_spike_train2, self.reader)
     
         self.run_save_matching()
     
@@ -117,22 +169,25 @@ class CompareTwoSorts(object):
             self.mad_avg2 = np.load(fname_mad_avg2)
         
         
-#         fname_cos1 = os.path.join(self.save_dir, 'cos1_only.npy')
-#         fname_cos2 = os.path.join(self.save_dir, 'cos2_only.npy')
-#         fname_ptp = os.path.join(self.save_dir, 'ptp_matched.npy')
-#         fname_fr = os.path.join(self.save_dir, 'fr_matched.npy')
-#         if not (os.path.exists(fname_cos1) and os.path.exists(fname_cos2)):
-#             self.compute_cossim_summary()
-#             np.save(fname_cos1, self.cos1)
-#             np.save(fname_cos2, self.cos2)
-#             np.save(fname_ptp, self.ptp)
-#             np.save(fname_fr, self.fr)
+        fname_cossim = os.path.join(self.save_dir, 'cossim.npz')
+        if not (os.path.exists(fname_cos1) and os.path.exists(fname_cos2)):
+            self.compute_cossim_summary()
             
-#         else:
-#             self.cos1 = np.load(fname_cos1)
-#             self.cos2 = np.load(fname_cos2)
-#             self.ptp = np.load(fname_ptp)
-#             self.fr = np.load(fname_fr)
+            
+            np.savez(fname_cossim, cos1= self.cos1, 
+                                    cos2 = self.cos2, 
+                                    ptp1 = self.ptp1, 
+                                    ptp2 = self.ptp2, 
+                                    fr1 = self.fr1, 
+                                    fr2 = self.fr2)
+        else:
+            temp = np.load(fname_cossim)
+            self.cos1 = temp['cos1']
+            self.cos2 = temp['cos2']
+            self.ptp1 = temp['ptp1']
+            self.ptp2 = temp['ptp2']
+            self.fr1 = temp['fr1']
+            self.fr2 = temp['fr2']
         
         
             
@@ -202,7 +257,7 @@ class CompareTwoSorts(object):
                                               spike_train1,
                                               spike_train2,
                                               overlap_threshold=0.5)
-        
+            
             np.savez(fname_results,
                      run1_only=run1_only,
                      run2_only=run2_only,
@@ -239,77 +294,6 @@ class CompareTwoSorts(object):
         self.run1_miss = run1_miss
         self.run2_miss = run2_miss
         
-    def get_soft_assignment(self,
-                            save_dir,
-                            fname_spike_train,
-                            fname_templates,
-                            fname_shifts=None,
-                            fname_scales=None):
-                    
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-
-        if fname_shifts is None:
-            n_spikes = np.load(fname_spike_train).shape[0]
-            shifts = np.zeros(n_spikes, 'float32')
-            fname_shifts = os.path.join(save_dir, 'shifts.npy')
-            np.save(fname_shifts, shifts)
-
-        if fname_scales is None:
-            n_spikes = np.load(fname_spike_train).shape[0]
-            scales = np.ones(n_spikes, 'float32')
-            fname_scales = os.path.join(save_dir, 'scales.npy')
-            np.save(fname_scales, scales)
-            
-        fname_residual, residual_dtype = residual.run(
-            fname_shifts,
-            fname_scales,
-            fname_templates,
-            fname_spike_train,
-            os.path.join(save_dir,
-                         'residual'),
-            self.recording_path,
-            self.recording_dtype,
-            dtype_out='float32')
-        
-        fname_noise_soft, fname_template_soft = soft_assignment.run(
-            fname_templates,
-            fname_spike_train,
-            fname_shifts,
-            fname_scales,
-            os.path.join(save_dir,
-                         'soft_assignment'),
-            fname_residual,
-            residual_dtype,
-            compute_noise_soft=False,
-            compute_template_soft=True)
-        
-        return fname_template_soft
-    
-    
-    def get_ptp_firing_rates(self):
-        templates = np.load(self.fname_templates)
-        templates2 = np.load(self.fname_templates2)
-        
-        self.ptps1 = templates.ptp(1).max(1)
-        self.ptps2 = templates2.ptp(1).max(1)
-
-        spike_train1 = np.load(self.fname_spike_train)
-        spike_train2 = np.load(self.fname_spike_train2)
-        
-        n_spikes1 = np.zeros(templates.shape[0])
-        a, b = np.unique(spike_train1[:, 1], return_counts=True)
-        n_spikes1[a] = b
-
-        n_spikes2 = np.zeros(templates2.shape[0])
-        a, b = np.unique(spike_train2[:, 1], return_counts=True)
-        n_spikes2[a] = b
-
-        recording_length = self.reader.rec_len/self.reader.sampling_rate
-        self.f_rates1 = n_spikes1/recording_length
-        self.f_rates2 = n_spikes2/recording_length
-
-
     def compute_soft_assignment_summary(self,
                                         fname_soft_assignment,
                                         fname_templates,
@@ -408,38 +392,40 @@ class CompareTwoSorts(object):
 
         return peak_xcorr, notch_xcorr
     
-#     def compute_cossim_summary(self):
-#         templates1 = np.load(self.fname_templates).transpose([2,0,1])
-#         templates2 = np.load(self.fname_templates2)
-#         units = np.unique(self.matched_pairs[:,0])
-#         print(units.size, len(self.matched_events), len(self.run2_miss))
-#         self.cos1 = np.zeros(units.size)
-#         self.cos2 = np.zeros(units.size)
-#         self.ptp  = np.zeros(units.size)
-#         self.fr   = np.zeros(units.size)
-#         # with tqdm_notebook(total)
-#         for i, unit1 in enumerate(units):
+    def compute_cossim_summary(self):
+        templates1 = np.load(self.fname_templates).transpose([2,0,1])
+        templates2 = np.load(self.fname_templates2)
+        units = np.unique(self.matched_pairs[:,0])
+        self.cos1 = np.zeros(units.size)
+        self.cos2 = np.zeros(units.size)
+        self.ptp  = np.zeros(units.size)
+        self.fr   = np.zeros(units.size)
+        recording_length = self.reader.rec_len/self.reader.sampling_rate
+        # with tqdm_notebook(total)
+        for i, unit1 in enumerate(units):
                                                                        
-#             wfs_con = self.reader.read_waveforms(self.matched_events[i][:100])[0]
-#             templates_con = wfs_con.mean(0)
-#             if self.run2_miss[i].shape[0] > 0.0:
-#                 wfs2 = self.reader.read_waveforms(self.run2_miss[i][:100])[0]
-#                 temp2 = wfs2.mean(0)
-#             else:
-#                 temp2 = templates_con
+            wfs_con = self.reader.read_waveforms(self.matched_events[i][:100])[0]
+            templates_con = wfs_con.mean(0)
+            if self.run2_miss[i].shape[0] > 0.0:
+                wfs2 = self.reader.read_waveforms(self.run2_miss[i][:100])[0]
+                temp2 = wfs2.mean(0)
+            else:
+                temp2 = templates_con
 
-#             if self.run1_miss[i].shape[0] > 0.0:
-#                 wfs1 = self.reader.read_waveforms(self.run1_miss[i][:100])[0]
-#                 temp1 = wfs1.mean(0)
-#             else:
-#                 temp1 = templates_con
+            if self.run1_miss[i].shape[0] > 0.0:
+                wfs1 = self.reader.read_waveforms(self.run1_miss[i][:100])[0]
+                temp1 = wfs1.mean(0)
+            else:
+                temp1 = templates_con
             
-#             self.fr[i] = self.matched_events[i].size + self.run1_miss[i].size
+            self.fr1[i] = (self.matched_events[i].size + self.run1_miss[i].size)/recording_length
+            self.fr2[i] = (self.matched_events[i].size + self.run2_miss[i].size)/recording_length
     
     
-#             self.ptp[i] = templates_con.ptp(0).max(0)
-#             self.cos1[i] = 1 - scipy.spatial.distance.cosine(temp1.flatten(),templates_con.flatten())
-#             self.cos2[i] = 1 - scipy.spatial.distance.cosine(temp2.flatten(),templates_con.flatten())
+            self.ptp1[i] = temp1.ptp(0).max(0)
+            self.ptp2[i] = temp2.ptp(0).max(0)
+            self.cos1[i] = 1 - scipy.spatial.distance.cosine(temp1.flatten(),templates_con.flatten())
+            self.cos2[i] = 1 - scipy.spatial.distance.cosine(temp2.flatten(),templates_con.flatten())
 
 
     
@@ -786,10 +772,6 @@ class CompareTwoSorts(object):
         plt.xticks(np.arange(x_min, x_max, 2), x_ticks)
 
         plt.ylabel('outlier scores', fontsize = fs)
-        if use_ptp:
-            plt.xlabel('PTP', fontsize = fs)
-        else:
-            plt.xlabel('Firing rates (Hz)', fontsize = fs)
         ax.tick_params(axis='both', which='both', labelsize=fs)
 
         plt.xlim([x_min-0.5, x_max+0.5])
@@ -851,21 +833,24 @@ class CompareTwoSorts(object):
         
         name1_matched = self.run1_name + ' matched'
         name2_matched = self.run2_name + ' matched'
-
-#         ax = plt.subplot(gs[4,0])
-#         if use_ptp:
-#             ax.scatter(self.ptp, self.cos1, c='g', alpha = 0.5)
-#             ax.scatter(self.ptp, self.cos2, c='purple', alpha = 0.5)
-#             ax.set_xlabel('PTP')
-#         else:
-#             ax.scatter(self.fr, self.cos1, c = 'g', alpha = 0.5)
-#             ax.scatter(self.fr, self.cos2, c = 'purple', alpha= 0.5)
-#             ax.set_xlabel('Firing_rate (Hz)')
         
-#         ax.xticks(np.arange(x_min, x_max, 2), x_ticks)
-#         ax.tick_params(axis='both', which='both', labelsize=fs)
-#         plt.xlim([x_min-0.5, x_max+0.5])
-#         plt.ylim([outlier_min, outlier_max])
+        
+        print(run2_matched.size, self.cos2.size)
+        ax = plt.subplot(gs[4,0])
+        if use_ptp:
+            plt.scatter(np.log(self.ptps1[self.matched_pairs[:,0]]), self.cos1, c='g', s = ss)
+            plt.scatter(np.log(self.ptps2[self.matched_pairs[:,1]]), self.cos2, c='purple', s = ss)
+            plt.xlabel('PTP', fontsize = fs)
+        else:
+            plt.scatter(np.log(self.f_rates1[self.matched_pairs[:,0]]), self.cos1, c = 'g', s = ss)
+            plt.scatter(np.log(self.f_rates2[self.matched_pairs[:,1]]), self.cos2, c = 'purple', s = ss)
+            plt.xlabel('Firing rate (Hz)', fontsize = fs)
+        
+        plt.ylabel("Cos Similarity")
+        plt.xticks(np.arange(x_min, x_max, 2), x_ticks)
+        ax.tick_params(axis='both', which='both', labelsize=fs)
+        plt.xlim([x_min-0.5, x_max+0.5])
+        plt.ylim([0, 1.1])
             
         
         

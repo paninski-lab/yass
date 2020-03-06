@@ -5,6 +5,7 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
+from yass.template import run_template_computation
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
 from mpl_toolkits.axes_grid1.colorbar import colorbar
 import yaml
@@ -23,9 +24,10 @@ from yass.merge.merge import (template_dist_linear_align,
                               template_spike_dist_linear_align, 
                               test_unimodality)
 from yass.util import absolute_path_to_asset
+from yass.visual.util import get_ptp_firing_rates
 from yass import read_config
 from yass.reader import READER
-from yass.visual.compare import CompareTwoSorts
+from yass.visual.compare import CompareTwoSorts, superclass
 
 colors = np.asarray(['r', 'goldenrod', 'b'])
 
@@ -80,8 +82,7 @@ def run():
     vis.population_level_plot()
     vis.individiual_cell_plot()
 
-        
-class Visualizer(object):
+class Visualizer(superclass):
 
     def __init__(self, fname_templates, fname_spike_train,
                  fname_recording, recording_dtype,
@@ -106,12 +107,35 @@ class Visualizer(object):
         self.CONFIG = CONFIG
         self.geom = CONFIG.geom
         self.neigh_channels = CONFIG.neigh_channels
+        
+        # recording readers
+        self.recording_path = fname_recording
+        self.recording_dtype = recording_dtype
+        self.reader = READER(fname_recording, recording_dtype, CONFIG, 1)
+        self.fname_residual = fname_residual
+        self.residual_dtype = residual_dtype
 
+        if fname_templates is None:
+            fname_templates = save_dir + '/template1_computation/templates.npy'
+            
         # load templates
-        self.templates = np.load(fname_templates)
-        self.fname_templates = fname_templates
-        if len(self.geom) == self.templates.shape[2]:
-            self.templates = self.templates.transpose(1, 2, 0)
+        if os.path.exists(fname_templates):
+            self.templates = np.load(fname_templates)
+            self.fname_templates = fname_templates
+            if len(self.geom) == self.templates.shape[2]:
+                self.templates = self.templates.transpose(1, 2, 0)
+        else:
+            fname_templates = run_template_computation(
+                            save_dir + '/template1_computation',
+                            fname_spike_train,
+                            self.reader,
+                            multi_processing=self.CONFIG.resources.multi_processing,
+                            n_processors=self.CONFIG.resources.n_processors)
+            self.templates = np.load(fname_templates)
+            self.fname_templates = fname_templates
+            if len(self.geom) == self.templates.shape[2]:
+                self.templates = self.templates.transpose(1, 2, 0)
+            
         self.n_times_templates, self.n_channels, self.n_units = self.templates.shape
         # compute neighbors for each unit
         self.compute_neighbours()
@@ -121,27 +145,18 @@ class Visualizer(object):
         self.spike_train = np.load(fname_spike_train)
         self.fname_spike_train = fname_spike_train
         self.unique_ids = np.unique(self.spike_train[:,1])
-        if fname_soft_assignment is not None:
-            self.soft_assignment = np.load(fname_soft_assignment)
-        else:
-            self.soft_assignment = np.ones(self.spike_train.shape[0], 'float32')
-
+        self.rec_len = np.ptp(self.spike_train[:, 0])/self.sampling_rate
+        
+        fname_soft_assignment = self.get_soft_assignment(os.path.join(self.save_dir, 
+                                                                      'softassignment1'),
+                                                         self.fname_spike_train, self.fname_templates)
+        self.soft_assignment = np.load(fname_soft_assignment)['probs_templates'][:,0]
+        self.reader_resid = READER(self.fname_residual, self.residual_dtype, CONFIG, 1)
+        self.reader_resid.spike_size = self.n_times_templates
+    
         # compute firing rates
-        self.compute_firing_rates()
+        self.f_rates, self.ptps = get_ptp_firing_rates(self.fname_templates, self.fname_spike_train, self.reader)
         self.compute_xcorrs()
-
-        # recording readers
-        self.recording_path = fname_recording
-        self.recording_dtype = recording_dtype
-        self.reader = READER(fname_recording, recording_dtype, CONFIG, 1)
-        # change spike size just in case
-        self.reader.spike_size = self.n_times_templates
-
-        if fname_residual is not None:
-            self.reader_resid = READER(fname_residual, residual_dtype, CONFIG, 1)
-            self.reader_resid.spike_size = self.n_times_templates
-        else:
-            self.reader_resid = None
 
         # rf files
         self.rf_dir = rf_dir
@@ -174,9 +189,9 @@ class Visualizer(object):
             # also compute rf
             self.compute_neighbours_rf()
             
-        else:
-            self.cell_types = ['Just One']
-            self.rf_labels = np.zeros(self.n_units, dtype = int)
+#         else:
+#             self.cell_types = ['??']
+#             self.rf_labels = np.zeros(self.n_units, dtype = int)
 
         # get colors
         self.colors = colors = [
@@ -205,26 +220,26 @@ class Visualizer(object):
         self.min_shift = np.min(self.shifts)
         self.min_shift = -10
 
-    def compute_firing_rates(self):
+#     def compute_firing_rates(self):
         
-        # COMPUTE FIRING RATES
-        n_chans = self.n_channels
-        samplerate = self.sampling_rate
-        self.rec_len = np.ptp(self.spike_train[:, 0])/samplerate
+#         # COMPUTE FIRING RATES
+#         n_chans = self.n_channels
+#         samplerate = self.sampling_rate
+#         self.rec_len = np.ptp(self.spike_train[:, 0])/samplerate
 
-        n_spikes_soft = np.zeros(self.n_units)
-        for j in range(self.spike_train.shape[0]):
-            n_spikes_soft[self.spike_train[j, 1]] += self.soft_assignment[j]
-        n_spikes_soft = n_spikes_soft.astype('int32')
+#         n_spikes_soft = np.zeros(self.n_units)
+#         for j in range(self.spike_train.shape[0]):
+#             n_spikes_soft[self.spike_train[j, 1]] += self.soft_assignment[j]
+#         n_spikes_soft = n_spikes_soft.astype('int32')
 
-        self.f_rates = n_spikes_soft/self.rec_len
-        self.ptps = self.templates.ptp(0).max(0)
+#         self.f_rates = n_spikes_soft/self.rec_len
+#         self.ptps = self.templates.ptp(0).max(0)
 
     def compute_xcorrs(self):
         self.window_size = 0.04
         self.bin_width = 0.001
 
-        fname = os.path.join(self.tmp_folder, 'xcorrs.npy')
+        fname = os.path.join(self.save_dir, 'xcorr1.npy')
         if os.path.exists(fname):
             self.xcorrs = np.load(fname)
         else:
@@ -637,12 +652,14 @@ class Visualizer(object):
         
         if zoom_windows is not None:
             col_minus = 0
-        else:
+        elif zoom_windows is None and self.rf_dir is None:
+            col_minus = 3
+        elif zoom_windows is not None:
             col_minus = 1
 
         # plotting parameters
         self.fontsize = 30
-        self.figsize = [int(6*(8-col_minus)), 25]
+        self.figsize = [int(6*(7-col_minus)), 25]
 
         fig = plt.figure(figsize=self.figsize)
         fig.suptitle(title, fontsize=2*self.fontsize)
@@ -679,6 +696,8 @@ class Visualizer(object):
             title = 'Temporal RF'
             gs = self.add_temporal_sta(gs, start_row, 5-col_minus,
                                        unit, title)
+            
+            
 
         # add autocorrelogram
         title = 'Autocorrelogram'
@@ -1871,146 +1890,27 @@ class Visualizer(object):
             fig.clf()
             plt.close('all')
 
-
-# class CompareSpikeTrains(Visualizer):
-    
-#     def __init__(self, fname_templates, fname_spike_train, rf_dir,
-#                  fname_recording, recording_dtype, 
-#                  fname_geometry, sampling_rate, save_dir,
-#                  fname_templates2=None, fname_spike_train2=None, rf_dir2=None,
-#                  fname_set1_idx=None):
-        
-#         if fname_set1_idx == None and (fname_templates2==None or fname_spike_train2==None or rf_dir2==None):
-#             raise ValueError('something is not right!!')
-        
-#         # TODO: Finish it!!!
-#         if fname_set1_idx == None:
-#             # saving directory location
-#             tmp_dir = os.path.join(save_dir,'tmp')
-#             if not os.path.exists(tmp_dir):
-#                 os.makedirs(tmp_dir)
-                
-#             templates1 = np.load(fname_templates)
-#             spike_train1 = np.load(fname_spike_train)
-#             templates2 = np.load(fname_templates2)
-#             spike_train2 = np.load(fname_spike_train2)
-            
-#             STAs1 = np.load(os.path.join(rf_dir, 'STA_spatial.npy'))
-#             STAs_temporal1 = np.load(os.path.join(rf_dir, 'STA_temporal.npy'))
-#             Gaussian_params1 = np.load(os.path.join(rf_dir, 'gaussian_fits.npy'))
-#             STAs2 = np.load(os.path.join(rf_dir2, 'STA_spatial.npy'))
-#             STAs_temporal2 = np.load(os.path.join(rf_dir2, 'STA_temporal.npy'))
-#             Gaussian_params2 = np.load(os.path.join(rf_dir2, 'gaussian_fits.npy'))
-            
-#             idx_single_rf1 = np.load(os.path.join(rf_dir, 'idx_single_rf.npy'))
-#             idx_no_rf1 = np.load(os.path.join(rf_dir, 'idx_no_rf.npy'))
-#             idx_multi_rf1 = np.load(os.path.join(rf_dir, 'idx_multi_rf.npy'))
-#             rf_labels1 = np.load(os.path.join(rf_dir, 'labels.npy'))
-            
-#             idx_single_rf2 = np.load(os.path.join(rf_dir2, 'idx_single_rf.npy'))
-#             idx_no_rf2 = np.load(os.path.join(rf_dir2, 'idx_no_rf.npy'))
-#             idx_multi_rf2 = np.load(os.path.join(rf_dir2, 'idx_multi_rf.npy'))
-#             rf_labels2 = np.load(os.path.join(rf_dir2, 'labels.npy'))
-            
-#             templates, spike_train = combine_two_spike_train(
-#                 templates1, templates2, spike_train1, spike_train2)
-            
-#             STAs, Gaussian_params = combine_two_rf(
-#                 STAs1, STAs2, Gaussian_params1, Gaussian_params2)
-#             STAs_temporal = np.concatenate((STAs_temporal1, STAs_temporal2), axis=0)
-
-#             K1 = templates1.shape[2]
-#             K2 = templates2.shape[2]
-#             set1_idx = np.zeros(K1+K2, 'bool')
-#             set1_idx[:K1] = 1
-            
-#             idx_single_rf = np.hstack((idx_single_rf1, idx_single_rf2+K1))
-#             idx_no_rf = np.hstack((idx_no_rf1, idx_no_rf2+K1))
-#             idx_multi_rf = np.hstack((idx_multi_rf1, idx_multi_rf2+K1))
-#             rf_labels = np.hstack((rf_labels1, rf_labels2))
-            
-            
-#             fname_templates = os.path.join(tmp_dir, 'templates_combined.npy')
-#             fname_spike_train = os.path.join(tmp_dir, 'spike_train_combined.npy')
-
-#             rf_dir = tmp_dir
-
-#             fname_set1_idx = os.path.join(tmp_dir, 'set1_idx.npy')
-            
-#             np.save(fname_templates, templates)
-#             np.save(fname_spike_train, spike_train)
-#             np.save(fname_set1_idx, set1_idx)
-#             np.save(os.path.join(rf_dir, 'STA_spatial.npy'), STAs)
-#             np.save(os.path.join(rf_dir, 'STA_temporal.npy'), STAs_temporal)
-#             np.save(os.path.join(rf_dir, 'gaussian_fits.npy'), Gaussian_params)
-#             np.save(os.path.join(rf_dir, 'idx_single_rf.npy'), idx_single_rf)
-#             np.save(os.path.join(rf_dir, 'idx_no_rf.npy'), idx_no_rf)
-#             np.save(os.path.join(rf_dir, 'idx_multi_rf.npy'), idx_multi_rf)
-#             np.save(os.path.join(rf_dir, 'labels.npy'), rf_labels)
-        
-#         set1_idx = np.load(fname_set1_idx)
-            
-#         Visualizer.__init__(self, fname_templates, fname_spike_train,
-#                  fname_recording, recording_dtype, 
-#                  fname_geometry, sampling_rate, save_dir, rf_dir)
-        
-#         self.set1_idx = set1_idx
-        
-#         # fix nearest units!
-#         self.fix_nearest_units()
-        
-
-#     def fix_nearest_units(self):
-        
-#         templates1 = self.templates[:, :, self.set1_idx].transpose(2,0,1)
-#         templates2 = self.templates[:, :, ~self.set1_idx].transpose(2,0,1)
-        
-#         STAs1 = self.STAs[self.set1_idx]
-#         STAs2 = self.STAs[~self.set1_idx]
-        
-#         nearest_units1, nearest_units2 = compute_neighbours2(
-#             templates1, templates2, self.n_neighbours)
-#         nearest_units_rf1, nearest_units_rf2 = compute_neighbours_rf2(
-#             STAs1, STAs2, self.n_neighbours)
-        
-#         set1_idx = np.where(self.set1_idx)[0]
-#         set2_idx = np.where(~self.set1_idx)[0]
-        
-#         nearest_units = np.copy(self.nearest_units)
-#         nearest_units_rf = np.copy(self.nearest_units_rf)
-        
-#         for k in range(self.n_units):
-            
-#             if np.any(set1_idx==k):
-#                 ii = np.where(set1_idx == k)[0]
-#                 temp = nearest_units1[ii]
-#                 nearest_units[k] = set2_idx[temp]
-                
-#                 temp = nearest_units_rf1[ii]
-#                 nearest_units_rf[k] = set2_idx[temp]
-#             else:
-#                 ii = np.where(set2_idx == k)[0]
-#                 temp = nearest_units2[ii]
-#                 nearest_units[k] = set1_idx[temp]
-                
-#                 temp = nearest_units_rf2[ii]
-#                 nearest_units_rf[k] = set1_idx[temp]
-        
-#         self.nearest_units = nearest_units
-#         self.nearest_units_rf = nearest_units_rf
     
 class VisualizerOG(Visualizer, CompareTwoSorts):
-    def __init__(self, fname_spike_train, fname_templates, 
-                 fname_spiketrain2, fname_templates2, 
-                 fname_recording, recording_dtype, CONFIG, save_dir, fname_residual):
+    def __init__(self, fname_spike_train, 
+                 fname_recording, 
+                 recording_dtype, 
+                 CONFIG, 
+                 save_dir, 
+                 fname_templates = None, 
+                 fname_spiketrain2 = None, fname_templates2 = None, 
+                 fname_residual = None):
         
-        
-        self.fname_templates2 = fname_templates
-        
+               
         Visualizer.__init__(self, fname_templates, fname_spike_train,
                  fname_recording, recording_dtype,
                  CONFIG, save_dir, fname_residual = fname_residual, residual_dtype = recording_dtype)
-        CompareTwoSorts.__init__(self,fname_spiketrain2)
+        
+        if fname_spiketrain2 is not None:
+            self.fname_templates2 = fname_templates2
+            CompareTwoSorts.__init__(self, 
+                                     fname_spiketrain2, 
+                                     fname_templates2 = self.fname_templates2)
         
     def venn_plots(self):
         if self.fname_templates2 is not None:
