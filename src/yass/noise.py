@@ -160,7 +160,6 @@ def search_noise_snippets(recordings, is_noise_idx, sample_size,
     """
     logger = logging.getLogger(__name__)
 
-    print ("recordings: ", recordings.shape)
     T, C = recordings.shape
 
     if channel_choices is None:
@@ -231,8 +230,8 @@ def get_noise_covariance(reader, CONFIG):
     if reader.rec_len < chunk_5sec:
         chunk_5sec = reader.rec_len
     small_batch = reader.read_data(
-                data_start=reader.rec_len//2 - chunk_5sec//2,
-                data_end=reader.rec_len//2 + chunk_5sec//2)
+                data_start=reader.rec_len//2 - chunk_5sec//2 + reader.offset,
+                data_end=reader.rec_len//2 + chunk_5sec//2 + reader.offset)
 
     # get noise floor of recording
     noised_killed, is_noise_idx = kill_signal(small_batch, 3, CONFIG.spike_size)

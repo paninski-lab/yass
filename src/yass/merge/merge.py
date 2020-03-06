@@ -13,7 +13,7 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.cluster import AgglomerativeClustering
 
 from yass.template import shift_chans, align_get_shifts_with_ref
-from yass.merge.correlograms_phy import compute_correlogram_v2
+from yass.correlograms_phy import compute_correlogram_v2
 from yass.merge.notch import notch_finder
 
 class TemplateMerge(object):
@@ -146,16 +146,16 @@ class TemplateMerge(object):
         # units need to be close to each other
         idx1 = dist_norm_ratio < 0.5
 
-        # ptp of both units need to be bigger than 4
+        # ptp of both units need to be bigger than 3
         ptp_max = self.ptps.max(1)
         smaller_ptps = np.minimum(ptp_max[np.newaxis],
                                   ptp_max[:, np.newaxis])
-        idx2 = smaller_ptps > 1
+        idx2 = smaller_ptps > 3
 
         # expect to have at least 10 spikes
         smaller_n_spikes = np.minimum(self.n_spikes_soft[None],
                                       self.n_spikes_soft[:, None])
-        idx3 = smaller_n_spikes > 50
+        idx3 = smaller_n_spikes > 10
 
         units_1, units_2 = np.where(np.logical_and(
             np.logical_and(idx1, idx2), idx3))
@@ -167,7 +167,8 @@ class TemplateMerge(object):
                 ratio = self.n_spikes_soft[x]/self.n_spikes_soft[y]
                 # if the ratio is too bad, ignore it because it will
                 # always try to merge
-                if (ratio > 1/20) and (ratio < 20):
+                if ((ratio > 1/20 and ratio < 20) or 
+                    (ptp_max[x] > 10 and ptp_max[y] > 10)):
                     unique_pairs.append([x, y])
 
         self.merge_candidates = unique_pairs
@@ -278,7 +279,8 @@ class TemplateMerge(object):
                 for pp in merge_pairs_:
                     if len(pp) > 0:
                         merge_pairs.append(pp)
-                merge_pairs = np.concatenate(np.array(merge_pairs))
+                if len(merge_pairs) > 0:
+                    merge_pairs = np.concatenate(np.array(merge_pairs))
             # single core version
             else:
                 merge_pairs = self.merge_templates_parallel(
@@ -575,43 +577,60 @@ class TemplateMerge(object):
         
         weights = self.n_spikes_soft
 
-        spike_train_new = np.copy(self.spike_train)
-        templates_new = np.zeros((len(merge_array), self.spike_size, self.n_channels),
+        templates_new = np.zeros((len(merge_array),
+                                  self.spike_size,
+                                  self.n_channels),
                                  'float32')
+        spike_train_new = np.copy(self.spike_train)
+        shifts_new = np.copy(self.shifts)
+        scales_new = np.copy(self.scales)
+        soft_assignment_new = np.copy(self.soft_assignment)
 
-        new_ids = np.zeros(self.n_units, 'int32')
-        shifts = np.zeros(self.n_units, 'int32')
-
+        new_ids = np.ones(self.n_units, 'int32')*-1
+        #shifts = np.zeros(self.n_units, 'int32')
         for new_id, units in enumerate(merge_array):
             if len(units) > 1:
 
                 # save only a unit with the highest weight
-                id_keep = weights[units].argmax()
-                templates_new[new_id] = self.templates[units[id_keep]]
+                unit_id_old = units[weights[units].argmax()]
+                #templates_new[new_id] = self.templates[unit_id_old]
 
                 # update spike train
                 # determine shifts
-                mc = self.templates[units[id_keep]].ptp(0).argmax()
-                min_points = self.templates[units,:,mc].argmin(1)
-                shifts_ = min_points - min_points[id_keep]
-
-                new_ids[units] = new_id
-                shifts[units] = shifts_
+                #mc = self.templates[units[id_keep]].ptp(0).argmax()
+                #min_points = self.templates[units,:,mc].argmin(1)
+                #shifts_ = min_points - min_points[id_keep]
+                #new_ids[unit_id_old] = new_id
+                #shifts[units] = shifts_
 
             elif len(units) == 1:
-                templates_new[new_id] = self.templates[units[0]]
 
-                new_ids[units[0]] = new_id
+                unit_id_old = units[0]
+                #new_ids[units[0]] = new_id
 
-        spike_train_new[:, 1] = new_ids[self.spike_train[:,1]]
-        spike_train_new[:, 0] += shifts[self.spike_train[:, 1]]
+            templates_new[new_id] = self.templates[unit_id_old]
+            new_ids[unit_id_old] = new_id
+
+        # kill removed units
+        killed_old_ids = np.where(new_ids == -1)[0]
+        idx_keep = np.where(~np.in1d(self.spike_train[:, 1], killed_old_ids))[0]
+        spike_train_new = spike_train_new[idx_keep]
+        shifts_new = shifts_new[idx_keep]
+        scales_new = scales_new[idx_keep]
+        soft_assignment_new = soft_assignment_new[idx_keep]
+
+        spike_train_new[:, 1] = new_ids[spike_train_new[:, 1]]
+        #spike_train_new[:, 0] += shifts[self.spike_train[:, 1]]
 
         # sort them by spike times
         idx_sort = np.argsort(spike_train_new[:, 0])
         spike_train_new = spike_train_new[idx_sort]
-        soft_assignment_new = self.soft_assignment[idx_sort]
+        soft_assignment_new = soft_assignment_new[idx_sort]
+        shifts_new = shifts_new[idx_sort]
+        scales_new = scales_new[idx_sort]
 
         return (templates_new, spike_train_new,
+                shifts_new, scales_new,
                 soft_assignment_new, merge_array)
     
     

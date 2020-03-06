@@ -14,7 +14,7 @@ import parmap
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 import torch
 
-from yass.merge.correlograms_phy import compute_correlogram
+from yass.correlograms_phy import compute_correlogram
 from yass.merge.notch import notch_finder
 from yass.visual.util import *
 from matplotlib_venn import venn3, venn3_circles, venn2

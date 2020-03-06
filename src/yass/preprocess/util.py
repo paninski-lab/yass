@@ -168,6 +168,14 @@ def filter_standardize_batch(batch_id, reader, fname_mean_sd,
             str(batch_id).zfill(6)))
     np.save(fname, ts.astype(out_dtype))
 
+    #fname = os.path.join(
+    #    output_directory,
+    #    "standardized_{}.bin".format(
+    #        str(batch_id).zfill(6)))
+    #f = open(fname, 'wb')
+    #f.write(ts.astype(out_dtype))
+
+
 
 def get_std(ts,
             sampling_frequency,

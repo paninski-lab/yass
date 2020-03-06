@@ -169,8 +169,8 @@ def run_neural_network(standardized_path, standardized_dtype,
 
     # loop over each chunk
     batch_ids = np.arange(reader.n_batches)
-    batch_ids_split = np.split(batch_ids, len(CONFIG.torch_devices))
     if False:
+        batch_ids_split = np.split_array(batch_ids, len(CONFIG.torch_devices))
         processes = []
         for ii, device in enumerate(CONFIG.torch_devices):
             p = mp.Process(target=run_nn_detction_batch,
@@ -185,7 +185,7 @@ def run_neural_network(standardized_path, standardized_dtype,
         run_nn_detction_batch(batch_ids, output_directory, reader, n_sec_chunk,
                                  detector, denoiser, channel_index_dedup,
                                  detect_threshold, device=CONFIG.resources.gpu_id)
-        
+
 
 def run_nn_detction_batch(batch_ids, output_directory,
                           reader, n_sec_chunk,
@@ -229,8 +229,8 @@ def run_nn_detction_batch(batch_ids, output_directory,
                 threshold=detect_threshold)
 
             # denoise and take ptp as energy
-            wfs = denoiser(wfs)[0]
-            energy = (torch.max(wfs, 1)[0] - torch.min(wfs, 1)[0])
+            wfs_denoised = denoiser(wfs)[0].data
+            energy = (torch.max(wfs_denoised, 1)[0] - torch.min(wfs_denoised, 1)[0])
 
             # deduplicate
             spike_index_dedup = deduplicate_gpu(
@@ -239,23 +239,34 @@ def run_nn_detction_batch(batch_ids, output_directory,
                 channel_index_dedup)
 
             # convert to numpy
-            spike_index = spike_index.cpu().data.numpy()
-            spike_index_dedup = spike_index_dedup.cpu().data.numpy()
+            spike_index_cpu = spike_index.cpu().data.numpy()
+            spike_index_dedup_cpu = spike_index_dedup.cpu().data.numpy()
 
             # update the location relative to the whole recording
-            spike_index[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
-            spike_index_dedup[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
-            spike_index_list.append(spike_index)
-            spike_index_dedup_list.append(spike_index_dedup)
+            spike_index_cpu[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
+            spike_index_dedup_cpu[:, 0] += (minibatch_loc[j, 0] - reader.buffer)
+            spike_index_list.append(spike_index_cpu)
+            spike_index_dedup_list.append(spike_index_dedup_cpu)
+
+            del wfs
+            del wfs_denoised
+            del energy
+            del spike_index
+            del spike_index_dedup
+
+            torch.cuda.empty_cache()
 
         #if processing_ctr%100==0:
-        print('batch : {},  # spikes: {}'.format(batch_id, len(spike_index)))
+        print('batch : {}'.format(batch_id))
 
         # save result
         np.savez(fname,
                  spike_index=spike_index_list,
                  spike_index_dedup=spike_index_dedup_list,
                  minibatch_loc=minibatch_loc)
+        
+    del detector
+    del denoiser
 
 
 def run_voltage_treshold(standardized_path, standardized_dtype,

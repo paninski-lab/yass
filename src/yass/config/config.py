@@ -259,18 +259,21 @@ class Config:
         
         #
         if self.recordings.final_deconv_chunk is None:
-            self._set_param('final_deconv_chunk',
-                            [0, self.rec_len/self.recordings.sampling_rate])
+            start = 0
+            end = int(np.ceil(self.rec_len/self.recordings.sampling_rate))
         else:
-            self._set_param('final_deconv_chunk',
-                            self.recordings.final_deconv_chunk)
+            start = int(np.floor(self.recordings.final_deconv_chunk[0]))
+            end = int(np.ceil(self.recordings.final_deconv_chunk[1]))
+        self._set_param('final_deconv_chunk', [start, end])
+
         #
         if self.recordings.clustering_chunk is None:
-            self._set_param('clustering_chunk',
-                            [0, self.rec_len/self.recordings.sampling_rate])
+            start = 0
+            end = int(np.ceil(self.rec_len/self.recordings.sampling_rate))
         else:
-            self._set_param('clustering_chunk',
-                            self.recordings.clustering_chunk)            
+            start = int(np.floor(self.recordings.clustering_chunk[0]))
+            end = int(np.ceil(self.recordings.clustering_chunk[1]))
+        self._set_param('clustering_chunk', [start, end])
             
 
     @property

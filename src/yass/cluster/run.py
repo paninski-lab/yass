@@ -137,6 +137,8 @@ def run(output_directory,
         #### STAGE 1: Cluster on PTP ####
         #################################
 
+        # keep track of input label because this is the deconv label
+        # and it is necessary when making cleaned spikes
         logger.info("Split on PTP")
         (fname_spike_index,
          fname_labels,
@@ -231,7 +233,6 @@ def run(output_directory,
 
         for fname in fnames_input:
             os.remove(fname)
-        print(fname_templates_out)
 
     #check_long_temp = os.path.join(output_directory, 'long_template.npy')
     #if not os.path.exists(check_long_temp):
@@ -262,9 +263,11 @@ def run(output_directory,
 
     #check_sharpen = os.path.join(output_directory, 'check_sharpen.npy')
     #if not os.path.exists(check_sharpen):
+    #fname_templates_aligned = os.path.join(output_directory, 'templates_aligned.npy')
+    #if not os.path.exists(fname_templates_aligned):
     #    logger.info("subsample template alignment")
-    #    fname_templates_out = sharpen_templates(fname_templates_out)
-    #    np.save(check_sharpen, None)
+    #    fname_templates_out = sharpen_templates(fname_templates_out,
+    #                                            fname_templates_aligned)
 
     # zero-out edges
     #check_zero_out = os.path.join(output_directory, 'check_zero_out.npy')

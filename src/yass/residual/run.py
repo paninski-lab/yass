@@ -18,7 +18,10 @@ def run(fname_shifts,
         recording_dtype,
         dtype_out='float32',
         update_templates=False,
-        run_chunk_sec='full'):
+        run_chunk_sec='full',
+        min_ptp_units=0,
+        min_ptp_vis_chan=0
+       ):
             
     """Compute residual
 
@@ -68,6 +71,40 @@ def run(fname_shifts,
     if os.path.exists(fname_out):
         return fname_out, dtype_out
 
+    if (min_ptp_units > 0) or (min_ptp_vis_chan > 0):
+        templates = np.load(fname_templates)
+        spike_train = np.load(fname_spike_train)
+        shifts = np.load(fname_shifts)
+        scales = np.load(fname_scales)
+        ptps = templates.ptp(1)
+        ptps_max = ptps.max(1)
+
+        units_in = np.where(ptps_max > min_ptp_units)[0]
+        templates_new = templates[units_in]
+
+        for ii, k in enumerate(units_in):
+            templates_new[ii, :, ptps[k] <= min_ptp_vis_chan] = 0
+
+        idx_in = np.in1d(spike_train[:, 1], units_in)
+        spike_train_tmp = spike_train[idx_in]
+        spike_train_new = np.copy(spike_train_tmp)
+        shifts_new = shifts[idx_in]
+        scales_new = scales[idx_in]
+        
+        for ii, k in enumerate(units_in):
+            spike_train_new[spike_train_tmp[:, 1] == k, 1] = ii
+        
+        fname_templates = os.path.join(output_directory, 'templates.npy')
+        fname_spike_train = os.path.join(output_directory, 'spike_train.npy')
+        fname_shifts = os.path.join(output_directory, 'shifts.npy')
+        fname_scales = os.path.join(output_directory, 'scales.npy')
+
+        np.save(fname_templates, templates_new)
+        np.save(fname_spike_train, spike_train_new)
+        np.save(fname_shifts, shifts_new)
+        np.save(fname_scales, scales_new)
+        
+        
     if CONFIG.deconvolution.deconv_gpu: 
         residual_ONgpu(recordings_filename,
                        recording_dtype,
@@ -119,6 +156,7 @@ def residual_ONgpu(recordings_filename,
                     recording_dtype,
                     CONFIG,
                     CONFIG.resources.n_sec_chunk_gpu_deconv,
+                    buffer=(CONFIG.spike_size-1)*2,
                     chunk_sec=chunk_sec)
                     
     if False:
@@ -136,17 +174,15 @@ def residual_ONgpu(recordings_filename,
                   update_templates)
     else:
         RESIDUAL_GPU2(reader,
-                  recordings_filename,
-                  recording_dtype,
-                  CONFIG,
-                  fname_shifts,
-                  fname_scales,
-                  fname_templates,
-                  output_directory,
-                  dtype_out,
-                  fname_out,
-                  fname_spike_train,
-                  update_templates)
+                      CONFIG,
+                      fname_shifts,
+                      fname_scales,
+                      fname_templates,
+                      output_directory,
+                      dtype_out,
+                      fname_out,
+                      fname_spike_train,
+                      update_templates)
                   
     
 def residual_ONcpu(fname_templates,

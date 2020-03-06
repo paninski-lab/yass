@@ -54,8 +54,14 @@ def duplicate_l2(fname_templates, fname_spike_train, neigh_channels,
             
     pairs = np.array(pairs)
     
-    units_killed = units_in[idx_sort[pairs[:, 0]]]
-    units_kill = units_in[idx_sort[pairs[:, 1]]]
+    #print ("pairs: ", pairs.shape)
+    #print ("units_in: ", units_in.shape)
+    if pairs.shape[0]>0:
+        units_killed = units_in[idx_sort[pairs[:, 0]]]
+        units_kill = units_in[idx_sort[pairs[:, 1]]]
+    else:
+        units_killed = np.zeros(0,'int32')
+        units_kill = np.zeros(0,'int32')
     
     fname_units_killed = os.path.join(save_dir, 'units_killed.npy')
     fname_units_kill = os.path.join(save_dir, 'units_kill.npy')

@@ -115,8 +115,8 @@ class SOFTNOISEASSIGNMENT(object):
         self.shifts = torch.from_numpy(self.shifts).float().cuda()
         self.scales = torch.from_numpy(self.scales).float().cuda()
         
-        self.mcs = torch.from_numpy(self.mcs)
-        self.channel_index = torch.from_numpy(self.channel_index)
+        self.mcs = torch.from_numpy(self.mcs).cuda()
+        self.channel_index = torch.from_numpy(self.channel_index).cuda()
         
     def get_bspline_coeffs(self):
 
@@ -139,19 +139,19 @@ class SOFTNOISEASSIGNMENT(object):
 
         idx_run = np.hstack((np.arange(0, len(shifts), n_sample_run), len(shifts)))
 
-        shifted_templates = torch.zeros((len(shifts), n_times, self.n_neigh_chans)).cuda()
+        shifted_templates = torch.cuda.FloatTensor(len(shifts), n_times, self.n_neigh_chans).fill_(0)
         for j in range(len(idx_run)-1):
             ii_start = idx_run[j]
             ii_end = idx_run[j+1]
-            obj = torch.zeros(self.n_neigh_chans, (ii_end-ii_start)*n_times).cuda()
-            times = torch.arange(0, (ii_end-ii_start)*n_times, n_times).long().cuda()
+            obj = torch.zeros(self.n_neigh_chans, (ii_end-ii_start)*n_times + 10).cuda()
+            times = torch.arange(0, (ii_end-ii_start)*n_times, n_times).long().cuda() + 5
             deconv.subtract_splines(obj,
                                     times,
                                     shifts[ii_start:ii_end],
                                     temp_ids[ii_start:ii_end],
                                     self.coeffs, 
                                     scales[ii_start:ii_end])
-            obj = obj.reshape((self.n_neigh_chans, (ii_end-ii_start), n_times))
+            obj = obj[:, 5:-5].reshape((self.n_neigh_chans, (ii_end-ii_start), n_times))
             shifted_templates[ii_start:ii_end] = obj.transpose(0,1).transpose(1,2)
     
         return shifted_templates
@@ -212,6 +212,8 @@ class SOFTNOISEASSIGNMENT(object):
                 probs[idx_in] = probs_batch.data
                 
                 pbar.update()
+                
+            del probs_batch
 
         probs_included = probs.cpu().numpy()
 

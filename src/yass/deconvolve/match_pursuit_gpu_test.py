@@ -3,7 +3,7 @@ import sys, os, math
 import datetime as dt
 import scipy, scipy.signal
 import parmap
-from scipy.interpolate import splrep, splev, make_interp_spline, splder, sproot
+from scipy.interpolate import splrep, splev, make_interp_spline, splder, sproot, interp1d
 from tqdm import tqdm
 
 # doing imports inside module until travis is fixed
@@ -16,8 +16,10 @@ from torch import nn
 import cudaSpline as deconv
 import rowshift as rowshift
 
+from yass.postprocess.duplicate import abs_max_dist
 from yass.deconvolve.util import WaveForms
-from yass.deconvolve.utils import TempTempConv, reverse_shifts
+from yass.deconvolve.utils import (TempTempConv, reverse_shifts,
+                                   pca_gmm_and_dip, shift_svd_denoise)
 
 
 # # ****************************************************************************
@@ -98,38 +100,38 @@ def fit_spline_cpu(curve, knots=None, prepad=0, postpad=0, order=3):
                      
 class deconvGPU(object):
 
-    def __init__(self, CONFIG, fname_templates, out_dir):
+    def __init__(self, CONFIG, out_dir):
     
         os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
-        print("... deconv using GPU device: ", torch.cuda.current_device())
+        #print("... deconv using GPU device: ", torch.cuda.current_device())
         
         #
         self.out_dir = out_dir
         
         # initialize directory for saving
-        self.seg_dir = os.path.join(self.out_dir,'segs')
-        if not os.path.isdir(self.seg_dir):
+        self.seg_dir = os.path.join(self.out_dir, 'segs')
+        if not os.path.exists(self.seg_dir):
             os.mkdir(self.seg_dir)
             
-        self.svd_dir = os.path.join(self.out_dir,'svd')
-        if not os.path.isdir(self.svd_dir):
+        self.svd_dir = os.path.join(self.out_dir, 'svd')
+        if not os.path.exists(self.svd_dir):
             os.mkdir(self.svd_dir)
 
-        self.temps_dir = os.path.join(self.out_dir,'template_updates')
-        if not os.path.isdir(self.temps_dir):
+        self.temps_dir = os.path.join(self.out_dir, 'template_updates')
+        if not os.path.exists(self.temps_dir):
             os.mkdir(self.temps_dir)
 
-        # always copy the startng templates to initalize the process
-        fname_out_temporary = os.path.join(self.temps_dir, 'templates_init_in.npy')
-        if os.path.exists(fname_out_temporary)==False:
-            temps_temporary = np.load(fname_templates)
-            np.save(fname_out_temporary, temps_temporary)
-        self.fname_templates = fname_out_temporary
+        ## always copy the startng templates to initalize the process
+        #fname_out_temporary = os.path.join(self.temps_dir, 'templates_init_in.npy')
+        #if os.path.exists(fname_out_temporary)==False:
+        #    temps_temporary = np.load(fname_templates)
+        #    np.save(fname_out_temporary, temps_temporary)
+        #self.fname_templates = fname_out_temporary
 
         # initalize parameters for 
-        self.set_params(CONFIG, fname_templates, out_dir)
+        self.set_params(CONFIG, out_dir)
 
-    def set_params(self, CONFIG, fname_templates, out_dir):
+    def set_params(self, CONFIG, out_dir):
 
         # 
         self.CONFIG = CONFIG
@@ -139,9 +141,6 @@ class deconvGPU(object):
         
         #
         self.out_dir = out_dir
-
-        #
-        #self.fname_templates_in = fname_templates
 
         # load geometry
         self.geom = np.loadtxt(os.path.join(CONFIG.data.root_folder, CONFIG.data.geometry))
@@ -185,7 +184,14 @@ class deconvGPU(object):
         self.chunk_id = -1
         
         
-    def initialize(self):
+    def initialize(self, fname_templates, init_dir=None):
+
+        if init_dir is None:
+            self.init_dir = self.svd_dir
+        else:
+            self.init_dir = init_dir
+        if not os.path.exists(self.init_dir):
+            os.mkdir(self.init_dir)
 
         # length of conv filter
         #self.n_times = torch.arange(-self.lockout_window,self.n_time,1).long().cuda()
@@ -193,42 +199,13 @@ class deconvGPU(object):
         # make a 3 point array to be used in quadratic fit below
         print("... deconv using GPU device: ", torch.cuda.current_device())
 
-        self.peak_pts = torch.arange(-1,+2).cuda()
-
         # load templates and svd componenets
-        self.load_temps()
+        self.load_temps(fname_templates)
 
-        temp_temp_fname = os.path.join(self.svd_dir,'temp_temp_sparse_svd_'+\
-                str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npy')
-
-        # pad len is constant and is 1.5 ms on each side, i.e. a total of 3 ms
-        pad_len = int(1.5 * self.CONFIG.recordings.sampling_rate / 1000.)
-        # jitter_len is selected in a way that deconv works with 3 ms signals
-        jitter_len = pad_len
-        self.jitter_diff = 0
-        #if self.CONFIG.recordings.spike_size_ms > 3:
-        #    self.jitter_diff = (self.CONFIG.recordings.spike_size_ms - 3)
-        #    self.jitter_diff = int(self.jitter_diff * self.CONFIG.recordings.sampling_rate / 1000. / 2.)
-        jitter_len = pad_len + self.jitter_diff
-        self.ttc = TempTempConv(
-                self.CONFIG, 
-                templates=self.temps.transpose(2,0,1), geom=self.geom, rank=self.RANK,
-                temp_temp_fname=temp_temp_fname,
-                pad_len=pad_len, jitter_len=jitter_len, sparse=True)
-        #np.save(os.path.join(self.svd_dir, 'temp_norms.npy'), self.ttc.temp_norms)
-        #np.save(os.path.join(self.svd_dir, 'unit_overlap.npy'), self.ttc.unit_overlap)
-
-        # update self.temps to the denoised templates
-        self.temps = self.ttc.residual_temps.transpose(1, 2, 0)
-        #np.save(self.fname_templates, self.temps.transpose(2, 1, 0))
-
+        self.initialize_shift_svd()
+        
         if self.update_templates:
             self.get_parameters_for_template_update()
-
-        # Move sparse temp_temp to GPU
-        self.temp_temp = []
-        for k in range(len(self.ttc.temp_temp)):
-            self.temp_temp.append(torch.from_numpy(self.ttc.temp_temp[k]).float().cuda())
 
         # align templates
         #self.align_templates2()
@@ -237,7 +214,7 @@ class deconvGPU(object):
         #self.temp_temp_shifted()
 
         # compute norms and move data to GPU
-        self.data_to_gpu_shifted_svd()
+        self.data_to_gpu()
 
         # OLDER FUNCTIONS
         # find vis-chans
@@ -257,23 +234,33 @@ class deconvGPU(object):
         # # Cat: TODO we should dissable all non-SVD options?!
         # else:
             # self.compute_temp_temp()
-
-        # move data to gpu
-        #self.data_to_gpu()
                  
         # BSPLINE COMPUTATIONS
                 
         # initialize Ian's objects
         #self.initialize_cpp()
 
-        # conver templates to bpslines
+        # convert templates to bpslines
         self.templates_to_bsplines()
-        
+
+        # Peak times minus this value are where temp_temp should be subtracted from
+        # old value
+        #self.subtraction_offset = self.coefficients[0].data.shape[1]//2+2
+        self.subtraction_offset = self.ttc.peak_time_temp_temp_offset
+
         # large units for height fit
         if self.fit_height:
             self.ptps = self.temps.ptp(1).max(0)
             self.large_units = np.where(self.ptps > self.fit_height_ptp)[0]
             self.large_units = torch.from_numpy(self.large_units).cuda()
+
+
+        #if self.neuron_discover:
+        #    self.residual_comp.load_templates(self.fname_templates)
+        #    self.residual_comp.make_bsplines_parallel()
+        #    self.get_visible_channels()
+
+
 
     def run(self, chunk_id):
         
@@ -333,6 +320,33 @@ class deconvGPU(object):
         self.height_list = None
 
 
+    def initialize_shift_svd(self):
+        
+        fname_templates_denoised = os.path.join(self.init_dir, 'templates_denoised.npy')
+        
+
+        # pad len is constant and is 1.5 ms on each side, i.e. a total of 3 ms
+        self.pad_len = int(1.5 * self.CONFIG.recordings.sampling_rate / 1000.)
+        # jitter_len is selected in a way that deconv works with 3 ms signals
+        self.jitter_len = self.pad_len
+        self.jitter_diff = 0
+        #if self.CONFIG.recordings.spike_size_ms > 3:
+        #    self.jitter_diff = (self.CONFIG.recordings.spike_size_ms - 3)
+        #    self.jitter_diff = int(self.jitter_diff * self.CONFIG.recordings.sampling_rate / 1000. / 2.)
+        self.jitter_len = self.pad_len + self.jitter_diff
+        self.ttc = TempTempConv(
+                self.CONFIG, 
+                templates=self.temps.transpose(2,0,1), geom=self.geom, rank=self.RANK,
+                temp_temp_fname=temp_temp_fname,
+                pad_len=self.pad_len, jitter_len=self.jitter_len, sparse=True)
+        #np.save(os.path.join(self.svd_dir, 'temp_norms.npy'), self.ttc.temp_norms)
+        #np.save(os.path.join(self.svd_dir, 'unit_overlap.npy'), self.ttc.unit_overlap)
+
+        # update self.temps to the denoised templates
+        self.temps = self.ttc.residual_temps.transpose(1, 2, 0)
+        #np.save(self.fname_templates, self.temps.transpose(2, 1, 0))
+
+    
     def initialize_cpp(self):
 
         # make a list of pairwise batched temp_temp and their vis_units
@@ -351,6 +365,11 @@ class deconvGPU(object):
         
         if os.path.exists(fname)==False:
             
+            # Move sparse temp_temp to GPU
+            self.temp_temp = []
+            for k in range(len(self.ttc.temp_temp)):
+                self.temp_temp.append(torch.from_numpy(self.ttc.temp_temp[k]).float().cuda())
+
             # Cat; TODO: don't need to pass tensor/cuda templates to parallel function
             #            - can just pass the raw cpu templates
             # multi-core bsplines
@@ -372,6 +391,11 @@ class deconvGPU(object):
                     template_cpu = template.data.cpu().numpy()
                     coefficients.append(transform_template_parallel(template))
             np.save(fname, coefficients)
+            
+            del self.temp_temp
+            #del self.temp_temp_cpp
+            torch.cuda.empty_cache()
+
         else:
             print ("  ... loading coefficients from disk")
             coefficients = np.load(fname, allow_pickle=True)
@@ -383,10 +407,6 @@ class deconvGPU(object):
         # coefficients = np.load(fname)
         # print (" loaded coefficients: ", coefficients[0].shape)
         # print (" loaded coefficients: ", coefficients[0])
-        
-        del self.temp_temp
-        #del self.temp_temp_cpp
-        torch.cuda.empty_cache()
         
         print ("  ... moving coefficients to cuda objects")
         coefficients_cuda = []
@@ -400,10 +420,6 @@ class deconvGPU(object):
 
         
         self.coefficients = deconv.BatchedTemplates(coefficients_cuda)
-        # Peak times minus this value are where temp_temp should be subtracted from
-        # old value
-        #self.subtraction_offset = self.coefficients[0].data.shape[1]//2+2
-        self.subtraction_offset = self.ttc.peak_time_temp_temp_offset
 
         del coefficients_cuda
         del coefficients
@@ -520,17 +536,25 @@ class deconvGPU(object):
             # self.temps[zero_chans,:,k]=0.
 
 
-    def load_temps(self):
+    def load_temps(self, fname_templates):
         ''' Load templates and set parameters
         '''
         
         # load templates
         #print ("Loading template: ", self.fname_templates)
-        self.temps = np.load(self.fname_templates, allow_pickle=True).transpose(2,1,0)
+        self.temps = np.load(fname_templates, allow_pickle=True).transpose(2,1,0)
         self.N_CHAN, self.STIME, self.K = self.temps.shape
         #print ("   LOADED TEMPS: ", self.temps.shape)
         # this transfer to GPU is not required any longer
         # self.temps_gpu = torch.from_numpy(self.temps).float().cuda()
+
+
+    #def get_visible_channels(self, threshold = 0):
+    #
+    #    ptps = self.temps.ptp(1)
+    #    self.vis_chans = [None]*self.K
+    #    for k in range(self.K):
+    #        self.vis_chans[k] = np.where(ptps[:, k] > threshold)[0]
 
 
     def get_parameters_for_template_update(self):
@@ -552,7 +576,12 @@ class deconvGPU(object):
 
         # find max/min ptp arguments for all channels
         max_temp = self.temps.argmax(1).T
+        max_temp[max_temp < 2] = 2
+        max_temp[max_temp > self.STIME - 3] = self.STIME - 3
         min_temp = self.temps.argmin(1).T
+        min_temp[min_temp < 2] = 2
+        min_temp[min_temp > self.STIME - 3] = self.STIME - 3
+
 
         # get relative minimum and maximum locations for each unit and each channel
         self.min_max_loc = np.concatenate(
@@ -575,51 +604,53 @@ class deconvGPU(object):
         #thresholds[thresholds > self.diff_range_update[1]] = self.diff_range_update[1]
         #self.ptps_threshold = thresholds
 
-    def compress_templates(self):
-        """Compresses the templates using SVD and upsample temporal compoents."""
+    #def compress_templates(self):
+    #    """Compresses the templates using SVD and upsample temporal compoents."""
 
-        print ("   making SVD data... (todo: move to GPU)")
-        ## compute everythign using SVD
-        # Cat: TODO: is this necessary?  
-        #      can just overwrite all the svd stuff every template update
-        fname = os.path.join(self.svd_dir,'templates_svd_'+
-                      str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npz')
+    #    print ("   making SVD data... (todo: move to GPU)")
+    #    ## compute everythign using SVD
+    #    # Cat: TODO: is this necessary?  
+    #    #      can just overwrite all the svd stuff every template update
+    #    fname = os.path.join(self.svd_dir,'templates_svd_'+
+    #                  str((self.chunk_id+1)*self.CONFIG.resources.n_sec_chunk_gpu_deconv) + '.npz')
 
             
-        if os.path.exists(fname)==False:
-            #print ("self.temps: ", self.temps.shape)
-            #np.save("/home/cat/temps.npy", self.temps)
+    #    if os.path.exists(fname)==False:
+    #        #print ("self.temps: ", self.temps.shape)
+    #        #np.save("/home/cat/temps.npy", self.temps)
             
-            self.temporal, self.singular, self.spatial = np.linalg.svd(
-                np.transpose(np.flipud(np.transpose(self.temps,(1,0,2))),(2, 0, 1)))
+    #        self.temporal, self.singular, self.spatial = np.linalg.svd(
+    #            np.transpose(np.flipud(np.transpose(self.temps,(1,0,2))),(2, 0, 1)))
             
-            # Keep only the strongest components
-            self.temporal = self.temporal[:, :, :self.RANK]
-            self.singular = self.singular[:, :self.RANK]
-            self.spatial = self.spatial[:, :self.RANK, :]
+    #        # Keep only the strongest components
+    #        self.temporal = self.temporal[:, :, :self.RANK]
+    #        self.singular = self.singular[:, :self.RANK]
+    #        self.spatial = self.spatial[:, :self.RANK, :]
 
-            # Upsample the temporal components of the SVD
-            # in effect, upsampling the reconstruction of the
-            # templates.
+    #        # Upsample the temporal components of the SVD
+    #        # in effect, upsampling the reconstruction of the
+    #        # templates.
             
-            # Cat: TODO: No upsampling is needed; to remove temporal_up from code
-            self.temporal_up = self.temporal
+    #        # Cat: TODO: No upsampling is needed; to remove temporal_up from code
+    #        self.temporal_up = self.temporal
            
-            np.savez(fname, temporal=self.temporal, singular=self.singular, 
-                     spatial=self.spatial, temporal_up=self.temporal_up)
+    #        np.savez(fname, temporal=self.temporal, singular=self.singular, 
+    #                 spatial=self.spatial, temporal_up=self.temporal_up)
             
-        else:
-            print ("   loading SVD from disk...") 
-            # load data for for temp_temp computation
-            data = np.load(fname, allow_pickle=True)
-            self.temporal_up = data['temporal_up']
-            self.temporal = data['temporal']
-            self.singular = data['singular']
-            self.spatial = data['spatial']                                     
+    #    else:
+    #        print ("   loading SVD from disk...") 
+    #        # load data for for temp_temp computation
+    #        data = np.load(fname, allow_pickle=True)
+    #        self.temporal_up = data['temporal_up']
+    #        self.temporal = data['temporal']
+    #        self.singular = data['singular']
+    #        self.spatial = data['spatial']                                     
             
     
-    def data_to_gpu_shifted_svd(self):
+    def data_to_gpu(self):
         
+        self.peak_pts = torch.arange(-1,+2).cuda()
+
         # hoosh' new norms.
         norm = self.ttc.temp_norms
 
@@ -706,8 +737,9 @@ class deconvGPU(object):
             print ("Computing objective ")       
        
         #obj_function = np.zeros([NUNIT, data.shape[1] + 61 - 1])
-        self.obj_gpu = torch.zeros((self.K, self.data.shape[1]+self.STIME-1 + 2 * self.jitter_diff),
-                                    dtype=torch.float).cuda()
+        #self.obj_gpu = torch.zeros((self.K, self.data.shape[1]+self.STIME-1 + 2 * self.jitter_diff),
+        #                            dtype=torch.float).cuda()
+        self.obj_gpu = torch.cuda.FloatTensor(self.K, self.data.shape[1]+self.STIME-1 + 2 * self.jitter_diff).fill_(0)
 
         spat_comp_gpu = torch.from_numpy(self.ttc.spat_comp.transpose([0,2,1])).float().cuda()
         #print ("self.temp_comp: ", self.temp_comp.shape)
@@ -1433,9 +1465,217 @@ class deconvGPU(object):
         weights_sum[weights_sum==0] = 0.0000001
         min_max_vals_average = min_max_vals_average/weights_sum[:,None, :,None]
 
-        return min_max_vals_average, weights_sum    
+        return min_max_vals_average, weights_sum
 
-    
+    def get_cleaned_data(self, cleaned_min_max=None, spike_times_list=None):
+
+        # get residual
+        residual = self.residual_comp.subtract_input_data(
+            self.data_cpu, self.spike_train, self.shifts, self.heights)
+
+        # get all spike times and neuron ids
+        spike_times = torch.from_numpy(self.spike_train[:, 0]).long().cuda()
+        neuron_ids = torch.from_numpy(self.spike_train[:, 1]).long().cuda()
+
+        # also shifts and scales
+        shifts = torch.from_numpy(self.shifts).float().cuda()
+        heights = torch.from_numpy(self.heights).float().cuda()
+
+        # get min/max values
+        # due to memory constraint, find the values 10,000 spikes at a time
+        max_spikes = 5000
+        counter = torch.cat((torch.arange(0, len(spike_times), max_spikes), torch.tensor([len(spike_times)]))).cuda()
+
+        # get the values near template min/max locations for each channel
+        # min_max_vals_spikes: # spikes x 2 (min/max) x # channels x 5 (-2 to 2 of argmin/argmax)
+        # this will get min/max values of cleaned spikes.
+        # it will first get residual values and then add templates
+        #min_max_vals_spikes = torch.zeros((len(spike_times), 2, self.N_CHAN, 5)).float().cuda()
+        min_max_vals_spikes = torch.cuda.FloatTensor(len(spike_times), 2, self.N_CHAN, 5).fill_(0)
+        for j in range(len(counter)-1):
+            ii_start = counter[j]
+            ii_end = counter[j+1]
+            tt = spike_times[ii_start:ii_end, None] + torch.arange(-2, 3).cuda()
+            min_max_loc_spikes = (self.min_max_loc[neuron_ids[ii_start:ii_end]][:, :, :, None] + 
+                                  tt[:, None, None] - self.STIME//2).permute(2,0,1,3).reshape(self.N_CHAN, -1)
+            #chan_loc_spikes = (torch.arange(self.N_CHAN).cuda()[None, None, :, None].repeat(
+            #    min_max_loc_spikes.shape[0], 2, 1, 5))
+            #min_max_vals_spikes[ii_start:ii_end] = residual[chan_loc_spikes, min_max_loc_spikes]
+            min_max_vals_spikes[ii_start:ii_end] = torch.gather(residual, 1, min_max_loc_spikes).reshape(
+                self.N_CHAN, ii_end-ii_start, 2, 5).permute(1,2,0,3)
+
+            shifted_templates = self.residual_comp.get_shifted_templates(
+                neuron_ids[ii_start:ii_end], 
+                shifts[ii_start:ii_end], 
+                heights[ii_start:ii_end])
+
+            min_max_loc_spikes = (self.min_max_loc[neuron_ids[ii_start:ii_end]][:,:,None] + 
+                torch.arange(-2, 3).cuda()[None, None, :, None]).reshape(ii_end-ii_start, -1, self.N_CHAN)
+            min_max_vals_spikes[ii_start:ii_end] += torch.gather(
+                shifted_templates, 1, min_max_loc_spikes).reshape(
+                ii_end-ii_start, 2, 5, self.N_CHAN).permute(0, 1, 3, 2)
+
+        tt = None
+        min_max_loc_spikes = None
+        shifted_templates = None
+
+        # 
+        if cleaned_min_max is None:
+            cleaned_min_max = [None]*self.K
+            spike_times_list = [None]*self.K
+        for k in range(self.K):
+            idx_ = neuron_ids == k
+            if cleaned_min_max[k] is not None:
+                cleaned_min_max[k] = np.concatenate(
+                    (cleaned_min_max[k], min_max_vals_spikes[idx_].cpu().numpy()[:, :, self.vis_chans[k]]),
+                    axis = 0)
+                spike_times_list[k] = np.hstack((spike_times_list[k], spike_times[idx_].cpu().numpy() + self.offset))
+
+            else:
+                cleaned_min_max[k] = min_max_vals_spikes[idx_].cpu().numpy()[:, :, self.vis_chans[k]]
+                spike_times_list[k] = spike_times[idx_].cpu().numpy()  + self.offset
+
+        return cleaned_min_max, spike_times_list
+
+    def split_step(self, cleaned_min_max, spike_times_list,
+                   min_fr=0.1, min_ptp_accept=2.5, min_ptp_split=5):
+
+        min_data = min_fr*self.template_update_time
+
+        new_temps = np.zeros((0, self.STIME, self.N_CHAN), 'float32')
+        from_which_unit = np.zeros(0, 'int32')
+        n_spikes = np.zeros(0, 'int32')
+
+        cleaned_min_max_new = []
+        spike_times_list_new = []
+        print('splitting...')
+        for k in range(len(cleaned_min_max)):
+            if self.ptps[k] > min_ptp_split:
+
+                # get spike times and min max data
+                spt_ = spike_times_list[k]
+                idx_sort = np.argsort(spt_)
+                cleaned_min_max_unit = cleaned_min_max[k]
+
+                # sort them
+                cleaned_min_max_unit = cleaned_min_max_unit[idx_sort]
+                spt_ = spt_[idx_sort]
+
+                # exclude spikes with low isi
+                isi_ = np.diff(np.hstack((-1000, spt_)))
+                cleaned_min_max_unit = cleaned_min_max_unit[isi_ > 300]
+                spt_ = spt_[isi_ > 300]
+
+                if len(spt_) < 10:
+                    continue
+
+                # get ptp
+                ptp_ = cleaned_min_max_unit[:,1].max(2) - cleaned_min_max_unit[:,0].min(2)
+
+                # compute standard deviation if std is low then skip
+                std_ = np.std(ptp_, 0)
+                if std_.max() > 1.5:
+
+                    # run split
+                    label, pval = pca_gmm_and_dip(ptp_)
+
+                    # if p value is less than 0.05 (multi-modal), record splits
+                    if pval < 0.05:
+                        unique_label, n_counts = np.unique(label, return_counts=True)
+                        idx_min_spikes = n_counts > self.template_update_time*self.CONFIG.cluster.min_fr
+                        unique_label = unique_label[idx_min_spikes]
+                        n_counts = n_counts[idx_min_spikes]
+                            
+
+                        # save templates
+                        n_spikes_k = np.zeros(len(unique_label), 'int32')
+                        new_temps_k = np.zeros((len(unique_label), self.STIME, self.N_CHAN), 'float32')
+                        for ii in range(len(unique_label)):
+                            new_temps_k[ii] = self.reader.read_waveforms(spt_[label == unique_label[ii]])[0].mean(0)
+
+                        # exclude small clusters
+                        idx_keep = np.where(np.logical_or(
+                            n_counts > min_data,
+                            new_temps_k.ptp(1).max(1) > min_ptp_accept))[0]
+                        unique_label = unique_label[idx_keep]
+                        new_temps_k = new_temps_k[idx_keep]
+                        n_counts = n_counts[idx_keep]
+
+                        ## save templates
+                        #new_temps_k = np.zeros((len(unique_label), self.STIME, self.N_CHAN), 'float32')
+                        #for ii in range(len(unique_label)):
+                        #    new_temps_k[ii] = self.reader.read_waveforms(spt_[label == unique_label[ii]])[0].mean(0)
+                        #    cleaned_min_max_new.append(cleaned_min_max_unit[label==unique_label[ii]])
+                        #    spike_times_list_new.append(spt_[label==unique_label[ii]])
+                        
+                        new_temps = np.concatenate((new_temps, new_temps_k), axis=0)
+                        from_which_unit = np.hstack((from_which_unit, np.ones(new_temps_k.shape[0], 'int32')*k))
+                        n_spikes = np.hstack((n_spikes, n_counts))
+
+        # denoise using shift + svd
+        print('denoising split templates')
+        vis_threshold_weak = 0.5
+        vis_threshold_strong = 1.
+        new_temps_denoised = shift_svd_denoise(
+            new_temps, self.CONFIG,
+            vis_threshold_weak, vis_threshold_strong,
+            self.RANK, self.pad_len, self.jitter_len)
+
+        print('remove bad split templates')
+        ## kill any low ptp units
+        #units_keep = np.where(new_temps_denoised.ptp(1).max(1) > self.CONFIG.clean_up.min_ptp)[0]
+        #new_temps_denoised = new_temps_denoised[units_keep]
+        #spike_times_list_new = [spike_times_list_new[ii] for ii in units_keep]
+        #from_which_unit = from_which_unit[units_keep]
+
+        # duplicate removal
+        # step 1 compare split units to its parent units only
+        original_units = np.unique(from_which_unit)
+        duplicate_new_units = np.zeros(len(new_temps_denoised), 'bool')
+        for k in original_units:
+            template_unit = self.temps[self.vis_chans[k],:,k].T
+            new_unit_idx = np.where(from_which_unit == k)[0]
+            templates_candidates = new_temps_denoised[from_which_unit == k][:, :, self.vis_chans[k]]
+
+            duplicates_ = abs_max_dist(template_unit, templates_candidates,
+                         up_factor=5, max_diff_threshold=1.2,
+                         max_diff_rel_threshold=0.12)
+            duplicate_new_units[new_unit_idx[duplicates_]] = True
+        new_units_keep = np.where(~duplicate_new_units)[0]
+        # step 2
+        # compare each survived split units to all the orignal units
+        ptps_original = self.temps.ptp(1).transpose()
+        for k in new_units_keep:
+            min_ptp_diff = np.min(np.abs(ptps_original - new_temps_denoised[k].ptp(0)).max(1))
+            min_ptp_diff_rel = min_ptp_diff/new_temps_denoised[k].ptp(0).max()
+            if min_ptp_diff < 2 or min_ptp_diff_rel < 0.2:
+                duplicate_new_units[k] = True
+        new_units_keep = np.where(~duplicate_new_units)[0]
+        # step 3: kill among new units
+        new_temps_denoised = new_temps_denoised[new_units_keep]
+        n_spikes = n_spikes[new_units_keep]
+        duplicate_pairs = []
+        ptp_new = new_temps_denoised.ptp(1).max(1)
+        for k in range(new_temps_denoised.shape[0]-1):
+            diff = np.abs(new_temps_denoised[k+1:] - new_temps_denoised[k]).max((1, 2))
+            diff_rel = diff/np.maximum(ptp_new[k], ptp_new[k+1:])
+            idx_duplicates = np.where(np.logical_or(diff < 2, diff_rel < 0.2))[0] + k + 1
+
+            for k2 in idx_duplicates:
+                duplicate_pairs.append([k ,k2])
+        kill_idx = np.zeros(len(new_temps_denoised), 'bool')
+        for k1, k2 in duplicate_pairs:
+            if n_spikes[k1] > n_spikes[k2]:
+                kill_idx[k2] = True
+            else:
+                kill_idx[k1] = True
+
+        new_temps_denoised = new_temps_denoised[~kill_idx]
+        n_spikes = n_spikes[~kill_idx]
+
+        return new_temps_denoised
+
+
 # # ****************************************************************************
 # # ****************************************************************************
 # # ****************************************************************************
@@ -1458,4 +1698,3 @@ class deconvGPU2(object):
 
         # initalize parameters for 
         self.set_params(CONFIG, fname_templates, out_dir)
-        

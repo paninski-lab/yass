@@ -13,6 +13,12 @@ YASS: Yet Another Spike Sorter
 .. image:: https://badges.gitter.im/paninski-lab/yass.svg
     :target: https://gitter.im/paninski-lab/yass?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge
 
+
+[UPDATE Mar 2020] 
+------------------
+The latest change is on. We suggest re-install YASS (check below for the instruction). There are new CUDA codes to be installed. Instead of gpu_deconv4, there are gpu_bspline_interp and gpu_rowshift to be installed. 
+
+
 [UPDATE Dec 2019] 
 ------------------
 Yass has gone additional improvements and changes. There is now an additional parameter in the config.yaml file that
@@ -133,7 +139,7 @@ https://www.anaconda.com/distribution/
 
 .. code-block:: shell
 
-   pip install .
+   pip install -e .
 
 
 5.  Pip install pytorch master [Note conda is now used instead of pip]:
@@ -143,19 +149,13 @@ https://www.anaconda.com/distribution/
    conda install pytorch
 
    
-6.  Change directory to CUDA code directory [Note updated CUDA code in Oct/2019]:
+6.  Compile cuda code using default gcc [Note updated CUDA code in Mar/2020]:
    
 .. code-block:: shell
 
-   cd src/gpu_deconv4
-   
-   
-7.  Compile cuda code using default gcc:
+   /src/gpu_bspline_interp/python setup.py install --force
+   /src/gpu_rowshift/python setup.py install --force
 
-.. code-block:: shell
-
-   python setup.py install --force
-   
 
 Common installation issues involve incompatible gcc versions for pytorch installation and for
 cuda code.  We recommend using gcc 5 and pytorch 1.10 as they have been tested.

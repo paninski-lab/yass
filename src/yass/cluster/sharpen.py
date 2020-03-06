@@ -1,7 +1,7 @@
 import numpy as np 
 from scipy.interpolate import interp1d
 
-def sharpen_templates(fname_templates):
+def sharpen_templates(fname_templates, fname_out=None):
 
     templates = np.load(fname_templates)
 
@@ -25,9 +25,11 @@ def sharpen_templates(fname_templates):
             temp_new[:, c] = f(t_range_new)
         templates_new[unit] = temp_new    
 
-    np.save(fname_templates, templates_new)
+    if fname_out is None:
+        fname_out = fname_templates
+    np.save(fname_out, templates_new)
     
-    return fname_templates
+    return fname_out
 
 def find_peak_binary_search(obj, func, threshold= 0.0001):
     small, big = np.argsort(obj)[-2:]
