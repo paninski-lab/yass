@@ -1,0 +1,185 @@
+Processing /home/cat/Downloads/yass
+Collecting numpy
+  Using cached numpy-1.18.1-cp37-cp37m-manylinux1_x86_64.whl (20.1 MB)
+Collecting scipy
+  Using cached scipy-1.4.1-cp37-cp37m-manylinux1_x86_64.whl (26.1 MB)
+Collecting scikit-learn
+  Using cached scikit_learn-0.22.2.post1-cp37-cp37m-manylinux1_x86_64.whl (7.1 MB)
+Processing /home/cat/.cache/pip/wheels/8a/55/a4/c0a81d27c33462cfdcb904db018f5550197e88b2b6b85beed2/PyYAML-5.3-cp37-cp37m-linux_x86_64.whl
+Collecting python-dateutil
+  Using cached python_dateutil-2.8.1-py2.py3-none-any.whl (227 kB)
+Collecting click
+  Using cached click-7.1.1-py2.py3-none-any.whl (82 kB)
+Collecting tqdm
+  Using cached tqdm-4.43.0-py2.py3-none-any.whl (59 kB)
+Processing /home/cat/.cache/pip/wheels/83/2b/b4/50d7cae5b9069434454fd36da009832592af4fff58b51db8d9/multiprocess-0.70.9-py3-none-any.whl
+Collecting coloredlogs
+  Using cached coloredlogs-14.0-py2.py3-none-any.whl (43 kB)
+Processing /home/cat/.cache/pip/wheels/17/3a/0d/e2fc48cf85cb858f5e65f1baa36180ebb5dce6397c35c4cfcb/Cerberus-1.3.2-py3-none-any.whl
+Collecting parmap
+  Using cached parmap-1.5.2-py2.py3-none-any.whl (15 kB)
+Collecting statsmodels
+  Using cached statsmodels-0.11.1-cp37-cp37m-manylinux1_x86_64.whl (8.7 MB)
+Collecting matplotlib
+  Using cached matplotlib-3.2.0-cp37-cp37m-manylinux1_x86_64.whl (12.4 MB)
+Collecting networkx
+  Using cached networkx-2.4-py3-none-any.whl (1.6 MB)
+Collecting Cython
+  Using cached Cython-0.29.15-cp37-cp37m-manylinux1_x86_64.whl (2.1 MB)
+Collecting progressbar2
+  Using cached progressbar2-3.50.0-py2.py3-none-any.whl (51 kB)
+Collecting h5py
+  Using cached h5py-2.10.0-cp37-cp37m-manylinux1_x86_64.whl (2.9 MB)
+Collecting joblib>=0.11
+  Using cached joblib-0.14.1-py2.py3-none-any.whl (294 kB)
+Collecting six>=1.5
+  Using cached six-1.14.0-py2.py3-none-any.whl (10 kB)
+Processing /home/cat/.cache/pip/wheels/a4/61/fd/c57e374e580aa78a45ed78d5859b3a44436af17e22ca53284f/dill-0.3.1.1-py3-none-any.whl
+Collecting humanfriendly>=7.1
+  Using cached humanfriendly-8.1-py2.py3-none-any.whl (83 kB)
+Collecting setuptools
+  Using cached setuptools-46.0.0-py3-none-any.whl (582 kB)
+Collecting pandas>=0.21
+  Using cached pandas-1.0.1-cp37-cp37m-manylinux1_x86_64.whl (10.1 MB)
+Collecting patsy>=0.5
+  Using cached patsy-0.5.1-py2.py3-none-any.whl (231 kB)
+Collecting kiwisolver>=1.0.1
+  Using cached kiwisolver-1.1.0-cp37-cp37m-manylinux1_x86_64.whl (90 kB)
+Collecting pyparsing!=2.0.4,!=2.1.2,!=2.1.6,>=2.0.1
+  Using cached pyparsing-2.4.6-py2.py3-none-any.whl (67 kB)
+Collecting cycler>=0.10
+  Using cached cycler-0.10.0-py2.py3-none-any.whl (6.5 kB)
+Collecting decorator>=4.3.0
+  Using cached decorator-4.4.2-py2.py3-none-any.whl (9.2 kB)
+Collecting python-utils>=2.3.0
+  Using cached python_utils-2.4.0-py2.py3-none-any.whl (12 kB)
+Collecting pytz>=2017.2
+  Using cached pytz-2019.3-py2.py3-none-any.whl (509 kB)
+Building wheels for collected packages: yass-algorithm
+  Building wheel for yass-algorithm (setup.py): started
+  Building wheel for yass-algorithm (setup.py): finished with status 'error'
+  Running setup.py clean for yass-algorithm
+Failed to build yass-algorithm
+Installing collected packages: numpy, scipy, joblib, scikit-learn, pyyaml, six, python-dateutil, click, tqdm, dill, multiprocess, humanfriendly, coloredlogs, setuptools, cerberus, parmap, pytz, pandas, patsy, statsmodels, kiwisolver, pyparsing, cycler, matplotlib, decorator, networkx, Cython, python-utils, progressbar2, h5py, yass-algorithm
+  Attempting uninstall: numpy
+    Found existing installation: numpy 1.18.1
+    Uninstalling numpy-1.18.1:
+      Successfully uninstalled numpy-1.18.1
+  Attempting uninstall: scipy
+    Found existing installation: scipy 1.4.1
+    Uninstalling scipy-1.4.1:
+      Successfully uninstalled scipy-1.4.1
+  Attempting uninstall: joblib
+    Found existing installation: joblib 0.14.1
+    Uninstalling joblib-0.14.1:
+      Successfully uninstalled joblib-0.14.1
+  Attempting uninstall: scikit-learn
+    Found existing installation: scikit-learn 0.22.2.post1
+    Uninstalling scikit-learn-0.22.2.post1:
+      Successfully uninstalled scikit-learn-0.22.2.post1
+  Attempting uninstall: pyyaml
+    Found existing installation: PyYAML 5.3
+    Uninstalling PyYAML-5.3:
+      Successfully uninstalled PyYAML-5.3
+  Attempting uninstall: six
+    Found existing installation: six 1.14.0
+    Uninstalling six-1.14.0:
+      Successfully uninstalled six-1.14.0
+  Attempting uninstall: python-dateutil
+    Found existing installation: python-dateutil 2.8.1
+    Uninstalling python-dateutil-2.8.1:
+      Successfully uninstalled python-dateutil-2.8.1
+  Attempting uninstall: click
+    Found existing installation: click 7.1.1
+    Uninstalling click-7.1.1:
+      Successfully uninstalled click-7.1.1
+  Attempting uninstall: tqdm
+    Found existing installation: tqdm 4.43.0
+    Uninstalling tqdm-4.43.0:
+      Successfully uninstalled tqdm-4.43.0
+  Attempting uninstall: dill
+    Found existing installation: dill 0.3.1.1
+    Uninstalling dill-0.3.1.1:
+      Successfully uninstalled dill-0.3.1.1
+  Attempting uninstall: multiprocess
+    Found existing installation: multiprocess 0.70.9
+    Uninstalling multiprocess-0.70.9:
+      Successfully uninstalled multiprocess-0.70.9
+  Attempting uninstall: humanfriendly
+    Found existing installation: humanfriendly 8.1
+    Uninstalling humanfriendly-8.1:
+      Successfully uninstalled humanfriendly-8.1
+  Attempting uninstall: coloredlogs
+    Found existing installation: coloredlogs 14.0
+    Uninstalling coloredlogs-14.0:
+      Successfully uninstalled coloredlogs-14.0
+  Attempting uninstall: setuptools
+    Found existing installation: setuptools 46.0.0
+    Uninstalling setuptools-46.0.0:
+      Successfully uninstalled setuptools-46.0.0
+  Attempting uninstall: cerberus
+    Found existing installation: Cerberus 1.3.2
+    Uninstalling Cerberus-1.3.2:
+      Successfully uninstalled Cerberus-1.3.2
+  Attempting uninstall: parmap
+    Found existing installation: parmap 1.5.2
+    Uninstalling parmap-1.5.2:
+      Successfully uninstalled parmap-1.5.2
+  Attempting uninstall: pytz
+    Found existing installation: pytz 2019.3
+    Uninstalling pytz-2019.3:
+      Successfully uninstalled pytz-2019.3
+  Attempting uninstall: pandas
+    Found existing installation: pandas 1.0.1
+    Uninstalling pandas-1.0.1:
+      Successfully uninstalled pandas-1.0.1
+  Attempting uninstall: patsy
+    Found existing installation: patsy 0.5.1
+    Uninstalling patsy-0.5.1:
+      Successfully uninstalled patsy-0.5.1
+  Attempting uninstall: statsmodels
+    Found existing installation: statsmodels 0.11.1
+    Uninstalling statsmodels-0.11.1:
+      Successfully uninstalled statsmodels-0.11.1
+  Attempting uninstall: kiwisolver
+    Found existing installation: kiwisolver 1.1.0
+    Uninstalling kiwisolver-1.1.0:
+      Successfully uninstalled kiwisolver-1.1.0
+  Attempting uninstall: pyparsing
+    Found existing installation: pyparsing 2.4.6
+    Uninstalling pyparsing-2.4.6:
+      Successfully uninstalled pyparsing-2.4.6
+  Attempting uninstall: cycler
+    Found existing installation: cycler 0.10.0
+    Uninstalling cycler-0.10.0:
+      Successfully uninstalled cycler-0.10.0
+  Attempting uninstall: matplotlib
+    Found existing installation: matplotlib 3.2.0
+    Uninstalling matplotlib-3.2.0:
+      Successfully uninstalled matplotlib-3.2.0
+  Attempting uninstall: decorator
+    Found existing installation: decorator 4.4.2
+    Uninstalling decorator-4.4.2:
+      Successfully uninstalled decorator-4.4.2
+  Attempting uninstall: networkx
+    Found existing installation: networkx 2.4
+    Uninstalling networkx-2.4:
+      Successfully uninstalled networkx-2.4
+  Attempting uninstall: Cython
+    Found existing installation: Cython 0.29.15
+    Uninstalling Cython-0.29.15:
+      Successfully uninstalled Cython-0.29.15
+  Attempting uninstall: python-utils
+    Found existing installation: python-utils 2.4.0
+    Uninstalling python-utils-2.4.0:
+      Successfully uninstalled python-utils-2.4.0
+  Attempting uninstall: progressbar2
+    Found existing installation: progressbar2 3.50.0
+    Uninstalling progressbar2-3.50.0:
+      Successfully uninstalled progressbar2-3.50.0
+  Attempting uninstall: h5py
+    Found existing installation: h5py 2.10.0
+    Uninstalling h5py-2.10.0:
+      Successfully uninstalled h5py-2.10.0
+    Running setup.py install for yass-algorithm: started
+    Running setup.py install for yass-algorithm: finished with status 'error'
