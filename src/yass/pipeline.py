@@ -174,6 +174,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     ### Final deconv: Deconvolve, Residual, soft assignment
     (fname_templates,
      fname_spike_train,
+     fname_shifts,
+     fname_scales,
      fname_noise_soft, 
      fname_template_soft)= final_deconv(
         os.path.join(TMP_FOLDER, 'final_deconv'),
@@ -208,13 +210,28 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # save the final output
     if CONFIG.deconvolution.update_templates:
         fname_templates_final = os.path.join(TMP_FOLDER, 'templates')
+        if os.path.exists(fname_templates_final):
+            shutil.rmtree(fname_templates_final)
         shutil.copytree(fname_templates, fname_templates_final)
     else:
         fname_templates_final = os.path.join(TMP_FOLDER, 'templates.npy')
         shutil.copyfile(fname_templates, fname_templates_final)
+
     fname_spike_train_final = os.path.join(TMP_FOLDER, 'spike_train.npy')
     shutil.copyfile(fname_spike_train, fname_spike_train_final)
-    
+
+    fname_shifts_final = os.path.join(TMP_FOLDER, 'shifts.npy')
+    shutil.copyfile(fname_shifts, fname_shifts_final)
+
+    fname_scales_final = os.path.join(TMP_FOLDER, 'scales.npy')
+    shutil.copyfile(fname_scales, fname_scales_final)
+
+    fname_noise_soft_final = os.path.join(TMP_FOLDER, 'noise_soft_assignment.npy')
+    shutil.copyfile(fname_noise_soft, fname_noise_soft_final)
+
+    fname_template_soft_final = os.path.join(TMP_FOLDER, 'template_soft_assignment.npz')
+    shutil.copyfile(fname_template_soft, fname_template_soft_final)
+
     total_time = time.time() - start
 
 
@@ -638,6 +655,8 @@ def final_deconv(TMP_FOLDER,
 
     return (fname_templates,
             fname_spike_train,
+            fname_shifts,
+            fname_scales,
             fname_noise_soft, 
             fname_template_soft)
 
