@@ -78,12 +78,20 @@ def validate(mapping, silent=True):
     expand_asset_model(document, 'neuralnetwork', 'denoise',
                        'filename')
 
+    expand_to_root(document, 'data', 'stimulus')
+
     if document['neuralnetwork']['training']['input_spike_train_filname'] is not None:
         expand_to_root(document, 'neuralnetwork', 'training',
                        'input_spike_train_filname')
-        
+
     if document['data']['initial_templates'] is not None:
         expand_to_root(document, 'data', 'initial_templates')
+
+    if document['data']['stimulus'] is not None:
+        expand_to_root(document, 'data', 'stimulus')
+
+    if document['data']['triggers'] is not None:
+        expand_to_root(document, 'data', 'triggers')
 
     validate_deconv_template_update_time(document)
 
