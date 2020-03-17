@@ -87,11 +87,11 @@ def validate(mapping, silent=True):
     if document['data']['initial_templates'] is not None:
         expand_to_root(document, 'data', 'initial_templates')
 
-    if document['data']['stimulus'] is not None:
-        expand_to_root(document, 'data', 'stimulus')
+    #if document['data']['stimulus'] is not None:
+    #    expand_to_root(document, 'data', 'stimulus')
 
-    if document['data']['triggers'] is not None:
-        expand_to_root(document, 'data', 'triggers')
+    #if document['data']['triggers'] is not None:
+    #    expand_to_root(document, 'data', 'triggers')
 
     validate_deconv_template_update_time(document)
 
