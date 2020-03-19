@@ -35,7 +35,7 @@ from yass import pipeline_nn_training
 from yass import geometry
 from yass.export import generate
 from yass.util import load_yaml, get_version
-from yass.yass_gui import plot_widget
+#from yass.yass_gui import plot_widget
 
 @click.group()
 @click.version_option(version=get_version())
