@@ -7,7 +7,11 @@ YASS: Yet Another Spike Sorter
 Yass ver. 2.0 has now been released and is available in the master branch. A manuscript is now available on Biorxiv (https://www.biorxiv.org) and the YASS Wiki is now up (https://github.com/paninski-lab/yass/wiki) 
 
 
-<img src="https://raw.githubusercontent.com/wiki/paninski-lab/yass/images/rfs.png" width="400" height="250">
+<p float="left"> 
+<img src="https://raw.githubusercontent.com/wiki/paninski-lab/yass/images/rfs.png" width="360" height="225">
+<img src="https://raw.githubusercontent.com/wiki/paninski-lab/yass/images/decoding.png" width="300" height="300">
+</p>
+
 
 Contributors
 ------------
