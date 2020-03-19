@@ -19,7 +19,7 @@ YASS: Yet Another Spike Sorter
 Yass ver. 2.0 has now been released and is available in the master branch. Please review the YASS Wiki (https://github.com/paninski-lab/yass/wiki) for installation instructions on AWS and local workstations.
 
 
-![YASS GUI](/images/yass_gui.png?raw=true "YASS GUI")
+![YASS GUI](wiki/paninski-lab/yass/images/yass_gui.png)
 
 
 Contributors
