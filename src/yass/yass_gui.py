@@ -71,9 +71,23 @@ class plot_widget:
 		
     def refresh(self):
 	
-	# update entries
+		# yaml can't save tuples, so we save them as strings
+        self.config_params['recordings']['clustering_chunk'] = \
+				str(self.config_params['recordings']['clustering_chunk'])
+
+        self.config_params['neuralnetwork']['detect']['n_filters'] = \
+			 str(self.config_params['neuralnetwork']['detect']['n_filters'])
+			
+        self.config_params['neuralnetwork']['denoise']['n_filters'] = \
+			 str(self.config_params['neuralnetwork']['denoise']['n_filters'])
+			 
+        self.config_params['neuralnetwork']['denoise']['filter_sizes'] = \
+			 str(self.config_params['neuralnetwork']['denoise']['filter_sizes'])
+			
+		# update entries from screen
         self.root_dir = self.root_dir_box.get()
         #self.config_params['data']['root_folder']+self.config_params['data']['recordings']
+        #self.data_root + self.config_params['data']['recordings']
 
         self.sample_rate = float(self.sample_rate_box.get())
         self.config_params['recordings']['sampling_rate'] = self.sample_rate
@@ -91,11 +105,24 @@ class plot_widget:
 	# load snipit of data and visualize
         self.window.filemenu.plot.plot_voltage()
 
-        with open(self.fname_config, 'w') as f:
+        with open(self.fname_config[:-5]+"_modified.yaml", 'w') as f:
         #yaml.dump(self.config_params, self.fname_config)
         #    ruamel.yaml.dump(self.config_params, Dumper=ruamel.yaml.RoundTripDumper)
             yaml.dump(self.config_params, f, default_flow_style=False)
     
+		# remove the string quotation marks around the updated tuples
+		# Read in the file
+        with open(self.fname_config[:-5]+"_modified.yaml", 'r') as file :
+            filedata = file.read()
+
+		# Replace the target string
+        filedata = filedata.replace("'[", "[")
+        filedata = filedata.replace("]'", "]")
+
+		# Write the file out again
+        with open(self.fname_config[:-5]+"_modified.yaml", 'w') as file: 
+          file.write(filedata)
+		
     def set_filename_detect(self):
         self.nn_detect_txt = filedialog.askopenfilename(
 				    initialdir = ".",
@@ -152,11 +179,17 @@ class plot_widget:
     
     def run(self):
 	
-        cmd = "yass sort "+self.fname_config
+        cmd = "yass sort "+ self.fname_config[:-5]+"_modified.yaml"
 
         returned_value = os.system(cmd)  # returns the exit code in unix
         #print('returned value:', returned_value)
-	
+
+        print ("")
+        print ("")
+        print ("  ******** YASS RUN COMPLETE ******** ")
+        print ("  see /tmp/spike_train.npy for spike train results ")
+        print ("  see /tmp/templates/ for dynamic templates ")
+
     def nn_retrain(self):
 	
         cmd = "yass train "+self.fname_config
@@ -302,7 +335,8 @@ class plot_widget:
         
         
     def plot_voltage(self): 
-        fname_raw_data = self.data_root + self.config_params['data']['recordings']
+        #fname_raw_data = self.data_root + self.config_params['data']['recordings']
+        fname_raw_data = self.root_dir#self.data_root + self.config_params['data']['recordings']
 
         #print ("fname raw data: ", fname_raw_data)
 	
@@ -314,32 +348,24 @@ class plot_widget:
             quit()
 	
         self.sampling_rate = self.config_params['recordings']['sampling_rate']
-	
         self.n_channels = self.config_params['recordings']['n_channels']
 	
-	# get length of data snipit
-	
+		# get length of data snipit
         length = os.path.getsize(fname_raw_data)
         n_samples = length/float(self.n_channels)/float(dtype_len)
         sec_duration = length/float(self.sampling_rate)/float(self.n_channels)/float(dtype_len)
-        #print ("length: ", length, "# samples: ", n_samples, 
-	#       ", sec: ", sec_duration)
 	
     	# load first 10sec of data
         snipit_duration = 9.0
         rawdata = np.fromfile(fname_raw_data, dtype=dtype, 
                   count=int(self.sampling_rate*self.n_channels*snipit_duration))
 		  
-	# select random 50ms raw chunk
+		# select random 50ms raw chunk
         rawdata2D = rawdata.reshape(-1, self.n_channels)
-        #print ("rawdata2d: ", rawdata2D.shape)
         start = int(np.random.choice(np.arange(int(self.sampling_rate*snipit_duration)))-0.050*self.sampling_rate)
         end = start + int(0.050*self.sampling_rate)
-        #start = np.arange(int(n_samples))#-0.050*self.sampling_rate)
-        #print (" random chunk start: ", start, end)
 	
-	# plot voltages
-        #self.canvas2.delete('all')
+		# plot voltages
         self.a2.cla()
         self.a2.set_yticks([])
         self.a2.set_title("Voltage (random 10chan, 0.05 sec chunk)", fontsize=8)	
@@ -357,7 +383,6 @@ class plot_widget:
 	                
     def load_config(self):
         self.fname_config = filedialog.askopenfilename(initialdir = ".",title = "Select file",filetypes = (("Config files","*.yaml"),("All files","*.*")))
-        #print ("filename: ", self.fname_config)
 	
         self.parse_yaml(self.fname_config)
 	
@@ -368,37 +393,34 @@ class plot_widget:
 	    # The FullLoader parameter handles the conversion from YAML
 	    # scalar values to Python the dictionary format
             self.config_params = yaml.load(f, Loader=yaml.FullLoader)
-            #self.config_params = ruamel.yaml.load(f, Loader=ruamel.yaml.RoundTripLoader)
-            #self.config_params = YAML().load(f)
-            #self.config_params = yaml.round_trip_load(f)
 	    
-
+        print (self.config_params)
         # laod meta data
         self.window.filemenu.plot.display_metadata_and_buttons()
 	    
         # plot geometry file
         self.window.filemenu.plot.plot_geom()
 
-	# load snipit of data and visualize
+		# load snipit of data and visualize
         self.window.filemenu.plot.plot_voltage()
 
  
-root = Tk()
-root.title('YASS')
-root.geometry("800x600") #You want the size of the app to be 500x500
-root.resizable(0, 0) 
+# root = Tk()
+# root.title('YASS')
+# root.geometry("800x600") #You want the size of the app to be 500x500
+# root.resizable(0, 0) 
 
-# initialize plotting widget
-plot = plot_widget(root)
+# # initialize plotting widget
+# plot = plot_widget(root)
 
-# initialize menu widget
-menubar = Menu(root)
+# # initialize menu widget
+# menubar = Menu(root)
 
-# add menu items
-root.filemenu = Menu(menubar, tearoff=0)
-root.filemenu.plot = plot
-root.filemenu.add_command(label="Open", command=plot.load_config)
-menubar.add_cascade(label="File", menu=root.filemenu)
+# # add menu items
+# root.filemenu = Menu(menubar, tearoff=0)
+# root.filemenu.plot = plot
+# root.filemenu.add_command(label="Open", command=plot.load_config)
+# menubar.add_cascade(label="File", menu=root.filemenu)
 
-root.config(menu=menubar)
-root.mainloop()
+# root.config(menu=menubar)
+# root.mainloop()
