@@ -56,8 +56,7 @@ recordings:
   spike_size_ms: 5
   # chunks to run clustering on (in seconds)
   # leave blank to run it on full
-  clustering_chunk_start: 0
-  cluster_chunk_end: 300
+  clustering_chunk: [0, 300]
   # chunks to run final deconv on (in seconds)
   # leave blank to run it on full
   final_deconv_chunk: #[0, 120]
@@ -71,18 +70,12 @@ neuralnetwork:
     # (e.g. detect.pt). Check /src/yass/assets/nn_models for the list of available
     # models.
     filename: detect.pt  
-    n_filters_1: 16
-    n_filters_2: 8
-    n_filters_3: 8 
+    n_filters: [16, 8, 8] 
   denoise:
     # model name, same rule as detect filename
     filename: denoise.pt
-    n_filters_1: 16
-    n_filters_2: 8
-    n_filters_3: 4
-    filter_sizes_1: 5
-    filter_sizes_2: 11
-    filter_size_3: 21
+    n_filters: [16, 8, 4]
+    filter_sizes : [5, 11, 21]
   training:
     # input spike train file name. It must be a numpy file of an arroay of n x 2.
     # n is the number of spikes, the first column is the spike times 
