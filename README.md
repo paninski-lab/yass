@@ -4,11 +4,10 @@ YASS: Yet Another Spike Sorter
 
 [UPDATE March 2020] 
 ------------------
-Yass ver. 2.0 has now been released and is available in the master branch. Please review the YASS Wiki (https://github.com/paninski-lab/yass/wiki) for installation instructions on AWS and local workstations.
+Yass ver. 2.0 has now been released and is available in the master branch. A manuscript is now available on Biorxiv (https://www.biorxiv.org) and the YASS Wiki is now up (https://github.com/paninski-lab/yass/wiki) 
 
 
-![YASS GUI](https://raw.githubusercontent.com/wiki/paninski-lab/yass/images/rfs.png)
-
+<img src="https://raw.githubusercontent.com/wiki/paninski-lab/yass/images/rfs.png" width="400" height="250">
 
 Contributors
 ------------
