@@ -9,7 +9,7 @@ Yass ver. 2.0 has now been released and is available in the master branch. A man
 
 <p float="center"> 
 <img src="https://raw.githubusercontent.com/wiki/paninski-lab/yass/images/rfs.png" width="500" height="310">
-<img src="https://raw.githubusercontent.com/wiki/paninski-lab/yass/images/decoding.png" width="310" height="290">
+<img src="https://raw.githubusercontent.com/wiki/paninski-lab/yass/images/decoding.png" width="330" height="310">
 </p>
 
 
