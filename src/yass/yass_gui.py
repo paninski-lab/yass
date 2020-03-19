@@ -94,7 +94,7 @@ class plot_widget:
         with open(self.fname_config, 'w') as f:
         #yaml.dump(self.config_params, self.fname_config)
         #    ruamel.yaml.dump(self.config_params, Dumper=ruamel.yaml.RoundTripDumper)
-            yaml.dump(self.config_params, f)
+            yaml.dump(self.config_params, f, default_flow_style=False)
     
     def set_filename_detect(self):
         self.nn_detect_txt = filedialog.askopenfilename(
@@ -251,6 +251,7 @@ class plot_widget:
 
 	# load geometry file
         geom_file = self.data_root + self.config_params['data']['geometry']
+        print (geom_file)
         geom = np.loadtxt(geom_file)
         #print ("Geom: ", geom)
 
@@ -296,8 +297,6 @@ class plot_widget:
             max_ = np.max(geom[local_chans_id,1])+spacer
 	    
         self.a.set_ylim([min_, max_])
-
-
 
         self.canvas1.draw()
         
@@ -350,6 +349,7 @@ class plot_widget:
             start_ch=0
 	    
         x = np.arange(end-start)/float(self.sampling_rate)
+        print (x.shape, end-start)
         for c in range(start_ch,min(start_ch+10, start_ch+self.n_channels)):
             self.a2.plot(x, rawdata2D[start:end,c]+c*100,c='black')
 	
@@ -390,8 +390,6 @@ root.resizable(0, 0)
 
 # initialize plotting widget
 plot = plot_widget(root)
-#back = tkinter.Frame(master=plot1.window, bg='white')
-#back.place(x = 0, y = 0, relwidth = 1, relheight = 1)
 
 # initialize menu widget
 menubar = Menu(root)
@@ -399,28 +397,8 @@ menubar = Menu(root)
 # add menu items
 root.filemenu = Menu(menubar, tearoff=0)
 root.filemenu.plot = plot
-#filemenu.add_command(label="New", command=donothing)
 root.filemenu.add_command(label="Open", command=plot.load_config)
-#filemenu.add_separator()
-
-#filemenu.add_command(label="Exit", command=root.quit)
 menubar.add_cascade(label="File", menu=root.filemenu)
-# editmenu = Menu(menubar, tearoff=0)
-# editmenu.add_command(label="Undo", command=donothing)
-
-# editmenu.add_separator()
-
-# editmenu.add_command(label="Cut", command=donothing)
-# editmenu.add_command(label="Copy", command=donothing)
-# editmenu.add_command(label="Paste", command=donothing)
-# editmenu.add_command(label="Delete", command=donothing)
-# editmenu.add_command(label="Select All", command=donothing)
-
-# menubar.add_cascade(label="Edit", menu=editmenu)
-# helpmenu = Menu(menubar, tearoff=0)
-# helpmenu.add_command(label="Help Index", command=donothing)
-# helpmenu.add_command(label="About...", command=donothing)
-# menubar.add_cascade(label="Help", menu=helpmenu)
 
 root.config(menu=menubar)
 root.mainloop()

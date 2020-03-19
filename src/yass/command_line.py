@@ -6,6 +6,20 @@ Neural network training `yass train`
 Phy integration `yass export`
 """
 
+
+import yaml
+import sys
+
+import tkinter
+from tkinter import *
+from tkinter import filedialog
+
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
+
+
 import os
 import os.path as path
 import logging
@@ -21,7 +35,7 @@ from yass import pipeline_nn_training
 from yass import geometry
 from yass.export import generate
 from yass.util import load_yaml, get_version
-
+from yass.yass_gui import plot_widget
 
 @click.group()
 @click.version_option(version=get_version())
@@ -70,6 +84,34 @@ def sort(config, logger_level, clean, output_dir, complete, zero_seed,
                         output_dir=output_dir, complete=complete,
                         calculate_rf=calculate_rf, visualize=visualize)#,
                         #set_zero_seed=zero_seed)
+
+# @cli.command()
+# @click.argument('gui')
+# def gui():
+    # """
+    # Launch GUI 
+    # """
+    
+    # root = Tk() 
+    # root.title('YASS')
+    # root.geometry("800x600") #You want the size of the app to be 500x500
+    # root.resizable(0, 0) 
+
+    # # initialize plotting widget
+    # plot = plot_widget(root)
+
+    # # initialize menu widget
+    # menubar = Menu(root)
+
+    # # add menu items
+    # root.filemenu = Menu(menubar, tearoff=0)
+    # root.filemenu.plot = plot
+    # root.filemenu.add_command(label="Open", command=plot.load_config)
+    # menubar.add_cascade(label="File", menu=root.filemenu)
+
+    # root.config(menu=menubar)
+    # root.mainloop()
+
 
 @cli.command()
 @click.argument('config', type=click.Path(exists=True, dir_okay=False,
