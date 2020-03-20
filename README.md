@@ -4,7 +4,7 @@ YASS: Yet Another Spike Sorter
 
 [UPDATE March 2020] 
 ------------------
-Yass ver. 2.0 has now been released and is available in the master branch. A manuscript is now available on Biorxiv (https://www.biorxiv.org). 
+Yass ver. 2.0 has now been released and is available in the master branch. A manuscript is now available on Biorxiv (https://www.biorxiv.org/content/10.1101/2020.03.18.997924v1). 
 
 
 <p float="center"> 
@@ -23,7 +23,7 @@ YASS can be run on AWS or installed on local workstations that have GPUs. Please
 Reference
 ---------
 
-YASS 2.0 manuscript is available on biorxiv.  
+YASS 2.0 manuscript is available on biorxiv: https://www.biorxiv.org/content/10.1101/2020.03.18.997924v1
 
 The older version can be found here: 
 
