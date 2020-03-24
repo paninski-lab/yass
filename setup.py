@@ -16,8 +16,8 @@ from distutils.extension import Extension
 NAME = 'yass-algorithm'
 DESCRIPTION = 'YASS: Yet Another Spike Sorter'
 URL = 'https://github.com/paninski-lab/yass'
-EMAIL = 'fkq8@blancas.io'
-AUTHOR = 'Peter Lee, Eduardo Blancas'
+EMAIL = 'mitelutco@gmail.com'
+AUTHOR = 'Peter Lee, Catalin Mitelut'
 LICENSE = 'Apache'
 
 # YASS dependencies
