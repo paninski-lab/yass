@@ -67,10 +67,11 @@ class READER(object):
     def read_data(self, data_start, data_end, channels=None):
         with open(self.bin_file, "rb") as fin:
             # Seek position and read N bytes
-            fin.seek((data_start-self.offset)*self.dtype.itemsize*self.n_channels, os.SEEK_SET)
+            #fin.seek((data_start-self.offset)*self.dtype.itemsize*self.n_channels, os.SEEK_SET)
+            fin.seek(int((data_start-self.offset)*self.dtype.itemsize*self.n_channels), os.SEEK_SET)
             data = np.fromfile(
                 fin, dtype=self.dtype,
-                count=(data_end - data_start)*self.n_channels)
+                count=int((data_end - data_start)*self.n_channels))
         fin.close()
         
         data = data.reshape(-1, self.n_channels)
@@ -102,6 +103,8 @@ class READER(object):
             else:
                 right_buffer_size = 0
 
+        #data_start= int(data_start)
+        #data_end = int(data_end)
         # read data
         data = self.read_data(data_start, data_end, channels)
         # add leftover buffer with zeros if necessary
