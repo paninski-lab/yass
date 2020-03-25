@@ -8,15 +8,19 @@ import tkinter
 from tkinter import *
 from tkinter import filedialog
 
-try:
-	root = tk.Tk()
-	
+def X_is_running():
+    from subprocess import Popen, PIPE
+    p = Popen(["xset", "-q"], stdout=PIPE, stderr=PIPE)
+    p.communicate()
+    return p.returncode == 0
+    
+if X_is_running==False:
+	print ("  DISPLAY IS NOT SETUP, Use command line only")
+else:
 	import matplotlib
 	matplotlib.use('TkAgg')
 	from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 	from matplotlib.figure import Figure
-except:
-	print ("  DISPLAY IS NOT SETUP, Use command line only")
 
 # widget that manages allthe plotting omdules
 class plot_widget:
