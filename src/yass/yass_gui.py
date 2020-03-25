@@ -8,10 +8,15 @@ import tkinter
 from tkinter import *
 from tkinter import filedialog
 
-import matplotlib
-matplotlib.use('TkAgg')
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
+try:
+	root = tk.Tk()
+	
+	import matplotlib
+	matplotlib.use('TkAgg')
+	from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+	from matplotlib.figure import Figure
+except:
+	print ("  DISPLAY IS NOT SETUP, Use command line only")
 
 # widget that manages allthe plotting omdules
 class plot_widget:
