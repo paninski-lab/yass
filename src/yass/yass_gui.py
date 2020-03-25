@@ -14,7 +14,7 @@ def X_is_running():
     p.communicate()
     return p.returncode == 0
     
-if X_is_running==False:
+if X_is_running()==False:
 	print ("  DISPLAY IS NOT SETUP, Use command line only")
 else:
 	import matplotlib
