@@ -757,6 +757,7 @@ def temp_temp_partial(
 
 def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
 
+    # get reference template if not given
     n_chans, n_time = temp_.shape
     if ref is None:
         main_c = temp_.ptp(1).argmax()
@@ -766,8 +767,10 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
             ref = np.roll(ref, min_loc_ref-min_loc)
         ref = ref[jitter:-jitter]
 
+    # the temporal window of an aligned template
     n_time_small = n_time - 2 * jitter
 
+    
     idx = np.arange(n_time_small) + np.arange(2 * jitter)[:, None]
     all_shifts = temp_[:, idx]
     all_dist = np.square(all_shifts - ref).sum(axis=-1)
@@ -807,6 +810,10 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
         sys.setrecursionlimit(100000)
         high_recursion_limit = True
 
+    if len(val) == 0:
+        best_shifts = np.zeros(n_chans, 'int32')
+    
+        
     t_diff=10
     index_start = val.argmin()
     keep = connecting_points(
