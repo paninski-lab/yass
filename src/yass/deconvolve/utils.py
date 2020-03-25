@@ -770,14 +770,15 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
     # the temporal window of an aligned template
     n_time_small = n_time - 2 * jitter
 
-    
+    # compute the distance between a template (for each channel)
+    # and the ref template for every jitter
     idx = np.arange(n_time_small) + np.arange(2 * jitter)[:, None]
     all_shifts = temp_[:, idx]
     all_dist = np.square(all_shifts - ref).sum(axis=-1)
     all_inv_dist = np.square(-all_shifts - ref).sum(axis=-1)
     dist_ = np.min(np.stack((all_inv_dist, all_dist)), 0)
 
-    # find argrelmin
+    # find argrelmin (all local minimums)
     cc, tt = argrelmin(dist_, axis=1, order=15)
     val = dist_[cc,tt]
 
@@ -787,9 +788,13 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
         th = np.median(dist_[c])
         idx_ = np.where(cc == c)[0]
         idx_keep[idx_[val[idx_] < th]] = True
-    cc = cc[idx_keep]
-    tt = tt[idx_keep]
-    val = val[idx_keep]
+
+    # edge case: if all the local minima are not big enough,
+    # just disregard
+    if np.any(idx_keep):
+        cc = cc[idx_keep]
+        tt = tt[idx_keep]
+        val = val[idx_keep]
 
     # do connecting
     #t_diff=10
@@ -810,10 +815,6 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
         sys.setrecursionlimit(100000)
         high_recursion_limit = True
 
-    if len(val) == 0:
-        best_shifts = np.zeros(n_chans, 'int32')
-    
-        
     t_diff=10
     index_start = val.argmin()
     keep = connecting_points(
