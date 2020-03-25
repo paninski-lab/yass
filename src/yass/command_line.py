@@ -14,11 +14,6 @@ import tkinter
 from tkinter import *
 from tkinter import filedialog
 
-import matplotlib
-matplotlib.use('TkAgg')
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from matplotlib.figure import Figure
-
 
 import os
 import os.path as path
