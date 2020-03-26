@@ -8,12 +8,14 @@ import tkinter
 from tkinter import *
 from tkinter import filedialog
 
+# fucntion to determine if X11/GUI can be launched
 def X_is_running():
     from subprocess import Popen, PIPE
     p = Popen(["xset", "-q"], stdout=PIPE, stderr=PIPE)
     p.communicate()
     return p.returncode == 0
  
+# fucntion to determine if X11/GUI can be launched
 try: 
 	if X_is_running()==False:
 		print ("  DISPLAY IS NOT SETUP, Use command line only")
