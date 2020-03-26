@@ -79,20 +79,22 @@ class GETPTP(object):
                         denoised_wfs[idx_list[j]:idx_list[j+1]] = self.denoiser(
                             wfs[idx_list[j]:idx_list[j+1]])[0].data
                     ptps_denoised[idx_in] = (torch.max(denoised_wfs, 1)[0] - torch.min(denoised_wfs, 1)[0])
-                
+
                 pbar.update()
 
-        del dat, idx_in, spike_index_batch, t_index, c_index, wfs, denoised_wfs
+        ptps_raw_cpu = ptps_raw.cpu().numpy()
+
+        del dat, idx_in, spike_index_batch, t_index, c_index, wfs, ptps_raw
+
+        if self.denoiser is not None:
+            ptps_denoised_cpu = ptps_denoised.cpu().numpy()
+            del denoised_wfs, ptps_denoised
+        else:
+            ptps_denoised_cpu = np.copy(ptps_raw_cpu)
 
         torch.cuda.empty_cache()
 
-        ptps_raw_cpu = ptps_raw.cpu()
-        if self.denoiser is not None:
-            ptps_denoised_cpu = ptps_denoised.cpu()
-            
-        del ptps_raw, ptps_denoised
-
-        return ptps_raw_cpu.numpy(), ptps_denoised_cpu.numpy()
+        return ptps_raw_cpu, ptps_denoised_cpu
     
     
     def compute_wfs(self, idx):

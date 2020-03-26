@@ -280,7 +280,7 @@ def run_voltage_treshold(standardized_path, standardized_dtype,
 
     # get data reader
     #n_sec_chunk = CONFIG.resources.n_sec_chunk*CONFIG.resources.n_processors
-    batch_length = CONFIG.resources.n_sec_chunk*10
+    batch_length = CONFIG.resources.n_sec_chunk
     n_sec_chunk = 0.5
     print ("   batch length to (sec): ", batch_length, 
            " (longer increase speed a bit)")
