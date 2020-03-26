@@ -105,7 +105,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # load logging config file
     logging_config = load_logging_config_file()
     logging_config['handlers']['file']['filename'] = os.path.join(
-        TMP_FOLDER,'yass.log')
+        TMP_FOLDER, 'yass.log')
     logging_config['root']['level'] = logger_level
 
     # configure logging
@@ -207,29 +207,33 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     #np.save(fname_spike_train_final, spike_train)
     #np.save(fname_noise_soft_assignment_final, soft_assignment)
 
+    output_folder = os.path.join(TMP_FOLDER, 'output')
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
     # save the final output
     if CONFIG.deconvolution.update_templates:
-        fname_templates_final = os.path.join(TMP_FOLDER, 'templates')
+        fname_templates_final = os.path.join(output_folder, 'templates')
         if os.path.exists(fname_templates_final):
             shutil.rmtree(fname_templates_final)
         shutil.copytree(fname_templates, fname_templates_final)
     else:
-        fname_templates_final = os.path.join(TMP_FOLDER, 'templates.npy')
+        fname_templates_final = os.path.join(output_folder, 'templates.npy')
         shutil.copyfile(fname_templates, fname_templates_final)
 
-    fname_spike_train_final = os.path.join(TMP_FOLDER, 'spike_train.npy')
+    fname_spike_train_final = os.path.join(output_folder, 'spike_train.npy')
     shutil.copyfile(fname_spike_train, fname_spike_train_final)
 
-    fname_shifts_final = os.path.join(TMP_FOLDER, 'shifts.npy')
+    fname_shifts_final = os.path.join(output_folder, 'shifts.npy')
     shutil.copyfile(fname_shifts, fname_shifts_final)
 
-    fname_scales_final = os.path.join(TMP_FOLDER, 'scales.npy')
+    fname_scales_final = os.path.join(output_folder, 'scales.npy')
     shutil.copyfile(fname_scales, fname_scales_final)
 
-    fname_noise_soft_final = os.path.join(TMP_FOLDER, 'noise_soft_assignment.npy')
+    fname_noise_soft_final = os.path.join(output_folder, 'noise_soft_assignment.npy')
     shutil.copyfile(fname_noise_soft, fname_noise_soft_final)
 
-    fname_template_soft_final = os.path.join(TMP_FOLDER, 'template_soft_assignment.npz')
+    fname_template_soft_final = os.path.join(output_folder, 'template_soft_assignment.npz')
     shutil.copyfile(fname_template_soft, fname_template_soft_final)
 
     total_time = time.time() - start
