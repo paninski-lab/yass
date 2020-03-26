@@ -69,21 +69,25 @@ neuralnetwork:
     # (e.g. /path/to/my/model.ckpt) or a name of one of models included in yass 
     # (e.g. detect.pt). Check /src/yass/assets/nn_models for the list of available
     # models.
-    filename: detect.pt  
+    filename: detect.pt
+    # number of filters. you can leave it as it is.
     n_filters: [16, 8, 8] 
   denoise:
     # model name, same rule as detect filename
     filename: denoise.pt
+    # number of filters and size. you can leave it as it is.
     n_filters: [16, 8, 4]
     filter_sizes : [5, 11, 21]
   training:
     # input spike train file name. It must be a numpy file of an arroay of n x 2.
     # n is the number of spikes, the first column is the spike times 
     # (center of spikes), the second column is the unit id.
-    # if you want to run yass without nn to make spike train, leave it empty
+    # if you don't have an input spike train, leave it empty.
+    # it will run some parts of yass to make one
     input_spike_train_filname:
-    # temporal length of spike to go into nn
-    # leave it empty if not training
+    # temporal length of spike to go into nn (default 3ms if left empty)
+    # for sorting (not training), you can leave it empty since it will be automatically
+    # determined from the above nn files.
     spike_size_ms:
 
 preprocess:
