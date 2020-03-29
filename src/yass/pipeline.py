@@ -1009,7 +1009,7 @@ def final_deconv_with_template_updates_v2(output_directory,
                               CONFIG,
                               CONFIG.resources.n_sec_chunk_gpu_deconv)
 
-        full_rank_track = deconvolve.template_track.RegressionTemplates(reader, CONFIG, forward_directory)
+        full_rank_track = deconvolve.template_track.RegressionTemplates(reader, CONFIG, output_directory)
     else:
         full_rank_track = None
     for j in range(len(update_time)-1):
@@ -1101,7 +1101,17 @@ def final_deconv_with_template_updates_v2(output_directory,
             update_time[0]))
     sim_array_soft_assignment = get_similar_array(
         np.load(fname_temp), 3)
-    shutil.rmtree(full_rank_track.dir)
+    #shutil.rmtree(full_rank_track.dir)
+    if full_rank:
+        reader = READER(recording_dir,
+                              recording_dtype,
+                              CONFIG,
+                              CONFIG.resources.n_sec_chunk_gpu_deconv)
+
+        full_rank_track = deconvolve.template_track.RegressionTemplates(reader, CONFIG, output_directory)
+        full_rank_track.max_time = run_chunk_sec[1]
+    else:
+        full_rank_track = None
 
     for j in range(len(update_time)-2, -1, -1):
 
@@ -1138,16 +1148,6 @@ def final_deconv_with_template_updates_v2(output_directory,
         output_directory_batch = os.path.join(
             backward_directory, 'deconv_{}_{}'.format(
                 batch_time[0], batch_time[1]))
-        if full_rank:
-            reader = READER(recording_dir,
-                                  recording_dtype,
-                                  CONFIG,
-                                  CONFIG.resources.n_sec_chunk_gpu_deconv)
-
-            full_rank_track = deconvolve.template_track.RegressionTemplates(reader, CONFIG, backward_directory)
-            full_rank_track.max_time = run_chunk_sec[1]
-        else:
-            full_rank_track = None
 
         (fname_templates_,
          fname_spike_train_,
@@ -1187,7 +1187,7 @@ def final_deconv_with_template_updates_v2(output_directory,
     final_directory = os.path.join(output_directory, 'final_pass')
     if not os.path.exists(final_directory):
         os.makedirs(final_directory)
-    shutil.rmtree(full_rank_track.dir)
+    #shutil.rmtree(full_rank_track.dir)
 
     # add the final templates
     for j in range(len(update_time)-1):
@@ -1205,7 +1205,8 @@ def final_deconv_with_template_updates_v2(output_directory,
         fname_templates_in = os.path.join(
             backward_directory, 'templates_{}_{}_post_update.npy'.format(
                 batch_time[0], batch_time[1]))
-
+        
+        
         np.save(fname_templates_batch, np.load(fname_templates_in)[units_survived])
 
     for j in range(len(update_time)-1):
@@ -1626,6 +1627,30 @@ def deconv_pass1(output_directory,
         templates = None
         
     else:
+        (fname_residual,
+         residual_dtype) = residual.run(
+            fname_shifts,
+            fname_scales,
+            fname_templates,
+            fname_spike_train,
+            os.path.join(output_directory, 'residual_1'),
+            recording_dir,
+            recording_dtype,
+            dtype_out='float32',
+            run_chunk_sec=run_chunk_sec)
+
+        # soft assignment 1
+        fname_noise_soft, fname_template_soft = soft_assignment.run(
+            fname_templates,
+            fname_spike_train,
+            fname_shifts,
+            fname_scales,
+            os.path.join(output_directory,
+                         'soft_assignment_1'),
+            fname_residual,
+            residual_dtype,
+            run_chunk_sec[0])
+
         print("passed first batch")
         if full_rank is None:
             update_weight = 100
@@ -1638,7 +1663,8 @@ def deconv_pass1(output_directory,
                 update_weight, units_to_update)
             
         else:
-            fname_templates = full_rank_update(os.path.join(output_directory, 'template_update_1'), full_rank, run_chunk_sec, fname_spike_train, fname_templates)
+            
+            fname_templates = full_rank_update(os.path.join(output_directory, 'template_update_1'), full_rank, run_chunk_sec, fname_spike_train, fname_templates, fname_noise_soft, fname_template_soft)
         fname_noise_soft = None
         fname_template_soft = None    # post process kill
     
@@ -1652,7 +1678,7 @@ def deconv_pass1(output_directory,
         methods = ['low_fr', 'low_ptp', 'duplicate']
     
     (fname_templates, fname_spike_train, 
-     fname_noise_soft, fname_shifts, fname_scales)  = postprocess.run(
+     fname_noise_soft, fname_shifts, fname_scales, fname_result)  = postprocess.run(
         methods,
         os.path.join(output_directory, 'post_process_1'),
         None,
@@ -1663,11 +1689,35 @@ def deconv_pass1(output_directory,
         fname_noise_soft,
         fname_shifts,
         fname_scales,
-        units_to_process)
+        units_to_process, 
+        result = True)
     
     n_units_out = np.load(fname_templates).shape[0]
     print('{} new units'.format(n_units_out - n_units_in))
     
+    #modify all the postproccess kills. 
+    result = np.load(fname_result)
+    if not first_batch:
+        np.save(os.path.join(full_rank.dir, "templates_{}".format(str(int(full_rank.batch)))), np.load(fname_templates))
+        vis_chan_dict = np.load( os.path.join(full_rank.dir, "vis_chan.npy"))
+        np.save(os.path.join(full_rank.dir, "vis_chan.npy"), vis_chan_dict[result])
+        np.save(os.path.join(full_rank.dir, "vis_chan_{}.npy".format(str(full_rank.batch))), vis_chan_dict[result])
+        
+        for unit in range(n_units_after_split):
+            if not unit in result and os.path.exists(os.path.join(full_rank.dir, "U_{}.npy".format(str(unit)))):
+                os.remove(os.path.join(full_rank.dir, "U_{}.npy".format(str(unit))))
+                os.remove(os.path.join(full_rank.dir, "V_{}.npy".format(str(unit))))
+                os.remove(os.path.join(full_rank.dir, "F_{}.npy".format(str(unit))))
+
+        for j, unit in enumerate(np.sort(result)):
+            if os.path.exists(os.path.join(full_rank.dir,"U_{}.npy".format(str(unit)))):
+                os.rename(os.path.join(full_rank.dir,"U_{}.npy".format(str(unit))) ,os.path.join(full_rank.dir, "U_{}.npy".format(str(j))))
+                os.rename(os.path.join(full_rank.dir,"V_{}.npy".format(str(unit))),os.path.join(full_rank.dir, "V_{}.npy".format(str(j))))
+                os.rename(os.path.join(full_rank.dir,"F_{}.npy".format(str(unit))),os.path.join(full_rank.dir, "F_{}.npy".format(str(j))))
+            else:
+                continue
+
+
     return fname_templates
 
 def deconv_pass_2(output_directory,
@@ -1716,7 +1766,7 @@ def deconv_pass_2(output_directory,
         fname_residual,
         residual_dtype,
         run_chunk_sec[0],
-        compute_noise_soft=False,
+        compute_noise_soft=True,
         compute_template_soft=True,
         update_templates=False,
         similar_array=similar_array)
@@ -1731,7 +1781,9 @@ def deconv_pass_2(output_directory,
             fname_residual, residual_dtype, run_chunk_sec[0],
             update_weight)
     else:
-        fname_templates = full_rank_update(os.path.join(output_directory, 'template_update_3'), full_rank, run_chunk_sec, fname_spike_train, fname_templates, backwards = True)
+        fname_templates = full_rank_update(os.path.join(output_directory, 'template_update_3'), full_rank, run_chunk_sec, fname_spike_train, fname_templates, _, fname_template_soft, backwards = True)
+    
+    np.save(os.path.join(full_rank.dir, "templates_{}".format(str(int(full_rank.batch)))), np.load(fname_templates))
 
     return (fname_templates, fname_spike_train,
             fname_shifts, fname_scales, fname_template_soft)

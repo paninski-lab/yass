@@ -436,7 +436,7 @@ class TempTempConv(object):
 
     def __init__(self, CONFIG, templates, geom, pad_len, jitter_len, rank=5,
                  sparse=True, #temp_temp_fname="",
-                 vis_threshold_strong=1., vis_threshold_weak=0.5, parallel=False):
+                 vis_threshold_strong=1., vis_threshold_weak=0.5, parallel=True):
         """
 
         params:
@@ -504,6 +504,7 @@ class TempTempConv(object):
         # align and denoise
         #neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
         for unit in tqdm(range(n_unit), "....aligning templates and computing SVD."):
+            print(unit)
             # get vis channels only
             #t = temp[unit, viscs[unit], :]
             # Instead of having 1 template with c channels
@@ -513,7 +514,7 @@ class TempTempConv(object):
             #align, shifts_ = tobj.align(
             #    ref_wave_form=t[main_c][None], jitter=jitter_len, return_shifts=True)
             #align = align[:, 0]
-                
+
             if np.sum(np.abs(temp[unit])) == 0:
                 continue
             vis_chans = np.where(viscs[unit])[0]
@@ -521,7 +522,7 @@ class TempTempConv(object):
             align, shifts_, vis_chan_keep = align_templates(
                 temp[unit, viscs[unit]], jitter_len,
                 neigh_chans, min_loc_ref=min_loc_orig+pad_len)
-            
+
             # kill any unconnected vis chans
             align = align[vis_chan_keep]
             shifts_ = shifts_[vis_chan_keep]
@@ -609,7 +610,7 @@ class TempTempConv(object):
             global_argmax = temp_temp_argmax.max()
             # Shift all temp_temps so that the peaks are aligned
             shifts_ = global_argmax - temp_temp_argmax
-            zero_padded_temp_temp = np.zeros([n_unit, n_unit, max_len])
+            zero_padded_temp_temp = np.zeros([n_unit, n_unit, max_len], 'float32')
             for i in range(n_unit):
                 u_shift = shifts_[i]
                 for j in range(n_unit):
@@ -755,6 +756,8 @@ def temp_temp_partial(
 
 
 def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
+
+    # get reference template if not given
     n_chans, n_time = temp_.shape
     if ref is None:
         main_c = temp_.ptp(1).argmax()
@@ -764,28 +767,33 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
             ref = np.roll(ref, min_loc_ref-min_loc)
         ref = ref[jitter:-jitter]
 
+    # the temporal window of an aligned template
     n_time_small = n_time - 2 * jitter
 
+    # compute the distance between a template (for each channel)
+    # and the ref template for every jitter
     idx = np.arange(n_time_small) + np.arange(2 * jitter)[:, None]
     all_shifts = temp_[:, idx]
     all_dist = np.square(all_shifts - ref).sum(axis=-1)
     all_inv_dist = np.square(-all_shifts - ref).sum(axis=-1)
     dist_ = np.min(np.stack((all_inv_dist, all_dist)), 0)
 
-    # find argrelmin
+    # find argrelmin (all local minimums)
     cc, tt = argrelmin(dist_, axis=1, order=15)
     val = dist_[cc,tt]
-
     # keep only small enough ones
     idx_keep = np.zeros(len(cc), 'bool')
     for c in range(dist_.shape[0]):
         th = np.median(dist_[c])
         idx_ = np.where(cc == c)[0]
         idx_keep[idx_[val[idx_] < th]] = True
-    
-    cc = cc[idx_keep]
-    tt = tt[idx_keep]
-    val = val[idx_keep]
+    # edge case: if all the local minima are not big enough,
+    # just disregard
+    if np.any(idx_keep):
+        cc = cc[idx_keep]
+        tt = tt[idx_keep]
+        val = val[idx_keep]
+
     # do connecting
     #t_diff=10
     #keep = np.zeros(len(tt), 'bool')
@@ -984,3 +992,4 @@ def shift_svd_denoise(temp, CONFIG,
         :, :, cut_off_begin:cut_off_begin+n_time] + 0.
 
     return residual_computation_templates.transpose(0, 2, 1)
+

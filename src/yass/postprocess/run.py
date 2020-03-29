@@ -27,7 +27,8 @@ def run(methods = [],
         fname_noise_soft_assignment=None,
         fname_shifts=None,
         fname_scales=None,
-        units_to_process=None):
+        units_to_process=None, 
+        result = False):
 
     ''' Run a sequence of post processes
     
@@ -36,7 +37,6 @@ def run(methods = [],
         'high_mad', 'low_fr', 'high_fr'
         
     '''   
-
     logger = logging.getLogger(__name__)
 
     # output folder
@@ -56,8 +56,8 @@ def run(methods = [],
     fname_noise_soft_assignment_out = os.path.join(output_directory, 'noise_soft_assignment.npy')
     fname_scales_out = os.path.join(output_directory, 'scales.npy')
     fname_shifts_out = os.path.join(output_directory, 'shifts.npy') 
-    if os.path.exists(fname_templates_out) and os.path.exists(fname_spike_train_out):
-        return fname_templates_out, fname_spike_train_out, fname_noise_soft_assignment_out, fname_shifts_out, fname_scales_out
+    #if os.path.exists(fname_templates_out) and os.path.exists(fname_spike_train_out):
+    #    return fname_templates_out, fname_spike_train_out, fname_noise_soft_assignment_out, fname_shifts_out, fname_scales_out
 
     # run each method
     units_survived = np.arange(n_units)
@@ -91,7 +91,7 @@ def run(methods = [],
             units_to_process,
             method,
             ctr)
-
+        
         # save result for record
         np.save(fname_result, units_survived)
 
@@ -137,9 +137,14 @@ def run(methods = [],
 
     np.save(fname_templates_out, templates)
     np.save(fname_spike_train_out, spike_train_new)
-
-    return (fname_templates_out, fname_spike_train_out, 
-            fname_noise_soft_assignment_out, fname_shifts_out, fname_scales_out)
+    print("nay")
+    if result == True:
+        print("yay")
+        return (fname_templates_out, fname_spike_train_out, 
+            fname_noise_soft_assignment_out, fname_shifts_out, fname_scales_out, fname_result)
+    else:
+        return (fname_templates_out, fname_spike_train_out, 
+                fname_noise_soft_assignment_out, fname_shifts_out, fname_scales_out)
 
 def post_process(output_directory,
                  fname_templates,
