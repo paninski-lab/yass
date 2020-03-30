@@ -252,15 +252,16 @@ class GETCLEANPTP(object):
 
                 pbar.update()
 
-        del dat, idx_in, spike_index_batch, t_index, c_index, residuals, wfs, denoised_wfs
+        ptps_raw_cpu = ptps_raw.cpu().numpy()
+
+        del dat, idx_in, spike_index_batch, t_index, c_index, residuals, wfs, ptps_raw
 
         torch.cuda.empty_cache()
 
-        ptps_raw_cpu = ptps_raw.cpu()
         if self.denoiser is not None:
-            ptps_denoised_cpu = ptps_denoised.cpu()
-            
-        del ptps_raw, ptps_denoised
+            ptps_denoised_cpu = ptps_denoised.cpu().numpy()
+            del denoised_wfs, ptps_denoised
+        else:
+            ptps_denoised_cpu = np.copy(ptps_raw_cpu)
 
-        return ptps_raw_cpu.numpy(), ptps_denoised_cpu.numpy()
-
+        return ptps_raw_cpu, ptps_denoised_cpu
