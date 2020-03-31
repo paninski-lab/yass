@@ -73,10 +73,16 @@ def validate(mapping, silent=True):
     document = validator.document
 
     # expand paths to filenames
-    expand_asset_model(document, 'neuralnetwork', 'detect',
-                       'filename')
-    expand_asset_model(document, 'neuralnetwork', 'denoise',
-                       'filename')
+    if not document['neuralnetwork']['apply_nn']:
+        document['neuralnetwork']['detect']['filename'] = None
+        document['neuralnetwork']['denoise']['filename'] = None
+
+    if document['neuralnetwork']['detect']['filename'] is not None:
+        expand_asset_model(document, 'neuralnetwork', 'detect',
+                           'filename')
+    if document['neuralnetwork']['denoise']['filename'] is not None:
+        expand_asset_model(document, 'neuralnetwork', 'denoise',
+                           'filename')
 
     if document['neuralnetwork']['training']['input_spike_train_filname'] is not None:
         expand_to_root(document, 'neuralnetwork', 'training',
