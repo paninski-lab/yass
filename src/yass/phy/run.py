@@ -14,7 +14,7 @@ from yass.visual.util import binary_reader_waveforms
 
 #from yass.deconvolve.soft_assignment import get_soft_assignments
 
-def run(CONFIG):
+def run(CONFIG, fname_spike_train, fname_templates):
             
     """Generate phy2 visualization files
     """
@@ -42,7 +42,8 @@ def run(CONFIG):
 
     # cluster id for each spike; [n_spikes]
     #spike_train = np.load(root_dir + '/tmp/spike_train.npy')
-    spike_train = np.load(root_dir + '/tmp/final_deconv/deconv/spike_train.npy')
+    #spike_train = np.load(root_dir + '/tmp/final_deconv/deconv/spike_train.npy')
+    spike_train = np.load(fname_spike_train)
     spike_clusters = spike_train[:,1]
     np.save(root_dir+'/phy/spike_clusters.npy', spike_clusters)
 
@@ -65,7 +66,8 @@ def run(CONFIG):
     # gives # of channels of the corresponding columns in pc_features, for each spike.
     n_idx_chans = 7
     #templates = np.load(root_dir+'/tmp/templates.npy')
-    templates = np.load(root_dir+'/tmp/final_deconv/deconv/templates.npy').transpose(1,2,0)
+    #templates = np.load(root_dir+'/tmp/final_deconv/deconv/templates.npy').transpose(1,2,0)
+    templates = np.load(fname_templates)
     ptps = templates.ptp(0)
     pc_feature_ind = ptps.argsort(0)[::-1][:n_idx_chans].T
     np.save(root_dir+'/phy/pc_feature_ind.npy',pc_feature_ind)

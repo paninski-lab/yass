@@ -643,7 +643,11 @@ def final_deconv(TMP_FOLDER,
     '''
     
     if generate_phy:
-        phy.run(CONFIG)
+        if update_templates:
+            fname_templates_phy = os.path.join(fname_templates, 'templates_init.npy')
+        else:
+            fname_templates_phy = fname_templates
+        phy.run(CONFIG, fname_spike_train, fname_templates_phy)
     
     logger.info('SOFT ASSIGNMENT')
     fname_noise_soft, fname_template_soft = soft_assignment.run(
