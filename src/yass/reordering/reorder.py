@@ -59,5 +59,6 @@ def run(save_fname, standardized_fname, CONFIG,n_sec_chunk, nPCs = 3,  nt0 = 61,
         yass_batch = params.Nbatch, 
         n_chunk_sec = int(n_sec_chunk*CONFIG.recordings.sampling_rate),
         nt0 = nt0)
+    print (" DONE REODERING, SAVING: ", save_fname)
     np.save(save_fname, cp.asnumpy(result['iorig']))
     
