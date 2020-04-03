@@ -177,10 +177,12 @@ def run(output_directory):
     with open(path_to_yaml, 'w') as f:
         logger.info('Saving params...')
         yaml.dump(standardized_params, f)
-    reorder.run(save_fname = reorder_fname, 
-                               standardized_fname = standardized_path, 
-                               CONFIG = CONFIG, 
-                               n_sec_chunk = 5, 
-                               dtype = CONFIG.preprocess.dtype)
+        
+    # 
+    if CONFIG.resources.drift: 
+        reorder.run(save_fname = reorder_fname, 
+                      standardized_fname = standardized_path, 
+                      CONFIG = CONFIG, 
+                      dtype = CONFIG.preprocess.dtype)
 
     return standardized_path, standardized_params['dtype'], reorder_fname

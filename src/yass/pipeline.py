@@ -37,6 +37,7 @@ from yass import (preprocess, detect, cluster, postprocess,
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
                        human_readable_time)
 
+from yass.reordering import (reorder)
 
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         complete=False, calculate_rf=False, visualize=False, set_zero_seed=False):
@@ -86,7 +87,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     set_config(config, output_dir)
     CONFIG = read_config()
     TMP_FOLDER = CONFIG.path_to_output_directory
-    generate_phy = CONFIG.resources.generate_phy
     # remove tmp folder if needed
     if os.path.exists(TMP_FOLDER) and clean:
         shutil.rmtree(TMP_FOLDER)
@@ -172,7 +172,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         standardized_path,
         standardized_dtype,
         fname_templates,
-        generate_phy,
         CONFIG,
         update_templates = CONFIG.deconvolution.update_templates,
         run_chunk_sec = CONFIG.final_deconv_chunk)
@@ -456,7 +455,6 @@ def final_deconv(TMP_FOLDER,
                  standardized_path,
                  standardized_dtype,
                  fname_templates,
-                 generate_phy,
                  CONFIG,
                  update_templates,
                  run_chunk_sec):
@@ -500,15 +498,11 @@ def final_deconv(TMP_FOLDER,
         update_templates=update_templates,
         run_chunk_sec=run_chunk_sec)
 
-
+    
     ''' **********************************************
-        ************** GENERATE PHY FILES ************
+        ************** GENERATE SOFT ASSIGNMENT ******
         **********************************************
     '''
-    
-    if generate_phy:
-        phy.run(CONFIG)
-    
     logger.info('SOFT ASSIGNMENT')
     fname_noise_soft, fname_template_soft = soft_assignment.run(
         fname_templates,
@@ -520,6 +514,29 @@ def final_deconv(TMP_FOLDER,
         fname_residual,
         residual_dtype)
 
+
+
+    ''' **********************************************
+        ************** REORDER SPIKE TRAINS **********
+        **********************************************
+    '''
+    
+    if CONFIG.resources.drift:
+        logger.info('REORDER SPIKE TRAINS')
+        reorder.reorder_spike_train(CONFIG, fname_spike_train)
+    
+    
+    ''' **********************************************
+        ************** GENERATE PHY FILES ************
+        **********************************************
+    '''
+    
+    if CONFIG.resources.generate_phy:
+        logger.info('GENERATE PHY FILES')
+        phy.run(CONFIG, fname_spike_train)
+        
+        
+        
     return (fname_templates,
             fname_spike_train,
             fname_noise_soft, 

@@ -20,20 +20,22 @@ resources:
   multi_processing: 1
   # Number of cores to use
   n_processors: 2
-  # Length of processing chunk in seconds for multi-processing stages
-  n_sec_chunk: 10
-  # number of GPUs to use
+  # number of GPUs to use; 
   n_gpu_processors: 1
-  # n_sec_chunk for cpu
+  # n_sec_chunk for cpu 
   n_sec_chunk: 5
   # n_sec_chunk for gpu detection
   n_sec_chunk_gpu_detect: 0.5
   # n_sec_chunk for gpu deconvolution
   n_sec_chunk_gpu_deconv: 5
+  # drift chunk rearanging: 0 - do not track multi-chan drift;
+  drift: 1
+  # length of chunks to rearange data for drift step
+  n_sec_drift_chunk: 5
   # gpu_id; default is 0, i.e. first gpu;
   gpu_id: 0
   # generate phy visualization files; 0 - do not run; 1: generate phy files
-  generate_phy: 0
+  generate_phy: 1 
 
 recordings:
   # precision of the recording – must be a valid numpy dtype
@@ -160,4 +162,5 @@ deconvolution:
     
     # minimum # of spikes required to split 
     min_split_spikes: 50
+
     
