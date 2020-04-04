@@ -14,7 +14,7 @@ def expand_asset_model(mapping, section, subsection, field):
     value = mapping[section][subsection][field]
 
     # if absolute path, just return the value
-    if value.startswith('/'):
+    if value.startswith('/') or value.startswith('./'):
         new_value = value
 
     # else, look into assets
@@ -33,7 +33,7 @@ def expand_to_root(mapping, section, subsection, field=None):
         value = mapping[section][subsection][field]
 
     # if root_folder, expand and return
-    if value.startswith('/'):
+    if value.startswith('/') or value.startswith('./'):
         new_value = value
 
     else:
