@@ -93,6 +93,13 @@ def denoise_templates(fname_templates, save_dir):
     templates = np.load(fname_templates)
 
     n_templates, n_times, n_chan = templates.shape
+
+    # remove templates with ptp < 5 (if there are enough templates)
+    ptps = templates.ptp(1).max(1)
+    if np.sum(ptps > 5) > 100:
+        templates = templates[ptps>5]
+        n_templates = templates.shape[0]
+
     denoised_templates = np.zeros(templates.shape)
 
     #templates on max channels (index 0)
