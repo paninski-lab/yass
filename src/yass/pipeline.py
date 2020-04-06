@@ -39,6 +39,7 @@ from yass.template_update import run_template_update
 from yass.deconvolve.utils import shift_svd_denoise
 from yass.postprocess.duplicate_soft_assignment import duplicate_soft_assignment
 from yass.soft_assignment.template import get_similar_array
+from yass.template import ptp_similarity_matrix
 #from yass.template import update_templates
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
@@ -235,6 +236,10 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     fname_template_soft_final = os.path.join(output_folder, 'template_soft_assignment.npz')
     shutil.copyfile(fname_template_soft, fname_template_soft_final)
+
+    ptp_similarity_matrix(os.path.join(output_folder, 'similarity_matrix.npz'),
+                          fname_templates_final,
+                          CONFIG)
 
     total_time = time.time() - start
 
