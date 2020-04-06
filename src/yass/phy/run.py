@@ -65,9 +65,8 @@ def run(CONFIG, fname_spike_train, fname_templates):
     # pick largest SU channels for each unit; [n_templates x n_channels_loc]; 
     # gives # of channels of the corresponding columns in pc_features, for each spike.
     n_idx_chans = 7
-    #templates = np.load(root_dir+'/tmp/templates.npy')
-    #templates = np.load(root_dir+'/tmp/final_deconv/deconv/templates.npy').transpose(1,2,0)
-    templates = np.load(fname_templates)
+    templates = np.load(fname_templates).transpose(1,2,0)
+    print ("PHY loaded templates: ", templates.shape)
     ptps = templates.ptp(0)
     pc_feature_ind = ptps.argsort(0)[::-1][:n_idx_chans].T
     np.save(root_dir+'/phy/pc_feature_ind.npy',pc_feature_ind)

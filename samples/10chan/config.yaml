@@ -36,6 +36,10 @@ resources:
   n_sec_chunk_gpu_detect: 0.5
   # n_sec_chunk for gpu deconvolution (lower if you get memory error during deconv)
   n_sec_chunk_gpu_deconv: 5
+  # drift chunk rearanging: 0 - do not track multi-chan drift;
+  drift: 1
+  # length of chunks to rearange data for drift step
+  n_sec_drift_chunk: 5
   # which gpu to use, default is 0, i.e. first gpu;
   gpu_id: 0
   # generate phy visualization files; 0 - do not run; 1: generate phy files
