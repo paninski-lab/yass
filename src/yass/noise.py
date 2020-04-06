@@ -66,7 +66,7 @@ def kill_signal(recordings, threshold, window_size):
 
 
 def noise_whitener(recordings, temporal_size, window_size, sample_size=1000,
-                   threshold=3.0, max_trials_per_sample=100,
+                   threshold=3.0, max_trials_per_sample=1000,
                    allow_smaller_sample_size=False):
     """Compute noise temporal and spatial covariance
 
@@ -132,7 +132,7 @@ def noise_whitener(recordings, temporal_size, window_size, sample_size=1000,
 
 def search_noise_snippets(recordings, is_noise_idx, sample_size,
                           temporal_size, channel_choices=None,
-                          max_trials_per_sample=100,
+                          max_trials_per_sample=1000,
                           allow_smaller_sample_size=False):
     """
     Randomly search noise snippets of 'temporal_size'
@@ -259,7 +259,7 @@ def get_noise_covariance(reader, CONFIG):
                     noised_killed, is_noise_idx, 1000,
                     CONFIG.spike_size,
                     channel_choices=None,
-                    max_trials_per_sample=100,
+                    max_trials_per_sample=1000,
                     allow_smaller_sample_size=True)
 
     # get temporal covariance

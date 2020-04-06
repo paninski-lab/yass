@@ -768,3 +768,85 @@ def fix_template_edges_by_file(fname_templates, center_length, perm=[0, 2, 1]):
         templates = templates.transpose(perm)
 
     np.save(fname_templates, templates)
+
+
+def ptp_similarity_matrix(fname_out, fname_templates, CONFIG):
+
+    """
+    Computes a similarity matrix based on ptp of templates
+    there are 4 matrices: L-infinity, L2, L-infinity normalized, L2 normalized.
+
+    if template update is done. max distance over batches are used
+    """
+
+    ptp_threshold = 1
+
+    if CONFIG.deconvolution.update_templates:
+
+        update_time = CONFIG.deconvolution.template_update_time
+
+        n_updates = int(np.ceil(CONFIG.rec_len/CONFIG.recordings.sampling_rate/update_time))
+
+        # if it is with update template, the input is actually the directory with all
+        # templates
+        templates_dir = fname_templates
+        sim_mat_l2_all = [None]*n_updates
+        sim_mat_max_all = [None]*n_updates
+        sim_mat_l2_normalized_all = [None]*n_updates
+        sim_mat_max_normalized_all = [None]*n_updates
+        for j in range(n_updates):
+            templates = np.load(os.path.join(templates_dir, 'templates_{}sec.npy').format(
+                update_time*j)).astype('float32')
+            ptps = templates.ptp(1)
+            ptps[ptps < ptp_threshold] = 0
+
+            (sim_mat_l2_all[j],
+             sim_mat_max_all[j],
+             sim_mat_l2_normalized_all[j],
+             sim_mat_max_normalized_all[j]) = compute_ptp_similarity(ptps)
+
+        sim_mat_l2 = np.stack(sim_mat_l2_all).max(0)
+        sim_mat_max = np.stack(sim_mat_max_all).max(0)
+        sim_mat_l2_normalized = np.stack(sim_mat_l2_normalized_all).max(0)
+        sim_mat_max_normalized = np.stack(sim_mat_max_normalized_all).max(0)
+
+    else:
+
+        templates = np.load(fname_templates)
+        ptps = templates.ptp(1)
+        ptps[ptps < ptp_threshold] = 0
+
+        (sim_mat_l2,
+         sim_mat_max,
+         sim_mat_l2_normalized,
+         sim_mat_max_normalized) = compute_ptp_similarity(ptps)
+
+    np.savez(fname_out,
+            sim_mat_l2=sim_mat_l2,
+            sim_mat_max=sim_mat_max,
+            sim_mat_l2_normalized=sim_mat_l2_normalized,
+            sim_mat_max_normalized=sim_mat_max_normalized)
+
+
+def compute_ptp_similarity(ptps):
+
+    n_units, n_chans = ptps.shape
+
+    sim_mat_l2 = np.zeros((n_units, n_units), 'float32')
+    sim_mat_max = np.zeros((n_units, n_units), 'float32')
+
+    for k in range(n_units):
+        diff = ptps[k] - ptps
+        sim_mat_l2[k] = np.linalg.norm(diff, axis=1)
+        sim_mat_max[k] = np.max(np.abs(diff), axis=1)
+
+    l2_norms = np.square(np.linalg.norm(ptps, axis=1))
+    max_norms = np.max(np.abs(ptps), axis=1)
+
+    l2_norms[l2_norms==0] = 0.00001
+    max_norms[max_norms==0] = 0.00001
+
+    sim_mat_l2_normalized = sim_mat_l2/ np.maximum(l2_norms[np.newaxis], l2_norms[:, np.newaxis])
+    sim_mat_max_normalized = sim_mat_l2/ np.maximum(max_norms[np.newaxis], max_norms[:, np.newaxis])
+
+    return sim_mat_l2, sim_mat_max, sim_mat_l2_normalized, sim_mat_max_normalized

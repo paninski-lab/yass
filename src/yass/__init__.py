@@ -15,7 +15,7 @@ logging.getLogger(__name__).addHandler(NullHandler())
 
 logger = logging.getLogger(__name__)
 
-__version__ = '0.10dev'
+__version__ = '2.0'
 
 CONFIG = None
 

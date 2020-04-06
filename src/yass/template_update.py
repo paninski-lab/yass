@@ -158,6 +158,7 @@ def get_avg_min_max_vals(fname_templates, fname_spike_train,
         diffs = torch.abs(ptps_spikes - ptp_temps[neuron_ids_batch])
         weights_batch = diffs < ptp_temps[neuron_ids_batch]*0.2
         weights_batch[diffs < 3] = 1
+        weights_batch = weights_batch.float()
 
         del ptps_spikes
         del diffs

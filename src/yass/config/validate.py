@@ -14,7 +14,7 @@ def expand_asset_model(mapping, section, subsection, field):
     value = mapping[section][subsection][field]
 
     # if absolute path, just return the value
-    if value.startswith('/'):
+    if value.startswith('/') or value.startswith('./'):
         new_value = value
 
     # else, look into assets
@@ -33,7 +33,7 @@ def expand_to_root(mapping, section, subsection, field=None):
         value = mapping[section][subsection][field]
 
     # if root_folder, expand and return
-    if value.startswith('/'):
+    if value.startswith('/') or value.startswith('./'):
         new_value = value
 
     else:
@@ -73,17 +73,29 @@ def validate(mapping, silent=True):
     document = validator.document
 
     # expand paths to filenames
-    expand_asset_model(document, 'neuralnetwork', 'detect',
-                       'filename')
-    expand_asset_model(document, 'neuralnetwork', 'denoise',
-                       'filename')
+    if not document['neuralnetwork']['apply_nn']:
+        document['neuralnetwork']['detect']['filename'] = None
+        document['neuralnetwork']['denoise']['filename'] = None
+
+    if document['neuralnetwork']['detect']['filename'] is not None:
+        expand_asset_model(document, 'neuralnetwork', 'detect',
+                           'filename')
+    if document['neuralnetwork']['denoise']['filename'] is not None:
+        expand_asset_model(document, 'neuralnetwork', 'denoise',
+                           'filename')
 
     if document['neuralnetwork']['training']['input_spike_train_filname'] is not None:
         expand_to_root(document, 'neuralnetwork', 'training',
                        'input_spike_train_filname')
-        
+
     if document['data']['initial_templates'] is not None:
         expand_to_root(document, 'data', 'initial_templates')
+
+    #if document['data']['stimulus'] is not None:
+    #    expand_to_root(document, 'data', 'stimulus')
+
+    #if document['data']['triggers'] is not None:
+    #    expand_to_root(document, 'data', 'triggers')
 
     validate_deconv_template_update_time(document)
 

@@ -167,7 +167,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
             raw_data=True, 
             full_run=True)
 
-
         methods = ['off_center', 'low_ptp', 'duplicate', 'high_mad']
         (_, fname_spike_train, _, _, _) = postprocess.run(
             methods,
@@ -182,7 +181,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
         # if there is an input spike train, use it
         fname_spike_train = CONFIG.neuralnetwork.training.input_spike_train_filname
 
-
     # Get training data maker
     DetectTD, DenoTD = augment.run(
         standardized_path,
@@ -195,11 +193,10 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
                       CONFIG.spike_size_nn,
                       CONFIG.channel_index,
                       CONFIG).cuda()
-                      
 
     fname_detect = os.path.join(TMP_FOLDER, 'detect.pt')
     detector.train(fname_detect, DetectTD)
-    
+
     # Train Denoiser
     denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
                        CONFIG.neuralnetwork.denoise.filter_sizes,
@@ -212,6 +209,5 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     output_folder = os.path.join(CONFIG.path_to_output_directory, 'output')
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
-
     shutil.copyfile(fname_detect, os.path.join(output_folder, 'detect.pt'))
     shutil.copyfile(fname_denoise, os.path.join(output_folder, 'denoise.pt'))

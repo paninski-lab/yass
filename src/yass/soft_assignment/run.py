@@ -61,38 +61,47 @@ def run(template_fname,
                           CONFIG.resources.n_sec_chunk_gpu_deconv,
                           offset=residual_offset)
 
-    # load NN detector
-    detector = Detect(CONFIG.neuralnetwork.detect.n_filters,
-                      CONFIG.spike_size_nn,
-                      CONFIG.channel_index,
-                      CONFIG)
-    detector.load(CONFIG.neuralnetwork.detect.filename)
-    detector = detector.cuda()
 
     ########################
     # Noise soft assignment#
     ########################
 
     if compute_noise_soft and (not os.path.exists(fname_noise_soft)):
-        # initialize soft assignment calculator
-        threshold = CONFIG.deconvolution.threshold/0.1
-
-        # HACK now.. it needs a proper fix later
-        if update_templates:
-            template_fname_ = os.path.join(template_fname, 'templates_init.npy')
-        else:
-            template_fname_ = template_fname
-        sna = SOFTNOISEASSIGNMENT(spike_train_fname, template_fname_, shifts_fname, scales_fname,
-                                  reader_resid, detector, CONFIG.channel_index, threshold)
-
-        # compuate soft assignment
-        probs_noise = sna.compute_soft_assignment()
-        np.save(fname_noise_soft, probs_noise)
         
-        del sna
-        del detector
+        if CONFIG.neuralnetwork.apply_nn:
 
-        torch.cuda.empty_cache()
+            # load NN detector
+            detector = Detect(CONFIG.neuralnetwork.detect.n_filters,
+                              CONFIG.spike_size_nn,
+                              CONFIG.channel_index,
+                              CONFIG)
+            detector.load(CONFIG.neuralnetwork.detect.filename)
+            detector = detector.cuda()
+
+            # initialize soft assignment calculator
+            threshold = CONFIG.deconvolution.threshold/0.1
+
+            # HACK now.. it needs a proper fix later
+            if update_templates:
+                template_fname_ = os.path.join(template_fname, 'templates_init.npy')
+            else:
+                template_fname_ = template_fname
+            sna = SOFTNOISEASSIGNMENT(spike_train_fname, template_fname_, shifts_fname, scales_fname,
+                                      reader_resid, detector, CONFIG.channel_index, threshold)
+
+            # compuate soft assignment
+            probs_noise = sna.compute_soft_assignment()
+            np.save(fname_noise_soft, probs_noise)
+
+            del sna
+            del detector
+
+            torch.cuda.empty_cache()
+
+        else:
+
+            spike_train = np.load(spike_train_fname)
+            np.save(fname_noise_soft, np.ones(len(spike_train)))
 
     ###########################
     # Template soft assignment#

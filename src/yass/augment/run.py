@@ -109,19 +109,11 @@ def get_templates_on_local_channels(reader, save_dir,
     # increase the size of templates
     reader.spike_size = (reader.spike_size-1)*4 + 1
 
-    output_dir = os.path.join(os.path.join(CONFIG.data.root_folder, 'tmp'),'nn_train')
-
     # first compute templates
     fname_templates = run_template_computation(
-        output_dir,
+        save_dir,
         fname_spike_train,
         reader,
-        #out_dir,
-        #fname_spike_train,
-        #reader,
-        #save_dir,
-        #max_channels=None,
-        #unit_ids=None,
         multi_processing=CONFIG.resources.multi_processing,
         n_processors=CONFIG.resources.n_processors)
 

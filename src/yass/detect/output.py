@@ -30,9 +30,9 @@ def gather_result(fname_save, batch_files_dir):
             idx_keep = np.where(np.logical_and(
                 spike_index_temp[:, 0] >= t_start,
                 spike_index_temp[:, 0] < t_end))[0]
-            spike_index.append(spike_index_temp[idx_keep])
+            spike_index.append(spike_index_temp[idx_keep].astype('int32'))
 
-            spike_index_prekill.append(spike_index_prekill_list[ctr])
+            spike_index_prekill.append(spike_index_prekill_list[ctr].astype('int32'))
 
             n_spikes_prekill += spike_index_prekill_list[ctr].shape[0]
             n_spikes_postkill += len(idx_keep)
@@ -43,17 +43,17 @@ def gather_result(fname_save, batch_files_dir):
         n_spikes_postkill))
 
     spike_index = np.vstack(spike_index)
-    spike_index_prekill = np.vstack(spike_index_prekill)
+    #spike_index_prekill = np.vstack(spike_index_prekill)
     
     idx_sort = np.argsort(spike_index[:,0])
     spike_index = spike_index[idx_sort]
 
-    idx_sort = np.argsort(spike_index_prekill[:,0])
-    spike_index_prekill = spike_index_prekill[idx_sort]
+    #idx_sort = np.argsort(spike_index_prekill[:,0])
+    #spike_index_prekill = spike_index_prekill[idx_sort]
 
     np.save(fname_save, spike_index)
-    np.save(fname_save[:fname_save.rfind('.')]+'_prekill.npy',
-            spike_index_prekill)
+    #np.save(fname_save[:fname_save.rfind('.')]+'_prekill.npy',
+    #        spike_index_prekill)
 
 
 def gather_result_orig(fname_save, batch_files_dir, dedup_dir, output_directory):
