@@ -504,7 +504,6 @@ class TempTempConv(object):
         # align and denoise
         #neighbors = n_steps_neigh_channels(CONFIG.neigh_channels, 2)
         for unit in tqdm(range(n_unit), "....aligning templates and computing SVD."):
-            print(unit)
             # get vis channels only
             #t = temp[unit, viscs[unit], :]
             # Instead of having 1 template with c channels

@@ -79,12 +79,14 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
 
     # load yass configuration parameters
     CONFIG = Config.from_yaml(config)
-    CONFIG._data['cluster']['min_fr'] = 1
-    CONFIG._data['clean_up']['mad']['min_var_gap'] = 1.5
-    CONFIG._data['clean_up']['mad']['max_violations'] = 5
+    CONFIG._data['cluster']['min_fr'] = 0.5
+    CONFIG._data['cluster']['knn_triage'] = 0.2
     CONFIG._data['neuralnetwork']['apply_nn'] = False
     CONFIG._data['detect']['threshold'] = 4
+    CONFIG._data['clean_up']['min_ptp'] = 5
 
+    if CONFIG._data['neuralnetwork']['training']['spike_size_ms'] is None:
+        CONFIG._data['neuralnetwork']['training']['spike_size_ms'] = 3
     set_config(CONFIG._data, output_dir)
     CONFIG = read_config()
     TMP_FOLDER = CONFIG.path_to_output_directory
@@ -165,8 +167,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
             raw_data=True, 
             full_run=True)
 
-        methods = ['off_center', 'low_ptp', 'high_mad', 'duplicate', 'duplicate_l2']
-        fname_templates, fname_spike_train = postprocess.run(
+
+        methods = ['off_center', 'low_ptp', 'duplicate', 'high_mad']
+        (_, fname_spike_train, _, _, _) = postprocess.run(
             methods,
             os.path.join(TMP_FOLDER,
                          'cluster_post_process'),
@@ -193,11 +196,22 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
                       CONFIG.channel_index,
                       CONFIG).cuda()
                       
-    detector.train(os.path.join(TMP_FOLDER, 'detect.pt'), DetectTD)
+
+    fname_detect = os.path.join(TMP_FOLDER, 'detect.pt')
+    detector.train(fname_detect, DetectTD)
     
     # Train Denoiser
     denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
                        CONFIG.neuralnetwork.denoise.filter_sizes,
                        CONFIG.spike_size_nn,
                        CONFIG).cuda()
-    denoiser.train(os.path.join(TMP_FOLDER, 'denoise.pt'), DenoTD)
+
+    fname_denoise = os.path.join(TMP_FOLDER, 'denoise.pt')
+    denoiser.train(fname_denoise, DenoTD)
+
+    output_folder = os.path.join(CONFIG.path_to_output_directory, 'output')
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    shutil.copyfile(fname_detect, os.path.join(output_folder, 'detect.pt'))
+    shutil.copyfile(fname_denoise, os.path.join(output_folder, 'denoise.pt'))

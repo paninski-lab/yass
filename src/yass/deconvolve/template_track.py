@@ -73,8 +73,8 @@ def full_rank_update(save_dir, update_object, batch_list, sps, tmps, soft_assign
     return os.path.join(save_dir, "templates.npy")
 
 class RegressionTemplates:
-    def __init__(self, reader, CONFIG, ir_dir, lambda_pen = .5, 
-                 num_iter = 10, num_basis_functions = 5):
+    def __init__(self, reader, CONFIG, ir_dir, lambda_pen = .2, 
+                 num_iter = 15, num_basis_functions = 5):
         """
         standardized data is .npy 
         geom_array is .txt 
@@ -221,19 +221,17 @@ class RegressionTemplates:
         """
         b_bool = self.check_regression(chunk, U, True)
         f_bool = self.check_regression(chunk, U, False)
-
         lambda_pen = self.lambda_pen
         X = np.matmul(F, V[:, :, chunk]) #same shape as T
         if (num_spike_chunk>0):
             Y = templates_unit_chunk
             for i in idx_chan_vis[self.model_rank:]: # U = 1 for the channels of higher rank
                 if (np.dot(X[:, i], X[:, i])>0):
-                    if (chunk == 0):
-                        U[i, chunk] = (np.dot(X[:, i], Y[:, i])+b_bool*int(backwards)*lambda_pen*U[i, chunk+1])/ (np.dot(X[:, i], X[:, i])+ lambda_pen)
-                    elif chunk == self.last_chunk:
-                        U[i, chunk] = (np.dot(X[:, i], Y[:, i])/np.dot(X[:, i], X[:, i])  + f_bool*lambda_pen*U[i, chunk-1])/ (np.dot(X[:, i], X[:, i])+ lambda_pen)
+                    if chunk != 0:
+                        U[i, chunk] = (np.dot(X[:, i], Y[:, i])+ f_bool*lambda_pen*U[i, chunk-1] + b_bool*lambda_pen*U[i, chunk+1])/ (np.dot(X[:, i], X[:, i])+ (b_bool or f_bool)*lambda_pen)
                     else:
-                        U[i, chunk] = (np.dot(X[:, i], Y[:, i])+ f_bool*lambda_pen*U[i, chunk-1] + b_bool*int(backwards)*lambda_pen*U[i, chunk+1])/ (np.dot(X[:, i], X[:, i])+ lambda_pen)
+                        U[i, chunk] = (np.dot(X[:, i], Y[:, i]) + b_bool*lambda_pen*U[i, chunk+1])/ (np.dot(X[:, i], X[:, i])+ (b_bool)*lambda_pen)
+
         return(U)
     
 
@@ -251,44 +249,54 @@ class RegressionTemplates:
         W = np.ones(len_wf)
         if (num_spike_chunk > 0):
             W[:] = 1/num_spike_chunk
-
+        
+        b_bool = self.check_regression(chunk, U, True)
+        f_bool = self.check_regression(chunk, U, False)
+        print(f_bool)
         for i in idx_chan_vis[:self.model_rank] : 
             Y = templates_unit_chunk[:, i]
-            if (chunk == 0):
+            if not (f_bool or b_bool):
                 V[:, i, chunk] = LinearRegression(fit_intercept=False).fit(F, y=Y).coef_
+            elif chunk == 0:
+                V[:, i, chunk] = Ridge(alpha = lambda_pen, fit_intercept=False).fit(F, Y).coef_ 
+                mat_xx = np.matmul(F.transpose(), F)
+                mat = np.linalg.pinv(lambda_pen * (np.eye(mat_xx.shape[0])) + mat_xx)
+                V[:, i, chunk] = V[:, i, chunk] + lambda_pen*(b_bool*np.matmul(mat, V[:, i, chunk+1]))
+                
             else:
                 V[:, i, chunk] = Ridge(alpha = lambda_pen, fit_intercept=False).fit(F, Y).coef_ 
                 mat_xx = np.matmul(F.transpose(), F)
                 mat = np.linalg.pinv(lambda_pen * (np.eye(mat_xx.shape[0])) + mat_xx)
-                V[:, i, chunk] = V[:, i, chunk] + 1*lambda_pen*np.matmul(mat, V[:, i, chunk-1])
+                V[:, i, chunk] = V[:, i, chunk] + lambda_pen*(f_bool*np.matmul(mat, V[:, i, chunk-1]) + b_bool*np.matmul(mat, V[:, i, chunk+1]))
         
-        b_bool = self.check_regression(chunk, U, True)
-        f_bool = self.check_regression(chunk, U, False)
         
         X = np.zeros((len_wf, num_basis_functions))                
         for i in idx_chan_vis[self.model_rank:] : 
             X = F * U[i, chunk]
             Y = templates_unit_chunk[:, i]
-            
-            if (chunk == 0):
+
+            if not (f_bool or b_bool):
                 V[:, i, chunk] = LinearRegression(fit_intercept=False).fit(X, Y, sample_weight=W).coef_ 
-            elif chunk == self.last_chunk:
-                V[:, i, chunk] + f_bool*1*lambda_pen*np.matmul(mat, V[:, i, chunk-1])
+            elif chunk == 0:
+                V[:, i, chunk] = Ridge(alpha = lambda_pen, fit_intercept=False).fit(X, Y, sample_weight=W).coef_ 
+                mat_xx = np.matmul(X.transpose(), X)
+                mat = np.linalg.pinv(lambda_pen * (np.eye(mat_xx.shape[0])) + mat_xx)
+                V[:, i, chunk] = V[:, i, chunk] + lambda_pen*( b_bool*np.matmul(mat, V[:, i, chunk+1]))
             else:
                 V[:, i, chunk] = Ridge(alpha = lambda_pen, fit_intercept=False).fit(X, Y, sample_weight=W).coef_ 
                 mat_xx = np.matmul(X.transpose(), X)
                 mat = np.linalg.pinv(lambda_pen * (np.eye(mat_xx.shape[0])) + mat_xx)
-                V[:, i, chunk] = V[:, i, chunk] + f_bool*1*lambda_pen*np.matmul(mat, V[:, i, chunk-1]) + b_bool*1*lambda_pen*np.matmul(mat, V[:, i, chunk+1])
+                V[:, i, chunk] = V[:, i, chunk] + lambda_pen*(f_bool*np.matmul(mat, V[:, i, chunk-1]) + b_bool*np.matmul(mat, V[:, i, chunk+1]))
         return(V)
     
     def check_regression(self, batch,U, backwards = False):
         if not backwards:
-            if np.sum(U[:, batch] - 1) != 0 and batch != 0:
+            if np.sum(U[:, batch -1] - 1) != 0:
                 return True
             else:
                 return False
         else:
-            if np.sum(U[:, batch] + 1) != 0 and batch != (U.shape[1] -1) :
+            if np.sum(U[:, batch + 1] - 1) != 0:
                 return True
             else:
                 return False
@@ -302,7 +310,7 @@ class RegressionTemplates:
         F = np.zeros((self.len_wf, num_basis_functions))
         u_mat, s, vh = np.linalg.svd(templates_unit, full_matrices=False)
         F = u_mat[:, :num_basis_functions]
-        V = np.zeros((num_basis_functions, num_chan_vis, num_chunks)) 
+        V = np.zeros((num_basis_functions, num_chan_vis, num_chunks + 1)) 
         
         for j in range(num_chunks):
             fill = (vh[:num_basis_functions, :].T * s[:num_basis_functions]).T
@@ -364,7 +372,7 @@ class RegressionTemplates:
         # Initialization         
         else:
             V, F = self.initialize_regression_params(templates_unit, num_chan_vis)
-            U = np.ones((num_chan_vis,  num_chunks))
+            U = np.ones((num_chan_vis,  num_chunks + 1))
         
         # Online Regression 
         for j in range(num_iter):
