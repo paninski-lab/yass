@@ -44,7 +44,9 @@ from yass.template import ptp_similarity_matrix
 
 from yass.util import (load_yaml, save_metadata, load_logging_config_file,
                        human_readable_time)
-from yass.deconvolve.template_track import full_rank_update
+
+from yass.reordering import (reorder)
+
 def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         complete=False, calculate_rf=False, visualize=False, set_zero_seed=False):
             
@@ -93,7 +95,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     set_config(config, output_dir)
     CONFIG = read_config()
     TMP_FOLDER = CONFIG.path_to_output_directory
-
     # remove tmp folder if needed
     if os.path.exists(TMP_FOLDER) and clean:
         shutil.rmtree(TMP_FOLDER)
@@ -133,7 +134,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     # preprocess
     start = time.time()
     (standardized_path,
-     standardized_dtype) = preprocess.run(
+     standardized_dtype, reorder_path) = preprocess.run(
         os.path.join(TMP_FOLDER, 'preprocess'))
 
     if CONFIG.data.initial_templates is not None:
@@ -182,7 +183,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         standardized_path,
         standardized_dtype,
         fname_templates,
-        CONFIG)
+        CONFIG,
+        update_templates = CONFIG.deconvolution.update_templates,
+        run_chunk_sec = CONFIG.final_deconv_chunk)
 
     ## save the final templates and spike train
     #fname_templates_final = os.path.join(
@@ -583,7 +586,9 @@ def final_deconv(TMP_FOLDER,
                  standardized_path,
                  standardized_dtype,
                  fname_templates,
-                 CONFIG):
+                 CONFIG,
+                 update_templates,
+                 run_chunk_sec):
 
     logger = logging.getLogger(__name__)
 
@@ -640,19 +645,11 @@ def final_deconv(TMP_FOLDER,
         update_templates=update_templates,
         run_chunk_sec=run_chunk_sec)
 
-
+    
     ''' **********************************************
-        ************** GENERATE PHY FILES ************
+        ************** GENERATE SOFT ASSIGNMENT ******
         **********************************************
     '''
-    
-    if generate_phy:
-        if update_templates:
-            fname_templates_phy = os.path.join(fname_templates, 'templates_init.npy')
-        else:
-            fname_templates_phy = fname_templates
-        phy.run(CONFIG, fname_spike_train, fname_templates_phy)
-    
     logger.info('SOFT ASSIGNMENT')
     fname_noise_soft, fname_template_soft = soft_assignment.run(
         fname_templates,
@@ -665,6 +662,29 @@ def final_deconv(TMP_FOLDER,
         residual_dtype,
         update_templates=update_templates)
 
+
+
+    ''' **********************************************
+        ************** REORDER SPIKE TRAINS **********
+        **********************************************
+    '''
+    
+    if CONFIG.resources.drift:
+        logger.info('REORDER SPIKE TRAINS')
+        reorder.reorder_spike_train(CONFIG, fname_spike_train)
+    
+    
+    ''' **********************************************
+        ************** GENERATE PHY FILES ************
+        **********************************************
+    '''
+    
+    if CONFIG.resources.generate_phy:
+        logger.info('GENERATE PHY FILES')
+        phy.run(CONFIG, fname_spike_train)
+        
+        
+        
     return (fname_templates,
             fname_spike_train,
             fname_shifts,

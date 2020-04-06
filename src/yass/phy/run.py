@@ -14,7 +14,7 @@ from yass.visual.util import binary_reader_waveforms
 
 #from yass.deconvolve.soft_assignment import get_soft_assignments
 
-def run(CONFIG, fname_spike_train, fname_templates):
+def run(CONFIG, fname_spike_train):
             
     """Generate phy2 visualization files
     """
@@ -25,7 +25,12 @@ def run(CONFIG, fname_spike_train, fname_templates):
 
     # set root directory for output
     root_dir = CONFIG.data.root_folder
-    fname_standardized = os.path.join(os.path.join(os.path.join(
+    
+    if CONFIG.resources.drift:
+        fname_standardized = os.path.join(os.path.join(os.path.join(
+                            root_dir,'tmp'),'preprocess'),'standardized_original.bin')
+    else:
+        fname_standardized = os.path.join(os.path.join(os.path.join(
                         root_dir,'tmp'),'preprocess'),'standardized.bin')
 
     #
@@ -42,7 +47,6 @@ def run(CONFIG, fname_spike_train, fname_templates):
 
     # cluster id for each spike; [n_spikes]
     #spike_train = np.load(root_dir + '/tmp/spike_train.npy')
-    #spike_train = np.load(root_dir + '/tmp/final_deconv/deconv/spike_train.npy')
     spike_train = np.load(fname_spike_train)
     spike_clusters = spike_train[:,1]
     np.save(root_dir+'/phy/spike_clusters.npy', spike_clusters)
@@ -101,7 +105,8 @@ def run(CONFIG, fname_spike_train, fname_templates):
     fname_out = os.path.join(output_directory,'pc_objects.npy')
     if os.path.exists(fname_out)==False:
         pc_projections = get_pc_objects(root_dir, pc_feature_ind, n_channels,
-                            n_times, units, n_components, CONFIG, spike_train)
+                            n_times, units, n_components, CONFIG, spike_train,
+                            fname_standardized)
         np.save(fname_out, pc_projections)
     else:
         pc_projections = np.load(fname_out,allow_pickle=True)
@@ -216,24 +221,11 @@ def get_pc_objects_parallel(units, n_channels, pc_feature_ind, spike_train,
 
 
 def get_pc_objects(root_dir,pc_feature_ind, n_channels, n_times, units, n_components, CONFIG,
-                  spike_train):
+                  spike_train, fname_standardized):
     
     ''' First grab 10% of the spikes on each channel and makes PCA objects for each channel 
         Then generate PCA object for each channel using spikes
     ''' 
-
-    # load templates from spike trains
-    # templates = np.load(root_dir + '/tmp/templates.npy')
-    # print (templates.shape)
-
-    # standardized filename
-    fname_standardized = os.path.join(os.path.join(os.path.join(root_dir,'tmp'),
-                                'preprocess'),'standardized.bin')
-
-    # spike_train
-    #spike_train = np.load(os.path.join(os.path.join(root_dir, 'tmp'),'spike_train.npy'))
-    #spike_train = np.load(os.path.join(os.path.join(root_dir, 'tmp'),'spike_train.npy'))
-
 
     # ********************************************
     # ***** APPROXIMATE PROJ MATRIX EACH CHAN ****
