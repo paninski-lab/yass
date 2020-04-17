@@ -103,7 +103,6 @@ def run(output_directory):
         reorder.run(save_fname = reorder_fname, 
                                standardized_fname = standardized_path, 
                                CONFIG = CONFIG, 
-                               n_sec_chunk = 5, 
                                dtype = CONFIG.preprocess.dtype)
         return standardized_path, standardized_params['dtype'], reorder_fname
 

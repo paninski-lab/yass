@@ -99,8 +99,6 @@ class TEMPLATE_ASSIGN_OBJECT(object):
             self.similar_array = similar_array
         self.compute_units_in()
         self.exclude_large_units(large_unit_threshold)
-        #self.spike_train = self.spike_train[np.asarray(list(self.idx_included)).astype("int16"), :]
-        #self.test = np.in1d(self.spike_train_og[:, 1], np.asarray(list(self.units_in)))
 
         t_start_include = self.n_times//2 + reader_residual.offset
         t_end_include = reader_residual.rec_len -  self.n_times//2 + reader_residual.offset
@@ -196,41 +194,6 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                 if np.sort(dist)[1]/norm < self.temp_thresh:
                     self.units_in.add(i)
 
-    '''
-    def get_similar(self):
-        max_time = self.templates.argmax(1).astype("int16")
-        padded_templates = np.concatenate((np.zeros((self.n_units, 5, self.rec_chans)), self.templates, np.zeros((self.n_units, 5, self.rec_chans))), axis = 1)
-        reduced = np.zeros((self.templates.shape[0], 5, self.rec_chans))
-        for unit in range(self.n_units):
-            for chan in range(self.rec_chans):
-                reduced[unit, :,  chan] = padded_templates[unit, (5 +max_time[unit, chan] - 2):(5 + max_time[unit, chan] + 3), chan]
-
-        see = dist.squareform(dist.pdist(reduced.reshape(self.n_units, self.n_channels*5)))
-        self.similar_array = np.zeros((self.n_units, self.sim_units)).astype("int16")
-        for i in range(self.n_units):
-            sorted_see = np.sort(see[i])[0:self.sim_units]
-            self.similar_array[i] = np.argsort(see[i])[0:self.sim_units]
-            norm = np.sqrt(np.sum(np.square(reduced[i])))
-            #if np.min(self.similar_array[i][1:])/norm < self.temp_thresh:
-            #    self.units_in.add(i)
-            if sorted_see[1]/norm < self.temp_thresh:
-                self.units_in.add(i)
-
-    def get_similar(self):
-        see = dist.squareform(dist.pdist(self.templates.reshape(self.n_units, self.n_channels*self.n_times)))
-        self.similar_array = np.zeros((self.n_units, self.sim_units)).astype("int16")
-        units_in = []
-        for i in range(self.n_units):
-            self.similar_array[i] = np.argsort(see[i])[0:self.sim_units]
-            norm = np.sqrt(np.sum(np.square(self.templates[i])))
-            if np.min(self.similar_array[i][1:])/norm < self.temp_thresh:
-                self.units_in.add(i)
-                #self.idx_included.update(np.where(self.spike_train_og[:, 1] == i)[0])
-        
-        #units_in= np.asarray(units_in)
-        #in_spikes = np.where(np.in1d(self.spike_train[:,1], units_in))[0]
-        #self.idx_included.update(in_spikes)
-    '''
 
     #shift secondary template
     def shift_template(self, template, shift):
@@ -468,6 +431,20 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.probs = probs
         return probs
     
+    def get_posterior(self, log_array, unit_assignment):
+        spike_counts = np.asarray([np.sum(self.spike_train_og[:, 1]) == unit for unit in range(self.n_units)])
+        
+        spike_table = np.zeros_like(unit_assignment)
+        for j in unit_assignment.shape[1]:
+            spike_table[:, j] = spike_counts[unit_assignment[:, j]]
+         
+        fix = log_array*-.5
+        fix = fix - fix.max(1)[:, None]
+        fix = fix*spike_table
+        probs =  np.exp(fix)/(np.exp(fix).sum(1)[:, None] + 10e-10)
+        
+        return probs
+
     def run(self):
 
         #construct array to identify soft assignment units

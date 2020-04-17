@@ -124,8 +124,8 @@ def run(save_fname, standardized_fname, CONFIG, nPCs = 3,  nt0 = 61, reorder = T
     # save chunk order and reorder file
     print ("   saving chunk order: ", save_fname)
     chunk_ids = cp.asnumpy(result['iorig'])
-	dir_path = os.path.dirname(os.path.realpath(save_fname))
-	np.save(os.path.join(dir_path, "ccb0"), cp.asnumpy(result['ccb0']))
+    dir_path = os.path.dirname(os.path.realpath(save_fname))
+    np.save(os.path.join(dir_path, "ccb0"), cp.asnumpy(result['ccb0']))
     np.save(save_fname, chunk_ids)
 
 
