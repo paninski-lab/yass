@@ -703,7 +703,7 @@ def final_deconv_with_template_updates_v2(output_directory,
                                           remove_meta_data=True, 
                                           full_rank = True, 
                                           smooth = True, 
-                                          denoise = True):
+                                          denoise = False):
     
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
