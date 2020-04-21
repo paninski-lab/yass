@@ -918,10 +918,9 @@ def final_deconv_with_template_updates_v2(output_directory,
     # gather all results and
     # kill based on soft assignment and firing rates
     units_survived = post_backward_process(backward_directory,
-                                           run_chunk_sec,
                                            update_time,
-                                           recording_dir,
-                                           recording_dtype)
+                                           sim_array_soft_assignment,
+                                           CONFIG)
     
     # final forward pass
     final_directory = os.path.join(output_directory, 'final_pass')
@@ -1325,7 +1324,6 @@ def post_backward_process(backward_directory,
                           update_time,
                           sim_array_soft_assignment,
                           CONFIG):
-
     # gather all results
     fname_spike_train = os.path.join(
             backward_directory, 'spike_train.npy')

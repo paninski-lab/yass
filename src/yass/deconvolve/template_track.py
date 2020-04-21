@@ -124,7 +124,7 @@ def full_rank_update(save_dir, update_object, batch_list, sps, tmps,  soft_assig
     return os.path.join(save_dir, "templates.npy")
 
 class RegressionTemplates:
-    def __init__(self, reader, CONFIG, ir_dir, smooth = True,  denoise = False, denoiser_params = None, lambda_pen = .2, 
+    def __init__(self, reader, CONFIG, ir_dir, smooth = True,  denoise = False, denoiser_params = None, lambda_pen = .15, 
                  num_iter = 15, num_basis_functions = 5):
         """
         standardized data is .npy 
@@ -311,9 +311,9 @@ class RegressionTemplates:
             for i in idx_chan_vis[self.model_rank:]: # U = 1 for the channels of higher rank
                 if (np.dot(X[:, i], X[:, i])>0):
                     if chunk != 0:
-                        U[i, chunk] = (np.dot(X[:, i], Y[:, i])+ f_bool*lambda_pen*U[i, chunk-1] + b_bool*lambda_pen*U[i, chunk+1])/ (np.dot(X[:, i], X[:, i])+ (b_bool or f_bool)*lambda_pen)
+                        U[i, chunk] = (np.dot(X[:, i], Y[:, i])+ f_bool[i]*lambda_pen*U[i, chunk-1] + b_bool[i]*lambda_pen*U[i, chunk+1])/ (np.dot(X[:, i], X[:, i])+ (b_bool[i] or f_bool[i])*lambda_pen)
                     else:
-                        U[i, chunk] = (np.dot(X[:, i], Y[:, i]) + b_bool*lambda_pen*U[i, chunk+1])/ (np.dot(X[:, i], X[:, i])+ (b_bool)*lambda_pen)
+                        U[i, chunk] = (np.dot(X[:, i], Y[:, i]) + b_bool[i]*lambda_pen*U[i, chunk+1])/ (np.dot(X[:, i], X[:, i])+ (b_bool[i])*lambda_pen)
 
         return(U)
     
@@ -338,19 +338,19 @@ class RegressionTemplates:
         print(f_bool)
         for i in idx_chan_vis[:self.model_rank] : 
             Y = templates_unit_chunk[:, i]
-            if not (f_bool or b_bool):
+            if not np.any((np.logical_or(f_bool , b_bool))):
                 V[:, i, chunk] = LinearRegression(fit_intercept=False).fit(F, y=Y).coef_
             elif chunk == 0:
                 V[:, i, chunk] = Ridge(alpha = lambda_pen, fit_intercept=False).fit(F, Y).coef_ 
                 mat_xx = np.matmul(F.transpose(), F)
                 mat = np.linalg.pinv(lambda_pen * (np.eye(mat_xx.shape[0])) + mat_xx)
-                V[:, i, chunk] = V[:, i, chunk] + lambda_pen*(b_bool*np.matmul(mat, V[:, i, chunk+1]))
+                V[:, i, chunk] = V[:, i, chunk] + lambda_pen*(b_bool[i]*np.matmul(mat, V[:, i, chunk+1]))
                 
             else:
                 V[:, i, chunk] = Ridge(alpha = lambda_pen, fit_intercept=False).fit(F, Y).coef_ 
                 mat_xx = np.matmul(F.transpose(), F)
                 mat = np.linalg.pinv(lambda_pen * (np.eye(mat_xx.shape[0])) + mat_xx)
-                V[:, i, chunk] = V[:, i, chunk] + lambda_pen*(f_bool*np.matmul(mat, V[:, i, chunk-1]) + b_bool*np.matmul(mat, V[:, i, chunk+1]))
+                V[:, i, chunk] = V[:, i, chunk] + lambda_pen*(f_bool[i]*np.matmul(mat, V[:, i, chunk-1]) + b_bool[i]*np.matmul(mat, V[:, i, chunk+1]))
         
         
         X = np.zeros((len_wf, num_basis_functions))                
@@ -358,20 +358,27 @@ class RegressionTemplates:
             X = F * U[i, chunk]
             Y = templates_unit_chunk[:, i]
 
-            if not (f_bool or b_bool):
+            if not np.any((np.logical_or(f_bool , b_bool))):
                 V[:, i, chunk] = LinearRegression(fit_intercept=False).fit(X, Y, sample_weight=W).coef_ 
             elif chunk == 0:
                 V[:, i, chunk] = Ridge(alpha = lambda_pen, fit_intercept=False).fit(X, Y, sample_weight=W).coef_ 
                 mat_xx = np.matmul(X.transpose(), X)
                 mat = np.linalg.pinv(lambda_pen * (np.eye(mat_xx.shape[0])) + mat_xx)
-                V[:, i, chunk] = V[:, i, chunk] + lambda_pen*( b_bool*np.matmul(mat, V[:, i, chunk+1]))
+                V[:, i, chunk] = V[:, i, chunk] + lambda_pen*( b_bool[i]*np.matmul(mat, V[:, i, chunk+1]))
             else:
                 V[:, i, chunk] = Ridge(alpha = lambda_pen, fit_intercept=False).fit(X, Y, sample_weight=W).coef_ 
                 mat_xx = np.matmul(X.transpose(), X)
                 mat = np.linalg.pinv(lambda_pen * (np.eye(mat_xx.shape[0])) + mat_xx)
-                V[:, i, chunk] = V[:, i, chunk] + lambda_pen*(f_bool*np.matmul(mat, V[:, i, chunk-1]) + b_bool*np.matmul(mat, V[:, i, chunk+1]))
+                V[:, i, chunk] = V[:, i, chunk] + lambda_pen*(f_bool[i]*np.matmul(mat, V[:, i, chunk-1]) + b_bool[i]*np.matmul(mat, V[:, i, chunk+1]))
         return(V)
     
+    def check_regression(self, batch, U,backwards = False):
+        if not backwards:
+            return np.logical_not(U[:, batch-1] == 0)
+        else:
+            return np.logical_not(U[:, batch+1] == 0)
+    
+    '''   
     def check_regression(self, batch,U, backwards = False):
         if not backwards:
             if np.sum(U[:, batch -1] - 1) != 0:
@@ -383,7 +390,8 @@ class RegressionTemplates:
                 return True
             else:
                 return False
-
+    '''
+    
     def initialize_regression_params(self, templates_unit, num_chan_vis):
         """
         Initialize F using SVD on FIRST batch (?)
@@ -393,6 +401,7 @@ class RegressionTemplates:
         F = np.zeros((self.len_wf, num_basis_functions))
         u_mat, s, vh = np.linalg.svd(templates_unit, full_matrices=False)
         F = u_mat[:, :num_basis_functions]
+                     
         V = np.zeros((num_basis_functions, num_chan_vis, num_chunks + 1)) 
         
         for j in range(num_chunks):
@@ -406,9 +415,9 @@ class RegressionTemplates:
         visible_chans_unit = np.where(vis_chans)[0]
         
         if os.path.exists(os.path.join(self.dir, "F_{}.npy".format(str(unit)))):
-            U = np.load(os.path.join(self.dir, "U_{}.npy".format(str(unit))))
-            if np.sum(U[:, batch] - 1) != 0:               
-                V = np.load(os.path.join(self.dir, "V_{}.npy".format(str(unit))))
+            U = np.load(os.path.join(self.dir, "U_{}.npy".format(str(unit))))[visible_chans_unit]
+            if np.sum(U[:, batch]) != 0:               
+                V = np.load(os.path.join(self.dir, "V_{}.npy".format(str(unit))))[:, visible_chans_unit, :]
                 F = np.load(os.path.join(self.dir, "F_{}.npy".format(str(unit))))
                 self.templates_approx[unit, :, visible_chans_unit] = (np.matmul(F, V[:, :, batch])* U[:, batch]).T[:len(visible_chans_unit), :]
                 return self.back_shift_template(unit, self.templates_approx[unit], visible_chans_unit)
@@ -447,16 +456,30 @@ class RegressionTemplates:
         ## NUM SPIKE FOR EACH CHUNK 
         num_chan_vis = len(visible_chans_unit)
         
-                
+        ## MANAGE THE FOLDERS
         if os.path.exists(os.path.join(self.dir, "F_{}.npy".format(str(unit)))):
-            U = np.load(os.path.join(self.dir, "U_{}.npy".format(str(unit))))
-            V = np.load(os.path.join(self.dir, "V_{}.npy".format(str(unit))))
+            U_t = np.load(os.path.join(self.dir, "U_{}.npy".format(str(unit))))
+            V_t = np.load(os.path.join(self.dir, "V_{}.npy".format(str(unit))))
             F = np.load(os.path.join(self.dir, "F_{}.npy".format(str(unit))))
-        # Initialization         
+            
+            new_channels =  np.where((V_t[:, visible_chans_unit, batch -1] == 0).all(0))[0]
+            
+            if new_channels.shape[0] > 0:
+                V, F = self.initialize_regression_params(templates_unit, num_chan_vis)
+                U_t = np.zeros((self.n_channels, num_chunks + 1))
+                V_t[:, visible_chans_unit, :] = V
+                U_t[visible_channels] = 1
+            fill_idx = (U_t[vis_chans, batch] == 0)
+            U_t[vis_chans, batch][fill_idx] = 1
         else:
-            V, F = self.initialize_regression_params(templates_unit, num_chan_vis)
-            U = np.ones((num_chan_vis,  num_chunks + 1))
-        
+            U_t = np.zeros((self.n_channels, num_chunks + 1))
+            V_t = np.zeros((num_basis_functions, self.n_channels, num_chunks + 1)) 
+            new_V, F = self.initialize_regression_params(templates_unit, num_chan_vis)
+            V_t[:, visible_chans_unit, :] = new_V
+            U_t[visible_chans_unit, batch] = 1
+            
+        V = V_t[:, visible_chans_unit, :]
+        U = U_t[visible_chans_unit]
         # Online Regression 
         for j in range(num_iter):
             U = self.update_U(templates_unit, U, F, V, idx_chan_vis, num_chan_vis, self.u_spikes.shape[0], batch, backwards)
@@ -464,9 +487,12 @@ class RegressionTemplates:
         
         self.templates_approx[unit, :, visible_chans_unit] = (np.matmul(F, V[:, :, batch])* U[:, batch]).T[:len(visible_chans_unit), :]
         
-        np.save(os.path.join(self.dir, "U_{}.npy".format(str(unit))), U)
-        np.save(os.path.join(self.dir, "V_{}.npy".format(str(unit))), V)
+        U_t[visible_chans_unit, batch] = U[:, batch]
+        V_t[:, visible_chans_unit, batch] = V[:, :, batch]
+        np.save(os.path.join(self.dir, "U_{}.npy".format(str(unit))), U_t)
+        np.save(os.path.join(self.dir, "V_{}.npy".format(str(unit))), V_t)
         np.save(os.path.join(self.dir, "F_{}.npy".format(str(unit))), F)
+        
         return self.back_shift_template(unit, self.templates_approx[unit], visible_chans_unit)
     def back_shift_template(self,unit, template, visible_channels):
         shift_chan = self.unit_shifts[unit]
@@ -531,13 +557,22 @@ class RegressionTemplates:
             print(self.prev_templates.shape[0])
             print(np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True).shape[0])
         
-        #find bisible channels of new units:
-        if batch > 1 and not self.prev_templates.shape[0] == self.templates.shape[0] :
+        #find visible channels of new units:
+        if batch > 1:
+            #read in previous visible channels
             self.visible_chans_dict = np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True)
+            #get new visible channels
             visible_chans = self.visible_channels()
+            print(visible_chans.shape)
+            #append new visible channels
+            self.visible_chans_dict = np.logical_or(self.visible_chans_dict, visible_chans.T[:self.prev_templates.shape[0], :])
+            #append space for new units
             new_array = np.zeros((self.templates.shape[0], self.templates.shape[2]), dtype = np.bool_)
             new_array[:self.prev_templates.shape[0]] = self.visible_chans_dict
+
             self.visible_chans_dict = new_array
+
+            
             for new_unit in range(self.prev_templates.shape[0], self.templates.shape[0]):
                 if np.sum(visible_chans[:, new_unit]) > (self.num_basis_functions -1):
                     self.visible_chans_dict[new_unit]  =  visible_chans[:, new_unit]
@@ -580,7 +615,7 @@ class RegressionTemplates:
                              vis_chans = self.visible_chans_dict, 
                              model = model,
                              save = self.dir,
-                             batch = batch, pm_pbar=True, pm_processes = 2)
+                             batch = batch, pm_pbar=True, pm_processes = 4)
         
         np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(wf_list))
         
@@ -640,12 +675,20 @@ class RegressionTemplates:
         if batch < self.max_time/self.CONFIG.deconvolution.template_update_time - 1:
             self.prev_templates = np.load(os.path.join(self.dir, "templates_{}.npy".format(str(int(batch +1)))))
 
-        if batch > self.max_time/self.CONFIG.deconvolution.template_update_time - 1 and not self.prev_templates.shape[0] == self.templates.shape[0] :
+        if batch > self.max_time/self.CONFIG.deconvolution.template_update_time - 1:
+            #read in previous visible channels
             self.visible_chans_dict = np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True)
+            #get new visible channels
             visible_chans = self.visible_channels()
+            #append new visible channels
+            self.visible_chans_dict = np.logical_or(self.visible_chans_dict, visible_chans[:self.prev_templates.shape[0]])
+            #append space for new units
             new_array = np.zeros((self.templates.shape[0], self.templates.shape[2]), dtype = np.bool_)
             new_array[:self.prev_templates.shape[0]] = self.visible_chans_dict
+
             self.visible_chans_dict = new_array
+
+            
             for new_unit in range(self.prev_templates.shape[0], self.templates.shape[0]):
                 if np.sum(visible_chans[:, new_unit]) > (self.num_basis_functions -1):
                     self.visible_chans_dict[new_unit]  =  visible_chans[:, new_unit]
@@ -654,7 +697,6 @@ class RegressionTemplates:
                     vis_chans[self.templates[new_unit].ptp(0).argsort()[::-1][:7]] = True
                     self.visible_chans_dict[new_unit] = vis_chans
             np.save(os.path.join(self.dir, "vis_chan.npy"), self.visible_chans_dict)
-            np.save(os.path.join(self.dir, "vis_chan_{}.npy".format(str(batch))), self.visible_chans_dict)
         else:
             self.visible_chans_dict = np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True)
         
@@ -676,7 +718,7 @@ class RegressionTemplates:
                              vis_chans = self.visible_chans_dict, 
                              model = model,
                              save = self.dir,
-                             batch = batch, pm_pbar=True, pm_processes = 5)
+                             batch = batch, pm_pbar=True, pm_processes = 4)
         
         np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(wf_list))
         
