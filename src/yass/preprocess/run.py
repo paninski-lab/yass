@@ -99,7 +99,7 @@ def run(output_directory):
     # Check if data already saved to disk and skip:
     if os.path.exists(standardized_path):
         if os.path.exists(reorder_fname):
-           return standardized_path, standardized_params['dtype'], reorder_fname
+            return standardized_path, standardized_params['dtype'], reorder_fname
         reorder.run(save_fname = reorder_fname, 
                                standardized_fname = standardized_path, 
                                CONFIG = CONFIG, 

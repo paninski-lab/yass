@@ -1050,10 +1050,10 @@ def deconv_pass1(output_directory,
                  CONFIG,
                  first_batch=False,
                  full_rank = None):
-
+    print("ARRRRCGGGGHHHHHHH")
     # keep track of # of units in
     n_units_in = np.load(fname_templates).shape[0]
-
+    print(recording_dir)
     # deconv 0
     (fname_templates,
      fname_spike_train,
