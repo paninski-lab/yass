@@ -1,7 +1,7 @@
 .DEFAULT_GOAL := help
 .PHONY: test integration-test
 
-install-local: ## Install Locally
+install: ## Install Locally
 	conda env update -f environment.yml
 	cd src/gpu_bspline_interp && conda run -n yass python setup.py install --force
 	cd src/gpu_rowshirt && conda run -n yass python setup.py install --force
