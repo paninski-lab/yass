@@ -4,7 +4,7 @@
 install: ## Install Locally
 	conda env update -f environment.yml
 	cd src/gpu_bspline_interp && conda run -n yass python setup.py install --force
-	cd src/gpu_rowshirt && conda run -n yass python setup.py install --force
+	cd src/gpu_rowshift && conda run -n yass python setup.py install --force
 
 test: ## Run Tests
 	@echo "--> Running Tests"
