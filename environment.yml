@@ -1,0 +1,19 @@
+name: yass
+channels:
+  - conda-forge
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.7
+  - conda-build
+  - cudatoolkit=10.2
+  - pytorch
+  - numpydoc
+  - pytest-cov
+  - pytest-flake8
+  - pytest>=3.5.0
+  - sphinx>=1.6
+  - pip
+  - pip:
+    - sphinxcontrib-blockdiag
+    - -e .
