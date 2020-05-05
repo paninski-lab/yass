@@ -119,7 +119,7 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
     in_channels = np.where(wfs_mean.ptp(0) > 1.5)[0]
     shifts = 44 - wfs.mean(0).argmin(0)
     
-    if not model is None and wfs.shape[0] > 1 and wfs.shape[0] < 100 and wfs_mean.ptp(0).max(1) < 10:
+    if not model is None and wfs.shape[0] > 1 and wfs.shape[0] < 100 and wfs_mean.ptp(0).max(0) < 10:
         wfs = predict0(shift_wfs(wfs, shifts, in_channels), model, in_channels)
         return shift_template(shift_wfs(wfs, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
     elif smooth:
