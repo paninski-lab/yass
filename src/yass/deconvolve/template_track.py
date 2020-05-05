@@ -96,7 +96,7 @@ def shift_wfs(array, shifts, in_channels):
             return_array[:,channel] = np.roll(array[:,channel], shifts[channel], 0)
     return return_array
 
-def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader,vis_chans,model = None, save = None, batch = 0):
+def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader,vis_chans,model = None, save = None, batch = 0, smooth = True):
     print(unit)
     shift_chan = shift_chan[unit]
     spike_times = sps[:, 0]
@@ -121,10 +121,11 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
     
     if not model is None and wfs.shape[0] > 1 and wfs.shape[0] < 100 and wfs_mean.ptp(0).max(1) < 10:
         wfs = predict0(shift_wfs(wfs, shifts, in_channels), model, in_channels)
-        npsav
         return shift_template(shift_wfs(wfs, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
-    else:
+    elif smooth:
         return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0]
+    else:
+        return wfs.mean(0), spikes, filter_idx.shape[0]
 
 
 
