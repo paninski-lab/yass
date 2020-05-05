@@ -98,7 +98,7 @@ def shift_wfs(array, shifts, in_channels):
 
 def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader,vis_chans,model = None, save = None, batch = 0, smooth = True):
     print(unit)
-    print("ok now")
+    #print("ok now")
     shift_chan = shift_chan[unit]
     spike_times = sps[:, 0]
     unit_bool = sps[:, 1] == unit
@@ -121,7 +121,9 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
     shifts = 44 - wfs.mean(0).argmin(0)
     
     if not model is None and wfs.shape[0] > 1 and wfs.shape[0] < 100 and wfs_mean.ptp(0).max(1) < 10:
+        np.save("/media/cat/2TB_SSD_2/julien/nick_drift/wfs_raw/raw_wfs_{}_{}.npy".format(batch, unit), shift_wfs(wfs, shifts, in_channels))
         wfs = predict0(shift_wfs(wfs, shifts, in_channels), model, in_channels)
+        np.save("/media/cat/2TB_SSD_2/julien/nick_drift/denoised_wfs/raw_wfs_{}_{}.npy".format(batch, unit), wfs)
         return shift_template(shift_wfs(wfs, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
     elif smooth:
         return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0]
