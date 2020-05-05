@@ -98,6 +98,7 @@ def shift_wfs(array, shifts, in_channels):
 
 def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader,vis_chans,model = None, save = None, batch = 0, smooth = True):
     print(unit)
+    print("ok now")
     shift_chan = shift_chan[unit]
     spike_times = sps[:, 0]
     unit_bool = sps[:, 1] == unit
