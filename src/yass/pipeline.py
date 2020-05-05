@@ -13,7 +13,6 @@ matplotlib.use('Agg')
 # Cat: TODO: this is dangersous, may wish to fix the problem in cluster.py
 # import warnings
 # warnings.filterwarnings("ignore", category=UserWarning)
-
 try:
     # py3
     from collections.abc import Mapping
@@ -702,8 +701,8 @@ def final_deconv_with_template_updates_v2(output_directory,
                                           run_chunk_sec,
                                           remove_meta_data=True, 
                                           full_rank = True, 
-                                          smooth = True, 
-                                          denoise = False):
+                                          smooth = False, 
+                                          denoise = True):
     
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -918,11 +917,9 @@ def final_deconv_with_template_updates_v2(output_directory,
     # gather all results and
     # kill based on soft assignment and firing rates
     units_survived = post_backward_process(backward_directory,
-                                           run_chunk_sec,
                                            update_time,
-                                           recording_dir,
-                                           recording_dtype)
-    
+                                           sim_array_soft_assignment,
+                                           CONFIG)    
     # final forward pass
     final_directory = os.path.join(output_directory, 'final_pass')
     if not os.path.exists(final_directory):

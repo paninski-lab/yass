@@ -23,16 +23,20 @@ import torch.distributions as dist
 from torch import nn
 
 ##### DENOISER SET UP
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["GIO_EXTRA_MODULES"] = "/usr/lib/x86_64-linux-gnu/gio/modules/"
 
-def predict0(data, model):
+def predict0(data, model, in_channels = None):
     #data.shape = n_spikes x n_times x n_channels
     N = data.shape[0]
     n_timesteps = data.shape[1]
-    n_channels = data.shape[2]
+    if in_channels is None:
+        in_channels = range(data.shape[2])
+    
+    templates_output = np.zeros((n_timesteps, data.shape[2]))
 
-    templates_output = np.zeros((n_timesteps, n_channels))
-
-    for chan in range(n_channels):
+    for chan in in_channels:
         data0 = data[:, :, chan]
         data1 = data0.reshape([1,N,1,n_timesteps])
         data_torch = torch.tensor(data1).to(model.params_denoiser['device']).type(torch.float32)
@@ -51,7 +55,7 @@ def predict1(data,model):
     data1= data[0,:,0:1,:]
  
     hs = model.encode(data1).view([1, N, model.h_dim])
-    
+
     
     mu_logstd_z = model.pz_x(hs.mean(dim=1))    
     
@@ -82,6 +86,16 @@ def shift_template(template, shift_chan, n_channels):
             template[:, chan] =  np.concatenate((np.zeros(-shift), template[:, chan]), axis = 0)[:(template.shape[0])]
     return template
 
+def shift_wfs(array, shifts, in_channels):
+    return_array = np.zeros_like(array)
+    print(return_array.shape)
+    for channel in in_channels:
+        if len(return_array.shape) == 3:
+            return_array[:,:, channel] = np.roll(array[:, :, channel], shifts[channel], 1)
+        else:
+            return_array[:,channel] = np.roll(array[:,channel], shifts[channel], 0)
+    return return_array
+
 def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader,vis_chans,model = None, save = None, batch = 0):
     print(unit)
     shift_chan = shift_chan[unit]
@@ -101,10 +115,14 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
     
     filter_idx = np.where(wfs[:, 30:-30, np.where(vis_chans[unit])[0]].ptp(1).max(1) > 3)[0]
     wfs = wfs[filter_idx]
+    wfs_mean = wfs.mean(0)
+    in_channels = np.where(wfs_mean.ptp(0) > 1.5)[0]
+    shifts = 44 - wfs.mean(0).argmin(0)
     
-    if not model is None and wfs.shape[0] > 2:
-        wfs = predict0(wfs, model)
-        return shift_template(wfs, shift_chan, n_channels), spikes, filter_idx.shape[0]
+    if not model is None and wfs.shape[0] > 1 and wfs.shape[0] < 100 and wfs_mean.ptp(0).max(1) < 10:
+        wfs = predict0(shift_wfs(wfs, shifts, in_channels), model, in_channels)
+        npsav
+        return shift_template(shift_wfs(wfs, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
     else:
         return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0]
 
@@ -165,19 +183,20 @@ class RegressionTemplates:
         self.last_chunk = self.max_time/self.CONFIG.deconvolution.template_update_time - 1
     
         if denoiser_params is None:
-            self.params_denoiser = params_denoiser = {
-                                    'model_name': 'spike_denoiser',  # model name
-                                    'n_timesteps': 121,  # width of each spike
-                                    'n_channels': 14,  # number of local channels/units
-                                    'resnet_blocks': [1,1,1,1],
-                                    'resnet_planes': 32,
-                                    'Nmin': 20,
-                                    'Nmax': 50, 
-                                    'Cmin': .7,
-                                    'Cmax': .9, 
-                                    'z_dim': 1024,
-                                    'h_dim': 1024,
-                                    'H_dim': 256}
+            self.params_denoiser = params_denoiser = params = {
+                                            'model_name': 'spike_denoiser',  # model name    # data shape 
+                                            'n_timesteps': 121,  # width of each spike
+                                            'n_channels': 14,  # number of local channels/units    # ResNet encoder: parameters for spike_encoder.py 
+                                            'resnet_blocks': [1,1,1,1],
+                                            'resnet_planes': 32,    # number of data points for training, N ~ unif(Nmin, Nmax)
+                                            'Nmin': 5,
+                                            'Nmax': 30,     # fraction of total templates that have collisions
+                                            'Cmin': .7,
+                                            'Cmax': .9,     # neural net architecture
+                                            'z_dim': 1024,
+                                            'h_dim': 1024,
+                                            'H_dim': 256,
+                                        }
         else:
             self.params_denoiser = denoiser_params
          
@@ -189,7 +208,7 @@ class RegressionTemplates:
         load_from_file = True
         self.model = IB_Denoiser(self.params_denoiser).to(self.params_denoiser['device'])
         self.model.params_denoiser = self.params_denoiser
-        checkpoint = torch.load("/media/cat/2TB_SSD_2/kevin/IB2_jitter2_320000.pt")
+        checkpoint = torch.load("/media/cat/2TB_SSD_2/kevin/IB2_jitter2_beta_zero_1007000.pt")
         self.model.load_state_dict(checkpoint['model_state_dict'])
 
 

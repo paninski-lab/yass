@@ -80,13 +80,14 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.units_in = set([])
         self.shifts = np.load(fname_shifts)
         self.reader_residual = reader_residual
-        self.spat_cov = get_cov_matrix(spat_cov, geom)
-        self.temp_cov = temp_cov[:lik_window, :lik_window]
         self.channel_index = channel_idx
         self.n_neigh_chans = self.channel_index.shape[1]
         self.n_chans = n_chans
         self.n_units, self.n_times, self.n_channels = self.templates.shape
-        
+
+        self.spat_cov = get_cov_matrix(spat_cov, geom)
+        self.temp_cov = temp_cov[(self.offset):(self.n_times -(self.offset)), (self.offset):(self.n_times -(self.offset))]
+
         self.n_total_spikes = self.spike_train.shape[0]
         
         #get residual variance 

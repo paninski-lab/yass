@@ -98,8 +98,9 @@ def run(output_directory):
     reorder_fname = os.path.join(output_directory, "reorder.npy")
     # Check if data already saved to disk and skip:
     if os.path.exists(standardized_path):
-        if os.path.exists(reorder_fname):
+        if os.path.exists(reorder_fname) or CONFIG.resources.drift == 0:
             return standardized_path, standardized_params['dtype'], reorder_fname
+  
         reorder.run(save_fname = reorder_fname, 
                                standardized_fname = standardized_path, 
                                CONFIG = CONFIG, 
