@@ -21,6 +21,7 @@ import torch
 import torch.distributions as dist
 #from IB2 import IB_Denoiser
 from torch import nn
+from math import sqrt
 
 ##### DENOISER SET UP
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -118,13 +119,25 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
     wfs = wfs[filter_idx]
     wfs_mean = wfs.mean(0)
     in_channels = np.where(wfs_mean.ptp(0) > 1.5)[0]
-    shifts = 44 - wfs.mean(0).argmin(0)
-    
-    if not model is None and wfs.shape[0] > 1 and wfs.shape[0] < 100 and wfs_mean.ptp(0).max(1) < 10:
-        np.save("/media/cat/2TB_SSD_2/julien/nick_drift/wfs_raw/raw_wfs_{}_{}.npy".format(batch, unit), shift_wfs(wfs, shifts, in_channels))
-        wfs = predict0(shift_wfs(wfs, shifts, in_channels), model, in_channels)
-        np.save("/media/cat/2TB_SSD_2/julien/nick_drift/denoised_wfs/raw_wfs_{}_{}.npy".format(batch, unit), wfs)
-        return shift_template(shift_wfs(wfs, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
+    shifts = 44 - wfs.mean(0).argmin(0) 
+    if not model is None and wfs.shape[0] > 1 and sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50:
+        print("UPDATED")
+        idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
+        np.save("/media/cat/2TB_SSD_2/julien/nick_drift/wfs_raw/raw_wfs_{}_{}.npy".format(batch, unit), shift_wfs(wfs, shifts, in_channels)[idx])
+        wfs_shifted = shift_wfs(wfs, shifts, in_channels)
+        wfs_denoised = predict0(wfs_shifted, model, in_channels)
+        top_chan = wfs_shifted.mean(0).ptp(0).argsort()[::-1][0]
+        difference_mean = np.mean((wfs_denoised[30:-30, top_chan] - wfs_shifted[:, 30:-30, top_chan].mean(0))**2)/wfs_shifted.mean(0).ptp(0).max()
+        if (difference_mean >= 0.05 and wfs_shifted.shape[0]>=20):
+            np.save("/media/cat/2TB_SSD_2/julien/nick_drift/meaned_wfs/raw_wfs_{}_{}.npy".format(batch, unit), wfs_shifted.mean(0))
+            if smooth:
+                return(shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0])
+            else:
+                return wfs.mean(0), spikes, filter_idx.shape[0]
+        else:
+            wfs = wfs_denoised
+            np.save("/media/cat/2TB_SSD_2/julien/nick_drift/denoised_wfs/raw_wfs_{}_{}.npy".format(batch, unit), wfs)
+            return shift_template(shift_wfs(wfs, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
     elif smooth:
         return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0]
     else:
@@ -212,7 +225,7 @@ class RegressionTemplates:
         load_from_file = True
         self.model = IB_Denoiser(self.params_denoiser).to(self.params_denoiser['device'])
         self.model.params_denoiser = self.params_denoiser
-        checkpoint = torch.load("/media/cat/2TB_SSD_2/kevin/IB2_jitter2_beta_zero_1007000.pt")
+        checkpoint = torch.load("/media/cat/2TB_SSD_2/julien/nick_drift/IB2_jitter2_beta_zero_2000000.pt")
         self.model.load_state_dict(checkpoint['model_state_dict'])
 
 
@@ -358,7 +371,7 @@ class RegressionTemplates:
         
         b_bool = self.check_regression(chunk, U, True)
         f_bool = self.check_regression(chunk, U, False)
-        print(f_bool)
+        #print(f_bool)
         for i in idx_chan_vis[:self.model_rank] : 
             Y = templates_unit_chunk[:, i]
             if not (f_bool or b_bool):
