@@ -701,7 +701,7 @@ def final_deconv_with_template_updates_v2(output_directory,
                                           run_chunk_sec,
                                           remove_meta_data=True, 
                                           full_rank = True, 
-                                          smooth = False, 
+                                          smooth = True, 
                                           denoise = True):
     
     if not os.path.exists(output_directory):
