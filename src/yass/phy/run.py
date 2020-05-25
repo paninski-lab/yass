@@ -14,7 +14,7 @@ from yass.visual.util import binary_reader_waveforms
 
 #from yass.deconvolve.soft_assignment import get_soft_assignments
 
-def run(CONFIG, fname_spike_train):
+def run(CONFIG, fname_spike_train, fname_templates):
             
     """Generate phy2 visualization files
     """
@@ -59,7 +59,7 @@ def run(CONFIG, fname_spike_train):
     np.save(root_dir+'/phy/spike_templates.npy', spike_clusters)
 
     # save geometry
-    chan_pos = np.loadtxt(root_dir+CONFIG.data.geometry)
+    chan_pos = np.loadtxt(root_dir+ "/" + CONFIG.data.geometry)
     np.save(root_dir+'/phy/channel_positions.npy', chan_pos)
 
     # sequential channel order
@@ -68,6 +68,7 @@ def run(CONFIG, fname_spike_train):
 
     # pick largest SU channels for each unit; [n_templates x n_channels_loc]; 
     # gives # of channels of the corresponding columns in pc_features, for each spike.
+    '''
     n_idx_chans = 7
     templates = np.load(fname_templates).transpose(1,2,0)
     print ("PHY loaded templates: ", templates.shape)
@@ -83,7 +84,7 @@ def run(CONFIG, fname_spike_train):
     # unit templates [n_units, times, n_chans]
     temps = templates.transpose(2,0,1)
     np.save(root_dir + "/phy/templates.npy",temps)
-
+    '''
     # *********************************************
     # ************** SAVE params.py file **********
     # *********************************************

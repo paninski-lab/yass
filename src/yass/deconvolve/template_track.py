@@ -109,24 +109,23 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
     #last_chunk = self.max_time/self.CONFIG.deconvolution.template_update_time - 1
     
     wfs = reader.read_waveforms(spikes)[0]
-    #if not save is None:
-    #    idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
-    #    np.save(os.path.join(save, "raw_wfs_{}_{}.npy".format(batch, unit)), wfs[idx])
     
     filter_idx = np.where(wfs[:, 30:-30, np.where(vis_chans[unit])[0]].ptp(1).max(1) > 3)[0]
     wfs = wfs[filter_idx]
     wfs_mean = wfs.mean(0)
-    in_channels = np.where(wfs_mean.ptp(0) > 1.5)[0]
+    in_channels = np.where(wfs_mean.ptp(0) > 1)[0]
     shifts = 44 - wfs.mean(0).argmin(0)
-    
-    if not model is None and wfs.shape[0] > 1 and wfs.shape[0] < 100 and wfs_mean.ptp(0).max(0) < 10:
+    #if not save is None:
+    #    idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
+    #    np.save(os.path.join(save, "raw_wfs_{}_{}.npy".format(batch, unit)), wfs[idx])
+
+    if not model is None and  np.sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50:
         wfs = predict0(shift_wfs(wfs, shifts, in_channels), model, in_channels)
         return shift_template(shift_wfs(wfs, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
     elif smooth:
         return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0]
     else:
         return wfs.mean(0), spikes, filter_idx.shape[0]
-
 
 
 
@@ -209,7 +208,7 @@ class RegressionTemplates:
         load_from_file = True
         self.model = IB_Denoiser(self.params_denoiser).to(self.params_denoiser['device'])
         self.model.params_denoiser = self.params_denoiser
-        checkpoint = torch.load("/media/cat/2TB_SSD_2/kevin/IB2_jitter2_beta_zero_1007000.pt")
+        checkpoint = torch.load("/media/cat/2TB_SSD_2/kevin/IB2_jitter2_beta_zero_2000000.pt")
         self.model.load_state_dict(checkpoint['model_state_dict'])
 
 
@@ -571,8 +570,10 @@ class RegressionTemplates:
         
         #Initiate it all 
         if self.denoise:
+            print("YAY")
             model = self.model
         else:
+            print("NOOOOOOOOoOOOOOOOO")
             model = None
         '''
         see = [get_wf(unit = unit, sps = self.spike_trains,
@@ -600,7 +601,9 @@ class RegressionTemplates:
                              vis_chans = self.visible_chans_dict, 
                              model = model,
                              save = self.dir,
-                             batch = batch, pm_pbar=True, pm_processes = 2)
+                             batch = batch, 
+                             smooth = self.smooth,
+                             pm_pbar=True, pm_processes = 2)
         
         np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(wf_list))
         
@@ -696,7 +699,9 @@ class RegressionTemplates:
                              vis_chans = self.visible_chans_dict, 
                              model = model,
                              save = self.dir,
-                             batch = batch, pm_pbar=True, pm_processes = 5)
+                             batch = batch, 
+                             smooth = self.smooth
+                             , pm_pbar=True, pm_processes = 5)
         
         np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(wf_list))
         
@@ -706,6 +711,7 @@ class RegressionTemplates:
             for unit in tqdm(range(self.n_unit)):
                 tmps[unit, :, :] = self.batch_regression(unit, batch_times, wf_list[unit])
         else:
+            tmps = np.zeros((self.n_unit, self.len_wf, self.n_channels))
             for unit in tqdm(range(self.n_unit)):
                 tmps[unit, :, :] = wf_list[unit][0]
                 tmps[unit, :, tmps[unit, :, :].ptp(0) < 1] = 0

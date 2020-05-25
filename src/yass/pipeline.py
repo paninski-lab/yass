@@ -630,7 +630,7 @@ def final_deconv(TMP_FOLDER,
             standardized_path,
             standardized_dtype,
             run_chunk_sec=run_chunk_sec)
-
+    print(fname_templates)
     # compute residual
     logger.info('RESIDUAL COMPUTATION')
     fname_residual, residual_dtype = residual.run(
@@ -682,7 +682,7 @@ def final_deconv(TMP_FOLDER,
     
     if CONFIG.resources.generate_phy:
         logger.info('GENERATE PHY FILES')
-        phy.run(CONFIG, fname_spike_train)
+        phy.run(CONFIG, fname_spike_train, fname_templates)
         
         
         
@@ -701,7 +701,7 @@ def final_deconv_with_template_updates_v2(output_directory,
                                           run_chunk_sec,
                                           remove_meta_data=True, 
                                           full_rank = True, 
-                                          smooth = False, 
+                                          smooth = True, 
                                           denoise = True):
     
     if not os.path.exists(output_directory):

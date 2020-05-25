@@ -7,6 +7,41 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 
+def get_matches(batch, true_sps, sps, combined_ptps, true_ptps, shift):
+    
+    true_batch_idx = np.logical_and(true_sps[:, 0] <= (batch+1)*100*30000, true_sps[:, 0] > batch*100*30000)
+    test_batch_idx = np.logical_and(sps[:, 0] <= (batch+1)*100*30000, sps[:, 0] > batch*100*30000)
+    test_spikes = sps[test_batch_idx, 0]
+    test_units = sps[test_batch_idx, 1]
+    
+    true_spikes = true_sps[true_batch_idx, 0]
+    true_units = true_sps[true_batch_idx, 1]
+    spike_matched = np.zeros((np.sum(true_batch_idx), 2), dtype = np.int32)
+    sps_pos = np.zeros(np.sum(true_batch_idx), dtype = np.int32)
+
+    for j, row in enumerate(true_sps[true_batch_idx]):
+        print(j)
+        true_unit = row[1]
+        true_spike = row[0] + shift
+
+        diff_idx = np.argpartition( np.abs(test_spikes - true_spike), 10)[:10]
+        poss_units = test_units[diff_idx]
+        poss_spikes = test_spikes[diff_idx]
+        
+        norms = ((combined_ptps[batch, poss_units] - true_ptps[batch, true_unit])**4).sum(1)
+        closest_unit = poss_units[np.argmin(norms)]
+
+        true_norm = np.sum(true_ptps[batch, true_unit]**4)
+        prop = np.min(norms)/true_norm
+        if prop > .4 or np.abs(poss_spikes[np.argmin(norms)] - true_spike) > 4:
+            spike_matched[j, 0] = -1
+            spike_matched[j, 1] = -1
+            sps_pos[j] = -1
+        else:
+            spike_matched[j, 0] =  poss_spikes[np.argmin(norms)]
+            spike_matched[j, 1] = closest_unit
+            sps_pos[j] = np.where(np.logical_and(sps[:, 0] == poss_spikes[np.argmin(norms)], sps[:, 1] == closest_unit))[0][0]
+    return spike_matched, sps_pos
 
 def connected_components(img, x, y, cc):
     pixel = [x, y]

@@ -187,5 +187,11 @@ def run(output_directory):
                       standardized_fname = standardized_path, 
                       CONFIG = CONFIG, 
                       dtype = CONFIG.preprocess.dtype)
+    print("WHAT")
+    if CONFIG.resources.drift == 1:
+        return standardized_path, standardized_params['dtype'], reorder_fname
+    else: 
+        print("only two")
+        return standardized_path, standardized_params['dtype'], reorder_fname
 
-    return standardized_path, standardized_params['dtype'], reorder_fname
+        

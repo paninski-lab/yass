@@ -134,7 +134,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     # preprocess
     start = time.time()
     (standardized_path,
-     standardized_dtype) = preprocess.run(
+     standardized_dtype, fname_reorder) = preprocess.run(
         os.path.join(TMP_FOLDER, 'preprocess'))
 
     TMP_FOLDER = os.path.join(TMP_FOLDER, 'nn_train')
