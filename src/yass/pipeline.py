@@ -1226,22 +1226,23 @@ def deconv_pass1(output_directory,
         dtype_out='float32',
         run_chunk_sec=run_chunk_sec)
 
-    # post deconv split
-    (fname_templates, 
-     fname_spike_train,
-     fname_shifts,
-     fname_scales) = run_post_deconv_split(
-        os.path.join(output_directory, 'pd_split_0'),
-        fname_templates,
-        fname_spike_train,
-        fname_shifts,
-        fname_scales,
-        recording_dir,
-        recording_dtype,
-        fname_residual,
-        residual_dtype,
-        run_chunk_sec[0],
-        first_batch)
+    if CONFIG.deconvolution.neuron_discover:
+        # post deconv split
+        (fname_templates, 
+         fname_spike_train,
+         fname_shifts,
+         fname_scales) = run_post_deconv_split(
+            os.path.join(output_directory, 'pd_split_0'),
+            fname_templates,
+            fname_spike_train,
+            fname_shifts,
+            fname_scales,
+            recording_dir,
+            recording_dtype,
+            fname_residual,
+            residual_dtype,
+            run_chunk_sec[0],
+            first_batch)
 
     if first_batch:
         
@@ -1319,32 +1320,33 @@ def deconv_pass1(output_directory,
         fname_noise_soft = None
         fname_template_soft = None
 
-    # post process kill
-    n_units_after_split = np.load(fname_templates).shape[0]
-    if first_batch:
-        units_to_process = np.arange(n_units_after_split)
-        methods = ['low_fr', 'low_ptp',
-                   'duplicate', 'duplicate_soft_assignment']
-    else:
-        units_to_process = np.arange(n_units_in, n_units_after_split)
-        methods = ['low_fr', 'low_ptp', 'duplicate']
-    
-    (fname_templates, fname_spike_train, 
-     fname_noise_soft, fname_shifts, fname_scales)  = postprocess.run(
-        methods,
-        os.path.join(output_directory, 'post_process_1'),
-        None,
-        None,
-        fname_templates,
-        fname_spike_train,
-        fname_template_soft,
-        fname_noise_soft,
-        fname_shifts,
-        fname_scales,
-        units_to_process)
-    
-    n_units_out = np.load(fname_templates).shape[0]
-    print('{} new units'.format(n_units_out - n_units_in))
+    if CONFIG.deconvolution.neuron_discover:
+        # post process kill
+        n_units_after_split = np.load(fname_templates).shape[0]
+        if first_batch:
+            units_to_process = np.arange(n_units_after_split)
+            methods = ['low_fr', 'low_ptp',
+                       'duplicate', 'duplicate_soft_assignment']
+        else:
+            units_to_process = np.arange(n_units_in, n_units_after_split)
+            methods = ['low_fr', 'low_ptp', 'duplicate']
+
+        (fname_templates, fname_spike_train, 
+         fname_noise_soft, fname_shifts, fname_scales)  = postprocess.run(
+            methods,
+            os.path.join(output_directory, 'post_process_1'),
+            None,
+            None,
+            fname_templates,
+            fname_spike_train,
+            fname_template_soft,
+            fname_noise_soft,
+            fname_shifts,
+            fname_scales,
+            units_to_process)
+
+        n_units_out = np.load(fname_templates).shape[0]
+        print('{} new units'.format(n_units_out - n_units_in))
     
     return fname_templates
 

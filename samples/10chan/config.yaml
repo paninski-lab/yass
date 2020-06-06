@@ -155,5 +155,8 @@ deconvolution:
     # update templates periodically based on drift model
     update_templates: True
 
+    # discoer new neurons periodically (period as in template update time)
+    neuron_discover: True
+
     # time batches to update templates (sec)
     template_update_time: 300
