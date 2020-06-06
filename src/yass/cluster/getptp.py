@@ -219,6 +219,9 @@ class GETCLEANPTP(object):
                 idx_in = torch.nonzero(
                     (self.spike_index[:, 0] > self.reader_residual.idx_list[batch_id][0]) & 
                     (self.spike_index[:, 0] < self.reader_residual.idx_list[batch_id][1]))[:,0]
+                
+                if len(idx_in) == 0:
+                    continue
 
                 spike_index_batch = self.spike_index[idx_in] 
                 spike_index_batch[:, 0] -= offsets[batch_id]
