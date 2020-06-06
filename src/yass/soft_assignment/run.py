@@ -16,7 +16,6 @@ from yass import read_config
 from yass.reader import READER
 from yass.noise import get_noise_covariance
 from yass.neuralnetwork.model_detector import Detect
-from yass.noise import get_noise_covariance
 from yass.soft_assignment.noise import SOFTNOISEASSIGNMENT
 from yass.soft_assignment.template import TEMPLATE_ASSIGN_OBJECT
 

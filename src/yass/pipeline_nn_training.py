@@ -85,9 +85,11 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     CONFIG._data['detect']['threshold'] = 4
     CONFIG._data['clean_up']['min_ptp'] = 5
 
-    if CONFIG._data['neuralnetwork']['training']['spike_size_ms'] is None:
-        CONFIG._data['neuralnetwork']['training']['spike_size_ms'] = 3
+    if CONFIG._data['neuralnetwork']['training']['spike_size_ms'] is not None:
+        CONFIG._data['recordings']['spike_size_ms'] = CONFIG._data['neuralnetwork']['training']['spike_size_ms']
 
+    CONFIG._data['neuralnetwork']['apply_nn'] = False
+    
     set_config(CONFIG._data, output_dir)
     CONFIG = read_config()
     TMP_FOLDER = CONFIG.path_to_output_directory
