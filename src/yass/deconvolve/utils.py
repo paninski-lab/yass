@@ -612,8 +612,12 @@ class TempTempConv(object):
             shifts_ = global_argmax - temp_temp_argmax
             zero_padded_temp_temp = np.zeros([n_unit, n_unit, max_len], 'float32')
             for i in range(n_unit):
+                if temp[i].ptp(1).max() == 0:
+                    continue
                 u_shift = shifts_[i]
                 for j in range(n_unit):
+                    if temp[j].ptp(1).max() == 0:
+                        continue
                     if isinstance(temp_temp[i][j], np.ndarray):
                         #temp temp exists
                         zero_padded_temp_temp[i, j, u_shift:u_shift+temp_temp_len[i, j]] = temp_temp[i][j]

@@ -566,6 +566,9 @@ def get_partially_cleaned_templates(TMP_FOLDER,
     templates_new = np.zeros((n_units, n_times, n_channels), 'float32')    
     templates_new[unit_ids_big] = templates_big[unit_ids_big]
     templates_new[unit_ids_small] = templates_small[unit_ids_small]
+    
+    no_spike_units = np.where(templates_new.ptp(1).max(1) == 0)[0]
+    templates_new[no_spike_units] = templates[no_spike_units]
 
     #for unit in range(n_units):
     #    templates_new[unit,:, templates[unit].ptp(0) == 0] = 0
@@ -861,10 +864,11 @@ def final_deconv_with_template_updates_v2(output_directory,
     # post backward process
     # gather all results and
     # kill based on soft assignment and firing rates
-    units_survived = post_backward_process(backward_directory,
-                                           update_time,
-                                           sim_array_soft_assignment,
-                                           CONFIG)
+    if CONFIG.deconvolution.neuron_discover:
+        units_survived = post_backward_process(backward_directory,
+                                               update_time,
+                                               sim_array_soft_assignment,
+                                               CONFIG)
     
     # final forward pass
     final_directory = os.path.join(output_directory, 'final_pass')
@@ -888,7 +892,10 @@ def final_deconv_with_template_updates_v2(output_directory,
             backward_directory, 'templates_{}_{}_post_update.npy'.format(
                 batch_time[0], batch_time[1]))
 
-        np.save(fname_templates_batch, np.load(fname_templates_in)[units_survived])
+        temp_ = np.load(fname_templates_in)
+        if CONFIG.deconvolution.neuron_discover:
+            temp_ = temp_[units_survived]
+        np.save(fname_templates_batch, temp_)
 
     for j in range(len(update_time)-1):
         
