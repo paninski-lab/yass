@@ -533,7 +533,7 @@ class TempTempConv(object):
             align_shifts[unit, vis_chans] = shifts_ - shifts_.min()
 
             center_spike_size = int(2 * CONFIG.recordings.sampling_rate / 1000.)
-            align = monotonic_edge(align, center_spike_size)
+            align = monotonic_edge(align, CONFIG.center_spike_size)
 
             # use reconstructed version of temp lates
             if len(align) <= rank:
@@ -964,9 +964,7 @@ def shift_svd_denoise(temp, CONFIG,
 
         # remove offset from shifts so that minimum is 0
         align_shifts[unit, vis_chans] = shifts_ - shifts_.min()
-
-        center_spike_size = int(2 * CONFIG.recordings.sampling_rate / 1000.)
-        align = monotonic_edge(align, center_spike_size)
+        align = monotonic_edge(align, CONFIG.center_spike_size)
 
         # use reconstructed version of temp lates
         if len(align) <= rank:
