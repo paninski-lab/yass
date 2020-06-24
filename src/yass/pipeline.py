@@ -436,7 +436,8 @@ def pre_final_deconv(TMP_FOLDER,
         compute_template_soft=True)
     
     logger.info('Remove Bad units')
-    methods = ['low_fr', 'low_ptp', 'duplicate', 'duplicate_soft_assignment']
+    #methods = ['low_fr', 'low_ptp', 'duplicate', 'duplicate_soft_assignment']
+    methods = ['low_fr', 'low_ptp', 'duplicate']
     (fname_templates, fname_spike_train, 
      fname_noise_soft, fname_shifts, fname_scales)  = postprocess.run(
         methods,
@@ -616,7 +617,7 @@ def final_deconv(TMP_FOLDER,
             standardized_dtype,
             fname_templates,
             run_chunk_sec,
-            remove_meta_data=True)
+            remove_meta_data=False)
     else:
         (fname_templates,
          fname_spike_train,
@@ -1332,8 +1333,10 @@ def deconv_pass1(output_directory,
         n_units_after_split = np.load(fname_templates).shape[0]
         if first_batch:
             units_to_process = np.arange(n_units_after_split)
+            #methods = ['low_fr', 'low_ptp',
+            #           'duplicate', 'duplicate_soft_assignment']
             methods = ['low_fr', 'low_ptp',
-                       'duplicate', 'duplicate_soft_assignment']
+                       'duplicate']
         else:
             units_to_process = np.arange(n_units_in, n_units_after_split)
             methods = ['low_fr', 'low_ptp', 'duplicate']
@@ -1547,26 +1550,28 @@ def post_backward_process(backward_directory,
                 units_in)
 
         # kill based on soft assignment proximity
-        min_paired_probs = np.min(pairwise_soft_assignment_max, 1)
-        threshold = 0.7
+        #min_paired_probs = np.min(pairwise_soft_assignment_max, 1)
+        #threshold = 0.7
         # do the comparison
-        pairs = []
-        kill = np.zeros(n_units, 'bool')
-        for k in units_in:
-            # if the avg soft assignment is less than the threshold, do the comparison
-            if np.any(pairwise_soft_assignment_max[k] < threshold):
-                candidate_pairs = sim_array_soft_assignment[k, 1:][
-                    pairwise_soft_assignment_max[k] < threshold]
-                for k2 in candidate_pairs:
-                    if min_paired_probs[k] < min_paired_probs[k2]:
-                        pairs.append([k ,k2])
-                        kill[k] = True
+        #pairs = []
+        #kill = np.zeros(n_units, 'bool')
+        #for k in units_in:
+        #    # if the avg soft assignment is less than the threshold, do the comparison
+        #    if np.any(pairwise_soft_assignment_max[k] < threshold):
+        #        candidate_pairs = sim_array_soft_assignment[k, 1:][
+        #            pairwise_soft_assignment_max[k] < threshold]
+        #        for k2 in candidate_pairs:
+        #            if min_paired_probs[k] < min_paired_probs[k2]:
+        #                pairs.append([k ,k2])
+        #                kill[k] = True
 
         # units not killed
-        kill = np.where(kill)[0]
-        units_out = units_in[~np.in1d(units_in, kill)]
-        np.save(fname_units_out, units_out)
-        np.save(os.path.join(backward_directory,
-                             'soft_assign_kill_pairs.npy'), pairs)
+        #kill = np.where(kill)[0]
+        #units_out = units_in[~np.in1d(units_in, kill)]
+        #np.save(fname_units_out, units_out)
+        #np.save(os.path.join(backward_directory,
+        #                     'soft_assign_kill_pairs.npy'), pairs)
+        
+        units_out = units_in
 
         return units_out
