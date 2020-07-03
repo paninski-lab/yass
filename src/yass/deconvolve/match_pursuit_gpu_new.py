@@ -340,19 +340,29 @@ class deconvGPU(object):
 
         # make spike train
         # get all spike times and neuron ids
-        spike_times = torch.cat(self.spike_array)
-        neuron_ids = torch.cat(self.neuron_array)
-        spike_train = torch.stack((spike_times, neuron_ids), dim=1).cpu().numpy()
+        if self.spike_array.shape[0]>0:
+            spike_times = torch.cat(self.spike_array)
+            neuron_ids = torch.cat(self.neuron_array)
+            spike_train = torch.stack((spike_times, neuron_ids), dim=1).cpu().numpy()
 
-        # fix spike times
-        spike_train[:, 0] = spike_train[:,0] + self.STIME//2 - (2 * self.jitter_diff)
-        for unit in range(self.K):
-            spike_train[spike_train[:, 1] == unit, 0] += self.peak_time_residual_offset[unit]
-        self.spike_train = spike_train
+            # fix spike times
+            spike_train[:, 0] = spike_train[:,0] + self.STIME//2 - (2 * self.jitter_diff)
+            for unit in range(self.K):
+                spike_train[spike_train[:, 1] == unit, 0] += self.peak_time_residual_offset[unit]
+            self.spike_train = spike_train
 
-        # make shifts and heights
-        self.shifts = torch.cat(self.shift_list).cpu().numpy()
-        self.heights = torch.cat(self.height_list).cpu().numpy()
+            # make shifts and heights
+            self.shifts = torch.cat(self.shift_list).cpu().numpy()
+            self.heights = torch.cat(self.height_list).cpu().numpy()
+        
+        # if no spikes are found return empty lists
+        else:
+            self.spike_train = np.zeros((0,2),'int32')
+
+            # make shifts and heights
+            self.shifts = np.zeros(0,'float32')
+            self.heights = np.zeros(0,'float32')
+
 
         self.spike_array = None
         self.neuron_array = None
