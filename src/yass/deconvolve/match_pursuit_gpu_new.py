@@ -340,7 +340,7 @@ class deconvGPU(object):
 
         # make spike train
         # get all spike times and neuron ids
-        if self.spike_array.shape[0]>0:
+        if len(self.spike_array)>0:
             spike_times = torch.cat(self.spike_array)
             neuron_ids = torch.cat(self.neuron_array)
             spike_train = torch.stack((spike_times, neuron_ids), dim=1).cpu().numpy()
