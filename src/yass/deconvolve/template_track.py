@@ -21,7 +21,9 @@ import torch
 import torch.distributions as dist
 #from IB2 import IB_Denoiser
 from torch import nn
-
+from math import sqrt
+from yass.neuralnetwork import Detect, Denoise
+from yass.cluster.util import make_CONFIG2
 ##### DENOISER SET UP
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -42,6 +44,7 @@ def predict0(data, model, in_channels = None):
         data_torch = torch.tensor(data1).to(model.params_denoiser['device']).type(torch.float32)
         predicted = predict1(data_torch, model)
         predicted = predicted.cpu().detach().numpy()
+        del data_torch
         templates_output[:, chan] = predicted[0, 0, :]
     return templates_output
 
@@ -96,8 +99,10 @@ def shift_wfs(array, shifts, in_channels):
             return_array[:,channel] = np.roll(array[:,channel], shifts[channel], 0)
     return return_array
 
-def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader,vis_chans,model = None, save = None, batch = 0, smooth = True):
+def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader,vis_chans, template_update_time = 100, model = None, ind_den = None, save = None, batch = 0, smooth = True):
+    ## Add ind_den = None for comparisons to individual waveforms denoiser
     print(unit)
+    #print("ok now")
     shift_chan = shift_chan[unit]
     spike_times = sps[:, 0]
     unit_bool = sps[:, 1] == unit
@@ -115,17 +120,77 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
     wfs_mean = wfs.mean(0)
     in_channels = np.where(wfs_mean.ptp(0) > 1)[0]
     shifts = 44 - wfs.mean(0).argmin(0)
-    #if not save is None:
-    #    idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
-    #    np.save(os.path.join(save, "raw_wfs_{}_{}.npy".format(batch, unit)), wfs[idx])
 
-    if not model is None and  np.sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50:
-        wfs = predict0(shift_wfs(wfs, shifts, in_channels), model, in_channels)
-        return shift_template(shift_wfs(wfs, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
-    elif smooth:
-        return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0]
-    else:
-        return wfs.mean(0), spikes, filter_idx.shape[0]
+    ########### Comment the following for best denoiser version
+    ### Compare to Individual waveforms denoiser ###
+    #device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    #device = "cpu"
+    #ind_denoiser = ind_den.to(device)
+    n_data, n_times, n_chans = wfs.shape
+    wfs_shifted = shift_wfs(wfs, shifts, in_channels)
+#    if not model is None and wfs.shape[0] >= 1 and sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50:
+#        n_data, n_times, n_chans = wfs.shape
+#        print(shifts.shape)
+#        wfs_shifted = shift_wfs(wfs, shifts+2, in_channels)
+#        wf_reshaped = wfs_shifted.transpose(0, 2, 1).reshape(-1, n_times)
+#        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#        wf_torch = torch.FloatTensor(wf_reshaped).to(device) #torch.cuda.FloatTensor(wf_reshaped)
+#        denoised_wf = ind_den(wf_torch)[0].data
+#        denoised_wf = denoised_wf.reshape(n_data, n_chans, n_times)
+#        denoised_wf = denoised_wf.cpu().data.numpy().transpose(0, 2, 1)
+#        denoised_wf = denoised_wf.reshape(n_data, n_times, n_chans)
+#        del wf_torch
+#        denoised_wf = shift_wfs(denoised_wf, -shifts-2, in_channels)
+#        denoised_wf = shift_wfs(denoised_wf, shifts, in_channels)
+#        print("individual denoiser shape :")
+#        print(denoised_wf.shape)
+#        top_chan = denoised_wf.mean(0).ptp(0).argsort()[::-1][0]
+#        #idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
+#        print(denoised_wf[:, :, top_chan].mean(0).shape)
+#        np.save("/media/cat/julien/allen_75chan/denoise_mean_N_ptp/individual_mean_N_{}_batch_{}_unit_{}.npy".format(denoised_wf.shape[0], batch, unit), denoised_wf[:, :, top_chan].mean(0))
+    ### get figures ###
+    idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
+    top_chan = wfs_shifted.mean(0).ptp(0).argsort()[::-1][0]
+    if not model is None and wfs.shape[0] >= 1:
+        if sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50*sqrt(template_update_time/100):
+            wfs_shifted = shift_wfs(wfs, shifts, in_channels)
+            #top_chan = wfs_shifted.mean(0).ptp(0).argsort()[::-1][0]
+            wfs_denoised = predict0(wfs_shifted, model, in_channels)
+            #idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
+            #np.save("/media/cat/julien/allen_75chan/denoise_mean_N_ptp/raw_wfs_N_{}_batch_{}_unit_{}.npy".format(wfs.shape[0], batch, unit), wfs[idx])
+            reshifted_denoised = shift_wfs(wfs_denoised, -shifts, in_channels)
+            #np.save("/media/cat/julien/allen_75chan/denoise_mean_N_ptp/mean_N_{}_batch_{}_unit_{}.npy".format(wfs.shape[0], batch, unit), wfs[:, :, top_chan].mean(0))
+            return shift_template(shift_wfs(wfs_denoised, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
+        elif smooth:
+            return(shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0])
+        else:
+            return wfs.mean(0), spikes, filter_idx.shape[0]
+
+
+    ##### Uncomment the following for best denoiser version - comment the np.save #####
+    #if not model is None and wfs.shape[0] > 1 and sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50:
+    #    print("UPDATED")
+    #    idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
+    #    np.save("/media/cat/2TB_SSD_2/julien/nick_drift/wfs_raw/raw_wfs_{}_{}.npy".format(batch, unit), shift_wfs(wfs, shifts, in_channels)[idx])
+    #    wfs_shifted = shift_wfs(wfs, shifts, in_channels)
+    #    wfs_denoised = predict0(wfs_shifted, model, in_channels)
+    #    top_chan = wfs_shifted.mean(0).ptp(0).argsort()[::-1][0]
+    #    difference_mean = np.mean((wfs_denoised[30:-30, top_chan] - wfs_shifted[:, 30:-30, top_chan].mean(0))**2)/wfs_shifted.mean(0).ptp(0).max()
+    #    if (difference_mean >= 0.05 and wfs_shifted.shape[0]>=20):
+    #        np.save("/media/cat/2TB_SSD_2/julien/nick_drift/meaned_wfs/raw_wfs_{}_{}.npy".format(batch, unit), wfs_shifted.mean(0))
+    #        if smooth:
+    #            return(shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0])
+    #        else:
+    #            return wfs.mean(0), spikes, filter_idx.shape[0]
+    #    else:
+    #        wfs = wfs_denoised
+    #        np.save("/media/cat/2TB_SSD_2/julien/nick_drift/denoised_wfs/raw_wfs_{}_{}.npy".format(batch, unit), wfs)
+    #       return shift_template(shift_wfs(wfs, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
+    #elif smooth:
+    #    return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0]
+    #else:
+    #    return wfs.mean(0), spikes, filter_idx.shape[0]
+    ######################################################################################
 
 
 
@@ -154,7 +219,7 @@ class RegressionTemplates:
         Parameters should be in the pipeline already
 
         """
-        self.smooth = smooth
+        self.smooth = True #smooth
         self.denoise = denoise
         self.dir = os.path.join(ir_dir, "template_track_ir")
         self.forward_dir = ir_dir
@@ -169,6 +234,7 @@ class RegressionTemplates:
         self.geom_array = CONFIG.geom
         self.n_channels = CONFIG.recordings.n_channels
         self.sampling_rate = CONFIG.recordings.sampling_rate
+        self.template_update_time = CONFIG.deconvolution.template_update_time
         self.num_chunks = int(np.ceil(reader.rec_len/(CONFIG.deconvolution.template_update_time*self.sampling_rate)))
         # Probably no need for this in the pipeline (number of basis functions already determined)
         self.num_basis_functions = num_basis_functions
@@ -201,6 +267,7 @@ class RegressionTemplates:
             self.params_denoiser = denoiser_params
          
         if denoise:
+            self.define_denoiser_individual()
             self.define_model()
             
     def define_model(self):
@@ -208,9 +275,30 @@ class RegressionTemplates:
         load_from_file = True
         self.model = IB_Denoiser(self.params_denoiser).to(self.params_denoiser['device'])
         self.model.params_denoiser = self.params_denoiser
-        checkpoint = torch.load("/media/cat/2TB_SSD_2/kevin/IB2_jitter2_beta_zero_2000000.pt")
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+        checkpoint = torch.load("/media/cat/julien/allen_75chan/IB2_jitter2_beta_zero_2000000.pt")
+        origin/yass_denoise_2
+        self.model.load_state_dict(chfeckpoint['model_state_dict'])
 
+    def define_denoiser_individual(self):
+        CONFIG2 = make_CONFIG2(self.CONFIG)
+        print("CONFIG.neuralnetwork.denoise.n_filters")
+        print(CONFIG2.neuralnetwork.denoise.n_filters)
+        print("CONFIG.neuralnetwork.denoise.filter_sizes")
+        print(CONFIG2.neuralnetwork.denoise.filter_sizes)
+        print("CONFIG.spike_size_nn")
+        print(CONFIG2.spike_size_nn)
+        print("CONFIG.resources.gpu_id")
+        print(CONFIG2.resources.gpu_id)
+        print("OK")
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        denoiser = Denoise(CONFIG2.neuralnetwork.denoise.n_filters,
+                       CONFIG2.neuralnetwork.denoise.filter_sizes,
+                       CONFIG2.spike_size_nn,
+                       CONFIG2)
+        denoiser.load('/ssd/nishchal/neuropixel/denoise.pt')
+        denoiser = denoiser.cuda()
+        self.individual_denoiser = denoiser.to(device)
+        print("indiviual denoiser loaded!!")
 
 
     def continuous_visible_channels(self, templates, threshold=.1, neighb_threshold=.5, spatial_neighbor_dist=70):
@@ -354,7 +442,7 @@ class RegressionTemplates:
         
         b_bool = self.check_regression(chunk, U, True)
         f_bool = self.check_regression(chunk, U, False)
-        print(f_bool)
+        #print(f_bool)
         for i in idx_chan_vis[:self.model_rank] : 
             Y = templates_unit_chunk[:, i]
             if not (f_bool or b_bool):
@@ -572,11 +660,14 @@ class RegressionTemplates:
         if self.denoise:
             print("YAY")
             model = self.model
+            individual_denoiser = self.individual_denoiser
         else:
             print("NOOOOOOOOoOOOOOOOO")
             model = None
+            individual_denoiser = None
+
         '''
-        see = [get_wf(unit = unit, sps = self.spike_trains,
+        wf_list  = [get_wf(unit = unit, sps = self.spike_trains,
                              shift_chan = self.unit_shifts, 
                              len_wf = self.len_wf,
                              min_time = min_time,
@@ -585,10 +676,13 @@ class RegressionTemplates:
                              reader = self.reader,
                              vis_chans = self.visible_chans_dict, 
                              model = model,
+                             ind_den = individual_denoiser,
                              save = self.dir,
                              batch = batch) for unit in range(self.templates.shape[0])]
-        np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(see))
+        #np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(see))
+        
         '''
+
         wf_list = parmap.map(get_wf, 
                              range(self.templates.shape[0]),
                              sps = self.spike_trains,
@@ -599,11 +693,13 @@ class RegressionTemplates:
                              n_channels = self.n_channels,
                              reader = self.reader,
                              vis_chans = self.visible_chans_dict, 
+                             template_update_time = self.template_update_time,
                              model = model,
+                             ind_den = individual_denoiser,
                              save = self.dir,
                              batch = batch, 
                              smooth = self.smooth,
-                             pm_pbar=True, pm_processes = 2)
+                             pm_pbar=True, pm_processes = 3)
         
         np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(wf_list))
         
@@ -616,7 +712,6 @@ class RegressionTemplates:
             for unit in tqdm(range(self.n_unit)):
                 tmps[unit, :, :] = wf_list[unit][0]
                 tmps[unit, :, tmps[unit, :, :].ptp(0) < 1] = 0
-        
         return tmps, batch
     
     #same things but backwards
@@ -697,6 +792,7 @@ class RegressionTemplates:
                              n_channels = self.n_channels,
                              reader = self.reader,
                              vis_chans = self.visible_chans_dict, 
+                             template_update_time = self.template_update_time,
                              model = model,
                              save = self.dir,
                              batch = batch, 
