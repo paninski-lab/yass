@@ -91,7 +91,6 @@ def shift_template(template, shift_chan, n_channels):
 
 def shift_wfs(array, shifts, in_channels):
     return_array = np.zeros_like(array)
-    print(return_array.shape)
     for channel in in_channels:
         if len(return_array.shape) == 3:
             return_array[:,:, channel] = np.roll(array[:, :, channel], shifts[channel], 1)
@@ -101,8 +100,6 @@ def shift_wfs(array, shifts, in_channels):
 
 def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader,vis_chans, template_update_time = 100, model = None, ind_den = None, save = None, batch = 0, smooth = True):
     ## Add ind_den = None for comparisons to individual waveforms denoiser
-    print(unit)
-    #print("ok now")
     shift_chan = shift_chan[unit]
     spike_times = sps[:, 0]
     unit_bool = sps[:, 1] == unit
@@ -118,6 +115,7 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
     filter_idx = np.where(wfs[:, 30:-30, np.where(vis_chans[unit])[0]].ptp(1).max(1) > 3)[0]
     wfs = wfs[filter_idx]
     wfs_mean = wfs.mean(0)
+    print(wfs_mean)
     in_channels = np.where(wfs_mean.ptp(0) > 1)[0]
     shifts = 44 - wfs.mean(0).argmin(0)
 
@@ -149,8 +147,12 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
 #        print(denoised_wf[:, :, top_chan].mean(0).shape)
 #        np.save("/media/cat/julien/allen_75chan/denoise_mean_N_ptp/individual_mean_N_{}_batch_{}_unit_{}.npy".format(denoised_wf.shape[0], batch, unit), denoised_wf[:, :, top_chan].mean(0))
     ### get figures ###
+    
     idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
     top_chan = wfs_shifted.mean(0).ptp(0).argsort()[::-1][0]
+    print(wfs.shape[0])
+    if wfs.shape[0] == 0:
+        return wfs.mean(0), spikes, filter_idx.shape[0]
     if not model is None and wfs.shape[0] >= 1:
         if sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50*sqrt(template_update_time/100):
             wfs_shifted = shift_wfs(wfs, shifts, in_channels)
@@ -165,7 +167,6 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
             return(shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0])
         else:
             return wfs.mean(0), spikes, filter_idx.shape[0]
-
 
     ##### Uncomment the following for best denoiser version - comment the np.save #####
     #if not model is None and wfs.shape[0] > 1 and sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50:
@@ -276,8 +277,7 @@ class RegressionTemplates:
         self.model = IB_Denoiser(self.params_denoiser).to(self.params_denoiser['device'])
         self.model.params_denoiser = self.params_denoiser
         checkpoint = torch.load("/media/cat/julien/allen_75chan/IB2_jitter2_beta_zero_2000000.pt")
-        origin/yass_denoise_2
-        self.model.load_state_dict(chfeckpoint['model_state_dict'])
+        self.model.load_state_dict(checkpoint['model_state_dict'])
 
     def define_denoiser_individual(self):
         CONFIG2 = make_CONFIG2(self.CONFIG)
@@ -442,7 +442,6 @@ class RegressionTemplates:
         
         b_bool = self.check_regression(chunk, U, True)
         f_bool = self.check_regression(chunk, U, False)
-        #print(f_bool)
         for i in idx_chan_vis[:self.model_rank] : 
             Y = templates_unit_chunk[:, i]
             if not (f_bool or b_bool):
@@ -536,7 +535,6 @@ class RegressionTemplates:
         idx4 = np.where(np.logical_and(unit_bool, time_bool))[0]
         #if not enough spikes we use the previous batches spikes
         if templates_aligned[2] < 2:
-            print(unit)
             return self.templates[unit]
         if self.templates[unit].ptp(0).max(0) < ptp_min:
             return self.templates[unit]
@@ -635,8 +633,9 @@ class RegressionTemplates:
         if batch > 1:
             self.prev_templates = np.load(os.path.join(self.dir, "templates_{}.npy".format(str(int(batch -1)))))
         if batch > 1:
-            print(self.prev_templates.shape[0])
-            print(np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True).shape[0])
+            pass
+            #print(self.prev_templates.shape[0])
+            #print(np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True).shape[0])
         
         #find bisible channels of new units:
         if batch > 1 and not self.prev_templates.shape[0] == self.templates.shape[0] :
@@ -658,11 +657,9 @@ class RegressionTemplates:
         
         #Initiate it all 
         if self.denoise:
-            print("YAY")
             model = self.model
             individual_denoiser = self.individual_denoiser
         else:
-            print("NOOOOOOOOoOOOOOOOO")
             model = None
             individual_denoiser = None
 
@@ -702,7 +699,7 @@ class RegressionTemplates:
                              pm_pbar=True, pm_processes = 3)
         
         np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(wf_list))
-        
+        print(wf_list)
         if self.smooth:
             self.templates_approx = np.zeros_like(self.templates)
             tmps = np.zeros((self.n_unit, self.len_wf, self.n_channels))
