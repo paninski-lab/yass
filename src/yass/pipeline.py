@@ -9,7 +9,7 @@ import os
 import matplotlib
 matplotlib.use('Agg')
 
-# supress PCA unpickle userwarning 
+# supress PCA unpickle userwarning f
 # Cat: TODO: this is dangersous, may wish to fix the problem in cluster.py
 # import warnings
 # warnings.filterwarnings("ignore", category=UserWarning)
@@ -702,7 +702,8 @@ def final_deconv_with_template_updates_v2(output_directory,
                                           remove_meta_data=True, 
                                           full_rank = True, 
                                           smooth = True, 
-                                          denoise = True):
+                                          denoise = True,
+                                          CONFIG = None):
     
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -726,8 +727,12 @@ def final_deconv_with_template_updates_v2(output_directory,
     forward_directory = os.path.join(output_directory, 'forward_results')
     if not os.path.exists(forward_directory):
         os.makedirs(forward_directory)
-
-    CONFIG = read_config()
+    if CONFIG is None:   
+        CONFIG = read_config()
+    else:
+        CONFIG = set_config(CONFIG, "/")
+        CONFIG = read_config()
+        
     template_update_freq = CONFIG.deconvolution.template_update_time
     update_time = np.arange(run_chunk_sec[0], run_chunk_sec[1], template_update_freq)
     update_time = np.hstack((update_time, run_chunk_sec[1]))

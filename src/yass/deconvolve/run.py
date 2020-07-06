@@ -20,7 +20,8 @@ def run(fname_templates_in,
         recording_dtype,
         threshold=None,
         run_chunk_sec='full',
-        save_up_data=True):
+        save_up_data=True,
+        CONFIG = None):
             
     """Deconvolute spikes
 
@@ -58,9 +59,10 @@ def run(fname_templates_in,
     """
 
     logger = logging.getLogger(__name__)
-
-    CONFIG = read_config()
-    CONFIG = make_CONFIG2(CONFIG)
+    
+    if CONFIG is None:
+        CONFIG = read_config()
+        CONFIG = make_CONFIG2(CONFIG)
 
     #print("... deconv using GPU device: ", torch.cuda.current_device())
     
