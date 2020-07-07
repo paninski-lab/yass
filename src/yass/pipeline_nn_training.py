@@ -137,7 +137,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     # preprocess
     start = time.time()
     (standardized_path,
-     standardized_dtype, fname_reorder) = preprocess.run(
+     standardized_dtype) = preprocess.run(
         os.path.join(TMP_FOLDER, 'preprocess'))
 
     TMP_FOLDER = os.path.join(TMP_FOLDER, 'nn_train')
@@ -205,12 +205,12 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
                        CONFIG.neuralnetwork.denoise.filter_sizes,
                        CONFIG.spike_size_nn,
                        CONFIG).cuda()
-
     fname_denoise = os.path.join(TMP_FOLDER, 'denoise.pt')
     denoiser.train(fname_denoise, DenoTD)
 
     output_folder = os.path.join(CONFIG.path_to_output_directory, 'output')
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
+        
     shutil.copyfile(fname_detect, os.path.join(output_folder, 'detect.pt'))
     shutil.copyfile(fname_denoise, os.path.join(output_folder, 'denoise.pt'))

@@ -241,7 +241,7 @@ class RESIDUAL_GPU2(object):
             # at which chunk templates need to be updated
             n_chunks_update = int(self.template_update_time/self.reader.n_sec_chunk)
             update_chunk = np.arange(0, self.reader.n_batches, n_chunks_update)
-        print(self.reader.n_sec_chunk)
+
         # open residual file for appending on the fly
         f = open(self.fname_residual, 'wb')
         for batch_id, chunk in tqdm(enumerate(self.reader.idx_list)):
@@ -252,7 +252,7 @@ class RESIDUAL_GPU2(object):
                 time_sec_start = batch_id*self.reader.n_sec_chunk
                 fname_templates = os.path.join(self.templates_dir,
                                                'templates_{}sec.npy'.format(
-                                                   int(time_sec_start)))
+                                                   time_sec_start))
                 self.load_templates(fname_templates)
                 self.make_bsplines_parallel()
 
