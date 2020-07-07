@@ -439,7 +439,8 @@ def pre_final_deconv(TMP_FOLDER,
         compute_template_soft=True)
     
     logger.info('Remove Bad units')
-    methods = ['low_fr', 'low_ptp', 'duplicate', 'duplicate_soft_assignment']
+    #methods = ['low_fr', 'low_ptp', 'duplicate', 'duplicate_soft_assignment']
+    methods = ['low_fr', 'low_ptp', 'duplicate']
     (fname_templates, fname_spike_train, 
      fname_noise_soft, fname_shifts, fname_scales)  = postprocess.run(
         methods,
@@ -569,6 +570,9 @@ def get_partially_cleaned_templates(TMP_FOLDER,
     templates_new = np.zeros((n_units, n_times, n_channels), 'float32')    
     templates_new[unit_ids_big] = templates_big[unit_ids_big]
     templates_new[unit_ids_small] = templates_small[unit_ids_small]
+    
+    no_spike_units = np.where(templates_new.ptp(1).max(1) == 0)[0]
+    templates_new[no_spike_units] = templates[no_spike_units]
 
     #for unit in range(n_units):
     #    templates_new[unit,:, templates[unit].ptp(0) == 0] = 0
@@ -618,7 +622,7 @@ def final_deconv(TMP_FOLDER,
             standardized_dtype,
             fname_templates,
             run_chunk_sec,
-            remove_meta_data=True)
+            remove_meta_data=False)
     else:
         (fname_templates,
          fname_spike_train,
@@ -925,6 +929,13 @@ def final_deconv_with_template_updates_v2(output_directory,
                                            update_time,
                                            sim_array_soft_assignment,
                                            CONFIG)    
+    '''
+    if CONFIG.deconvolution.neuron_discover:
+        units_survived = post_backward_process(backward_directory,
+                                               update_time,
+                                               sim_array_soft_assignment,
+                                               CONFIG)
+    '''
     # final forward pass
     final_directory = os.path.join(output_directory, 'final_pass')
     if not os.path.exists(final_directory):
@@ -950,6 +961,13 @@ def final_deconv_with_template_updates_v2(output_directory,
         
         
         np.save(fname_templates_batch, np.load(fname_templates_in)[units_survived])
+
+        '''
+        temp_ = np.load(fname_templates_in)
+        if CONFIG.deconvolution.neuron_discover:
+            temp_ = temp_[units_survived]
+        np.save(fname_templates_batch, temp_)
+        '''
 
     for j in range(len(update_time)-1):
         
@@ -1080,22 +1098,23 @@ def deconv_pass1(output_directory,
         dtype_out='float32',
         run_chunk_sec=run_chunk_sec)
 
-    # post deconv split
-    (fname_templates, 
-     fname_spike_train,
-     fname_shifts,
-     fname_scales) = run_post_deconv_split(
-        os.path.join(output_directory, 'pd_split_0'),
-        fname_templates,
-        fname_spike_train,
-        fname_shifts,
-        fname_scales,
-        recording_dir,
-        recording_dtype,
-        fname_residual,
-        residual_dtype,
-        run_chunk_sec[0],
-        first_batch)
+    if CONFIG.deconvolution.neuron_discover:
+        # post deconv split
+        (fname_templates, 
+         fname_spike_train,
+         fname_shifts,
+         fname_scales) = run_post_deconv_split(
+            os.path.join(output_directory, 'pd_split_0'),
+            fname_templates,
+            fname_spike_train,
+            fname_shifts,
+            fname_scales,
+            recording_dir,
+            recording_dtype,
+            fname_residual,
+            residual_dtype,
+            run_chunk_sec[0],
+            first_batch)
 
     if first_batch:
         
@@ -1228,7 +1247,40 @@ def deconv_pass1(output_directory,
     
     n_units_out = np.load(fname_templates).shape[0]
     print('{} new units'.format(n_units_out - n_units_in))
-    
+
+    '''
+
+    if CONFIG.deconvolution.neuron_discover:
+        # post process kill
+        n_units_after_split = np.load(fname_templates).shape[0]
+        if first_batch:
+            units_to_process = np.arange(n_units_after_split)
+            #methods = ['low_fr', 'low_ptp',
+            #           'duplicate', 'duplicate_soft_assignment']
+            methods = ['low_fr', 'low_ptp',
+                       'duplicate']
+        else:
+            units_to_process = np.arange(n_units_in, n_units_after_split)
+            methods = ['low_fr', 'low_ptp', 'duplicate']
+
+        (fname_templates, fname_spike_train, 
+         fname_noise_soft, fname_shifts, fname_scales)  = postprocess.run(
+            methods,
+            os.path.join(output_directory, 'post_process_1'),
+            None,
+            None,
+            fname_templates,
+            fname_spike_train,
+            fname_template_soft,
+            fname_noise_soft,
+            fname_shifts,
+            fname_scales,
+            units_to_process)
+
+        n_units_out = np.load(fname_templates).shape[0]
+        print('{} new units'.format(n_units_out - n_units_in))
+        '''
+
     #modify all the postproccess kills. 
     result = np.load(fname_result)
     if not first_batch:
@@ -1450,26 +1502,28 @@ def post_backward_process(backward_directory,
                 units_in)
 
         # kill based on soft assignment proximity
-        min_paired_probs = np.min(pairwise_soft_assignment_max, 1)
-        threshold = 0.7
+        #min_paired_probs = np.min(pairwise_soft_assignment_max, 1)
+        #threshold = 0.7
         # do the comparison
-        pairs = []
-        kill = np.zeros(n_units, 'bool')
-        for k in units_in:
-            # if the avg soft assignment is less than the threshold, do the comparison
-            if np.any(pairwise_soft_assignment_max[k] < threshold):
-                candidate_pairs = sim_array_soft_assignment[k, 1:][
-                    pairwise_soft_assignment_max[k] < threshold]
-                for k2 in candidate_pairs:
-                    if min_paired_probs[k] < min_paired_probs[k2]:
-                        pairs.append([k ,k2])
-                        kill[k] = True
+        #pairs = []
+        #kill = np.zeros(n_units, 'bool')
+        #for k in units_in:
+        #    # if the avg soft assignment is less than the threshold, do the comparison
+        #    if np.any(pairwise_soft_assignment_max[k] < threshold):
+        #        candidate_pairs = sim_array_soft_assignment[k, 1:][
+        #            pairwise_soft_assignment_max[k] < threshold]
+        #        for k2 in candidate_pairs:
+        #            if min_paired_probs[k] < min_paired_probs[k2]:
+        #                pairs.append([k ,k2])
+        #                kill[k] = True
 
         # units not killed
-        kill = np.where(kill)[0]
-        units_out = units_in[~np.in1d(units_in, kill)]
-        np.save(fname_units_out, units_out)
-        np.save(os.path.join(backward_directory,
-                             'soft_assign_kill_pairs.npy'), pairs)
+        #kill = np.where(kill)[0]
+        #units_out = units_in[~np.in1d(units_in, kill)]
+        #np.save(fname_units_out, units_out)
+        #np.save(os.path.join(backward_directory,
+        #                     'soft_assign_kill_pairs.npy'), pairs)
+        
+        units_out = units_in
 
         return units_out

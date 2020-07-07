@@ -532,7 +532,7 @@ class TempTempConv(object):
             align_shifts[unit, vis_chans] = shifts_ - shifts_.min()
 
             center_spike_size = int(2 * CONFIG.recordings.sampling_rate / 1000.)
-            align = monotonic_edge(align, center_spike_size)
+            align = monotonic_edge(align, CONFIG.center_spike_size)
 
             # use reconstructed version of temp lates
             if len(align) <= rank:
@@ -611,8 +611,12 @@ class TempTempConv(object):
             shifts_ = global_argmax - temp_temp_argmax
             zero_padded_temp_temp = np.zeros([n_unit, n_unit, max_len], 'float32')
             for i in range(n_unit):
+                if temp[i].ptp(1).max() == 0:
+                    continue
                 u_shift = shifts_[i]
                 for j in range(n_unit):
+                    if temp[j].ptp(1).max() == 0:
+                        continue
                     if isinstance(temp_temp[i][j], np.ndarray):
                         #temp temp exists
                         zero_padded_temp_temp[i, j, u_shift:u_shift+temp_temp_len[i, j]] = temp_temp[i][j]
@@ -758,6 +762,15 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
 
     # get reference template if not given
     n_chans, n_time = temp_.shape
+
+    # the temporal window of an aligned template
+    n_time_small = n_time - 2 * jitter
+
+    if np.sum(np.square(temp_)) == 0:
+        return (np.zeros((n_chans, n_time_small), 'float32'),
+                np.zeros(n_chans, 'int32'),
+                np.arange(n_chans))
+
     if ref is None:
         main_c = temp_.ptp(1).argmax()
         ref = temp_[main_c]
@@ -765,9 +778,6 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
             min_loc = ref.argmin()
             ref = np.roll(ref, min_loc_ref-min_loc)
         ref = ref[jitter:-jitter]
-
-    # the temporal window of an aligned template
-    n_time_small = n_time - 2 * jitter
 
     # compute the distance between a template (for each channel)
     # and the ref template for every jitter
@@ -779,7 +789,8 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
 
     # find argrelmin (all local minimums)
     cc, tt = argrelmin(dist_, axis=1, order=15)
-    val = dist_[cc,tt]
+    val = dist_[cc, tt]
+
     # keep only small enough ones
     idx_keep = np.zeros(len(cc), 'bool')
     for c in range(dist_.shape[0]):
@@ -792,6 +803,11 @@ def align_templates(temp_, jitter, neigh_chans, ref=None, min_loc_ref=None):
         cc = cc[idx_keep]
         tt = tt[idx_keep]
         val = val[idx_keep]
+
+    if len(val) == 0:
+        cc = np.arange(n_chans)
+        tt = np.argmin(dist_, axis=1)
+        val = dist_[cc,tt]
 
     # do connecting
     #t_diff=10
@@ -946,9 +962,7 @@ def shift_svd_denoise(temp, CONFIG,
 
         # remove offset from shifts so that minimum is 0
         align_shifts[unit, vis_chans] = shifts_ - shifts_.min()
-
-        center_spike_size = int(2 * CONFIG.recordings.sampling_rate / 1000.)
-        align = monotonic_edge(align, center_spike_size)
+        align = monotonic_edge(align, CONFIG.center_spike_size)
 
         # use reconstructed version of temp lates
         if len(align) <= rank:

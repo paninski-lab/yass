@@ -61,7 +61,7 @@ def run_template_update(output_directory,
 def get_avg_min_max_vals(fname_templates, fname_spike_train,
                          fname_shifts, fname_scales,
                          reader_residual, residual_comp,
-                         units_to_update=None):
+                         units_to_update=None, min_ptp=5):
     # load input data
     templates = np.load(fname_templates)
     spike_train = np.load(fname_spike_train)
@@ -82,7 +82,7 @@ def get_avg_min_max_vals(fname_templates, fname_spike_train,
     ptp_max = ptp_temps.max(1)
     vis_chans = [None]*n_units
     for k in range(n_units):
-        vis_chans[k] = np.where(ptp_temps[k] > 0)[0]
+        vis_chans[k] = np.where(ptp_temps[k] > min_ptp)[0]
 
     min_max_loc = np.stack((templates.argmin(1),
                             templates.argmax(1))).transpose(1, 0, 2)
@@ -219,7 +219,8 @@ def quad_interp_val(vals, shift):
 
 
 def update_templates(fname_templates, weights, avg_min_max_vals,
-                     update_weight=50, units_to_update=None):
+                     update_weight=50, units_to_update=None,
+                     min_ptp=5, max_scale=0.05):
 
     templates = np.load(fname_templates)
 
@@ -232,10 +233,14 @@ def update_templates(fname_templates, weights, avg_min_max_vals,
     ptp_max = ptp_temps.max(1)
     vis_chans = [None]*n_units
     for k in range(n_units):
-        vis_chans[k] = np.where(ptp_temps[k] > 0)[0]
+        vis_chans[k] = np.where(ptp_temps[k] > min_ptp)[0]
 
     templates_updated = np.copy(templates)
     for k in units_to_update:
+
+        if len(vis_chans[k]) == 0:
+            continue
+
         # get geometric update weights
         weight_new = 1 - np.exp(-weights[k]/update_weight)
 
@@ -288,9 +293,10 @@ def update_templates(fname_templates, weights, avg_min_max_vals,
         # update ptp
         ptps_updated = (1-weight_new)*ptp_temp + weight_new*ptp_avg
 
-
         # scale templates
         scale = ptps_updated/ptp_temp
+        scale[scale > 1 + max_scale] = 1 + max_scale
+        scale[scale < 1 - max_scale] = 1 - max_scale
         temp_k_scaled = temp_k*scale[None]
 
         # shift templates
@@ -307,6 +313,6 @@ def update_templates(fname_templates, weights, avg_min_max_vals,
                              'cubic', bounds_error=False, fill_value=0.0)
                 temp_k_updated[:, c] = f(t_range_new)
 
-        templates_updated[k,: ,vis_chans[k]] = temp_k_updated.T
+        templates_updated[k,:, vis_chans[k]] = temp_k_updated.T
 
     return templates_updated

@@ -52,9 +52,9 @@ def make_CONFIG2(CONFIG):
     CONFIG2.deconvolution.deconv_gpu = CONFIG.deconvolution.deconv_gpu
     CONFIG2.deconvolution.update_templates = CONFIG.deconvolution.update_templates
     CONFIG2.deconvolution.template_update_time = CONFIG.deconvolution.template_update_time
-    CONFIG2.deconvolution.neuron_discover_time = CONFIG.deconvolution.neuron_discover_time
-    CONFIG2.deconvolution.drift_model = CONFIG.deconvolution.drift_model
-    CONFIG2.deconvolution.min_split_spikes = CONFIG.deconvolution.min_split_spikes
+    #CONFIG2.deconvolution.neuron_discover_time = CONFIG.deconvolution.neuron_discover_time
+    #CONFIG2.deconvolution.drift_model = CONFIG.deconvolution.drift_model
+    #CONFIG2.deconvolution.min_split_spikes = CONFIG.deconvolution.min_split_spikes
     CONFIG2.deconvolution.neuron_discover = CONFIG.deconvolution.neuron_discover
     
     CONFIG2.rec_len = CONFIG.rec_len

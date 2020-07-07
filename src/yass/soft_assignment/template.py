@@ -32,10 +32,15 @@ def transform_template(template, knots=None, prepad=7, postpad=3, order=3):
     return deconv.Template(torch.from_numpy(coefficients).cuda(), template.indices)
 
 def get_cov_matrix(spat_cov, geom):
+    
     posistion = geom
+    
+    if spat_cov.shape[0] == 0:
+        return np.eye(posistion.shape[0])
+
     dist_matrix = dist.squareform(dist.pdist(geom ))
 
-    cov_matrix = np.zeros((posistion.shape[0], posistion.shape[0]))
+    cov_matrix = np.eye(posistion.shape[0])
 
     for i in range(posistion.shape[0]):
         for j in range(posistion.shape[0]):
@@ -72,7 +77,10 @@ class TEMPLATE_ASSIGN_OBJECT(object):
             self.update_chunk = np.arange(0, reader_residual.n_batches, n_chunks_update)
         
         self.templates = np.load(fname_templates).astype('float32')
-        self.offset = int((self.templates.shape[1] - (2*(lik_window//2) +1) )/2)
+        if lik_window > self.templates.shape[1]:
+            lik_window = int(self.templates.shape[1]//2)
+        self.lik_window = lik_window
+        self.offset = int(self.templates.shape[1] - lik_window)//2 #int((self.templates.shape[1] - (2*(lik_window//2) +1) )/2)
         self.spike_train = np.load(fname_spike_train)
         self.spike_train_og = np.load(fname_spike_train)
         #self.spike_train = self.spike_train[self.spike_train[:, 0] > 40]
@@ -371,7 +379,8 @@ class TEMPLATE_ASSIGN_OBJECT(object):
 
                 clean_wfs = [(resid_snippets + shifted) for shifted in shifted_templates]
                 for i in range(len(clean_wfs)):
-                    restricted = clean_wfs[i][:, (self.offset):(self.n_times -(self.offset)), :]
+                    #restricted = clean_wfs[i][:, (self.offset):(self.n_times -(self.offset)), :]
+                    restricted = clean_wfs[i][:, self.offset:(self.offset+self.lik_window), :]
                     restricted = restricted.permute(0, 2, 1).reshape(
                         restricted.shape[0], restricted.shape[1]*restricted.shape[2])
                     clean_wfs[i] = restricted.half()
