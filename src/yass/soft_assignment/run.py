@@ -17,7 +17,7 @@ from yass.reader import READER
 from yass.noise import get_noise_covariance
 from yass.neuralnetwork.model_detector import Detect
 from yass.soft_assignment.noise import SOFTNOISEASSIGNMENT
-from yass.soft_assignment.template import TEMPLATE_ASSIGN_OBJECT
+from yass.soft_assignment.template_sa import TEMPLATE_ASSIGN_OBJECT
 
 def s_score(log_probs):
     s_score = np.zeros(log_probs.shape[0])
