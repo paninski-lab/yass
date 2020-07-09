@@ -212,7 +212,6 @@ class RegressionTemplates:
             self.params_denoiser = denoiser_params
          
         if denoise:
-            self.define_denoiser_individual()
             self.define_model()
             
     def define_model(self):
@@ -222,28 +221,6 @@ class RegressionTemplates:
         self.model.params_denoiser = self.params_denoiser
         checkpoint = torch.load("/media/cat/julien/allen_75chan/IB2_jitter2_beta_zero_2000000.pt")
         self.model.load_state_dict(checkpoint['model_state_dict'])
-
-    def define_denoiser_individual(self):
-        CONFIG2 = make_CONFIG2(self.CONFIG)
-        print("CONFIG.neuralnetwork.denoise.n_filters")
-        print(CONFIG2.neuralnetwork.denoise.n_filters)
-        print("CONFIG.neuralnetwork.denoise.filter_sizes")
-        print(CONFIG2.neuralnetwork.denoise.filter_sizes)
-        print("CONFIG.spike_size_nn")
-        print(CONFIG2.spike_size_nn)
-        print("CONFIG.resources.gpu_id")
-        print(CONFIG2.resources.gpu_id)
-        print("OK")
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        denoiser = Denoise(CONFIG2.neuralnetwork.denoise.n_filters,
-                       CONFIG2.neuralnetwork.denoise.filter_sizes,
-                       CONFIG2.spike_size_nn,
-                       CONFIG2)
-        denoiser.load('/ssd/nishchal/neuropixel/denoise.pt')
-        denoiser = denoiser.cuda()
-        self.individual_denoiser = denoiser.to(device)
-        print("indiviual denoiser loaded!!")
-
 
     def continuous_visible_channels(self, templates, threshold=.1, neighb_threshold=.5, spatial_neighbor_dist=70):
     ## Should be in the pipeline already
@@ -602,10 +579,8 @@ class RegressionTemplates:
         #Initiate it all 
         if self.denoise:
             model = self.model
-            individual_denoiser = self.individual_denoiser
         else:
             model = None
-            individual_denoiser = None
 
         '''
         wf_list  = [get_wf(unit = unit, sps = self.spike_trains,
