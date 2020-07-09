@@ -98,8 +98,7 @@ def shift_wfs(array, shifts, in_channels):
             return_array[:,channel] = np.roll(array[:,channel], shifts[channel], 0)
     return return_array
 
-def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader,vis_chans, template_update_time = 100, model = None, ind_den = None, save = None, batch = 0, smooth = True):
-    ## Add ind_den = None for comparisons to individual waveforms denoiser
+def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader,vis_chans, template_update_time = 100, model = None, save = None, batch = 0, smooth = True):
     shift_chan = shift_chan[unit]
     spike_times = sps[:, 0]
     unit_bool = sps[:, 1] == unit
@@ -115,84 +114,29 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
     filter_idx = np.where(wfs[:, 30:-30, np.where(vis_chans[unit])[0]].ptp(1).max(1) > 3)[0]
     wfs = wfs[filter_idx]
     wfs_mean = wfs.mean(0)
-    print(wfs_mean)
     in_channels = np.where(wfs_mean.ptp(0) > 1)[0]
     shifts = 44 - wfs.mean(0).argmin(0)
 
-    ########### Comment the following for best denoiser version
-    ### Compare to Individual waveforms denoiser ###
-    #device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    #device = "cpu"
-    #ind_denoiser = ind_den.to(device)
     n_data, n_times, n_chans = wfs.shape
-    wfs_shifted = shift_wfs(wfs, shifts, in_channels)
-#    if not model is None and wfs.shape[0] >= 1 and sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50:
-#        n_data, n_times, n_chans = wfs.shape
-#        print(shifts.shape)
-#        wfs_shifted = shift_wfs(wfs, shifts+2, in_channels)
-#        wf_reshaped = wfs_shifted.transpose(0, 2, 1).reshape(-1, n_times)
-#        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-#        wf_torch = torch.FloatTensor(wf_reshaped).to(device) #torch.cuda.FloatTensor(wf_reshaped)
-#        denoised_wf = ind_den(wf_torch)[0].data
-#        denoised_wf = denoised_wf.reshape(n_data, n_chans, n_times)
-#        denoised_wf = denoised_wf.cpu().data.numpy().transpose(0, 2, 1)
-#        denoised_wf = denoised_wf.reshape(n_data, n_times, n_chans)
-#        del wf_torch
-#        denoised_wf = shift_wfs(denoised_wf, -shifts-2, in_channels)
-#        denoised_wf = shift_wfs(denoised_wf, shifts, in_channels)
-#        print("individual denoiser shape :")
-#        print(denoised_wf.shape)
-#        top_chan = denoised_wf.mean(0).ptp(0).argsort()[::-1][0]
-#        #idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
-#        print(denoised_wf[:, :, top_chan].mean(0).shape)
-#        np.save("/media/cat/julien/allen_75chan/denoise_mean_N_ptp/individual_mean_N_{}_batch_{}_unit_{}.npy".format(denoised_wf.shape[0], batch, unit), denoised_wf[:, :, top_chan].mean(0))
-    ### get figures ###
-    
+    wfs_shifted = shift_wfs(wfs, shifts, in_channels)    
     idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
     top_chan = wfs_shifted.mean(0).ptp(0).argsort()[::-1][0]
-    print(wfs.shape[0])
     if wfs.shape[0] == 0:
         return wfs.mean(0), spikes, filter_idx.shape[0]
     if not model is None and wfs.shape[0] >= 1:
         if sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50*sqrt(template_update_time/100):
             wfs_shifted = shift_wfs(wfs, shifts, in_channels)
-            #top_chan = wfs_shifted.mean(0).ptp(0).argsort()[::-1][0]
             wfs_denoised = predict0(wfs_shifted, model, in_channels)
-            #idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
-            #np.save("/media/cat/julien/allen_75chan/denoise_mean_N_ptp/raw_wfs_N_{}_batch_{}_unit_{}.npy".format(wfs.shape[0], batch, unit), wfs[idx])
             reshifted_denoised = shift_wfs(wfs_denoised, -shifts, in_channels)
-            #np.save("/media/cat/julien/allen_75chan/denoise_mean_N_ptp/mean_N_{}_batch_{}_unit_{}.npy".format(wfs.shape[0], batch, unit), wfs[:, :, top_chan].mean(0))
             return shift_template(shift_wfs(wfs_denoised, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
         elif smooth:
             return(shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0])
         else:
             return wfs.mean(0), spikes, filter_idx.shape[0]
-
-    ##### Uncomment the following for best denoiser version - comment the np.save #####
-    #if not model is None and wfs.shape[0] > 1 and sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50:
-    #    print("UPDATED")
-    #    idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
-    #    np.save("/media/cat/2TB_SSD_2/julien/nick_drift/wfs_raw/raw_wfs_{}_{}.npy".format(batch, unit), shift_wfs(wfs, shifts, in_channels)[idx])
-    #    wfs_shifted = shift_wfs(wfs, shifts, in_channels)
-    #    wfs_denoised = predict0(wfs_shifted, model, in_channels)
-    #    top_chan = wfs_shifted.mean(0).ptp(0).argsort()[::-1][0]
-    #    difference_mean = np.mean((wfs_denoised[30:-30, top_chan] - wfs_shifted[:, 30:-30, top_chan].mean(0))**2)/wfs_shifted.mean(0).ptp(0).max()
-    #    if (difference_mean >= 0.05 and wfs_shifted.shape[0]>=20):
-    #        np.save("/media/cat/2TB_SSD_2/julien/nick_drift/meaned_wfs/raw_wfs_{}_{}.npy".format(batch, unit), wfs_shifted.mean(0))
-    #        if smooth:
-    #            return(shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0])
-    #        else:
-    #            return wfs.mean(0), spikes, filter_idx.shape[0]
-    #    else:
-    #        wfs = wfs_denoised
-    #        np.save("/media/cat/2TB_SSD_2/julien/nick_drift/denoised_wfs/raw_wfs_{}_{}.npy".format(batch, unit), wfs)
-    #       return shift_template(shift_wfs(wfs, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
-    #elif smooth:
-    #    return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0]
-    #else:
-    #    return wfs.mean(0), spikes, filter_idx.shape[0]
-    ######################################################################################
-
+    elif smooth:
+        return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0]
+    else:
+        return wfs.mean(0), spikes, filter_idx.shape[0]
 
 
 def full_rank_update(save_dir, update_object, batch_list, sps, tmps,  soft_assign = None, template_soft = None, backwards = False):
@@ -692,7 +636,6 @@ class RegressionTemplates:
                              vis_chans = self.visible_chans_dict, 
                              template_update_time = self.template_update_time,
                              model = model,
-                             ind_den = individual_denoiser,
                              save = self.dir,
                              batch = batch, 
                              smooth = self.smooth,
