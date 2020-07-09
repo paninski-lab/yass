@@ -155,7 +155,7 @@ def run(template_fname,
         #logprobs_outliers = logprobs_outliers/chi2_df
 
         cpu_sps = TAO.spike_train_og
-        outliers = cpu_sps[np.where(logprobs_outliers.min(1) > cut_off)[0], :]
+        outliers = cpu_sps[np.where(logprobs_outliers[:, 0] > cut_off)[0], :]
 
         #append log_probs to spike_times
         #logprobs = np.concatenate((cpu_sps,TAO.log_probs), axis = 1)
