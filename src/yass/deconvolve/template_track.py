@@ -122,7 +122,7 @@ def gather_spikes(spike_dict,unit, batch, needed_spikes, template_update_time):
             break
     
     if len(return_wfs) >= needed_spikes:
-        print(np.asarray(return_wfs).shape[0])
+       
         return np.asarray(return_wfs)
     else:
         return np.asarray([])
@@ -144,6 +144,11 @@ def get_wf(unit, spike_dict, sps, shift_chan, len_wf, min_time, max_time, n_chan
     
     filter_idx = np.where(wfs[:, 30:-30, np.where(vis_chans[unit])[0]].ptp(1).max(1) > 3)[0]
     wfs = wfs[filter_idx]
+    spikes = spikes[filter_idx]
+    
+    if wfs.shape[0] == 0:
+        return wfs.mean(0), spikes, filter_idx.shape[0], np.asarray([])
+
     wfs_mean = wfs.mean(0)
     in_channels = np.where(wfs_mean.ptp(0) > 1)[0]
     shifts = 44 - wfs.mean(0).argmin(0)
@@ -153,11 +158,9 @@ def get_wf(unit, spike_dict, sps, shift_chan, len_wf, min_time, max_time, n_chan
     idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
     top_chan = wfs_shifted.mean(0).ptp(0).argsort()[::-1][0]
 
-    if wfs.shape[0] == 0:
-        return wfs.mean(0), spikes, filter_idx.shape[0], np.asarray([])
     
     choice_idx = np.random.choice(wfs.shape[0], np.min([20, wfs.shape[0]]))
-    sample_wfs = wfs[choice_idx].copy().astype(np.float32)
+    sample_wfs = wfs[choice_idx].copy()
     #spike_dict[batch][unit] = wfs[choice_idx]
     #np.save(os.path.join(save, "spike_dict.npy"), spike_dict)
     
@@ -188,9 +191,9 @@ def get_wf(unit, spike_dict, sps, shift_chan, len_wf, min_time, max_time, n_chan
             wfs_shifted = shift_wfs(wfs, shifts, in_channels)
             wfs_denoised = predict0(wfs_shifted, model, in_channels)
             reshifted_denoised = shift_wfs(wfs_denoised, -shifts, in_channels)
-            return shift_template(shift_wfs(wfs_denoised, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0]
+            return shift_template(shift_wfs(wfs_denoised, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0], sample_wfs
         elif smooth:
-            return(shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0]), sample_wfs
+            return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0], sample_wfs
         else:
             return wfs.mean(0), spikes, filter_idx.shape[0], sample_wfs
     elif smooth:
@@ -568,6 +571,10 @@ class RegressionTemplates:
                 
 
     def get_updated_templates(self, batch_times, sps, tmps, soft_assign, template_soft):
+        #load new template information 
+        self.templates = np.load(tmps)
+        self.n_unit = self.templates.shape[0]
+        self.len_wf = self.templates.shape[1]
         #load new spike trains 
         self.spike_trains = np.load(sps)
         soft_assign = np.load(soft_assign)
@@ -577,23 +584,19 @@ class RegressionTemplates:
         self.spike_clusters = self.spike_trains[:, 1]
         self.spike_times = self.spike_trains[:, 0]
 
-        #load soft assignments
-        template_soft = np.load(template_soft)['probs_templates']
-        if not soft_assign is None:
-            
-            chi2_df = (2*(window_size //2) + 1)*n_chans
-            cut_off = chi2(chi2_df).ppf(.999)
-
-            include_idx = np.logical_and(soft_assign > .6, template_soft[:, 0] > .6)
-           
         
-            self.spike_trains = self.spike_trains[np.logical_and(soft_assign > .6, template_soft[:, 0] > .6)]
+        soft_assign = np.load(soft_assign)
+        template_assign = np.load(template_soft)['probs_templates']
+        logprobs = np.load(template_soft)['logprobs_outliers']
+        
+        if not soft_assign is None:
+            chi2_df = (2*(self.templates.shape[1] //2) + 1)*self.templates.shape[2]
+            cut_off = chi2(chi2_df).ppf(.999)
+            include_idx = np.logical_and(soft_assign > .6, template_assign[:, 0] > .6)
+            include_idx = np.logical_and(logprobs[:, 0] < cut_off, include_idx)                             
+            self.spike_trains = self.spike_trains[include_idx]
             
 
-        #load new template information 
-        self.templates = np.load(tmps)
-        self.n_unit = self.templates.shape[0]
-        self.len_wf = self.templates.shape[1]
         #Find per channel shift
         self.find_shift()
         batch = int(batch_times[0]/self.CONFIG.deconvolution.template_update_time)
@@ -707,7 +710,7 @@ class RegressionTemplates:
                              smooth = self.smooth,
                             pm_pbar=True, pm_processes = 2)
         for i, element in enumerate(wf_list):
-            spike_dict[batch][i] = element[3]
+            spike_dict[i][batch] = element[3]
         np.save(os.path.join(self.dir, "spike_dict.npy"), spike_dict)
 
         np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(wf_list))
@@ -808,10 +811,8 @@ class RegressionTemplates:
         #Initiate it all 
         if self.denoise:
             model = self.model
-            individual_denoiser = self.individual_denoiser
         else:
             model = None
-            individual_denoiser = None
         '''
         wf_list = [get_wf( 
                              in_unit,
@@ -844,14 +845,13 @@ class RegressionTemplates:
                              vis_chans = self.visible_chans_dict, 
                              template_update_time = self.template_update_time,
                              model = model,
-                             ind_den = individual_denoiser,
                              save = self.dir,
                              batch = batch, 
                              smooth = self.smooth,
                             pm_pbar=True, pm_processes = 2)
         
         for i, element in enumerate(wf_list):
-            spike_dict[batch][i] = element[3]
+            spike_dict[i][batch] = element[3]
         np.save(os.path.join(self.dir, "spike_dict.npy"), spike_dict)
 
         #np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(wf_list))
