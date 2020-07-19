@@ -209,27 +209,30 @@ class Config:
         # spike size to nn
         if self.neuralnetwork.apply_nn:
             if self.neuralnetwork.training.spike_size_ms is None:
-                detect_saved_file = torch.load(
-                    self.neuralnetwork.detect.filename,
-                    map_location=lambda storage, loc: storage)
-                spike_size_nn_detector = detect_saved_file[
-                    'temporal_filter1.0.weight'].shape[2]
+                try:
+                    detect_saved_file = torch.load(
+                        self.neuralnetwork.detect.filename,
+                        map_location=lambda storage, loc: storage)
+                    spike_size_nn_detector = detect_saved_file[
+                        'temporal_filter1.0.weight'].shape[2]
 
-                denoised_saved_file = torch.load(
-                    self.neuralnetwork.denoise.filename,
-                    map_location=lambda storage, loc: storage)
-                spike_size_nn_denoiser = denoised_saved_file[
-                    'out.weight'].shape[0]
+                    denoised_saved_file = torch.load(
+                        self.neuralnetwork.denoise.filename,
+                        map_location=lambda storage, loc: storage)
+                    spike_size_nn_denoiser = denoised_saved_file[
+                        'out.weight'].shape[0]
 
-                del detect_saved_file
-                del denoised_saved_file
-                torch.cuda.empty_cache()
+                    del detect_saved_file
+                    del denoised_saved_file
+                    torch.cuda.empty_cache()
 
-                if spike_size_nn_detector != spike_size_nn_denoiser:
-                    raise ValueError('input spike sizes of nn detector and denoiser do not match. change models')
+                    if spike_size_nn_detector != spike_size_nn_denoiser:
+                        raise ValueError('input spike sizes of nn detector and denoiser do not match. change models')
 
-                else:
-                    spike_size_nn = spike_size_nn_detector
+                    else:
+                        spike_size_nn = spike_size_nn_detector
+                except:
+                    spike_size_nn = center_spike_size
             else:
                 spike_size_nn = int(
                         np.round(self.neuralnetwork.training.spike_size_ms*
