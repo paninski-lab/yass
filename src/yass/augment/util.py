@@ -128,9 +128,10 @@ def denoise_templates(fname_templates, save_dir):
         temp = templates[:, :, j]
         temp_ptp = np.abs(temp.min(1))
         idx = temp_ptp > 0
-        temp = (temp[idx]/temp_ptp[idx, None])
-        denoised_templates[idx, :, j] = pca_neigh.inverse_transform(
-            pca_neigh.transform(temp))*temp_ptp[idx, None]
+        if np.any(idx):
+            temp = (temp[idx]/temp_ptp[idx, None])
+            denoised_templates[idx, :, j] = pca_neigh.inverse_transform(
+                pca_neigh.transform(temp))*temp_ptp[idx, None]
 
     fname_out = os.path.join(save_dir, 'denoised_templates.npy')
     np.save(fname_out, denoised_templates)
