@@ -24,6 +24,8 @@ from torch import nn
 from math import sqrt
 from yass.neuralnetwork import Detect, Denoise
 from yass.cluster.util import make_CONFIG2
+from scipy.stats import chi2
+
 ##### DENOISER SET UP
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -98,7 +100,36 @@ def shift_wfs(array, shifts, in_channels):
             return_array[:,channel] = np.roll(array[:,channel], shifts[channel], 0)
     return return_array
 
-def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader,vis_chans, template_update_time = 100, model = None, save = None, batch = 0, smooth = True):
+
+def gather_spikes(spike_dict,unit, batch, needed_spikes, template_update_time):
+    batch = batch - 1
+    total_batches = len(spike_dict)
+    return_wfs = []
+    batch_idx = np.arange(0, len(spike_dict))
+    batch_idx = batch_idx[np.argsort(np.abs(batch_idx - batch))[1:]]
+    
+    for idx in batch_idx:
+        
+        if len(return_wfs) + len(spike_dict[idx]) > needed_spikes:
+            choice_idx = np.random.choice(spike_dict[idx].shape[0], needed_spikes - len(return_wfs))
+            for choice in choice_idx:
+                return_wfs.append(spike_dict[idx][choice])
+            break
+        else:
+            return_wfs.extend(spike_dict[idx])
+        
+        if len(return_wfs) >= needed_spikes:
+            break
+    
+    if len(return_wfs) >= needed_spikes:
+       
+        return np.asarray(return_wfs)
+    else:
+        return np.asarray([])
+        
+
+def get_wf(unit, spike_dict, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader,vis_chans, template_update_time = 100, model = None, save = None, batch = 0, smooth = True):
+
     shift_chan = shift_chan[unit]
     spike_times = sps[:, 0]
     unit_bool = sps[:, 1] == unit
@@ -107,12 +138,17 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
     idx4 = np.where(np.logical_and(unit_bool, time_bool))[0]
     spikes = spike_times[idx4] #- len_wf//2                    
     wfs = np.zeros((size, len_wf, n_channels))
-    #last_chunk = self.max_time/self.CONFIG.deconvolution.template_update_time - 1
+
     
     wfs = reader.read_waveforms(spikes)[0]
     
     filter_idx = np.where(wfs[:, 30:-30, np.where(vis_chans[unit])[0]].ptp(1).max(1) > 3)[0]
     wfs = wfs[filter_idx]
+    spikes = spikes[filter_idx]
+    
+    if wfs.shape[0] == 0:
+        return wfs.mean(0), spikes, filter_idx.shape[0], np.asarray([])
+
     wfs_mean = wfs.mean(0)
     in_channels = np.where(wfs_mean.ptp(0) > 1)[0]
     shifts = 44 - wfs.mean(0).argmin(0)
@@ -121,8 +157,20 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
     wfs_shifted = shift_wfs(wfs, shifts, in_channels)    
     idx = np.random.choice(wfs.shape[0], np.min([wfs.shape[0], 300]))
     top_chan = wfs_shifted.mean(0).ptp(0).argsort()[::-1][0]
-    if wfs.shape[0] == 0:
-        return wfs.mean(0), spikes, filter_idx.shape[0]
+
+    
+    choice_idx = np.random.choice(wfs.shape[0], np.min([20, wfs.shape[0]]))
+    sample_wfs = wfs[choice_idx].copy()
+    #spike_dict[batch][unit] = wfs[choice_idx]
+    #np.save(os.path.join(save, "spike_dict.npy"), spike_dict)
+    
+    if wfs.shape[0] < 20:
+        needed_spikes = 20 - wfs.shape[0]
+        extra_wfs = gather_spikes(spike_dict, unit, batch, needed_spikes, template_update_time)
+        if extra_wfs.shape[0] > 0:
+            wfs = np.append(wfs, extra_wfs, axis = 0)
+    
+    '''
     if not model is None and wfs.shape[0] >= 1:
         if sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50*sqrt(template_update_time/100):
             wfs_shifted = shift_wfs(wfs, shifts, in_channels)
@@ -133,10 +181,25 @@ def get_wf(unit, sps, shift_chan, len_wf, min_time, max_time, n_channels, reader
             return(shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0])
         else:
             return wfs.mean(0), spikes, filter_idx.shape[0]
+
+    '''
+    
+    
+   
+    if not model is None and wfs.shape[0] >= 1:
+        if sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50*sqrt(template_update_time/100):
+            wfs_shifted = shift_wfs(wfs, shifts, in_channels)
+            wfs_denoised = predict0(wfs_shifted, model, in_channels)
+            reshifted_denoised = shift_wfs(wfs_denoised, -shifts, in_channels)
+            return shift_template(shift_wfs(wfs_denoised, -shifts, in_channels), shift_chan, n_channels), spikes, filter_idx.shape[0], sample_wfs
+        elif smooth:
+            return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0], sample_wfs
+        else:
+            return wfs.mean(0), spikes, filter_idx.shape[0], sample_wfs
     elif smooth:
-        return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0]
+        return shift_template(wfs.mean(0), shift_chan, n_channels), spikes, filter_idx.shape[0], sample_wfs
     else:
-        return wfs.mean(0), spikes, filter_idx.shape[0]
+        return wfs.mean(0), spikes, filter_idx.shape[0], sample_wfs    
 
 
 def full_rank_update(save_dir, update_object, batch_list, sps, tmps,  soft_assign = None, template_soft = None, backwards = False):
@@ -508,6 +571,10 @@ class RegressionTemplates:
                 
 
     def get_updated_templates(self, batch_times, sps, tmps, soft_assign, template_soft):
+        #load new template information 
+        self.templates = np.load(tmps)
+        self.n_unit = self.templates.shape[0]
+        self.len_wf = self.templates.shape[1]
         #load new spike trains 
         self.spike_trains = np.load(sps)
         soft_assign = np.load(soft_assign)
@@ -517,14 +584,19 @@ class RegressionTemplates:
         self.spike_clusters = self.spike_trains[:, 1]
         self.spike_times = self.spike_trains[:, 0]
 
-        #load soft assignments
-        template_soft = np.load(template_soft)['probs_templates']
+        
+        soft_assign = np.load(soft_assign)
+        template_assign = np.load(template_soft)['probs_templates']
+        logprobs = np.load(template_soft)['logprobs_outliers']
+        
         if not soft_assign is None:
-            self.spike_trains = self.spike_trains[np.logical_and(soft_assign > .6, template_soft[:, 0] > .6)]
-        #load new template information 
-        self.templates = np.load(tmps)
-        self.n_unit = self.templates.shape[0]
-        self.len_wf = self.templates.shape[1]
+            chi2_df = (2*(self.templates.shape[1] //2) + 1)*self.templates.shape[2]
+            cut_off = chi2(chi2_df).ppf(.999)
+            include_idx = np.logical_and(soft_assign > .6, template_assign[:, 0] > .6)
+            include_idx = np.logical_and(logprobs[:, 0] < cut_off, include_idx)                             
+            self.spike_trains = self.spike_trains[include_idx]
+            
+
         #Find per channel shift
         self.find_shift()
         batch = int(batch_times[0]/self.CONFIG.deconvolution.template_update_time)
@@ -535,7 +607,11 @@ class RegressionTemplates:
         max_time = batch_times[1]*self.sampling_rate
         data_start = min_time - self.len_wf*2
         data_end = max_time  + 4*self.len_wf
-           
+        
+        #number of batches 
+        num_batches = int(self.max_time/self.CONFIG.deconvolution.template_update_time - 1)
+
+        
         #Determine active channels of tracking (HAVE TO MODIFY THIS)
         if not os.path.exists(os.path.join(self.dir, "vis_chan.npy")):
             visible_chans = self.visible_channels()
@@ -550,19 +626,23 @@ class RegressionTemplates:
             np.save(os.path.join(self.dir, "vis_chan.npy"), self.visible_chans_dict)
         
         #Load preveious templates and chanel informration 
-
+        if not os.path.exists(os.path.join(self.dir, "spike_dict.npy")):
+            spike_dict = {unit : {in_batch: [] for in_batch in range(num_batches + 1)} for unit in range(self.templates.shape[0])}
+            np.save(os.path.join(self.dir, "spike_dict.npy"), spike_dict)
+        
         if batch > 1:
             self.prev_templates = np.load(os.path.join(self.dir, "templates_{}.npy".format(str(int(batch -1)))))
-        if batch > 1:
-            pass
-            #print(self.prev_templates.shape[0])
-            #print(np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True).shape[0])
         
-        #find bisible channels of new units:
-        if batch > 1 and not self.prev_templates.shape[0] == self.templates.shape[0] :
+        
+        #find visible channels of new units:
+        if batch > 1 and not self.prev_templates.shape[0] == self.templates.shape[0]:
+            ### need to update visible channels for 
             self.visible_chans_dict = np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True)
+            spike_dict = np.load(os.path.join(self.dir, "spike_dict.npy"), allow_pickle = True).item()
+              
             visible_chans = self.visible_channels()
             new_array = np.zeros((self.templates.shape[0], self.templates.shape[2]), dtype = np.bool_)
+            print(self.visible_chans_dict.shape)
             new_array[:self.prev_templates.shape[0]] = self.visible_chans_dict
             self.visible_chans_dict = new_array
             for new_unit in range(self.prev_templates.shape[0], self.templates.shape[0]):
@@ -572,9 +652,18 @@ class RegressionTemplates:
                     vis_chans = np.zeros(self.n_channels, dtype = np.bool_)
                     vis_chans[self.templates[new_unit].ptp(0).argsort()[::-1][:7]] = True
                     self.visible_chans_dict[new_unit] = vis_chans
+            
+                for in_batch in range(num_batches + 1):
+                    spike_dict[new_unit] = {in_batch: [] for in_batch in range(num_batches + 1)}
+                
             np.save(os.path.join(self.dir, "vis_chan.npy"), self.visible_chans_dict)
+            np.save(os.path.join(self.dir, "spike_dict.npy"), spike_dict)
+           
         else:
             self.visible_chans_dict = np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True)
+            spike_dict = np.load(os.path.join(self.dir, "spike_dict.npy"), allow_pickle = True).item()
+
+        
         
         #Initiate it all 
         if self.denoise:
@@ -582,8 +671,11 @@ class RegressionTemplates:
         else:
             model = None
 
+        #get mean/denoised waveforms from the section by section deconvolution
         '''
-        wf_list  = [get_wf(unit = unit, sps = self.spike_trains,
+        wf_list = [get_wf( 
+                             in_unit,
+                             sps = self.spike_trains,
                              shift_chan = self.unit_shifts, 
                              len_wf = self.len_wf,
                              min_time = min_time,
@@ -591,16 +683,18 @@ class RegressionTemplates:
                              n_channels = self.n_channels,
                              reader = self.reader,
                              vis_chans = self.visible_chans_dict, 
+                             template_update_time = self.template_update_time,
                              model = model,
                              ind_den = individual_denoiser,
                              save = self.dir,
-                             batch = batch) for unit in range(self.templates.shape[0])]
-        #np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(see))
-        
+                             batch = batch, 
+                             smooth = self.smooth,
+                             spike_dict = spike_dict) for in_unit in range(self.templates.shape[0])]
         '''
-
-        wf_list = parmap.map(get_wf, 
-                             range(self.templates.shape[0]),
+        
+        unit_dict_list = [(in_unit, spike_dict[in_unit]) for in_unit in range(self.templates.shape[0])]
+        wf_list = parmap.starmap(get_wf, 
+                             unit_dict_list,
                              sps = self.spike_trains,
                              shift_chan = self.unit_shifts, 
                              len_wf = self.len_wf,
@@ -614,10 +708,12 @@ class RegressionTemplates:
                              save = self.dir,
                              batch = batch, 
                              smooth = self.smooth,
-                             pm_pbar=True, pm_processes = 3)
-        
+                            pm_pbar=True, pm_processes = 2)
+        for i, element in enumerate(wf_list):
+            spike_dict[i][batch] = element[3]
+        np.save(os.path.join(self.dir, "spike_dict.npy"), spike_dict)
+
         np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(wf_list))
-        print(wf_list)
         if self.smooth:
             self.templates_approx = np.zeros_like(self.templates)
             tmps = np.zeros((self.n_unit, self.len_wf, self.n_channels))
@@ -631,33 +727,43 @@ class RegressionTemplates:
     
     #same things but backwards
     def get_updated_templates_backwards(self, batch_times, sps, tmps, soft_assign, template_soft):
-        #load new spike trains 
-        self.spike_trains = np.load(sps)
-        soft_assign = np.load(soft_assign)
-        template_soft = np.load(template_soft)['probs_templates']
-        if not soft_assign is None:
-            self.spike_trains = self.spike_trains[np.logical_and(soft_assign > .6, template_soft[:, 0] > .6)]
-
-        self.spike_trains = self.spike_trains[np.where(self.spike_trains[:, 0] > 100)[0], :]
-        self.spike_clusters = self.spike_trains[:, 1]
-        self.spike_times = self.spike_trains[:, 0]
         #load new template information 
         self.templates = np.load(tmps)
         self.n_unit = self.templates.shape[0]
         self.len_wf = self.templates.shape[1]
         self.find_shift()
-        batch = int((batch_times[1]/self.CONFIG.deconvolution.template_update_time) -1)  #int((self.max_time - batch_times[1])/self.CONFIG.deconvolution.template_update_time -1)
+        batch = int((batch_times[1]/self.CONFIG.deconvolution.template_update_time) -1) 
+
+        #load new spike trains 
+        self.spike_trains = np.load(sps)
+        soft_assign = np.load(soft_assign)
+        template_assign = np.load(template_soft)['probs_templates']
+        logprobs = np.load(template_soft)['logprobs_outliers']
         
+        if not soft_assign is None:
+            chi2_df = (2*(self.templates.shape[1] //2) + 1)*self.templates.shape[2]
+            cut_off = chi2(chi2_df).ppf(.999)
+            include_idx = np.logical_and(soft_assign > .6, template_assign[:, 0] > .6)
+            include_idx = np.logical_and(logprobs[:, 0] < cut_off, include_idx)                             
+            self.spike_trains = self.spike_trains[include_idx]
+
+        self.spike_trains = self.spike_trains[np.where(self.spike_trains[:, 0] > 100)[0], :]
+        self.spike_clusters = self.spike_trains[:, 1]
+        self.spike_times = self.spike_trains[:, 0]
+        
+        
+        #load batch information
         min_time = batch_times[0]*self.sampling_rate
         max_time = batch_times[1]*self.sampling_rate
         data_start = min_time - self.len_wf*2
         data_end = max_time  + 4*self.len_wf
-        #dat = self.reader.read_data(np.max([data_start,0]), data_end)
-        #dat.astype(np.float32).tofile(os.path.join(self.dir, "seg.dat"))
-        #np.save(os.path.join(self.dir, "seg.npy"), dat)
         offset = np.max([0, data_start])
-
         
+        #max number of batches
+        num_batches = int(self.max_time/self.CONFIG.deconvolution.template_update_time - 1)
+        
+        
+        # probably don't need but for testing purposes, create the visible channel dictionaries
         if not os.path.exists(os.path.join(self.dir, "vis_chan.npy")):
             visible_chans = self.visible_channels()
             self.visible_chans_dict = np.zeros((self.templates.shape[0], self.templates.shape[2]), dtype = np.bool_)
@@ -670,15 +776,19 @@ class RegressionTemplates:
                     self.visible_chans_dict[unit] = vis_chans
             np.save(os.path.join(self.dir, "vis_chan.npy"), self.visible_chans_dict)
         
-        if batch < self.max_time/self.CONFIG.deconvolution.template_update_time - 1:
+        
+        
+        if batch < num_batches:
             self.prev_templates = np.load(os.path.join(self.dir, "templates_{}.npy".format(str(int(batch +1)))))
 
-        if batch > self.max_time/self.CONFIG.deconvolution.template_update_time - 1 and not self.prev_templates.shape[0] == self.templates.shape[0] :
+  
+        if batch < num_batches and not self.prev_templates.shape[0] == self.templates.shape[0] :
             self.visible_chans_dict = np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True)
             visible_chans = self.visible_channels()
             new_array = np.zeros((self.templates.shape[0], self.templates.shape[2]), dtype = np.bool_)
             new_array[:self.prev_templates.shape[0]] = self.visible_chans_dict
             self.visible_chans_dict = new_array
+            spike_dict = np.load(os.path.join(self.dir, "spike_dict.npy"), allow_pickle = True).item()
             for new_unit in range(self.prev_templates.shape[0], self.templates.shape[0]):
                 if np.sum(visible_chans[:, new_unit]) > (self.num_basis_functions -1):
                     self.visible_chans_dict[new_unit]  =  visible_chans[:, new_unit]
@@ -686,19 +796,45 @@ class RegressionTemplates:
                     vis_chans = np.zeros(self.n_channels, dtype = np.bool_)
                     vis_chans[self.templates[new_unit].ptp(0).argsort()[::-1][:7]] = True
                     self.visible_chans_dict[new_unit] = vis_chans
+                
+                for in_batch in range(num_batches + 1):
+                    spike_dict[new_unit] = {in_batch: [] for in_batch in range(num_batches + 1)}
+                
             np.save(os.path.join(self.dir, "vis_chan.npy"), self.visible_chans_dict)
-            np.save(os.path.join(self.dir, "vis_chan_{}.npy".format(str(batch))), self.visible_chans_dict)
+            np.save(os.path.join(self.dir, "spike_dict.npy"), spike_dict)
+
         else:
             self.visible_chans_dict = np.load(os.path.join(self.dir, "vis_chan.npy"), allow_pickle = True)
+            spike_dict = np.load(os.path.join(self.dir, "spike_dict.npy"), allow_pickle = True).item()
+
         
-        
+        #Initiate it all 
         if self.denoise:
             model = self.model
         else:
             model = None
-
-        wf_list = parmap.map(get_wf, 
-                             range(self.templates.shape[0]),
+        '''
+        wf_list = [get_wf( 
+                             in_unit,
+                             sps = self.spike_trains,
+                             shift_chan = self.unit_shifts, 
+                             len_wf = self.len_wf,
+                             min_time = min_time,
+                             max_time = max_time,
+                             n_channels = self.n_channels,
+                             reader = self.reader,
+                             vis_chans = self.visible_chans_dict, 
+                             template_update_time = self.template_update_time,
+                             model = model,
+                             ind_den = individual_denoiser,
+                             save = self.dir,
+                             batch = batch, 
+                             smooth = self.smooth,
+                             spike_dict = spike_dict) for in_unit in range(self.templates.shape[0])]
+        '''
+        unit_dict_list = [(in_unit, spike_dict[in_unit]) for in_unit in range(self.templates.shape[0])]
+        wf_list = parmap.starmap(get_wf, 
+                             unit_dict_list,
                              sps = self.spike_trains,
                              shift_chan = self.unit_shifts, 
                              len_wf = self.len_wf,
@@ -711,10 +847,14 @@ class RegressionTemplates:
                              model = model,
                              save = self.dir,
                              batch = batch, 
-                             smooth = self.smooth
-                             , pm_pbar=True, pm_processes = 5)
+                             smooth = self.smooth,
+                            pm_pbar=True, pm_processes = 2)
         
-        np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(wf_list))
+        for i, element in enumerate(wf_list):
+            spike_dict[i][batch] = element[3]
+        np.save(os.path.join(self.dir, "spike_dict.npy"), spike_dict)
+
+        #np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(wf_list))
         
         if self.smooth:
             self.templates_approx = np.zeros_like(self.templates)
