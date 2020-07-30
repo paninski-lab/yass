@@ -203,6 +203,8 @@ def get_wf(unit, spike_dict, sps, shift_chan, len_wf, min_time, max_time, n_chan
 
 
 def full_rank_update(save_dir, update_object, batch_list, sps, tmps,  soft_assign = None, template_soft = None, backwards = False):
+    
+    
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     
@@ -575,6 +577,8 @@ class RegressionTemplates:
         self.templates = np.load(tmps)
         self.n_unit = self.templates.shape[0]
         self.len_wf = self.templates.shape[1]
+        
+        
         #load new spike trains 
         self.spike_trains = np.load(sps)
         soft_assign = np.load(soft_assign)
@@ -584,8 +588,6 @@ class RegressionTemplates:
         self.spike_clusters = self.spike_trains[:, 1]
         self.spike_times = self.spike_trains[:, 0]
 
-        
-        soft_assign = np.load(soft_assign)
         template_assign = np.load(template_soft)['probs_templates']
         logprobs = np.load(template_soft)['logprobs_outliers']
         
