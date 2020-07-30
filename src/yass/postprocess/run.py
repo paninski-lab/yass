@@ -27,7 +27,8 @@ def run(methods = [],
         fname_noise_soft_assignment=None,
         fname_shifts=None,
         fname_scales=None,
-        units_to_process=None):
+        units_to_process=None, 
+        result = True):
 
     ''' Run a sequence of post processes
     
@@ -56,9 +57,9 @@ def run(methods = [],
     fname_noise_soft_assignment_out = os.path.join(output_directory, 'noise_soft_assignment.npy')
     fname_scales_out = os.path.join(output_directory, 'scales.npy')
     fname_shifts_out = os.path.join(output_directory, 'shifts.npy') 
-    if os.path.exists(fname_templates_out) and os.path.exists(fname_spike_train_out):
+    if os.path.exists(fname_templates_out) and os.path.exists(fname_spike_train_out) and not result:
         return fname_templates_out, fname_spike_train_out, fname_noise_soft_assignment_out, fname_shifts_out, fname_scales_out
-
+            
     # run each method
     units_survived = np.arange(n_units)
     if units_to_process is None:
@@ -137,8 +138,12 @@ def run(methods = [],
 
     np.save(fname_templates_out, templates)
     np.save(fname_spike_train_out, spike_train_new)
-
-    return (fname_templates_out, fname_spike_train_out, 
+    
+    if result == True:
+        return (fname_templates_out, fname_spike_train_out, 
+            fname_noise_soft_assignment_out, fname_shifts_out, fname_scales_out, units_survived)
+    else:
+        return (fname_templates_out, fname_spike_train_out, 
             fname_noise_soft_assignment_out, fname_shifts_out, fname_scales_out)
 
 def post_process(output_directory,
