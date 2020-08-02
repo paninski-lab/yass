@@ -241,7 +241,15 @@ class Config:
                     spike_size_nn += 1
             self._set_param('spike_size_nn', spike_size_nn)
         else:
-            self._set_param('spike_size_nn', center_spike_size)
+            if self.neuralnetwork.training.spike_size_ms is None:
+                self._set_param('spike_size_nn', center_spike_size)
+            else:
+                spike_size_nn = int(
+                    np.round(self.neuralnetwork.training.spike_size_ms*
+                             self.recordings.sampling_rate/1000))
+                if spike_size_nn % 2 == 0:
+                    spike_size_nn += 1
+                self._set_param('spike_size_nn', spike_size_nn)
 
         # torch devices
         devices = []
