@@ -72,9 +72,6 @@ def run(output_directory):
     dtype_raw = CONFIG.recordings.dtype
     n_channels = CONFIG.recordings.n_channels
 
-    if not CONFIG.preprocess.apply_filter:
-        return filename_raw, dtype_raw
-
     # if apply filter, get recording reader
     n_sec_chunk = CONFIG.resources.n_sec_chunk
     reader = READER(filename_raw, dtype_raw, CONFIG, n_sec_chunk)
