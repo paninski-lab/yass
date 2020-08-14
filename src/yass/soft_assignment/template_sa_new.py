@@ -20,6 +20,31 @@ import matplotlib.pyplot as plt
 from scipy.stats import chi2
 from numpy import linalg as la
 
+
+# def nearestPD2(A):
+#     if isPD(A.cpu()):
+#         return A
+#     else:
+#         eigvals, eigvecs = torch.eig(A, eigenvectors=True)
+#         eigvals = eigvals[:,0]
+#         eigvals[eigvals < 0.0] = 1e-6
+        
+#         print( eigvals.max(), eigvals.min())
+#         print( torch.eig((eigvals[:,None,None] * torch.matmul(eigvecs[:,:,None], eigvecs[:,None])).sum(0))[0][:,0].max())
+#         print( torch.eig((eigvals[:,None,None] * torch.matmul(eigvecs[:,:,None], eigvecs[:,None])).sum(0))[0][:,0].min())
+        
+        
+#         plt.imshow(A.cpu())
+#         plt.show()
+        
+#         plt.imshow((eigvals[:,None,None] * torch.matmul(eigvecs[:,:,None], eigvecs[:,None])).sum(0).cpu())
+#         plt.show()
+        
+        
+#         return (eigvals[:,None,None] * torch.matmul(eigvecs[:,:,None], eigvecs[:,None])).sum(0)
+        
+
+
 def nearestPD(A):
     """Find the nearest positive-definite matrix to input
 
@@ -153,7 +178,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
             c = .5*temp_cov.diagonal(t).mean() + .5*temp_cov.diagonal(-t).mean()
             np.fill_diagonal(temp_cov[:,t:],c)
             np.fill_diagonal(temp_cov[t:,:],c)
-        self.temp_cov = torch.from_numpy(temp_cov[(self.offset)-5:(self.n_times -(self.offset))-20][:, (self.offset)-5:(self.n_times -(self.offset))-20]).float().cuda()
+        self.temp_cov = torch.from_numpy(temp_cov[(self.offset):(self.n_times -(self.offset))][:,(self.offset):(self.n_times -(self.offset))]).float().cuda()
         self.n_total_spikes = self.spike_train.shape[0]
 
         if similar_array is None:
@@ -164,8 +189,8 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         self.compute_units_in()
         self.exclude_large_units(large_unit_threshold)
 
-        t_start_include = self.n_times//2 + reader_residual.offset - 5
-        t_end_include = reader_residual.rec_len -  self.n_times//2 + reader_residual.offset - 20
+        t_start_include = self.n_times//2 + reader_residual.offset 
+        t_end_include = reader_residual.rec_len -  self.n_times//2 + reader_residual.offset
         self.idx_included = np.logical_and(
             np.logical_and(self.spike_train_og[:, 0] < t_end_include,
                            self.spike_train_og[:, 0] > t_start_include),
@@ -233,11 +258,29 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         A = torch.zeros([3, R*C, R*C]).cuda()
         
         signal_cov = torch.matmul(Tt[:,:,None], Tt[:,None])
+#         for i in range(signal_cov.shape[0]):
+#             print("sig ",torch.eig(signal_cov[i])[0][:,0].max(), torch.eig(signal_cov[i])[0][:,0].min())
+#             print("emp ",torch.eig(emp_cov[i])[0][:,0].max(), torch.eig(emp_cov[i])[0][:,0].min())
         
         for i in range(signal_cov.shape[0]):
+#             plt.imshow(signal_cov[i].cpu())
+#             plt.show()
+
             signal_cov[i] = nearestPD(signal_cov[i])
             emp_cov[i] = nearestPD(emp_cov[i])
+#             plt.imshow(signal_cov[i].cpu())
+#             plt.show()
+
             
+#         for i in range(signal_cov.shape[0]):
+#             print("sig ",torch.eig(signal_cov[i])[0][:,0].max(), torch.eig(signal_cov[i])[0][:,0].min())
+#             print("emp ",torch.eig(emp_cov[i])[0][:,0].max(), torch.eig(emp_cov[i])[0][:,0].min())
+            
+            
+        
+#         print(torch.eig(temp_cov)[0][:,0].max(), torch.eig(temp_cov)[0][:,0].min()) 
+            
+#         print(signal_cov.shape, emp_cov.shape, temp_cov.shape, spat_cov.shape)
         signal_cov = signal_cov.reshape([Tt.shape[0],C,R,C,R]).permute([0,1,3,2,4])
         
         kronecker = torch.from_numpy(np.kron(np.eye(C), np.ones([R, 1]))).cuda()
@@ -247,14 +290,26 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         X = torch.cat([signal_cov[:,:,:,None], temp_cov.repeat([emp_cov.shape[0], C, C, 1, 1, 1])], axis = 3)
         
         inv = torch.inverse((X[:,:,:,None] * X[:,:,:,None].permute([0,1,2,4,3,5, 6])).sum([5,6]))
+#         for i in range(3):
+#             for c1 in range(5):
+#                 for c2 in range(5):
+#                     print(torch.sort(torch.eig(inv[i,c1,c2])[0][:,0])[0])
         
         inv =  (inv[:,:,:,:,:,None, None]* X[:,:,:,None]).sum(3)
+#         print(inv.shape)
         W = (inv * emp_cov[:,:,:,None]).sum([4,5])
         
+#         for i in range(3):
+#             print(torch.sort(torch.eig(W[i,:,:,0])[0][:,0])[0])
+#             print(torch.sort(torch.eig(W[i,:,:,1])[0][:,0])[0])
+#         print()
         invW_n = torch.inverse(W[:,:,:,1])
         invW_s = torch.inverse(W[:,:,:,0])
         
-        
+#         for i in range(3):
+#             print(torch.sort(torch.eig(invW_s[i,:,:])[0][:,0])[0])
+#             print(torch.sort(torch.eig(invW_n[i,:,:])[0][:,0])[0])
+#         quit()
             
         inv_temp_cov = torch.inverse(temp_cov)
         temp1 = torch.from_numpy(np.kron(invW_n.cpu().numpy(), inv_temp_cov.cpu().numpy())).cuda().float()
@@ -474,6 +529,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                                    - self.reader_residual.buffer).cuda().long()
         with tqdm(total=self.reader_residual.n_batches) as pbar:
             for batch_id in range(self.reader_residual.n_batches):
+#             for batch_id in [0,1,2,3,4,5]:
                 if self.update_templates and np.any(self.update_chunk == batch_id):
                     time_sec_start = batch_id*self.reader_residual.n_sec_chunk
                     fname_templates = os.path.join(
@@ -502,6 +558,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                 shift_batch = self.shifts[idx_in]
                 
                 for prim_unit in range(self.n_units):
+#                 for prim_unit in [12]:
                 
                     ids1 = spike_train_batch[:, 1] == prim_unit
                     if ids1.sum() <= 1:
@@ -520,17 +577,17 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                             active_ids[j] = True
                     c_index = self.chans[prim_unit]
                     
-                    T = torch.from_numpy(self.templates[self.similar_array[prim_unit][active_ids,None], self.offset-5:-self.offset-20,c_index].reshape([active_ids.sum(), -1])).cuda()
+                    T = torch.from_numpy(self.templates[self.similar_array[prim_unit][active_ids,None], self.offset:-self.offset,c_index].reshape([active_ids.sum(), -1])).cuda()
                     
-                    n_times = self.n_times - 2 * self.offset + 5 - 20
+                    n_times = self.n_times - 2 * self.offset
                     emp_cov = torch.zeros([active_ids.sum(), n_times * c_index.shape[0], n_times * c_index.shape[0]]).cuda()
                     for j, sec_unit in enumerate(self.similar_array[prim_unit][active_ids]):
                         ids2 = spike_train_batch[:, 1] == sec_unit
-                        t_index = spike_train_batch[ids2, 0][:, None] + torch.arange(-(self.n_times//2)+self.offset-5, self.n_times//2 + 1 - self.offset - 20).cuda()
+                        t_index = spike_train_batch[ids2, 0][:, None] + torch.arange(-(self.n_times//2)+self.offset, self.n_times//2 + 1 - self.offset ).cuda()
                         resid_snippets = resid_dat[t_index[:,:,None], c_index[None, None,:].long()]
                         if j == 0:
                             wf1 = resid_snippets
-                    
+                        emp_cov[j] = cov(resid_snippets.permute([0,2,1]).reshape([resid_snippets.shape[0], -1]))
                     prec_est, const = self.calculate_coeff_matrices(T, self.temp_cov, self.spat_cov, active_ids, c_index, emp_cov, n_times, c_index.shape[0])
                     prec_est, const = prec_est.cuda(), const.cuda()
                     
@@ -543,7 +600,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                     
                     shifted_templates = [shifted_templates[i] for i in range(len(shifted_templates))]
                     
-                    clean_wfs = [(wf1 + shifted[:, (self.offset)-5:(self.n_times -(self.offset))-20, :]).permute(0,2,1).reshape([wf1.shape[0], -1]) for shifted in shifted_templates]
+                    clean_wfs = [(wf1 + shifted[:, (self.offset):(self.n_times -(self.offset)), :]).permute(0,2,1).reshape([wf1.shape[0], -1]) for shifted in shifted_templates]
                     
                     clean_wfs = torch.stack(clean_wfs, dim=1)
                     temp = clean_wfs[:,:3]
@@ -554,7 +611,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                     scaled_probs = torch.from_numpy(sizes_og[self.similar_array[prim_unit]]).cuda() * torch.exp(unscaled_probs)
                     
                     probs[idx_in[ids1]] = scaled_probs/ scaled_probs.sum(dim = 1, keepdim = True)
-
+#                 print(probs[idx_in[ids1]].sum(0))
                 pbar.update()
         
         return probs.float().cpu().numpy(), logprobs.float().cpu().numpy()
