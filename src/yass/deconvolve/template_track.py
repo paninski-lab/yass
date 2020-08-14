@@ -594,13 +594,11 @@ class RegressionTemplates:
         template_assign = np.load(template_soft)['probs_templates']
         logprobs = np.load(template_soft)['logprobs_outliers']
         
-        
         if not soft_assign is None:
-            noise_assign = np.load(soft_assign)
 #             chi2_df = (2*(self.templates.shape[1] //2) + 1)*self.templates.shape[2]
             chi2_df = 130
             cut_off = chi2(chi2_df).ppf(.999)
-            include_idx = np.logical_and(noise_assign > .6, template_assign[:, 0] > .6)
+            include_idx = np.logical_and(soft_assign > .6, template_assign[:, 0] > .6)
             include_idx = np.logical_and(logprobs[:, 0] < cut_off, include_idx)                             
             self.spike_trains = self.spike_trains[include_idx]
 

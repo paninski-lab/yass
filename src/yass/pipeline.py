@@ -310,7 +310,8 @@ def initial_block(TMP_FOLDER,
         standardized_path,
         standardized_dtype,
         fname_templates,
-        fname_spike_train)
+        fname_spike_train, 
+        result = False)
 
     return fname_templates, fname_spike_train
 
@@ -377,7 +378,8 @@ def iterative_block(TMP_FOLDER,
         standardized_path,
         standardized_dtype,
         fname_templates,
-        fname_spike_train)
+        fname_spike_train, 
+        result = False)
 
     return fname_templates, fname_spike_train
 
@@ -453,7 +455,8 @@ def pre_final_deconv(TMP_FOLDER,
         fname_template_soft,
         fname_noise_soft,
         fname_shifts,
-        fname_scales)
+        fname_scales, 
+        result = False)
 
     logger.info('POST DECONV MERGE')
     (fname_templates,
@@ -703,11 +706,12 @@ def final_deconv_with_template_updates_v2(output_directory,
                                           recording_dtype,
                                           fname_templates_in,
                                           run_chunk_sec,
+                                          CONFIG = None,
                                           remove_meta_data=True, 
                                           full_rank = True, 
-                                          smooth = True, 
+                                          smooth = False, 
                                           denoise = True,
-                                          CONFIG = None):
+                                          ):
     
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
@@ -731,6 +735,7 @@ def final_deconv_with_template_updates_v2(output_directory,
     forward_directory = os.path.join(output_directory, 'forward_results')
     if not os.path.exists(forward_directory):
         os.makedirs(forward_directory)
+    
     if CONFIG is None:   
         CONFIG = read_config()
     else:
@@ -1228,7 +1233,7 @@ def deconv_pass1(output_directory,
                    'duplicate', 'duplicate_soft_assignment']
     else:
         units_to_process = np.arange(n_units_in, n_units_after_split)
-        methods = ['low_fr', 'low_ptp', 'duplicate']
+        methods = ['low_fr', 'low_ptp', 'duplicate']#, 'duplicate_soft_assignment']
     
     (fname_templates, fname_spike_train, 
      fname_noise_soft, fname_shifts, fname_scales, fname_result)  = postprocess.run(
@@ -1242,7 +1247,7 @@ def deconv_pass1(output_directory,
         fname_noise_soft,
         fname_shifts,
         fname_scales,
-        units_to_process, 
+        units_to_process,
         result = True)
     
     n_units_out = np.load(fname_templates).shape[0]
@@ -1280,10 +1285,11 @@ def deconv_pass1(output_directory,
         n_units_out = np.load(fname_templates).shape[0]
         print('{} new units'.format(n_units_out - n_units_in))
         '''
-
+    
     #modify all the postproccess kills. 
-    result = np.load(fname_result)
-    if not first_batch:
+    result = fname_result #np.load(fname_result)
+    
+    if not first_batch and full_rank.smooth:
         np.save(os.path.join(full_rank.dir, "templates_{}".format(str(int(full_rank.batch)))), np.load(fname_templates))
         vis_chan_dict = np.load( os.path.join(full_rank.dir, "vis_chan.npy"))
         np.save(os.path.join(full_rank.dir, "vis_chan.npy"), vis_chan_dict[result])
@@ -1302,7 +1308,6 @@ def deconv_pass1(output_directory,
                 os.rename(os.path.join(full_rank.dir,"F_{}.npy".format(str(unit))),os.path.join(full_rank.dir, "F_{}.npy".format(str(j))))
             else:
                 continue
-
 
     return fname_templates
 
