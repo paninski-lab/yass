@@ -147,8 +147,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     if CONFIG.neuralnetwork.training.input_spike_train_filname is None:
 
         # run on 10 minutes of data
-        rec_len = np.min((CONFIG.rec_len,
-                         CONFIG.recordings.sampling_rate*10*60))
+        rec_len = np.min((CONFIG.rec_len/CONFIG.recordings.sampling_rate, 600))
         # detect
         logger.info('DETECTION')
         spike_index_path = detect.run(
