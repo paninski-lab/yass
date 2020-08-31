@@ -118,7 +118,7 @@ def run(template_fname,
         else:
             spatial_cov = np.load(fname_spatial_cov)
             temporal_cov = np.load(fname_temporal_cov)
-        window_size = 51
+        window_size = 61
         n_chans = 10
         reader_resid = READER(residual_fname,
                               residual_dtype,
@@ -139,7 +139,7 @@ def run(template_fname,
             n_chans=n_chans,
             rec_chans=CONFIG.channel_index.shape[0], 
             sim_units=3, 
-            temp_thresh=5, 
+            temp_thresh=10, 
             lik_window=window_size,
             similar_array=similar_array,
             update_templates=update_templates,
