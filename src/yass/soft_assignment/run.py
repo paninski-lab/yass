@@ -17,7 +17,7 @@ from yass.reader import READER
 from yass.noise import get_noise_covariance
 from yass.neuralnetwork.model_detector import Detect
 from yass.soft_assignment.noise import SOFTNOISEASSIGNMENT
-from yass.soft_assignment.template_sa import TEMPLATE_ASSIGN_OBJECT
+from yass.soft_assignment.template_sa_new import TEMPLATE_ASSIGN_OBJECT
 
 def s_score(log_probs):
     s_score = np.zeros(log_probs.shape[0])
@@ -145,14 +145,15 @@ def run(template_fname,
             update_templates=update_templates,
             template_update_time=CONFIG.deconvolution.template_update_time)
 
-        probs_templates, _, logprobs_outliers, units_assignment = TAO.run()
+        probs_templates, logprobs_outliers, units_assignment = TAO.run()
         #outlier spike times/units
-        chi2_df = (2*(window_size //2) + 1)*n_chans
+#         chi2_df = (2*(window_size //2) + 1)*n_chans
+        chi2_df = 130
         cut_off = chi2(chi2_df).ppf(.999)
 
-        #s_table = s_score(_)
-        #s_table = s_score(probs_templates)
-        #logprobs_outliers = logprobs_outliers/chi2_df
+#         #s_table = s_score(_)
+#         #s_table = s_score(probs_templates)
+#         #logprobs_outliers = logprobs_outliers/chi2_df
 
         cpu_sps = TAO.spike_train_og
         outliers = cpu_sps[np.where(logprobs_outliers[:, 0] > cut_off)[0], :]

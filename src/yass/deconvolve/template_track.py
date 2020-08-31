@@ -177,7 +177,6 @@ def get_wf(unit, spike_dict, sps, shift_chan, len_wf, min_time, max_time, n_chan
         extra_wfs = None
     else:
         extra_wfs = np.asarray([])
-    
    
     if not model is None and wfs.shape[0] >= 1:
         if sqrt(wfs.shape[0])*wfs_mean.ptp(0).max(0) <= 50*sqrt(template_update_time/100):
@@ -220,7 +219,6 @@ class RegressionTemplates:
         len_wf = 61 length of individual waveforms
         lambda_pen penalization for the regression (= 0.5?)
         Parameters should be in the pipeline already
-
         """
         self.smooth = smooth #smooth
         self.denoise = denoise
@@ -752,7 +750,6 @@ class RegressionTemplates:
             '''
             for i, element in enumerate(wf_list):
                 spike_dict[i][batch] = element[4]
-
             np.save(os.path.join(self.dir, "spike_dict.npy"), spike_dict)
             '''
         np.save(os.path.join(self.dir, "wfs_format{}.npy".format(batch)), np.asarray(wf_list))
