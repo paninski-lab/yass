@@ -594,7 +594,9 @@ class RegressionTemplates:
         
         #need to un_hardcode this
         if not soft_assign is None:
-            chi2_df = (2*(self.templates.shape[1] //2) + 1)*61
+            window_size = 51
+            n_chans = 5
+            chi2_df = window_size * n_chans
             cut_off = chi2(chi2_df).ppf(.995)
             include_idx = np.logical_and(soft_assign > .7, template_assign[:, 0] > .7)
             include_idx = np.logical_and(logprobs[:, 0] < cut_off, include_idx)                             
