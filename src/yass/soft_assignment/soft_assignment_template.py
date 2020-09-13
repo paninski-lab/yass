@@ -3,7 +3,6 @@
 """
 Created on Mon Nov 18 21:39:48 2019
 Updated on Wed Jul 08 14:23:30 2020
-
 @author: kevin, Nishchal
 """
 
@@ -47,12 +46,9 @@ from numpy import linalg as la
 
 def nearestPD(A):
     """Find the nearest positive-definite matrix to input
-
     A Python/Numpy port of John D'Errico's `nearestSPD` MATLAB code [1], which
     credits [2].
-
     [1] https://www.mathworks.com/matlabcentral/fileexchange/42885-nearestspd
-
     [2] N.J. Higham, "Computing a nearest symmetric positive semidefinite
     matrix" (1988): https://doi.org/10.1016/0024-3795(88)90223-6
     """
@@ -351,7 +347,6 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         for unit in range(self.n_units):
             for chan in range(self.rec_chans):
                 reduced[unit, :,  chan] = padded_templates[unit, (5 +max_time[unit, chan] - 2):(5 + max_time[unit, chan] + 3), chan]
-
         see = dist.squareform(dist.pdist(reduced.reshape(self.n_units, self.n_channels*5)))
         self.similar_array = np.zeros((self.n_units, self.sim_units)).astype("int16")
         for i in range(self.n_units):
@@ -362,7 +357,6 @@ class TEMPLATE_ASSIGN_OBJECT(object):
             #    self.units_in.add(i)
             if sorted_see[1]/norm < self.temp_thresh:
                 self.units_in.add(i)
-
     def get_similar(self):
         see = dist.squareform(dist.pdist(self.templates.reshape(self.n_units, self.n_channels*self.n_times)))
         self.similar_array = np.zeros((self.n_units, self.sim_units)).astype("int16")
@@ -528,8 +522,8 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         offsets = torch.from_numpy(self.reader_residual.idx_list[:, 0]
                                    - self.reader_residual.buffer).cuda().long()
         with tqdm(total=self.reader_residual.n_batches) as pbar:
-            for batch_id in range(self.reader_residual.n_batches):
-#             for batch_id in [0,1,2,3,4,5]:
+#             for batch_id in range(self.reader_residual.n_batches):
+            for batch_id in [0,1,2,3,4,5]:
                 if self.update_templates and np.any(self.update_chunk == batch_id):
                     time_sec_start = batch_id*self.reader_residual.n_sec_chunk
                     fname_templates = os.path.join(
@@ -588,6 +582,16 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                         if j == 0:
                             wf1 = resid_snippets
                         emp_cov[j] = cov(resid_snippets.permute([0,2,1]).reshape([resid_snippets.shape[0], -1]))
+                    plt.figure()
+                    plt.imshow(emp_cov[0].cpu())
+                    plt.show()
+                    plt.figure()
+                    plt.imshow(emp_cov[1].cpu())
+                    plt.show()
+                    plt.figure()
+                    plt.imshow(emp_cov[2].cpu())
+                    plt.show()
+                    quit()
                     prec_est, const = self.calculate_coeff_matrices(T, self.temp_cov, self.spat_cov, active_ids, c_index, emp_cov, n_times, c_index.shape[0])
                     prec_est, const = prec_est.cuda(), const.cuda()
                     

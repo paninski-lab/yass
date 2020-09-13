@@ -17,7 +17,7 @@ from yass.reader import READER
 from yass.noise import get_noise_covariance
 from yass.neuralnetwork.model_detector import Detect
 from yass.soft_assignment.noise import SOFTNOISEASSIGNMENT
-from yass.soft_assignment.template_sa_new import TEMPLATE_ASSIGN_OBJECT
+from yass.soft_assignment.template_sa_reg_shrink import TEMPLATE_ASSIGN_OBJECT
 
 def s_score(log_probs):
     s_score = np.zeros(log_probs.shape[0])
@@ -118,8 +118,8 @@ def run(template_fname,
         else:
             spatial_cov = np.load(fname_spatial_cov)
             temporal_cov = np.load(fname_temporal_cov)
-        window_size = 61
-        n_chans = 10
+        window_size = 51
+        n_chans = 5
         reader_resid = READER(residual_fname,
                               residual_dtype,
                               CONFIG,
@@ -130,11 +130,13 @@ def run(template_fname,
             fname_spike_train=spike_train_fname, 
             fname_templates=template_fname, 
             fname_shifts=shifts_fname,
+            fname_scales=scales_fname,
             reader_residual=reader_resid,
             spat_cov=spatial_cov,
             temp_cov=temporal_cov,
             channel_idx=CONFIG.channel_index, 
             geom=CONFIG.geom,
+            CONFIG = CONFIG,
             large_unit_threshold=100000,
             n_chans=n_chans,
             rec_chans=CONFIG.channel_index.shape[0], 
@@ -148,7 +150,7 @@ def run(template_fname,
         probs_templates, logprobs_outliers, units_assignment = TAO.run()
         #outlier spike times/units
 #         chi2_df = (2*(window_size //2) + 1)*n_chans
-        chi2_df = 130
+        chi2_df = window_size * n_chans
         cut_off = chi2(chi2_df).ppf(.999)
 
 #         #s_table = s_score(_)
