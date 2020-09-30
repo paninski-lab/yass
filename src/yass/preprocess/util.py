@@ -4,13 +4,12 @@ Filtering functions
 import logging
 import os
 import numpy as np
-
+from scipy.interpolate import griddata
 from scipy.signal import butter, filtfilt
 
 
 def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
     """Butterworth filter
-
     Parameters
     ----------
     ts: np.array
@@ -23,12 +22,10 @@ def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
         Order of Butterworth filter
     sampling_frequency: int
         Sampling frequency (Hz)
-
     Notes
     -----
     This function can only be applied to a one dimensional array, to apply
     it to multiple channels use butterworth
-
     Raises
     ------
     NotImplementedError
@@ -52,14 +49,11 @@ def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
 
 def _mean_standard_deviation(rec, centered=False):
     """Determine standard deviation of noise in each channel
-
     Parameters
     ----------
     rec : matrix [length of recording, number of channels]
-
     centered : bool
         if not standardized, center it
-
     Returns
     -------
     sd : vector [number of channels]
@@ -78,18 +72,14 @@ def _mean_standard_deviation(rec, centered=False):
 
 def _standardize(rec, sd=None, centers=None):
     """Determine standard deviation of noise in each channel
-
     Parameters
     ----------
     rec : matrix [length of recording, number of channels]
         recording
-
     sd : vector [number of chnanels,]
         standard deviation
-
     centered : bool
         if not standardized, center it
-
     Returns
     -------
     matrix [length of recording, number of channels]
@@ -118,7 +108,6 @@ def filter_standardize_batch(batch_id, reader, fname_mean_sd,
                              low_frequency=None, high_factor=None,
                              order=None, sampling_frequency=None):
     """Butterworth filter for a one dimensional time series
-
     Parameters
     ----------
     ts: np.array
@@ -131,12 +120,10 @@ def filter_standardize_batch(batch_id, reader, fname_mean_sd,
         Order of Butterworth filter
     sampling_frequency: int
         Sampling frequency (Hz)
-
     Notes
     -----
     This function can only be applied to a one dimensional array, to apply
     it to multiple channels use butterworth
-
     Raises
     ------
     NotImplementedError
@@ -185,7 +172,6 @@ def get_std(ts,
             high_factor=None,
             order=None):
     """Butterworth filter for a one dimensional time series
-
     Parameters
     ----------
     ts: np.array
@@ -198,12 +184,10 @@ def get_std(ts,
         Order of Butterworth filter
     sampling_frequency: int
         Sampling frequency (Hz)
-
     Notes
     -----
     This function can only be applied to a one dimensional array, to apply
     it to multiple channels use butterworth
-
     Raises
     ------
     NotImplementedError
@@ -223,8 +207,100 @@ def get_std(ts,
              centers=centers,
              sd=sd)
 
+def make_histograms(batch_id, reader, output_directory, num_chan, sample_rate, template_time, voltage_threshold, 
+    length_um, num_bins, num_y_pos, quantile_comp, br_quantile, neighboring_chan, M):
+    """Create histograms for each batches, before registration
+    Parameters
+    ----------
+    template_time : length of a template 
+    voltage_threshold : threshold for spike detection 
+    length_um : length of the electrode 
+    num_bins : number of bins for x axis of the histograms (log ptps)
+    num_y_pos : number of bins for y axis of the histograms 
+    quantile_comp : number of shifts for the sliding window for computing quantiles 
+    br_quantile : background removal quantile to consider 
+    neighboring_chan : number of neighboring channels in spatial radius 
+    M : electrode2space mapping
+    """
+    logger = logging.getLogger(__name__)
 
-def merge_filtered_files(filtered_location, output_directory):
+    ts = reader.read_data_batch(batch_id, add_buffer=False)
+    ts = ts.T
+
+    print("ts SHAPE :")
+    print(ts.shape)
+
+    ### Detect spikes by simple thresholding ###
+    num_timesteps = ts.shape[1]
+    threshold_spikes = []
+    num_sliding_windows = int(num_timesteps/(template_time/2))
+    for i in range(num_sliding_windows):
+        ptp = ts[:, i*int(template_time/2):(i+1)*(int(template_time/2))].ptp(1)
+        top_chan = ptp.argmax()
+        if ptp[top_chan] > voltage_threshold:
+            threshold_spikes.append(ts[top_chan, i*int(template_time/2):(i+1)*(int(template_time/2))].argmin() + i*int(template_time/2))
+
+    spike_times = np.array(threshold_spikes)
+    
+    ### Make histograms ###
+
+    hist_arrays = np.zeros((num_bins, num_y_pos))
+
+    #### Get 0.9 quantile per channel ####
+    timepoints_bin = int((num_timesteps-template_time)/quantile_comp)
+    ptp_sliding = np.zeros((num_chan, timepoints_bin)) #Sampling Rate 
+    for j in range(timepoints_bin):
+        ptp_sliding[:, j] = ts[:, int(j*quantile_comp):int(j*quantile_comp + template_time)].ptp(1)
+        quantile = np.quantile(ptp_sliding, br_quantile, axis = 1)
+    
+    #### Make histograms ####
+    for spike_t in spike_times:
+        ptp = np.maximum(ts[:, max(int(spike_t-template_time/2), 0):min(int(spike_t + template_time/2), num_timesteps)].ptp(1) - quantile, 0) 
+        top_chan = ptp.argmax()
+        if (top_chan+neighboring_chan/2 < num_chan):
+            ptp[(top_chan+int(neighboring_chan/2)):] = 0
+        if (top_chan-neighboring_chan/2 > 0):
+            ptp[:(top_chan-int(neighboring_chan/2))] = 0
+        electrode_ptp_int = np.log1p(np.matmul(ptp, M))
+        hist_plot = np.histogram2d(electrode_ptp_int, np.arange(0, length_um), bins=(num_bins, num_y_pos), range = [[np.log(voltage_threshold), 6.0], [0, length_um]])[0]
+        hist_arrays += hist_plot
+
+    log_hist_arrays = np.log1p(hist_arrays) #Take log counts 
+
+    ####### Save histogram arrays #######
+
+    fname = os.path.join(
+        output_directory,
+        "histogram_{}.npy".format(
+            str(batch_id).zfill(6)))
+    np.save(fname, log_hist_arrays)
+
+    print("HISTOGRAMS CREATED !!!!!!!!!")
+
+def register_data(batch_id, reader, output_directory, estimated_displacement, out_dtype):
+    """Create histograms for each batches, before registration
+    Parameters
+    ----------
+    estimated_displacement : np array containing displacements 
+    """
+    logger = logging.getLogger(__name__)
+    ts = reader.read_data_batch(batch_id, add_buffer=False)
+    ts = ts.T
+
+    new_data = np.zeros(ts.shape)
+    for i in range(num_hist):
+        new_data = griddata(geomarray, ts, geomarray - [0, -estimated_displacement[batch_id]])
+
+    # save
+    fname = os.path.join(
+        output_directory,
+        "registered_{}.npy".format(
+            str(batch_id).zfill(6)))
+    np.save(new_data, new_data.T.astype(out_dtype))
+
+
+
+def merge_filtered_files(filtered_location, output_directory, delete=True):
 
     logger = logging.getLogger(__name__)
 
@@ -238,4 +314,5 @@ def merge_filtered_files(filtered_location, output_directory):
     for fname in filenames_sorted:
         res = np.load(os.path.join(filtered_location, fname))
         res.tofile(f)
-        os.remove(os.path.join(filtered_location, fname))
+        if delete==True:
+            os.remove(os.path.join(filtered_location, fname))
