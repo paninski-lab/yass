@@ -207,7 +207,7 @@ def get_std(ts,
              centers=centers,
              sd=sd)
 
-def make_histograms(batch_id, reader, output_directory, num_chan, sample_rate, template_time, voltage_threshold, 
+def make_histograms(batch_id, reader, output_directory, output_directory_spikes, num_chan, sample_rate, template_time, voltage_threshold, 
     length_um, num_bins, num_y_pos, quantile_comp, br_quantile, neighboring_chan, M):
     """Create histograms for each batches, before registration
     Parameters
@@ -241,6 +241,12 @@ def make_histograms(batch_id, reader, output_directory, num_chan, sample_rate, t
             threshold_spikes.append(ts[top_chan, i*int(template_time/2):(i+1)*(int(template_time/2))].argmin() + i*int(template_time/2))
 
     spike_times = np.array(threshold_spikes)
+
+    fname_spike = os.path.join(output_directory_spikes,
+        "spike_times_{}.npy".format(
+            str(batch_id).zfill(6)))
+    np.save(fname_spike, spike_times)
+
     
     ### Make histograms ###
 

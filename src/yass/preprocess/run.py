@@ -174,11 +174,11 @@ def run(output_directory):
     registration_params = dict(
         num_chan=n_channels, 
         time_templates=int(CONFIG.recordings.spike_size_ms*CONFIG.recordings.sampling_rate/1000),
-        voltage_threshold=8,
+        voltage_threshold=50,
         sigma = 1,
         histogram_batch_len=1, ##Each histogram lasts one second 
         num_bins = 20, 
-        quantile_comp = 20, #Each step between sliding window for computing quantile
+        quantile_comp = 5, #Each step between sliding window for computing quantile
         timepoints_bin = int(CONFIG.recordings.sampling_rate/5), #read from quantile_comp
         br_quantile = 0.9, # For sinkhorn background removal
         max_displacement = 30, 
@@ -188,8 +188,7 @@ def run(output_directory):
     registration_params['length_um'] = int(geomarray[:, 1].max()) #Get from geomarray
     registration_params['space_bw_elec'] = geomarray[2, 1] - geomarray[0, 1]
     registration_params['num_y_pos'] = int(registration_params['length_um']/registration_params['space_bw_elec']) 
-    # neighboring_chan = 0
-    registration_params['neighboring_chan'] = 2*len(np.where(np.linalg.norm(geomarray, axis = 1)<=CONFIG.recordings.spatial_radius)[0])
+    registration_params['neighboring_chan'] = len(np.where(np.linalg.norm(geomarray, axis = 1)<=CONFIG.recordings.spatial_radius)[0])
 
     M = np.zeros((registration_params['num_chan'], registration_params['length_um']))
     for i in range(registration_params['num_chan']):
@@ -203,6 +202,11 @@ def run(output_directory):
 
     ########    # parmap.map or loop to create histograms 
 
+    ## To save spike times for testing - delete after
+    output_spikes = os.path.join(output_directory, 'spike_times')
+    if not os.path.exists(output_spikes):
+        os.makedirs(output_spikes)
+
     if CONFIG.resources.multi_processing:
         n_processors = CONFIG.resources.n_processors
         parmap.map(
@@ -210,6 +214,7 @@ def run(output_directory):
             [i for i in range(reader_registration.n_batches)],
             reader_registration,
             hist_location, 
+            output_spikes, ## To save spike times for testing - delete after
             registration_params['num_chan'], 
             CONFIG.recordings.sampling_rate, 
             registration_params['time_templates'], 
@@ -229,6 +234,7 @@ def run(output_directory):
                 batch_id, 
                 reader_registration, 
                 hist_location, 
+                output_spikes, ## To save spike times for testing - delete after
                 registration_params['num_chan'], 
                 CONFIG.recordings.sampling_rate, 
                 registration_params['time_templates'], 
@@ -259,8 +265,13 @@ def run(output_directory):
             hist1 = np.load(fname1)
             hist2 = np.load(fname2)
             for d in possible_displacement:
-                hist_i_shift = shift(hist2, (0, d/registration_params['space_bw_elec'] ))
-                cor = np.abs(np.diag(np.dot(hist1.T, hist_i_shift)).mean())
+                hist_2_shift = shift(hist2, (0, d/registration_params['space_bw_elec'] ))
+                cor = np.mean((hist1 - hist1.mean()) * (hist_2_shift - hist_2_shift.mean()))
+                stds = hist1.std() * hist_2_shift.std()
+                if stds == 0:
+                    cor = 0
+                else:
+                    cor /= stds
                 if cor > cor_cmp:
                     dis = d
                     cor_cmp = cor
