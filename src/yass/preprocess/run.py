@@ -174,11 +174,11 @@ def run(output_directory):
     registration_params = dict(
         num_chan=n_channels, 
         time_templates=int(CONFIG.recordings.spike_size_ms*CONFIG.recordings.sampling_rate/1000),
-        voltage_threshold=50,
+        voltage_threshold=8,
         sigma = 1,
         histogram_batch_len=1, ##Each histogram lasts one second 
         num_bins = 20, 
-        quantile_comp = 5, #Each step between sliding window for computing quantile
+        quantile_comp = 20, #Each step between sliding window for computing quantile
         timepoints_bin = int(CONFIG.recordings.sampling_rate/5), #read from quantile_comp
         br_quantile = 0.9, # For sinkhorn background removal
         max_displacement = 30, 
@@ -188,8 +188,8 @@ def run(output_directory):
     registration_params['length_um'] = int(geomarray[:, 1].max()) #Get from geomarray
     registration_params['space_bw_elec'] = geomarray[2, 1] - geomarray[0, 1]
     registration_params['num_y_pos'] = int(registration_params['length_um']/registration_params['space_bw_elec']) 
-    neighboring_chan = 0
-    registration_params['neighboring_chan'] = len(np.where(np.linalg.norm(geomarray, axis = 1)<=CONFIG.recordings.spatial_radius)[0])
+    # neighboring_chan = 0
+    registration_params['neighboring_chan'] = 2*len(np.where(np.linalg.norm(geomarray, axis = 1)<=CONFIG.recordings.spatial_radius)[0])
 
     M = np.zeros((registration_params['num_chan'], registration_params['length_um']))
     for i in range(registration_params['num_chan']):
