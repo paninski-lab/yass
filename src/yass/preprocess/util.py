@@ -208,7 +208,7 @@ def get_std(ts,
              sd=sd)
 
 def make_histograms(batch_id, reader, output_directory, output_directory_spikes, num_chan, sample_rate, template_time, voltage_threshold, 
-    length_um, num_bins, num_y_pos, quantile_comp, br_quantile, neighboring_chan, M):
+    length_um, num_bins, num_y_pos, quantile_comp, br_quantile, iter_quantile, neighboring_chan, M):
     """Create histograms for each batches, before registration
     Parameters
     ----------
@@ -232,43 +232,56 @@ def make_histograms(batch_id, reader, output_directory, output_directory_spikes,
 
     ### Detect spikes by simple thresholding ###
     num_timesteps = ts.shape[1]
-    threshold_spikes = []
-    num_sliding_windows = int(num_timesteps/(template_time/2))
-    for i in range(num_sliding_windows):
-        ptp = ts[:, i*int(template_time/2):(i+1)*(int(template_time/2))].ptp(1)
-        top_chan = ptp.argmax()
-        if ptp[top_chan] > voltage_threshold:
-            threshold_spikes.append(ts[top_chan, i*int(template_time/2):(i+1)*(int(template_time/2))].argmin() + i*int(template_time/2))
+    # threshold_spikes = []
+    # num_sliding_windows = int(num_timesteps/(template_time/2))
+    # for i in range(num_sliding_windows):
+    #     ptp = ts[:, i*int(template_time/2):(i+1)*(int(template_time/2))].ptp(1)
+    #     top_chan = ptp.argmax()
+    #     if ptp[top_chan] > voltage_threshold:
+    #         threshold_spikes.append(ts[top_chan, i*int(template_time/2):(i+1)*(int(template_time/2))].argmin() + i*int(template_time/2))
 
-    spike_times = np.array(threshold_spikes)
+    # spike_times = np.array(threshold_spikes)
 
-    fname_spike = os.path.join(output_directory_spikes,
-        "spike_times_{}.npy".format(
-            str(batch_id).zfill(6)))
-    np.save(fname_spike, spike_times)
+    # fname_spike = os.path.join(output_directory_spikes,
+    #     "spike_times_{}.npy".format(
+    #         str(batch_id).zfill(6)))
+    # np.save(fname_spike, spike_times)
 
     
     ### Make histograms ###
 
     hist_arrays = np.zeros((num_bins, num_y_pos))
+    # hist_arrays = np.zeros((num_bins, 2*length_um))
 
-    #### Get 0.9 quantile per channel ####
+    #### Get sliding window ptp ####
     timepoints_bin = int((num_timesteps-template_time)/quantile_comp)
     ptp_sliding = np.zeros((num_chan, timepoints_bin)) #Sampling Rate 
     for j in range(timepoints_bin):
         ptp_sliding[:, j] = ts[:, int(j*quantile_comp):int(j*quantile_comp + template_time)].ptp(1)
-        quantile = np.quantile(ptp_sliding, br_quantile, axis = 1)
+
+    ##### Sinkhorn denoising #####
+    for k in range(iter_quantile): 
+        quantile_t = np.quantile(ptp_sliding, br_quantile, axis = 1) #size num_channels
+        quantile_s = np.quantile(ptp_sliding, br_quantile, axis = 0) #size num_timepoints
+        ptp_sliding = np.maximum(ptp_sliding - quantile_s, 0)
+        ptp_sliding = np.maximum((ptp_sliding.T - quantile_t).T, 0)
     
     #### Make histograms ####
-    for spike_t in spike_times:
-        ptp = np.maximum(ts[:, max(int(spike_t-template_time/2), 0):min(int(spike_t + template_time/2), num_timesteps)].ptp(1) - quantile, 0) 
+    # print("ptp_sliding shape :")
+    # print(ptp_sliding.shape)
+    # print("ptp_sliding Max : " + str(ptp_sliding.max()))
+    # print("number of spikes : " + str(len(np.where(ptp_sliding.max(0)>=voltage_threshold)[0])))
+    for spike_time in np.where(ptp_sliding.max(0)>=voltage_threshold)[0]:
+        # quantile = np.quantile(ptp_sliding, br_quantile, axis = 1)
+        # ptp = np.maximum(ts[:, max(int(spike_t-template_time/2), 0):min(int(spike_t + template_time/2), num_timesteps)].ptp(1) - quantile, 0) 
+        ptp = ptp_sliding[:, spike_time]
         top_chan = ptp.argmax()
         if (top_chan+neighboring_chan/2 < num_chan):
             ptp[(top_chan+int(neighboring_chan/2)):] = 0
         if (top_chan-neighboring_chan/2 > 0):
             ptp[:(top_chan-int(neighboring_chan/2))] = 0
         electrode_ptp_int = np.log1p(np.matmul(ptp, M))
-        hist_plot = np.histogram2d(electrode_ptp_int, np.arange(0, length_um), bins=(num_bins, num_y_pos), range = [[np.log(voltage_threshold), 6.0], [0, length_um]])[0]
+        hist_plot = np.histogram2d(electrode_ptp_int, np.arange(0, length_um), bins=(num_bins, num_y_pos), range = [[np.log1p(voltage_threshold), np.log1p(10*voltage_threshold)], [0, length_um]])[0]
         hist_arrays += hist_plot
 
     log_hist_arrays = np.log1p(hist_arrays) #Take log counts 
@@ -283,7 +296,7 @@ def make_histograms(batch_id, reader, output_directory, output_directory_spikes,
 
     print("HISTOGRAMS CREATED !!!!!!!!!")
 
-def register_data(batch_id, reader, output_directory, estimated_displacement, out_dtype):
+def register_data(batch_id, reader, output_directory, estimated_displacement, geomarray, out_dtype):
     """Create histograms for each batches, before registration
     Parameters
     ----------
@@ -294,15 +307,21 @@ def register_data(batch_id, reader, output_directory, estimated_displacement, ou
     ts = ts.T
 
     new_data = np.zeros(ts.shape)
-    for i in range(num_hist):
-        new_data = griddata(geomarray, ts, geomarray - [0, -estimated_displacement[batch_id]])
+    new_data = griddata(geomarray, ts, geomarray + [0, -estimated_displacement[batch_id]], method = 'linear', fill_value = 0)
 
     # save
     fname = os.path.join(
         output_directory,
         "registered_{}.npy".format(
             str(batch_id).zfill(6)))
-    np.save(new_data, new_data.T.astype(out_dtype))
+    np.save(fname, new_data.T.astype(out_dtype))
+
+    if (batch_id == 0):
+        fname = 'Matrix_Before_Registration.npy'
+        np.save(fname, ts.T.astype(out_dtype))
+        fname = 'Matrix_After_Registration.npy'
+        np.save(fname, new_data.T.astype(out_dtype))
+
 
 
 

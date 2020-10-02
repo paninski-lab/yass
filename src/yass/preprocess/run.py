@@ -7,6 +7,7 @@ import numpy as np
 import parmap
 import yaml
 from scipy.ndimage import shift
+from scipy.signal import convolve
 
 from yass import read_config
 from yass.preprocess.util import *
@@ -175,20 +176,21 @@ def run(output_directory):
         num_chan=n_channels, 
         time_templates=int(CONFIG.recordings.spike_size_ms*CONFIG.recordings.sampling_rate/1000),
         voltage_threshold=50,
-        sigma = 1,
+        sigma = 2,
         histogram_batch_len=1, ##Each histogram lasts one second 
         num_bins = 20, 
         quantile_comp = 5, #Each step between sliding window for computing quantile
         timepoints_bin = int(CONFIG.recordings.sampling_rate/5), #read from quantile_comp
-        br_quantile = 0.9, # For sinkhorn background removal
+        br_quantile = 0.8, # For sinkhorn background removal
         max_displacement = 30, 
+        iter_quantile = 5,
         geomarray = geomarray  
         )
 
     registration_params['length_um'] = int(geomarray[:, 1].max()) #Get from geomarray
     registration_params['space_bw_elec'] = geomarray[2, 1] - geomarray[0, 1]
     registration_params['num_y_pos'] = int(registration_params['length_um']/registration_params['space_bw_elec']) 
-    registration_params['neighboring_chan'] = len(np.where(np.linalg.norm(geomarray, axis = 1)<=CONFIG.recordings.spatial_radius)[0])
+    registration_params['neighboring_chan'] = 2*len(np.where(np.linalg.norm(geomarray, axis = 1)<=CONFIG.recordings.spatial_radius)[0])
 
     M = np.zeros((registration_params['num_chan'], registration_params['length_um']))
     for i in range(registration_params['num_chan']):
@@ -224,6 +226,7 @@ def run(output_directory):
             registration_params['num_y_pos'], 
             registration_params['quantile_comp'], 
             registration_params['br_quantile'], 
+            registration_params['iter_quantile'],
             registration_params['neighboring_chan'], 
             M,
             processes=n_processors,
@@ -244,6 +247,7 @@ def run(output_directory):
                 registration_params['num_y_pos'], 
                 registration_params['quantile_comp'], 
                 registration_params['br_quantile'], 
+                registration_params['iter_quantile'],
                 registration_params['neighboring_chan'], 
                 M)
 
@@ -254,44 +258,66 @@ def run(output_directory):
     correlation = np.eye(num_hist)
     displacement = np.zeros((num_hist, num_hist))
 
+    prob = 2*np.log(num_hist)*num_hist / (num_hist*(num_hist-1))
+    subsample = np.random.choice([0, 1], size=(num_hist,num_hist), p=[1 - prob, prob])
+
     possible_displacement = np.arange(-registration_params['max_displacement'], registration_params['max_displacement'] + 0.5, 0.5) ### 0.5um increments? 
 
-    for s in range(num_hist):
-        for t in np.arange(s+1, num_hist):
-            cor_cmp = 0
-            dis = -registration_params['max_displacement']
-            fname1 = os.path.join(hist_location,"histogram_{}.npy".format(str(s).zfill(6)))
-            fname2 = os.path.join(hist_location,"histogram_{}.npy".format(str(t).zfill(6)))
-            hist1 = np.load(fname1)
-            hist2 = np.load(fname2)
-            for d in possible_displacement:
-                hist_2_shift = shift(hist2, (0, d/registration_params['space_bw_elec'] ))
-                cor = np.mean((hist1 - hist1.mean()) * (hist_2_shift - hist_2_shift.mean()))
-                stds = hist1.std() * hist_2_shift.std()
-                if stds == 0:
-                    cor = 0
-                else:
-                    cor /= stds
-                if cor > cor_cmp:
-                    dis = d
-                    cor_cmp = cor
-            correlation[s, t]=cor_cmp
-            correlation[t, s]=cor_cmp
-            displacement[s, t]=dis
-            displacement[t, s]=-dis
+    for j in range(len(np.where(subsample == 1)[0])):
+        # print(j)
+        # time1 = time.time()
+        s = np.where(subsample == 1)[0][j]
+        t = np.where(subsample == 1)[1][j]
+        cor_cmp = 0
+        dis = -registration_params['max_displacement']
+        fname1 = os.path.join(hist_location,"histogram_{}.npy".format(str(s).zfill(6)))
+        fname2 = os.path.join(hist_location,"histogram_{}.npy".format(str(t).zfill(6)))
+        hist1 = np.load(fname1)
+        hist2 = np.load(fname2)
+        for d in possible_displacement:
+            hist_2_shift = shift(hist2, (0, d/registration_params['space_bw_elec'] ))
+            cor = np.mean((hist1 - hist1.mean()) * (hist_2_shift - hist_2_shift.mean()))
+            stds = hist1.std() * hist_2_shift.std()
+            if stds == 0:
+                cor = 0
+            else:
+                cor /= stds
+            if cor > cor_cmp:
+                dis = d
+                cor_cmp = cor
+        correlation[s, t]=cor_cmp
+        correlation[t, s]=cor_cmp
+        displacement[s, t]=dis
+        displacement[t, s]=-dis
 
     fname = os.path.join(output_directory, "displacement_matrix.npy")
     np.save(fname, displacement)
+    fname = os.path.join(output_directory, "subsample_matrix.npy")
+    np.save(fname, subsample)
 
+    print("Displacement Matrix Estimated")
 
-    estimated_dis_mat = displacement.T
-    for i in range(num_hist):
-        estimated_dis_mat[:, i] = estimated_dis_mat[:, i] - displacement.T[:, 0]
+    # estimated_dis_mat = displacement.T
+    # for i in range(num_hist):
+    #     estimated_dis_mat[:, i] = estimated_dis_mat[:, i] - displacement.T[:, 0]
+    # estimated_displacement = estimated_dis_mat.mean(0)
+    vec_subsampled = np.reshape(subsample, num_hist*num_hist)*np.reshape(displacement, num_hist*num_hist)
 
-    estimated_displacement = estimated_dis_mat.mean(0)
+    estimated_displacement = np.dot(np.linalg.pinv(np.kron(np.eye(num_hist), np.ones(num_hist)) - np.kron(np.ones(num_hist), np.eye(num_hist))).T, vec_subsampled)
+    estimated_displacement = estimated_displacement - estimated_displacement[0]
 
     fname = os.path.join(output_directory, "estimated_displacement.npy")
     np.save(fname, estimated_displacement)
+
+    print("Displacement Calculated")
+
+    arr_conv = np.arange(-num_hist, num_hist)
+    window = np.exp(-arr_conv**2/4)/(np.sqrt(2*np.pi*2))
+    smooth_estimate = convolve(estimated_displacement, window, mode = 'same')
+
+    fname = os.path.join(output_directory, "smoothed_displacement.npy")
+    np.save(fname, smooth_estimate)
+
 
     ######## Interpolation - save data 
     output_dir_registered_data = os.path.join(output_directory, "registered_files")
@@ -305,7 +331,8 @@ def run(output_directory):
             [i for i in range(reader_registration.n_batches)],
             reader_registration,
             output_dir_registered_data, 
-            estimated_displacement,
+            smooth_estimate,
+            geomarray['geomarray'],
             CONFIG.preprocess.dtype,
             processes=n_processors,
             pm_pbar=True)
@@ -315,7 +342,8 @@ def run(output_directory):
                 batch_id, 
                 reader_registration, 
                 output_dir_registered_data, 
-                estimated_displacement, 
+                smooth_estimate, 
+                geomarray['geomarray'],
                 CONFIG.preprocess.dtype)
 
     # Merge the chunk filtered files and delete the individual chunks
