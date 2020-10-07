@@ -88,7 +88,6 @@ def run(output_directory):
         histogram_batch_len=1, ##Each histogram lasts one second 
         num_bins = 20, 
         quantile_comp = 1, #Each step between sliding window for computing quantile
-        timepoints_bin = int(CONFIG.recordings.sampling_rate/5), #read from quantile_comp
         br_quantile = 0.9, # For sinkhorn background removal
         max_displacement = 30, 
         iter_quantile = 10,
@@ -171,7 +170,8 @@ def run(output_directory):
     correlation = np.eye(num_hist)
     displacement = np.zeros((num_hist, num_hist))
 
-    prob = 2*np.log(num_hist)*num_hist / (num_hist*(num_hist-1))
+    ### HOW TO TAKE ADVANTAGE OF DOUBLE MATRIX TO FASTEN COMPUTATION???
+    prob = 4*np.log(num_hist)*num_hist / (num_hist*(num_hist-1))
     subsample = np.random.choice([0, 1], size=(num_hist,num_hist), p=[1 - prob, prob])
 
     possible_displacement = np.arange(-registration_params['max_displacement'], registration_params['max_displacement'] + 0.5, 0.5) ### 0.5um increments? 
@@ -211,6 +211,14 @@ def run(output_directory):
         displacement[s, t]=dis
         displacement[t, s]=-dis
 
+    ### MAKE SUBSAMPLE MATRIX SYMMETRIC !!!
+    for j in range(len(np.where(subsample == 1)[0])):
+        s = np.where(subsample == 1)[0][j]
+        t = np.where(subsample == 1)[1][j]
+        if subsample[t, s]==0:
+            subsample[t, s]=1
+
+
     fname = os.path.join(output_directory, "displacement_matrix.npy")
     np.save(fname, displacement)
     fname = os.path.join(output_directory, "subsample_matrix.npy")
@@ -242,6 +250,8 @@ def run(output_directory):
 
     fname = os.path.join(output_directory, "smoothed_displacement.npy")
     np.save(fname, smooth_estimate)
+
+    print("Displacement Smoothed")
 
 
     ######## Interpolation - save data 
