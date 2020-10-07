@@ -4,6 +4,7 @@ Filtering functions
 import logging
 import os
 import numpy as np
+import math
 from scipy.interpolate import griddata
 from scipy.signal import butter, filtfilt
 
@@ -227,8 +228,8 @@ def make_histograms(batch_id, reader, output_directory, output_directory_spikes,
     ts = reader.read_data_batch(batch_id, add_buffer=False)
     ts = ts.T
 
-    print("ts SHAPE :")
-    print(ts.shape)
+    # print("ts SHAPE :")
+    # print(ts.shape)
 
     ### Detect spikes by simple thresholding ###
     num_timesteps = ts.shape[1]
@@ -251,6 +252,12 @@ def make_histograms(batch_id, reader, output_directory, output_directory_spikes,
     ### Make histograms ###
 
     hist_arrays = np.zeros((num_bins, num_y_pos))
+    # log_spaces = np.logspace(np.log(voltage_threshold), np.log(10*voltage_threshold), 21, base = math.exp(1))
+    # log_bins = voltage_threshold*np.ones(21)
+    # for i in range(20):
+    #     log_bins[i+1] = log_bins[i] + log_spaces[20-i]-log_spaces[20-i-1]
+    # log_bins = np.logspace(np.log(voltage_threshold), np.log(10*voltage_threshold), 21, base = math.exp(1))
+
     # hist_arrays = np.zeros((num_bins, 2*length_um))
 
     #### Get sliding window ptp ####
@@ -261,9 +268,9 @@ def make_histograms(batch_id, reader, output_directory, output_directory_spikes,
 
     ##### Sinkhorn denoising #####
     for k in range(iter_quantile): 
-        quantile_t = np.quantile(ptp_sliding, br_quantile, axis = 1) #size num_channels
         quantile_s = np.quantile(ptp_sliding, br_quantile, axis = 0) #size num_timepoints
         ptp_sliding = np.maximum(ptp_sliding - quantile_s, 0)
+        quantile_t = np.quantile(ptp_sliding, br_quantile, axis = 1) #size num_channels
         ptp_sliding = np.maximum((ptp_sliding.T - quantile_t).T, 0)
     
     #### Make histograms ####
@@ -280,12 +287,13 @@ def make_histograms(batch_id, reader, output_directory, output_directory_spikes,
             ptp[(top_chan+int(neighboring_chan/2)):] = 0
         if (top_chan-neighboring_chan/2 > 0):
             ptp[:(top_chan-int(neighboring_chan/2))] = 0
+        # electrode_ptp_int = np.matmul(ptp, M)
+        # hist_plot = np.histogram2d(electrode_ptp_int, np.arange(0, num_y_pos), bins=(log_bins, np.arange(0, num_y_pos+1)), range = [[voltage_threshold, 10*voltage_threshold], [0, num_y_pos]])[0]
         electrode_ptp_int = np.log1p(np.matmul(ptp, M))
-        hist_plot = np.histogram2d(electrode_ptp_int, np.arange(0, length_um), bins=(num_bins, num_y_pos), range = [[np.log1p(voltage_threshold), np.log1p(10*voltage_threshold)], [0, length_um]])[0]
+        hist_plot = np.histogram2d(electrode_ptp_int, np.arange(0, num_y_pos), bins=(20, num_y_pos), range = [[np.log1p(voltage_threshold), np.log1p(10*voltage_threshold)], [0, num_y_pos]])[0]
         hist_arrays += hist_plot
 
     log_hist_arrays = np.log1p(hist_arrays) #Take log counts 
-
     ####### Save histogram arrays #######
 
     fname = os.path.join(
@@ -294,7 +302,7 @@ def make_histograms(batch_id, reader, output_directory, output_directory_spikes,
             str(batch_id).zfill(6)))
     np.save(fname, log_hist_arrays)
 
-    print("HISTOGRAMS CREATED !!!!!!!!!")
+    # print("HISTOGRAMS CREATED !!!!!!!!!")
 
 def register_data(batch_id, reader, output_directory, estimated_displacement, geomarray, out_dtype):
     """Create histograms for each batches, before registration
