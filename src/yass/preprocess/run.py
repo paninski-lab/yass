@@ -212,11 +212,13 @@ def run(output_directory):
         displacement[t, s]=-dis
 
     ### MAKE SUBSAMPLE MATRIX SYMMETRIC !!!
-    for j in range(len(np.where(subsample == 1)[0])):
-        s = np.where(subsample == 1)[0][j]
-        t = np.where(subsample == 1)[1][j]
-        if subsample[t, s]==0:
-            subsample[t, s]=1
+    for j in range(1000):
+        for k in np.arange(j+1, 1000):
+            if subsample[j, k]==1:
+                subsample[k, j]=1
+            elif subsample[k, j]==1:
+                subsample[j, k]=1
+    subsample[np.arange(0, 1000), np.arange(0, 1000)] = 1
 
 
     fname = os.path.join(output_directory, "displacement_matrix.npy")
