@@ -247,7 +247,7 @@ def run(output_directory):
     print("Displacement Calculated")
 
     arr_conv = np.arange(-num_hist, num_hist)
-    window = np.exp(-arr_conv**2/(2*16))/(np.sqrt(2*np.pi*16))
+    window = np.exp(-arr_conv**2/(2*36))/(np.sqrt(2*np.pi*36))
     smooth_estimate = convolve(estimated_displacement, window, mode = 'same')
 
     fname = os.path.join(output_directory, "smoothed_displacement.npy")
