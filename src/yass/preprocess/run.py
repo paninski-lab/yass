@@ -236,7 +236,7 @@ def run(output_directory):
     # mat_diag_s = np.diag(np.reshape(subsample, num_hist*num_hist))
     # kron_mat = np.kron(np.eye(num_hist), np.ones(num_hist)) - np.kron(np.ones(num_hist), np.eye(num_hist))
 
-    estimated_displacement = np.dot(np.linalg.pinv(vec_subsampled*(np.kron(np.eye(num_hist), np.ones(num_hist)) - np.kron(np.ones(num_hist), np.eye(num_hist)))).T, vec_subsampled)
+    estimated_displacement = np.dot(np.linalg.pinv(np.reshape(subsample, num_hist*num_hist)*(np.kron(np.eye(num_hist), np.ones(num_hist)) - np.kron(np.ones(num_hist), np.eye(num_hist)))).T, vec_subsampled)
     estimated_displacement = estimated_displacement - estimated_displacement[0]
 
     fname = os.path.join(output_directory, "estimated_displacement.npy")
