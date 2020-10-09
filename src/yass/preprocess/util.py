@@ -228,37 +228,12 @@ def make_histograms(batch_id, reader, output_directory, output_directory_spikes,
     ts = reader.read_data_batch(batch_id, add_buffer=False)
     ts = ts.T
 
-    # print("ts SHAPE :")
-    # print(ts.shape)
-
     ### Detect spikes by simple thresholding ###
-    num_timesteps = ts.shape[1]
-    # threshold_spikes = []
-    # num_sliding_windows = int(num_timesteps/(template_time/2))
-    # for i in range(num_sliding_windows):
-    #     ptp = ts[:, i*int(template_time/2):(i+1)*(int(template_time/2))].ptp(1)
-    #     top_chan = ptp.argmax()
-    #     if ptp[top_chan] > voltage_threshold:
-    #         threshold_spikes.append(ts[top_chan, i*int(template_time/2):(i+1)*(int(template_time/2))].argmin() + i*int(template_time/2))
-
-    # spike_times = np.array(threshold_spikes)
-
-    # fname_spike = os.path.join(output_directory_spikes,
-    #     "spike_times_{}.npy".format(
-    #         str(batch_id).zfill(6)))
-    # np.save(fname_spike, spike_times)
-
-    
+    num_timesteps = ts.shape[1]    
     ### Make histograms ###
 
     hist_arrays = np.zeros((num_bins, num_y_pos))
-    # log_spaces = np.logspace(np.log(voltage_threshold), np.log(10*voltage_threshold), 21, base = math.exp(1))
-    # log_bins = voltage_threshold*np.ones(21)
-    # for i in range(20):
-    #     log_bins[i+1] = log_bins[i] + log_spaces[20-i]-log_spaces[20-i-1]
-    # log_bins = np.logspace(np.log(voltage_threshold), np.log(10*voltage_threshold), 21, base = math.exp(1))
 
-    # hist_arrays = np.zeros((num_bins, 2*length_um))
 
     #### Get sliding window ptp ####
     timepoints_bin = int((num_timesteps-template_time)/quantile_comp)
@@ -274,21 +249,7 @@ def make_histograms(batch_id, reader, output_directory, output_directory_spikes,
         ptp_sliding = np.maximum((ptp_sliding.T - quantile_t).T, 0)
     
     #### Make histograms ####
-    # print("ptp_sliding shape :")
-    # print(ptp_sliding.shape)
-    # print("ptp_sliding Max : " + str(ptp_sliding.max()))
-    # print("number of spikes : " + str(len(np.where(ptp_sliding.max(0)>=voltage_threshold)[0])))
     for spike_time in np.where(ptp_sliding.max(0)>=voltage_threshold)[0]:
-        # quantile = np.quantile(ptp_sliding, br_quantile, axis = 1)
-        # ptp = np.maximum(ts[:, max(int(spike_t-template_time/2), 0):min(int(spike_t + template_time/2), num_timesteps)].ptp(1) - quantile, 0) 
-        ptp = ptp_sliding[:, spike_time]
-        top_chan = ptp.argmax()
-        if (top_chan+neighboring_chan/2 < num_chan):
-            ptp[(top_chan+int(neighboring_chan/2)):] = 0
-        if (top_chan-neighboring_chan/2 > 0):
-            ptp[:(top_chan-int(neighboring_chan/2))] = 0
-        # electrode_ptp_int = np.matmul(ptp, M)
-        # hist_plot = np.histogram2d(electrode_ptp_int, np.arange(0, num_y_pos), bins=(log_bins, np.arange(0, num_y_pos+1)), range = [[voltage_threshold, 10*voltage_threshold], [0, num_y_pos]])[0]
         electrode_ptp_int = np.log1p(np.matmul(ptp, M))
         hist_plot = np.histogram2d(electrode_ptp_int, np.arange(0, num_y_pos), bins=(20, num_y_pos), range = [[np.log1p(voltage_threshold), np.log1p(10*voltage_threshold)], [0, num_y_pos]])[0]
         hist_arrays += hist_plot
@@ -324,7 +285,7 @@ def register_data(batch_id, reader, output_directory, estimated_displacement, ge
             str(batch_id).zfill(6)))
     np.save(fname, new_data.T.astype(out_dtype))
 
-    if (batch_id == 0):
+    if (batch_id == 100):
         fname = 'Matrix_Before_Registration.npy'
         np.save(fname, ts.T.astype(out_dtype))
         fname = 'Matrix_After_Registration.npy'
@@ -333,15 +294,19 @@ def register_data(batch_id, reader, output_directory, estimated_displacement, ge
 
 
 
-def merge_filtered_files(filtered_location, output_directory, delete=True):
+def merge_filtered_files(filtered_location, output_directory, delete=True, op = 'standardize'):
 
     logger = logging.getLogger(__name__)
 
     filenames = os.listdir(filtered_location)
     filenames_sorted = sorted(filenames)
 
-    f_out = os.path.join(output_directory, "standardized.bin")
-    logger.info('...saving standardized file: %s', f_out)
+    if op == 'standardize':
+        f_out = os.path.join(output_directory, "standardized.bin")
+        logger.info('...saving standardized file: %s', f_out)
+    elif op == 'register':
+        f_out = os.path.join(output_directory, "registered.bin")
+        logger.info('...saving registered file: %s', f_out)
 
     f = open(f_out, 'wb')
     for fname in filenames_sorted:

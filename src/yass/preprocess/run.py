@@ -40,6 +40,7 @@ def run(output_directory):
     * ``filtered.bin`` - Filtered recordings
     * ``filtered.yaml`` - Filtered recordings metadata
     * ``standardized.bin`` - Standarized recordings
+    * ``registered.bin`` - Registered recordings
     * ``standardized.yaml`` - Standarized recordings metadata
     * ``whitening.npy`` - Whitening filter
     Everything is run on CPU.
@@ -70,7 +71,6 @@ def run(output_directory):
     ##### Standardized Data : standardized_path = 'tmp/preprocess/standardized.bin'
     ##### Make directory to create histograms 
     ##### Histograms :
-    filename_standardized = os.path.join(output_directory, "standardized.bin")
 
     hist_location = os.path.join(output_directory, "histograms")
     if not os.path.exists(hist_location):
@@ -175,7 +175,8 @@ def run(output_directory):
     subsample = np.random.choice([0, 1], size=(num_hist,num_hist), p=[1 - prob, prob])
 
     possible_displacement = np.arange(-registration_params['max_displacement'], registration_params['max_displacement'] + 0.5, 0.5) ### 0.5um increments? 
-
+    #### Maybe faster with all and if == 1?
+    #### Make it symmetric before if I do this
     for j in tqdm(range(len(np.where(subsample == 1)[0]))):
         # print(j)
         # time1 = time.time()
@@ -228,16 +229,8 @@ def run(output_directory):
 
     print("Displacement Matrix Estimated")
 
-    # estimated_dis_mat = displacement.T
-    # for i in range(num_hist):
-    #     estimated_dis_mat[:, i] = estimated_dis_mat[:, i] - displacement.T[:, 0]
-    # estimated_displacement = estimated_dis_mat.mean(0)
-
     ##### Job gets killed - product gives matrix too big #####
     vec_subsampled = np.reshape(subsample, num_hist*num_hist)*np.reshape(displacement, num_hist*num_hist)
-    # mat_diag_s = np.diag(np.reshape(subsample, num_hist*num_hist))
-    # kron_mat = np.kron(np.eye(num_hist), np.ones(num_hist)) - np.kron(np.ones(num_hist), np.eye(num_hist))
-
     estimated_displacement = np.dot(np.linalg.pinv(np.reshape(subsample, num_hist*num_hist)*(np.kron(np.eye(num_hist), np.ones(num_hist)) - np.kron(np.ones(num_hist), np.eye(num_hist)))).T, vec_subsampled)
     estimated_displacement = estimated_displacement - estimated_displacement[0]
 
@@ -270,7 +263,7 @@ def run(output_directory):
             output_dir_registered_data, 
             smooth_estimate,
             geomarray,
-            dtype_raw,
+            CONFIG.preprocess.dtype,
             processes=n_processors,
             pm_pbar=True)
     else:
@@ -281,19 +274,17 @@ def run(output_directory):
                 output_dir_registered_data, 
                 smooth_estimate, 
                 geomarray,
-                dtype_raw)
+                CONFIG.preprocess.dtype)
 
     # Merge the chunk filtered files and delete the individual chunks
-    merge_filtered_files(output_dir_registered_data, output_directory, delete=False)
+    merge_filtered_files(output_dir_registered_data, output_directory, delete=False, op = 'register')
 
     print("REGISTRATION DONE!!!")
 
-
-
     # if apply filter, get recording reader
     n_sec_chunk = CONFIG.resources.n_sec_chunk
-    filename_registered = os.path.join(output_directory, "standardized.bin")
-    reader = READER(filename_raw, dtype_raw, CONFIG, n_sec_chunk)
+    filename_registered = os.path.join(output_directory, "registered.bin")
+    reader = READER(filename_registered, CONFIG.preprocess.dtype, CONFIG, n_sec_chunk)
     logger.info("# of chunks: {}".format(reader.n_batches))
 
     # make output directory
@@ -380,7 +371,7 @@ def run(output_directory):
                 )
 
     # Merge the chunk filtered files and delete the individual chunks
-    merge_filtered_files(filtered_location, output_directory)
+    merge_filtered_files(filtered_location, output_directory, op = 'standardize')
 
     # save yaml file with params
     path_to_yaml = standardized_path.replace('.bin', '.yaml')
