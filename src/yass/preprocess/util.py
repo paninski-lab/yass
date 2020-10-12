@@ -339,7 +339,7 @@ def make_histograms_gpu(batch_id, reader, output_directory, output_directory_spi
     
     bins = np.tile(np.arange(num_y_pos, dtype = int), electrode_ptp_int.shape[0])
     hist_arrays = np.histogram2d(electrode_ptp_int.ravel(), bins, bins= (20, num_y_pos), range = [[np.log1p(voltage_threshold), np.log1p(10*voltage_threshold)], [0, num_y_pos]])
-    log_hist_arrays = np.log1p(hist_arrays[0]) #Take log counts 
+    log_hist_arrays = np.log1p(hist_arrays[0]) #Take log counts
 
     ####### Save histogram arrays #######
     np.save(fname, log_hist_arrays)
