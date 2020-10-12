@@ -250,6 +250,7 @@ def make_histograms(batch_id, reader, output_directory, output_directory_spikes,
     
     #### Make histograms ####
     for spike_time in np.where(ptp_sliding.max(0)>=voltage_threshold)[0]:
+        ptp = ptp_sliding[:, spike_time]
         electrode_ptp_int = np.log1p(np.matmul(ptp, M))
         hist_plot = np.histogram2d(electrode_ptp_int, np.arange(0, num_y_pos), bins=(20, num_y_pos), range = [[np.log1p(voltage_threshold), np.log1p(10*voltage_threshold)], [0, num_y_pos]])[0]
         hist_arrays += hist_plot
