@@ -291,7 +291,59 @@ def register_data(batch_id, reader, output_directory, estimated_displacement, ge
         fname = 'Matrix_After_Registration.npy'
         np.save(fname, new_data.T.astype(out_dtype))
 
+def make_histograms_gpu(batch_id, reader, output_directory, output_directory_spikes, num_chan, sample_rate, template_time, voltage_threshold, 
+    length_um, num_bins, num_y_pos, quantile_comp, br_quantile, iter_quantile, neighboring_chan, M):
+    """Create histograms for each batches, before registration
+    Parameters
+    ----------
+    template_time : length of a template 
+    voltage_threshold : threshold for spike detection 
+    length_um : length of the electrode 
+    num_bins : number of bins for x axis of the histograms (log ptps)
+    num_y_pos : number of bins for y axis of the histograms 
+    quantile_comp : number of shifts for the sliding window for computing quantiles 
+    br_quantile : background removal quantile to consider 
+    neighboring_chan : number of neighboring channels in spatial radius 
+    M : electrode2space mapping
+    """
+    logger = logging.getLogger(__name__)
+#     print("GPU")
+    ts = torch.from_numpy(reader.read_data_batch(batch_id, add_buffer=False)).float().cuda()
+    
+    fname = os.path.join(
+        output_directory,
+        "histogram_{}.npy".format(
+            str(batch_id).zfill(6)))
+    if os.path.exists(fname):
+        return
 
+    ### Detect spikes by simple thresholding ###
+    num_timesteps = ts.shape[1]
+
+    ### Make histograms ###
+
+    hist_arrays = np.zeros((num_bins, num_y_pos))
+    mp2d= torch.nn.MaxPool2d(kernel_size = [template_time, 1], stride = [quantile_comp,1])
+    ptp_sliding = mp2d(ts[None])[0] + mp2d(-ts[None])[0]
+    
+    for k in range(iter_quantile): 
+        quantile_s = torch.kthvalue(ptp_sliding, int(br_quantile * ptp_sliding.shape[1]), dim = 1, keepdims = True)[0] #size num_timepoints
+        ptp_sliding = torch.nn.functional.relu(ptp_sliding - quantile_s)
+        quantile_t = torch.kthvalue(ptp_sliding, int(br_quantile * ptp_sliding.shape[0]), dim = 0, keepdims = True)[0] #size num_channels
+        ptp_sliding = torch.nn.functional.relu(ptp_sliding - quantile_t)    
+        
+    ptp_sliding = ptp_sliding.cpu().numpy()
+    spike_times = np.logical_and(ptp_sliding.max(1) >= voltage_threshold, ptp_sliding.max(1) <= 10 *voltage_threshold)
+    electrode_ptp_int = np.log1p(np.matmul(ptp_sliding[spike_times],M))
+    
+    bins = np.tile(np.arange(num_y_pos, dtype = int), electrode_ptp_int.shape[0])
+    hist_arrays = histogram2d(electrode_ptp_int.ravel(), bins, bins= (20, num_y_pos), range = [[np.log1p(voltage_threshold), np.log1p(10*voltage_threshold)], [0, num_y_pos]])
+    log_hist_arrays = np.log1p(hist_arrays) #Take log counts 
+
+    ####### Save histogram arrays #######
+    np.save(fname, log_hist_arrays)
+
+    # print("HISTOGRAMS CREATED !!!!!!!!!")
 
 
 def merge_filtered_files(filtered_location, output_directory, delete=True, op = 'standardize'):
