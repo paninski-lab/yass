@@ -12,7 +12,7 @@ from tqdm import tqdm
 from yass import read_config
 from yass.preprocess.util import *
 from yass.reader import READER
-
+import torch
 
 def run(output_directory):
     """Preprocess pipeline: filtering, standarization and whitening filter +  registration
@@ -198,8 +198,7 @@ def run(output_directory):
 
     arr_conv = np.arange(-num_hist, num_hist +1)
     window = np.exp(-arr_conv**2/(2*36))/(np.sqrt(2*np.pi*36))
-    convolve = torch.nn.Conv1d(in_channels = 1, out_channels = 1, kernel_size = [window.size], stride = 1, padding = window_size//2 )
-    smooth_estimate = convolve(estimated_displacement)
+    smooth_estimate = convolve(estimated_displacement, window, mode = 'same')
 
     fname = os.path.join(output_directory, "smoothed_displacement.npy")
     np.save(fname, smooth_estimate)

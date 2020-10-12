@@ -8,7 +8,7 @@
 data:
   # project's root folder, data will be loaded and saved here
   # can be an absolute or relative path
-  root_folder: /media/cat/2TB_SSD_2/julien/nick_drift
+  root_folder: /media/cat/julien/nick_drift
 
   # recordings filename (must be a binary file), details about the recordings
   # are specified in the recordings section

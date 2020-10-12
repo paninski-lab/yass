@@ -25,9 +25,10 @@ import torch
 torch.multiprocessing.set_start_method('spawn', force=True)
 
 import yass
+import yass.preprocess.registration as preprocess
 from yass import set_config
 from yass import read_config
-from yass import (preprocess, detect, cluster, postprocess,
+from yass import (detect, cluster, postprocess,
                   deconvolve, residual, soft_assignment,
                   merge, rf, visual, phy)
 from yass.cluster.sharpen import sharpen_templates
