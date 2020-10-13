@@ -97,7 +97,7 @@ def run(output_directory):
     registration_params['space_bw_elec'] = geomarray[2, 1] - geomarray[0, 1]
     registration_params['num_y_pos'] = int(2*registration_params['length_um']) 
     registration_params['neighboring_chan'] = 2*len(np.where(np.linalg.norm(geomarray, axis = 1)<=CONFIG.recordings.spatial_radius)[0]) 
-    registration_params['sigma'] = 25*registration_params['num_y_pos']/registration_params['length_um'] #here, num_y_pos/length_um converts to number of bins in histograms
+    registration_params['sigma'] = 10*registration_params['num_y_pos']/registration_params['length_um'] #here, num_y_pos/length_um converts to number of bins in histograms
 
     M = np.exp(-(geomarray[:,1:] - np.arange(registration_params['num_y_pos'])/2)**2/(2*(registration_params['sigma']**2)))
     M = np.divide(M.T, M.sum(0, keepdims = True).T).T
