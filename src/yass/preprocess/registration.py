@@ -238,4 +238,4 @@ def run(output_directory):
 
     print("REGISTRATION DONE!!!")
 
-    return standardized_path, standardized_params['dtype']
+    return filename_standardized, CONFIG.preprocess.dtype
