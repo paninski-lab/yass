@@ -5,10 +5,11 @@ import logging
 import os
 import numpy as np
 import math
-from scipy.interpolate import griddata
+from scipy.interpolate import griddata, interp2d
 from scipy.signal import butter, filtfilt
 import torch
 from fast_histogram import histogram2d
+
 
 def _butterworth(ts, low_frequency, high_factor, order, sampling_frequency):
     """Butterworth filter
@@ -132,7 +133,12 @@ def filter_standardize_batch(batch_id, reader, fname_mean_sd,
         If a multidmensional array is passed
     """
     logger = logging.getLogger(__name__)
-
+    
+    if os.path.exists(os.path.join(
+        output_directory,
+        "standardized_{}.npy".format(
+            str(batch_id).zfill(6)))):
+        return
     
     # filter
     if apply_filter:
@@ -251,7 +257,6 @@ def make_histograms(batch_id, reader, output_directory, output_directory_spikes,
     
     #### Make histograms ####
     for spike_time in np.where(ptp_sliding.max(0)>=voltage_threshold)[0]:
-        ptp = ptp_sliding[:, spike_time]
         electrode_ptp_int = np.log1p(np.matmul(ptp, M))
         hist_plot = np.histogram2d(electrode_ptp_int, np.arange(0, num_y_pos), bins=(20, num_y_pos), range = [[np.log1p(voltage_threshold), np.log1p(10*voltage_threshold)], [0, num_y_pos]])[0]
         hist_arrays += hist_plot
@@ -277,9 +282,26 @@ def register_data(batch_id, reader, output_directory, estimated_displacement, ge
     ts = reader.read_data_batch(batch_id, add_buffer=False)
     ts = ts.T
 
-    new_data = np.zeros(ts.shape)
-    new_data = griddata(geomarray, ts, geomarray + [0, -estimated_displacement[batch_id]], method = 'linear', fill_value = 0)
+    # Griddata
+    # new_data = griddata(geomarray, ts, geomarray + [0, estimated_displacement[batch_id]], method = 'linear', fill_value = 0)
 
+    mat = np.zeros((385, 385)) #displacement = 0
+    mat_bis = np.zeros((385, 385))
+    sigma = 20*np.sqrt(2)
+    # if batch_id == 10:
+    #     print("GPR")
+    for i in range(385):
+        mat_bis[:, i] = np.exp(-np.sum((geomarray-geomarray[i])**2, axis = 1)/(2*sigma**2))
+        mat[:, i] = np.exp(-np.sum((geomarray-geomarray[i]+[0, estimated_displacement[batch_id]])**2, axis=1)/(2*sigma**2))
+    mat /= mat.sum(0)
+    mat[np.where(np.isnan(mat))]=0
+    mat_bis /= mat_bis.sum(0)
+    mat_bis[np.where(np.isnan(mat_bis))]=0
+
+    inv_mat = np.linalg.inv(mat_bis)
+    mat = np.matmul(mat, inv_mat)
+    mat[np.where(np.isnan(mat))]=0
+    new_data = np.matmul(mat, ts)
     # save
     fname = os.path.join(
         output_directory,
@@ -340,7 +362,7 @@ def make_histograms_gpu(batch_id, reader, output_directory, output_directory_spi
     
     bins = np.tile(np.arange(num_y_pos, dtype = int), electrode_ptp_int.shape[0])
     hist_arrays = histogram2d(electrode_ptp_int.ravel(), bins, bins= (20, num_y_pos), range = [[np.log1p(voltage_threshold), np.log1p(10*voltage_threshold)], [0, num_y_pos]])
-    log_hist_arrays = np.log1p(hist_arrays) #Take log counts
+    log_hist_arrays = np.log1p(hist_arrays) #Take log counts 
 
     ####### Save histogram arrays #######
     np.save(fname, log_hist_arrays)

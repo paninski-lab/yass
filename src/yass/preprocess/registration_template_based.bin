@@ -91,7 +91,7 @@ def run(output_directory):
         num_bins = 20, 
         quantile_comp = 1, #Each step between sliding window for computing quantile
         br_quantile = 0.9, # For sinkhorn background removal
-        max_displacement = 60, 
+        max_displacement = 30, 
         iter_quantile = 10,
         geomarray = geomarray  
         )
@@ -117,47 +117,47 @@ def run(output_directory):
     if not os.path.exists(output_spikes):
         os.makedirs(output_spikes)
 
-    if CONFIG.resources.multi_processing:
-        n_processors = CONFIG.resources.n_processors
-        parmap.map(
-            make_histograms_gpu,
-            [i for i in range(reader_registration.n_batches)],
-            reader_registration,
-            hist_location, 
-            output_spikes, ## To save spike times for testing - delete after
-            registration_params['num_chan'], 
-            CONFIG.recordings.sampling_rate, 
-            registration_params['time_templates'], 
-            registration_params['voltage_threshold'], 
-            registration_params['length_um'], 
-            registration_params['num_bins'], 
-            registration_params['num_y_pos'], 
-            registration_params['quantile_comp'], 
-            registration_params['br_quantile'], 
-            registration_params['iter_quantile'],
-            registration_params['neighboring_chan'], 
-            M,
-            processes=n_processors,
-            pm_pbar=True)
-    else:
-        for batch_id in range(reader_registration.n_batches):
-            make_histograms(
-                batch_id, 
-                reader_registration_gpu, 
-                hist_location, 
-                output_spikes, ## To save spike times for testing - delete after
-                registration_params['num_chan'], 
-                CONFIG.recordings.sampling_rate, 
-                registration_params['time_templates'], 
-                registration_params['voltage_threshold'], 
-                registration_params['length_um'], 
-                registration_params['num_bins'], 
-                registration_params['num_y_pos'], 
-                registration_params['quantile_comp'], 
-                registration_params['br_quantile'], 
-                registration_params['iter_quantile'],
-                registration_params['neighboring_chan'], 
-                M)
+#     if CONFIG.resources.multi_processing:
+#         n_processors = CONFIG.resources.n_processors
+#         parmap.map(
+#             make_histograms_gpu,
+#             [i for i in range(reader_registration.n_batches)],
+#             reader_registration,
+#             hist_location, 
+#             output_spikes, ## To save spike times for testing - delete after
+#             registration_params['num_chan'], 
+#             CONFIG.recordings.sampling_rate, 
+#             registration_params['time_templates'], 
+#             registration_params['voltage_threshold'], 
+#             registration_params['length_um'], 
+#             registration_params['num_bins'], 
+#             registration_params['num_y_pos'], 
+#             registration_params['quantile_comp'], 
+#             registration_params['br_quantile'], 
+#             registration_params['iter_quantile'],
+#             registration_params['neighboring_chan'], 
+#             M,
+#             processes=n_processors,
+#             pm_pbar=True)
+#     else:
+#         for batch_id in range(reader_registration.n_batches):
+#             make_histograms(
+#                 batch_id, 
+#                 reader_registration_gpu, 
+#                 hist_location, 
+#                 output_spikes, ## To save spike times for testing - delete after
+#                 registration_params['num_chan'], 
+#                 CONFIG.recordings.sampling_rate, 
+#                 registration_params['time_templates'], 
+#                 registration_params['voltage_threshold'], 
+#                 registration_params['length_um'], 
+#                 registration_params['num_bins'], 
+#                 registration_params['num_y_pos'], 
+#                 registration_params['quantile_comp'], 
+#                 registration_params['br_quantile'], 
+#                 registration_params['iter_quantile'],
+#                 registration_params['neighboring_chan'], 
+#                 M)
 
     print("HISTOGRAMS CREATED")
 
@@ -168,52 +168,107 @@ def run(output_directory):
 #    correlation = np.eye(num_hist)
 #    displacement = np.zeros((num_hist, num_hist))
 
-    ### HOW TO TAKE ADVANTAGE OF DOUBLE MATRIX TO FASTEN COMPUTATION???
-#   prob = 4*np.log(num_hist)*num_hist / (num_hist*(num_hist-1))
-    prob = 1
-    subsample = np.random.choice([0, 1], size=(num_hist,num_hist), p=[1 - prob, prob])
+    print("template based displacement!!!")
 
-    possible_displacement = np.arange(-registration_params['max_displacement'], registration_params['max_displacement'] + 0.5, 0.5) ### 0.5um increments? 
+    ### Create template histograms / 100 first batches ###
+    estimated_displacement = np.zeros(num_hist)
     hist = np.zeros([num_hist, 20, registration_params['num_y_pos']])
     for i in range(num_hist):
         hist[i] = np.load(os.path.join(hist_location,"histogram_{}.npy".format(str(i).zfill(6))))
-    hist = torch.from_numpy(hist).cuda().float()
-    c2d = torch.nn.Conv2d(in_channels = 1, out_channels = num_hist, kernel_size = [20, registration_params['num_y_pos']], stride = 1, padding = [0, possible_displacement.size//2], bias = False).cuda()
-    c2d.weight[:,0] = hist
-    displacement = possible_displacement[c2d(hist[:,None])[:,:,0,:].argmax(2).cpu()]
+    possible_displacement = np.arange(-registration_params['max_displacement'], registration_params['max_displacement'] + 0.5, 0.5) ### 0.5um increments? 
+    template_hist = hist.mean(0)
 
-    print(displacement.shape)
+    displacement_temp = np.zeros(num_hist)
+
+    for k in range(6):
+        for i in tqdm(range(num_hist)):
+            hist2 = hist[i]
+            cor_cmp = 0
+            for d in possible_displacement:
+                hist_2_shift = np.zeros(hist2.shape) 
+                if d==0:
+                    hist_2_shift = hist2
+                elif d>0:
+                    hist_2_shift[:, int(2*d):] = hist2[:, :-int(2*d)]
+                else :
+                    hist_2_shift[:, :int(2*d)] = hist2[:, -int(2*d):]
+                # hist_2_shift = shift(hist2, (0, d/registration_params['space_bw_elec']))
+                # hist_2_shift = shift(hist2, (0, d/(registration_params['length_um']/registration_params['num_y_pos'])))
+                cor = np.mean((template_hist - template_hist.mean()) * (hist_2_shift - hist_2_shift.mean()))
+                stds = template_hist.std() * hist_2_shift.std()
+                if stds == 0:
+                    cor = 0
+                else:
+                    cor /= stds
+                if cor > cor_cmp:
+                    dis = d
+                    cor_cmp = cor            
+            displacement_temp[i] = -dis
+        template_hist = np.zeros(template_hist.shape)
+        for j in range(1000):
+            d = displacement_temp[j]
+            hist_shift = np.zeros(template_hist.shape) 
+            if d==0:
+                hist_shift = hist[j]
+            elif d>0:
+                hist_shift[:, int(2*d):] = hist[j][:, :-int(2*d)]
+            else :
+                hist_shift[:, :int(2*d)] = hist[j][:, -int(2*d):]
+            template_hist += hist_shift/1000
+        fname = os.path.join(output_directory, "template_dis_round_{}.npy".format(k))
+        np.save(fname, displacement_temp)
+    estimated_displacement = displacement_temp - displacement_temp[0]
+
+    ### HOW TO TAKE ADVANTAGE OF DOUBLE MATRIX TO FASTEN COMPUTATION???
+    # prob = 4*np.log(num_hist)*num_hist / (num_hist*(num_hist-1))
+    # prob = 1
+    # subsample = np.random.choice([0, 1], size=(num_hist,num_hist), p=[1 - prob, prob])
+
+    # possible_displacement = np.arange(-registration_params['max_displacement'], registration_params['max_displacement'] + 0.5, 0.5) ### 0.5um increments? 
+#     hist = np.zeros([num_hist, 20, registration_params['num_y_pos']])
+#     for i in range(num_hist):
+#         hist[i] = np.load(os.path.join(hist_location,"histogram_{}.npy".format(str(i).zfill(6))))
+#     hist = torch.from_numpy(hist).cuda().float()
+#     c2d = torch.nn.Conv2d(in_channels = 1, out_channels = num_hist, kernel_size = [20, registration_params['num_y_pos']], stride = 1, padding = [0, possible_displacement.size//2], bias = False).cuda()
+#     c2d.weight[:,0] = hist
+#     displacement = possible_displacement[c2d(hist[:,None])[:,:,0,:].argmax(2).cpu()]
     
 
-#    fname = os.path.join(output_directory, "displacement_matrix.npy")
-#    np.save(fname, displacement)
-#    displacement = np.load(fname)
-#    fname = os.path.join(output_directory, "subsample_matrix.npy")
-#    np.save(fname, subsample)
-#    subsample = np.load(fname)
-    
-    vec_subsampled = np.reshape(subsample, num_hist*num_hist)*np.reshape(displacement, num_hist*num_hist)
-#    vec_subsampled = np.reshape(displacement, num_hist*num_hist)
-    estimated_displacement = np.dot(np.linalg.pinv(np.reshape(subsample, num_hist*num_hist)*(np.kron(np.eye(num_hist), np.ones(num_hist)) - np.kron(np.ones(num_hist), np.eye(num_hist)))).T, vec_subsampled)
-    estimated_displacement = np.dot(np.linalg.pinv((np.kron(np.eye(num_hist), np.ones(num_hist)) - np.kron(np.ones(num_hist), np.eye(num_hist)))).T, vec_subsampled)
-    estimated_displacement = estimated_displacement - estimated_displacement[0]
+#     fname = os.path.join(output_directory, "displacement_matrix.npy")
+# #     np.save(fname, displacement)
+#     displacement = np.load(fname)
+#     fname = os.path.join(output_directory, "subsample_matrix.npy")
+# #     np.save(fname, subsample)
+#     subsample = np.load(fname)
 
-    fname = os.path.join(output_directory, "estimated_displacement.npy")
-    np.save(fname, estimated_displacement)
-#    estimated_displacement = np.load(fname)
+    print("Displacement Matrix Estimated")
+    
+#    vec_subsampled = np.reshape(subsample, num_hist*num_hist)*np.reshape(displacement, num_hist*num_hist)
+#    estimated_displacement = np.dot(np.linalg.pinv(np.reshape(subsample, num_hist*num_hist)*(np.kron(np.eye(num_hist), np.ones(num_hist)) - np.kron(np.ones(num_hist), np.eye(num_hist)))).T, vec_subsampled)
+#    estimated_displacement = estimated_displacement - estimated_displacement[0]
+
+    # fname = os.path.join(output_directory, "estimated_displacement_template.npy")
+    # np.save(fname, estimated_displacement)
+#     estimated_displacement = np.load(fname)
 
     print("Displacement Calculated")
 
+    fname = os.path.join(output_directory, "estimated_displacement_template_based.npy")
+    np.save(fname, estimated_displacement)
+
     arr_conv = np.arange(-num_hist, num_hist +1)
     window = np.exp(-arr_conv**2/(2*36))/(np.sqrt(2*np.pi*36))
-    smooth_estimate = convolve(estimated_displacement, window, mode = 'same')
-    # smooth_estimate = smooth_estimate - smooth_estimate[0]
+    smooth_estimate_template = convolve(estimated_displacement, window, mode = 'same')
+    smooth_estimate_template = smooth_estimate_template - smooth_estimate_template[0]
 
-    fname = os.path.join(output_directory, "smoothed_displacement.npy")
-    np.save(fname, smooth_estimate)
-    # smooth_estimate = np.load(fname)
+    print("smooth_estimate_template anchored at 0")
+
+    fname = os.path.join(output_directory, "smoothed_displacement_template_based.npy")
+    np.save(fname, smooth_estimate_template)
+    # smooth_estimate_template = np.load(fname)
 
     print("Displacement Smoothed")
+    print("Saving template based displacement")
 
 
 #####################################
@@ -234,7 +289,7 @@ def run(output_directory):
             [i for i in range(reader_registration.n_batches)],
             reader_registration,
             output_dir_registered_data, 
-            smooth_estimate,
+            smooth_estimate_template,
             geomarray,
             CONFIG.preprocess.dtype,
             processes=n_processors,
@@ -245,7 +300,7 @@ def run(output_directory):
                 batch_id, 
                 reader_registration, 
                 output_dir_registered_data, 
-                smooth_estimate, 
+                smooth_estimate_template, 
                 geomarray,
                 CONFIG.preprocess.dtype)
 

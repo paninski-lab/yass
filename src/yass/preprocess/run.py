@@ -12,6 +12,7 @@ from tqdm import tqdm
 from yass import read_config
 from yass.preprocess.util import *
 from yass.reader import READER
+import torch
 
 
 def run(output_directory):
