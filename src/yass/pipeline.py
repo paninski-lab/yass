@@ -295,10 +295,11 @@ def initial_block(TMP_FOLDER,
         fname_spike_index=spike_index_path,
         raw_data=True, 
         full_run=True)    
-
+    
+    methods = ['off_center','duplicate']
     #methods = ['duplicate', 'high_mad', 'collision']
     #methods = ['off_center', 'high_mad', 'duplicate']
-    methods = ['off_center', 'high_mad', 'duplicate']
+    #methods = ['off_center', 'high_mad', 'duplicate']
     #methods = ['off_center', 'high_mad', 'duplicate']
     (fname_templates, fname_spike_train, _, _, _) = postprocess.run(
         methods,
@@ -366,7 +367,8 @@ def iterative_block(TMP_FOLDER,
         raw_data=False, 
         full_run=True)
 
-    methods = ['off_center', 'high_mad', 'duplicate']
+    #methods = ['off_center', 'high_mad', 'duplicate']
+    methods = ['off_center', 'duplicate']
     fname_templates, fname_spike_train, _, _, _ = postprocess.run(
         methods,
         os.path.join(TMP_FOLDER,
