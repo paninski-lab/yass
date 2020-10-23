@@ -91,7 +91,6 @@ def run(standardized_path, standardized_dtype,
         return fname_spike_index
 
     ##### detection #####
-
     # save directory for temp files
     output_temp_files = os.path.join(
         output_directory, 'batch')
@@ -108,8 +107,9 @@ def run(standardized_path, standardized_dtype,
 
     else:
         run_voltage_treshold(standardized_path,
-                     standardized_dtype,
-                     output_temp_files)
+                             standardized_dtype,
+                             output_temp_files,
+                             run_chunk_sec=run_chunk_sec)
 
     ##### gather results #####
     gather_result(fname_spike_index,
@@ -152,7 +152,6 @@ def run_neural_network(standardized_path, standardized_dtype,
         chunk_sec = None
     else:
         chunk_sec = run_chunk_sec
-
     reader = READER(standardized_path,
                     standardized_dtype,
                     CONFIG,

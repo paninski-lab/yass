@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
 from mpl_toolkits.axes_grid1.axes_divider import make_axes_locatable
-from mpl_toolkits.axes_grid1.colorbar import colorbar
+#from mpl_toolkits.axes_grid1.colorbar import colorbar
 import yaml
 from tqdm import tqdm
 import parmap
@@ -1025,7 +1025,8 @@ class Visualizer(object):
         plt.setp(ax.get_yticklabels(), visible=False)
         ax.tick_params(axis='both', which='both', length=0)
 
-        if add_color_bar:
+        #if add_color_bar:
+        if False:
             cbar = plt.colorbar(pad=0.01, fraction=0.05)
             #ticks = cbar.get_ticks()
             ticks = np.arange(self.min_shift, self.max_shift+1, 20)

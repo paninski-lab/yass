@@ -39,8 +39,11 @@ resources:
   # which gpu to use, default is 0, i.e. first gpu;
   gpu_id: 0
   # generate phy visualization files; 0 - do not run; 1: generate phy files
-  generate_phy: 0
-
+  generate_phy: 1
+  # generate phy visualization files; ratio of spikes that are processed for phy visualization
+  # decrease if memory issues are present
+  phy_percent_spikes: 0.05
+  
 recordings:
   # precision of the recording – must be a valid numpy dtype
   dtype: int16

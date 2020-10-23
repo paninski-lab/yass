@@ -185,7 +185,7 @@ def similarity_matrix_parallel(units, temps, similar_templates):
     
 
 def get_pc_objects_parallel(units, n_channels, pc_feature_ind, spike_train,
-                fname_standardized, n_times):
+                fname_standardized, n_times, phy_percent):
     
     ''' Function that reads 10% of spikes on top 7 channels
         Data is then used to make PCA objects/rot matrices for each channel
@@ -202,7 +202,7 @@ def get_pc_objects_parallel(units, n_channels, pc_feature_ind, spike_train,
         if idx1.shape[0]==0: continue
         spikes = np.int32(spike_train[idx1][:,0])-30
 
-        idx3 = np.random.choice(np.arange(spikes.shape[0]),spikes.shape[0]//10)
+        idx3 = np.random.choice(np.arange(spikes.shape[0]),spikes.shape[0]//int(1./phy_percent))
         spikes = spikes[idx3]
             
         wfs = binary_reader_waveforms_allspikes(fname_standardized, n_channels, n_times, spikes, load_chans)
@@ -240,14 +240,22 @@ def get_pc_objects(root_dir,pc_feature_ind, n_channels, n_times, units, n_compon
     # ********************************************
     print ("...reading sample waveforms for each channel")
     fname_out = os.path.join(os.path.join(root_dir, 'phy'),'wfs_array.npy')
+    
+    try:
+        phy_percent = CONFIG.resources.phy_percent_spikes
+    except:
+        phy_percent = 0.1
+
+    print ("... generating phy output for ", phy_percent *100, " % of total spikes")
+
     if os.path.exists(fname_out)==False:
         if CONFIG.resources.multi_processing==False:
             wfs_array = get_pc_objects_parallel(units, n_channels, pc_feature_ind, 
-                                      spike_train, fname_standardized, n_times)
+                                      spike_train, fname_standardized, n_times, phy_percent)
         else:
             unit_list = np.array_split(units, CONFIG.resources.n_processors)
             res = parmap.map(get_pc_objects_parallel, unit_list, n_channels, pc_feature_ind, 
-                                spike_train, fname_standardized, n_times,
+                                spike_train, fname_standardized, n_times, phy_percent,
                                 processes=CONFIG.resources.n_processors,
                                 pm_pbar=True)
                        
