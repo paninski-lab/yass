@@ -328,7 +328,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         n_data, n_times, n_channels = template_aligned.shape
 
         channels = torch.arange(n_channels).cuda()
-        temps_torch = torch.from_numpy(-(template_aligned.transpose(0, 2, 1))/2).cuda()
+        temps_torch = torch.from_numpy(-(template_aligned.transpose(0, 2, 1))/2).cuda().contiguous()
 
         temp_cpp = deconv.BatchedTemplates([deconv.Template(temp, channels) for temp in temps_torch])
         coeffs = deconv.BatchedTemplates([transform_template(template) for template in temp_cpp])

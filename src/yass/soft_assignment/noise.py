@@ -123,7 +123,7 @@ class SOFTNOISEASSIGNMENT(object):
         n_data, n_times, n_channels = self.templates_aligned.shape
 
         channels = torch.arange(n_channels).cuda()
-        temps_torch = torch.from_numpy(-(self.templates_aligned.transpose(0, 2, 1))).cuda()
+        temps_torch = torch.from_numpy(-(self.templates_aligned.transpose(0, 2, 1))).cuda().contiguous()
 
         temp_cpp = deconv.BatchedTemplates([deconv.Template(temp, channels) for temp in temps_torch])
         self.coeffs = deconv.BatchedTemplates([transform_template(template) for template in temp_cpp])
