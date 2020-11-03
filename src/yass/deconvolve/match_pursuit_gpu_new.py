@@ -125,7 +125,7 @@ class deconvGPU(object):
         # initalize parameters for 
         self.set_params(CONFIG, out_dir)
 
-        self.verbose = True
+        self.verbose = False
 
     def set_params(self, CONFIG, out_dir):
 

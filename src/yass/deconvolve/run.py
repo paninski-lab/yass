@@ -138,7 +138,7 @@ def deconv_ONgpu(fname_templates_in,
     d_gpu.fit_height_ptp = 20
 
     # debug/printout parameters
-    d_gpu.verbose = True
+    d_gpu.verbose = False
     
     # Turn on refactoriness
     d_gpu.refractoriness = True
