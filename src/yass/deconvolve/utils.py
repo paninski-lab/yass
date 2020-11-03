@@ -647,7 +647,7 @@ class TempTempConv(object):
         for unit in range(n_unit):
             sh_ = main_chan_shift[unit]
             residual_computation_templates[unit, :, sh_:sh_+temp_size[unit]] = \
-            shift_channels(aligned_temp[unit], align_shifts[unit])
+            shift_channels_cython(aligned_temp[unit], align_shifts[unit])
         # let's make the templates the same size as the input templates.
         min_loc = residual_computation_templates[max_ptp_unit, max_ptp_unit_main_chan].argmin()
         cut_off_begin = min_loc - min_loc_orig

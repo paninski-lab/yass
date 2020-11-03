@@ -67,7 +67,11 @@ except Exception:
     ext_modules = [Extension(name="diptest._diptest",
                              sources=["src/diptest/_dip.c",
                                       "src/diptest/_diptest.c"],
-                             extra_compile_args=['-O3', '-std=c99'])]
+                             extra_compile_args=['-O3', '-std=c99']),
+                   Extension(name='yass.deconvolve._deconvolve_utils',
+                             sources=['src/yass/deconvolve/cython_utils/_deconvolve_utils.pyx'],
+                             extra_compile_args=['-O3', '-std=c99'])
+                             ]
 else:
     # If we successfully imported Cython, look for a .pyx file
     ext_modules = [Extension(name="diptest._diptest",
@@ -76,8 +80,8 @@ else:
                              extra_compile_args=['-O3', '-std=c99']),
                    Extension(name='yass.deconvolve._deconvolve_utils',
                              sources=['src/yass/deconvolve/cython_utils/_deconvolve_utils.pyx'],
-                             extra_compile_args=['-O3', '-std=c99']
-                             )]
+                             extra_compile_args=['-O3', '-std=c99'])
+                   ]
 
 
 class CustomBuildExtCommand(build_ext):
