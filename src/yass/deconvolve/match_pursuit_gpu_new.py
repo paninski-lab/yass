@@ -125,6 +125,8 @@ class deconvGPU(object):
         # initalize parameters for 
         self.set_params(CONFIG, out_dir)
 
+        self.verbose = False
+
     def set_params(self, CONFIG, out_dir):
 
         # 
@@ -386,7 +388,7 @@ class deconvGPU(object):
             chunk_id, add_buffer=True).T
         
         self.offset = self.reader.idx_list[chunk_id, 0] - self.reader.buffer
-        self.data = torch.from_numpy(self.data_cpu).float().cuda()
+        self.data = torch.from_numpy(self.data_cpu).float().cuda().contiguous()
 
         #print (" self.data: ", self.data.shape, ", size: ", sys.getsizeof(self.data.storage()))
 
@@ -413,7 +415,7 @@ class deconvGPU(object):
             #print ("shifts: ", shifts.shape)
             
             # this needs to be taken out of this loop and done single time
-            shifts_gpu = torch.from_numpy(shifts).long().cuda()
+            shifts_gpu = torch.from_numpy(shifts).long().cuda().contiguous()
             
             # CUDA code
             rowshift.forward(self.data, shifts_gpu)

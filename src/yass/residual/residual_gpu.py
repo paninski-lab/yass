@@ -126,7 +126,7 @@ class RESIDUAL_GPU2(object):
         self.n_units, self.n_chan, self.waveform_len = self.temps.shape
 
         #print ("loaded temps:", self.temps.shape)
-        self.temps_gpu = torch.from_numpy(self.temps).float().cuda()
+        self.temps_gpu = torch.from_numpy(self.temps).float().cuda().contiguous()
         #self.temps_gpu = torch.from_numpy(self.temps).long().cuda()
 
 
@@ -141,7 +141,7 @@ class RESIDUAL_GPU2(object):
         self.template_inds = []
         self.vis_units = np.arange(self.n_chan)
         for k in range(self.n_units):
-            self.template_inds.append(torch.from_numpy(self.vis_units).cuda())
+            self.template_inds.append(torch.from_numpy(self.vis_units).cuda().contiguous())
 
         
         #self.vis_units_parallel = []
@@ -265,7 +265,7 @@ class RESIDUAL_GPU2(object):
             data_chunk = self.reader.read_data_batch(batch_id, add_buffer=True).T
 
             # transfer raw data to cuda
-            objective = torch.from_numpy(data_chunk).cuda()
+            objective = torch.from_numpy(data_chunk).cuda().contiguous()
             if verbose: 
                 print ("Input size: ",objective.shape, int(sys.getsizeof(objective)), "MB")
 
@@ -283,25 +283,25 @@ class RESIDUAL_GPU2(object):
             # offset time indices by added buffer above
             times_local = (self.spike_train[idx,0]+self.reader.buffer-chunk_start
                                                   -self.waveform_len//2)
-            time_indices = torch.from_numpy(times_local).long().cuda()
+            time_indices = torch.from_numpy(times_local).long().cuda().contiguous()
             # spike_list.append(times_local+chunk_start)
             if verbose: 
                 print ("spike times: ", time_indices.shape, time_indices)
 
             # select template ids
             templates_local = self.spike_train[idx,1]
-            template_ids = torch.from_numpy(templates_local).long().cuda()
+            template_ids = torch.from_numpy(templates_local).long().cuda().contiguous()
             # id_list.append(templates_local)
             if verbose: 
                 print (" template ids: ", template_ids.shape, template_ids)
 
             # select superres alignment shifts
             time_offsets_local = self.time_offsets[idx]
-            time_offsets_local = torch.from_numpy(time_offsets_local).float().cuda()
+            time_offsets_local = torch.from_numpy(time_offsets_local).float().cuda().contiguous()
             
             # select superres alignment shifts
             scales_local = self.scales[idx]
-            scales_local = torch.from_numpy(scales_local).float().cuda()
+            scales_local = torch.from_numpy(scales_local).float().cuda().contiguous()
 
             if verbose: 
                 print ("time offsets: ", time_offsets_local.shape, time_offsets_local)
