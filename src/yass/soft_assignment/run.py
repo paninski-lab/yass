@@ -119,7 +119,11 @@ def run(template_fname,
             spatial_cov = np.load(fname_spatial_cov)
             temporal_cov = np.load(fname_temporal_cov)
         window_size = 51
-        n_chans = 10
+        
+        # Cat: some of the recordings may have < 10 chans:
+        n_chans_min = CONFIG.recordings.n_channels   
+        n_chans = min(10,n_chans_min)
+        
         reader_resid = READER(residual_fname,
                               residual_dtype,
                               CONFIG,

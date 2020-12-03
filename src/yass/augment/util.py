@@ -108,7 +108,10 @@ def denoise_templates(fname_templates, save_dir):
     templates_mc = templates_mc/ptp_mc[:, None]
 
     # denoise max channel templates
-    pca_mc = PCA(n_components=5)
+    # bug fix = PCA(n_components=5); sometimes test dataset may have too few templates... not realistic though
+    pca_mc = PCA(n_components=min(min(templates_mc.shape[0], 
+                                      templates_mc.shape[1]),
+                                  5))
     score = pca_mc.fit_transform(templates_mc)
     deno_temp = pca_mc.inverse_transform(score)
     denoised_templates[:, :, 0] = deno_temp*ptp_mc[:, None]
