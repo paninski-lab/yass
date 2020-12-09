@@ -45,22 +45,22 @@ def run(CONFIG, fname_spike_train, fname_templates):
     #spike_train = np.load(root_dir + '/tmp/final_deconv/deconv/spike_train.npy')
     spike_train = np.load(fname_spike_train)
     spike_clusters = spike_train[:,1]
-    np.save(root_dir+'/phy/spike_clusters.npy', spike_clusters)
+    np.save(os.path.join(root_dir,'phy','spike_clusters.npy'), spike_clusters)
 
     # spike times for each spike: [n_spikes]
     spike_times = spike_train[:,0]
-    np.save(root_dir+'/phy/spike_times.npy', spike_times)
+    np.save(os.path.join(root_dir,'phy','spike_times.npy'), spike_times)
 
     # save templates; not sure why this is required?!
-    np.save(root_dir+'/phy/spike_templates.npy', spike_clusters)
+    np.save(os.path.join(root_dir,'phy','spike_templates.npy'), spike_clusters)
 
     # save geometry
-    chan_pos = np.loadtxt(root_dir+CONFIG.data.geometry)
-    np.save(root_dir+'/phy/channel_positions.npy', chan_pos)
+    chan_pos = np.loadtxt(os.path.join(root_dir,CONFIG.data.geometry))
+    np.save(os.path.join(root_dir,'phy','channel_positions.npy'), chan_pos)
 
     # sequential channel order
     channel_map = np.arange(chan_pos.shape[0])
-    np.save(root_dir + '/phy/channel_map.npy', channel_map)
+    np.save(os.path.join(root_dir,'phy','channel_map.npy'), channel_map)
 
     # pick largest SU channels for each unit; [n_templates x n_channels_loc]; 
     # gives # of channels of the corresponding columns in pc_features, for each spike.
@@ -69,7 +69,7 @@ def run(CONFIG, fname_spike_train, fname_templates):
     print ("PHY loaded templates: ", templates.shape)
     ptps = templates.ptp(0)
     pc_feature_ind = ptps.argsort(0)[::-1][:n_idx_chans].T
-    np.save(root_dir+'/phy/pc_feature_ind.npy',pc_feature_ind)
+    np.save(os.path.join(root_dir,'phy','pc_feature_ind.npy'),pc_feature_ind)
 
     # 
     n_channels = templates.shape[1]
@@ -78,7 +78,7 @@ def run(CONFIG, fname_spike_train, fname_templates):
 
     # unit templates [n_units, times, n_chans]
     temps = templates.transpose(2,0,1)
-    np.save(root_dir + "/phy/templates.npy",temps)
+    np.save(os.path.join(root_dir,"phy","templates.npy"),temps)
 
     # *********************************************
     # ************** SAVE params.py file **********
