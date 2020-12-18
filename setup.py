@@ -12,7 +12,6 @@ from os.path import basename
 from os.path import splitext
 from setuptools import find_packages, setup
 from distutils.extension import Extension
-from torch.utils.cpp_extension import CUDAExtension, BuildExtension
 
 NAME = 'yass-algorithm'
 DESCRIPTION = 'YASS: Yet Another Spike Sorter'
@@ -28,29 +27,15 @@ LICENSE = 'Apache'
 # autodoc_mock_imports list in conf.py
 INSTALL_REQUIRES = [
     # these first two are only required for Python 2
-    'pathlib2;python_version<"3"',
-    'funcsigs;python_version<"3"',
+    'pathlib2;python_version<"3"', 'funcsigs;python_version<"3"',
     # dependencies...
-    'numpy',
-    'scipy',
-    'scikit-learn',
-    'pyyaml',
-    'python-dateutil',
-    'click',
-    'tqdm',
-    'multiprocess',
-    'coloredlogs',
-    'cerberus',
+    'numpy', 'scipy', 'scikit-learn', 'pyyaml', 'python-dateutil', 'click',
+    'tqdm', 'multiprocess', 'coloredlogs', 'cerberus', 
     # 'torch',
     # from experimental pipeline (nnet and clustering)
     # TODO: consider reducing the number of dependencies: parmap, matplotlib
     # and progressbar2 are not necessary
-    'parmap',
-    'statsmodels',
-    'matplotlib',
-    'networkx',
-    'Cython',
-    'progressbar2',
+    'parmap', 'statsmodels', 'matplotlib', 'networkx', 'Cython', 'progressbar2',
     'h5py'
 ]
 
@@ -66,32 +51,35 @@ with io.open(os.path.join(here, 'README.rst'), encoding='utf-8') as f:
 _version_re = re.compile(r'__version__\s+=\s+(.*)')
 
 with open('src/yass/__init__.py', 'rb') as f:
-    VERSION = str(
-        ast.literal_eval(
-            _version_re.search(f.read().decode('utf-8')).group(1)))
+    VERSION = str(ast.literal_eval(_version_re.search(
+        f.read().decode('utf-8')).group(1)))
 
 # Cython and numpy installation based on this:
 # https://stackoverflow.com/a/42163080/709975
 
-ext_modules = [
-    Extension(name="diptest._diptest",
-              sources=["src/diptest/_dip.c", "src/diptest/_diptest.c"],
-              extra_compile_args=['-O3', '-std=c99']),
-    CUDAExtension('rowshift', [
-        'src/gpu_rowshift/rowshift.cpp', 'src/gpu_rowshift/rowshift_kernels.cu'
-    ]),
-    CUDAExtension('cudaSpline', [
-        'src/gpu_bspline_interp/interpSub.cpp', 'src/gpu_bspline_interp/interpSub_kernels.cu'
-    ]),
-    
-    
-]
+
+try:
+    from Cython.setuptools import build_ext
+except Exception:
+    # If we couldn't import Cython, use the normal setuptools
+    # and look for a pre-compiled .c file instead of a .pyx file
+    from setuptools.command.build_ext import build_ext
+    ext_modules = [Extension(name="diptest._diptest",
+                             sources=["src/diptest/_dip.c",
+                                      "src/diptest/_diptest.c"],
+                             extra_compile_args=['-O3', '-std=c99'])]
+else:
+    # If we successfully imported Cython, look for a .pyx file
+    ext_modules = [Extension(name="diptest._diptest",
+                             sources=["src/diptest/_dip.c",
+                                      "src/diptest/_diptest.pyx"],
+                             extra_compile_args=['-O3', '-std=c99'])]
 
 
-class CustomBuildExtCommand(BuildExtension):
-    """Custom build_ext command to use when numpy headers are needed
-    (for diptest) and also
+class CustomBuildExtCommand(build_ext):
+    """build_ext command for use when numpy headers are needed
     """
+
     def run(self):
 
         # Import numpy here, only when headers are needed
@@ -101,7 +89,7 @@ class CustomBuildExtCommand(BuildExtension):
         self.include_dirs.append(numpy.get_include())
 
         # Call original build_ext command
-        BuildExtension.run(self)
+        build_ext.run(self)
 
 
 setup(
