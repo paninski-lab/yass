@@ -80,6 +80,11 @@ ext_modules = [
     CUDAExtension('rowshift', [
         'src/gpu_rowshift/rowshift.cpp', 'src/gpu_rowshift/rowshift_kernels.cu'
     ]),
+    CUDAExtension('cudaSpline', [
+        'src/gpu_bspline_interp/interpSub.cpp', 'src/gpu_bspline_interp/interpSub_kernels.cu'
+    ]),
+    
+    
 ]
 
 
