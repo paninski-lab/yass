@@ -67,7 +67,7 @@ class RF(object):
     def cluster(self, current_indexes, gen, triage_flag,  
                 active_chans=None):
 
-
+        pass
 
 
 

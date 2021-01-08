@@ -140,6 +140,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
 
         #
         self.chans = np.zeros((self.n_units, self.n_chans), 'int32')
+
         # first channel is always the max channel of the ref unit
         self.chans[:, 0] = mcs
 

@@ -45,22 +45,22 @@ def run(CONFIG, fname_spike_train, fname_templates):
     #spike_train = np.load(root_dir + '/tmp/final_deconv/deconv/spike_train.npy')
     spike_train = np.load(fname_spike_train)
     spike_clusters = spike_train[:,1]
-    np.save(root_dir+'/phy/spike_clusters.npy', spike_clusters)
+    np.save(os.path.join(root_dir,'phy','spike_clusters.npy'), spike_clusters)
 
     # spike times for each spike: [n_spikes]
     spike_times = spike_train[:,0]
-    np.save(root_dir+'/phy/spike_times.npy', spike_times)
+    np.save(os.path.join(root_dir,'phy','spike_times.npy'), spike_times)
 
     # save templates; not sure why this is required?!
-    np.save(root_dir+'/phy/spike_templates.npy', spike_clusters)
+    np.save(os.path.join(root_dir,'phy','spike_templates.npy'), spike_clusters)
 
     # save geometry
-    chan_pos = np.loadtxt(root_dir+CONFIG.data.geometry)
-    np.save(root_dir+'/phy/channel_positions.npy', chan_pos)
+    chan_pos = np.loadtxt(os.path.join(root_dir,CONFIG.data.geometry))
+    np.save(os.path.join(root_dir,'phy','channel_positions.npy'), chan_pos)
 
     # sequential channel order
     channel_map = np.arange(chan_pos.shape[0])
-    np.save(root_dir + '/phy/channel_map.npy', channel_map)
+    np.save(os.path.join(root_dir,'phy','channel_map.npy'), channel_map)
 
     # pick largest SU channels for each unit; [n_templates x n_channels_loc]; 
     # gives # of channels of the corresponding columns in pc_features, for each spike.
@@ -69,7 +69,7 @@ def run(CONFIG, fname_spike_train, fname_templates):
     print ("PHY loaded templates: ", templates.shape)
     ptps = templates.ptp(0)
     pc_feature_ind = ptps.argsort(0)[::-1][:n_idx_chans].T
-    np.save(root_dir+'/phy/pc_feature_ind.npy',pc_feature_ind)
+    np.save(os.path.join(root_dir,'phy','pc_feature_ind.npy'),pc_feature_ind)
 
     # 
     n_channels = templates.shape[1]
@@ -78,7 +78,7 @@ def run(CONFIG, fname_spike_train, fname_templates):
 
     # unit templates [n_units, times, n_chans]
     temps = templates.transpose(2,0,1)
-    np.save(root_dir + "/phy/templates.npy",temps)
+    np.save(os.path.join(root_dir,"phy","templates.npy"),temps)
 
     # *********************************************
     # ************** SAVE params.py file **********
@@ -185,7 +185,7 @@ def similarity_matrix_parallel(units, temps, similar_templates):
     
 
 def get_pc_objects_parallel(units, n_channels, pc_feature_ind, spike_train,
-                fname_standardized, n_times):
+                fname_standardized, n_times, phy_percent):
     
     ''' Function that reads 10% of spikes on top 7 channels
         Data is then used to make PCA objects/rot matrices for each channel
@@ -202,7 +202,7 @@ def get_pc_objects_parallel(units, n_channels, pc_feature_ind, spike_train,
         if idx1.shape[0]==0: continue
         spikes = np.int32(spike_train[idx1][:,0])-30
 
-        idx3 = np.random.choice(np.arange(spikes.shape[0]),spikes.shape[0]//10)
+        idx3 = np.random.choice(np.arange(spikes.shape[0]),spikes.shape[0]//int(1./phy_percent))
         spikes = spikes[idx3]
             
         wfs = binary_reader_waveforms_allspikes(fname_standardized, n_channels, n_times, spikes, load_chans)
@@ -240,14 +240,22 @@ def get_pc_objects(root_dir,pc_feature_ind, n_channels, n_times, units, n_compon
     # ********************************************
     print ("...reading sample waveforms for each channel")
     fname_out = os.path.join(os.path.join(root_dir, 'phy'),'wfs_array.npy')
+    
+    try:
+        phy_percent = CONFIG.resources.phy_percent_spikes
+    except:
+        phy_percent = 0.1
+
+    print ("... generating phy output for ", phy_percent *100, " % of total spikes")
+
     if os.path.exists(fname_out)==False:
         if CONFIG.resources.multi_processing==False:
             wfs_array = get_pc_objects_parallel(units, n_channels, pc_feature_ind, 
-                                      spike_train, fname_standardized, n_times)
+                                      spike_train, fname_standardized, n_times, phy_percent)
         else:
             unit_list = np.array_split(units, CONFIG.resources.n_processors)
             res = parmap.map(get_pc_objects_parallel, unit_list, n_channels, pc_feature_ind, 
-                                spike_train, fname_standardized, n_times,
+                                spike_train, fname_standardized, n_times, phy_percent,
                                 processes=CONFIG.resources.n_processors,
                                 pm_pbar=True)
                        

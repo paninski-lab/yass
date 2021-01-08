@@ -166,9 +166,12 @@ def post_process(output_directory,
     CONFIG = read_config()
 
     if method == 'low_ptp':
+        
+        #
 
         # Cat: TODO: move parameter to CONFIG
         threshold = CONFIG.clean_up.min_ptp
+        print("CONFIG threshoold: ", threshold)
 
         # load templates
         templates = np.load(fname_templates)

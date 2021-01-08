@@ -79,11 +79,11 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
 
     # load yass configuration parameters
     CONFIG = Config.from_yaml(config)
-    CONFIG._data['cluster']['min_fr'] = 0.5
+    #CONFIG._data['cluster']['min_fr'] = 0.5
     CONFIG._data['cluster']['knn_triage'] = 0.2
     CONFIG._data['neuralnetwork']['apply_nn'] = False
     CONFIG._data['detect']['threshold'] = 4
-    CONFIG._data['clean_up']['min_ptp'] = 5
+    #CONFIG._data['clean_up']['min_ptp'] = 5
 
     if CONFIG._data['neuralnetwork']['training']['spike_size_ms'] is not None:
         CONFIG._data['recordings']['spike_size_ms'] = CONFIG._data['neuralnetwork']['training']['spike_size_ms']
@@ -169,7 +169,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
             raw_data=True, 
             full_run=True)
 
-        methods = ['off_center', 'low_ptp', 'duplicate', 'high_mad']
+        methods = ['off_center', 'low_ptp', 'duplicate', 'high_mad', 'low_ptp']
         (_, fname_spike_train, _, _, _) = postprocess.run(
             methods,
             os.path.join(TMP_FOLDER,
