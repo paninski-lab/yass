@@ -647,7 +647,7 @@ class TempTempConv(object):
         for unit in range(n_unit):
             sh_ = main_chan_shift[unit]
             residual_computation_templates[unit, :, sh_:sh_+temp_size[unit]] = \
-            shift_channels_cython(aligned_temp[unit], align_shifts[unit])
+            shift_channels(aligned_temp[unit], align_shifts[unit])
         # let's make the templates the same size as the input templates.
         min_loc = residual_computation_templates[max_ptp_unit, max_ptp_unit_main_chan].argmin()
         cut_off_begin = min_loc - min_loc_orig
@@ -747,12 +747,12 @@ def temp_temp_partial(
         # Full temp is the unshifted reconstructed
         # templates for a unit that acts as the data
         # that other units get aonvolved by
-        unshifted_temp = shift_channels_cython(aligned_temp_[unit], align_shifts_[unit])
+        unshifted_temp = shift_channels(aligned_temp_[unit], align_shifts_[unit])
         for ounit in np.where(unit_unit_overlap_[unit])[0]:
             # For all spatially overlapping templates, convolve them with
             # the outer loop template using the SVD trick
             shifts = reverse_shifts(align_shifts_[ounit])
-            shifted_data = shift_channels_cython(unshifted_temp, shifts)
+            shifted_data = shift_channels(unshifted_temp, shifts)
             transformed_data = np.matmul(spat_comp_[ounit][:, :rank_].T, shifted_data)
             for r in range(rank_):
                 temp_temp[i_unit][ounit] += np.convolve(
