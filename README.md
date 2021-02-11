@@ -27,8 +27,8 @@ Installation and Running Instructions
 YASS can be run on AWS or installed on local workstations that have GPUs. Please review the YASS-Wiki (https://github.com/paninski-lab/yass/wiki) for more information. Brief installation instructions are also here:
 
 ### 1. Installing Anaconda and creating YASS environment:
-    `    conda create -n yass python=3.7`
-    `    source activate yass`
+`conda create -n yass python=3.7
+source activate yass`
 
 ### 2. Cloning and installing YASS python code:
     `git clone https://github.com/paninski-lab/yass`
