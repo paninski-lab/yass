@@ -27,7 +27,8 @@ Installation and Running Instructions
 YASS can be run on AWS or installed on local workstations that have GPUs. Please review the YASS-Wiki (https://github.com/paninski-lab/yass/wiki) for more information. Brief installation instructions are also here:
 
 ### 1. Installing Anaconda and creating YASS environment:
-```conda create -n yass python=3.7
+```
+conda create -n yass python=3.7
 source activate yass
 ```
 
@@ -40,16 +41,13 @@ source activate yass
  conda install pytorch==1.2
  ```
 
-### 3. Compiling CUDA code:
+### 3. Compiling CUDA code and resyncing with yass:
 ```
 cd src/gpu_bspline_interp
 python setup.py install --force
 cd ..
 cd gpu_rowshift
 python setup.py install --force
-```
-
-```
 cd ../..
 pip install .
 ```
