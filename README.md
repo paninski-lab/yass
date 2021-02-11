@@ -32,7 +32,8 @@ source activate yass
 ```
 
 ### 2. Cloning and installing YASS python code:
-```git clone https://github.com/paninski-lab/yass
+```
+ git clone https://github.com/paninski-lab/yass
  pip install numpy
  cd yass
  pip --no-cache-dir install -e .
@@ -40,14 +41,16 @@ source activate yass
  ```
 
 ### 3. Compiling CUDA code:
-```cd src/gpu_bspline_interp
+```
+cd src/gpu_bspline_interp
 python setup.py install --force
 cd ..
 cd gpu_rowshift
 python setup.py install --force
 ```
 
-```cd ../..
+```
+cd ../..
 pip install .
 ```
  
