@@ -32,11 +32,11 @@ YASS can be run on AWS or installed on local workstations that have GPUs. Please
 `source activate yass`
 
 ### 2. Cloning and installing YASS python code:
-`git clone https://github.com/paninski-lab/yass`
-`pip install numpy`
-`cd yass`
-`pip --no-cache-dir install -e .`
-`conda install pytorch==1.2`
+ `git clone https://github.com/paninski-lab/yass`
+ `pip install numpy`
+ `cd yass`
+ `pip --no-cache-dir install -e .`
+ `conda install pytorch==1.2`
 
 ### 3. Compiling CUDA code:
 `cd src/gpu_bspline_interp`
