@@ -35,8 +35,8 @@ source activate yass
 ### 2. Cloning and installing YASS python code:
 ```
  git clone https://github.com/paninski-lab/yass
- pip install numpy
  cd yass
+ pip install numpy
  pip --no-cache-dir install -e .
  conda install pytorch==1.2
  ```
