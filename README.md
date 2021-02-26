@@ -1,12 +1,15 @@
 YASS: Yet Another Spike Sorter
 ================================
 
-[UPDATE Feb 2021]
+**[UPDATE Feb 2021]
+**
 
-Yass is now availble on colab including full installation instructions. 
+Yass is now availble on colab including installation and operating instructions:
+
 https://colab.research.google.com/drive/1Qp7RAnPFj8zrhfEGkV7nHbzFiQ8w-4FX?usp=sharing
 
 Yass is also avialble on Spike Interface:
+
 https://github.com/SpikeInterface
 
 
