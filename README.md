@@ -34,33 +34,16 @@ YASS is currently undergoing development to be extended to Neuropixel datasets a
 
 Installation and Running Instructions
 ---------
-YASS can be run on AWS or installed on local workstations that have GPUs. Please review the YASS-Wiki (https://github.com/paninski-lab/yass/wiki) for more information. Brief installation instructions are also here:
 
-### 1. Creating YASS environment:
-```
-conda create -n yass python=3.7
-source activate yass
-```
+We recommend using provided colab notebooks:
 
-### 2. Cloning and installing YASS python code:
-```
- git clone https://github.com/paninski-lab/yass
- cd yass
- pip install numpy
- pip --no-cache-dir install -e .
- conda install pytorch==1.2
- ```
+https://colab.research.google.com/drive/1Qp7RAnPFj8zrhfEGkV7nHbzFiQ8w-4FX?usp=sharing
 
-### 3. Compiling YASS CUDA code and resyncing with YASS:
-```
-cd src/gpu_bspline_interp
-python setup.py install --force
-cd ..
-cd gpu_rowshift
-python setup.py install --force
-cd ../..
-pip install .
-```
+Or the existing implementatoin on Spike Interface:
+
+https://github.com/SpikeInterface
+
+
  
 
 Reference
