@@ -1,7 +1,7 @@
 YASS: Yet Another Spike Sorter
 ================================
 
-*****[UPDATE Feb 2021]*****
+***[UPDATE Feb 2021]***
 
 Yass is now availble on colab including installation and operating instructions:
 
@@ -12,7 +12,8 @@ Yass is also avialble on Spike Interface:
 https://github.com/SpikeInterface
 
 
-*****[UPDATE Mar 2020]*****
+***[UPDATE Mar 2020]***
+
 ------------------
 Yass ver. 2.0 has now been released and is available in the master branch. A manuscript is now available on Biorxiv (https://www.biorxiv.org/content/10.1101/2020.03.18.997924v1). 
 
@@ -42,7 +43,9 @@ Or the existing implementatoin on Spike Interface:
 
 https://github.com/SpikeInterface
 
+Alternatively, you can use the local install options or the AWS provided images:
 
+https://github.com/paninski-lab/yass/wiki
  
 
 Reference
