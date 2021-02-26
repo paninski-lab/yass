@@ -1,8 +1,7 @@
 YASS: Yet Another Spike Sorter
 ================================
 
-**[UPDATE Feb 2021]
-**
+[UPDATE Feb 2021]
 
 Yass is now availble on colab including installation and operating instructions:
 
