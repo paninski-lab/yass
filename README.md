@@ -12,14 +12,14 @@ Yass is also avialble on Spike Interface:
 https://github.com/SpikeInterface
 
 
-[UPDATE March 2020] 
+*****[UPDATE Mar 2020]*****
 ------------------
 Yass ver. 2.0 has now been released and is available in the master branch. A manuscript is now available on Biorxiv (https://www.biorxiv.org/content/10.1101/2020.03.18.997924v1). 
 
 
 YASS - Spike sorting retinal recordings
 ------------------
-YASS is a spike sorting pipeline developed for high-firing rate, high-collision rate retinal recordings.  YASS employs a number of largely automated approaches to isolate single neuron templates and match them to the raw data. In monkey retinal recordings we found that YASS can identify dozens to hundreds of additional neurons not identified by human or other sorters and that such additional neurons have receptive fields and can be used to more accurately decode images.
+YASS is a spike sorting pipeline developed for high-firing rate, high-collision rate retinal recordings.  YASS employs a number of largely automated approaches to isolate single neuron templates and match them to the raw data. In monkey retinal recordings we found that YASS can identify dozens to hundreds of additional neurons not identified by human or other sorters.
 
 <p float="center"> 
 <img src="https://raw.githubusercontent.com/wiki/paninski-lab/yass/images/rfs.png" width="500" height="310">
@@ -29,8 +29,7 @@ YASS is a spike sorting pipeline developed for high-firing rate, high-collision 
 
 YASS - Spike sorting Neuropixel and other cortical/subcortical recordings
 ------------------
-YASS is currently undergoing development to be extended to Neuropixel datasets as well as other electrode layouts (16 channel/4 shank probes, Utah arrays, and others) where electrode drift or unique electrode layouts are present.  YASS can currently be run on these types of datasets using the example neural networks provided (or retraining; see https://github.com/paninski-lab/yass/wiki/Neural-Networks---Loading-and-Retraining).  We will post updates regarding further development of dynamic drift in YASS in a separate branch: YASS-Neuropixels. In the mean time please feel free to reach out regarding novel layouts and datasets.
-
+YASS is currently undergoing development to be extended to Neuropixel datasets as well as other electrode layouts (16 channel/4 shank probes, Utah arrays, and others) where electrode drift or unique electrode layouts are present.  
 
 Installation and Running Instructions
 ---------
