@@ -26,6 +26,7 @@ YASS is a spike sorting pipeline developed for high-firing rate, high-collision 
 
 YASS is currently undergoing development to be extended to Neuropixel datasets as well as other electrode layouts (16 channel/4 shank probes, Utah arrays, and others) where electrode drift or unique electrode layouts are present.  
 
+--------------------------
 **Installation and Running Instructions**
 
 We recommend using provided colab notebooks:
