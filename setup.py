@@ -77,9 +77,20 @@ ext_modules = [
     Extension(name="diptest._diptest",
               sources=["src/diptest/_dip.c", "src/diptest/_diptest.c"],
               extra_compile_args=['-O3', '-std=c99']),
-    CUDAExtension('rowshift', [
-        'src/gpu_rowshift/rowshift.cpp', 'src/gpu_rowshift/rowshift_kernels.cu'
-    ]),
+    CUDAExtension(
+        'rowshift',
+        [
+            'src/gpu_rowshift/rowshift.cpp',
+            'src/gpu_rowshift/rowshift_kernels.cu'
+        ],
+    ),
+    CUDAExtension(
+        'cudaSpline',
+        [
+            'src/gpu_bspline_interp/interpSub.cpp',
+            'src/gpu_bspline_interp/interpSub_kernels.cu'
+        ],
+    )
 ]
 
 
