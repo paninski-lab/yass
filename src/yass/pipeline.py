@@ -33,11 +33,12 @@ from yass import (preprocess, detect, cluster, postprocess,
                   merge, rf, visual, phy)
 from yass.cluster.sharpen import sharpen_templates
 from yass.reader import READER
-from yass.template import run_cleaned_template_computation, run_template_computation
+from yass.template import (run_cleaned_template_computation, run_template_computation)
 from yass.pd_split import run_post_deconv_split
 from yass.template_update import run_template_update
 from yass.deconvolve.utils import shift_svd_denoise
 from yass.postprocess.duplicate_soft_assignment import duplicate_soft_assignment
+from yass.postprocess.remove_small_and_zero_units import remove_small_and_zero_units
 from yass.soft_assignment.template import get_similar_array
 from yass.template import ptp_similarity_matrix
 #from yass.template import update_templates
@@ -126,8 +127,9 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
     os.environ["MKL_NUM_THREADS"] = "1"
     os.environ["GIO_EXTRA_MODULES"] = "/usr/lib/x86_64-linux-gnu/gio/modules/"
     os.environ["CUDA_VISIBLE_DEVICES"] = str(CONFIG.resources.gpu_id)
+    
     ''' **********************************************
-        ************** PREPROCESS ********************
+        ************** RUN BLOCK ********************
         **********************************************
     '''
 
@@ -184,30 +186,11 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         standardized_dtype,
         fname_templates,
         CONFIG)
+        
+	# check for zero-spike and small template unitss
+    remove_small_and_zero_units(fname_templates,fname_spike_train,CONFIG)
 
-    ## save the final templates and spike train
-    #fname_templates_final = os.path.join(
-    #    TMP_FOLDER, 'templates.npy')
-    #fname_spike_train_final = os.path.join(
-    #    TMP_FOLDER, 'spike_train.npy')
-    #fname_noise_soft_assignment_final = os.path.join(
-    #    TMP_FOLDER, 'noise_soft_assignment.npy')
-
-    #if CONFIG.deconvolution.update_templates:
-    #    templates_dir = fname_templates
-    #    fname_templates = os.path.join(templates_dir, 'templates_init.npy')
-
-    ## tranpose axes
-    #templates = np.load(fname_templates).transpose(1,2,0)
-    ## align spike time to the beginning
-    #spike_train = np.load(fname_spike_train)
-    ##spike_train[:,0] -= CONFIG.spike_size//2
-    #soft_assignment = np.load(fname_noise_soft)
-
-    #np.save(fname_templates_final, templates)
-    #np.save(fname_spike_train_final, spike_train)
-    #np.save(fname_noise_soft_assignment_final, soft_assignment)
-
+	# 
     output_folder = os.path.join(TMP_FOLDER, 'output')
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
@@ -243,7 +226,6 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     total_time = time.time() - start
 
-
         
     ''' **********************************************
         ************** RF / VISUALIZE ****************
@@ -255,6 +237,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
 
     if visualize:
         visual.run()
+    
+    
     
     logger.info('Finished YASS execution. Total time: {}'.format(
         human_readable_time(total_time)))
