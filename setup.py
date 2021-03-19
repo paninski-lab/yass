@@ -12,6 +12,15 @@ from os.path import basename
 from os.path import splitext
 from setuptools import find_packages, setup
 from distutils.extension import Extension
+
+# pytorch is required to build yass
+try:
+    import torch  # noqa
+except ModuleNotFoundError as e:
+    raise ModuleNotFoundError(
+        'PyTorch is required to install yass. Install it '
+        'with: pip install torch') from e
+
 from torch.utils.cpp_extension import CUDAExtension, BuildExtension
 
 NAME = 'yass-algorithm'
