@@ -201,6 +201,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         for unit in range(self.n_units):
             chans_sorted = np.argsort(self.ptps[self.similar_array[unit]].max(0))[::-1]
             chans_sorted = chans_sorted[chans_sorted != mcs[unit]]
+            chans_sorted = chans_sorted[~np.in1d(chans_sorted, [0, 1, 384, 383])]
             self.chans[unit, 1:] = chans_sorted[:(self.n_chans-1)]
             
     def get_template_data(self, unit, chans, active_ids):
@@ -237,6 +238,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
         W2 = torch.zeros(T_cov.shape[:3]).float().cuda()
 #         print(T_cov.shape, emp_cov.shape, temp_cov.shape, lam.shape)
         while i<20:
+            
             W1 = ((emp_cov * T_cov).sum([3,4]) - W2 * (T_cov * temp_cov).sum([3,4]))/ (lam + (T_cov**2).sum([3,4]))
             W2 = ((emp_cov * temp_cov).sum([3,4]) - W1 * (T_cov * temp_cov).sum([3,4]))/ (temp_cov**2).sum()
             i += 1
@@ -476,7 +478,8 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                 resid_dat = self.reader_residual.read_data_batch(
                     batch_id, add_buffer=True)#/np.sqrt(self.resid_var)
                 resid_dat = torch.from_numpy(resid_dat).cuda()
-                resid_dat = torch.cat((resid_dat, torch.zeros((resid_dat.shape[0], 1)).cuda()), 1)
+                
+#                 resid_dat = torch.cat((resid_dat, torch.zeros((resid_dat.shape[0], 1)).cuda()), 1)
                 
                 
                 # relevant idx
@@ -502,7 +505,7 @@ class TEMPLATE_ASSIGN_OBJECT(object):
                     
                     for j, unit in enumerate(self.similar_array[prim_unit]):
                         idx_temp = torch.where(spike_train_batch[:,1] == unit)[0]
-                        if idx_temp.shape[0] >1:
+                        if torch.unique(spike_train_batch[idx_temp, 0]).shape[0] >1:
                             active_ids2[j] = True
                             
 #                     active_ids = torch.logical_and(active_ids1, active_ids2)

@@ -17,9 +17,9 @@ def kill_signal(recordings, threshold, window_size):
         A boolean array with the same shap as 'recordings' indicating if the
         observation is noise (1) or was killed (0).
     """
-    recordings = np.copy(recordings)
+    recordings_copy = np.copy(recordings)
 
-    T, C = recordings.shape
+    T, C = recordings_copy.shape
     R = int((window_size-1)/2)
 
     # this will hold a flag 1 (noise), 0 (signal) for every obseration in the
@@ -47,22 +47,22 @@ def kill_signal(recordings, threshold, window_size):
                                                  idx_temp2 < T)]
 
             # set surviving indexes to nan
-            recordings[idx_temp2, c] = np.nan
+            recordings_copy[idx_temp2, c] = np.nan
 
         # noise indexes are the ones that are not nan
         # FIXME: compare to np.nan instead
-        is_noise_idx_temp = (recordings[:, c] == recordings[:, c])
+        is_noise_idx_temp = (recordings_copy[:, c] == recordings[:, c])
 
         # standarize data, ignoring nans
-        recordings[:, c] = recordings[:, c]/np.nanstd(recordings[:, c])
+        recordings_copy[:, c] = recordings_copy[:, c]/np.nanstd(recordings[:, c])
 
         # set non noise indexes to 0 in the recordings
-        recordings[~is_noise_idx_temp, c] = 0
+        recordings_copy[~is_noise_idx_temp, c] = 0
 
         # save noise indexes
         is_noise_idx[is_noise_idx_temp, c] = 1
 
-    return recordings, is_noise_idx
+    return recordings_copy, is_noise_idx
 
 
 def noise_whitener(recordings, temporal_size, window_size, sample_size=1000,
@@ -232,14 +232,17 @@ def get_noise_covariance(reader, CONFIG):
     small_batch = reader.read_data(
                 data_start=reader.rec_len//2 - chunk_5sec//2 + reader.offset,
                 data_end=reader.rec_len//2 + chunk_5sec//2 + reader.offset)
+    
+    
 
     # get noise floor of recording
     noised_killed, is_noise_idx = kill_signal(small_batch, 3, CONFIG.spike_size)
     #print ("small_batch: ", small_batch.shape, ", noised_killed: ", noised_killed.shape)
     
+    print(np.matmul(is_noise_idx.T, is_noise_idx))
     # spatial covariance
     spatial_cov_all = np.divide(np.matmul(noised_killed.T, noised_killed),
-                        np.matmul(is_noise_idx.T, is_noise_idx))
+                        np.matmul(is_noise_idx.T, is_noise_idx) + 1e-6)
     sig = np.sqrt(np.diag(spatial_cov_all))
     sig[sig == 0] = 1
     spatial_cov_all = spatial_cov_all/(sig[:,None]*sig[None])

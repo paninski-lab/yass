@@ -136,9 +136,12 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     '''
     # preprocess
     start = time.time()
-    (standardized_path,
-     standardized_dtype) = preprocess.run(
-        os.path.join(TMP_FOLDER, 'preprocess'))
+    # standardized_path = '/ssd/nishchal/temp_/new/neuropixels-data-sep-2020/scripts/recordings/tmp//preprocess/standardized.bin'
+    standardized_path = '/media/cat/julien/nick_drift/different_preprocessings/data_standardized_registered/standardized_linear.bin'
+    standardized_dtype = 'float32'
+#     (standardized_path,
+#      standardized_dtype) = preprocess.run(
+#         os.path.join(TMP_FOLDER, 'preprocess'))
 
     TMP_FOLDER = os.path.join(TMP_FOLDER, 'nn_train')
     if not os.path.exists(TMP_FOLDER):
@@ -171,26 +174,26 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
             full_run=True)
 
         methods = ['off_center', 'low_ptp', 'duplicate', 'high_mad']
-        (_, fname_spike_train, _, _, _) = postprocess.run(
+        fname_spike_train = postprocess.run(
             methods,
             os.path.join(TMP_FOLDER,
                          'cluster_post_process'),
             standardized_path,
             standardized_dtype,
             fname_templates,
-            fname_spike_train)
+            fname_spike_train)[1]
 
     else:
         # if there is an input spike train, use it
         fname_spike_train = CONFIG.neuralnetwork.training.input_spike_train_filname
-
+    print("training data maker")
     # Get training data maker
     DetectTD, DenoTD = augment.run(
         standardized_path,
         standardized_dtype,
         fname_spike_train,
         os.path.join(TMP_FOLDER, 'augment'))
-
+    print("training detector")
     # Train Detector
     detector = Detect(CONFIG.neuralnetwork.detect.n_filters,
                       CONFIG.spike_size_nn,
@@ -199,7 +202,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
 
     fname_detect = os.path.join(TMP_FOLDER, 'detect.pt')
     detector.train(fname_detect, DetectTD)
-
+    print("training denoiser")
     # Train Denoiser
     denoiser = Denoise(CONFIG.neuralnetwork.denoise.n_filters,
                        CONFIG.neuralnetwork.denoise.filter_sizes,
@@ -207,7 +210,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
                        CONFIG).cuda()
     fname_denoise = os.path.join(TMP_FOLDER, 'denoise.pt')
     denoiser.train(fname_denoise, DenoTD)
-
+    print("saving output")
     output_folder = os.path.join(CONFIG.path_to_output_directory, 'output')
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)

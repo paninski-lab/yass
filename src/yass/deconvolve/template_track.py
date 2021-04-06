@@ -275,7 +275,7 @@ class RegressionTemplates:
         load_from_file = True
         self.model = IB_Denoiser(self.params_denoiser).to(self.params_denoiser['device'])
         self.model.params_denoiser = self.params_denoiser
-        checkpoint = torch.load("/media/cat/julien/allen_75chan/IB2_jitter2_beta_zero_2000000.pt")
+        checkpoint = torch.load("//media/cat/kevin/IB2_jitter2_beta_zero_2000000.pt")
         self.model.load_state_dict(checkpoint['model_state_dict'])
 
     def continuous_visible_channels(self, templates, threshold=.1, neighb_threshold=.5, spatial_neighbor_dist=70):

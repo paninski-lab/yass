@@ -130,8 +130,11 @@ def compute_units_to_compare(fname_templates, units_in,
             # add within units_in_:
             max_val_diff = np.max(np.abs(max_val[units_in_process[ii+1:]] - max_val[[j]]), axis=1)
             min_val_diff = np.max(np.abs(min_val[units_in_process[ii+1:]] - min_val[[j]]), axis=1)
+            print(max_val_diff)
+            print(min_val_diff)
             abs_diff = np.maximum(max_val_diff, min_val_diff)
             abs_diff_rel = abs_diff/ptps_higher[j, units_in_process[ii+1:]]
+            print(abs_diff_rel)
             units_to_compare_1 = units_in_process[ii+1:][np.logical_or(
                 abs_diff < diff_threshold, abs_diff_rel < diff_rel_threshold)]
         else:

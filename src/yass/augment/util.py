@@ -31,7 +31,7 @@ def crop_and_align_templates(fname_templates, save_dir, CONFIG):
     n_units, n_times, n_channels = templates.shape
     mcs = templates.ptp(1).argmax(1)
     spike_size = (CONFIG.spike_size_nn - 1)*2 + 1
-
+    print(spike_size)
     ########## TEMPORALLY ALIGN TEMPLATES #################
     
     # template on max channel only
@@ -49,8 +49,9 @@ def crop_and_align_templates(fname_templates, save_dir, CONFIG):
 
     templates_aligned = shift_chans(templates, shifts)
     
+    
     # crop out the edges since they have bad artifacts
-    templates_aligned = templates_aligned[:, nshifts//2:-nshifts//2]
+    templates_aligned = templates_aligned[:, nshifts//4:-nshifts//4]
 
     ########## Find High Energy Center of Templates #################
 
@@ -61,7 +62,10 @@ def crop_and_align_templates(fname_templates, save_dir, CONFIG):
     # determin temporal center of templates and crop around it
     total_energy = np.sum(np.square(templates_max_channel_aligned), axis=0)
     center = np.argmax(np.convolve(total_energy, np.ones(spike_size//2), 'same'))
+    print(center, spike_size, (center-spike_size//2), (center+spike_size//2))
+    print(templates_aligned.shape)
     templates_aligned = templates_aligned[:, (center-spike_size//2):(center+spike_size//2+1)]
+    print(templates_aligned.shape)
     
     ########## spatially crop (only keep neighbors) #################
 
@@ -88,7 +92,8 @@ def crop_and_align_templates(fname_templates, save_dir, CONFIG):
 
 
 def denoise_templates(fname_templates, save_dir):
-
+    
+    print("denoising")
     # load templates
     templates = np.load(fname_templates)
 
@@ -96,8 +101,9 @@ def denoise_templates(fname_templates, save_dir):
 
     # remove templates with ptp < 5 (if there are enough templates)
     ptps = templates.ptp(1).max(1)
-    if np.sum(ptps > 5) > 100:
-        templates = templates[ptps>5]
+    print(ptps)
+    if np.sum(ptps < 3):
+        templates = templates[ptps>3]
         n_templates = templates.shape[0]
 
     denoised_templates = np.zeros(templates.shape)
@@ -105,6 +111,7 @@ def denoise_templates(fname_templates, save_dir):
     #templates on max channels (index 0)
     templates_mc = templates[:, :, 0]
     ptp_mc = templates_mc.ptp(1)
+    print("printing", np.where(ptp_mc == 0))
     templates_mc = templates_mc/ptp_mc[:, None]
 
     # denoise max channel templates

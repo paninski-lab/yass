@@ -266,7 +266,9 @@ def post_process(output_directory,
             len(units_out)))     
 
     elif method == 'high_mad':
-
+        
+        
+        print(units_in)
         # get data reader
         reader = READER(fname_recording,
                         recording_dtype,
@@ -293,7 +295,7 @@ def post_process(output_directory,
             save_dir,
             min_var_gap,
             max_violations,
-            units_in,
+            units_to_process,
             CONFIG.resources.multi_processing,
             CONFIG.resources.n_processors)
 

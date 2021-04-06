@@ -362,6 +362,7 @@ def run_template_computation(
     
     # run computing function
     if multi_processing:
+        print("Multi Processing Templates")
         parmap.starmap(run_template_computation_parallel,
                        list(zip(unit_ids, fnames_out)),
                        fname_spike_train,

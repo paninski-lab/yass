@@ -25,7 +25,7 @@ import torch
 torch.multiprocessing.set_start_method('spawn', force=True)
 
 import yass
-import yass.preprocess.registration as preprocess
+import yass.preprocess.reg as preprocess
 from yass import set_config
 from yass import read_config
 from yass import (detect, cluster, postprocess,
@@ -302,7 +302,7 @@ def initial_block(TMP_FOLDER,
 
     #methods = ['duplicate', 'high_mad', 'collision']
     #methods = ['off_center', 'high_mad', 'duplicate']
-    methods = ['off_center', 'high_mad', 'duplicate']
+    methods = ['off_center', 'duplicate']
     #methods = ['off_center', 'high_mad', 'duplicate']
     (fname_templates, fname_spike_train, _, _, _) = postprocess.run(
         methods,
