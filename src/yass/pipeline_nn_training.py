@@ -137,7 +137,7 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/'):
     # preprocess
     start = time.time()
     # standardized_path = '/ssd/nishchal/temp_/new/neuropixels-data-sep-2020/scripts/recordings/tmp//preprocess/standardized.bin'
-    standardized_path = '/media/cat/julien/nick_drift/different_preprocessings/data_standardized_registered/standardized_linear.bin'
+    standardized_path = '/media/cat/julien/nick_drift/different_preprocessings/data_standardized_registered/yass_registered/tmp/preprocess/standardized.bin'
     standardized_dtype = 'float32'
 #     (standardized_path,
 #      standardized_dtype) = preprocess.run(

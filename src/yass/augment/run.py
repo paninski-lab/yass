@@ -117,7 +117,8 @@ def get_templates_on_local_channels(reader, save_dir,
         reader,
         multi_processing=CONFIG.resources.multi_processing,
         n_processors=CONFIG.resources.n_processors)
-
+    print("Cropping templates")
+    # fname_templates = "/media/cat/julien/viz_results_np2_fin/template1_computation/templates.npy"
     # cropping templates
     fname_templates_cropped = crop_and_align_templates(
         fname_templates, save_dir, CONFIG)

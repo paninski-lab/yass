@@ -27,10 +27,11 @@ def crop_and_align_templates(fname_templates, save_dir, CONFIG):
 
     # load templates
     templates = np.load(fname_templates)
-    
+    print(templates.shape)
     n_units, n_times, n_channels = templates.shape
     mcs = templates.ptp(1).argmax(1)
     spike_size = (CONFIG.spike_size_nn - 1)*2 + 1
+    print(CONFIG.spike_size_nn)
     print(spike_size)
     ########## TEMPORALLY ALIGN TEMPLATES #################
     
@@ -38,7 +39,7 @@ def crop_and_align_templates(fname_templates, save_dir, CONFIG):
     templates_max_channel = np.zeros((n_units, n_times))
     for k in range(n_units):
         templates_max_channel[k] = templates[k, :, mcs[k]]
-
+    print(templates_max_channel.shape)
     # align them
     ref = np.mean(templates_max_channel, axis=0)
     upsample_factor = 8
@@ -58,9 +59,10 @@ def crop_and_align_templates(fname_templates, save_dir, CONFIG):
     templates_max_channel_aligned = np.zeros((n_units, templates_aligned.shape[1]))
     for k in range(n_units):
         templates_max_channel_aligned[k] = templates_aligned[k, :, mcs[k]]
-
+    print(templates_max_channel_aligned.shape)
     # determin temporal center of templates and crop around it
     total_energy = np.sum(np.square(templates_max_channel_aligned), axis=0)
+    print(total_energy.shape)
     center = np.argmax(np.convolve(total_energy, np.ones(spike_size//2), 'same'))
     print(center, spike_size, (center-spike_size//2), (center+spike_size//2))
     print(templates_aligned.shape)
