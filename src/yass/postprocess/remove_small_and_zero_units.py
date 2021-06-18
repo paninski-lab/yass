@@ -13,7 +13,8 @@ def remove_small_and_zero_units(fname_templates, fname_spike_train, CONFIG):
         threshold = 3
     
     # 
-    templates = np.load(os.path.join(fname_templates,"templates_init.npy"))
+    #templates = np.load(os.path.join(fname_templates,"templates_init.npy"))
+    templates = np.load(fname_templates)
     
     #
     ptps = templates.ptp(1).max(1)
