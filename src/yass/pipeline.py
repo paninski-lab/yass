@@ -188,7 +188,8 @@ def run(config, logger_level='INFO', clean=False, output_dir='tmp/',
         CONFIG)
         
 	# check for zero-spike and small template unitss
-    remove_small_and_zero_units(fname_templates,fname_spike_train,CONFIG)
+    if False:
+        remove_small_and_zero_units(fname_templates,fname_spike_train,CONFIG)
 
 	# 
     output_folder = os.path.join(TMP_FOLDER, 'output')
