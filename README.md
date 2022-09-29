@@ -1,6 +1,13 @@
 YASS: Yet Another Spike Sorter
 ================================
 
+------------------------------
+***[UPDATE Sep 2022]***
+
+Please note that default pyyaml no longer works and the following command needs to be run after all installation steps:
+
+ !pip install pyyaml==5.4.1   
+
 ------------------------------------
 ***[UPDATE Feb 2021]***
 
